@@ -39,6 +39,7 @@ export interface AppMembershipRef {
 
 export interface AppSummaryEnvironment {
   id: string;
+  slug?: string;
   name: string;
   isProduction: boolean;
   health: AppHealth;
@@ -60,7 +61,8 @@ export interface AppSummary {
   degraded: number;
 }
 
-export type AppMemberCounts = Partial<Record<AppMemberFamily, number>>;
+/** Visible members of an environment by type. */
+export type AppMemberCounts = Partial<Record<AppMemberType, number>>;
 
 export type AppPlacementFolderIds = Record<AppMemberFamily, string | null>;
 
@@ -70,6 +72,9 @@ export interface AppEnvironmentDetail {
   name: string;
   isProduction: boolean;
   maintenanceEnabled: boolean;
+  maintenanceStartedAt?: string | null;
+  /** Effective maintenance state of the environment's routes (T11); shape owned by the backend. */
+  maintenance?: Record<string, unknown> | null;
   health: AppHealth;
   memberCounts: AppMemberCounts;
   /** Hidden env folder per family: pass as `folderId` to create inside the environment. */
@@ -85,6 +90,8 @@ export interface AppPermissions {
   operate: boolean;
   envManage: Record<string, boolean>;
   promote: Record<string, boolean>;
+  /** apps:operate on one environment (Phase 2 shutdown / isolation per environment). */
+  operateEnv?: Record<string, boolean>;
 }
 
 export interface AppDetail {
@@ -92,6 +99,9 @@ export interface AppDetail {
   slug: string;
   name: string;
   maintenanceOverride: boolean;
+  maintenanceOverrideAt?: string | null;
+  /** Hidden app-root folder per family ("every environment" access lines grant these). */
+  rootFolderIds?: AppPlacementFolderIds;
   environments: AppEnvironmentDetail[];
   permissions: AppPermissions;
 }

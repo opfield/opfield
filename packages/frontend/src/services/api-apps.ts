@@ -14,6 +14,11 @@ import type {
   AppSummary,
   AppUpdateInput,
   AppVariables,
+  DatabaseConnection,
+  ObjectStorageConnection,
+  PageProject,
+  PaginatedResponse,
+  ProxyHost,
 } from "@/types";
 import type { ApiClientBaseConstructor } from "./api-mixins";
 
@@ -174,6 +179,36 @@ export function withAppsApi<TBase extends ApiClientBaseConstructor>(Base: TBase)
           { method: "DELETE", body: JSON.stringify({ nodeId }) }
         )
       );
+    }
+
+    // ── Member rows for the app tabs (normal list endpoints, `appId` filter) ──
+
+    async listAppRoutes(appId: string): Promise<ProxyHost[]> {
+      const page = await this.request<PaginatedResponse<ProxyHost>>(
+        `/proxy-hosts?appId=${seg(appId)}&limit=100`
+      );
+      return page.data.filter((row) => row.app?.id === appId);
+    }
+
+    async listAppDatabases(appId: string): Promise<DatabaseConnection[]> {
+      const page = await this.request<PaginatedResponse<DatabaseConnection>>(
+        `/databases?appId=${seg(appId)}&limit=200`
+      );
+      return page.data.filter((row) => row.app?.id === appId);
+    }
+
+    async listAppStorage(appId: string): Promise<ObjectStorageConnection[]> {
+      const page = await this.request<PaginatedResponse<ObjectStorageConnection>>(
+        `/object-storage?appId=${seg(appId)}&limit=200`
+      );
+      return page.data.filter((row) => row.app?.id === appId);
+    }
+
+    async listAppPages(appId: string): Promise<PageProject[]> {
+      const page = await this.request<PaginatedResponse<PageProject>>(
+        `/pages?appId=${seg(appId)}&limit=100`
+      );
+      return page.data.filter((row) => row.app?.id === appId);
     }
 
     // ── Maintenance access code, overview, activity ────────────────
