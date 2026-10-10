@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { DrizzleClient } from '@/db/client.js';
 import { disposableDatabase, migrateDatabase } from '@/db/migration-database.test-helpers.js';
 import * as schema from '@/db/schema/index.js';
+import { buildAccessSummary } from '@/lib/access-summary-resolver.js';
 import { expandFolderScopes } from '@/lib/folder-scopes.js';
 import { removeDanglingResourceScopes } from '@/lib/resource-scope-cleanup.js';
 import { DatabaseFolderService } from '@/modules/databases/database-folders.service.js';
@@ -152,6 +153,22 @@ describe.skipIf(!url)('hidden app folders on disposable PostgreSQL', () => {
     const member = await insertDatabase(folders.databases);
     const expanded = await expandFolderScopes(db, [`databases:view:folder/${folders.databases}`]);
     expect(expanded).toContain(`databases:view:${member}`);
+  });
+
+  it('names app folder grants and app scopes by app and environment in the access summary', async () => {
+    const { appId, envId, folders } = await createApp('Labels');
+    const summary = await buildAccessSummary(db, [
+      `databases:view:folder/${folders.databases}`,
+      `apps:view:env/${envId}`,
+      `apps:operate:${appId}`,
+    ]);
+    const databases = summary.areas.find((area) => area.area === 'databases');
+    expect(databases?.folders[0]?.name).toBe('App Labels · production');
+    const appsArea = summary.areas.find((area) => area.area === 'apps');
+    expect(appsArea?.resources.map((resource) => resource.name).sort()).toEqual([
+      'App Labels',
+      'App Labels · production',
+    ]);
   });
 
   it('ungroups members and drops grants when an environment is deleted', async () => {

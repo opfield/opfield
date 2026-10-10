@@ -267,6 +267,16 @@ export const ACCESS_AREAS: readonly AccessAreaDefinition[] = [
     createHint: 'pass folderId to the create operation of manage_ingress_group',
   },
   {
+    // Apps: grants are broad, `<appId>` or `env/<envId>`; members follow their own resource grants.
+    id: 'apps',
+    title: 'Apps',
+    action: prefixed('apps:'),
+    viewScope: 'apps:view',
+    createScope: 'apps:create',
+    createHint:
+      'call manage_app with operation create; create resources inside an environment with folderId from get_app placementFolderIds',
+  },
+  {
     id: 'hosting',
     title: 'Hosting (VMs, snapshots, accounts)',
     action: (base) =>

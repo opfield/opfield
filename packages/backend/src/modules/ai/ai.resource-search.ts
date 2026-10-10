@@ -1,5 +1,8 @@
+import { container } from '@/container.js';
 import { getResourceScopedIds, hasScope, hasScopeBase, hasScopeForResource } from '@/lib/permissions.js';
 import { extractBaseScope } from '@/lib/scopes.js';
+import type { AppMemberType } from '@/modules/apps/app-families.js';
+import { AppMembershipService, memberKey } from '@/modules/apps/app-membership.js';
 import type { DockerManagementService } from '@/modules/docker/docker.service.js';
 import { dockerScopedNodeIds, hasDockerResourceScope } from '@/modules/docker/docker-access-resource.service.js';
 import type { DockerSnapshotKind, DockerSnapshotService } from '@/modules/docker/docker-snapshot.service.js';
@@ -481,6 +484,8 @@ export async function findResource(deps: ResourceSearchDeps, user: User, args: R
     if (results.length < limit) results.push(...batch.results.slice(0, limit - results.length));
   }
 
+  await annotateAppMembers(results);
+
   return {
     query,
     results,
@@ -488,6 +493,38 @@ export async function findResource(deps: ResourceSearchDeps, user: User, args: R
     truncated: results.length >= limit,
     errors: errors.length > 0 ? errors : undefined,
   };
+}
+
+const SEARCH_MEMBER_TYPES: Readonly<Record<string, AppMemberType>> = {
+  proxy_host: 'route',
+  database: 'database',
+  storage: 'storage',
+  page_project: 'pages',
+  docker_compose_project: 'compose',
+  docker_deployment: 'deployment',
+  docker_container: 'container',
+};
+
+/** Results of member types carry `app` (null outside apps), so search can say "in <app> · <env>". */
+async function annotateAppMembers(results: ResourceSearchItem[]): Promise<void> {
+  if (!container.isRegistered(AppMembershipService)) return;
+  const members = results.flatMap((result) => {
+    const type = SEARCH_MEMBER_TYPES[String(result.type)];
+    return type ? [{ type, id: String(result.id), nodeId: (result.nodeId as string | undefined) ?? null }] : [];
+  });
+  if (members.length === 0) return;
+  try {
+    const refs = await container.resolve(AppMembershipService).refsForMembers(members);
+    for (const result of results) {
+      const type = SEARCH_MEMBER_TYPES[String(result.type)];
+      if (!type) continue;
+      result.app =
+        refs.get(memberKey({ type, id: String(result.id), nodeId: (result.nodeId as string | undefined) ?? null })) ??
+        null;
+    }
+  } catch {
+    // The label is a convenience; search results stay usable without it.
+  }
 }
 
 /** The node, or any resource on it, is granted for this Docker view scope (directly or by an implying scope). */

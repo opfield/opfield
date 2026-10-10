@@ -40,6 +40,8 @@ import { AIPlanService } from '@/modules/ai/ai-plan.service.js';
 import { AIProviderRuntimeService } from '@/modules/ai/ai-provider-runtime.service.js';
 import { AIRunService } from '@/modules/ai/ai-run.service.js';
 import { aiRunCommercialRuntime } from '@/modules/ai/ai-run-commercial-runtime.js';
+import { AppFolderService } from '@/modules/apps/app-folders.service.js';
+import { AppMembershipService } from '@/modules/apps/app-membership.js';
 import { AlertService } from '@/modules/audit/alert.service.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { SiemDeliveryService } from '@/modules/audit/siem-delivery.service.js';
@@ -742,6 +744,12 @@ export async function initializeContainer(): Promise<void> {
   container.registerInstance(NginxConfigGenerator, nginxConfigGenerator);
 
   const folderService = new FolderService(db, auditService);
+  const appFolderService = new AppFolderService(db);
+  container.registerInstance(AppFolderService, appFolderService);
+  const appMembershipService = new AppMembershipService(db, appFolderService);
+  container.registerInstance(AppMembershipService, appMembershipService);
+  // Membership and name indexes are cached for 10 s; every app change drops them at once.
+  eventBus.subscribe('apps', () => appMembershipService.invalidate());
   container.registerInstance(FolderService, folderService);
 
   const nginxTemplateService = new NginxTemplateService(db, auditService, configValidator);
