@@ -3,7 +3,7 @@
 // env-live-overridden, env-access-code). Promote arrives with Phase 2.
 import { ChevronRight, KeyRound, Plus, RefreshCw, Server, Wrench } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
@@ -48,7 +48,8 @@ export function AppEnvironmentPage() {
     return null;
   }
   const env = app.environments.find((item) => item.slug === envSlug || item.id === envSlug);
-  if (!env) return <AppRouteFailure error={new Error("Environment not found")} />;
+  // A renamed or deleted environment: back to its app.
+  if (!env) return <Navigate to={appRoute(app.slug)} replace />;
   return <EnvironmentContent app={app} env={env} version={version} refresh={refresh} />;
 }
 
