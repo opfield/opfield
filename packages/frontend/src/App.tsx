@@ -43,6 +43,9 @@ import { Administration } from "@/pages/Administration";
 import { AdminNodeDetail } from "@/pages/AdminNodeDetail";
 import { AdminNodes } from "@/pages/AdminNodes";
 import { AIArtifactPopout } from "@/pages/AIArtifactPopout";
+import { AppEnvironmentPage } from "@/pages/apps/AppEnvironmentPage";
+import { AppPage } from "@/pages/apps/AppPage";
+import { AppsList } from "@/pages/apps/AppsList";
 import { BlockedPage } from "@/pages/Blocked";
 import { CADetail } from "@/pages/CADetail";
 import { CAs } from "@/pages/CAs";
@@ -115,6 +118,8 @@ const REALTIME_RECONCILIATION_CACHE_PREFIXES = [
   "req:/api/monitoring/health-status",
   "req:/api/cas",
   "cas:list:",
+  "req:/api/apps",
+  "apps:",
   "req:/api/proxy-hosts",
   "req:/api/proxy-host-folders/grouped",
   "proxy:grouped",
@@ -697,6 +702,14 @@ function DockerPageGuard() {
 function DockerComposeDetailGuard() {
   const canAccess = useAuthStore((state) => state.hasScopedAccess("docker:compose:view"));
   return canAccess ? <DockerComposeProjectDetail /> : <Navigate to="/docker" replace />;
+}
+
+function AppsPageGuard({ children }: { children: React.ReactElement }) {
+  const canAccess = useAuthStore(
+    (s) => s.hasScopedAccess("apps:view") || s.hasScope("apps:create")
+  );
+  if (!canAccess) return <Navigate to="/" replace />;
+  return children;
 }
 
 function DatabasesPageGuard() {
@@ -1527,6 +1540,30 @@ function GatewayApp() {
               <Route path="/" element={<DashboardPageGuard />} />
               <Route path="/ai/chats/:conversationId" element={<AIWorkspaceRouteGuard />} />
               <Route path="/dashboard" element={<DashboardPageGuard />} />
+              <Route
+                path="/apps"
+                element={
+                  <AppsPageGuard>
+                    <AppsList />
+                  </AppsPageGuard>
+                }
+              />
+              <Route
+                path="/apps/:appSlug/env/:envSlug"
+                element={
+                  <AppsPageGuard>
+                    <AppEnvironmentPage />
+                  </AppsPageGuard>
+                }
+              />
+              <Route
+                path="/apps/:appSlug/:tab?"
+                element={
+                  <AppsPageGuard>
+                    <AppPage />
+                  </AppsPageGuard>
+                }
+              />
               <Route path="/proxy-hosts" element={<ProxyHostsPageGuard />} />
               <Route path="/proxy-hosts/new" element={<ProxyHostsPageGuard create />} />
               <Route path="/proxy-hosts/:proxySlug/:tab?" element={<ProxyHostDetailGuard />} />
