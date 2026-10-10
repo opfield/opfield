@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CreationFolderChoices } from "@/lib/creation-folders";
 import type { AppDetail, AppEnvironmentDetail, AppMemberFamily } from "@/types";
 
 /**
@@ -45,11 +46,27 @@ export function initialAppEnvironment(context: AppCreateContext): AppEnvironment
   );
 }
 
-/** Environment choice of a create dialog; changing it is remembered per app. */
-export function useAppEnvironmentChoice(context: AppCreateContext | null | undefined) {
+/**
+ * Environment choice of a create dialog; changing it is remembered per app. A dialog that stays
+ * mounted passes `open`: each time it opens, the choice starts again from the requested
+ * environment (else the last used one, else Production).
+ */
+export function useAppEnvironmentChoice(
+  context: AppCreateContext | null | undefined,
+  open?: boolean
+) {
   const [environmentId, setEnvironmentIdState] = useState<string | null>(() =>
     context ? (initialAppEnvironment(context)?.id ?? null) : null
   );
+  const contextRef = useRef(context);
+  contextRef.current = context;
+  const wasOpen = useRef(open);
+  useEffect(() => {
+    if (open && !wasOpen.current && contextRef.current) {
+      setEnvironmentIdState(initialAppEnvironment(contextRef.current)?.id ?? null);
+    }
+    wasOpen.current = open;
+  }, [open]);
   const environment = useMemo(
     () => context?.environments.find((env) => env.id === environmentId) ?? null,
     [context, environmentId]
@@ -80,6 +97,24 @@ export function allowedAppNodes<T extends { id: string }>(
   if (!environment) return [...nodes];
   const allowed = new Set(environment.allowedNodeIds);
   return nodes.filter((node) => allowed.has(node.id));
+}
+
+/**
+ * Folder choices of a create dialog opened from an app: only the root ("No folder") is shown;
+ * the request sends the environment's placement folder instead (`appPlacementFolderId`).
+ */
+export const APP_FOLDER_CHOICES: CreationFolderChoices = {
+  allowRoot: true,
+  folders: [],
+  defaultFolderId: "",
+};
+
+/** Remember the environment a resource was created in, as the app's last used one. */
+export function rememberAppCreation(
+  context: AppCreateContext | null | undefined,
+  environment: Pick<AppEnvironmentDetail, "id"> | null
+): void {
+  if (context && environment) rememberAppEnvironment(context.app.id, environment.id);
 }
 
 export function environmentLabel(env: Pick<AppEnvironmentDetail, "name" | "isProduction">) {

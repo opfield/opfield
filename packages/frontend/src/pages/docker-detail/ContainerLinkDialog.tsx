@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   DEFAULT_PROXY_UPSTREAM,
   isProxyUpstreamValid,
@@ -92,6 +92,22 @@ function selectedTarget(
   return null;
 }
 
+/**
+ * A workload that can start the link. `key`, `nodeId`, `type`, `workloadName` and
+ * `canSetEnvironment` are set when the sources come from different workloads (opened from an app).
+ */
+export interface ContainerLinkSourceOption {
+  resourceId: string;
+  label: string;
+  key?: string;
+  nodeId?: string;
+  type?: ContainerLinkEndpoint["type"];
+  workloadName?: string;
+  canSetEnvironment?: boolean;
+}
+
+const sourceKey = (source: ContainerLinkSourceOption) => source.key ?? source.resourceId;
+
 export function ContainerLinkDialog({
   open,
   onOpenChange,
@@ -102,19 +118,32 @@ export function ContainerLinkDialog({
   workloads,
   canSetEnvironment,
   onCreate,
+  beforeFields,
+  description,
+  sourceLabel,
+  sourcesLoading,
+  emptySourcesMessage,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sourceNodeId: string;
   sourceType: ContainerLinkEndpoint["type"];
   /** The workloads that can start the link: one, or the services of a Compose project. */
-  sources: Array<{ resourceId: string; label: string }>;
+  sources: ContainerLinkSourceOption[];
   workloadName: string;
   workloads: DockerContainer[];
   canSetEnvironment: boolean;
   onCreate: (input: ContainerLinkCreateInput) => Promise<boolean>;
+  /** Fields above the form (the App and Environment of a link created from an app). */
+  beforeFields?: ReactNode;
+  description?: string;
+  /** Always show the source picker under this label (sources of an app environment). */
+  sourceLabel?: string;
+  sourcesLoading?: boolean;
+  /** Shown instead of the source picker when there is no source. */
+  emptySourcesMessage?: string;
 }) {
-  const [sourceResourceId, setSourceResourceId] = useState("");
+  const [sourceKeyValue, setSourceKeyValue] = useState("");
   const [selection, setSelection] = useState<ProxyUpstreamSelection>(EMPTY_SELECTION);
   const [alias, setAlias] = useState("");
   const [aliasEdited, setAliasEdited] = useState(false);
@@ -123,12 +152,16 @@ export function ContainerLinkDialog({
 
   useEffect(() => {
     if (!open) return;
-    setSourceResourceId(sources[0]?.resourceId ?? "");
+    setSourceKeyValue(sources[0] ? sourceKey(sources[0]) : "");
     setSelection(EMPTY_SELECTION);
     setAlias("");
     setAliasEdited(false);
     setEnvironment({});
   }, [open, sources]);
+
+  const source = sources.find((candidate) => sourceKey(candidate) === sourceKeyValue) ?? null;
+  const sourceWorkloadName = source?.workloadName ?? workloadName;
+  const sourceCanSetEnvironment = source?.canSetEnvironment ?? canSetEnvironment;
 
   const target = useMemo(() => selectedTarget(selection, workloads), [selection, workloads]);
   const targetName = target?.name ?? "";
@@ -141,14 +174,14 @@ export function ContainerLinkDialog({
   const environmentValid =
     names.every((name) => ENVIRONMENT_VARIABLE.test(name)) && new Set(names).size === names.length;
   const canCreate =
-    Boolean(sourceResourceId) &&
+    Boolean(source) &&
     Boolean(target) &&
     isProxyUpstreamValid(selection) &&
     ALIAS_PATTERN.test(alias) &&
     environmentValid;
 
   const create = async () => {
-    if (!target || !selection.containerPort) return;
+    if (!target || !source || !selection.containerPort) return;
     const trimmed = Object.fromEntries(
       ENVIRONMENT_FIELDS.flatMap(({ field }) => {
         const name = environment[field]?.trim();
@@ -158,15 +191,15 @@ export function ContainerLinkDialog({
     setPending(true);
     try {
       const created = await onCreate({
-        sourceNodeId,
-        sourceType,
-        sourceResourceId,
+        sourceNodeId: source.nodeId ?? sourceNodeId,
+        sourceType: source.type ?? sourceType,
+        sourceResourceId: source.resourceId,
         targetNodeId: target.endpoint.nodeId,
         targetType: target.endpoint.type,
         targetResourceId: target.endpoint.resourceId,
         targetPort: selection.containerPort,
         alias,
-        ...(names.length > 0 ? { environment: trimmed } : {}),
+        ...(names.length > 0 && sourceCanSetEnvironment ? { environment: trimmed } : {}),
       });
       if (created) onOpenChange(false);
     } finally {
@@ -180,31 +213,45 @@ export function ContainerLinkDialog({
         <DialogHeader>
           <DialogTitle>Add Container Link</DialogTitle>
           <DialogDescription>
-            {workloadName} will reach one port of another workload by an alias on a private network.
+            {description ??
+              `${workloadName} will reach one port of another workload by an alias on a private network.`}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {sources.length > 1 && (
-            <label className="block space-y-1.5">
-              <span className="text-sm font-medium">Service</span>
-              <Select
-                value={sourceResourceId}
-                onValueChange={setSourceResourceId}
-                disabled={pending}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select service" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sources.map((source) => (
-                    <SelectItem key={source.resourceId} value={source.resourceId}>
-                      {source.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </label>
+          {beforeFields}
+          {sourceLabel && !sourcesLoading && sources.length === 0 && emptySourcesMessage ? (
+            <p className="text-sm text-muted-foreground">{emptySourcesMessage}</p>
+          ) : (
+            (sources.length > 1 || sourceLabel) && (
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium">{sourceLabel ?? "Service"}</span>
+                <Select
+                  value={sourceKeyValue}
+                  onValueChange={setSourceKeyValue}
+                  disabled={pending || sourcesLoading}
+                >
+                  <SelectTrigger aria-label={sourceLabel ?? "Service"}>
+                    <SelectValue
+                      placeholder={
+                        sourcesLoading
+                          ? "Loading…"
+                          : sourceLabel
+                            ? "Select a source"
+                            : "Select service"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sources.map((option) => (
+                      <SelectItem key={sourceKey(option)} value={sourceKey(option)}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+            )
           )}
 
           <label className="block space-y-1.5">
@@ -257,12 +304,12 @@ export function ContainerLinkDialog({
               disabled={pending}
             />
             <span className="block text-xs text-muted-foreground">
-              The name {workloadName} uses to connect, as alias:port. Lower-case letters, numbers
-              and hyphens; unique among its links.
+              The name {sourceWorkloadName} uses to connect, as alias:port. Lower-case letters,
+              numbers and hyphens; unique among its links.
             </span>
           </label>
 
-          {canSetEnvironment && (
+          {sourceCanSetEnvironment && (
             <div className="space-y-1.5">
               <span className="text-sm font-medium">Environment variables (optional)</span>
               <div className="grid gap-2 sm:grid-cols-3">
@@ -282,7 +329,7 @@ export function ContainerLinkDialog({
               </div>
               <p className="text-xs text-muted-foreground">
                 Names of variables that hold the target's host, port or URL. Setting any of them
-                restarts {workloadName} once.
+                restarts {sourceWorkloadName} once.
               </p>
             </div>
           )}

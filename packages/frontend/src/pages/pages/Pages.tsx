@@ -3,11 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ContentLoading } from "@/components/common/ContentLoading";
-import {
-  CreateFolderSelect,
-  getCreateFolderChoices,
-  isCreateFolderAllowed,
-} from "@/components/common/CreateFolderSelect";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderedResourceList } from "@/components/common/FolderedResourceList";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
@@ -16,181 +11,14 @@ import { RelativeTime } from "@/components/common/RelativeTime";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
 import { nodeIconClassNames } from "@/lib/node-appearance";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
-import { useResourceFolderStore } from "@/stores/resource-folders";
-import type { PageProject, PageProjectPlacementOption } from "@/types";
-import { formatPageBytes, PAGE_HOME_NODE_HINT } from "./page-format";
-
-function CreateProjectDialog({
-  open,
-  onOpenChange,
-  onCreated,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onCreated: (project: PageProject) => void;
-}) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [nodeId, setNodeId] = useState("");
-  const [folderId, setFolderId] = useState("");
-  const [nodes, setNodes] = useState<PageProjectPlacementOption[]>([]);
-  const [nodesLoading, setNodesLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const folders = useResourceFolderStore((state) => state.foldersByType["pages-project"]);
-  const foldersLoading = useResourceFolderStore((state) => state.loadingByType["pages-project"]);
-  const fetchFolders = useResourceFolderStore((state) => state.fetchFolders);
-  const scopes = useAuthStore((state) => state.user?.scopes);
-  // Same rule as POST /pages/projects: broad or node grants allow any folder, folder grants only theirs.
-  const folderChoices = useMemo(
-    () => getCreateFolderChoices(scopes ?? [], "pages:create", folders, nodeId || undefined),
-    [folders, nodeId, scopes]
-  );
-  const destinationAllowed = isCreateFolderAllowed(folderChoices, folderId);
-
-  useEffect(() => {
-    if (open) {
-      void fetchFolders("pages-project");
-      setNodesLoading(true);
-      void api
-        .listPageProjectPlacementOptions()
-        .then((next) => setNodes(next))
-        .catch((error) =>
-          toast.error(error instanceof Error ? error.message : "Failed to load Pages nodes")
-        )
-        .finally(() => setNodesLoading(false));
-    }
-    if (!open) {
-      setName("");
-      setDescription("");
-      setNodeId("");
-      setFolderId("");
-      setSaving(false);
-    }
-  }, [fetchFolders, open]);
-
-  const submit = async () => {
-    if (!name.trim() || !nodeId || saving || !destinationAllowed) return;
-    setSaving(true);
-    try {
-      const project = await api.createPageProject({
-        name: name.trim(),
-        description: description.trim() || null,
-        nodeId,
-        folderId: folderId || null,
-      });
-      toast.success("Page Project created");
-      onCreated(project);
-      onOpenChange(false);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create Page Project");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Create Page Project</DialogTitle>
-          <DialogDescription>
-            Create a static site project for webhook deployments.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <label htmlFor="page-project-name" className="text-sm font-medium">
-              Project name
-            </label>
-            <Input
-              id="page-project-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              autoFocus
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label htmlFor="page-project-folder" className="text-sm font-medium">
-              Folder
-            </label>
-            <CreateFolderSelect
-              id="page-project-folder"
-              choices={folderChoices}
-              value={folderId}
-              onChange={setFolderId}
-              loading={foldersLoading}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label htmlFor="page-project-node" className="text-sm font-medium">
-              Home node
-            </label>
-            <Select value={nodeId} onValueChange={setNodeId} disabled={nodesLoading}>
-              <SelectTrigger id="page-project-node">
-                <SelectValue placeholder={nodesLoading ? "Loading nodes…" : "Select a node"} />
-              </SelectTrigger>
-              <SelectContent>
-                {nodes.map((node) => (
-                  <SelectItem
-                    key={node.id}
-                    value={node.id}
-                    disabled={node.status !== "online" || !node.pagesCapable}
-                  >
-                    {node.displayName || node.hostname}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">{PAGE_HOME_NODE_HINT}</p>
-          </div>
-          <div className="space-y-1.5">
-            <label htmlFor="page-project-description" className="text-sm font-medium">
-              Description
-            </label>
-            <Input
-              id="page-project-description"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="Optional context for this static site"
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => void submit()}
-            disabled={!name.trim() || !nodeId || saving || !destinationAllowed}
-          >
-            {saving ? "Creating…" : "Create project"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
+import type { PageProject } from "@/types";
+import { CreatePageProjectDialog } from "./CreatePageProjectDialog";
+import { formatPageBytes } from "./page-format";
 
 const projectColumns: ResourceListColumn<PageProject>[] = [
   {
@@ -424,7 +252,7 @@ export function Pages() {
           />
         )}
       </div>
-      <CreateProjectDialog
+      <CreatePageProjectDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onCreated={(project) => {

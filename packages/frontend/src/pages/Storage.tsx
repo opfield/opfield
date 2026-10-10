@@ -1,45 +1,17 @@
-import { AnimatePresence, motion } from "framer-motion";
-import {
-  ArrowLeft,
-  ArrowRight,
-  FolderPlus,
-  HardDrive,
-  HardDriveDownload,
-  Plus,
-  RefreshCw,
-} from "lucide-react";
+import { FolderPlus, HardDrive, HardDriveDownload, Plus, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { AnimatedHeight } from "@/components/common/AnimatedHeight";
-import {
-  CreateFolderSelect,
-  getCreateFolderChoices,
-  isCreateFolderAllowed,
-} from "@/components/common/CreateFolderSelect";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderedResourceList } from "@/components/common/FolderedResourceList";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
-import { ManagedResourceFields } from "@/components/common/ManagedResourceFields";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
-import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
-import { SettingsControlRow } from "@/components/common/SettingsControlRow";
-import { SwitchCard } from "@/components/common/SwitchCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -47,10 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
-import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { refreshDynamicScopes } from "@/lib/live-scopes";
 import {
   isManagedStorageCandidateNode,
@@ -67,34 +37,16 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
-import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
-import { useResourceFolderStore } from "@/stores/resource-folders";
+import { requireLicenseFeature } from "@/stores/license-paywall";
 import type {
-  ManagedObjectStorage,
   ManagedObjectStorageCatalogEntry,
-  ManagedObjectStorageCreateInput,
   ManagedObjectStorageStatus,
   Node,
   ObjectStorageConnection,
   ObjectStorageProvider,
 } from "@/types";
-import {
-  canDeployManagedStorage,
-  type ManagedStorageCapacity,
-  managedStorageClusterCapacity,
-} from "./storage-detail/managed-storage-capacity";
-import {
-  catalogEngineVersions,
-  MANAGED_STORAGE_CREATE_ENGINE,
-  MANAGED_STORAGE_ENGINE_LABELS,
-  managedStorageMinimumMemoryMb,
-} from "./storage-detail/managed-storage-engine";
-import {
-  buildStoragePayload,
-  draftFromConnection,
-  type StorageConnectionDraft,
-  StorageConnectionForm,
-} from "./storage-detail/StorageConnectionForm";
+import { ManagedStorageCreateDialog } from "./storage-create/ManagedStorageCreateDialog";
+import { StorageConnectionCreateDialog } from "./storage-create/StorageConnectionCreateDialog";
 import { formatProviderLabel } from "./storage-detail/shared";
 
 const HEALTH_BADGE: Record<string, "success" | "secondary" | "warning" | "destructive"> = {
@@ -116,71 +68,7 @@ const MANAGED_STORAGE_STATUS_BADGE: Record<
   deleting: "warning",
 };
 
-const MANAGED_STORAGE_PROVISION_TIMEOUT_MS = 120_000;
 const STORAGE_NODE_APPEARANCE_CACHE_KEY = "storage:nodes";
-const MANAGED_STORAGE_PROVISION_INTERVAL_MS = 750;
-
-function delay(ms: number) {
-  return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
-}
-
-async function waitForManagedObjectStorageReady(id: string): Promise<ManagedObjectStorage> {
-  const deadline = Date.now() + MANAGED_STORAGE_PROVISION_TIMEOUT_MS;
-  let current = await api.getManagedObjectStorage(id);
-  while (current.status !== "ready" && current.status !== "error" && Date.now() < deadline) {
-    await delay(MANAGED_STORAGE_PROVISION_INTERVAL_MS);
-    current = await api.getManagedObjectStorage(id);
-  }
-  if (current.status === "ready" || current.status === "error") return current;
-  throw new Error("Managed storage is still starting. Check its status from the storage list.");
-}
-
-const MANAGED_STORAGE_FORM_ANIMATION = {
-  initial: { opacity: 0, y: 8 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -4 },
-  transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] as const },
-};
-
-/** Versions of the engine new clusters run; the wizard only offers catalog keys. */
-function catalogStorageVersions(catalog: ManagedObjectStorageCatalogEntry[]): string[] {
-  return catalogEngineVersions(catalog, MANAGED_STORAGE_CREATE_ENGINE);
-}
-
-const MANAGED_STORAGE_MINIMUM_MEMORY_MB = managedStorageMinimumMemoryMb(
-  MANAGED_STORAGE_CREATE_ENGINE
-);
-
-export function defaultManagedStorageDraft(
-  catalog: ManagedObjectStorageCatalogEntry[] = []
-): ManagedObjectStorageCreateInput {
-  return {
-    engine: MANAGED_STORAGE_CREATE_ENGINE,
-    name: "",
-    version: catalogStorageVersions(catalog)[0] ?? "",
-    nodeId: "",
-    storageSizeGb: 10,
-    cpuCores: 1,
-    memoryMb: 1024,
-    swapMb: 0,
-    publishedPort: 9000,
-    publishS3: false,
-    relayEnabled: true,
-    tlsEnabled: true,
-    tags: [],
-  };
-}
-
-function parseStorageTags(value: string) {
-  return Array.from(
-    new Set(
-      value
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean)
-    )
-  );
-}
 
 function formatHealthLabel(
   status: ObjectStorageConnection["healthStatus"] | ManagedObjectStorageStatus
@@ -285,203 +173,6 @@ function StorageTagSummary({
   );
 }
 
-export function ManagedObjectStorageCreateForm({
-  draft,
-  nodes,
-  catalog,
-  capacity,
-  step,
-  onChange,
-}: {
-  draft: ManagedObjectStorageCreateInput;
-  nodes: Node[];
-  catalog: ManagedObjectStorageCatalogEntry[];
-  capacity: ManagedStorageCapacity;
-  step: 1 | 2 | 3;
-  onChange: (draft: ManagedObjectStorageCreateInput) => void;
-}) {
-  const set = <K extends keyof ManagedObjectStorageCreateInput>(
-    key: K,
-    value: ManagedObjectStorageCreateInput[K]
-  ) => onChange({ ...draft, [key]: value });
-  const [resourceInputs, setResourceInputs] = useState(() => ({
-    storageSizeGb: String(draft.storageSizeGb),
-    cpuCores: String(draft.cpuCores),
-    memoryMb: String(draft.memoryMb),
-    swapMb: String(draft.swapMb),
-    publishedPort: String(draft.publishedPort),
-  }));
-  const setResourceInput = (
-    key: "storageSizeGb" | "cpuCores" | "memoryMb" | "swapMb" | "publishedPort",
-    value: string
-  ) => {
-    setResourceInputs((current) => ({ ...current, [key]: value }));
-    set(key, value === "" ? 0 : Number(value));
-  };
-  const [tagsInput, setTagsInput] = useState(() => (draft.tags ?? []).join(", "));
-  const versions = catalogStorageVersions(catalog);
-  const engineLabel = MANAGED_STORAGE_ENGINE_LABELS[MANAGED_STORAGE_CREATE_ENGINE];
-
-  return (
-    <AnimatePresence mode="popLayout" initial={false}>
-      {step === 1 && (
-        <motion.div
-          key="managed-storage-step-1"
-          {...MANAGED_STORAGE_FORM_ANIMATION}
-          className="space-y-4"
-        >
-          <div className="grid gap-4">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="managed-storage-name">
-                Name
-              </label>
-              <Input
-                id="managed-storage-name"
-                value={draft.name}
-                onChange={(event) => set("name", event.target.value)}
-                placeholder="Production storage"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="managed-storage-node">
-                Storage node
-              </label>
-              <Select value={draft.nodeId} onValueChange={(value) => set("nodeId", value)}>
-                <SelectTrigger id="managed-storage-node">
-                  <SelectValue placeholder="Select node" />
-                </SelectTrigger>
-                <SelectContent>
-                  {nodes.map((node) => (
-                    <SelectItem key={node.id} value={node.id}>
-                      {node.displayName || node.hostname}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {nodes.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  No Storage-capable nodes available — enroll or update a Storage node first, then
-                  it appears here.
-                </p>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="managed-storage-version">
-                Engine version
-              </label>
-              <Select value={draft.version} onValueChange={(value) => set("version", value)}>
-                <SelectTrigger id="managed-storage-version">
-                  <SelectValue placeholder="Select version" />
-                </SelectTrigger>
-                <SelectContent>
-                  {versions.map((version) => (
-                    <SelectItem key={version} value={version}>
-                      {engineLabel} {version}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {versions.length > 0
-                  ? `New clusters run ${engineLabel} on a single Storage node.`
-                  : `The storage catalog lists no ${engineLabel} version yet. Refresh the page and try again.`}
-              </p>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium" htmlFor="managed-storage-tags">
-              Tags
-            </label>
-            <Input
-              id="managed-storage-tags"
-              value={tagsInput}
-              onChange={(event) => {
-                setTagsInput(event.target.value);
-                set("tags", parseStorageTags(event.target.value));
-              }}
-              placeholder="team, green:production, analytics"
-            />
-            <p className="text-xs text-muted-foreground">
-              Use color:name for colored tags. Supported colors: blue, red, green, yellow, purple,
-              pink, orange, gray.
-            </p>
-          </div>
-        </motion.div>
-      )}
-
-      {step === 2 && (
-        <motion.div
-          key="managed-storage-step-2"
-          {...MANAGED_STORAGE_FORM_ANIMATION}
-          className="space-y-4"
-        >
-          <ManagedResourceFields
-            idPrefix="managed-storage"
-            values={resourceInputs}
-            capacity={{
-              storageSizeGb: capacity.maxStorageGb,
-              cpuCores: capacity.maxCpuCores || undefined,
-              memoryMb: capacity.maxMemoryMb || undefined,
-              swapMb: capacity.maxSwapMb || undefined,
-            }}
-            onChange={setResourceInput}
-            minimumStorageGb={1}
-            minimumMemoryMb={MANAGED_STORAGE_MINIMUM_MEMORY_MB}
-            memoryHint={`${engineLabel} requires at least ${MANAGED_STORAGE_MINIMUM_MEMORY_MB} MB. `}
-          />
-          {capacity.maxStorageGb === undefined && (
-            <p role="status" className="text-sm text-muted-foreground">
-              Storage-root capacity is unavailable. Update the Storage node daemon, wait for its
-              next health report, then reopen this wizard.
-            </p>
-          )}
-        </motion.div>
-      )}
-      {step === 3 && (
-        <motion.div
-          key="managed-storage-step-3"
-          {...MANAGED_STORAGE_FORM_ANIMATION}
-          className="space-y-4"
-        >
-          <PanelShell
-            title="Publish S3 endpoint"
-            description="Expose a host port in addition to private access."
-            headerBorder={draft.publishS3 ?? false}
-            actions={
-              <Switch
-                checked={draft.publishS3 ?? false}
-                onChange={(enabled) => set("publishS3", enabled)}
-                ariaLabel="Publish S3 endpoint"
-              />
-            }
-          >
-            {draft.publishS3 && (
-              <SettingsControlRow title="S3 API port">
-                <Input
-                  id="managed-storage-publishedPort"
-                  aria-label="S3 API port"
-                  type="number"
-                  min="1"
-                  max={65535}
-                  disabled={!draft.publishS3}
-                  value={resourceInputs.publishedPort}
-                  onChange={(event) => setResourceInput("publishedPort", event.target.value)}
-                />
-              </SettingsControlRow>
-            )}
-          </PanelShell>
-          <SwitchCard
-            label="TLS"
-            description="Encrypt the S3 endpoint with a certificate from the Gateway Storage CA."
-            checked={draft.tlsEnabled ?? false}
-            onCheckedChange={(enabled) => set("tlsEnabled", enabled)}
-          />
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
 export function Storage() {
   return (
     <LicenseFeatureBoundary feature="storage-connections" capability="Storage connections">
@@ -514,71 +205,23 @@ function StorageContent() {
       api.getCached<ObjectStorageConnection[]>("storage:list") === undefined
   );
   const [createOpen, setCreateOpen] = useState(false);
-  const [draft, setDraft] = useState<StorageConnectionDraft>(draftFromConnection(null));
-  const [saving, setSaving] = useState(false);
   const [createFolderAction, setCreateFolderAction] = useState<(() => void) | null>(null);
-  const [folderId, setFolderId] = useState("");
-  const storageFolders = useResourceFolderStore((state) => state.foldersByType.storage);
-  const foldersLoading = useResourceFolderStore((state) => state.loadingByType.storage);
-  const fetchFolders = useResourceFolderStore((state) => state.fetchFolders);
-  const userScopes = useAuthStore((state) => state.user?.scopes);
   const [managedCreateOpen, setManagedCreateOpen] = useState(false);
-  const [managedCreateStep, setManagedCreateStep] = useState<1 | 2 | 3>(1);
-  const [managedCreateSession, setManagedCreateSession] = useState(0);
-  const [managedDraft, setManagedDraft] = useState<ManagedObjectStorageCreateInput>(
-    defaultManagedStorageDraft
-  );
   const [managedCatalog, setManagedCatalog] = useState<ManagedObjectStorageCatalogEntry[]>([]);
   // Cached with the list so a cached list keeps its node icon colors on the first frame.
   const [storageNodes, setStorageNodes] = useState<Node[]>(
     () => api.getCached<Node[]>(STORAGE_NODE_APPEARANCE_CACHE_KEY) ?? []
   );
-  const [managedSaving, setManagedSaving] = useState(false);
-  const [managedProvisioning, setManagedProvisioning] = useState<{ phase: "waiting" } | null>(null);
-  const [managedProvisioningError, setManagedProvisioningError] = useState<{
-    managedStorageId: string;
-    error: string;
-  } | null>(null);
-  const [managedRetrying, setManagedRetrying] = useState(false);
-  const retainedProvisioningError = useRetainedDialogValue(
-    managedProvisioningError,
-    managedProvisioningError !== null
-  );
-
-  useEffect(() => {
-    if (createOpen || managedCreateOpen) void fetchFolders("storage");
-  }, [createOpen, fetchFolders, managedCreateOpen]);
 
   const openConnectionCreate = () => {
     if (!requireLicenseFeature("storage-connections", "Storage connections")) return;
-    setFolderId("");
     setCreateOpen(true);
   };
 
   const openManagedCreate = useCallback(() => {
     if (!requireLicenseFeature("managed-storage", "Managed storage")) return;
-    setManagedDraft(defaultManagedStorageDraft(managedCatalog));
-    setFolderId("");
-    setManagedCreateStep(1);
-    setManagedCreateSession((session) => session + 1);
-    setManagedProvisioning(null);
     setManagedCreateOpen(true);
-  }, [managedCatalog]);
-
-  const closeManagedCreate = useCallback(() => {
-    if (managedProvisioning?.phase === "waiting") return;
-    setManagedCreateOpen(false);
-    setManagedProvisioning(null);
-  }, [managedProvisioning]);
-
-  const showManagedProvisioningError = useCallback(
-    (failure: { managedStorageId: string; error: string }) => {
-      setManagedCreateOpen(false);
-      setManagedProvisioning(null);
-      window.setTimeout(() => setManagedProvisioningError(failure), 250);
-    },
-    []
-  );
+  }, []);
 
   const load = useCallback(async () => {
     const cachedRows = api.getCached<ObjectStorageConnection[]>(storageCacheKey);
@@ -631,15 +274,6 @@ function StorageContent() {
   // resources created after the cached scopes were loaded; row actions keep their own checks.
   const filtered = rows;
 
-  const managedVersions = useMemo(() => catalogStorageVersions(managedCatalog), [managedCatalog]);
-  // The catalog can arrive after the wizard opened; keep the draft on a catalog version.
-  useEffect(() => {
-    setManagedDraft((current) =>
-      managedVersions.includes(current.version)
-        ? current
-        : { ...current, version: managedVersions[0] ?? "" }
-    );
-  }, [managedVersions]);
   const storageNodeById = useMemo(
     () => new Map(storageNodes.map((node) => [node.id, node])),
     [storageNodes]
@@ -648,134 +282,6 @@ function StorageContent() {
     () => storageNodes.filter((node) => node.status === "online" && node.isConnected),
     [storageNodes]
   );
-  const selectedDeployableStorageNode = useMemo(
-    () => deployableStorageNodes.find((node) => node.id === managedDraft.nodeId),
-    [deployableStorageNodes, managedDraft.nodeId]
-  );
-  const managedCapacity = useMemo(
-    () => managedStorageClusterCapacity({ nodeId: managedDraft.nodeId }, deployableStorageNodes),
-    [managedDraft.nodeId, deployableStorageNodes]
-  );
-  // Same destination rules as the create routes: folder-scoped creators only get their
-  // folders; node-scoped creators any folder on that node (managed storage).
-  const connectionFolderChoices = useMemo(
-    () => getCreateFolderChoices(userScopes ?? [], "storage:create", storageFolders),
-    [storageFolders, userScopes]
-  );
-  const managedFolderChoices = useMemo(
-    () =>
-      getCreateFolderChoices(
-        userScopes ?? [],
-        "storage:create",
-        storageFolders,
-        managedDraft.nodeId || undefined
-      ),
-    [managedDraft.nodeId, storageFolders, userScopes]
-  );
-  const canDeployManaged = useMemo(
-    () =>
-      !!selectedDeployableStorageNode &&
-      canDeployManagedStorage(managedDraft, managedVersions, managedCapacity),
-    [managedCapacity, managedDraft, managedVersions, selectedDeployableStorageNode]
-  );
-  const managedCreateStepLabel = { 1: "Storage", 2: "Resources", 3: "Network access" }[
-    managedCreateStep
-  ];
-  const canContinueManagedCreate =
-    managedCreateStep === 1
-      ? managedDraft.name.trim().length > 0 &&
-        isCreateFolderAllowed(managedFolderChoices, folderId) &&
-        deployableStorageNodes.some((node) => node.id === managedDraft.nodeId) &&
-        managedVersions.includes(managedDraft.version)
-      : canDeployManagedStorage(
-          { ...managedDraft, publishedPort: 9000 },
-          managedVersions,
-          managedCapacity
-        );
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      const created = await api.createObjectStorage({
-        ...buildStoragePayload(draft),
-        folderId: folderId || null,
-      });
-      toast.success("Storage connection created");
-      setCreateOpen(false);
-      setDraft(draftFromConnection(null));
-      navigate(storageRoute(created.slug, "overview"));
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create storage connection");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const saveManaged = async () => {
-    if (!canDeployManaged) {
-      toast.error("Complete the managed storage settings with valid resource limits");
-      return;
-    }
-    setManagedSaving(true);
-    setManagedProvisioning({ phase: "waiting" });
-    let created: ManagedObjectStorage | null = null;
-    try {
-      created = await api.createManagedObjectStorage({
-        ...managedDraft,
-        folderId: folderId || null,
-      });
-      const provisioned = await waitForManagedObjectStorageReady(created.id);
-      if (provisioned.status !== "ready" || !provisioned.objectStorageConnectionId) {
-        showManagedProvisioningError({
-          managedStorageId: provisioned.id,
-          error: provisioned.lastError ?? "Managed storage provisioning failed",
-        });
-        return;
-      }
-      toast.success("Managed storage is ready");
-      setManagedCreateOpen(false);
-      setManagedProvisioning(null);
-      const connection = await api.getObjectStorage(provisioned.objectStorageConnectionId);
-      navigate(storageRoute(connection.slug, "browser"));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to create managed storage";
-      if (created) {
-        showManagedProvisioningError({ managedStorageId: created.id, error: message });
-      } else {
-        setManagedProvisioning(null);
-        if (!handleLicenseApiError(error, "Managed storage")) toast.error(message);
-      }
-    } finally {
-      setManagedSaving(false);
-    }
-  };
-
-  const retryManagedProvisioning = async () => {
-    if (!managedProvisioningError) return;
-    setManagedRetrying(true);
-    try {
-      const retried = await api.retryManagedObjectStorageProvisioning(
-        managedProvisioningError.managedStorageId
-      );
-      const provisioned = await waitForManagedObjectStorageReady(retried.id);
-      if (provisioned.status !== "ready" || !provisioned.objectStorageConnectionId) {
-        setManagedProvisioningError({
-          managedStorageId: provisioned.id,
-          error: provisioned.lastError ?? "Managed storage provisioning failed",
-        });
-        return;
-      }
-      toast.success("Managed storage is ready");
-      setManagedProvisioningError(null);
-      const connection = await api.getObjectStorage(provisioned.objectStorageConnectionId);
-      navigate(storageRoute(connection.slug, "browser"));
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to retry provisioning");
-    } finally {
-      setManagedRetrying(false);
-    }
-  };
-
   const columns = useMemo<ResourceListColumn<ObjectStorageConnection>[]>(
     () => [
       {
@@ -996,160 +502,16 @@ function StorageContent() {
         />
       </div>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Add Storage</DialogTitle>
-            <DialogDescription>
-              Connect an existing S3-compatible, FTP, FTPS, or SFTP endpoint.
-            </DialogDescription>
-          </DialogHeader>
-          <ContentLoading loading={foldersLoading} />
-          <SettingsControlRow title="Folder" description="Organization folder">
-            <CreateFolderSelect
-              choices={connectionFolderChoices}
-              value={folderId}
-              onChange={setFolderId}
-              loading={foldersLoading}
-            />
-          </SettingsControlRow>
-          <StorageConnectionForm draft={draft} onChange={setDraft} />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => void save()}
-              pending={saving}
-              disabled={!isCreateFolderAllowed(connectionFolderChoices, folderId)}
-            >
-              Create
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <StorageConnectionCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
 
-      <Dialog
+      <ManagedStorageCreateDialog
         open={managedCreateOpen}
-        onOpenChange={(open) => {
-          if (open) openManagedCreate();
-          else closeManagedCreate();
-        }}
-      >
-        <DialogContent
-          className="max-h-[90dvh] overflow-y-auto sm:max-w-lg"
-          onEscapeKeyDown={(event) => {
-            if (managedProvisioning?.phase === "waiting") event.preventDefault();
-          }}
-          onPointerDownOutside={(event) => {
-            if (managedProvisioning?.phase === "waiting") event.preventDefault();
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>Deploy Managed Storage</DialogTitle>
-            <DialogDescription>
-              Step {managedCreateStep} of 3 — {managedCreateStepLabel}
-            </DialogDescription>
-          </DialogHeader>
-          <AnimatedHeight>
-            <ContentLoading loading={foldersLoading} />
-            {managedCreateStep === 1 && (
-              <div className="mb-4 space-y-1.5">
-                <label className="text-sm font-medium" htmlFor="managed-storage-folder">
-                  Folder
-                </label>
-                <CreateFolderSelect
-                  id="managed-storage-folder"
-                  choices={managedFolderChoices}
-                  value={folderId}
-                  onChange={setFolderId}
-                  loading={foldersLoading}
-                />
-              </div>
-            )}
-            <ManagedObjectStorageCreateForm
-              key={managedCreateSession}
-              draft={managedDraft}
-              nodes={deployableStorageNodes}
-              catalog={managedCatalog}
-              capacity={managedCapacity}
-              step={managedCreateStep}
-              onChange={setManagedDraft}
-            />
-          </AnimatedHeight>
-          <DialogFooter>
-            {managedCreateStep === 1 ? (
-              <>
-                <Button variant="outline" onClick={closeManagedCreate} disabled={managedSaving}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => setManagedCreateStep(2)}
-                  disabled={managedSaving || !canContinueManagedCreate}
-                >
-                  Next <ArrowRight className="h-4 w-4" />
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={() => setManagedCreateStep((step) => (step - 1) as 1 | 2 | 3)}
-                  disabled={managedSaving}
-                >
-                  <ArrowLeft className="h-4 w-4" /> Back
-                </Button>
-                {managedCreateStep === 2 ? (
-                  <Button
-                    onClick={() => setManagedCreateStep(3)}
-                    disabled={managedSaving || !canContinueManagedCreate}
-                  >
-                    Next <ArrowRight className="h-4 w-4" />
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() => void saveManaged()}
-                    pending={managedSaving}
-                    disabled={!canDeployManaged}
-                  >
-                    Deploy storage
-                  </Button>
-                )}
-              </>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={managedProvisioningError !== null}
-        onOpenChange={(open) => !open && setManagedProvisioningError(null)}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Storage Provisioning Failed</DialogTitle>
-            <DialogDescription>
-              What the node reported, and the options for recovering this cluster.
-            </DialogDescription>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">{retainedProvisioningError?.error}</p>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setManagedProvisioningError(null)}
-              disabled={managedRetrying}
-            >
-              Close
-            </Button>
-            <Button onClick={() => void retryManagedProvisioning()} pending={managedRetrying}>
-              Retry
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onOpenChange={setManagedCreateOpen}
+        nodes={deployableStorageNodes}
+        catalog={managedCatalog}
+      />
     </PageTransition>
   );
 }
 
-import { ContentLoading } from "@/components/common/ContentLoading";
 import { LicenseFeatureBoundary } from "@/components/license/LicenseFeatureBoundary";

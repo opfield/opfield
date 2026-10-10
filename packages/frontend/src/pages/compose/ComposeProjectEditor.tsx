@@ -3,6 +3,18 @@ import { CheckCircle2, Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import {
+  AppEnvironmentFields,
+  allowedNodesHint,
+  NoAllowedNodeNotice,
+} from "@/components/apps/AppEnvironmentFields";
+import {
+  type AppCreateContext,
+  allowedAppNodes,
+  appPlacementFolderId,
+  rememberAppCreation,
+  useAppEnvironmentChoice,
+} from "@/components/apps/app-create-context";
 import { AnimatedHeight } from "@/components/common/AnimatedHeight";
 import { PanelShell } from "@/components/common/PanelShell";
 import { useContentLoading } from "@/components/common/reveal-gate";
@@ -66,12 +78,21 @@ export function ComposeProjectEditor({
   projectIdOverride,
   adoptionOverride,
   compactRevision,
+  appContext,
+  onCreated,
 }: {
   onClose?: () => void;
   defaultNodeId?: string;
   projectIdOverride?: string;
   adoptionOverride?: boolean;
   compactRevision?: boolean;
+  /**
+   * A new project opened from an app: locked App field, environment select, only the
+   * environment's allowed Docker nodes, created in the environment's placement folder.
+   */
+  appContext?: AppCreateContext;
+  /** A new project was created (from an app the editor then closes instead of navigating). */
+  onCreated?: () => void;
 } = {}) {
   const { projectId: routeProjectId } = useParams<{ projectId?: string }>();
   const projectId = projectIdOverride ?? routeProjectId;
@@ -83,6 +104,11 @@ export function ComposeProjectEditor({
   const [nodeId, setNodeId] = useState(defaultNodeId ?? "");
   const [name, setName] = useState("");
   const [folderId, setFolderId] = useState<string | null>(null);
+  const fromApp = !!appContext && !projectIdOverride && !routeProjectId;
+  const appEnvironment = useAppEnvironmentChoice(fromApp ? appContext : null);
+  const environment = appEnvironment.environment;
+  // From an app the folder field shows only the root; the environment's folder is sent instead.
+  const destinationFolderId = fromApp ? appPlacementFolderId(environment, "compose") : folderId;
   const [destinationFolders, setDestinationFolders] = useState<
     Array<{ id: string; label: string }>
   >([]);
@@ -116,9 +142,13 @@ export function ComposeProjectEditor({
     ? adoption
       ? canAdoptComposeProject(user?.scopes ?? [], nodeId, projectId)
       : hasComposeProjectScope(user?.scopes ?? [], "docker:compose:manage", nodeId, projectId)
-    : !!nodeId && canCreateInFolder(user?.scopes ?? [], "docker:compose:create", folderId, nodeId);
+    : !!nodeId &&
+      canCreateInFolder(user?.scopes ?? [], "docker:compose:create", destinationFolderId, nodeId);
   useEffect(() => {
-    if (projectId) return;
+    if (projectId || fromApp) {
+      if (fromApp) setFoldersLoaded(true);
+      return;
+    }
     let cancelled = false;
     void api
       .listDockerFolders("compose")
@@ -139,11 +169,11 @@ export function ComposeProjectEditor({
     return () => {
       cancelled = true;
     };
-  }, [projectId, nodeId, user?.scopes]);
+  }, [fromApp, projectId, nodeId, user?.scopes]);
   // A new project for a folder-only creator: the root is never offered, so preselect their only folder
   // (from YAML or a Git source alike) and drop a folder the selected node no longer allows.
   useEffect(() => {
-    if (projectId || !foldersLoaded) return;
+    if (projectId || fromApp || !foldersLoaded) return;
     const rootAllowed = canCreateInFolder(
       user?.scopes ?? [],
       "docker:compose:create",
@@ -157,7 +187,7 @@ export function ComposeProjectEditor({
     } else if (!folderId && !rootAllowed && destinationFolders.length === 1) {
       setFolderId(destinationFolders[0]!.id);
     }
-  }, [destinationFolders, folderId, foldersLoaded, nodeId, projectId, user?.scopes]);
+  }, [destinationFolders, folderId, foldersLoaded, fromApp, nodeId, projectId, user?.scopes]);
   const repositoryCreation = !projectId && sourceMode === "repository";
   const {
     connectorOptions: sourceConnectorOptions,
@@ -224,10 +254,25 @@ export function ComposeProjectEditor({
 
   const selectedNode = nodes.find((node) => node.id === nodeId);
   const supportsCompose = nodeSupportsCompose(selectedNode);
-  const selectableNodes = useMemo(
+  const composeNodes = useMemo(
     () => (projectId ? nodes : nodes.filter((node) => nodeSupportsCompose(node))),
     [nodes, projectId]
   );
+  // From an app: only the Docker nodes the environment allows.
+  const selectableNodes = useMemo(
+    () => (fromApp ? allowedAppNodes(environment, composeNodes) : composeNodes),
+    [composeNodes, environment, fromApp]
+  );
+  const appNodeLocked = fromApp && selectableNodes.length === 1;
+  const noAllowedNode = fromApp && !!environment && nodesLoaded && selectableNodes.length === 0;
+  useEffect(() => {
+    if (!fromApp || !nodesLoaded) return;
+    if (selectableNodes.length === 1) {
+      if (nodeId !== selectableNodes[0]!.id) setNodeId(selectableNodes[0]!.id);
+    } else if (nodeId && !selectableNodes.some((node) => node.id === nodeId)) {
+      setNodeId("");
+    }
+  }, [fromApp, nodeId, nodesLoaded, selectableNodes]);
 
   const input = useCallback(() => {
     const variables = parseVariables(variablesText);
@@ -295,7 +340,7 @@ export function ComposeProjectEditor({
         }
         if (!sourceComposeFilePath.trim()) throw new Error("Compose file path is required");
         const created = await api.createDockerComposeSourceProject(nodeId, {
-          folderId,
+          folderId: destinationFolderId,
           projectName: name.trim(),
           source: {
             connectorId: sourceConnectorId,
@@ -318,6 +363,12 @@ export function ComposeProjectEditor({
           toast.warning(
             `${created.initialBuildError.message} You can adjust Source settings and retry Build now.`
           );
+        if (fromApp) {
+          rememberAppCreation(appContext, environment);
+          onCreated?.();
+          onClose?.();
+          return;
+        }
         navigate(dockerComposeProjectRoute(created.project.id, "source"), { replace: true });
         return;
       }
@@ -330,7 +381,10 @@ export function ComposeProjectEditor({
       let completionMessage = "Compose project created; Pull & Apply started";
       const inputSignature = composeRevisionResumeSignature(values);
       if (!projectId) {
-        const created = await api.createDockerComposeProject(nodeId, { ...values, folderId });
+        const created = await api.createDockerComposeProject(nodeId, {
+          ...values,
+          folderId: destinationFolderId,
+        });
         targetProjectId = created.project.id;
         revisionId = created.revision.id;
       } else if (adoptionResume?.inputSignature === inputSignature) {
@@ -359,6 +413,10 @@ export function ComposeProjectEditor({
         idempotencyKey,
       });
       toast.success(completionMessage);
+      if (!projectId) {
+        rememberAppCreation(fromApp ? appContext : null, environment);
+        onCreated?.();
+      }
       if (onClose) onClose();
       else navigate(dockerComposeProjectRoute(targetProjectId), { replace: true });
     } catch (error) {
@@ -432,7 +490,23 @@ export function ComposeProjectEditor({
 
     return (
       <div className="flex min-h-0 flex-col gap-4">
-        {!projectId ? (
+        {fromApp && appContext && (
+          <AppEnvironmentFields
+            context={appContext}
+            environmentId={appEnvironment.environmentId}
+            onEnvironmentChange={appEnvironment.setEnvironmentId}
+            disabled={saving}
+          />
+        )}
+        {noAllowedNode && appContext && environment ? (
+          <NoAllowedNodeNotice
+            context={appContext}
+            environment={environment}
+            nodeKind="Docker"
+            resourceKind="Compose projects"
+            onNavigate={onClose}
+          />
+        ) : !projectId ? (
           <Tabs
             value={sourceMode}
             onValueChange={(value) => setSourceMode(value as "yaml" | "repository")}
@@ -467,10 +541,13 @@ export function ComposeProjectEditor({
                   value={nodeId}
                   onValueChange={setNodeId}
                   disabled={
-                    !!defaultNodeId && selectableNodes.some((node) => node.id === defaultNodeId)
+                    appNodeLocked ||
+                    (!fromApp &&
+                      !!defaultNodeId &&
+                      selectableNodes.some((node) => node.id === defaultNodeId))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Target node">
                     <SelectValue placeholder="Select node" />
                   </SelectTrigger>
                   <SelectContent>
@@ -483,21 +560,30 @@ export function ComposeProjectEditor({
                 </Select>
               </div>
             </div>
+            {fromApp && environment && selectableNodes.length > 0 && (
+              <p className="-mt-2 text-xs text-muted-foreground">
+                {allowedNodesHint(environment, selectableNodes.length, "Docker")}
+              </p>
+            )}
 
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Folder</label>
               <Select
-                value={folderId ?? "__root__"}
+                value={fromApp ? "__root__" : (folderId ?? "__root__")}
                 onValueChange={(value) => setFolderId(value === "__root__" ? null : value)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a destination folder" />
                 </SelectTrigger>
                 <SelectContent>
-                  {canCreateInFolder(user?.scopes ?? [], "docker:compose:create", null, nodeId) && (
-                    <SelectItem value="__root__">No folder</SelectItem>
-                  )}
-                  {destinationFolders.map((folder) => (
+                  {(fromApp ||
+                    canCreateInFolder(
+                      user?.scopes ?? [],
+                      "docker:compose:create",
+                      null,
+                      nodeId
+                    )) && <SelectItem value="__root__">No folder</SelectItem>}
+                  {(fromApp ? [] : destinationFolders).map((folder) => (
                     <SelectItem key={folder.id} value={folder.id}>
                       {folder.label}
                     </SelectItem>
@@ -588,12 +674,16 @@ export function ComposeProjectEditor({
             variant="outline"
             onClick={() => void validate().catch((error) => toast.error(error.message))}
             pending={validating}
-            disabled={saving || repositoryCreation}
+            disabled={saving || repositoryCreation || noAllowedNode}
           >
             <CheckCircle2 className="mr-1 h-4 w-4" />
             Validate
           </Button>
-          <Button onClick={() => void save()} pending={saving} disabled={validating || !canSubmit}>
+          <Button
+            onClick={() => void save()}
+            pending={saving}
+            disabled={validating || !canSubmit || noAllowedNode}
+          >
             <Save className="mr-1 h-4 w-4" />
             {repositoryCreation
               ? "Create and build"
