@@ -9,6 +9,7 @@ import { useAuthStore } from "@/stores/auth";
 import { useSystemConfigStore } from "@/stores/system-config";
 import {
   type AppMemberFamily,
+  type AppMemberType,
   type CA,
   type DatabaseConnection,
   type Domain,
@@ -421,6 +422,20 @@ export function appPlaceLabel(
   return `${app.name} · ${environment ? environment.name : "every environment"}`;
 }
 
+/** Member counts by type (the API) as counts by family (the access lines). */
+function familyMemberCounts(
+  counts: Partial<Record<AppMemberType, number>>
+): Partial<Record<AppMemberFamily, number>> {
+  return {
+    containers: (counts.container ?? 0) + (counts.deployment ?? 0),
+    compose: counts.compose ?? 0,
+    routes: counts.route ?? 0,
+    databases: counts.database ?? 0,
+    storage: counts.storage ?? 0,
+    pages: counts.pages ?? 0,
+  };
+}
+
 /**
  * The apps the signed-in user can see, with each environment's hidden folders and member counts
  * (one `getApp` per app: the list does not carry the folders). Empty without `apps:view`.
@@ -444,13 +459,20 @@ export async function loadAppScopeCatalog(): Promise<AppScopeApp[]> {
           environments: detail.environments.map((environment) => ({
             id: environment.id,
             name: environment.name,
-            memberCounts: environment.memberCounts ?? {},
+            memberCounts: familyMemberCounts(environment.memberCounts ?? {}),
             folderIds: Object.fromEntries(
               Object.entries(environment.placementFolderIds ?? {}).filter(
                 (entry): entry is [string, string] => typeof entry[1] === "string"
               )
             ),
           })),
+          rootFolderIds: detail.rootFolderIds
+            ? (Object.fromEntries(
+                Object.entries(detail.rootFolderIds).filter(
+                  (entry): entry is [string, string] => typeof entry[1] === "string"
+                )
+              ) as Partial<Record<AppMemberFamily, string>>)
+            : undefined,
         };
       } catch (error) {
         reportScopeLoadError(`app ${summary.name}`, error);

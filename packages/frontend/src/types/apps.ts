@@ -35,6 +35,8 @@ export interface AppMembershipRef {
   name: string;
   environmentId: string;
   environmentName: string;
+  /** Present on newer backends: links open the environment's page. */
+  environmentSlug?: string;
 }
 
 export interface AppSummaryEnvironment {

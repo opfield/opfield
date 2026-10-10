@@ -176,17 +176,16 @@ export const usePinnedContainersStore = create<PinnedContainersState>()(
   )
 );
 
-// Sync pinned container meta when docker store containers update
-let prevContainers: DockerContainer[] = [];
-useDockerStore.subscribe((state) => {
-  if (state.containers === prevContainers) return;
-  prevContainers = state.containers;
-
+/**
+ * Sync pinned container meta from a container list (the Docker list; an app's Compute tab for
+ * app members, which the Docker list leaves out).
+ */
+export function syncPinnedContainerMeta(containers: readonly DockerContainer[]) {
   const pinned = usePinnedContainersStore.getState();
   const pinnedIds = new Set([...pinned.sidebarContainerIds, ...pinned.dashboardContainerIds]);
   if (pinnedIds.size === 0) return;
 
-  for (const c of state.containers) {
+  for (const c of containers) {
     if (!pinnedIds.has(c.id)) continue;
     const existing = pinned.containerMeta[c.id];
     const effectiveState = (c as any)._transition ?? c.state;
@@ -209,4 +208,12 @@ useDockerStore.subscribe((state) => {
       });
     }
   }
+}
+
+// Sync pinned container meta when docker store containers update
+let prevContainers: DockerContainer[] = [];
+useDockerStore.subscribe((state) => {
+  if (state.containers === prevContainers) return;
+  prevContainers = state.containers;
+  syncPinnedContainerMeta(state.containers);
 });

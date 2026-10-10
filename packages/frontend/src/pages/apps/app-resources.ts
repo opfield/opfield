@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/services/api";
+import { syncPinnedContainerMeta } from "@/stores/pinned-containers";
 import type {
   ContainerLink,
   DatabaseConnection,
@@ -51,14 +52,21 @@ export interface AppNetwork {
 
 /** Every visible container of the app (snapshot rows across nodes) and Compose services by project. */
 export async function loadAppCompute(appId: string): Promise<AppCompute> {
-  const [snapshots, projects] = await Promise.all([
-    api.listDockerContainerSnapshots(),
-    api.listDockerComposeProjects(),
+  const [members, projects] = await Promise.all([
+    api.listDockerContainerSnapshots({ appId }),
+    api.listDockerComposeProjects(undefined, { appId }),
   ]);
   const memberProjects = projects.filter((project) => project.app?.id === appId);
-  const containers = snapshots.filter(
+  const containers = members.filter(
     (row) => row.app?.id === appId && !row.labels?.[COMPOSE_PROJECT_LABEL]
   );
+  syncPinnedContainerMeta(containers);
+  // A project's service containers are not members themselves: read them from the project's nodes.
+  const projectNodes = [...new Set(memberProjects.map((project) => project.nodeId))];
+  const nodeRows = await Promise.all(
+    projectNodes.map((nodeId) => api.listDockerContainerSnapshots({ nodeId }).catch(() => []))
+  );
+  const snapshots = nodeRows.flat();
   const compose = memberProjects.map((project) => ({
     project,
     services: snapshots

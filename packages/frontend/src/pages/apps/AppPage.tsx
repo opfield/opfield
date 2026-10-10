@@ -55,11 +55,18 @@ import { SettingsTab } from "./tabs/SettingsTab";
 import type { MemberRef, TabActions } from "./tabs/tab-shared";
 import { useAppDetail } from "./use-app";
 
-const NEW_ITEMS: Array<{ type: AppCreateType; label: string; icon: typeof Box }> = [
+const NEW_ITEMS: Array<{
+  type: AppCreateType;
+  variant?: "external";
+  label: string;
+  icon: typeof Box;
+}> = [
   { type: "container", label: "Container or deployment", icon: Box },
   { type: "compose", label: "Compose project", icon: Boxes },
   { type: "database", label: "Database", icon: Database },
+  { type: "database", variant: "external", label: "Database connection", icon: Database },
   { type: "storage", label: "Storage", icon: HardDrive },
+  { type: "storage", variant: "external", label: "Storage connection", icon: HardDrive },
   { type: "route", label: "Route", icon: Globe },
   { type: "pages", label: "Pages project", icon: Globe2 },
   { type: "container-link", label: "Container link", icon: Link2 },
@@ -84,7 +91,7 @@ function NewMenu({
   onNewEnvironment,
   canCreate,
 }: {
-  onCreate: (type: AppCreateType) => void;
+  onCreate: (type: AppCreateType, variant?: "external") => void;
   onNewEnvironment?: () => void;
   canCreate: boolean;
 }) {
@@ -100,7 +107,10 @@ function NewMenu({
       <DropdownMenuContent align="end" className="w-56">
         {canCreate &&
           NEW_ITEMS.map((item) => (
-            <DropdownMenuItem key={item.type} onClick={() => onCreate(item.type)}>
+            <DropdownMenuItem
+              key={`${item.type}:${item.variant ?? ""}`}
+              onClick={() => onCreate(item.type, item.variant)}
+            >
               <item.icon className="h-4 w-4" />
               {item.label}
             </DropdownMenuItem>
@@ -256,7 +266,7 @@ function AppPageContent({
               {(canCreate || permissions.edit) && (
                 <NewMenu
                   canCreate={canCreate}
-                  onCreate={(type) => setCreateRequest({ type })}
+                  onCreate={(type, variant) => setCreateRequest({ type, variant })}
                   onNewEnvironment={permissions.edit ? () => setNewEnvOpen(true) : undefined}
                 />
               )}

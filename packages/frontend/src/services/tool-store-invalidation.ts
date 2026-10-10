@@ -9,6 +9,7 @@ export const TOOL_STORE_INVALIDATION_CHANNEL_PREFIX = "tool.store.invalidated.";
 
 const STORE_EVENT_CHANNELS: Record<string, string[]> = {
   accessLists: ["access-list.changed"],
+  apps: ["apps"],
   ca: ["ca.changed"],
   certificates: ["cert.changed"],
   containers: ["docker.container.changed"],
@@ -150,6 +151,24 @@ export function invalidateToolStore(storeName: string): void {
       break;
     case "pages":
       invalidate("req:/api/pages", "pages:");
+      break;
+    case "apps":
+      // Members join and leave the normal lists when an app changes.
+      invalidate(
+        "req:/api/apps",
+        "apps:",
+        "req:/api/proxy-hosts",
+        "req:/api/proxy-host-folders/grouped",
+        "proxy:grouped",
+        "req:/api/databases",
+        "databases:list",
+        "req:/api/object-storage",
+        "storage:list",
+        "req:/api/pages",
+        "pages:",
+        "req:/api/docker",
+        "docker:"
+      );
       break;
     case "pageTokens":
       invalidate("req:/api/pages", "pages:tokens");
