@@ -7,7 +7,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'create_docker_container',
     description:
-      'Create a new Docker container on a node from an image already present on that node, and start it when you also have docker:containers:manage on it (otherwise it stays stopped). Before first creation, use list_docker_images and pull_docker_image when the requested image is absent, then wait for the pull task to complete. Volume mounts may reference only existing Gateway-managed volumes; never provide host bind paths. Secure runtime requires a healthy Secure Runtime capability on the node and does not support GPU or device attachments. For public Docker Hub images such as nginx:alpine, omit registryId; a saved registry is not required.',
+      'Create a new Docker container on a node from an image already present on that node, and start it when you also have docker:containers:manage on it (otherwise it stays stopped). Before first creation, use list_docker_images and pull_docker_image when the requested image is absent, then wait for the pull task to complete. Volume mounts may reference only existing Gateway-managed volumes; never provide host bind paths. Secure runtime requires a healthy Secure Runtime capability on the node and does not support GPU or device attachments. For public Docker Hub images such as nginx:alpine, omit registryId; a saved registry is not required. To create inside an app environment, pass folderId from get_app placementFolderIds.',
     parameters: {
       type: 'object',
       properties: {
@@ -96,6 +96,8 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
       properties: {
         nodeId: { type: 'string', description: 'Docker node ID (required)' },
         search: { type: 'string', description: 'Optional search over container ID, name, image, status, and ports' },
+        excludeAppMembers: { type: 'boolean', description: 'Leave out resources that belong to an app.' },
+        appId: { type: 'string', description: 'Only resources of this app (any environment).' },
       },
       required: ['nodeId'],
     },
@@ -153,6 +155,8 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
       properties: {
         nodeId: { type: 'string', description: 'Docker node ID (required)' },
         search: { type: 'string', description: 'Optional search over deployment name, image, status, and routes' },
+        excludeAppMembers: { type: 'boolean', description: 'Leave out resources that belong to an app.' },
+        appId: { type: 'string', description: 'Only resources of this app (any environment).' },
       },
       required: ['nodeId'],
     },
@@ -815,10 +819,12 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_docker_compose',
     description:
-      'Inspect and manage first-class single-node Docker Compose Projects. Supports discovery, validation, create/adopt/delete, immutable revisions, lifecycle operations, operation history, project secrets, and recent service logs (logs, optionally one serviceName). Managed mutations require the Compose entitlement and exact docker:compose resource scopes. While a Git-source build rollout owns a project, revision, secret, and lifecycle changes are refused with 409 BUILD_ROLLOUT_IN_PROGRESS until it finishes. operation_start pull_apply applies a revision with the managed database links that exist when it runs: links deleted since the revision was built are left out (their variables, secrets and network), links the project runs are kept and links saved pending are added when the revision defines their service. When that changes the revision, a copy of it is applied (the operation names that revision); it is refused when it lacks the service of a link the project runs.',
+      'Inspect and manage first-class single-node Docker Compose Projects. Supports discovery, validation, create/adopt/delete, immutable revisions, lifecycle operations, operation history, project secrets, and recent service logs (logs, optionally one serviceName). Managed mutations require the Compose entitlement and exact docker:compose resource scopes. While a Git-source build rollout owns a project, revision, secret, and lifecycle changes are refused with 409 BUILD_ROLLOUT_IN_PROGRESS until it finishes. operation_start pull_apply applies a revision with the managed database links that exist when it runs: links deleted since the revision was built are left out (their variables, secrets and network), links the project runs are kept and links saved pending are added when the revision defines their service. When that changes the revision, a copy of it is applied (the operation names that revision); it is refused when it lacks the service of a link the project runs. To create inside an app environment, pass folderId from get_app placementFolderIds.',
     parameters: {
       type: 'object',
       properties: {
+        excludeAppMembers: { type: 'boolean', description: 'Leave out resources that belong to an app.' },
+        appId: { type: 'string', description: 'Only resources of this app (any environment).' },
         operation: {
           type: 'string',
           enum: [
@@ -1118,7 +1124,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_docker_deployment',
     description:
-      "Create, update, or delete a blue/green Docker deployment. create needs docker:containers:create for the node or folder; update needs docker:containers:edit, plus docker:containers:environment and docker:containers:secrets when it changes image, command, entrypoint, user or runtimeProfile, and docker:containers:environment when it changes env; an update that changes only desiredConfig.env needs docker:containers:environment alone (the slots get it with the next deploy, which needs docker:containers:manage); the deployment's own scopes authorize pulling a new image, docker:images:pull is not needed; delete needs docker:containers:delete and removes both slots and the router. Use deploy_docker_deployment to roll out a new image.",
+      "Create, update, or delete a blue/green Docker deployment. create needs docker:containers:create for the node or folder; update needs docker:containers:edit, plus docker:containers:environment and docker:containers:secrets when it changes image, command, entrypoint, user or runtimeProfile, and docker:containers:environment when it changes env; an update that changes only desiredConfig.env needs docker:containers:environment alone (the slots get it with the next deploy, which needs docker:containers:manage); the deployment's own scopes authorize pulling a new image, docker:images:pull is not needed; delete needs docker:containers:delete and removes both slots and the router. Use deploy_docker_deployment to roll out a new image. To create inside an app environment, pass folderId from get_app placementFolderIds.",
     parameters: {
       type: 'object',
       properties: {

@@ -1,4 +1,5 @@
-import { and, eq, inArray, or } from 'drizzle-orm';
+import { and, eq, inArray, or, type SQL, sql } from 'drizzle-orm';
+import { container } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import {
   appEnvironments,
@@ -21,6 +22,7 @@ export interface AppMemberRef {
   name: string;
   environmentId: string | null;
   environmentName: string | null;
+  environmentSlug: string | null;
 }
 
 /** A member as the API names it: containers by node and name, deployments and the rest by id. */
@@ -49,6 +51,26 @@ export function parseAppListFilter(query: Record<string, unknown> | undefined | 
   return { excludeAppMembers: raw === true || raw === 'true' || raw === '1', appId };
 }
 
+/**
+ * SQL for a list filter on a resource table whose rows sit in folders of `folderTable` (undefined: no filter):
+ * `appId` keeps the members of that app, `excludeAppMembers` drops every app member.
+ */
+export function appMemberFolderCondition(folderColumn: any, folderTable: any, filter: AppListFilter): SQL | undefined {
+  if (filter.appId) {
+    return sql`${folderColumn} in (select ${folderTable.id} from ${folderTable} where ${folderTable.appId} = ${filter.appId})`;
+  }
+  if (filter.excludeAppMembers) {
+    return sql`(${folderColumn} is null or ${folderColumn} not in (select ${folderTable.id} from ${folderTable} where ${folderTable.appId} is not null))`;
+  }
+  return undefined;
+}
+
+/** Query-string boolean (`true`/`1`); zod's coerce turns "false" into true. */
+export function queryFlag(value: unknown): boolean | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  return value === true || value === 'true' || value === '1';
+}
+
 export function hasAppListFilter(filter: AppListFilter): boolean {
   return !!filter.appId || !!filter.excludeAppMembers;
 }
@@ -62,7 +84,7 @@ export class AppMembershipService {
   private names: {
     at: number;
     apps: Map<string, { slug: string; name: string }>;
-    envs: Map<string, string>;
+    envs: Map<string, { name: string; slug: string }>;
   } | null = null;
 
   constructor(
@@ -327,19 +349,57 @@ export class AppMembershipService {
       slug: app.slug,
       name: app.name,
       environmentId: folder.environmentId,
-      environmentName: folder.environmentId ? (names.envs.get(folder.environmentId) ?? null) : null,
+      environmentName: folder.environmentId ? (names.envs.get(folder.environmentId)?.name ?? null) : null,
+      environmentSlug: folder.environmentId ? (names.envs.get(folder.environmentId)?.slug ?? null) : null,
     };
   }
 
   private async loadNames() {
     if (this.names && Date.now() - this.names.at < NAMES_TTL_MS) return this.names;
     const appRows = await this.db.select({ id: apps.id, slug: apps.slug, name: apps.name }).from(apps);
-    const envRows = await this.db.select({ id: appEnvironments.id, name: appEnvironments.name }).from(appEnvironments);
+    const envRows = await this.db
+      .select({ id: appEnvironments.id, name: appEnvironments.name, slug: appEnvironments.slug })
+      .from(appEnvironments);
     this.names = {
       at: Date.now(),
       apps: new Map(appRows.map((row) => [row.id, { slug: row.slug, name: row.name }])),
-      envs: new Map(envRows.map((row) => [row.id, row.name])),
+      envs: new Map(envRows.map((row) => [row.id, { name: row.name, slug: row.slug }])),
     };
     return this.names;
   }
+}
+
+function membership(): AppMembershipService | null {
+  return container.isRegistered(AppMembershipService) ? container.resolve(AppMembershipService) : null;
+}
+
+/** `app` on rows of a folder-based list, then the list filter (no-op when apps are not wired, e.g. in unit tests). */
+export async function withAppMembers<T extends Record<string, any>>(
+  family: AppFamily,
+  rows: T[],
+  filter: AppListFilter = {},
+  folderIdOf?: (row: T) => string | null | undefined
+): Promise<Array<T & { app: AppMemberRef | null }>> {
+  const service = membership();
+  if (!service) return rows.map((row) => ({ ...row, app: null }));
+  return service.annotateAndFilter(family, rows, filter, folderIdOf);
+}
+
+/** `app` on Docker rows keyed by node and placement key (container/deployment name, Compose project id). */
+export async function withDockerAppMembers<T extends Record<string, any>>(
+  resourceType: 'container' | 'compose',
+  rows: T[],
+  keyOf: (row: T) => { nodeId: string; resourceKey: string } | null,
+  filter: AppListFilter = {}
+): Promise<Array<T & { app: AppMemberRef | null }>> {
+  const service = membership();
+  if (!service) return rows.map((row) => ({ ...row, app: null }));
+  return service.filterRows(await service.annotateDocker(resourceType, rows, keyOf), filter);
+}
+
+/** `app` of one member (detail responses); null outside apps or when apps are not wired. */
+export async function appForMember(member: AppMemberKey): Promise<AppMemberRef | null> {
+  const service = membership();
+  if (!service) return null;
+  return (await service.refsForMembers([member])).get(memberKey(member)) ?? null;
 }

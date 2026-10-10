@@ -2,6 +2,7 @@ import type { OpenAPIHono } from '@hono/zod-openapi';
 import type { MiddlewareHandler } from 'hono';
 import { container } from '@/container.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { appForMember, parseAppListFilter, withDockerAppMembers } from '@/modules/apps/app-membership.js';
 import { requireScopeBase } from '@/modules/auth/auth.middleware.js';
 import { hasDockerResourceScope } from '@/modules/docker/docker-access-resource.service.js';
 import { LicensePolicyService } from '@/modules/license/license-policy.service.js';
@@ -99,8 +100,13 @@ export function registerDockerComposeRoutes(router: OpenAPIHono<AppEnv>) {
   router.openapi({ ...listComposeProjectsRoute, middleware: requireScopeBase('docker:compose:view') }, async (c) => {
     const service = container.resolve(DockerComposeService);
     const scopes = c.get('effectiveScopes') || [];
-    const data = (await service.list(c.req.query('nodeId'))).filter((project) =>
-      hasDockerResourceScope(scopes, 'docker:compose:view', project.nodeId, project.id)
+    const data = await withDockerAppMembers(
+      'compose',
+      (await service.list(c.req.query('nodeId'))).filter((project) =>
+        hasDockerResourceScope(scopes, 'docker:compose:view', project.nodeId, project.id)
+      ),
+      (project) => ({ nodeId: project.nodeId, resourceKey: project.id }),
+      parseAppListFilter(c.req.query())
     );
     const logicalStates = await container
       .resolve(DockerAvailabilityService)
@@ -125,10 +131,10 @@ export function registerDockerComposeRoutes(router: OpenAPIHono<AppEnv>) {
 
   router.openapi(
     { ...getComposeProjectRoute, middleware: requireComposeProjectScope('docker:compose:view') },
-    async (c) =>
-      c.json({
-        data: await container.resolve(DockerComposeService).get(c.req.param('nodeId')!, c.req.param('projectId')!),
-      })
+    async (c) => {
+      const data = await container.resolve(DockerComposeService).get(c.req.param('nodeId')!, c.req.param('projectId')!);
+      return c.json({ data: { ...data, app: await appForMember({ type: 'compose', id: c.req.param('projectId')! }) } });
+    }
   );
 
   router.openapi(

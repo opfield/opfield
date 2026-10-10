@@ -219,6 +219,10 @@ function compactProxyHostForAgent(host: Record<string, any>) {
     ...(safeHost.rateLimitMode !== undefined ? { rateLimitMode: safeHost.rateLimitMode } : {}),
     ...(safeHost.maintenanceEnabled !== undefined ? { maintenanceEnabled: safeHost.maintenanceEnabled } : {}),
     ...(safeHost.maintenanceStartedAt !== undefined ? { maintenanceStartedAt: safeHost.maintenanceStartedAt } : {}),
+    ...(safeHost.appMaintenanceMode !== undefined && safeHost.appMaintenanceMode !== 'off'
+      ? { appMaintenanceMode: safeHost.appMaintenanceMode }
+      : {}),
+    ...(safeHost.app !== undefined ? { app: safeHost.app } : {}),
   };
   return {
     id: safeHost.id,

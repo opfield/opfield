@@ -1,16 +1,24 @@
 import { container } from '@/container.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { AppMembersService } from '@/modules/apps/app-members.service.js';
 import { AppNodesService } from '@/modules/apps/app-nodes.service.js';
 import {
   CreateAppEnvironmentSchema,
   CreateAppSchema,
+  PlaceAppMembersSchema,
   UpdateAppEnvironmentSchema,
   UpdateAppSchema,
 } from '@/modules/apps/apps.schemas.js';
 import { type AppActor, AppsService } from '@/modules/apps/apps.service.js';
 import type { User } from '@/types.js';
 
-export const APP_TOOL_NAMES = new Set(['list_apps', 'get_app', 'manage_app', 'manage_app_environment']);
+export const APP_TOOL_NAMES = new Set([
+  'list_apps',
+  'get_app',
+  'manage_app',
+  'manage_app_environment',
+  'manage_app_members',
+]);
 
 function requiredString(value: unknown, field: string, operation: string): string {
   if (typeof value === 'string' && value) return value;
@@ -30,6 +38,8 @@ export async function executeAppTool(user: User, toolName: string, args: Record<
       return manageApp(service, actor, args);
     case 'manage_app_environment':
       return manageEnvironment(service, actor, args);
+    case 'manage_app_members':
+      return manageMembers(service, actor, args);
     default:
       throw new AppError(400, 'VALIDATION_ERROR', `Unknown app tool: ${toolName}`);
   }
@@ -89,5 +99,25 @@ async function manageEnvironment(service: AppsService, actor: AppActor, args: Re
         .remove(actor, appId, environmentId(), requiredString(args.nodeId, 'nodeId', operation));
     default:
       throw new AppError(400, 'VALIDATION_ERROR', `Unsupported environment operation: ${operation}`);
+  }
+}
+
+async function manageMembers(service: AppsService, actor: AppActor, args: Record<string, unknown>) {
+  const operation = String(args.operation ?? '');
+  switch (operation) {
+    case 'list':
+      return {
+        data: await service.listMembers(
+          actor.scopes,
+          requiredString(args.appId, 'appId', operation),
+          typeof args.environmentId === 'string' && args.environmentId ? args.environmentId : undefined
+        ),
+      };
+    case 'place':
+      return container
+        .resolve(AppMembersService)
+        .place(actor, PlaceAppMembersSchema.parse({ target: args.target ?? null, members: args.members }));
+    default:
+      throw new AppError(400, 'VALIDATION_ERROR', `Unsupported members operation: ${operation}`);
   }
 }

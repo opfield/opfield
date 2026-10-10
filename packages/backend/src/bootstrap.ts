@@ -41,7 +41,7 @@ import { AIProviderRuntimeService } from '@/modules/ai/ai-provider-runtime.servi
 import { AIRunService } from '@/modules/ai/ai-run.service.js';
 import { aiRunCommercialRuntime } from '@/modules/ai/ai-run-commercial-runtime.js';
 import { AppFolderService } from '@/modules/apps/app-folders.service.js';
-import { AppMembersReader } from '@/modules/apps/app-members.service.js';
+import { AppMembersReader, AppMembersService } from '@/modules/apps/app-members.service.js';
 import { AppMembershipService } from '@/modules/apps/app-membership.js';
 import { AppNodesService } from '@/modules/apps/app-nodes.service.js';
 import { AppsService } from '@/modules/apps/apps.service.js';
@@ -759,6 +759,9 @@ export async function initializeContainer(): Promise<void> {
   appsService.setEventBus(eventBus);
   container.registerInstance(AppsService, appsService);
   container.registerInstance(AppNodesService, new AppNodesService(db, auditService, appsService, appMembersReader));
+  const appMembersService = new AppMembersService(db, auditService, appFolderService, appsService);
+  appMembersService.setEventBus(eventBus);
+  container.registerInstance(AppMembersService, appMembersService);
   container.registerInstance(FolderService, folderService);
 
   const nginxTemplateService = new NginxTemplateService(db, auditService, configValidator);

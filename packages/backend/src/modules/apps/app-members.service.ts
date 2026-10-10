@@ -5,6 +5,7 @@ import {
   dockerAccessResources,
   dockerComposeProjects,
   dockerContainerFolderAssignments,
+  dockerContainerFolders,
   dockerDeployments,
   ingressGroupMembers,
   managedDatabaseInstances,
@@ -15,9 +16,20 @@ import {
   proxyHosts,
 } from '@/db/schema/index.js';
 import { hasScopeForResource } from '@/lib/permissions.js';
+import type { AppError } from '@/middleware/error-handler.js';
+import type { AuditService } from '@/modules/audit/audit.service.js';
 import { hasDockerResourceScope } from '@/modules/docker/docker-access-resource.service.js';
-import type { AppFamily, AppMemberType } from './app-families.js';
+import type { EventBusService } from '@/services/event-bus.service.js';
+import { APP_ENV_MANAGE_SCOPE, assertAppScope, hasAppScope } from './app-access.js';
+import { type AppFamily, type AppMemberType, familyOfMemberType } from './app-families.js';
 import type { AppFolderService } from './app-folders.service.js';
+import {
+  APP_FAMILY_NODE_TYPES,
+  appPlacementForEnvironment,
+  assertPlacementNodesAllowed,
+} from './app-placement-guard.js';
+import type { AppMemberRefInput, PlaceAppMembersInput } from './apps.schemas.js';
+import type { AppActor, AppsService } from './apps.service.js';
 
 /** One member of an app environment as the API lists it. */
 export interface AppMember {
@@ -333,3 +345,494 @@ export class AppMembersReader {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** One member a place request names, resolved. */
+interface ResolvedMember {
+  input: AppMemberRefInput;
+  type: AppMemberType;
+  /** Container: name; others: id. */
+  id: string;
+  name: string;
+  nodeIds: string[];
+  nodeId: string | null;
+  folderId: string | null;
+  /** Docker scope resource id (`<nodeId>/<id>` grants). */
+  scopeResourceId: string | null;
+  /** Docker placement key (container or deployment name, Compose project id). */
+  resourceKey: string | null;
+  refusal?: { code: string; message: string };
+}
+
+export interface PlaceResult {
+  placed: Array<{
+    member: AppMemberRefInput;
+    type: AppMemberType;
+    id: string;
+    name: string;
+    environmentId: string | null;
+  }>;
+  refused: Array<{ member: AppMemberRefInput; code: string; message: string }>;
+}
+
+/** Layout events of each family, so the normal lists refresh after a member moves in or out. */
+const FAMILY_EVENTS: Readonly<Record<AppFamily, string>> = {
+  containers: 'docker.folder.changed',
+  compose: 'docker.folder.changed',
+  routes: 'proxy.host.changed',
+  databases: 'database.folder.changed',
+  storage: 'storage.folder.changed',
+  pages: 'pages.folder.changed',
+};
+
+/** The permission that lets a caller change where a member lives (as for moving it between folders). */
+export function canEditMember(
+  scopes: readonly string[],
+  member: { type: AppMemberType; id: string; nodeId: string | null; scopeResourceId: string | null }
+): boolean {
+  const granted = [...scopes];
+  switch (member.type) {
+    case 'route':
+      return hasScopeForResource(granted, 'proxy:edit', member.id);
+    case 'database':
+      return hasScopeForResource(granted, 'databases:edit', member.id);
+    case 'storage':
+      return hasScopeForResource(granted, 'storage:edit', member.id);
+    case 'pages':
+      return hasScopeForResource(granted, 'pages:edit', member.id);
+    case 'compose':
+      return hasDockerResourceScope(granted, 'docker:compose:manage', member.nodeId ?? '', member.id);
+    case 'deployment':
+      return hasDockerResourceScope(granted, 'docker:containers:edit', member.nodeId ?? '', member.id);
+    case 'container':
+      return hasDockerResourceScope(
+        granted,
+        'docker:containers:edit',
+        member.nodeId ?? '',
+        member.scopeResourceId ?? ''
+      );
+  }
+}
+
+/**
+ * Moves resources into, between and out of app environments. Membership is the folder of each resource (or the
+ * Docker placement row), so a move sets the folder to the target environment's folder of that family, or to null
+ * for "No app". Each member is checked and placed on its own; refusals are reported, not thrown.
+ */
+export class AppMembersService {
+  private eventBus?: EventBusService;
+  private afterRoutesMoved?: (routeIds: string[]) => Promise<void>;
+
+  constructor(
+    private readonly db: DrizzleClient,
+    private readonly auditService: AuditService,
+    private readonly folders: AppFolderService,
+    private readonly apps: AppsService
+  ) {}
+
+  setEventBus(bus: EventBusService) {
+    this.eventBus = bus;
+  }
+
+  /** Maintenance overlay recompute for routes that changed environment (set by the maintenance module). */
+  setRouteMoveHook(hook: (routeIds: string[]) => Promise<void>) {
+    this.afterRoutesMoved = hook;
+  }
+
+  async place(actor: AppActor, input: PlaceAppMembersInput): Promise<PlaceResult> {
+    let target: { appId: string; environmentId: string; name: string; envName: string } | null = null;
+    if (input.target) {
+      const { app } = await this.apps.resolveVisible(actor.scopes, input.target.appId);
+      const env = await this.apps.getEnvironment(app.id, input.target.environmentId);
+      assertAppScope(actor.scopes, APP_ENV_MANAGE_SCOPE, app.id, env.id);
+      target = { appId: app.id, environmentId: env.id, name: app.name, envName: env.name };
+    }
+    const result: PlaceResult = { placed: [], refused: [] };
+    const touchedApps = new Set<string>(target ? [target.appId] : []);
+    const touchedFamilies = new Set<AppFamily>();
+    const movedRoutes: string[] = [];
+    const resolved = await this.resolveMembers(input.members);
+    const targetFolders = target
+      ? (await this.folders.envFolders([target.environmentId])).get(target.environmentId)
+      : null;
+
+    for (const member of resolved) {
+      const refuse = (code: string, message: string) => result.refused.push({ member: member.input, code, message });
+      if (member.refusal) {
+        refuse(member.refusal.code, member.refusal.message);
+        continue;
+      }
+      const family = familyOfMemberType(member.type);
+      const source = await this.folders.resolveFolder(family, member.folderId);
+      if (source && !source.environmentId) {
+        refuse('RESOURCE_IN_APP', 'This resource sits in an app root folder');
+        continue;
+      }
+      if (!canEditMember(actor.scopes, member)) {
+        refuse('FORBIDDEN', 'You cannot change where this resource lives');
+        continue;
+      }
+      if (source && !hasAppScope(actor.scopes, APP_ENV_MANAGE_SCOPE, source.appId, source.environmentId)) {
+        refuse('FORBIDDEN', 'Missing apps:env:manage for the environment this resource leaves');
+        continue;
+      }
+      const targetFolderId = target ? (targetFolders?.[family] ?? null) : null;
+      if (target && !targetFolderId) {
+        refuse('APP_ENVIRONMENT_NOT_FOUND', 'Environment not found');
+        continue;
+      }
+      if ((member.folderId ?? null) === targetFolderId) {
+        result.placed.push({
+          member: member.input,
+          type: member.type,
+          id: member.id,
+          name: member.name,
+          environmentId: target?.environmentId ?? null,
+        });
+        continue;
+      }
+      if (target) {
+        try {
+          const placement = await appPlacementForEnvironment(
+            this.db,
+            target.environmentId,
+            APP_FAMILY_NODE_TYPES[family]
+          );
+          // External database and storage connections run on no node; Pages without a node yet are free too.
+          if (member.nodeIds.length > 0)
+            assertPlacementNodesAllowed(placement, member.nodeIds, APP_FAMILY_NODE_TYPES[family]);
+        } catch (error) {
+          const appError = error as AppError;
+          refuse(appError.code ?? 'APP_NODE_NOT_ALLOWED', appError.message);
+          continue;
+        }
+      }
+      await this.setFolder(member, family, targetFolderId);
+      if (source) touchedApps.add(source.appId);
+      touchedFamilies.add(family);
+      if (member.type === 'route') movedRoutes.push(member.id);
+      await this.auditService.log({
+        userId: actor.userId,
+        action: 'app.resource.place',
+        resourceType: 'app_member',
+        resourceId: member.type === 'container' ? `${member.nodeId}:${member.id}` : member.id,
+        details: {
+          memberType: member.type,
+          memberId: member.id,
+          nodeId: member.nodeId,
+          name: member.name,
+          fromAppId: source?.appId ?? null,
+          fromEnvironmentId: source?.environmentId ?? null,
+          appId: target?.appId ?? null,
+          environmentId: target?.environmentId ?? null,
+          appName: target?.name ?? null,
+          environmentName: target?.envName ?? null,
+        },
+      });
+      result.placed.push({
+        member: member.input,
+        type: member.type,
+        id: member.id,
+        name: member.name,
+        environmentId: target?.environmentId ?? null,
+      });
+    }
+
+    for (const family of touchedFamilies) this.eventBus?.publish(FAMILY_EVENTS[family], { action: 'resources_moved' });
+    if (touchedFamilies.size > 0) for (const appId of touchedApps) this.apps.publish(appId, 'members_changed');
+    if (movedRoutes.length > 0) await this.afterRoutesMoved?.(movedRoutes);
+    return result;
+  }
+
+  private async setFolder(member: ResolvedMember, family: AppFamily, folderId: string | null): Promise<void> {
+    const now = new Date();
+    switch (family) {
+      case 'routes':
+        await this.db.update(proxyHosts).set({ folderId, updatedAt: now }).where(eq(proxyHosts.id, member.id));
+        return;
+      case 'databases':
+        await this.db
+          .update(databaseConnections)
+          .set({ folderId, updatedAt: now })
+          .where(eq(databaseConnections.id, member.id));
+        return;
+      case 'storage':
+        await this.db
+          .update(objectStorageConnections)
+          .set({ folderId, updatedAt: now })
+          .where(eq(objectStorageConnections.id, member.id));
+        return;
+      case 'pages':
+        await this.db.update(pageProjects).set({ folderId, updatedAt: now }).where(eq(pageProjects.id, member.id));
+        return;
+      case 'containers':
+      case 'compose': {
+        const resourceType = family === 'compose' ? 'compose' : 'container';
+        await this.db
+          .insert(dockerContainerFolderAssignments)
+          .values({
+            nodeId: member.nodeId!,
+            resourceType,
+            resourceKey: member.resourceKey!,
+            containerName: resourceType === 'container' ? member.resourceKey! : null,
+            folderId,
+            sortOrder: 0,
+          })
+          .onConflictDoUpdate({
+            target: [
+              dockerContainerFolderAssignments.nodeId,
+              dockerContainerFolderAssignments.resourceType,
+              dockerContainerFolderAssignments.resourceKey,
+            ],
+            set: { folderId, updatedAt: now },
+          });
+        return;
+      }
+    }
+  }
+
+  /** Resolve what each requested member is, where it sits and which nodes it runs on. */
+  private async resolveMembers(inputs: readonly AppMemberRefInput[]): Promise<ResolvedMember[]> {
+    const out: ResolvedMember[] = [];
+    for (const input of inputs) {
+      const base = {
+        input,
+        type: input.type,
+        id: input.id ?? input.resourceKey ?? '',
+        name: '',
+        nodeIds: [] as string[],
+        nodeId: input.nodeId ?? null,
+        folderId: null as string | null,
+        scopeResourceId: null as string | null,
+        resourceKey: null as string | null,
+      };
+      const notFound = (message = 'Resource not found') =>
+        out.push({ ...base, refusal: { code: 'NOT_FOUND', message } });
+      if (!base.id) {
+        notFound('id is required');
+        continue;
+      }
+      switch (input.type) {
+        case 'route': {
+          if (!UUID_RE.test(base.id)) {
+            notFound();
+            break;
+          }
+          const [row] = await this.db
+            .select({
+              id: proxyHosts.id,
+              folderId: proxyHosts.folderId,
+              nodeId: proxyHosts.nodeId,
+              ingressGroupId: proxyHosts.ingressGroupId,
+              domainNames: proxyHosts.domainNames,
+              isSystem: proxyHosts.isSystem,
+            })
+            .from(proxyHosts)
+            .where(eq(proxyHosts.id, base.id))
+            .limit(1);
+          if (!row) {
+            notFound();
+            break;
+          }
+          const nodeIds = row.ingressGroupId
+            ? (
+                await this.db
+                  .select({ nodeId: ingressGroupMembers.nodeId })
+                  .from(ingressGroupMembers)
+                  .where(eq(ingressGroupMembers.groupId, row.ingressGroupId))
+              ).map((member) => member.nodeId)
+            : row.nodeId
+              ? [row.nodeId]
+              : [];
+          const resolved: ResolvedMember = {
+            ...base,
+            name: Array.isArray(row.domainNames) ? row.domainNames.join(', ') : row.id,
+            folderId: row.folderId,
+            nodeIds,
+          };
+          if (row.isSystem) {
+            resolved.refusal = { code: 'ROUTE_NOT_PLACEABLE', message: 'System routes cannot join an app' };
+          }
+          out.push(resolved);
+          break;
+        }
+        case 'database':
+        case 'storage':
+        case 'pages': {
+          if (!UUID_RE.test(base.id)) {
+            notFound();
+            break;
+          }
+          const row =
+            input.type === 'database'
+              ? (
+                  await this.db
+                    .select({
+                      name: databaseConnections.name,
+                      folderId: databaseConnections.folderId,
+                      nodeId: managedDatabaseInstances.nodeId,
+                    })
+                    .from(databaseConnections)
+                    .leftJoin(
+                      managedDatabaseInstances,
+                      eq(managedDatabaseInstances.databaseConnectionId, databaseConnections.id)
+                    )
+                    .where(eq(databaseConnections.id, base.id))
+                    .limit(1)
+                )[0]
+              : input.type === 'storage'
+                ? (
+                    await this.db
+                      .select({
+                        name: objectStorageConnections.name,
+                        folderId: objectStorageConnections.folderId,
+                        nodeId: managedStorageClusters.nodeId,
+                      })
+                      .from(objectStorageConnections)
+                      .leftJoin(
+                        managedStorageClusters,
+                        eq(managedStorageClusters.objectStorageConnectionId, objectStorageConnections.id)
+                      )
+                      .where(eq(objectStorageConnections.id, base.id))
+                      .limit(1)
+                  )[0]
+                : (
+                    await this.db
+                      .select({ name: pageProjects.name, folderId: pageProjects.folderId, nodeId: pageProjects.nodeId })
+                      .from(pageProjects)
+                      .where(eq(pageProjects.id, base.id))
+                      .limit(1)
+                  )[0];
+          if (!row) {
+            notFound();
+            break;
+          }
+          out.push({ ...base, name: row.name, folderId: row.folderId, nodeIds: row.nodeId ? [row.nodeId] : [] });
+          break;
+        }
+        case 'compose': {
+          if (!UUID_RE.test(base.id)) {
+            notFound();
+            break;
+          }
+          const [project] = await this.db
+            .select({
+              id: dockerComposeProjects.id,
+              nodeId: dockerComposeProjects.nodeId,
+              name: dockerComposeProjects.name,
+            })
+            .from(dockerComposeProjects)
+            .where(eq(dockerComposeProjects.id, base.id))
+            .limit(1);
+          if (!project) {
+            notFound();
+            break;
+          }
+          out.push({
+            ...base,
+            name: project.name,
+            nodeId: project.nodeId,
+            nodeIds: [project.nodeId],
+            folderId: await this.dockerFolder('compose', project.nodeId, project.id),
+            scopeResourceId: project.id,
+            resourceKey: project.id,
+          });
+          break;
+        }
+        case 'deployment': {
+          if (!UUID_RE.test(base.id)) {
+            notFound();
+            break;
+          }
+          const [deployment] = await this.db
+            .select({ id: dockerDeployments.id, nodeId: dockerDeployments.nodeId, name: dockerDeployments.name })
+            .from(dockerDeployments)
+            .where(eq(dockerDeployments.id, base.id))
+            .limit(1);
+          if (!deployment) {
+            notFound();
+            break;
+          }
+          out.push({
+            ...base,
+            name: deployment.name,
+            nodeId: deployment.nodeId,
+            nodeIds: [deployment.nodeId],
+            folderId: await this.dockerFolder('container', deployment.nodeId, deployment.name),
+            scopeResourceId: deployment.id,
+            resourceKey: deployment.name,
+          });
+          break;
+        }
+        case 'container': {
+          if (!base.nodeId) {
+            notFound('nodeId is required for a container');
+            break;
+          }
+          const [access] = await this.db
+            .select({ id: dockerAccessResources.id })
+            .from(dockerAccessResources)
+            .where(
+              and(
+                eq(dockerAccessResources.nodeId, base.nodeId),
+                eq(dockerAccessResources.resourceType, 'container'),
+                eq(dockerAccessResources.resourceKey, base.id)
+              )
+            )
+            .limit(1);
+          if (!access) {
+            notFound('Container not found on this node');
+            break;
+          }
+          const [deployment] = await this.db
+            .select({ id: dockerDeployments.id })
+            .from(dockerDeployments)
+            .where(and(eq(dockerDeployments.nodeId, base.nodeId), eq(dockerDeployments.name, base.id)))
+            .limit(1);
+          const folderRow = await this.dockerPlacement('container', base.nodeId, base.id);
+          const resolved: ResolvedMember = {
+            ...base,
+            name: base.id,
+            nodeIds: [base.nodeId],
+            folderId: folderRow?.folderId ?? null,
+            scopeResourceId: access.id,
+            resourceKey: base.id,
+          };
+          if (deployment) {
+            resolved.refusal = {
+              code: 'USE_DEPLOYMENT',
+              message: 'This container belongs to a deployment: move the deployment',
+            };
+          } else if (folderRow?.isSystem) {
+            resolved.refusal = {
+              code: 'COMPOSE_SERVICE',
+              message: 'This container is a Compose service: move its Compose project',
+            };
+          }
+          out.push(resolved);
+          break;
+        }
+      }
+    }
+    return out;
+  }
+
+  private async dockerFolder(resourceType: 'container' | 'compose', nodeId: string, key: string) {
+    return (await this.dockerPlacement(resourceType, nodeId, key))?.folderId ?? null;
+  }
+
+  private async dockerPlacement(resourceType: 'container' | 'compose', nodeId: string, key: string) {
+    const [row] = await this.db
+      .select({ folderId: dockerContainerFolderAssignments.folderId, isSystem: dockerContainerFolders.isSystem })
+      .from(dockerContainerFolderAssignments)
+      .leftJoin(dockerContainerFolders, eq(dockerContainerFolders.id, dockerContainerFolderAssignments.folderId))
+      .where(
+        and(
+          eq(dockerContainerFolderAssignments.nodeId, nodeId),
+          eq(dockerContainerFolderAssignments.resourceType, resourceType),
+          eq(dockerContainerFolderAssignments.resourceKey, key)
+        )
+      )
+      .limit(1);
+    return row ? { folderId: row.folderId ?? null, isSystem: row.isSystem ?? false } : null;
+  }
+}

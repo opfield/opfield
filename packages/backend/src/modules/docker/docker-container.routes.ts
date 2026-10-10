@@ -4,6 +4,7 @@ import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { hasScopeForResource } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { appForMember, parseAppListFilter, withAppMembers } from '@/modules/apps/app-membership.js';
 import { assertNotImpersonating, requireAnyScopeBase, requireScopeBase } from '@/modules/auth/auth.middleware.js';
 import { LicensePolicyService } from '@/modules/license/license-policy.service.js';
 import { assertNodeAllowsServiceCreation } from '@/modules/nodes/service-creation-lock.js';
@@ -261,6 +262,13 @@ async function resolveContainerName(nodeId: string, containerId: string): Promis
   return name;
 }
 
+/** `app` of a container detail (by its name on the node). */
+async function containerApp(nodeId: string, data: unknown) {
+  const record = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
+  const name = String(record.name ?? record.Name ?? '').replace(/^\/+/, '');
+  return name ? appForMember({ type: 'container', id: name, nodeId }) : null;
+}
+
 export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
   // ─── Container routes ────────────────────────────────────────────────
 
@@ -320,10 +328,12 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
             }
           : item;
       });
-      const truncated = logical.length > DOCKER_RESOURCE_LIST_MAX;
+      // `app` on every row; excludeAppMembers / appId filter (the normal list leaves app members out).
+      const listed = await withAppMembers('containers', logical, parseAppListFilter(c.req.query()));
+      const truncated = listed.length > DOCKER_RESOURCE_LIST_MAX;
       return c.json({
-        data: truncated ? logical.slice(0, DOCKER_RESOURCE_LIST_MAX) : logical,
-        total: logical.length,
+        data: truncated ? listed.slice(0, DOCKER_RESOURCE_LIST_MAX) : listed,
+        total: listed.length,
         limit: DOCKER_RESOURCE_LIST_MAX,
         truncated,
       });
@@ -429,6 +439,7 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
           ...(data && typeof data === 'object' ? data : { value: data }),
           nodeId: inspectNodeId,
           availability: snapshots.availability(inspectNodeId, detail),
+          app: await containerApp(inspectNodeId, data),
         },
       });
     }
@@ -467,6 +478,7 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
           ...(data && typeof data === 'object' ? data : { value: data }),
           nodeId,
           availability: snapshots.availability(nodeId, detail),
+          app: await containerApp(nodeId, data),
         },
       });
     }

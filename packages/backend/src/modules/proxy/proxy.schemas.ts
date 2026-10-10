@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createChildLogger } from '@/lib/logger.js';
+import { queryFlag } from '@/modules/apps/app-membership.js';
 import { reservedTemplateVariableNames, withoutReservedTemplateVariables } from './proxy-template-variables.js';
 
 const logger = createChildLogger('ProxySchemas');
@@ -407,6 +408,10 @@ export const ProxyHostListQuerySchema = z.object({
   /** Routes served by this nginx node, including the routes of its ingress groups. */
   nodeId: z.string().uuid().optional(),
   ingressGroupId: z.string().uuid().optional(),
+  /** Leave out routes that belong to an app (the normal Routes list). */
+  excludeAppMembers: z.preprocess(queryFlag, z.boolean().optional()),
+  /** Only the routes of this app (any environment). */
+  appId: z.string().uuid().optional(),
 });
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,9 @@
 import { and, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
-import { proxyHosts } from '@/db/schema/index.js';
+import { container } from '@/container.js';
+import { proxyHostFolders, proxyHosts } from '@/db/schema/index.js';
 import { buildWhere, escapeLike } from '@/lib/utils.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { type AppMemberRef, AppMembershipService, appMemberFolderCondition } from '@/modules/apps/app-membership.js';
 import { proxyHostsServedByNode } from '@/modules/ingress-groups/ingress-nodes.js';
 import type { PaginatedResponse } from '@/types.js';
 import type { ProxyHostListQuery } from './proxy.schemas.js';
@@ -19,6 +21,14 @@ import {
 import { proxyNodeLockKey, withProxyHostLock, withProxyLocks } from './proxy-host-lock.js';
 
 export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
+  /** `app` ({id, slug, name, environmentId, environmentName} or null) on each route. */
+  async withAppField<T extends { folderId?: string | null }>(
+    hosts: T[]
+  ): Promise<Array<T & { app: AppMemberRef | null }>> {
+    if (!container.isRegistered(AppMembershipService)) return hosts.map((host) => ({ ...host, app: null }));
+    return container.resolve(AppMembershipService).annotate('routes', hosts, (host) => host.folderId);
+  }
+
   async listProxyHosts(
     query: ProxyHostListQuery,
     options?: { allowedIds?: string[] }
@@ -59,6 +69,11 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
     if (query.ingressGroupId) {
       conditions.push(eq(proxyHosts.ingressGroupId, query.ingressGroupId));
     }
+    const appFilter = appMemberFolderCondition(proxyHosts.folderId, proxyHostFolders, {
+      excludeAppMembers: query.excludeAppMembers,
+      appId: query.appId,
+    });
+    if (appFilter) conditions.push(appFilter);
 
     const where = buildWhere(conditions);
 
@@ -74,7 +89,7 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
 
     const total = Number(totalCount);
 
-    const displayEntries = await attachDockerUpstreamDisplay(this.db, entries);
+    const displayEntries = await this.withAppField(await attachDockerUpstreamDisplay(this.db, entries));
     return {
       data: displayEntries.map(({ healthHistory, rawConfig: _rc, ...rest }) => {
         let effectiveStatus = rest.rawConfigEnabled ? 'disabled' : (rest.healthStatus as string);

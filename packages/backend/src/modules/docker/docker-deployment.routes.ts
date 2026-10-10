@@ -1,6 +1,7 @@
 import type { OpenAPIHono } from '@hono/zod-openapi';
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
+import { appForMember, parseAppListFilter, withDockerAppMembers } from '@/modules/apps/app-membership.js';
 import { assertNotImpersonating, requireAnyScopeBase, requireScopeBase } from '@/modules/auth/auth.middleware.js';
 import { NodeRegistryService } from '@/services/node-registry.service.js';
 import type { AppEnv } from '@/types.js';
@@ -183,10 +184,16 @@ export function registerDockerDeploymentRoutes(router: OpenAPIHono<AppEnv>) {
         'docker:containers:view',
         nodeId
       );
-      const truncated = compacted.length > DOCKER_RESOURCE_LIST_MAX;
+      const listed = await withDockerAppMembers(
+        'container',
+        compacted,
+        (deployment) => ({ nodeId, resourceKey: String(deployment.name) }),
+        parseAppListFilter(c.req.query())
+      );
+      const truncated = listed.length > DOCKER_RESOURCE_LIST_MAX;
       return c.json({
-        data: truncated ? compacted.slice(0, DOCKER_RESOURCE_LIST_MAX) : compacted,
-        total: compacted.length,
+        data: truncated ? listed.slice(0, DOCKER_RESOURCE_LIST_MAX) : listed,
+        total: listed.length,
         limit: DOCKER_RESOURCE_LIST_MAX,
         truncated,
       });
@@ -227,7 +234,14 @@ export function registerDockerDeploymentRoutes(router: OpenAPIHono<AppEnv>) {
       c.req.param('nodeId')!,
       deploymentId
     );
-    return c.json({ data: { ...presented, availability, _buildRollout: await deploymentBuildRollout(deploymentId) } });
+    return c.json({
+      data: {
+        ...presented,
+        availability,
+        app: await appForMember({ type: 'deployment', id: deploymentId }),
+        _buildRollout: await deploymentBuildRollout(deploymentId),
+      },
+    });
   });
 
   router.openapi(
@@ -240,7 +254,12 @@ export function registerDockerDeploymentRoutes(router: OpenAPIHono<AppEnv>) {
       const availability = container.resolve(NodeRegistryService).getNode(nodeId) ? 'available' : 'unavailable';
       const presented = presentDeploymentForCaller(data, c.get('effectiveScopes') || [], nodeId, deploymentId);
       return c.json({
-        data: { ...presented, availability, _buildRollout: await deploymentBuildRollout(deploymentId) },
+        data: {
+          ...presented,
+          availability,
+          app: await appForMember({ type: 'deployment', id: deploymentId }),
+          _buildRollout: await deploymentBuildRollout(deploymentId),
+        },
       });
     }
   );

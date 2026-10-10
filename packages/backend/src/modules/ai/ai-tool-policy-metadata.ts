@@ -79,6 +79,7 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
     execute: ['migrate_ingress'],
   }),
   manage_app: operationPolicies({ create: ['create'], update: ['update'], delete: ['delete'] }),
+  manage_app_members: operationPolicies({ read: ['list'], update: ['place'] }),
   manage_app_environment: operationPolicies({
     read: ['list_nodes'],
     create: ['create', 'create_access_code'],

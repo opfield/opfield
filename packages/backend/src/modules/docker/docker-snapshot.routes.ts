@@ -2,6 +2,7 @@ import type { OpenAPIHono } from '@hono/zod-openapi';
 import { z } from 'zod';
 import { container } from '@/container.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { parseAppListFilter, withAppMembers } from '@/modules/apps/app-membership.js';
 import { TokensService } from '@/modules/tokens/tokens.service.js';
 import type { AppEnv } from '@/types.js';
 import { DockerAvailabilityService } from './availability/docker-availability.service.js';
@@ -175,7 +176,10 @@ async function aggregate(c: any, kind: DockerSnapshotKind) {
           availability,
         };
       });
-      return { rows, node: snapshots.toNodeMetadata(node, snapshot) };
+      // Containers (and deployments) carry `app` and honour excludeAppMembers / appId.
+      const listed =
+        kind === 'containers' ? await withAppMembers('containers', rows, parseAppListFilter(c.req.query())) : rows;
+      return { rows: listed, node: snapshots.toNodeMetadata(node, snapshot) };
     })
   );
 

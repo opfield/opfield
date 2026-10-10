@@ -130,7 +130,8 @@ proxyRoutes.openapi(getProxyHostBySlugRoute, async (c) => {
   if (!hasScope(scopes, `proxy:view:${host.id}`)) {
     throw new AppError(403, 'FORBIDDEN', `Missing required scope: proxy:view:${host.id}`);
   }
-  return c.json({ data: serializeProxyHostForBrowser(host as any, scopes, host.id) });
+  const [withApp] = await proxyService.withAppField([host as any]);
+  return c.json({ data: serializeProxyHostForBrowser(withApp, scopes, host.id) });
 });
 
 proxyRoutes.openapi({ ...getProxyHostRoute, middleware: requireScopeForResource('proxy:view', 'id') }, async (c) => {
@@ -138,7 +139,8 @@ proxyRoutes.openapi({ ...getProxyHostRoute, middleware: requireScopeForResource(
   const id = c.req.param('id')!;
   const host = await proxyService.getProxyHost(id);
   const scopes = c.get('effectiveScopes') || [];
-  return c.json({ data: serializeProxyHostForBrowser(host as any, scopes, id) });
+  const [withApp] = await proxyService.withAppField([host as any]);
+  return c.json({ data: serializeProxyHostForBrowser(withApp, scopes, id) });
 });
 
 proxyRoutes.openapi(
