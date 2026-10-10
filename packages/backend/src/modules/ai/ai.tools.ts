@@ -1,6 +1,7 @@
 import { BACKUP_AI_TOOLS } from './ai.backup-tools.js';
 import { GIT_SCOPE_TARGET_AI_TOOLS } from './ai.git-scope-target-tools.js';
 import { STORAGE_AI_TOOLS } from './ai.storage-tools.js';
+import { APP_AI_TOOLS } from './ai.tools.apps.js';
 import { CONTROL_AI_TOOLS } from './ai.tools.control.js';
 import { DATABASE_AI_TOOLS } from './ai.tools.databases.js';
 import { DISCOVERY_AI_TOOLS } from './ai.tools.discovery.js';
@@ -30,6 +31,7 @@ const AI_TOOL_DEFINITIONS: AIToolDefinition[] = [
   ...FOLDER_AI_TOOLS,
   ...INGRESS_AI_TOOLS,
   ...INGRESS_GROUP_AI_TOOLS,
+  ...APP_AI_TOOLS,
   ...PLATFORM_AI_TOOLS,
   ...CONTROL_AI_TOOLS,
   ...DOCKER_AI_TOOLS,

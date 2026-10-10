@@ -1,0 +1,83 @@
+import type { AIToolDefinition } from './ai.types.js';
+
+const APP_CREATE_HINT =
+  'To create a resource inside an app environment, pass folderId = placementFolderIds[type] from get_app to the normal create tool (and a node from allowedNodeIds where the tool takes one).';
+
+export const APP_AI_TOOLS: AIToolDefinition[] = [
+  {
+    name: 'list_apps',
+    description:
+      'List apps the caller may view. An app groups containers, deployments, Compose projects, routes, databases, storage and Pages into environments (production, staging, ...). Each app lists its visible environments with health, plus the Production environment health, incident state, CPU and memory and running/failing/degraded counts.',
+    parameters: { type: 'object', properties: {} },
+    destructive: false,
+    category: 'Apps',
+    requiredScope: 'apps:view',
+    invalidateStores: [],
+  },
+  {
+    name: 'get_app',
+    description: `Get one app by id or slug: visible environments with placementFolderIds (folder per resource type), allowedNodeIds, health, member counts, maintenance state, rootFolderIds and the caller's permissions. ${APP_CREATE_HINT}`,
+    parameters: {
+      type: 'object',
+      properties: { appId: { type: 'string', description: 'App id or slug.' } },
+      required: ['appId'],
+    },
+    destructive: false,
+    category: 'Apps',
+    requiredScope: 'apps:view',
+    invalidateStores: [],
+  },
+  {
+    name: 'manage_app',
+    description:
+      'Create, update or delete an app. create (name; needs apps:create) makes the app with one environment, production, marked as Production. update (appId, name and/or maintenanceOverride): renaming needs apps:edit on the app; maintenanceOverride true shows the maintenance page on every proxy route of every environment (apps:operate on the app), false restores each route to its own setting. delete (appId; apps:delete on the app): members keep running and leave the app, environment variables, secrets and allowed nodes are deleted.',
+    parameters: {
+      type: 'object',
+      properties: {
+        operation: { type: 'string', enum: ['create', 'update', 'delete'] },
+        appId: { type: 'string', description: 'update, delete: app id or slug.' },
+        name: { type: 'string', description: 'create, update: app name (unique regardless of case).' },
+        maintenanceOverride: { type: 'boolean', description: 'update: app-wide maintenance override.' },
+      },
+      required: ['operation'],
+    },
+    destructive: true,
+    category: 'Apps',
+    requiredScope: 'apps:view',
+    invalidateStores: ['apps'],
+  },
+  {
+    name: 'manage_app_environment',
+    description:
+      'Environments of an app. create (appId, name; apps:edit on the app); rename (appId, environmentId, name; apps:edit); mark_production (appId, environmentId; moves the Production marker; apps:edit); delete (appId, environmentId; apps:edit; never the Production environment; members keep running and leave the app); set_maintenance (appId, environmentId, enabled; apps:env:manage on the environment: every proxy route of the environment shows the maintenance page, each keeps its own setting for later); allow_node / remove_node (appId, environmentId, nodeId; apps:env:manage): the nodes the environment may place workloads on; creates and imports on other nodes are refused (APP_NODE_NOT_ALLOWED, or APP_ENV_NO_ALLOWED_NODE when none of the needed type is allowed); removing a node leaves its resources running; list_nodes (appId, environmentId): allowed nodes with what uses them; create_access_code (appId, optional environmentId; apps:env:manage on the environment, or on the app for every environment): a one-time Maintenance Access Code for every route of the scope in maintenance (one user, 5 minutes, once per route).',
+    parameters: {
+      type: 'object',
+      properties: {
+        operation: {
+          type: 'string',
+          enum: [
+            'create',
+            'rename',
+            'mark_production',
+            'delete',
+            'set_maintenance',
+            'allow_node',
+            'remove_node',
+            'list_nodes',
+            'create_access_code',
+          ],
+        },
+        appId: { type: 'string', description: 'App id or slug.' },
+        environmentId: { type: 'string', description: 'Environment id (every operation except create).' },
+        name: { type: 'string', description: 'create, rename: environment name.' },
+        enabled: { type: 'boolean', description: 'set_maintenance: on or off.' },
+        nodeId: { type: 'string', description: 'allow_node, remove_node: node id.' },
+      },
+      required: ['operation', 'appId'],
+    },
+    destructive: true,
+    category: 'Apps',
+    requiredScope: 'apps:view',
+    invalidateStores: ['apps', 'proxy'],
+  },
+];

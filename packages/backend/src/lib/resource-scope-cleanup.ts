@@ -4,6 +4,8 @@ import type { DrizzleClient, DrizzleExecutor, DrizzleTransaction } from '@/db/cl
 import {
   accessLists,
   adminUserFolders,
+  appEnvironments,
+  apps,
   certificateAuthorities,
   certificates,
   databaseConnectionFolders,
@@ -51,6 +53,8 @@ import { type ScopeResourceKind, scopeResourceReferences } from './resource-scop
 const logger = createChildLogger('ResourceScopeCleanup');
 
 const kindTables = (): Record<ScopeResourceKind, readonly any[]> => ({
+  app: [apps],
+  appEnvironment: [appEnvironments],
   node: [nodes],
   folder: [
     nodeFolders,

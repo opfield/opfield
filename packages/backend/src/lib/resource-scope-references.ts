@@ -2,6 +2,8 @@ import { extractBaseScope, isGitScopeBase, isResourceScoped } from './scopes.js'
 
 /** Tables whose rows a resource-qualified scope can name. `folder` stands for every resource folder table. */
 export type ScopeResourceKind =
+  | 'app'
+  | 'appEnvironment'
   | 'node'
   | 'folder'
   | 'proxyHost'
@@ -55,6 +57,7 @@ function bareTargetKinds(base: string): readonly ScopeResourceKind[] | null {
   if (base.startsWith('proxy:')) return ['proxyHost'];
   if (base.startsWith('domains:')) return ['domain'];
   if (base.startsWith('pages:')) return ['pageProject'];
+  if (base.startsWith('apps:')) return ['app'];
   if (base.startsWith('ssl:cert:')) return ['sslCertificate'];
   if (base.startsWith('acl:')) return ['accessList'];
   if (base.startsWith('pki:ca:')) return ['certificateAuthority'];
@@ -84,6 +87,9 @@ export function scopeResourceReferences(scope: string): ScopeResourceReference[]
   if (qualifier.startsWith('folder/')) return single(['folder'], qualifier.slice('folder/'.length));
   if (qualifier.startsWith('node/')) return single(['node'], qualifier.slice('node/'.length));
   if (qualifier.startsWith('account/')) return single(['integrationConnector'], qualifier.slice('account/'.length));
+  // App grants: `<appId>` (whole app) or `env/<envId>`.
+  if (base.startsWith('apps:') && qualifier.startsWith('env/'))
+    return single(['appEnvironment'], qualifier.slice('env/'.length));
   if (isGitScopeBase(base)) return single(['integrationConnector'], qualifier.split('/')[0]);
   const kinds = bareTargetKinds(base);
   if (!kinds) return [];

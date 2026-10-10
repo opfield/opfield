@@ -11,6 +11,7 @@ import { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import type { User } from '@/types.js';
 import { ACCESS_LIST_TOOL_NAMES, executeAccessListTool } from './ai.access-list-tools.js';
 import { ACCESS_TOOL_NAMES, executeAccessTool } from './ai.access-tools.js';
+import { APP_TOOL_NAMES, executeAppTool } from './ai.app-tools.js';
 import { executeBackupTool } from './ai.backup-tools.js';
 import { DATABASE_TOOL_NAMES, executeDatabaseTool } from './ai.database-tools.js';
 import { DOCKER_TOOL_NAMES, executeDockerTool } from './ai.docker-tools.js';
@@ -557,6 +558,9 @@ export abstract class AIServiceExecution extends AIServiceRuntimeSupport {
         toolName,
         args
       );
+    }
+    if (APP_TOOL_NAMES.has(toolName)) {
+      return executeAppTool(user, toolName, args);
     }
     if (INGRESS_GROUP_TOOL_NAMES.has(toolName)) {
       return executeIngressGroupTool(user, args);

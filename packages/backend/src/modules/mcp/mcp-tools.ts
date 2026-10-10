@@ -126,6 +126,14 @@ const MCP_TOOLSET_DEFINITIONS: McpToolsetDefinition[] = [
     ],
   },
   {
+    id: 'apps',
+    title: 'Apps',
+    description:
+      'Apps and their environments: members, environment variables and secrets, allowed nodes, maintenance, overview and activity. Create resources inside an environment with folderId from get_app placementFolderIds.',
+    isDefault: true,
+    toolNames: toolNamesForCategories(['Apps']),
+  },
+  {
     id: 'folders',
     title: 'Folders',
     description: 'Folder layout and foldered resource assignment operations across Gateway resources.',

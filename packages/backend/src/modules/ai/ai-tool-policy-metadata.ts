@@ -78,6 +78,13 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
     external: ['check_dns', 'issue_certificate', 'resolve_cloudflare_migration'],
     execute: ['migrate_ingress'],
   }),
+  manage_app: operationPolicies({ create: ['create'], update: ['update'], delete: ['delete'] }),
+  manage_app_environment: operationPolicies({
+    read: ['list_nodes'],
+    create: ['create', 'create_access_code'],
+    update: ['rename', 'mark_production', 'set_maintenance', 'allow_node', 'remove_node'],
+    delete: ['delete'],
+  }),
   manage_ingress_group: operationPolicies({
     read: ['list', 'get'],
     create: ['create'],
@@ -547,6 +554,10 @@ const TOOL_POLICIES: Record<string, Pick<AIToolDefinition, 'effect' | 'approvalC
 };
 
 const PLANNING_SAFE_TOOL_NAMES = new Set([
+  'list_apps',
+  'get_app',
+  'get_app_overview',
+  'get_app_activity',
   'ask_question',
   'audit_system_pki_leaves',
   'browse_redis_keys',
