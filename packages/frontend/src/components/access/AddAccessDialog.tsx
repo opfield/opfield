@@ -29,11 +29,16 @@ import {
   ACCESS_ROLES,
   ACCESS_TYPE_IDS,
   ACCESS_TYPES,
+  type AccessContext,
   type AccessLine,
   type AccessRole,
   type AccessTypeId,
+  type AccessWhere,
+  APP_ACCESS_TYPE_IDS,
+  accessApp,
   accessFolderPaths,
   accessType,
+  appMemberCount,
   coversLabel,
   folderPathLabel,
   GIT_LEVELS,
@@ -42,6 +47,7 @@ import {
   type GitLevel,
   lineScopes,
   narrowedNote,
+  placeTypeIds,
   principalHolds,
   roleCanDelete,
   tokenStoredScopes,
@@ -53,7 +59,7 @@ import {
 const SEARCH_DEBOUNCE_MS = 300;
 const PROVIDERS: readonly GitScopeProvider[] = ["gitlab", "github", "git"];
 
-type WhereKind = "everywhere" | "folder" | "resources";
+type WhereKind = AccessWhere["kind"];
 type RepositoriesKind = "all" | "group" | "some";
 
 interface Draft {
@@ -61,6 +67,8 @@ interface Draft {
   role: AccessRole;
   where: WhereKind;
   folder: string;
+  /** `<appId>:<envId>`, or `<appId>:*` for every environment of the app. */
+  app: string;
   /** `<type>:<id>` of picked resources. */
   resources: string[];
   types: AccessTypeId[];
@@ -75,12 +83,40 @@ interface Draft {
   level: GitLevel;
 }
 
-function draftFor(line: AccessLine | null, folders: string[], firstConnector: string): Draft {
+function appKey(where: Extract<AccessWhere, { kind: "app" }>) {
+  return `${where.appId}:${where.envId ?? "*"}`;
+}
+
+function splitAppKey(value: string): Extract<AccessWhere, { kind: "app" }> | null {
+  const separator = value.indexOf(":");
+  if (separator <= 0) return null;
+  const envId = value.slice(separator + 1);
+  return { kind: "app", appId: value.slice(0, separator), envId: envId === "*" ? null : envId };
+}
+
+/** "<App> · every environment" and "<App> · <env>" per app the user can see. */
+function appOptions(ctx: AccessContext) {
+  return (ctx.apps ?? []).flatMap((app) => [
+    { value: `${app.id}:*`, label: `${app.name} · every environment` },
+    ...app.environments.map((environment) => ({
+      value: `${app.id}:${environment.id}`,
+      label: `${app.name} · ${environment.name}`,
+    })),
+  ]);
+}
+
+function draftFor(
+  line: AccessLine | null,
+  folders: string[],
+  firstApp: string,
+  firstConnector: string
+): Draft {
   const draft: Draft = {
     tab: "resources",
     role: "developer",
     where: folders.length > 0 ? "folder" : "everywhere",
     folder: folders[0] ?? "",
+    app: firstApp,
     resources: [],
     types: [...ACCESS_TYPE_IDS],
     mayDelete: false,
@@ -98,6 +134,7 @@ function draftFor(line: AccessLine | null, folders: string[], firstConnector: st
       role: line.role,
       where: where.kind,
       folder: where.kind === "folder" ? where.path : draft.folder,
+      app: where.kind === "app" ? appKey(where) : draft.app,
       resources:
         where.kind === "resources"
           ? (Object.keys(where.ids) as AccessTypeId[]).flatMap((type) =>
@@ -161,6 +198,12 @@ function lineFor(
       where: { kind: "everywhere" },
       mayDelete,
     };
+  }
+  if (draft.where === "app") {
+    const where = splitAppKey(draft.app);
+    const types = sortTypes(draft.types.filter((type) => APP_ACCESS_TYPE_IDS.includes(type)));
+    if (!where || types.length === 0) return null;
+    return { kind: "resources", role: draft.role, types, where, mayDelete };
   }
   if (draft.where === "folder") {
     const types = folderTypes(draft.types);
@@ -321,14 +364,17 @@ export function AddAccessDialog({
       }),
     [gitConnectors]
   );
-  const [draft, setDraft] = useState<Draft>(() => draftFor(line, folderPaths, ""));
+  const apps = useMemo(() => appOptions(ctx), [ctx]);
+  const [draft, setDraft] = useState<Draft>(() =>
+    draftFor(line, folderPaths, apps[0]?.value ?? "", "")
+  );
   const [groupQuery, setGroupQuery] = useState("");
   const [repoQuery, setRepoQuery] = useState("");
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: Each opening starts from the line it edits.
   useEffect(() => {
     if (!open) return;
-    setDraft(draftFor(line, folderPaths, connectorOptions[0]?.value ?? ""));
+    setDraft(draftFor(line, folderPaths, apps[0]?.value ?? "", connectorOptions[0]?.value ?? ""));
     setGroupQuery("");
     setRepoQuery("");
   }, [open, line]);
@@ -424,6 +470,24 @@ export function AddAccessDialog({
           : null
         : "Only these repositories.";
 
+  const typeChoices = placeTypeIds({ kind: draft.where });
+  const coveredTypes = draft.types.filter((type) => typeChoices.includes(type));
+  const appWhere = draft.where === "app" ? splitAppKey(draft.app) : null;
+  const appHint = (() => {
+    if (!appWhere) return null;
+    const app = accessApp(ctx, appWhere.appId);
+    if (!app) return null;
+    const count = appMemberCount(ctx, appWhere, coveredTypes);
+    const resources = `${count} resource${count === 1 ? "" : "s"}`;
+    if (appWhere.envId === null) {
+      return app.rootFolderIds
+        ? `The ${resources} of every ${app.name} environment now, and the ones created later, also in new environments.`
+        : `The ${resources} of ${app.name}'s environments now, and the ones created there later.`;
+    }
+    const environment = app.environments.find((item) => item.id === appWhere.envId);
+    return `The ${resources} of ${app.name}'s ${environment?.name ?? "environment"} now, and the ones created there later.`;
+  })();
+
   const save = () => {
     if (!result) return;
     onSave(result);
@@ -480,6 +544,9 @@ export function AddAccessDialog({
                       <SelectItem value="folder" disabled={folderPaths.length === 0}>
                         In a project folder
                       </SelectItem>
+                      <SelectItem value="app" disabled={apps.length === 0}>
+                        In an app environment
+                      </SelectItem>
                       <SelectItem value="resources">Specific resources</SelectItem>
                     </SelectContent>
                   </Select>
@@ -495,6 +562,19 @@ export function AddAccessDialog({
                         {folderPaths.map((path) => (
                           <SelectItem key={path} value={path}>
                             {folderPathLabel(path)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : draft.where === "app" ? (
+                    <Select value={draft.app} onValueChange={(value) => update({ app: value })}>
+                      <SelectTrigger aria-label="App environment">
+                        <SelectValue placeholder="Pick an app environment" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {apps.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -523,6 +603,8 @@ export function AddAccessDialog({
                     No folder {folderPathLabel(draft.folder)} for {typesText(missingFolderTypes)}:{" "}
                     {missingFolderTypes.length === 1 ? "it is" : "they are"} left out.
                   </p>
+                ) : appHint ? (
+                  <p className="text-xs text-muted-foreground">{appHint}</p>
                 ) : draft.where === "resources" ? (
                   <p className="text-xs text-muted-foreground">
                     Only these resources, whatever folder they are in.
@@ -533,13 +615,23 @@ export function AddAccessDialog({
                 <Combobox
                   multiple
                   ariaLabel="Covers"
-                  value={draft.types}
-                  options={ACCESS_TYPES.map((type) => ({ value: type.id, label: type.title }))}
-                  onValueChange={(value) => update({ types: sortTypes(value as AccessTypeId[]) })}
+                  value={coveredTypes}
+                  options={ACCESS_TYPES.filter((type) => typeChoices.includes(type.id)).map(
+                    (type) => ({ value: type.id, label: type.title })
+                  )}
+                  onValueChange={(value) =>
+                    update({
+                      // Types an app line cannot cover stay picked for the other places.
+                      types: sortTypes([
+                        ...draft.types.filter((type) => !typeChoices.includes(type)),
+                        ...(value as AccessTypeId[]),
+                      ]),
+                    })
+                  }
                   placeholder="Pick resource types"
                   searchPlaceholder="Search resource types..."
                   selectionLabel={(values) =>
-                    values.length > 0 ? coversLabel(values as AccessTypeId[]) : ""
+                    values.length > 0 ? coversLabel(values as AccessTypeId[], typeChoices) : ""
                   }
                 />
               </Field>
