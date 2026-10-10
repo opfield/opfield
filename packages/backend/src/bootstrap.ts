@@ -40,10 +40,12 @@ import { AIPlanService } from '@/modules/ai/ai-plan.service.js';
 import { AIProviderRuntimeService } from '@/modules/ai/ai-provider-runtime.service.js';
 import { AIRunService } from '@/modules/ai/ai-run.service.js';
 import { aiRunCommercialRuntime } from '@/modules/ai/ai-run-commercial-runtime.js';
+import { AppEnvLayerService } from '@/modules/apps/app-env-layer.js';
 import { AppFolderService } from '@/modules/apps/app-folders.service.js';
 import { AppMembersReader, AppMembersService } from '@/modules/apps/app-members.service.js';
 import { AppMembershipService } from '@/modules/apps/app-membership.js';
 import { AppNodesService } from '@/modules/apps/app-nodes.service.js';
+import { AppVariablesService } from '@/modules/apps/app-variables.service.js';
 import { AppsService } from '@/modules/apps/apps.service.js';
 import { AlertService } from '@/modules/audit/alert.service.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
@@ -759,6 +761,12 @@ export async function initializeContainer(): Promise<void> {
   appsService.setEventBus(eventBus);
   container.registerInstance(AppsService, appsService);
   container.registerInstance(AppNodesService, new AppNodesService(db, auditService, appsService, appMembersReader));
+  const appEnvLayerService = new AppEnvLayerService(db, cryptoService, appMembersReader);
+  container.registerInstance(AppEnvLayerService, appEnvLayerService);
+  container.registerInstance(
+    AppVariablesService,
+    new AppVariablesService(db, auditService, cryptoService, appsService, appEnvLayerService)
+  );
   const appMembersService = new AppMembersService(db, auditService, appFolderService, appsService);
   appMembersService.setEventBus(eventBus);
   container.registerInstance(AppMembersService, appMembersService);

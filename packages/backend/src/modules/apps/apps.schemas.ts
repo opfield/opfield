@@ -54,3 +54,16 @@ export type CreateAppEnvironmentInput = z.infer<typeof CreateAppEnvironmentSchem
 export type UpdateAppEnvironmentInput = z.infer<typeof UpdateAppEnvironmentSchema>;
 export type PlaceAppMembersInput = z.infer<typeof PlaceAppMembersSchema>;
 export type AppMemberRefInput = z.infer<typeof AppMemberRefSchema>;
+
+export const SetAppVariablesSchema = z
+  .object({
+    variables: z.array(z.object({ key: z.string().min(1).max(255), value: z.string() }).strict()).max(200),
+  })
+  .strict();
+
+export const PatchAppSecretsSchema = z
+  .object({
+    set: z.record(z.string().min(1).max(255), z.string()).optional(),
+    delete: z.array(z.string().min(1).max(255)).max(200).optional(),
+  })
+  .strict();

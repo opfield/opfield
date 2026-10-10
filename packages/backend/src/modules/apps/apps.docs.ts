@@ -13,7 +13,9 @@ import {
   AppMembersQuerySchema,
   CreateAppEnvironmentSchema,
   CreateAppSchema,
+  PatchAppSecretsSchema,
   PlaceAppMembersSchema,
+  SetAppVariablesSchema,
   UpdateAppEnvironmentSchema,
   UpdateAppSchema,
 } from './apps.schemas.js';
@@ -182,5 +184,38 @@ export const removeAppEnvironmentNodeByBodyRoute = appRoute({
   summary: 'Remove an allowed node (node in the body)',
   description: `${NODES_DESCRIPTION} Needs apps:env:manage on the environment.`,
   request: { params: EnvParams, ...jsonBody(AppNodeBodySchema) },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+const VARIABLES_DESCRIPTION =
+  'Environment variables and secrets every container, deployment and Compose project of the environment receives on its next create, recreate, deploy or apply (nothing restarts on save). Precedence, lowest first: image ENV, environment variables, environment secrets, the workload own environment, the workload own secrets. Keys match ^[A-Za-z_][A-Za-z0-9_]*$, at most 200 per environment, values up to 32 KiB; a key is either a variable or a secret. Secrets are write-only: only keys and update times are returned. pendingWorkloads lists the workloads that still run older values ({kind: container|deployment|compose, id, nodeId, name}; containers by name) so a client can recreate or redeploy them one at a time. Needs apps:env:manage on the environment.';
+
+export const getAppVariablesRoute = appRoute({
+  method: 'get',
+  path: '/{id}/environments/{envId}/variables',
+  tags: TAGS,
+  summary: 'Get environment variables and secret keys',
+  description: VARIABLES_DESCRIPTION,
+  request: { params: EnvParams },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const setAppVariablesRoute = appRoute({
+  method: 'put',
+  path: '/{id}/environments/{envId}/variables',
+  tags: TAGS,
+  summary: 'Replace environment variables',
+  description: `${VARIABLES_DESCRIPTION} The body is the full set of variables (secrets are not touched).`,
+  request: { params: EnvParams, ...jsonBody(SetAppVariablesSchema) },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const patchAppSecretsRoute = appRoute({
+  method: 'patch',
+  path: '/{id}/environments/{envId}/secrets',
+  tags: TAGS,
+  summary: 'Set or delete environment secrets',
+  description: `${VARIABLES_DESCRIPTION} set adds or replaces secrets, delete removes them by key.`,
+  request: { params: EnvParams, ...jsonBody(PatchAppSecretsSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });

@@ -2,10 +2,13 @@ import { container } from '@/container.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { AppMembersService } from '@/modules/apps/app-members.service.js';
 import { AppNodesService } from '@/modules/apps/app-nodes.service.js';
+import { AppVariablesService } from '@/modules/apps/app-variables.service.js';
 import {
   CreateAppEnvironmentSchema,
   CreateAppSchema,
+  PatchAppSecretsSchema,
   PlaceAppMembersSchema,
+  SetAppVariablesSchema,
   UpdateAppEnvironmentSchema,
   UpdateAppSchema,
 } from '@/modules/apps/apps.schemas.js';
@@ -18,6 +21,7 @@ export const APP_TOOL_NAMES = new Set([
   'manage_app',
   'manage_app_environment',
   'manage_app_members',
+  'manage_app_variables',
 ]);
 
 function requiredString(value: unknown, field: string, operation: string): string {
@@ -40,6 +44,8 @@ export async function executeAppTool(user: User, toolName: string, args: Record<
       return manageEnvironment(service, actor, args);
     case 'manage_app_members':
       return manageMembers(service, actor, args);
+    case 'manage_app_variables':
+      return manageVariables(actor, args);
     default:
       throw new AppError(400, 'VALIDATION_ERROR', `Unknown app tool: ${toolName}`);
   }
@@ -119,5 +125,39 @@ async function manageMembers(service: AppsService, actor: AppActor, args: Record
         .place(actor, PlaceAppMembersSchema.parse({ target: args.target ?? null, members: args.members }));
     default:
       throw new AppError(400, 'VALIDATION_ERROR', `Unsupported members operation: ${operation}`);
+  }
+}
+
+async function manageVariables(actor: AppActor, args: Record<string, unknown>) {
+  const operation = String(args.operation ?? '');
+  const appId = requiredString(args.appId, 'appId', operation);
+  const environmentId = requiredString(args.environmentId, 'environmentId', operation);
+  const variables = container.resolve(AppVariablesService);
+  switch (operation) {
+    case 'get':
+      return variables.get(actor, appId, environmentId);
+    case 'set_variables':
+      return variables.setVariables(
+        actor,
+        appId,
+        environmentId,
+        SetAppVariablesSchema.parse({ variables: args.variables ?? [] }).variables
+      );
+    case 'set_secrets':
+      return variables.patchSecrets(
+        actor,
+        appId,
+        environmentId,
+        PatchAppSecretsSchema.parse({ set: args.secrets ?? {} })
+      );
+    case 'delete_secrets':
+      return variables.patchSecrets(
+        actor,
+        appId,
+        environmentId,
+        PatchAppSecretsSchema.parse({ delete: args.keys ?? [] })
+      );
+    default:
+      throw new AppError(400, 'VALIDATION_ERROR', `Unsupported variables operation: ${operation}`);
   }
 }

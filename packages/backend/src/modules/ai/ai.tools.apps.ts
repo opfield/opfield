@@ -119,4 +119,37 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
     requiredScope: 'apps:view',
     invalidateStores: ['apps', 'proxy', 'containers', 'databases', 'pages', 'folders'],
   },
+  {
+    name: 'manage_app_variables',
+    description:
+      'Environment variables and secrets of an app environment (apps:env:manage on it). Every container, deployment and Compose project of the environment receives them on its next create, recreate, deploy or apply; nothing restarts on save. Precedence, lowest first: image ENV, environment variables, environment secrets, the workload own environment, the workload own secrets. get returns variables with values, secret keys only (never values) and pendingWorkloads (workloads still running older values; recreate or redeploy them one at a time to apply). set_variables (variables [{key, value}]) replaces the full set of plain variables. set_secrets (secrets {KEY: value}) adds or replaces secrets. delete_secrets (keys [KEY]). Keys: ^[A-Za-z_][A-Za-z0-9_]*$, at most 200 per environment, values up to 32 KiB; a key is a variable or a secret, not both.',
+    parameters: {
+      type: 'object',
+      properties: {
+        operation: { type: 'string', enum: ['get', 'set_variables', 'set_secrets', 'delete_secrets'] },
+        appId: { type: 'string', description: 'App id or slug.' },
+        environmentId: { type: 'string', description: 'Environment id.' },
+        variables: {
+          type: 'array',
+          description: 'set_variables: the full set of plain variables.',
+          items: {
+            type: 'object',
+            properties: { key: { type: 'string' }, value: { type: 'string' } },
+            required: ['key', 'value'],
+          },
+        },
+        secrets: {
+          type: 'object',
+          description: 'set_secrets: KEY to value.',
+          additionalProperties: { type: 'string' },
+        },
+        keys: { type: 'array', items: { type: 'string' }, description: 'delete_secrets: secret keys.' },
+      },
+      required: ['operation', 'appId', 'environmentId'],
+    },
+    destructive: true,
+    category: 'Apps',
+    requiredScope: 'apps:view',
+    invalidateStores: ['apps'],
+  },
 ];

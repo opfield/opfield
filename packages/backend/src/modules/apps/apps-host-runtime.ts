@@ -1,4 +1,11 @@
 import { container } from '@/container.js';
+import {
+  AppEnvLayerService,
+  type EnvironmentLayer,
+  type LayerOwnerKind,
+  layerOwnerKey,
+  mergeLayerEnv,
+} from './app-env-layer.js';
 import type { AppFamily } from './app-families.js';
 import { type AppListFilter, AppMembershipService, parseAppListFilter } from './app-membership.js';
 import {
@@ -37,6 +44,26 @@ export const appsHostRuntime = {
   ) {
     return container.resolve(AppMembershipService).annotateAndFilter(family, rows, filter, folderIdOf);
   },
+  /**
+   * Environment layer for deployments, Compose and migration (core): the variables and secrets of the environment a
+   * workload's folder belongs to (empty outside apps), what it received last, and the merge rule. Record what was
+   * applied after a deploy/apply with recordAppliedLayer('deployment', id, layer) or ('compose', projectId, layer).
+   */
+  resolveLayerForPlacement(family: AppFamily, folderId: string | null | undefined) {
+    return container.resolve(AppEnvLayerService).resolveLayerForPlacement(family, folderId);
+  },
+  appliedLayerState(kind: LayerOwnerKind, ownerKey: string) {
+    return container.resolve(AppEnvLayerService).appliedState(kind, ownerKey);
+  },
+  recordAppliedLayer(
+    kind: LayerOwnerKind,
+    ownerKey: string,
+    layer: Pick<EnvironmentLayer, 'environmentId' | 'keys' | 'digest'>
+  ) {
+    return container.resolve(AppEnvLayerService).recordApplied(kind, ownerKey, layer);
+  },
+  layerOwnerKey,
+  mergeLayerEnv,
   /** `app` of one resource by its folder (detail responses). */
   appForFolder(family: AppFamily, folderId: string | null | undefined) {
     return container.resolve(AppMembershipService).refForFolder(family, folderId);
