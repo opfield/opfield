@@ -43,6 +43,7 @@ import { aiRunCommercialRuntime } from '@/modules/ai/ai-run-commercial-runtime.j
 import { AppFolderService } from '@/modules/apps/app-folders.service.js';
 import { AppMembersReader } from '@/modules/apps/app-members.service.js';
 import { AppMembershipService } from '@/modules/apps/app-membership.js';
+import { AppNodesService } from '@/modules/apps/app-nodes.service.js';
 import { AppsService } from '@/modules/apps/apps.service.js';
 import { AlertService } from '@/modules/audit/alert.service.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
@@ -757,6 +758,7 @@ export async function initializeContainer(): Promise<void> {
   const appsService = new AppsService(db, auditService, appFolderService, appMembersReader);
   appsService.setEventBus(eventBus);
   container.registerInstance(AppsService, appsService);
+  container.registerInstance(AppNodesService, new AppNodesService(db, auditService, appsService, appMembersReader));
   container.registerInstance(FolderService, folderService);
 
   const nginxTemplateService = new NginxTemplateService(db, auditService, configValidator);

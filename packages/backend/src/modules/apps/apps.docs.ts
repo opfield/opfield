@@ -138,3 +138,49 @@ export const AppActivityQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(25),
   environmentId: z.string().uuid().optional(),
 });
+
+export const AppNodeBodySchema = z.object({ nodeId: z.string().uuid() }).strict();
+const EnvNodeParams = pathParamSchema('id', 'envId', 'nodeId');
+
+const NODES_DESCRIPTION =
+  'The nodes an environment may place workloads on. Creating, importing or moving a resource into the environment on another node is refused (APP_NODE_NOT_ALLOWED, or APP_ENV_NO_ALLOWED_NODE when no node of the needed type is allowed): containers, deployments and Compose need a Docker node, routes and Pages an Nginx node, managed databases and storage a database or storage node. Each node lists usedBy: how many members of each type run on it. Removing a node leaves what runs there running.';
+
+export const listAppEnvironmentNodesRoute = appRoute({
+  method: 'get',
+  path: '/{id}/environments/{envId}/nodes',
+  tags: TAGS,
+  summary: 'List allowed nodes',
+  description: `${NODES_DESCRIPTION} Needs view of the environment.`,
+  request: { params: EnvParams },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const allowAppEnvironmentNodeRoute = appRoute({
+  method: 'post',
+  path: '/{id}/environments/{envId}/nodes',
+  tags: TAGS,
+  summary: 'Allow a node',
+  description: `${NODES_DESCRIPTION} Needs apps:env:manage on the environment.`,
+  request: { params: EnvParams, ...jsonBody(AppNodeBodySchema) },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const removeAppEnvironmentNodeRoute = appRoute({
+  method: 'delete',
+  path: '/{id}/environments/{envId}/nodes/{nodeId}',
+  tags: TAGS,
+  summary: 'Remove an allowed node',
+  description: `${NODES_DESCRIPTION} Needs apps:env:manage on the environment.`,
+  request: { params: EnvNodeParams },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const removeAppEnvironmentNodeByBodyRoute = appRoute({
+  method: 'delete',
+  path: '/{id}/environments/{envId}/nodes',
+  tags: TAGS,
+  summary: 'Remove an allowed node (node in the body)',
+  description: `${NODES_DESCRIPTION} Needs apps:env:manage on the environment.`,
+  request: { params: EnvParams, ...jsonBody(AppNodeBodySchema) },
+  responses: okJson(UnknownDataResponseSchema),
+});

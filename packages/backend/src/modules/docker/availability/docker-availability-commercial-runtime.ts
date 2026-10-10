@@ -1,3 +1,4 @@
+import { appsHostRuntime } from '@/modules/apps/apps-host-runtime.js';
 import { DockerAvailabilityService } from './docker-availability.service.js';
 
 const constructors = { DockerAvailabilityService };
@@ -74,6 +75,8 @@ import { availabilityStandbyCount } from './lease/lease-gating.js';
 
 const loggerDockerAvailabilityService = createChildLogger('DockerAvailabilityService');
 export const dockerAvailabilityCommercialRuntime = {
+  /** Apps: node allowlist guard, `app` field and list filters (see apps-host-runtime.ts). */
+  apps: appsHostRuntime,
   constructors,
   and,
   asc,

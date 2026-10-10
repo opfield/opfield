@@ -4,6 +4,7 @@ import { dockerContainerFolderAssignments, dockerContainerFolders } from '@/db/s
 import { withLimitedAccessGuidance } from '@/lib/access-denied.js';
 import { hasScopeForCreation } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { assertAppPlacement } from '@/modules/apps/app-placement-guard.js';
 import type { DockerFolderResourceType } from './docker-folder.schemas.js';
 
 export async function assertDockerCreationAccess(
@@ -34,6 +35,11 @@ export async function assertDockerCreationAccess(
   // A hidden app environment folder is a valid destination (create from an app); an app root folder never is.
   if (!folder || folder.isSystem || (folder.appId && !folder.appEnvironmentId)) {
     throw new AppError(403, 'FOLDER_FORBIDDEN', 'Destination folder is unavailable');
+  }
+  // Every Docker create, import, duplicate, Git source and migration target passes here: an app environment
+  // destination takes only the nodes the environment allows.
+  if (folder.appEnvironmentId && (resourceType === 'container' || resourceType === 'compose')) {
+    await assertAppPlacement(db, resourceType === 'compose' ? 'compose' : 'containers', folderId, [nodeId]);
   }
 }
 

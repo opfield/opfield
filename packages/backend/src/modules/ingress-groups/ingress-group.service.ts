@@ -3,6 +3,7 @@ import { domains, ingressGroupMembers, ingressGroups, proxyHosts } from '@/db/sc
 import { createChildLogger } from '@/lib/logger.js';
 import { writeWithAllocatedSlug } from '@/lib/resource-slugs.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { assertGroupRoutesAllowNode } from '@/modules/apps/app-placement-guard.js';
 import { assertNodeAllowsServiceCreation } from '@/modules/nodes/service-creation-lock.js';
 import { rethrowProxyHostDomainConflict } from '@/modules/proxy/proxy-domain-overlap.js';
 import { ingressGroupLockKey, proxyNodeLockKey, withProxyLocks } from '@/modules/proxy/proxy-host-lock.js';
@@ -140,6 +141,8 @@ export class IngressGroupService extends IngressGroupServiceBase {
     await this.requireMemberCandidate(input.nodeId);
     await assertNodeAllowsServiceCreation(this.db, input.nodeId, 'nginx');
     const hostIds = await this.groupHostIds(id);
+    // Every app environment whose routes use the group must allow the new member.
+    await assertGroupRoutesAllowNode(this.db, hostIds, input.nodeId);
     await withProxyLocks([ingressGroupLockKey(id), proxyNodeLockKey(input.nodeId)], async () => {
       const members = await ingressGroupMemberRows(this.db, id);
       if (members.some((member) => member.nodeId === input.nodeId)) {

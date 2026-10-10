@@ -5,6 +5,7 @@ import { getFolderScopedIds } from '@/lib/folder-scopes.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
 import { getResourceScopedIds, hasScope, hasScopeBase, hasScopeForCreation } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { appsHostRuntime } from '@/modules/apps/apps-host-runtime.js';
 import {
   authMiddleware,
   rejectImpersonation,
@@ -73,6 +74,8 @@ import { ObjectStorageMonitoringService } from './object-storage-monitoring.serv
 
 /** Existing API, RBAC, schema and service identities supplied to the private router. */
 export const storageRouteRuntime = {
+  /** Apps: node allowlist guard, `app` field and list filters (see apps-host-runtime.ts). */
+  apps: appsHostRuntime,
   OpenAPIHono,
   streamSSE,
   container,

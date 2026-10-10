@@ -4,6 +4,7 @@ import { nodes, proxyHosts } from '@/db/schema/index.js';
 import { grantCreatedResourcePermissions } from '@/lib/created-resource-permissions.js';
 import { writeWithAllocatedSlug } from '@/lib/resource-slugs.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { assertAppPlacement, filterNodesForAppFolder } from '@/modules/apps/app-placement-guard.js';
 import { requireRoutableIngressGroup } from '@/modules/ingress-groups/ingress-group-routing.js';
 import { assertNodeAllowsServiceCreation } from '@/modules/nodes/service-creation-lock.js';
 import type { PageRouteNodeMigration } from '@/modules/pages/routes/page-route.service.js';
@@ -88,9 +89,14 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
    * creators without `nodes:details`. `folderId` limits the list to a route in that folder.
    */
   async listRouteIngressNodes(scopes: readonly string[], folderId?: string | null): Promise<RouteIngressNode[]> {
-    return routeIngressNodesForScopes(await this.loadRouteIngressNodeCandidates(), scopes, folderId).map(
-      toRouteIngressNode
+    const candidates = await filterNodesForAppFolder(
+      this.db,
+      'routes',
+      folderId,
+      await this.loadRouteIngressNodeCandidates(),
+      (candidate) => candidate.id
     );
+    return routeIngressNodesForScopes(candidates, scopes, folderId).map(toRouteIngressNode);
   }
 
   /**
@@ -100,7 +106,8 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
    */
   async listRouteIngressGroups(scopes: readonly string[], folderId?: string | null): Promise<RouteIngressGroup[]> {
     const candidates = await this.loadRouteIngressNodeCandidates();
-    return loadRouteIngressGroups(this.db, routeIngressNodesForScopes(candidates, scopes, folderId), scopes);
+    const allowed = await filterNodesForAppFolder(this.db, 'routes', folderId, candidates, (candidate) => candidate.id);
+    return loadRouteIngressGroups(this.db, routeIngressNodesForScopes(allowed, scopes, folderId), scopes);
   }
 
   /**
@@ -129,7 +136,16 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
       folderId: input.folderId,
       pinnedNodeId: pinned?.nodeId ?? null,
       pinnedByDomain: registered[0]?.domain,
-      candidates: pinned ? [] : await this.loadRouteIngressNodeCandidates(),
+      // In an app environment only its allowed nginx nodes are candidates.
+      candidates: pinned
+        ? []
+        : await filterNodesForAppFolder(
+            this.db,
+            'routes',
+            input.folderId,
+            await this.loadRouteIngressNodeCandidates(),
+            (candidate) => candidate.id
+          ),
     });
     return { ...resolved, ingressGroupId: null };
   }
@@ -170,6 +186,8 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
     for (const servingNodeId of placement.servingNodeIds) {
       await assertNodeAllowsServiceCreation(this.db, servingNodeId, 'nginx');
     }
+    // A route created in an app environment is served only by nodes the environment allows (every group member).
+    await assertAppPlacement(this.db, 'routes', input.folderId, placement.servingNodeIds);
     await assertRegisteredDomainsUseTarget(this.db, input.domainNames, placement);
 
     // 0b. Validate advanced config if provided
@@ -533,6 +551,7 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
         );
       }
       await assertNodeAllowsServiceCreation(this.db, input.nodeId, 'nginx');
+      await assertAppPlacement(this.db, 'routes', existing.folderId, [input.nodeId]);
     }
     const effectiveNodeId = input.nodeId ?? existing.nodeId;
     if (!effectiveNodeId) throw new AppError(400, 'NODE_REQUIRED', 'A node must be selected for the proxy host');

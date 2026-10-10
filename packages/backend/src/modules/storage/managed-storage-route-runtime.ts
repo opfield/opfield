@@ -3,6 +3,7 @@ import { container } from '@/container.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
 import { getResourceScopedIds, hasScope, hasScopeBase, hasScopeForCreation } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { appsHostRuntime } from '@/modules/apps/apps-host-runtime.js';
 import { authMiddleware, rejectImpersonation, requireScopeBase } from '@/modules/auth/auth.middleware.js';
 import { RenewManagedCertificateSchema } from '@/modules/managed-workloads/certificate-renewal.docs.js';
 import { ObjectStorageFolderService } from '@/modules/object-storage/object-storage-folders.service.js';
@@ -45,6 +46,8 @@ import {
 import { ManagedStorageService } from './managed-storage.service.js';
 import { ManagedStorageBindingsService } from './managed-storage-bindings.service.js';
 export const managedStorageRouteRuntime = {
+  /** Apps: node allowlist guard, `app` field and list filters (see apps-host-runtime.ts). */
+  apps: appsHostRuntime,
   OpenAPIHono,
   container,
   openApiValidationHook,

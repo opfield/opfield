@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { proxyHosts } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { assertAppPlacement } from '@/modules/apps/app-placement-guard.js';
 import { requireRoutableIngressGroup } from '@/modules/ingress-groups/ingress-group-routing.js';
 import { assertNodeAllowsServiceCreation } from '@/modules/nodes/service-creation-lock.js';
 import type { UpdateProxyHostInput } from './proxy.schemas.js';
@@ -111,6 +112,8 @@ export abstract class ProxyServicePlacement extends ProxyServiceDelivery {
     const added = target.servingNodeIds.filter((nodeId) => !before.includes(nodeId));
     const removed = before.filter((nodeId) => !target.servingNodeIds.includes(nodeId));
     for (const nodeId of added) await assertNodeAllowsServiceCreation(this.db, nodeId, 'nginx');
+    // A route of an app environment is served only by nodes the environment allows.
+    await assertAppPlacement(this.db, 'routes', existing.folderId, added);
     if (!options.skipDomainNodeValidation) {
       await assertRegisteredDomainsUseTarget(this.db, existing.domainNames, target);
     }

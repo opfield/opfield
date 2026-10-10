@@ -13,6 +13,7 @@ import { grantCreatedResourcePermissions } from '@/lib/created-resource-permissi
 import { createChildLogger } from '@/lib/logger.js';
 import { transactionWithScopeCleanup } from '@/lib/resource-scope-cleanup.js';
 import { writeWithAllocatedSlug } from '@/lib/resource-slugs.js';
+import { appsHostRuntime } from '@/modules/apps/apps-host-runtime.js';
 import { isGatewayInternalContainer } from '@/modules/docker/docker-internal-containers.js';
 import { requireConfiguredLicensePolicy } from '@/modules/license/license-policy.service.js';
 import {
@@ -50,6 +51,8 @@ export const managedStorageConstructors = {
 };
 export type ManagedStorageConstructors = typeof managedStorageConstructors;
 export const managedStorageRuntime = {
+  /** Apps: node allowlist guard, `app` field and list filters (see apps-host-runtime.ts). */
+  apps: appsHostRuntime,
   constructors: managedStorageConstructors,
   and,
   asc,

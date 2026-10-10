@@ -1,5 +1,6 @@
 import { container } from '@/container.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { AppNodesService } from '@/modules/apps/app-nodes.service.js';
 import {
   CreateAppEnvironmentSchema,
   CreateAppSchema,
@@ -14,14 +15,6 @@ export const APP_TOOL_NAMES = new Set(['list_apps', 'get_app', 'manage_app', 'ma
 function requiredString(value: unknown, field: string, operation: string): string {
   if (typeof value === 'string' && value) return value;
   throw new AppError(400, 'VALIDATION_ERROR', `${field} is required for ${operation}`);
-}
-
-/** Extra manage_app_environment operations provided by other app modules (nodes, maintenance, access codes). */
-export type AppEnvironmentToolOperation = (actor: AppActor, args: Record<string, unknown>) => Promise<unknown>;
-const ENVIRONMENT_OPERATIONS = new Map<string, AppEnvironmentToolOperation>();
-
-export function registerAppEnvironmentToolOperation(operation: string, handler: AppEnvironmentToolOperation): void {
-  ENVIRONMENT_OPERATIONS.set(operation, handler);
 }
 
 /** list_apps, get_app, manage_app, manage_app_environment: the same service calls and checks as /api/apps. */
@@ -84,10 +77,17 @@ async function manageEnvironment(service: AppsService, actor: AppActor, args: Re
     case 'delete':
       await service.deleteEnvironment(actor, appId, environmentId());
       return { success: true };
-    default: {
-      const handler = ENVIRONMENT_OPERATIONS.get(operation);
-      if (handler) return handler(actor, args);
+    case 'list_nodes':
+      return container.resolve(AppNodesService).list(actor, appId, environmentId());
+    case 'allow_node':
+      return container
+        .resolve(AppNodesService)
+        .allow(actor, appId, environmentId(), requiredString(args.nodeId, 'nodeId', operation));
+    case 'remove_node':
+      return container
+        .resolve(AppNodesService)
+        .remove(actor, appId, environmentId(), requiredString(args.nodeId, 'nodeId', operation));
+    default:
       throw new AppError(400, 'VALIDATION_ERROR', `Unsupported environment operation: ${operation}`);
-    }
   }
 }
