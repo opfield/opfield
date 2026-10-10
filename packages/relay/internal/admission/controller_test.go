@@ -210,3 +210,18 @@ func (s *countingSampler) Sample() ResourcePressure {
 	s.calls++
 	return s.pressure
 }
+
+// Daemons recognize an admission-pressure refusal by this message and demote
+// the relay for new tunnels (daemon-shared relaybridge.RelayPenalties.Opened):
+// a changed wording would leave an overloaded relay first again.
+func TestRejectedMessageIsTheDaemonsContract(t *testing.T) {
+	for state, want := range map[string]string{
+		"hard_pressure":    "relay adaptive admission rejected database tunnel: hard_pressure",
+		"database_reserve": "relay adaptive admission rejected database tunnel: database_reserve",
+		"fair_share":       "relay adaptive admission rejected database tunnel: fair_share",
+	} {
+		if got := (&Rejected{TrafficClass: TrafficClassDatabase, State: state}).Error(); got != want {
+			t.Fatalf("Rejected message %q, daemons expect %q", got, want)
+		}
+	}
+}

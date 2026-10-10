@@ -438,7 +438,7 @@ func (m *dockerRegistryProxyManager) openRelayConnection(ctx context.Context, bi
 	// followed by the next candidate instead of failing the request.
 	route := relayRouteKey(registryRelayOwnerKind, binding.id)
 	refusal := errors.New("registry relay lane is unavailable")
-	for _, candidate := range m.plugin.orderRelayCandidates(route, candidates) {
+	for _, candidate := range m.plugin.orderRelayCandidates(route, candidates, "") {
 		router := m.plugin.relayRouter(candidate.GetRelayInstanceId())
 		if router == nil || candidate.GetGrant() == nil {
 			continue
