@@ -1,3 +1,4 @@
+import { setAppMemberListParams } from "@/lib/app-members";
 import {
   INFERENCE_SELF_USAGE_CACHE_KEY,
   publishInferenceSelfUsage,
@@ -57,6 +58,9 @@ export function withPagesDomainsApi<TBase extends ApiClientBaseConstructor>(Base
       limit?: number;
       search?: string;
       folderId?: string | null;
+      /** App members: see `AppMemberListFilter`. */
+      excludeAppMembers?: boolean;
+      appId?: string;
     }): Promise<PaginatedResponse<PageProject>> {
       const searchParams = new URLSearchParams();
       if (params?.page) searchParams.set("page", String(params.page));
@@ -66,6 +70,7 @@ export function withPagesDomainsApi<TBase extends ApiClientBaseConstructor>(Base
         if (params.folderId !== null) searchParams.set("folderId", params.folderId);
         else searchParams.set("folderId", "");
       }
+      setAppMemberListParams(searchParams, params);
       const query = searchParams.toString();
       return this.request<PaginatedResponse<PageProject>>(`/pages${query ? `?${query}` : ""}`);
     }

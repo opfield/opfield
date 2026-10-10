@@ -15,6 +15,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { AppMembershipLink } from "@/components/apps/AppMembership";
 import { confirm, confirmAction } from "@/components/common/ConfirmDialog";
 import { CopyButton } from "@/components/common/CopyButton";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
@@ -1045,6 +1046,7 @@ export function ProxyHostDetail({
                 </Badge>
               ) : null}
               {host.type === "redirect" && host.redirectUrl ? ` \u2192 ${host.redirectUrl}` : null}
+              {host.app ? <AppMembershipLink app={host.app} /> : null}
             </span>
           }
           actions={

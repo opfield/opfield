@@ -2,6 +2,8 @@ import { FolderPlus, Globe2, Plus, Settings } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { MoveToAppDialog } from "@/components/apps/MoveToAppDialog";
+import { MoveToAppRowMenu } from "@/components/apps/MoveToAppRowMenu";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderedResourceList } from "@/components/common/FolderedResourceList";
@@ -13,6 +15,7 @@ import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderAct
 import { Button } from "@/components/ui/button";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
+import { NORMAL_LIST_FILTER, withoutAppMembers } from "@/lib/app-members";
 import { nodeIconClassNames } from "@/lib/node-appearance";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -91,6 +94,7 @@ export function Pages() {
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [createFolderAction, setCreateFolderAction] = useState<(() => void) | null>(null);
+  const [moveToAppProject, setMoveToAppProject] = useState<PageProject | null>(null);
 
   const load = useCallback(async () => {
     const version = ++loadVersion.current;
@@ -100,7 +104,7 @@ export function Pages() {
     }
     setLoading((current) => current || projectsRef.current.length === 0);
     try {
-      const response = await api.listPageProjects({ page: 1, limit: 100 });
+      const response = await api.listPageProjects({ page: 1, limit: 100, ...NORMAL_LIST_FILTER });
       if (version !== loadVersion.current) return;
       setProjects(response.data ?? []);
       api.setCache("pages:projects", response);
@@ -124,18 +128,46 @@ export function Pages() {
   useRealtime("pages.project.changed", () => void load());
   useRealtime("pages.folder.changed", () => void load());
 
+  // App members live on their app's page (the server leaves them out too).
+  const listedProjects = useMemo(() => withoutAppMembers(projects), [projects]);
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return needle
-      ? projects.filter(
+      ? listedProjects.filter(
           (project) =>
             project.name.toLowerCase().includes(needle) ||
             project.slug.toLowerCase().includes(needle)
         )
-      : projects;
-  }, [projects, search]);
+      : listedProjects;
+  }, [listedProjects, search]);
 
-  const openProject = (project: PageProject) => navigate(`/pages/${project.slug}/deployments`);
+  const openProject = useCallback(
+    (project: PageProject) => navigate(`/pages/${project.slug}/deployments`),
+    [navigate]
+  );
+  const columns = useMemo<ResourceListColumn<PageProject>[]>(
+    () =>
+      canEdit
+        ? [
+            ...projectColumns,
+            {
+              id: "actions",
+              label: "Actions",
+              width: "4.5rem",
+              align: "right",
+              renderCell: (project) =>
+                !project.app && hasScope(`pages:edit:${project.id}`) ? (
+                  <MoveToAppRowMenu
+                    resourceLabel={project.name}
+                    onOpen={() => openProject(project)}
+                    onMoveToApp={() => setMoveToAppProject(project)}
+                  />
+                ) : null,
+            },
+          ]
+        : projectColumns,
+    [canEdit, hasScope, openProject]
+  );
 
   return (
     <PageTransition>
@@ -147,7 +179,7 @@ export function Pages() {
             <div>
               <h1 className="text-2xl font-bold">Pages</h1>
               <p className="text-sm text-muted-foreground">
-                {projects.length} project{projects.length === 1 ? "" : "s"}
+                {listedProjects.length} project{listedProjects.length === 1 ? "" : "s"}
               </p>
             </div>
           </div>
@@ -222,7 +254,7 @@ export function Pages() {
             resourceType="pages-project"
             realtimeChannel="pages.folder.changed"
             resources={filtered}
-            columns={projectColumns}
+            columns={columns}
             search={{
               search,
               onSearchChange: setSearch,
@@ -244,7 +276,7 @@ export function Pages() {
             }
             minWidth={720}
             canManageFolders={canManageFolders}
-            canReorganizeItem={() => canManageFolders || canEdit}
+            canReorganizeItem={(project) => !project.app && (canManageFolders || canEdit)}
             getResourceLabel={(project) => project.name}
             onItemClick={openProject}
             onRefresh={load}
@@ -252,6 +284,17 @@ export function Pages() {
           />
         )}
       </div>
+      {canEdit && (
+        <MoveToAppDialog
+          open={moveToAppProject !== null}
+          onOpenChange={(open) => {
+            if (!open) setMoveToAppProject(null);
+          }}
+          members={moveToAppProject ? [{ type: "pages", id: moveToAppProject.id }] : []}
+          resourceLabel={moveToAppProject?.name ?? "the Page Project"}
+          onMoved={() => void load()}
+        />
+      )}
       <CreatePageProjectDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}

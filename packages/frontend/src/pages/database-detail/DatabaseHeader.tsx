@@ -10,6 +10,7 @@ import {
   SlidersHorizontal,
   Trash2,
 } from "lucide-react";
+import { AppMembershipLink } from "@/components/apps/AppMembership";
 import { PageBackButton } from "@/components/common/PageBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
 import {
@@ -254,6 +255,12 @@ export function DatabaseHeader({
           {database.managed
             ? `Managed ${database.type} ${database.managed.version} · ${database.managed.publishedPort === null ? "private" : `TCP ${database.managed.publishedPort}${database.type === "clickhouse" && database.managed.publishedNativePort != null ? ` · native ${database.managed.publishedNativePort}` : ""}`}`
             : `${database.host}:${database.port}${database.databaseName ? ` · ${database.databaseName}` : ""}`}
+          {database.app ? (
+            <>
+              {" · "}
+              <AppMembershipLink app={database.app} />
+            </>
+          ) : null}
         </span>
       }
       actions={

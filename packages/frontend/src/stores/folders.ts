@@ -1,7 +1,9 @@
 import { create } from "zustand";
+import { isAppMember, NORMAL_LIST_FILTER, withoutAppMembers } from "@/lib/app-members";
 import { api } from "@/services/api";
 import type {
   FolderTreeNode,
+  GroupedProxyHostsResponse,
   HealthStatus,
   ProxyHost,
   ProxyHostFolder,
@@ -158,6 +160,34 @@ function folderTreeHasHost(nodes: FolderTreeNode[], id: string): boolean {
 
 let fetchGroupedHostsRequestId = 0;
 
+function hasGroupedAppMembers(folders: FolderTreeNode[]): boolean {
+  return folders.some(
+    (folder) => folder.hosts.some(isAppMember) || hasGroupedAppMembers(folder.children)
+  );
+}
+
+function withoutFolderAppMembers(folders: FolderTreeNode[]): FolderTreeNode[] {
+  return folders.map((folder) => ({
+    ...folder,
+    hosts: withoutAppMembers(folder.hosts),
+    children: withoutFolderAppMembers(folder.children),
+  }));
+}
+
+/** Routes in apps show on their app's page, not here (the server already leaves them out). */
+export function withoutGroupedAppMembers(
+  response: GroupedProxyHostsResponse
+): GroupedProxyHostsResponse {
+  if (!response.ungroupedHosts.some(isAppMember) && !hasGroupedAppMembers(response.folders)) {
+    return response;
+  }
+  const ungroupedHosts = withoutAppMembers(response.ungroupedHosts);
+  const folders = withoutFolderAppMembers(response.folders);
+  const count = (nodes: FolderTreeNode[]): number =>
+    nodes.reduce((total, folder) => total + folder.hosts.length + count(folder.children), 0);
+  return { folders, ungroupedHosts, totalHosts: ungroupedHosts.length + count(folders) };
+}
+
 export const useFolderStore = create<FolderState>()((set, get) => ({
   ...(() => {
     const initialExpanded = new Set(loadExpandedFolderIds());
@@ -181,11 +211,8 @@ export const useFolderStore = create<FolderState>()((set, get) => ({
 
     // Show cached data instantly for default filters
     if (isDefaultFilters && get().folders.length === 0) {
-      const cached = api.getCached<{
-        folders: FolderTreeNode[];
-        ungroupedHosts: ProxyHost[];
-        totalHosts: number;
-      }>("proxy:grouped");
+      const cachedResponse = api.getCached<GroupedProxyHostsResponse>("proxy:grouped");
+      const cached = cachedResponse ? withoutGroupedAppMembers(cachedResponse) : undefined;
       if (cached)
         set({
           folders: cached.folders,
@@ -197,11 +224,14 @@ export const useFolderStore = create<FolderState>()((set, get) => ({
     const hasData = get().folders.length > 0 || get().ungroupedHosts.length > 0;
     set({ isLoading: !hasData, error: null });
     try {
-      const response = await api.getGroupedProxyHosts({
-        search: filters.search || undefined,
-        type: filters.type !== "all" ? filters.type : undefined,
-        healthStatus: filters.healthStatus !== "all" ? filters.healthStatus : undefined,
-      });
+      const response = withoutGroupedAppMembers(
+        await api.getGroupedProxyHosts({
+          search: filters.search || undefined,
+          type: filters.type !== "all" ? filters.type : undefined,
+          healthStatus: filters.healthStatus !== "all" ? filters.healthStatus : undefined,
+          ...NORMAL_LIST_FILTER,
+        })
+      );
       if (requestId !== fetchGroupedHostsRequestId) return;
       if (isDefaultFilters) api.setCache("proxy:grouped", response);
       set((state) => {

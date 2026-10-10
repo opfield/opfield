@@ -9,6 +9,9 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { AppMemberBadge } from "@/components/apps/AppMembership";
+import { MoveToAppDialog } from "@/components/apps/MoveToAppDialog";
+import { MoveToAppRowMenu } from "@/components/apps/MoveToAppRowMenu";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderedResourceList } from "@/components/common/FolderedResourceList";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
@@ -36,6 +39,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
+import { NORMAL_LIST_FILTER, withoutAppMembers } from "@/lib/app-members";
 import { refreshDynamicScopes } from "@/lib/live-scopes";
 import { listManagedDatabaseCandidateNodes } from "@/lib/managed-database-nodes";
 import { nodeIconClassNames } from "@/lib/node-appearance";
@@ -231,10 +235,11 @@ function DatabasesContent({
     loading: boolean;
   } | null>(null);
   if (!initialListState.current) {
-    const cachedRows = embedded
+    const cachedList = embedded
       ? undefined
       : (api.getCached<DatabaseConnection[]>("databases:list::all:all") ??
         api.getCached<DatabaseConnection[]>("databases:list"));
+    const cachedRows = cachedList ? withoutAppMembers(cachedList) : undefined;
     const cachedNodes = api.getCached<Node[]>(DATABASE_NODE_APPEARANCE_CACHE_KEY) ?? [];
     const canRenderCachedRows =
       !embedded &&
@@ -257,6 +262,7 @@ function DatabasesContent({
     initialListState.current.nodes.length > 0
   );
   const [createFolderAction, setCreateFolderAction] = useState<(() => void) | null>(null);
+  const [moveToAppDatabase, setMoveToAppDatabase] = useState<DatabaseConnection | null>(null);
   const openConnectionCreate = () => {
     if (requireLicenseFeature("external-database-connections", "External database connections"))
       setCreateOpen(true);
@@ -281,7 +287,9 @@ function DatabasesContent({
 
   const load = useCallback(
     async ({ background = false }: { background?: boolean } = {}) => {
-      const cachedRows = api.getCached<DatabaseConnection[]>(databaseCacheKey);
+      const cachedList = api.getCached<DatabaseConnection[]>(databaseCacheKey);
+      // A node's view keeps app members; the normal list leaves them to their app's page.
+      const cachedRows = cachedList && !managedNodeId ? withoutAppMembers(cachedList) : cachedList;
       const cachedNodes = api.getCached<Node[]>(DATABASE_NODE_APPEARANCE_CACHE_KEY) ?? [];
       if (cachedRows && canRenderDatabaseRowsWithNodeAppearance(cachedRows, cachedNodes)) {
         setDatabaseNodes(cachedNodes);
@@ -326,8 +334,9 @@ function DatabasesContent({
             search: search || undefined,
             type: typeFilter === "all" ? undefined : typeFilter,
             healthStatus: healthFilter === "all" ? undefined : healthFilter,
+            ...NORMAL_LIST_FILTER,
           });
-          data = result.data;
+          data = withoutAppMembers(result.data);
         }
 
         const nodes = await nodesRequest;
@@ -402,6 +411,13 @@ function DatabasesContent({
     [databaseNodes]
   );
 
+  // Members never show here (they live on their app's page); a node's view lists them read-only.
+  const canMoveToApps = !embedded && hasScopedAccess("databases:edit");
+  const canMoveDatabaseToApp = useCallback(
+    (row: DatabaseConnection) => !row.app && hasScope(`databases:edit:${row.id}`),
+    [hasScope]
+  );
+
   const columns = useMemo<ResourceListColumn<DatabaseConnection>[]>(
     () => [
       {
@@ -419,7 +435,10 @@ function DatabasesContent({
                 <Icon className={cn("h-5 w-5", iconClassNames.icon)} />
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{row.name}</p>
+                <div className="flex min-w-0 items-center gap-2">
+                  <p className="truncate text-sm font-medium">{row.name}</p>
+                  {row.app && <AppMemberBadge app={row.app} />}
+                </div>
                 <p className="truncate text-xs text-muted-foreground">
                   {row.host}:{row.port}
                   {row.databaseName ? ` · ${row.databaseName}` : ""}
@@ -463,8 +482,26 @@ function DatabasesContent({
           );
         },
       },
+      ...(canMoveToApps
+        ? [
+            {
+              id: "actions",
+              label: "Actions",
+              width: "4.5rem",
+              align: "right" as const,
+              renderCell: (row: DatabaseConnection) =>
+                canMoveDatabaseToApp(row) ? (
+                  <MoveToAppRowMenu
+                    resourceLabel={row.name}
+                    onOpen={() => navigate(databaseRoute(row.slug, "overview"))}
+                    onMoveToApp={() => setMoveToAppDatabase(row)}
+                  />
+                ) : null,
+            } satisfies ResourceListColumn<DatabaseConnection>,
+          ]
+        : []),
     ],
-    [databaseNodeById]
+    [canMoveDatabaseToApp, canMoveToApps, databaseNodeById, navigate]
   );
 
   return (
@@ -610,13 +647,25 @@ function DatabasesContent({
           minWidth={920}
           canManageFolders={canManageFolders}
           canViewItem={(row) => hasScope("databases:view") || hasScope(`databases:view:${row.id}`)}
-          canReorganizeItem={() => canManageFolders}
+          canReorganizeItem={(row) => canManageFolders && !row.app}
           getResourceLabel={(row) => row.name}
           onItemClick={(row) => navigate(databaseRoute(row.slug, "overview"))}
           onRefresh={() => load()}
           onCreateFolderRef={(fn) => setCreateFolderAction(() => fn)}
         />
       </div>
+
+      {canMoveToApps && (
+        <MoveToAppDialog
+          open={moveToAppDatabase !== null}
+          onOpenChange={(open) => {
+            if (!open) setMoveToAppDatabase(null);
+          }}
+          members={moveToAppDatabase ? [{ type: "database", id: moveToAppDatabase.id }] : []}
+          resourceLabel={moveToAppDatabase?.name ?? "the database"}
+          onMoved={() => void load({ background: true })}
+        />
+      )}
 
       {!embedded && (
         <DatabaseConnectionCreateDialog open={createOpen} onOpenChange={setCreateOpen} />

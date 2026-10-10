@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { type AppMemberListFilter, NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { filterUserDockerNetworks } from "@/lib/docker-networks";
 import { api } from "@/services/api";
 import type {
@@ -117,7 +118,11 @@ interface DockerState {
     searchOverride?: string,
     nodesOverride?: Node[]
   ) => Promise<void>;
-  fetchComposeProjects: (nodeIdOverride?: string | null) => Promise<void>;
+  /** `filter` defaults to the normal list's (no app members); a node's view passes `{}`. */
+  fetchComposeProjects: (
+    nodeIdOverride?: string | null,
+    filter?: AppMemberListFilter
+  ) => Promise<void>;
   fetchTasks: (nodeIdOverride?: string | null) => Promise<void>;
   fetchRegistries: () => Promise<void>;
   requestSnapshotRefresh: (
@@ -316,9 +321,11 @@ export const useDockerStore = create<DockerState>()((set, get) => ({
         ...loadingState(state.loading, "containers", !cached),
       }));
       try {
+        // The Docker lists leave app members to their app's page.
         const items = await api.listDockerContainerSnapshots({
           nodeId: effectiveNodeId ?? undefined,
           search,
+          ...NORMAL_LIST_FILTER,
         });
         if (requestId !== dockerRequestIds.containers) return;
         api.setCache(cacheKey, items);
@@ -359,9 +366,11 @@ export const useDockerStore = create<DockerState>()((set, get) => ({
         ...loadingState(state.loading, "containers", !cached),
       }));
       try {
+        // The Docker lists leave app members to their app's page.
         const items = await api.listDockerContainerSnapshots({
           nodeId: effectiveNodeId ?? undefined,
           search,
+          ...NORMAL_LIST_FILTER,
         });
         if (requestId !== dockerRequestIds.containers) return;
         api.setCache(cacheKey, items);
@@ -460,12 +469,12 @@ export const useDockerStore = create<DockerState>()((set, get) => ({
     }
   },
 
-  fetchComposeProjects: async (nodeIdOverride) => {
+  fetchComposeProjects: async (nodeIdOverride, filter = NORMAL_LIST_FILTER) => {
     const requestId = ++dockerRequestIds.compose;
     const effectiveNodeId = nodeIdOverride ?? get().selectedNodeId;
     set((state) => loadingState(state.loading, "compose", get().composeProjects.length === 0));
     try {
-      const projects = await api.listDockerComposeProjects(effectiveNodeId ?? undefined);
+      const projects = await api.listDockerComposeProjects(effectiveNodeId ?? undefined, filter);
       const placements = await attachFolderPlacements(
         "compose",
         projects.map((project) => ({ ...project, _nodeId: project.nodeId })),

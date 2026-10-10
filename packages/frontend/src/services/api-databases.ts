@@ -1,3 +1,4 @@
+import { setAppMemberListParams } from "@/lib/app-members";
 import type {
   DatabaseConnection,
   ManagedCertificateStatus,
@@ -34,6 +35,9 @@ export function withDatabaseApi<TBase extends ApiClientBaseConstructor>(Base: TB
       search?: string;
       type?: "postgres" | "redis" | "clickhouse";
       healthStatus?: "online" | "offline" | "degraded" | "unknown";
+      /** App members: see `AppMemberListFilter`. */
+      excludeAppMembers?: boolean;
+      appId?: string;
     }): Promise<PaginatedResponse<DatabaseConnection>> {
       const searchParams = new URLSearchParams();
       if (params?.page) searchParams.set("page", String(params.page));
@@ -41,6 +45,7 @@ export function withDatabaseApi<TBase extends ApiClientBaseConstructor>(Base: TB
       if (params?.search) searchParams.set("search", params.search);
       if (params?.type) searchParams.set("type", params.type);
       if (params?.healthStatus) searchParams.set("healthStatus", params.healthStatus);
+      setAppMemberListParams(searchParams, params);
       const query = searchParams.toString();
       return this.request<PaginatedResponse<DatabaseConnection>>(
         `/databases${query ? `?${query}` : ""}`

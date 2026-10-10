@@ -14,6 +14,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { AppMembershipLink } from "@/components/apps/AppMembership";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
@@ -1214,11 +1215,21 @@ export function DockerDeploymentDetail({
                   </>
                 ) : null}
                 <span className="shrink-0">&middot; active {deployment.activeSlot}</span>
+                {deployment.app ? (
+                  <span className="shrink-0">
+                    &middot; <AppMembershipLink app={deployment.app} />
+                  </span>
+                ) : null}
               </span>
             ) : (
               <span className="flex min-w-0 items-center gap-1.5">
                 <ImageReference value={displayImage} copyable={false} className="justify-start" />
                 <span className="shrink-0">&middot; active {deployment.activeSlot}</span>
+                {deployment.app ? (
+                  <span className="shrink-0">
+                    &middot; <AppMembershipLink app={deployment.app} />
+                  </span>
+                ) : null}
               </span>
             )
           }

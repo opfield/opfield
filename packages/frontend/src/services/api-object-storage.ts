@@ -1,3 +1,4 @@
+import { setAppMemberListParams } from "@/lib/app-members";
 import type {
   ManagedCertificateStatus,
   ObjectStorageBucket,
@@ -46,6 +47,9 @@ export function withObjectStorageApi<TBase extends ApiClientBaseConstructor>(Bas
       search?: string;
       provider?: ObjectStorageProvider;
       healthStatus?: "online" | "offline" | "degraded" | "unknown";
+      /** App members: see `AppMemberListFilter`. */
+      excludeAppMembers?: boolean;
+      appId?: string;
     }): Promise<PaginatedResponse<ObjectStorageConnection>> {
       const searchParams = new URLSearchParams();
       if (params?.page) searchParams.set("page", String(params.page));
@@ -53,6 +57,7 @@ export function withObjectStorageApi<TBase extends ApiClientBaseConstructor>(Bas
       if (params?.search) searchParams.set("search", params.search);
       if (params?.provider) searchParams.set("provider", params.provider);
       if (params?.healthStatus) searchParams.set("healthStatus", params.healthStatus);
+      setAppMemberListParams(searchParams, params);
       const query = searchParams.toString();
       return this.request<PaginatedResponse<ObjectStorageConnection>>(
         `/object-storage${query ? `?${query}` : ""}`

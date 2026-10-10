@@ -17,6 +17,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { AppMembershipLink } from "@/components/apps/AppMembership";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { CopyCodeBlock } from "@/components/common/CopyCodeBlock";
 import { CopyValueField } from "@/components/common/CopyValueField";
@@ -462,6 +463,12 @@ export function PageProjectDetail({
               <p className="truncate text-sm text-muted-foreground">
                 {project.slug}
                 {project.description ? ` · ${project.description}` : ""}
+                {project.app ? (
+                  <>
+                    {" · "}
+                    <AppMembershipLink app={project.app} />
+                  </>
+                ) : null}
               </p>
             </div>
           </div>

@@ -2,6 +2,8 @@ import { FolderPlus, HardDrive, HardDriveDownload, Plus, RefreshCw } from "lucid
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { MoveToAppDialog } from "@/components/apps/MoveToAppDialog";
+import { MoveToAppRowMenu } from "@/components/apps/MoveToAppRowMenu";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderedResourceList } from "@/components/common/FolderedResourceList";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
@@ -21,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
+import { NORMAL_LIST_FILTER, withoutAppMembers } from "@/lib/app-members";
 import { refreshDynamicScopes } from "@/lib/live-scopes";
 import {
   isManagedStorageCandidateNode,
@@ -206,6 +209,7 @@ function StorageContent() {
   );
   const [createOpen, setCreateOpen] = useState(false);
   const [createFolderAction, setCreateFolderAction] = useState<(() => void) | null>(null);
+  const [moveToAppStorage, setMoveToAppStorage] = useState<ObjectStorageConnection | null>(null);
   const [managedCreateOpen, setManagedCreateOpen] = useState(false);
   const [managedCatalog, setManagedCatalog] = useState<ManagedObjectStorageCatalogEntry[]>([]);
   // Cached with the list so a cached list keeps its node icon colors on the first frame.
@@ -240,6 +244,7 @@ function StorageContent() {
         search: search || undefined,
         provider: providerFilter === "all" ? undefined : providerFilter,
         healthStatus: healthFilter === "all" ? undefined : healthFilter,
+        ...NORMAL_LIST_FILTER,
       });
       api.setCache(storageCacheKey, result.data);
       if (search === "" && providerFilter === "all" && healthFilter === "all") {
@@ -272,7 +277,13 @@ function StorageContent() {
 
   // The server already filters the list by view grants, including folder grants that cover
   // resources created after the cached scopes were loaded; row actions keep their own checks.
-  const filtered = rows;
+  // App members live on their app's page (the server leaves them out too).
+  const filtered = useMemo(() => withoutAppMembers(rows), [rows]);
+  const canMoveToApps = hasScopedAccess("storage:edit");
+  const canMoveStorageToApp = useCallback(
+    (row: ObjectStorageConnection) => !row.app && hasScope(`storage:edit:${row.id}`),
+    [hasScope]
+  );
 
   const storageNodeById = useMemo(
     () => new Map(storageNodes.map((node) => [node.id, node])),
@@ -347,8 +358,26 @@ function StorageContent() {
           );
         },
       },
+      ...(canMoveToApps
+        ? [
+            {
+              id: "actions",
+              label: "Actions",
+              width: "4.5rem",
+              align: "right" as const,
+              renderCell: (row: ObjectStorageConnection) =>
+                canMoveStorageToApp(row) ? (
+                  <MoveToAppRowMenu
+                    resourceLabel={row.name}
+                    onOpen={() => navigate(storageRoute(row.slug, "overview"))}
+                    onMoveToApp={() => setMoveToAppStorage(row)}
+                  />
+                ) : null,
+            } satisfies ResourceListColumn<ObjectStorageConnection>,
+          ]
+        : []),
     ],
-    [storageNodeById]
+    [canMoveStorageToApp, canMoveToApps, navigate, storageNodeById]
   );
 
   return (
@@ -494,13 +523,25 @@ function StorageContent() {
           minWidth={920}
           canManageFolders={canManageFolders}
           canViewItem={(row) => hasScope("storage:view") || hasScope(`storage:view:${row.id}`)}
-          canReorganizeItem={() => canManageFolders}
+          canReorganizeItem={(row) => canManageFolders && !row.app}
           getResourceLabel={(row) => row.name}
           onItemClick={(row) => navigate(storageRoute(row.slug, "overview"))}
           onRefresh={() => load()}
           onCreateFolderRef={(fn) => setCreateFolderAction(() => fn)}
         />
       </div>
+
+      {canMoveToApps && (
+        <MoveToAppDialog
+          open={moveToAppStorage !== null}
+          onOpenChange={(open) => {
+            if (!open) setMoveToAppStorage(null);
+          }}
+          members={moveToAppStorage ? [{ type: "storage", id: moveToAppStorage.id }] : []}
+          resourceLabel={moveToAppStorage?.name ?? "the storage"}
+          onMoved={() => void load()}
+        />
+      )}
 
       <StorageConnectionCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
 

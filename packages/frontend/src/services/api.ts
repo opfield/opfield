@@ -1,3 +1,4 @@
+import { NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { useAuthStore } from "@/stores/auth";
 import { hasLicenseFeature, type LicenseFeature } from "@/stores/license-paywall";
 import { useUIStore } from "@/stores/ui";
@@ -165,12 +166,14 @@ class ApiClient extends withAppsApi(
     add(
       auth.hasScopedAccess("proxy:view"),
       "proxy-hosts",
-      cache("proxy:grouped", () => this.getGroupedProxyHosts({}))
+      cache("proxy:grouped", () => this.getGroupedProxyHosts({ ...NORMAL_LIST_FILTER }))
     );
     add(
       licensed("pages") && auth.hasScopedAccess("pages:view"),
       "pages-projects",
-      cache("pages:projects", () => this.listPageProjects({ page: 1, limit: 100 }))
+      cache("pages:projects", () =>
+        this.listPageProjects({ page: 1, limit: 100, ...NORMAL_LIST_FILTER })
+      )
     );
     add(
       licensed("pages") &&
@@ -221,7 +224,7 @@ class ApiClient extends withAppsApi(
       licensed("external-database-connections") && auth.hasScopedAccess("databases:view"),
       "databases",
       cache("databases:list", () =>
-        this.listDatabases({ limit: 200 }).then((result) => result.data)
+        this.listDatabases({ limit: 200, ...NORMAL_LIST_FILTER }).then((result) => result.data)
       )
     );
     // Without a logging backend the lists answer 503; the Logging pages load them on demand.
