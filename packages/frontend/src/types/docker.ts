@@ -1,3 +1,4 @@
+import type { AppMembershipRef } from "./apps";
 export type DockerFolderResourceType = "container" | "image" | "network" | "volume" | "compose";
 
 export interface DockerContainerFolder {
@@ -65,6 +66,8 @@ export interface DockerRuntimeStatus {
 }
 
 export interface DockerContainer {
+  /** Set when the resource is a member of an app environment. */
+  app?: AppMembershipRef | null;
   pendingSourceBuild?: boolean;
   id: string;
   /** Stable Gateway authorization identity. Unlike the Docker runtime ID, this survives recreate and migration. */
@@ -227,6 +230,8 @@ export interface DockerDeploymentHealthConfig {
 }
 
 export interface DockerDeployment {
+  /** Set when the resource is a member of an app environment. */
+  app?: AppMembershipRef | null;
   id: string;
   scopeResourceId?: string;
   nodeId: string;
@@ -344,6 +349,8 @@ export interface DockerComposeNormalizedModel {
 }
 
 export interface DockerComposeProjectSummary {
+  /** Set when the resource is a member of an app environment. */
+  app?: AppMembershipRef | null;
   id: string;
   scopeResourceId?: string;
   nodeId: string;

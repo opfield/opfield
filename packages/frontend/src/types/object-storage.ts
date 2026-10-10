@@ -1,3 +1,4 @@
+import type { AppMembershipRef } from "./apps";
 import type { ManagedDatabaseBindingRuntime } from "./databases";
 
 // Object Storage
@@ -142,6 +143,8 @@ export interface ObjectStorageConfig {
 }
 
 export interface ObjectStorageConnection {
+  /** Set when the resource is a member of an app environment. */
+  app?: AppMembershipRef | null;
   hostKeyFingerprint?: string | null;
   id: string;
   slug: string;

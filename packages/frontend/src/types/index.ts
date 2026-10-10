@@ -9,6 +9,7 @@ export type {
   WSClientMessage,
   WSServerMessage,
 } from "./ai";
+export * from "./apps";
 export type * from "./auth";
 export type * from "./common";
 export type * from "./container-links";

@@ -1,5 +1,20 @@
 const RESOURCE_PROJECTIONS: Record<string, string[]> = {
   "access-lists": ["access-lists:list"],
+  // Placing members changes every normal list (members leave or rejoin them).
+  apps: [
+    "apps:",
+    "proxy:grouped",
+    "req:/api/proxy-hosts",
+    "req:/api/proxy-host-folders/grouped",
+    "databases:list",
+    "req:/api/databases",
+    "storage:list",
+    "req:/api/object-storage",
+    "pages:",
+    "req:/api/pages",
+    "docker:",
+    "req:/api/docker",
+  ],
   admin: ["admin:"],
   cas: ["cas:list:", "certificates:list:"],
   certificates: ["certificates:list:", "cas:list:"],

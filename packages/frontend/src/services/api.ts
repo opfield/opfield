@@ -25,6 +25,7 @@ import type {
 import type { AIScenario, PageContext } from "@/types/ai";
 import type { FileEntry } from "@/types/docker";
 import { withAIStatusApi } from "./api-ai-status";
+import { withAppsApi } from "./api-apps";
 import { withAuthApi } from "./api-auth";
 import { withBackupApi } from "./api-backups";
 import { API_BASE, ApiClientBase } from "./api-base";
@@ -45,21 +46,25 @@ import { withProxyApi } from "./api-proxy";
 import { withSystemApi } from "./api-system";
 import { type BackgroundPrewarmTask, runBackgroundPrewarm } from "./background-prewarm";
 
-class ApiClient extends withIngressGroupsApi(
-  withPagesDomainsApi(
-    withAIStatusApi(
-      withInferenceCoreApi(
-        withInferenceApi(
-          withIntegrationsApi(
-            withLoggingApi(
-              withNotificationApi(
-                withAuthApi(
-                  withSystemApi(
-                    withDockerApi(
-                      withBackupApi(
-                        withObjectStorageApi(
-                          withContainerLinksApi(
-                            withDatabaseApi(withPkiApi(withProxyApi(withHostingApi(ApiClientBase))))
+class ApiClient extends withAppsApi(
+  withIngressGroupsApi(
+    withPagesDomainsApi(
+      withAIStatusApi(
+        withInferenceCoreApi(
+          withInferenceApi(
+            withIntegrationsApi(
+              withLoggingApi(
+                withNotificationApi(
+                  withAuthApi(
+                    withSystemApi(
+                      withDockerApi(
+                        withBackupApi(
+                          withObjectStorageApi(
+                            withContainerLinksApi(
+                              withDatabaseApi(
+                                withPkiApi(withProxyApi(withHostingApi(ApiClientBase)))
+                              )
+                            )
                           )
                         )
                       )

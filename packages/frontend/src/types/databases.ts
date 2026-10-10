@@ -1,3 +1,4 @@
+import type { AppMembershipRef } from "./apps";
 // Databases
 export type DatabaseType = "postgres" | "redis" | "clickhouse";
 export type DatabaseHealthStatus = "online" | "offline" | "degraded" | "unknown";
@@ -251,6 +252,8 @@ export interface DatabaseCapabilities {
 }
 
 export interface DatabaseConnection {
+  /** Set when the resource is a member of an app environment. */
+  app?: AppMembershipRef | null;
   id: string;
   slug: string;
   name: string;
