@@ -684,7 +684,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
       align: "right",
       render: (row) =>
         row.kind === "remote" ? (
-          <div className="flex justify-end gap-2">
+          <div className="flex items-center justify-end gap-2">
             {row.state === "draining" && metric(row.health?.activeTunnels) > 0 && (
               <Button
                 variant="destructive"
@@ -741,7 +741,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
               )}
           </div>
         ) : (
-          <div className="flex justify-end gap-2">
+          <div className="flex items-center justify-end gap-2">
             {/* A Relay Pool update drains the local relay while another relay carries its workloads. */}
             {row.state === "draining" && metric(row.health?.activeTunnels) > 0 && (
               <Button
