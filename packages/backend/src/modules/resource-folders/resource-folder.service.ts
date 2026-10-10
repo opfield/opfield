@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm';
 import type { DrizzleClient, DrizzleExecutor, DrizzleTransaction } from '@/db/client.js';
 import { hasScopeForCreation, hasScopeForResource } from '@/lib/permissions.js';
 import { announceResourceScopeChanges, removeDanglingResourceScopes } from '@/lib/resource-scope-cleanup.js';
@@ -81,14 +81,31 @@ interface ResourceFolderConfig {
   folderDefaults?: Record<string, unknown>;
 }
 
+/** 409 for a move of resources that sit in an app: they leave an app only through Move to App. */
+export function resourceInAppError(): AppError {
+  return new AppError(409, 'RESOURCE_IN_APP', 'This resource is in an app. Use Move to App to take it out of the app');
+}
+
 export class FolderedResourceService {
   private eventBus?: EventBusService;
+  private readonly config: ResourceFolderConfig;
+  /** Folders an app owns (hidden): not null only on folder tables that can hold app folders. */
+  private readonly appIdColumn: any;
+  /** Scope for create-path destination checks: user folders plus hidden app environment folders. */
+  private readonly placementScope?: SQL;
 
   constructor(
     private readonly db: DrizzleClient,
     private readonly auditService: AuditService,
-    private readonly config: ResourceFolderConfig
-  ) {}
+    config: ResourceFolderConfig
+  ) {
+    this.appIdColumn = config.folderTable.appId ?? null;
+    // Every folder management surface sees user folders only; hidden app folders are managed by the apps module.
+    this.config = this.appIdColumn
+      ? { ...config, folderScope: and(config.folderScope, isNull(this.appIdColumn)) }
+      : config;
+    this.placementScope = config.folderScope;
+  }
 
   setEventBus(bus: EventBusService) {
     this.eventBus = bus;
@@ -123,8 +140,40 @@ export class FolderedResourceService {
     return folder as FolderRow;
   }
 
+  /**
+   * Destination check of create paths (and imports): a user folder, or the hidden folder of an app environment (a
+   * create from an app passes the environment's placement folder). An app root folder is never a destination.
+   */
   async assertFolderExists(id: string | null | undefined): Promise<void> {
-    if (id) await this.getFolderOrThrow(id);
+    if (id) await this.assertPlacementFolder(id);
+  }
+
+  async assertPlacementFolder(id: string): Promise<void> {
+    if (!this.appIdColumn) {
+      await this.getFolderOrThrow(id);
+      return;
+    }
+    const table = this.config.folderTable;
+    const [folder] = (await this.db
+      .select({ appId: table.appId, appEnvironmentId: table.appEnvironmentId })
+      .from(table)
+      .where(and(this.placementScope, eq(table.id, id)))
+      .limit(1)) as Array<{ appId: string | null; appEnvironmentId: string | null }>;
+    if (!folder || (folder.appId && !folder.appEnvironmentId)) {
+      throw new AppError(404, 'FOLDER_NOT_FOUND', 'Folder not found');
+    }
+  }
+
+  /** IDs of the hidden app folders among `ids` (resources there are app members). */
+  async hiddenFolderIds(ids: ReadonlyArray<string | null>): Promise<Set<string>> {
+    const unique = [...new Set(ids.filter((id): id is string => !!id))];
+    if (!this.appIdColumn || unique.length === 0) return new Set();
+    const table = this.config.folderTable;
+    const rows = (await this.db
+      .select({ id: table.id })
+      .from(table)
+      .where(and(inArray(table.id, unique), isNotNull(this.appIdColumn)))) as Array<{ id: string }>;
+    return new Set(rows.map((row) => row.id));
   }
 
   private async getNextSortOrder(parentId: string | null, db: DrizzleExecutor = this.db): Promise<number> {
@@ -411,6 +460,8 @@ export class FolderedResourceService {
 
   async moveResourcesToFolder(input: MoveResourcesToFolderInput, userId: string) {
     if (input.folderId) await this.getFolderOrThrow(input.folderId);
+    const current = await this.getResourceFolderIds(input.ids);
+    if ((await this.hiddenFolderIds([...current.values()])).size > 0) throw resourceInAppError();
     await this.db
       .update(this.config.resourceTable)
       .set({ folderId: input.folderId, updatedAt: new Date() })

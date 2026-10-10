@@ -4,6 +4,7 @@ import { dockerContainerFolderAssignments, dockerContainerFolders } from '@/db/s
 import { transactionWithScopeCleanup } from '@/lib/resource-scope-cleanup.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
+import { resourceInAppError } from '@/modules/resource-folders/resource-folder.service.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type {
   CreateDockerFolderInput,
@@ -23,6 +24,9 @@ const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
 
 type FolderRow = typeof dockerContainerFolders.$inferSelect;
 type AssignmentRow = typeof dockerContainerFolderAssignments.$inferSelect;
+
+/** User folders: folder management never sees the hidden folders apps own. */
+const USER_FOLDERS = isNull(dockerContainerFolders.appId);
 
 type DockerContainerLike = {
   id?: string;
@@ -127,12 +131,17 @@ export class DockerFolderService {
     return siblings.length > 0 ? siblings[0].sortOrder + 1 : 0;
   }
 
+  /** A user folder; the hidden folders apps own are managed by the apps module only (404 here). */
   private async getFolderOrThrow(
     id: string,
     resourceType?: DockerFolderResourceType,
     db: DrizzleExecutor = this.db
   ): Promise<FolderRow> {
-    const [folder] = await db.select().from(dockerContainerFolders).where(eq(dockerContainerFolders.id, id)).limit(1);
+    const [folder] = await db
+      .select()
+      .from(dockerContainerFolders)
+      .where(and(USER_FOLDERS, eq(dockerContainerFolders.id, id)))
+      .limit(1);
     if (!folder) throw new AppError(404, 'FOLDER_NOT_FOUND', 'Folder not found');
     if (resourceType && folder.resourceType !== resourceType) {
       throw new AppError(400, 'FOLDER_RESOURCE_TYPE_MISMATCH', 'Folder belongs to a different Docker resource type');
@@ -236,7 +245,7 @@ export class DockerFolderService {
       const treeFolders = await tx
         .select()
         .from(dockerContainerFolders)
-        .where(eq(dockerContainerFolders.resourceType, resourceType));
+        .where(and(USER_FOLDERS, eq(dockerContainerFolders.resourceType, resourceType)));
       const childrenByParent = new Map<string, FolderRow[]>();
       for (const row of treeFolders) {
         if (!row.parentId) continue;
@@ -350,7 +359,7 @@ export class DockerFolderService {
     const rows = await this.db
       .select({ id: dockerContainerFolders.id, parentId: dockerContainerFolders.parentId })
       .from(dockerContainerFolders)
-      .where(inArray(dockerContainerFolders.id, unique));
+      .where(and(USER_FOLDERS, inArray(dockerContainerFolders.id, unique)));
     if (rows.length !== unique.length) throw new AppError(404, 'FOLDER_NOT_FOUND', 'Folder not found');
     return new Map(rows.map((row) => [row.id, row.parentId ?? null]));
   }
@@ -381,9 +390,12 @@ export class DockerFolderService {
       .select()
       .from(dockerContainerFolders)
       .where(
-        inArray(
-          dockerContainerFolders.id,
-          input.items.map((item) => item.id)
+        and(
+          USER_FOLDERS,
+          inArray(
+            dockerContainerFolders.id,
+            input.items.map((item) => item.id)
+          )
         )
       );
 
@@ -424,7 +436,7 @@ export class DockerFolderService {
     const allFolders = await this.db
       .select()
       .from(dockerContainerFolders)
-      .where(eq(dockerContainerFolders.resourceType, resourceType))
+      .where(and(USER_FOLDERS, eq(dockerContainerFolders.resourceType, resourceType)))
       .orderBy(asc(dockerContainerFolders.depth), asc(dockerContainerFolders.sortOrder));
 
     if (
@@ -512,7 +524,11 @@ export class DockerFolderService {
     const sourceFolderIds = [...new Set(assignmentRows.map((row) => row.folderId).filter((id): id is string => !!id))];
     if (sourceFolderIds.length > 0) {
       const sourceFolders = await this.db
-        .select({ id: dockerContainerFolders.id, isSystem: dockerContainerFolders.isSystem })
+        .select({
+          id: dockerContainerFolders.id,
+          isSystem: dockerContainerFolders.isSystem,
+          appId: dockerContainerFolders.appId,
+        })
         .from(dockerContainerFolders)
         .where(
           and(
@@ -520,6 +536,7 @@ export class DockerFolderService {
             inArray(dockerContainerFolders.id, sourceFolderIds)
           )
         );
+      if (sourceFolders.some((folder) => folder.appId)) throw resourceInAppError();
       if (sourceFolders.some((folder) => folder.isSystem)) {
         throw new AppError(
           400,
@@ -656,7 +673,11 @@ export class DockerFolderService {
     const nonNullFolderIds = folderIds.filter((id): id is string => !!id);
     if (nonNullFolderIds.length > 0) {
       const folders = await this.db
-        .select({ id: dockerContainerFolders.id, isSystem: dockerContainerFolders.isSystem })
+        .select({
+          id: dockerContainerFolders.id,
+          isSystem: dockerContainerFolders.isSystem,
+          appId: dockerContainerFolders.appId,
+        })
         .from(dockerContainerFolders)
         .where(
           and(
@@ -665,6 +686,7 @@ export class DockerFolderService {
           )
         );
 
+      if (folders.some((folder) => folder.appId)) throw resourceInAppError();
       if (folders.some((folder) => folder.isSystem)) {
         throw new AppError(
           400,

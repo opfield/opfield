@@ -403,7 +403,9 @@ proxyRoutes.openapi(updateProxyHostRoute, async (c) => {
       if (!hasScope(scopes, `proxy:edit:${id}`) || !hasScopeForCreation(scopes, 'proxy:edit', input.folderId)) {
         throw new AppError(403, 'FORBIDDEN', 'Missing route edit access for the move destination');
       }
-      await container.resolve(FolderService).assertFolderExists(input.folderId ?? undefined);
+      await container
+        .resolve(FolderService)
+        .assertFolderChange((existing as { folderId?: string | null }).folderId ?? null, input.folderId ?? null);
     }
   }
   const existingPageTarget = existing.pageTarget as { projectId?: unknown; tagId?: unknown } | null | undefined;

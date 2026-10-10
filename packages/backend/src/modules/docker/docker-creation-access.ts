@@ -22,11 +22,19 @@ export async function assertDockerCreationAccess(
   }
   if (!folderId) return;
   const [folder] = await db
-    .select({ id: dockerContainerFolders.id, isSystem: dockerContainerFolders.isSystem })
+    .select({
+      id: dockerContainerFolders.id,
+      isSystem: dockerContainerFolders.isSystem,
+      appId: dockerContainerFolders.appId,
+      appEnvironmentId: dockerContainerFolders.appEnvironmentId,
+    })
     .from(dockerContainerFolders)
     .where(and(eq(dockerContainerFolders.id, folderId), eq(dockerContainerFolders.resourceType, resourceType)))
     .limit(1);
-  if (!folder || folder.isSystem) throw new AppError(403, 'FOLDER_FORBIDDEN', 'Destination folder is unavailable');
+  // A hidden app environment folder is a valid destination (create from an app); an app root folder never is.
+  if (!folder || folder.isSystem || (folder.appId && !folder.appEnvironmentId)) {
+    throw new AppError(403, 'FOLDER_FORBIDDEN', 'Destination folder is unavailable');
+  }
 }
 
 /**

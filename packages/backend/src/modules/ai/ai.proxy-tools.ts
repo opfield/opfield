@@ -242,7 +242,10 @@ export async function executeProxyTool(
           ) {
             throw new AppError(403, 'FORBIDDEN', 'Missing route edit access for the move destination');
           }
-          await context.folderService.assertFolderExists(folderId ?? undefined);
+          await context.folderService.assertFolderChange(
+            (existing as { folderId?: string | null }).folderId ?? null,
+            folderId ?? null
+          );
         }
       }
       if (
