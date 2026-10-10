@@ -135,6 +135,13 @@ export const RESOURCE_SCOPABLE_SCOPES = [
   "nodes:lock",
   "ingress:groups:view",
   "ingress:groups:manage",
+  // Apps: <appId> or env/<envId>
+  "apps:view",
+  "apps:edit",
+  "apps:delete",
+  "apps:env:manage",
+  "apps:promote",
+  "apps:operate",
   "docker:containers:view",
   "docker:containers:edit",
   "docker:containers:manage",

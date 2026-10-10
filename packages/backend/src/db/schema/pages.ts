@@ -3,6 +3,7 @@ import {
   type AnyPgColumn,
   bigint,
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -15,6 +16,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 import { accessLists } from './access-lists.js';
+import { appEnvironments, apps } from './apps.js';
 import { domains } from './domains.js';
 import { nodes } from './nodes.js';
 import { proxyHosts } from './proxy-hosts.js';
@@ -120,12 +122,23 @@ export const pageProjectFolders = pgTable(
     createdById: uuid('created_by_id')
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),
+    // Hidden app folders (decision: app members live in folders of their own type): set only by the apps module.
+    appId: uuid('app_id').references(() => apps.id, { onDelete: 'restrict' }),
+    appEnvironmentId: uuid('app_environment_id').references(() => appEnvironments.id, { onDelete: 'restrict' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('page_project_folders_parent_idx').on(table.parentId),
     index('page_project_folders_sort_idx').on(table.parentId, table.sortOrder),
+    index('page_project_folders_app_idx').on(table.appId),
+    check('page_project_folders_app_env_check', sql`${table.appEnvironmentId} IS NULL OR ${table.appId} IS NOT NULL`),
+    uniqueIndex('page_project_folders_app_root_unique')
+      .on(table.appId)
+      .where(sql`${table.appId} IS NOT NULL AND ${table.appEnvironmentId} IS NULL`),
+    uniqueIndex('page_project_folders_app_env_unique')
+      .on(table.appEnvironmentId)
+      .where(sql`${table.appEnvironmentId} IS NOT NULL`),
   ]
 );
 

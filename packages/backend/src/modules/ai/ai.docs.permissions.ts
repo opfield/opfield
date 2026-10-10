@@ -118,6 +118,17 @@ Every resource-qualified Pages scope uses the Page Project ID, including Deploym
 | ingress:groups:view | List ingress groups and view their members, routes, domains and delivery; place routes and domains on them (folder-scopable by node folder only) |
 | ingress:groups:manage | Create, change and delete ingress groups, add, remove and reorder members; implies ingress:groups:view (folder-scopable by node folder only). Adding a member also needs nodes:manage on that node |
 
+### Apps
+| Scope | Description |
+|-------|-------------|
+| apps:view | View apps, environments, overview and activity (resource-scopable: <appId> or env/<envId>); members still need their own view scopes |
+| apps:create | Create apps |
+| apps:edit | Rename the app, create, rename and delete environments, move the Production marker (resource-scopable: <appId>) |
+| apps:delete | Delete an app; members keep running and leave it (resource-scopable: <appId>) |
+| apps:env:manage | Environment variables and secrets, allowed nodes, environment maintenance and access codes, moving resources in or out together with the resource's own edit scope (resource-scopable: <appId> or env/<envId>) |
+| apps:promote | Promote one environment into another (resource-scopable on the target: <appId> or env/<envId>) |
+| apps:operate | Shutdown, start and isolation; the app maintenance override needs it on the whole app (resource-scopable: <appId> or env/<envId>) |
+
 ### Administration
 | Scope | Description |
 |-------|-------------|

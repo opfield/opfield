@@ -121,6 +121,13 @@ export const RESOURCE_SCOPABLE: readonly string[] = [
   // Ingress groups (node folders only)
   'ingress:groups:view',
   'ingress:groups:manage',
+  // Apps: `<appId>` or `env/<envId>` (edit and delete: `<appId>` only)
+  'apps:view',
+  'apps:edit',
+  'apps:delete',
+  'apps:env:manage',
+  'apps:promote',
+  'apps:operate',
   // Docker containers
   'docker:containers:view',
   'docker:containers:edit',
