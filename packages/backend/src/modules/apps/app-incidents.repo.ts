@@ -13,6 +13,11 @@ import { AppError } from '@/middleware/error-handler.js';
 
 /** Incident states during which the incident is in effect (changes applied or being applied/restored). */
 export const OPEN_INCIDENT_STATES: readonly AppIncidentRowState[] = ['applying', 'active', 'releasing'];
+/**
+ * States during which members are frozen: applying and active. A releasing incident restores its items, and the
+ * restore itself recreates, reconnects and applies, so the freeze ends when release starts.
+ */
+export const FROZEN_INCIDENT_STATES: readonly AppIncidentRowState[] = ['applying', 'active'];
 /** Item statuses whose change is (or should be) in effect: everything not yet restored or gone. */
 export const ITEM_IN_EFFECT_STATUSES: readonly AppIncidentItemStatus[] = [
   'pending',
@@ -102,8 +107,15 @@ export class AppIncidentsRepo {
   }
 
   /** Open incidents (applying, active or releasing), of one app or every app. */
-  async open(filter: { appId?: string; environmentIds?: readonly string[]; kind?: AppIncidentKind } = {}) {
-    const conditions = [inArray(appIncidents.state, [...OPEN_INCIDENT_STATES])];
+  async open(
+    filter: {
+      appId?: string;
+      environmentIds?: readonly string[];
+      kind?: AppIncidentKind;
+      states?: readonly AppIncidentRowState[];
+    } = {}
+  ) {
+    const conditions = [inArray(appIncidents.state, [...(filter.states ?? OPEN_INCIDENT_STATES)])];
     if (filter.appId) conditions.push(eq(appIncidents.appId, filter.appId));
     if (filter.environmentIds) {
       if (filter.environmentIds.length === 0) return [];
@@ -117,8 +129,12 @@ export class AppIncidentsRepo {
       .orderBy(asc(appIncidents.startedAt));
   }
 
-  async openFor(environmentId: string, kind: AppIncidentKind): Promise<AppIncident | null> {
-    const [row] = await this.open({ environmentIds: [environmentId], kind });
+  async openFor(
+    environmentId: string,
+    kind: AppIncidentKind,
+    states: readonly AppIncidentRowState[] = OPEN_INCIDENT_STATES
+  ): Promise<AppIncident | null> {
+    const [row] = await this.open({ environmentIds: [environmentId], kind, states });
     return row ?? null;
   }
 
@@ -237,7 +253,11 @@ export class AppIncidentsRepo {
   }
 
   /** The open incident holding an item of this kind and key, if any (resources an incident owns refuse edits). */
-  async openItemFor(itemKind: AppIncidentItemKind, itemKey: string): Promise<AppIncidentItem | null> {
+  async openItemFor(
+    itemKind: AppIncidentItemKind,
+    itemKey: string,
+    states: readonly AppIncidentRowState[] = OPEN_INCIDENT_STATES
+  ): Promise<AppIncidentItem | null> {
     const [row] = await this.db
       .select({ item: appIncidentItems })
       .from(appIncidentItems)
@@ -247,7 +267,7 @@ export class AppIncidentsRepo {
           eq(appIncidentItems.itemKind, itemKind),
           eq(appIncidentItems.itemKey, itemKey),
           inArray(appIncidentItems.status, [...ITEM_IN_EFFECT_STATUSES]),
-          inArray(appIncidents.state, [...OPEN_INCIDENT_STATES])
+          inArray(appIncidents.state, [...states])
         )
       )
       .limit(1);

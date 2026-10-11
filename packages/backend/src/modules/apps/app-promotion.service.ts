@@ -7,6 +7,7 @@ import {
   type AppPromotion,
   type AppPromotionItemRecord,
   appPromotions,
+  dockerArtifactPins,
   dockerBuildArtifacts,
   dockerBuilds,
   dockerComposeProjects,
@@ -22,10 +23,11 @@ import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import { DockerComposeService } from '@/modules/docker/compose/compose.service.js';
 import { DockerManagementService } from '@/modules/docker/docker.service.js';
-import { DockerBuildRolloutService } from '@/modules/docker/docker-build-rollout.service.js';
 import { DockerDeploymentService } from '@/modules/docker/docker-deployment.service.js';
+import { DockerInternalRegistryService } from '@/modules/docker/docker-registry-internal.service.js';
 import { DockerSnapshotService } from '@/modules/docker/docker-snapshot.service.js';
 import { PageDeploymentService } from '@/modules/pages/deployments/page-deployment.service.js';
+import { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import { RelayRegistryService } from '@/services/relay-registry.service.js';
 import { APP_PROMOTE_SCOPE, assertAppScope, visibleEnvironmentIds } from './app-access.js';
 import type { AppMemberFreeze } from './app-member-freeze.js';
@@ -734,12 +736,7 @@ export class AppPromotionService {
             skipImagePull: ref.local,
           }
         );
-        if (ref.pin)
-          await this.resolve(DockerBuildRolloutService)?.pinPromotedArtifact({
-            ...ref.pin,
-            ownerKey,
-            userId: actor.userId,
-          });
+        if (ref.pin) await this.pinArtifact(ref.pin, ownerKey, actor.userId);
         return `Recreated with ${displayImage(image)}${image.build ? ` (commit ${image.build.commitSha.slice(0, 7)}, not rebuilt)` : ''}`;
       }
       case 'deployment': {
@@ -762,12 +759,7 @@ export class AppPromotionService {
           'app_promotion',
           [...actor.scopes]
         );
-        if (ref.pin)
-          await this.resolve(DockerBuildRolloutService)?.pinPromotedArtifact({
-            ...ref.pin,
-            ownerKey,
-            userId: actor.userId,
-          });
+        if (ref.pin) await this.pinArtifact(ref.pin, ownerKey, actor.userId);
         return `Blue-green switch to ${displayImage(source.image)}`;
       }
       case 'compose': {
@@ -850,16 +842,129 @@ export class AppPromotionService {
     }
     if (!image.localOnly) return { image: image.image, local: false, pin: null };
     if (image.nodeId === targetNodeId && image.imageId) return { image: image.imageId, local: true, pin: null };
-    const rollout = this.resolve(DockerBuildRolloutService);
-    if (!rollout) throw new AppError(409, 'PROMOTION_IMAGE_LOCAL', 'The image exists only on its node');
-    const snapshot = await rollout.snapshotForPromotion({
-      nodeId: image.nodeId,
-      image: image.imageId ?? image.image,
-      ownerKey,
-      userId: actor.userId,
-    });
+    const snapshot = await this.snapshotLocalImage(image.nodeId, image.imageId ?? image.image, ownerKey, actor.userId);
     await bind(snapshot.repository);
-    return { image: snapshot.image, local: false, pin: null };
+    return { image: snapshot.image, local: false, pin: { repository: snapshot.repository, digest: snapshot.digest } };
+  }
+
+  /**
+   * The target now runs this internal artifact: it becomes the owner's active pin (its previous one the rollback pin),
+   * so registry retention keeps what each environment runs. A promoted Git artifact is not rebuilt for its new owner.
+   */
+  private async pinArtifact(pin: { repository: string; digest: string }, ownerKey: string, userId: string | null) {
+    const [artifact] = await this.db
+      .select({ id: dockerBuildArtifacts.id })
+      .from(dockerBuildArtifacts)
+      .where(
+        and(eq(dockerBuildArtifacts.registryRepository, pin.repository), eq(dockerBuildArtifacts.digest, pin.digest))
+      )
+      .orderBy(desc(dockerBuildArtifacts.createdAt))
+      .limit(1);
+    if (!artifact) return;
+    await this.db.transaction(async (tx) => {
+      const [previous] = await tx
+        .select({ artifactId: dockerArtifactPins.artifactId })
+        .from(dockerArtifactPins)
+        .where(and(eq(dockerArtifactPins.ownerKey, ownerKey), eq(dockerArtifactPins.kind, 'active')))
+        .orderBy(desc(dockerArtifactPins.createdAt))
+        .limit(1);
+      if (previous?.artifactId === artifact.id) return;
+      await tx
+        .delete(dockerArtifactPins)
+        .where(and(eq(dockerArtifactPins.ownerKey, ownerKey), eq(dockerArtifactPins.kind, 'rollback')));
+      await tx
+        .delete(dockerArtifactPins)
+        .where(and(eq(dockerArtifactPins.ownerKey, ownerKey), eq(dockerArtifactPins.kind, 'active')));
+      if (previous) {
+        await tx.insert(dockerArtifactPins).values({
+          artifactId: previous.artifactId,
+          kind: 'rollback',
+          ownerKey,
+          reason: 'Ran before an app promotion',
+          createdById: userId,
+        });
+      }
+      await tx.insert(dockerArtifactPins).values({
+        artifactId: artifact.id,
+        kind: 'active',
+        ownerKey,
+        reason: 'Promoted from another app environment',
+        createdById: userId,
+      });
+    });
+  }
+
+  /**
+   * An image that exists only on its node goes to the internal registry first (the Availability mirror path), as an
+   * artifact owned by the promotion target, so another node can pull it by digest.
+   */
+  private async snapshotLocalImage(
+    nodeId: string,
+    image: string,
+    ownerKey: string,
+    userId: string | null
+  ): Promise<{ image: string; repository: string; digest: string }> {
+    const dispatch = this.resolve(NodeDispatchService);
+    const registry = this.resolve(RelayRegistryService);
+    if (!dispatch || !registry) {
+      throw new AppError(409, 'PROMOTION_IMAGE_LOCAL', 'The image exists only on its node and cannot be copied here');
+    }
+    await this.resolve(DockerInternalRegistryService)?.assertBuildAdmission();
+    const owner = createHash('sha256').update(ownerKey).digest('hex').slice(0, 16);
+    const repository = `gateway/promotion/${owner}/${Date.now()}`;
+    await registry.ensureBinding({
+      nodeId,
+      role: 'mirror',
+      repository,
+      actions: ['pull', 'push'],
+      contextKind: ownerKey.startsWith('deployment:') ? 'deployment' : 'container',
+      contextId: ownerKey,
+    });
+    const result = await dispatch.sendDockerImageCommand(
+      nodeId,
+      'mirror',
+      { imageRef: image, targetImageRef: `${INTERNAL_REGISTRY}${repository}:image` },
+      15 * 60_000
+    );
+    if (!result.success) {
+      throw new AppError(
+        502,
+        'PROMOTION_IMAGE_COPY_FAILED',
+        result.error || 'The image could not be copied to the internal registry'
+      );
+    }
+    let detail: { repository?: unknown; digest?: unknown; platform?: unknown; sizeBytes?: unknown } = {};
+    try {
+      detail = JSON.parse(result.detail ?? '{}');
+    } catch {
+      detail = {};
+    }
+    if (typeof detail.digest !== 'string' || !DIGEST_RE.test(detail.digest)) {
+      throw new AppError(
+        502,
+        'PROMOTION_IMAGE_COPY_FAILED',
+        'The Docker daemon returned no digest for the copied image'
+      );
+    }
+    const copiedRepository = typeof detail.repository === 'string' ? detail.repository : repository;
+    await this.db.insert(dockerBuildArtifacts).values({
+      ownerKind: 'promotion',
+      ownerKey,
+      sourceImageReference: image,
+      registryRepository: copiedRepository,
+      digest: detail.digest,
+      platform: typeof detail.platform === 'string' ? detail.platform : 'linux/amd64',
+      sizeBytes: Number.isSafeInteger(detail.sizeBytes) ? Number(detail.sizeBytes) : 0,
+      status: 'ready',
+      policyDecision: 'approved',
+      policyReason: `Copied for an app promotion by ${userId ?? 'Gateway'}`,
+      verifiedAt: new Date(),
+    });
+    return {
+      image: `${INTERNAL_REGISTRY}${copiedRepository}@${detail.digest}`,
+      repository: copiedRepository,
+      digest: detail.digest,
+    };
   }
 
   // ── Reads ────────────────────────────────────────────────────────

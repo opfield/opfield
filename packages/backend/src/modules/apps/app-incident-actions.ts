@@ -185,8 +185,8 @@ export class DefaultAppIncidentActions implements AppIncidentActions {
             const operation = await this.resolve(DockerComposeService).startOperation(
               project.nodeId,
               project.id,
-              'stop' as never,
-              {} as never,
+              'stop',
+              { idempotencyKey: `app-incident:${item.id}:stop:${item.attempts}`, volumeNames: [] },
               userId ?? SYSTEM_ACTOR
             );
             await this.waitForCompose(project.id, (operation as { id?: string })?.id);
@@ -327,8 +327,8 @@ export class DefaultAppIncidentActions implements AppIncidentActions {
             const operation = await this.resolve(DockerComposeService).startOperation(
               project.nodeId,
               project.id,
-              'start' as never,
-              {} as never,
+              'start',
+              { idempotencyKey: `app-incident:${item.id}:start:${item.attempts}`, volumeNames: [] },
               userId ?? SYSTEM_ACTOR
             );
             await this.waitForCompose(project.id, (operation as { id?: string })?.id);

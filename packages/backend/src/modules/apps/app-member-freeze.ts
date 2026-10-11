@@ -20,7 +20,7 @@ import {
   proxyHosts,
 } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
-import { type AppIncidentsRepo, OPEN_INCIDENT_STATES } from './app-incidents.repo.js';
+import { type AppIncidentsRepo, FROZEN_INCIDENT_STATES } from './app-incidents.repo.js';
 
 /** A resource a mutation is about to change. Containers are named by node and name (or id, resolved by the caller). */
 export type FreezeTarget =
@@ -48,7 +48,7 @@ const ANY_OPEN_TTL_MS = 2_000;
 /**
  * Members of an isolated environment are frozen: recreate, update, env changes, network attach, deploy, Compose apply,
  * migration, link/binding create, route edits, membership and allowlist changes are refused with 409 APP_ISOLATED until
- * the kill switch is turned off. Stop, start, restart, logs, console and delete stay allowed. Reads go to the database
+ * the kill switch is turned off (the freeze ends when release starts: the restore itself reconnects and reapplies). Stop, start, restart, logs, console and delete stay allowed. Reads go to the database
  * (never the 10 s membership caches); a 2 s "any isolation open" flag keeps mutations outside incidents free.
  */
 export class AppMemberFreeze {
@@ -69,7 +69,7 @@ export class AppMemberFreeze {
     const [row] = await this.db
       .select({ id: appIncidents.id })
       .from(appIncidents)
-      .where(and(eq(appIncidents.kind, 'isolation'), inArray(appIncidents.state, [...OPEN_INCIDENT_STATES])))
+      .where(and(eq(appIncidents.kind, 'isolation'), inArray(appIncidents.state, [...FROZEN_INCIDENT_STATES])))
       .limit(1);
     this.anyOpen = { at: Date.now(), value: !!row };
     return !!row;
@@ -171,9 +171,13 @@ export class AppMemberFreeze {
       // held by the incident itself.
       const held =
         target.kind === 'route'
-          ? ((await this.incidents.openItemFor('route_overlay', `route:${target.id}`)) ??
-            (await this.incidents.openItemFor('route_withdraw', `route:${target.id}`)))
-          : await this.incidents.openItemFor('container_network', `container:${target.nodeId}:${target.name}`);
+          ? ((await this.incidents.openItemFor('route_overlay', `route:${target.id}`, FROZEN_INCIDENT_STATES)) ??
+            (await this.incidents.openItemFor('route_withdraw', `route:${target.id}`, FROZEN_INCIDENT_STATES)))
+          : await this.incidents.openItemFor(
+              'container_network',
+              `container:${target.nodeId}:${target.name}`,
+              FROZEN_INCIDENT_STATES
+            );
       if (held) {
         const incident = await this.incidents.get(held.incidentId);
         if (incident?.kind === 'isolation') return this.describe(incident.environmentId, incident.id);
@@ -181,7 +185,7 @@ export class AppMemberFreeze {
     }
     const environmentId = await this.environmentOf(target);
     if (!environmentId) return null;
-    const incident = await this.incidents.openFor(environmentId, 'isolation');
+    const incident = await this.incidents.openFor(environmentId, 'isolation', FROZEN_INCIDENT_STATES);
     return incident ? this.describe(environmentId, incident.id) : null;
   }
 
@@ -217,7 +221,11 @@ export class AppMemberFreeze {
    */
   async assertMayStart(nodeId: string, name: string): Promise<void> {
     if (!(await this.anyIsolationOpen())) return;
-    const held = await this.incidents.openItemFor('container_network', `container:${nodeId}:${name}`);
+    const held = await this.incidents.openItemFor(
+      'container_network',
+      `container:${nodeId}:${name}`,
+      FROZEN_INCIDENT_STATES
+    );
     if (!held || !(held.priorState as { hostNetwork?: boolean } | null)?.hostNetwork) return;
     throw new AppError(
       409,
