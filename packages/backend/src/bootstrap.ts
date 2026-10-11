@@ -247,6 +247,7 @@ import { StorageWorkloadStore } from '@/modules/storage/storage-workload-store.j
 import { TokensService } from '@/modules/tokens/tokens.service.js';
 import { UIBootstrapService } from '@/modules/ui-bootstrap/ui-bootstrap.service.js';
 import { CacheService, createRedisClient } from '@/services/cache.service.js';
+import { createKeeperPeerResolver } from '@/services/clickhouse-keeper-addressing.js';
 import { ConfigValidatorService } from '@/services/config-validator.service.js';
 import { CryptoService } from '@/services/crypto.service.js';
 import { scheduleQueuedDaemonUpdateResume } from '@/services/daemon-node-update.js';
@@ -280,7 +281,6 @@ import { RelayRegistryIngressService } from '@/services/relay-registry-ingress.s
 import { RelayStartupFinalizerService } from '@/services/relay-startup-finalizer.service.js';
 import { RelaySupervisorService } from '@/services/relay-supervisor.service.js';
 import { RelayTopologyService } from '@/services/relay-topology.service.js';
-import { createKeeperPeerResolver } from '@/services/clickhouse-keeper-addressing.js';
 import { RelayWitnessService } from '@/services/relay-witness.service.js';
 import { ResourceSnapshotStore } from '@/services/resource-snapshot.store.js';
 import { RuntimeRestartService } from '@/services/runtime-restart.service.js';
