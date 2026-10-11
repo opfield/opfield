@@ -212,6 +212,14 @@ func (r *relayTunnelRouter) reconcileRegistrations() []chan struct{} {
 		}
 	} else {
 		for _, assignment := range bundle.Grants {
+			// A ClickHouse Keeper witness container of an availability set on this node.
+			if assignment.Role == "endpoint" && assignment.OwnerKind == setWitnessEndpointKind && assignment.EndpointId != "" {
+				state := r.plugin.setEndpointState(assignment)
+				for _, projected := range assignmentsForRelayTarget(assignment, r.targetID) {
+					desired[relayRegistrationKey(projected)] = relayRegistrationUpdate{assignment: projected, state: state}
+				}
+				continue
+			}
 			// A container link's target is an ingress binding of the shared connector, like a proxy secure link's.
 			if assignment.Role == "endpoint" && isConnectorIngressOwnerKind(assignment.OwnerKind) && assignment.EndpointId != "" {
 				// Availability members register on every assigned relay, dormant

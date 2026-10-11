@@ -66,6 +66,9 @@ type DockerPlugin struct {
 	// storage-profile daemon (set_member_runtime.go).
 	setGates   setLeaseGates
 	setMembers *memberha.Manager
+	// keeperWitnesses runs ClickHouse Keeper witness containers of sets whose
+	// witness is this node (keeper_witness_node.go).
+	keeperWitnesses *nodeKeeperWitnesses
 	// restartAnnounced freezes relay registrations once the daemon told its
 	// relays it restarts (B-13); proxyTunnels are the Secure Link tunnels it
 	// serves, drained before it exits.
@@ -345,6 +348,8 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 	if err := p.startStorageConnectorRelay(); err != nil {
 		return err
 	}
+	// ClickHouse Keeper witness containers run on any docker node a set picks.
+	p.startNodeKeeperWitnesses()
 	// Storage connectors created while the daemon ran as another user (root or not) cannot reach this socket.
 	go p.reconcileStorageConnectorGroups(context.Background())
 	if p.cfg.Docker.IsStorageProfile() {
@@ -556,6 +561,7 @@ func (p *DockerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 				relayresume.Capability,
 				handover.Capability,
 				managedAvailabilityRoutesCapability,
+				nodeKeeperWitnessCapability,
 			}
 			// The lease runtime runs on storage-profile daemons for their availability set members.
 			values = append(values, p.leaseCapabilities()...)
@@ -565,7 +571,7 @@ func (p *DockerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 			}
 			return values
 		}
-		values := []string{"docker_deployments_v1", "docker_gpu_v1", dockerMigrationCapability, "docker_archive_v1", "docker_port_bind_ip_v1", "generic_relay_tunnel_v1", "relay_pool_v1", relayresume.Capability, handover.Capability, "proxy_secure_links_v1", "docker_registry_proxy_v1", "docker_runtime_management_v1", "docker_managed_volumes_v1", "docker_duplicate_label_filter_v1", "docker_duplicate_env_removal_v1", TaskCommandLookupCapability}
+		values := []string{nodeKeeperWitnessCapability, "docker_deployments_v1", "docker_gpu_v1", dockerMigrationCapability, "docker_archive_v1", "docker_port_bind_ip_v1", "generic_relay_tunnel_v1", "relay_pool_v1", relayresume.Capability, handover.Capability, "proxy_secure_links_v1", "docker_registry_proxy_v1", "docker_runtime_management_v1", "docker_managed_volumes_v1", "docker_duplicate_label_filter_v1", "docker_duplicate_env_removal_v1", TaskCommandLookupCapability}
 		if p.cfg.Docker.Mode == "" && p.availability != nil {
 			values = append(values, dockerAvailabilityCapability)
 		}
