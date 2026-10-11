@@ -14,6 +14,8 @@ const FOOTER_SPACER_CLASS_RE = /^\s*(?:flex-1|grow)\s*$/;
 // Same pattern as the runtime guard in components/ui/dialog.tsx.
 const NESTED_VERTICAL_SCROLL_CLASS_RE = /(?:^|\s)(?:[^\s:]+:)*overflow-y-(?:auto|scroll)(?=\s|$)/;
 const DATE_LOCALE_METHODS = new Set(["toLocaleDateString", "toLocaleTimeString"]);
+const STANDARD_BUTTON_SIZES = new Set(["default", "icon", "inline"]);
+const SIZE_EXCEPTION_RE = /size-exception:\s*\S/;
 
 export function tagName(opening) {
   return opening.tagName.getText();
@@ -47,6 +49,36 @@ function classNameStrings(opening) {
   };
   visit(initializer);
   return texts;
+}
+
+/** The size values an attribute can take: string results of literals, conditionals and fallbacks. */
+function sizeValues(node) {
+  if (ts.isStringLiteralLike(node)) return [node.text];
+  if (ts.isJsxExpression(node) || ts.isParenthesizedExpression(node)) {
+    return node.expression ? sizeValues(node.expression) : [];
+  }
+  if (ts.isConditionalExpression(node)) {
+    return [...sizeValues(node.whenTrue), ...sizeValues(node.whenFalse)];
+  }
+  if (ts.isBinaryExpression(node)) {
+    const operator = node.operatorToken.kind;
+    if (operator === ts.SyntaxKind.AmpersandAmpersandToken) return sizeValues(node.right);
+    if (
+      operator === ts.SyntaxKind.BarBarToken ||
+      operator === ts.SyntaxKind.QuestionQuestionToken
+    ) {
+      return [...sizeValues(node.left), ...sizeValues(node.right)];
+    }
+  }
+  return [];
+}
+
+/** Whether the source line above the node's first line carries a `size-exception:` comment. */
+function hasSizeException(source, node) {
+  const { line } = source.getLineAndCharacterOfPosition(node.getStart(source));
+  if (line === 0) return false;
+  const above = source.text.split("\n")[line - 1] ?? "";
+  return SIZE_EXCEPTION_RE.test(above);
 }
 
 function meaningfulChildren(element) {
@@ -204,17 +236,24 @@ export const RULES = [
     },
   },
   {
-    id: "button-default-size",
-    source:
-      "formerly the DockerGitDelivery, DockerComposeUi and hosting UI contract tests",
-    description: 'Buttons use the default size; size="sm" is not used.',
-    visit(node, report) {
+    id: "button-standard-size",
+    source: "owner rule 2026-10: every console button is 36 px tall",
+    description:
+      'Buttons are 36 px: size default, "icon" or "inline" (text links). Any other size needs a `// size-exception: <reason>` comment on the line above.',
+    visit(node, report, source) {
       const opening = openingOf(node);
       if (!opening || tagName(opening) !== "Button") return;
-      const size = attribute(opening, "size")?.initializer;
-      if (size && ts.isStringLiteral(size) && size.text === "sm") {
-        report(node, 'uses size="sm"; buttons keep the default size');
-      }
+      const size = attribute(opening, "size");
+      const initializer = size?.initializer;
+      if (!initializer) return;
+      const values = sizeValues(initializer);
+      const other = values.filter((value) => !STANDARD_BUTTON_SIZES.has(value));
+      if (other.length === 0) return;
+      if (hasSizeException(source, size) || hasSizeException(source, opening)) return;
+      report(
+        size,
+        `uses size ${other.map((value) => `"${value}"`).join(", ")}; buttons are 36 px (default, "icon" or "inline") unless the line above says // size-exception: <reason>`
+      );
     },
   },
   {

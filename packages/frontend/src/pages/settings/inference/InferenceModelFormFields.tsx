@@ -311,7 +311,7 @@ export function ModelAccessFields({
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             aria-label="Add access subject"
             title="Add access subject"
             disabled={rows.some((subject) => !subject.subjectId)}

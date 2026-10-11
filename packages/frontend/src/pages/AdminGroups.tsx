@@ -571,7 +571,7 @@ function AdminGroupsContent({
           >
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" disabled={!canManage}>
+                <Button variant="ghost" size="icon" disabled={!canManage}>
                   <EllipsisVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>

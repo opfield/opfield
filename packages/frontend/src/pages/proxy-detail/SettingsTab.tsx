@@ -711,7 +711,7 @@ export function SettingsTab({
               <div className="flex shrink-0 items-center gap-2">
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   aria-label="Add custom header"
                   title="Add custom header"
                   onClick={() => setCustomHeaders([...customHeaders, { name: "", value: "" }])}
@@ -797,7 +797,7 @@ export function SettingsTab({
               <div className="flex shrink-0 items-center gap-2">
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   aria-label="Add URL rewrite"
                   title="Add URL rewrite"
                   onClick={() =>

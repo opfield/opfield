@@ -105,7 +105,7 @@ export function MembersTable({
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 aria-label={`Actions for ${memberName(member)}`}
                 title="Actions"
               >

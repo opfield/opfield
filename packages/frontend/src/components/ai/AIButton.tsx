@@ -30,7 +30,7 @@ export function AIButton({ iconOnly = false, showLabel = false }: AIButtonProps)
         <TooltipTrigger asChild>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             className={aiPanelOpen ? "bg-sidebar-accent text-primary" : undefined}
             onClick={handleClick}
             aria-label="AI Workspace"
@@ -63,8 +63,8 @@ export function AIButton({ iconOnly = false, showLabel = false }: AIButtonProps)
       <TooltipTrigger asChild>
         <Button
           variant="ghost"
-          size="icon-lg"
-          className={`md:h-7 md:w-7 ${aiPanelOpen ? "text-primary" : ""}`}
+          size="icon"
+          className={aiPanelOpen ? "text-primary" : undefined}
           onClick={handleClick}
           aria-label="AI Workspace"
         >

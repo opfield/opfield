@@ -303,7 +303,7 @@ function AggregatedLogsTab({
       actions={
         <>
           {lines.length > 0 && (
-            <Button variant="ghost" size="icon-sm" onClick={downloadLogs} title="Download">
+            <Button variant="ghost" size="icon" onClick={downloadLogs} title="Download">
               <Download className="h-3.5 w-3.5" />
             </Button>
           )}
@@ -674,14 +674,14 @@ function SingleLogsTab(props: SingleLogsTabProps) {
       actions={
         <>
           {lines.length > 0 && (
-            <Button variant="ghost" size="icon-sm" onClick={downloadLogs} title="Download">
+            <Button variant="ghost" size="icon" onClick={downloadLogs} title="Download">
               <Download className="h-3.5 w-3.5" />
             </Button>
           )}
           {source.popoutUrl && (
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               onClick={openPopout}
               title="Open in separate window"
             >

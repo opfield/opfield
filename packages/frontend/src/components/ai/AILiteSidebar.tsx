@@ -399,7 +399,7 @@ export function AILiteSidebar({
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     onClick={toggleSidebar}
                     aria-label="Open sidebar"
                   >
@@ -413,7 +413,7 @@ export function AILiteSidebar({
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     onClick={() => openPalette(true)}
                     aria-label="Search"
                   >
@@ -427,7 +427,7 @@ export function AILiteSidebar({
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     onClick={handleNewChat}
                     aria-label="New Work Session"
                   >
@@ -442,7 +442,7 @@ export function AILiteSidebar({
                   <Button
                     asChild
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     className={cn(
                       isSidebarNavigationActive(location.pathname, "/dashboard") &&
                         "bg-sidebar-accent"
@@ -474,7 +474,7 @@ export function AILiteSidebar({
                     <Button
                       asChild
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon"
                       className={cn(
                         isSidebarNavigationActive(location.pathname, profileNavigationItem.href) &&
                           "bg-sidebar-accent"
@@ -497,7 +497,7 @@ export function AILiteSidebar({
                     <TooltipTrigger asChild>
                       <Button
                         variant="ghost"
-                        size="icon-sm"
+                        size="icon"
                         className="bg-sidebar-accent"
                         aria-label="Starting Work Session..."
                       >
@@ -514,7 +514,7 @@ export function AILiteSidebar({
                       <TooltipTrigger asChild>
                         <Button
                           variant="ghost"
-                          size="icon-sm"
+                          size="icon"
                           className="bg-sidebar-accent"
                           aria-label="New Work Session"
                           onClick={handleNewChat}
@@ -531,7 +531,7 @@ export function AILiteSidebar({
                       <TooltipTrigger asChild>
                         <Button
                           variant="ghost"
-                          size="icon-sm"
+                          size="icon"
                           className={cn(
                             visibleActiveConversationId === conversation.id && "bg-sidebar-accent"
                           )}
@@ -552,7 +552,7 @@ export function AILiteSidebar({
                   <DropdownMenu>
                     <TooltipTrigger asChild>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon-sm" aria-label="All sections">
+                        <Button variant="ghost" size="icon" aria-label="All sections">
                           <span className="relative flex">
                             <Compass className="h-4 w-4" />
                             {sectionAttention && (
@@ -617,7 +617,7 @@ export function AILiteSidebar({
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon"
                       className="bg-sidebar-accent text-sidebar-accent-foreground/80 hover:bg-muted hover:text-sidebar-accent-foreground"
                       onClick={handleOpenOperationsConsole}
                       aria-label="Open Operations Console"
@@ -633,7 +633,7 @@ export function AILiteSidebar({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      size="icon-sm"
+                      size="icon"
                       onClick={() => void handleStopImpersonating()}
                       disabled={stoppingImpersonation}
                       aria-label="Stop impersonating"
@@ -647,7 +647,7 @@ export function AILiteSidebar({
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" aria-label="Account menu">
+                  <Button variant="ghost" size="icon" aria-label="Account menu">
                     <Avatar className="h-6 w-6">
                       <AvatarImage src={user?.avatarUrl ?? undefined} />
                       <AvatarFallback className="text-xs">
@@ -698,12 +698,7 @@ export function AILiteSidebar({
               <div className="flex items-center gap-0.5">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size={mobileMenu ? "icon-sm" : "icon-lg"}
-                      className="md:h-7 md:w-7"
-                      aria-label="Create"
-                    >
+                    <Button variant="ghost" size="icon" aria-label="Create">
                       <Plus className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -724,8 +719,7 @@ export function AILiteSidebar({
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
-                      size={mobileMenu ? "icon-sm" : "icon-lg"}
-                      className="md:h-7 md:w-7"
+                      size="icon"
                       onClick={onClose ?? toggleSidebar}
                       aria-label={onClose ? "Close menu" : "Close sidebar"}
                     >

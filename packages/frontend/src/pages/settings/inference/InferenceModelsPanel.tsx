@@ -430,7 +430,7 @@ function ModelDragHandle({ model, disabled }: { model: InferenceModel; disabled:
     <Button
       ref={sortable.setActivatorNodeRef}
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       className="cursor-grab text-muted-foreground active:cursor-grabbing"
       disabled={disabled}
       aria-label={`Reorder ${model.displayName}`}

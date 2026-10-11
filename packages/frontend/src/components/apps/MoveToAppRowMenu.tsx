@@ -24,7 +24,7 @@ export function MoveToAppRowMenu({
     <div className="flex justify-end" onClick={(event) => event.stopPropagation()}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label={`${resourceLabel} actions`}>
+          <Button variant="ghost" size="icon" aria-label={`${resourceLabel} actions`}>
             <MoreVertical className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>

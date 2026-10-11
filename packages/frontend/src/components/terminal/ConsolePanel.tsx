@@ -37,7 +37,7 @@ export function ConsolePanel({
         <>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             onClick={openPopout}
             title="Pop out"
             aria-label="Pop out console"

@@ -254,11 +254,7 @@ export function SiemDestinationsTab({
           <div onClick={(event) => event.stopPropagation()}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Actions for ${destination.name}`}
-                >
+                <Button variant="ghost" size="icon" aria-label={`Actions for ${destination.name}`}>
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>

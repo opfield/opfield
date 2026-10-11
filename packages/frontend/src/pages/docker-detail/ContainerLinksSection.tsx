@@ -29,6 +29,7 @@ import {
   environmentNames,
   parseComposeServiceResourceId,
 } from "./container-link-format";
+import { LinkRowTitle, useInLinksPanel, useLinkSource } from "./LinksPanel";
 
 const NO_SERVICES: string[] = [];
 const NO_NAMES: ContainerLinkNames = buildContainerLinkNames([], []);
@@ -244,6 +245,102 @@ export function ContainerLinksSection({
     );
   };
 
+  // In the shared Links panel this section adds its outgoing and incoming rows and its add
+  // action there; container links apply at once, so it has no draft.
+  const inLinksPanel = useInLinksPanel();
+  useLinkSource("container", {
+    rowCount: initialLoading ? 0 : outgoing.length + incoming.length,
+    loading: initialLoading,
+    add: canManage
+      ? { disabled: Boolean(disabled) || loading || sources.length === 0, open: openAddDialog }
+      : undefined,
+  });
+
+  const outgoingRows = outgoing.map((link) => {
+    const target = names.endpoint(link.target);
+    const service =
+      link.source.type === "compose_service"
+        ? parseComposeServiceResourceId(link.source.resourceId).serviceName
+        : "";
+    const description = [
+      target.nodeName,
+      service ? `from ${service}` : "",
+      environmentNames(link.environment).length > 0
+        ? `sets ${environmentNames(link.environment).join(", ")}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    return (
+      <SettingsControlRow
+        key={link.id}
+        title={
+          <LinkRowTitle kind="container">{`${link.alias}:${link.targetPort} → ${target.name}`}</LinkRowTitle>
+        }
+        description={description || undefined}
+      >
+        <div className="flex items-center gap-2">
+          {statusBadge(link)}
+          {canManage && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              title={removeDisabledReason ?? "Remove link"}
+              aria-label={`Remove link ${link.alias}`}
+              disabled={disabled || removeDisabledReason !== null}
+              onClick={() => removeLink(link)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      </SettingsControlRow>
+    );
+  });
+  const incomingRows = incoming.map((link) => {
+    const source = names.endpoint(link.source);
+    return (
+      <SettingsControlRow
+        key={link.id}
+        title={<LinkRowTitle kind="container">{source.name}</LinkRowTitle>}
+        description={[
+          inLinksPanel ? "Incoming" : "",
+          source.nodeName,
+          `as ${link.alias}:${link.targetPort}`,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+      >
+        {statusBadge(link)}
+      </SettingsControlRow>
+    );
+  });
+
+  const dialog = (
+    <ContainerLinkDialog
+      open={addOpen}
+      onOpenChange={setAddOpen}
+      sourceNodeId={nodeId}
+      sourceType={type}
+      sources={sources}
+      workloadName={workloadName}
+      workloads={workloads}
+      canSetEnvironment={canSetEnvironment}
+      onCreate={createLink}
+    />
+  );
+
+  if (inLinksPanel) {
+    return (
+      <>
+        {initialLoading ? null : outgoingRows}
+        {initialLoading ? null : incomingRows}
+        {dialog}
+      </>
+    );
+  }
+
   return (
     <>
       <PanelShell
@@ -267,46 +364,7 @@ export function ContainerLinksSection({
         {initialLoading ? null : outgoing.length === 0 ? (
           <EmptyState message="No container links" embedded />
         ) : (
-          outgoing.map((link) => {
-            const target = names.endpoint(link.target);
-            const service =
-              link.source.type === "compose_service"
-                ? parseComposeServiceResourceId(link.source.resourceId).serviceName
-                : "";
-            const description = [
-              target.nodeName,
-              service ? `from ${service}` : "",
-              environmentNames(link.environment).length > 0
-                ? `sets ${environmentNames(link.environment).join(", ")}`
-                : "",
-            ]
-              .filter(Boolean)
-              .join(" · ");
-            return (
-              <SettingsControlRow
-                key={link.id}
-                title={`${link.alias}:${link.targetPort} → ${target.name}`}
-                description={description || undefined}
-              >
-                <div className="flex items-center gap-2">
-                  {statusBadge(link)}
-                  {canManage && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      title={removeDisabledReason ?? "Remove link"}
-                      aria-label={`Remove link ${link.alias}`}
-                      disabled={disabled || removeDisabledReason !== null}
-                      onClick={() => removeLink(link)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </SettingsControlRow>
-            );
-          })
+          outgoingRows
         )}
       </PanelShell>
 
@@ -317,34 +375,11 @@ export function ContainerLinksSection({
           description={`Workloads that reach ${workloadName}. Manage a link from the workload that starts it.`}
           bodyClassName="divide-y divide-border"
         >
-          {incoming.map((link) => {
-            const source = names.endpoint(link.source);
-            return (
-              <SettingsControlRow
-                key={link.id}
-                title={source.name}
-                description={[source.nodeName, `as ${link.alias}:${link.targetPort}`]
-                  .filter(Boolean)
-                  .join(" · ")}
-              >
-                {statusBadge(link)}
-              </SettingsControlRow>
-            );
-          })}
+          {incomingRows}
         </PanelShell>
       )}
 
-      <ContainerLinkDialog
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        sourceNodeId={nodeId}
-        sourceType={type}
-        sources={sources}
-        workloadName={workloadName}
-        workloads={workloads}
-        canSetEnvironment={canSetEnvironment}
-        onCreate={createLink}
-      />
+      {dialog}
     </>
   );
 }

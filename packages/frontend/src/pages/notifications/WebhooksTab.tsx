@@ -203,7 +203,7 @@ export function WebhooksTab({
           <div onClick={(event) => event.stopPropagation()}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${webhook.name}`}>
+                <Button variant="ghost" size="icon" aria-label={`Actions for ${webhook.name}`}>
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>

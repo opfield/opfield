@@ -574,7 +574,7 @@ export function ProxyHosts({
                 <div onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon-sm" aria-label="Route actions">
+                      <Button variant="ghost" size="icon" aria-label="Route actions">
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>

@@ -51,6 +51,7 @@ import type {
   ManagedDatabaseBindingTargetType,
   Node,
 } from "@/types";
+import { LinkRowTitle, useInLinksPanel, useLinkSource } from "./LinksPanel";
 
 type ConnectionMode = "uri" | "credentials";
 
@@ -177,6 +178,8 @@ export const ManagedDatabaseLinksSection = forwardRef<
     targetResourceId: string;
     containerName: string;
     disabled?: boolean;
+    /** Whether the user may create links here; in the shared Links panel the kind is offered only then. */
+    canAdd?: boolean;
     /** Why unlinking a saved link is disabled (the app environment is isolated by the kill switch). */
     removeDisabledReason?: string | null;
     existingVariableNames?: string[];
@@ -201,6 +204,7 @@ export const ManagedDatabaseLinksSection = forwardRef<
     targetResourceId,
     containerName,
     disabled = false,
+    canAdd = true,
     removeDisabledReason = null,
     existingVariableNames = [],
     onInitialLoadingChange,
@@ -795,198 +799,226 @@ export const ManagedDatabaseLinksSection = forwardRef<
 
   useContentLoading(initialLoading);
 
+  // In the shared Links panel this section adds its rows, its add action and its draft there.
+  const inLinksPanel = useInLinksPanel();
+  const saveDraft = () => (onSaveRequested ? onSaveRequested() : void save());
+  useLinkSource("database", {
+    rowCount: initialLoading ? 0 : displayBindings.length,
+    loading: initialLoading,
+    add: canAdd ? { disabled: disabled || loading || saving, open: openAddDialog } : undefined,
+    save: {
+      dirty: hasChanges,
+      saving,
+      disabled: disabled || loading,
+      label: recreatesRunningWorkload ? "Save & Recreate" : "Save",
+      onSave: saveDraft,
+    },
+  });
+
+  const rows = initialLoading
+    ? null
+    : displayBindings.map((entry) => {
+        const database = databaseForBinding(entry.binding);
+        // A staged addition came from the editable list; existing links need databases:bind.
+        const canChangeLink = entry.pending === "add" || canBindDatabase(database);
+        const databaseNode = database ? databaseNodeById.get(database.nodeId) : undefined;
+        const unavailable = !!database && !!databaseNode && !databaseIsAvailable(database);
+        // Saved into the workload's configuration; its next start or rollout runs it.
+        const awaitingWorkload =
+          entry.pending === null &&
+          entry.binding.status === "ready" &&
+          entry.binding.observedState === "target_applied";
+        const reconciling =
+          entry.pending === null &&
+          entry.binding.status === "ready" &&
+          entry.binding.observedState !== undefined &&
+          entry.binding.observedState !== "active" &&
+          !awaitingWorkload;
+        const statusLabel =
+          entry.pending === "remove"
+            ? "will unlink"
+            : entry.pending === "add" || awaitingWorkload
+              ? "pending"
+              : reconciling
+                ? "reconciling"
+                : entry.binding.status;
+        const statusVariant =
+          entry.pending === "remove" || reconciling
+            ? "warning"
+            : entry.pending === "add" || awaitingWorkload
+              ? "secondary"
+              : entry.binding.status === "ready"
+                ? entry.binding.lastError
+                  ? "warning"
+                  : "success"
+                : entry.binding.status === "error"
+                  ? "destructive"
+                  : "secondary";
+        const statusDetail =
+          entry.binding.lastError ??
+          (awaitingWorkload
+            ? "Saved in the workload's configuration. It takes effect when the workload next starts or finishes its current rollout."
+            : reconciling
+              ? "Database link migration or runtime reconciliation has not completed yet."
+              : entry.binding.status === "ready"
+                ? "Database link is ready."
+                : entry.binding.status === "creating"
+                  ? "Database link is being created."
+                  : entry.binding.status === "deleting"
+                    ? "Database link is being removed."
+                    : "Database link reconciliation failed.");
+        return (
+          <SettingsControlRow
+            key={entry.binding.id}
+            title={<LinkRowTitle kind="database">{databaseName(entry.binding)}</LinkRowTitle>}
+            description={`${databaseType(entry.binding)} · ${environmentSummary(entry.binding)}`}
+          >
+            <div className="flex items-center gap-2">
+              {targetType === "compose_service" && (
+                <Select
+                  value={composeServiceName(targetResourceId, entry.binding.targetResourceId)}
+                  onValueChange={(serviceName) => stageServiceChange(entry, serviceName)}
+                  // A typed service cannot be moved: unlink it and add it again.
+                  disabled={
+                    disabled ||
+                    saving ||
+                    entry.pending === "remove" ||
+                    !canChangeLink ||
+                    composeServiceTyped
+                  }
+                >
+                  <SelectTrigger
+                    className="w-44"
+                    aria-label={`Compose service for ${databaseName(entry.binding)}`}
+                  >
+                    <SelectValue placeholder="Select service" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(composeServiceTyped
+                      ? [
+                          {
+                            name: composeServiceName(
+                              targetResourceId,
+                              entry.binding.targetResourceId
+                            ),
+                          },
+                        ]
+                      : composeServices
+                    ).map((service) => (
+                      <SelectItem key={service.name} value={service.name}>
+                        {service.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {databaseNode && (
+                <Badge
+                  variant="secondary"
+                  size="inline"
+                  className={nodeBadgeClassName(databaseNode.appearanceColor)}
+                >
+                  {databaseNode.displayName || databaseNode.hostname}
+                </Badge>
+              )}
+              {unavailable && <Badge variant="secondary">Unavailable</Badge>}
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant={statusVariant} size="inline" tabIndex={0}>
+                      {statusLabel}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-sm">
+                    {statusDetail}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0 text-muted-foreground hover:text-destructive"
+                disabled={
+                  disabled ||
+                  saving ||
+                  !canChangeLink ||
+                  (entry.pending === null && removeDisabledReason !== null)
+                }
+                onClick={() => void stageUnlink(entry)}
+                aria-label={
+                  entry.pending === "remove"
+                    ? `Keep ${databaseName(entry.binding)} linked`
+                    : `Unlink ${databaseName(entry.binding)}`
+                }
+                title={
+                  entry.pending === "remove"
+                    ? "Keep link"
+                    : entry.pending === null && removeDisabledReason
+                      ? removeDisabledReason
+                      : "Unlink database"
+                }
+              >
+                {entry.pending === "remove" ? (
+                  <Undo2 className="h-4 w-4" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </SettingsControlRow>
+        );
+      });
+
   return (
     <>
-      <PanelShell
-        title="Managed Database Links"
-        icon={<Link2 className="h-4 w-4" />}
-        description={
-          targetType === "compose_service"
-            ? composeBeforeFirstRevision
-              ? "Private connections. Saved now and added to the selected services by the project's first revision."
-              : "Private connections stored in each selected service's Compose revision."
-            : recreatesRunningWorkload
-              ? "Private connections. Changes apply with Save & Recreate."
-              : "Private connections. Changes apply on next start."
-        }
-        dirty={hasChanges}
-        bodyClassName={displayBindings.length > 0 ? "divide-y divide-border" : undefined}
-        actions={
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="warning"
-              pending={saving}
-              disabled={disabled || loading || !hasChanges}
-              onClick={() => (onSaveRequested ? onSaveRequested() : void save())}
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              {recreatesRunningWorkload ? "Save & Recreate" : "Save"}
-            </Button>
-            <Button type="button" disabled={disabled || loading || saving} onClick={openAddDialog}>
-              <Plus className="h-3.5 w-3.5" />
-              Add
-            </Button>
-          </div>
-        }
-      >
-        {initialLoading ? null : displayBindings.length === 0 ? (
-          <EmptyState message="No managed database links" embedded />
-        ) : (
-          displayBindings.map((entry) => {
-            const database = databaseForBinding(entry.binding);
-            // A staged addition came from the editable list; existing links need databases:bind.
-            const canChangeLink = entry.pending === "add" || canBindDatabase(database);
-            const databaseNode = database ? databaseNodeById.get(database.nodeId) : undefined;
-            const unavailable = !!database && !!databaseNode && !databaseIsAvailable(database);
-            // Saved into the workload's configuration; its next start or rollout runs it.
-            const awaitingWorkload =
-              entry.pending === null &&
-              entry.binding.status === "ready" &&
-              entry.binding.observedState === "target_applied";
-            const reconciling =
-              entry.pending === null &&
-              entry.binding.status === "ready" &&
-              entry.binding.observedState !== undefined &&
-              entry.binding.observedState !== "active" &&
-              !awaitingWorkload;
-            const statusLabel =
-              entry.pending === "remove"
-                ? "will unlink"
-                : entry.pending === "add" || awaitingWorkload
-                  ? "pending"
-                  : reconciling
-                    ? "reconciling"
-                    : entry.binding.status;
-            const statusVariant =
-              entry.pending === "remove" || reconciling
-                ? "warning"
-                : entry.pending === "add" || awaitingWorkload
-                  ? "secondary"
-                  : entry.binding.status === "ready"
-                    ? entry.binding.lastError
-                      ? "warning"
-                      : "success"
-                    : entry.binding.status === "error"
-                      ? "destructive"
-                      : "secondary";
-            const statusDetail =
-              entry.binding.lastError ??
-              (awaitingWorkload
-                ? "Saved in the workload's configuration. It takes effect when the workload next starts or finishes its current rollout."
-                : reconciling
-                  ? "Database link migration or runtime reconciliation has not completed yet."
-                  : entry.binding.status === "ready"
-                    ? "Database link is ready."
-                    : entry.binding.status === "creating"
-                      ? "Database link is being created."
-                      : entry.binding.status === "deleting"
-                        ? "Database link is being removed."
-                        : "Database link reconciliation failed.");
-            return (
-              <SettingsControlRow
-                key={entry.binding.id}
-                title={databaseName(entry.binding)}
-                description={`${databaseType(entry.binding)} · ${environmentSummary(entry.binding)}`}
+      {inLinksPanel ? (
+        rows
+      ) : (
+        <PanelShell
+          title="Managed Database Links"
+          icon={<Link2 className="h-4 w-4" />}
+          description={
+            targetType === "compose_service"
+              ? composeBeforeFirstRevision
+                ? "Private connections. Saved now and added to the selected services by the project's first revision."
+                : "Private connections stored in each selected service's Compose revision."
+              : recreatesRunningWorkload
+                ? "Private connections. Changes apply with Save & Recreate."
+                : "Private connections. Changes apply on next start."
+          }
+          dirty={hasChanges}
+          bodyClassName={displayBindings.length > 0 ? "divide-y divide-border" : undefined}
+          actions={
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="warning"
+                pending={saving}
+                disabled={disabled || loading || !hasChanges}
+                onClick={saveDraft}
               >
-                <div className="flex items-center gap-2">
-                  {targetType === "compose_service" && (
-                    <Select
-                      value={composeServiceName(targetResourceId, entry.binding.targetResourceId)}
-                      onValueChange={(serviceName) => stageServiceChange(entry, serviceName)}
-                      // A typed service cannot be moved: unlink it and add it again.
-                      disabled={
-                        disabled ||
-                        saving ||
-                        entry.pending === "remove" ||
-                        !canChangeLink ||
-                        composeServiceTyped
-                      }
-                    >
-                      <SelectTrigger
-                        className="w-44"
-                        aria-label={`Compose service for ${databaseName(entry.binding)}`}
-                      >
-                        <SelectValue placeholder="Select service" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(composeServiceTyped
-                          ? [
-                              {
-                                name: composeServiceName(
-                                  targetResourceId,
-                                  entry.binding.targetResourceId
-                                ),
-                              },
-                            ]
-                          : composeServices
-                        ).map((service) => (
-                          <SelectItem key={service.name} value={service.name}>
-                            {service.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  {databaseNode && (
-                    <Badge
-                      variant="secondary"
-                      size="inline"
-                      className={nodeBadgeClassName(databaseNode.appearanceColor)}
-                    >
-                      {databaseNode.displayName || databaseNode.hostname}
-                    </Badge>
-                  )}
-                  {unavailable && <Badge variant="secondary">Unavailable</Badge>}
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Badge variant={statusVariant} size="inline" tabIndex={0}>
-                          {statusLabel}
-                        </Badge>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-sm">
-                        {statusDetail}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="shrink-0 text-muted-foreground hover:text-destructive"
-                    disabled={
-                      disabled ||
-                      saving ||
-                      !canChangeLink ||
-                      (entry.pending === null && removeDisabledReason !== null)
-                    }
-                    onClick={() => void stageUnlink(entry)}
-                    aria-label={
-                      entry.pending === "remove"
-                        ? `Keep ${databaseName(entry.binding)} linked`
-                        : `Unlink ${databaseName(entry.binding)}`
-                    }
-                    title={
-                      entry.pending === "remove"
-                        ? "Keep link"
-                        : entry.pending === null && removeDisabledReason
-                          ? removeDisabledReason
-                          : "Unlink database"
-                    }
-                  >
-                    {entry.pending === "remove" ? (
-                      <Undo2 className="h-4 w-4" />
-                    ) : (
-                      <Trash2 className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </SettingsControlRow>
-            );
-          })
-        )}
-      </PanelShell>
+                <RotateCcw className="h-3.5 w-3.5" />
+                {recreatesRunningWorkload ? "Save & Recreate" : "Save"}
+              </Button>
+              <Button
+                type="button"
+                disabled={disabled || loading || saving}
+                onClick={openAddDialog}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add
+              </Button>
+            </div>
+          }
+        >
+          {initialLoading ? null : displayBindings.length === 0 ? (
+            <EmptyState message="No managed database links" embedded />
+          ) : (
+            rows
+          )}
+        </PanelShell>
+      )}
 
       <Dialog open={noAvailableDatabasesOpen} onOpenChange={setNoAvailableDatabasesOpen}>
         <DialogContent className="sm:max-w-md">

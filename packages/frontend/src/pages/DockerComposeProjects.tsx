@@ -394,7 +394,7 @@ export function DockerComposeProjects({
             {project.managementState === "external"
               ? canAdoptComposeProject(user?.scopes ?? [], project.nodeId, project.id) && (
                   <Button
-                    size="icon-sm"
+                    size="icon"
                     variant="ghost"
                     title="Adopt into Opfield"
                     aria-label={`Adopt ${project.name} into Opfield`}
@@ -412,7 +412,7 @@ export function DockerComposeProjects({
                   <>
                     {project.status === "running" ? (
                       <Button
-                        size="icon-sm"
+                        size="icon"
                         variant="ghost"
                         title="Stop"
                         aria-label={`Stop ${project.name}`}
@@ -423,7 +423,7 @@ export function DockerComposeProjects({
                       </Button>
                     ) : (
                       <Button
-                        size="icon-sm"
+                        size="icon"
                         variant="ghost"
                         title="Start"
                         aria-label={`Start ${project.name}`}
@@ -434,7 +434,7 @@ export function DockerComposeProjects({
                       </Button>
                     )}
                     <Button
-                      size="icon-sm"
+                      size="icon"
                       variant="ghost"
                       title="Pull & Apply"
                       aria-label={`Pull and apply ${project.name}`}

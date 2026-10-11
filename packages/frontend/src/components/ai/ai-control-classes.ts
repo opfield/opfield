@@ -10,14 +10,14 @@
 
 const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
-/** Borderless icon control. The size (h-8 w-8, h-7 w-7, ...) is set by the caller. */
+/** Borderless icon control. The caller sets the size: h-9 w-9, the console's one button height. */
 export const AI_ICON_CONTROL = `flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground ${FOCUS_RING}`;
 
 /** Dimmed, inert state for controls that are disabled while they cannot act. */
 export const AI_CONTROL_DISABLED = "disabled:pointer-events-none disabled:opacity-30";
 
 /** Labelled menu trigger in the composer toolbar (mode, model, reasoning). Colour is set by the caller. */
-export const AI_TOOLBAR_TRIGGER = `flex h-8 items-center gap-2 px-1.5 text-sm transition-colors ${FOCUS_RING}`;
+export const AI_TOOLBAR_TRIGGER = `flex h-9 items-center gap-2 px-1.5 text-sm transition-colors ${FOCUS_RING}`;
 
 /** Muted colour of a toolbar trigger that shows no special state. */
 export const AI_TOOLBAR_TRIGGER_MUTED =

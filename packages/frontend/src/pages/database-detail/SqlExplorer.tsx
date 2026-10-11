@@ -181,7 +181,7 @@ export function SqlExplorer({
               {database.type === "postgres" && metadata && (
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   onClick={() => explorer.setColumnsOpen(true)}
                   title="Column types"
                   aria-label="Column types"
@@ -191,7 +191,7 @@ export function SqlExplorer({
               )}
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 onClick={onToggleFocus}
                 title={focused ? "Collapse explorer" : "Expand explorer"}
                 aria-label={focused ? "Collapse explorer" : "Expand explorer"}
@@ -201,7 +201,7 @@ export function SqlExplorer({
               {canWrite && metadata?.mutations.rowInsert && (
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   onClick={() =>
                     setNewRows((current) => [
                       ...current,

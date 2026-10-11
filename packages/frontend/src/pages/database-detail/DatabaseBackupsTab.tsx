@@ -280,7 +280,7 @@ export function useBackupRunColumns({
               !run.artifactsDeletedAt &&
               canRestore ? (
                 <Button
-                  size="icon-sm"
+                  size="icon"
                   variant="ghost"
                   aria-label="Restore"
                   title="Restore"
@@ -295,7 +295,7 @@ export function useBackupRunColumns({
                   // is offline). Ending the run releases the node and the schedule;
                   // the node stops the runner when it reconnects.
                   <Button
-                    size="icon-sm"
+                    size="icon"
                     variant="ghost"
                     aria-label="Force cancel"
                     title="Force cancel"
@@ -305,7 +305,7 @@ export function useBackupRunColumns({
                   </Button>
                 ) : (
                   <Button
-                    size="icon-sm"
+                    size="icon"
                     variant="ghost"
                     aria-label="Cancel"
                     title="Cancel"
@@ -317,7 +317,7 @@ export function useBackupRunColumns({
               ) : null}
               {canManage && !["queued", "running"].includes(run.status) ? (
                 <Button
-                  size="icon-sm"
+                  size="icon"
                   variant="ghost"
                   aria-label={removeLabel}
                   title={removeLabel}
@@ -465,7 +465,7 @@ export function DatabaseBackupsTab({
                 {canManage && policy.schedule ? (
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     aria-label={policy.enabled ? "Disable schedule" : "Enable schedule"}
                     title={policy.enabled ? "Disable schedule" : "Enable schedule"}
                     onClick={() => void setScheduleEnabled(policy, !policy.enabled)}
@@ -475,7 +475,7 @@ export function DatabaseBackupsTab({
                 ) : null}
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   aria-label="Run now"
                   title="Run now"
                   disabled={!canRun}
@@ -486,7 +486,7 @@ export function DatabaseBackupsTab({
                 {canManage ? (
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     aria-label="Delete backup policy"
                     title="Delete backup policy"
                     onClick={() => void removePolicy(policy)}

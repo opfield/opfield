@@ -843,7 +843,7 @@ export function DockerVolumeDetail({
                     canRenameVolume ? (
                       <Button
                         variant="ghost"
-                        size="icon-sm"
+                        size="icon"
                         onClick={handleSaveLabels}
                         pending={labelsSaving}
                         disabled={!labelsChanged || isUsed || unavailable}

@@ -193,6 +193,7 @@ export function FolderMenuItem({
       </button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
+          {/* size-exception: row action inside a 36 px sidebar folder item */}
           <button
             type="button"
             className="mr-2 flex h-6 w-6 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-sidebar-accent-foreground"
@@ -380,6 +381,7 @@ export function ConversationMenuItem({
               transition={{ duration: 0.12, ease: "easeOut" }}
               className="flex items-center gap-0.5"
             >
+              {/* size-exception: row action inside a 36 px sidebar conversation item */}
               <button
                 type="button"
                 aria-label={`${pinned ? "Unpin" : "Pin"} ${conversation.title}`}
@@ -391,6 +393,7 @@ export function ConversationMenuItem({
               >
                 {pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
               </button>
+              {/* size-exception: row action inside a 36 px sidebar conversation item */}
               <button
                 type="button"
                 aria-label={`Delete ${conversation.title}`}

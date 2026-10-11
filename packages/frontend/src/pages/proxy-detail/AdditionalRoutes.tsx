@@ -582,7 +582,7 @@ export function AdditionalRoutesPanel({
                     <DropdownMenuTrigger asChild>
                       <Button
                         variant="ghost"
-                        size="icon-sm"
+                        size="icon"
                         disabled={!mutationAllowed}
                         pending={pending}
                         aria-label={`Actions for ${route.path}`}

@@ -768,7 +768,7 @@ function SortableServiceGroup({
           canManage ? (
             <Button
               ref={sortable.setActivatorNodeRef}
-              size="icon-xs"
+              size="icon"
               variant="ghost"
               className="cursor-grab text-muted-foreground active:cursor-grabbing"
               aria-label={`Reorder ${group}`}

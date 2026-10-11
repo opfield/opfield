@@ -119,7 +119,7 @@ export function RowMenu({ label, children }: { label: string; children: ReactNod
     <div onClick={(event) => event.stopPropagation()}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label={label} title={label}>
+          <Button variant="ghost" size="icon" aria-label={label} title={label}>
             <MoreVertical className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>

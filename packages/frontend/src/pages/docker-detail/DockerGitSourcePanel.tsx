@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Braces,
+  FileCode2,
   GitBranch,
   Hammer,
   History,
@@ -50,6 +51,7 @@ import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-p
 import type { DockerBuildSecret, DockerSourceBinding, DockerSourceTarget } from "@/types";
 import { RepositorySourceFields } from "../docker-deploy/RepositorySourceFields";
 import { useDockerSourceRepositories } from "../docker-deploy/useDockerSourceRepositories";
+import { EnvTextDialog, envTextErrorLines, parseEnvText } from "./EnvTextDialog";
 
 interface DockerGitSourcePanelProps {
   target?: DockerSourceTarget;
@@ -199,6 +201,8 @@ export function DockerGitSourcePanel({
   const [variableDialogOpen, setVariableDialogOpen] = useState(false);
   const [variableName, setVariableName] = useState("");
   const [variableValue, setVariableValue] = useState("");
+  const [variablesTextOpen, setVariablesTextOpen] = useState(false);
+  const [variablesText, setVariablesText] = useState("");
   const [buildSecrets, setBuildSecrets] = useState<DockerBuildSecret[]>(() =>
     (suppliedSource?.buildSecretNames ?? []).map((name, index) => ({
       id: `source-secret-${index}`,
@@ -546,6 +550,25 @@ export function DockerGitSourcePanel({
     updateSetting("buildVariables", { ...settings.buildVariables, [name]: variableValue });
     setVariableDialogOpen(false);
   };
+
+  // "Edit as text" works on a copy; Apply replaces the draft list, Save Build Variables stores it.
+  const openBuildVariablesText = () => {
+    setVariablesText(
+      Object.entries(settings.buildVariables)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([name, value]) => `${name}=${value}`)
+        .join("\n")
+    );
+    setVariablesTextOpen(true);
+  };
+  const applyBuildVariablesText = () => {
+    updateSetting(
+      "buildVariables",
+      Object.fromEntries(parseEnvText(variablesText).map(({ key, value }) => [key, value]))
+    );
+    setVariablesTextOpen(false);
+  };
+  const variablesTextErrorLines = variablesTextOpen ? envTextErrorLines(variablesText) : [];
 
   const removeBuildVariable = (name: string) => {
     const next = { ...settings.buildVariables };
@@ -1385,6 +1408,10 @@ export function DockerGitSourcePanel({
           actions={
             canEdit ? (
               <div className="flex items-center gap-2">
+                <Button variant="ghost" onClick={openBuildVariablesText}>
+                  <FileCode2 className="h-4 w-4" />
+                  Edit as text
+                </Button>
                 <Button
                   onClick={() => {
                     setVariableName("");
@@ -1660,6 +1687,17 @@ export function DockerGitSourcePanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <EnvTextDialog
+        open={variablesTextOpen}
+        onOpenChange={setVariablesTextOpen}
+        title="Edit Build Variables"
+        description="One NAME=value per line. Apply puts them in the list; Save Build Variables stores them."
+        value={variablesText}
+        onValueChange={setVariablesText}
+        errorLines={variablesTextErrorLines}
+        applyDisabled={variablesTextErrorLines.length > 0}
+        onApply={applyBuildVariablesText}
+      />
       <Dialog open={variableDialogOpen} onOpenChange={setVariableDialogOpen}>
         <DialogContent>
           <DialogHeader>

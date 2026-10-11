@@ -219,7 +219,7 @@ export function SidebarContent({
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     aria-label="Open sidebar"
                     onClick={toggleSidebar}
                   >
@@ -236,7 +236,7 @@ export function SidebarContent({
                     <TooltipTrigger asChild>
                       <Button
                         variant="ghost"
-                        size="icon-sm"
+                        size="icon"
                         aria-label={item.name}
                         className={cn(
                           // The button's own hover stays; the active fill fades like the expanded items'.
@@ -283,7 +283,7 @@ export function SidebarContent({
                   <TooltipTrigger asChild>
                     <Button
                       variant="secondary"
-                      size="icon-sm"
+                      size="icon"
                       aria-label={relayUpdateLabel}
                       onClick={() => navigate("/settings/relay")}
                     >
@@ -299,7 +299,7 @@ export function SidebarContent({
                   <TooltipTrigger asChild>
                     <Button
                       variant="warning"
-                      size="icon-sm"
+                      size="icon"
                       aria-label={updateLabel}
                       onClick={() =>
                         navigate("/settings/general", {
@@ -319,7 +319,7 @@ export function SidebarContent({
                   <TooltipTrigger asChild>
                     <Button
                       variant="warning"
-                      size="icon-sm"
+                      size="icon"
                       onClick={() => void handleStopImpersonating()}
                       pending={stoppingImpersonation}
                       aria-label="Stop impersonating"
@@ -333,7 +333,7 @@ export function SidebarContent({
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" aria-label="Account menu">
+                  <Button variant="ghost" size="icon" aria-label="Account menu">
                     <Avatar className="h-6 w-6">
                       <AvatarImage src={user?.avatarUrl ?? undefined} />
                       <AvatarFallback className="text-xs">
@@ -383,7 +383,7 @@ export function SidebarContent({
                 {alwaysExpanded ? (
                   <Button
                     variant="ghost"
-                    size="icon-lg"
+                    size="icon"
                     aria-label="Close navigation"
                     onClick={onNavigate}
                   >
@@ -394,9 +394,8 @@ export function SidebarContent({
                     <TooltipTrigger asChild>
                       <Button
                         variant="ghost"
-                        size="icon-lg"
+                        size="icon"
                         aria-label="Close sidebar"
-                        className="md:h-7 md:w-7"
                         onClick={toggleSidebar}
                       >
                         <PanelLeftClose className="h-4 w-4" />

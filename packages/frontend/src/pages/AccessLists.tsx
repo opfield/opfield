@@ -146,7 +146,7 @@ export function AccessLists() {
           <div onClick={(event) => event.stopPropagation()}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" aria-label="Access list actions">
+                <Button variant="ghost" size="icon" aria-label="Access list actions">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>

@@ -461,7 +461,7 @@ export function DockerVolumes({
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     pending={pending}
                     aria-label={`${v.name} actions`}
                   >

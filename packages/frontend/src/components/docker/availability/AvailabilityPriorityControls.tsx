@@ -112,7 +112,7 @@ export function AvailabilityPriorityControls({
                       }}
                       type="button"
                       variant="ghost"
-                      size="icon-xs"
+                      size="icon"
                       aria-label={`Move ${name} up`}
                       disabled={disabled || index === 0}
                       onClick={() => move(index, -1)}
@@ -126,7 +126,7 @@ export function AvailabilityPriorityControls({
                       }}
                       type="button"
                       variant="ghost"
-                      size="icon-xs"
+                      size="icon"
                       aria-label={`Move ${name} down`}
                       disabled={disabled || index === order.length - 1}
                       onClick={() => move(index, 1)}

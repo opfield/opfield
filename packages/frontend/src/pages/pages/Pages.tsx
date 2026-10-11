@@ -217,11 +217,7 @@ export function Pages() {
                   >
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`${project.name} actions`}
-                        >
+                        <Button variant="ghost" size="icon" aria-label={`${project.name} actions`}>
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>

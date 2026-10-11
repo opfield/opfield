@@ -250,7 +250,7 @@ export function ComputeTab({
             {canManage && life.canStop && (
               <Button
                 variant="ghost"
-                size="icon-xs"
+                size="icon"
                 title="Stop"
                 pending={running === "stop"}
                 disabled={disabled}
@@ -262,7 +262,7 @@ export function ComputeTab({
             {canManage && life.canRestart && (
               <Button
                 variant="ghost"
-                size="icon-xs"
+                size="icon"
                 title="Restart"
                 pending={running === "restart"}
                 disabled={disabled}
@@ -274,7 +274,7 @@ export function ComputeTab({
             {canManage && !life.canStop && life.canStart && (
               <Button
                 variant="ghost"
-                size="icon-xs"
+                size="icon"
                 title="Start"
                 pending={running === "start"}
                 disabled={disabled}

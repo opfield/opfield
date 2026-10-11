@@ -16,6 +16,7 @@ import type {
   ManagedStorageBindingEnvironment,
   ManagedStorageBindingTargetType,
 } from "@/types";
+import { LinkRowTitle, useInLinksPanel, useLinkSource } from "./LinksPanel";
 import { ManagedStorageLinkDialog } from "./ManagedStorageLinkDialog";
 
 type PendingStorageLink = {
@@ -362,145 +363,173 @@ export const ManagedStorageLinksSection = forwardRef<
 
   useContentLoading(initialLoading);
 
+  // In the shared Links panel this section adds its rows, its add action and its draft there.
+  const inLinksPanel = useInLinksPanel();
+  const saveDraft = () => (onSaveRequested ? onSaveRequested() : void save());
+  useLinkSource("storage", {
+    rowCount: initialLoading ? 0 : displayBindings.length,
+    loading: initialLoading,
+    add: canManage
+      ? { disabled: Boolean(disabled) || loading || saving, open: openAddDialog }
+      : undefined,
+    save: canManage
+      ? {
+          dirty: hasChanges,
+          saving,
+          disabled: Boolean(disabled) || loading,
+          label: recreatesRunningWorkload ? "Save & Recreate" : "Save",
+          onSave: saveDraft,
+        }
+      : undefined,
+  });
+
+  const rows = initialLoading
+    ? null
+    : displayBindings.map((entry) => {
+        // Saved into the workload's configuration; its next start or rollout runs it.
+        const awaitingWorkload =
+          entry.pending === null &&
+          entry.binding.status === "ready" &&
+          entry.binding.observedState === "target_applied";
+        const status =
+          entry.pending === "remove"
+            ? "will unlink"
+            : entry.pending === "add" || awaitingWorkload
+              ? "pending"
+              : entry.binding.status;
+        const badgeVariant =
+          entry.pending === "remove"
+            ? "warning"
+            : entry.pending === "add" || awaitingWorkload
+              ? "secondary"
+              : entry.binding.status === "ready"
+                ? entry.binding.lastError
+                  ? "warning"
+                  : "success"
+                : entry.binding.status === "error"
+                  ? "destructive"
+                  : "secondary";
+        const statusDetail =
+          entry.binding.lastError ??
+          (awaitingWorkload
+            ? "Saved in the workload's configuration. It takes effect when the workload next starts or finishes its current rollout."
+            : entry.binding.status === "ready"
+              ? "Storage link is ready."
+              : entry.binding.status === "creating"
+                ? "Storage link is being created."
+                : entry.binding.status === "deleting"
+                  ? "Storage link is being removed."
+                  : "Storage link failed.");
+        const description = [
+          entry.binding.buckets.join(", "),
+          environmentNames(entry.binding.environment).join(", "),
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        return (
+          <SettingsControlRow
+            key={entry.binding.id}
+            title={<LinkRowTitle kind="storage">{entry.cluster.name}</LinkRowTitle>}
+            description={description || "Storage credentials injected"}
+          >
+            <div className="flex items-center gap-2">
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant={badgeVariant} tabIndex={0}>
+                      {status}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-sm">
+                    {entry.pending === "add"
+                      ? "Created when the changes are saved."
+                      : entry.pending === "remove"
+                        ? "Removed when the changes are saved."
+                        : statusDetail}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              {canManage &&
+                (canManageCluster?.(entry.cluster.objectStorageConnectionId) ?? true) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    title={
+                      entry.pending === "remove"
+                        ? "Keep link"
+                        : entry.pending === null && removeDisabledReason
+                          ? removeDisabledReason
+                          : "Unlink storage"
+                    }
+                    disabled={
+                      disabled ||
+                      saving ||
+                      (entry.pending === null && removeDisabledReason !== null)
+                    }
+                    onClick={() => stageUnlink(entry)}
+                  >
+                    {entry.pending === "remove" ? (
+                      <Undo2 className="h-4 w-4" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </Button>
+                )}
+            </div>
+          </SettingsControlRow>
+        );
+      });
+
   return (
     <>
-      <PanelShell
-        title="Managed Storage Links"
-        icon={<Link2 className="h-4 w-4" />}
-        description={
-          recreatesRunningWorkload
-            ? "Private object-storage connections. Changes apply with Save & Recreate."
-            : "Private object-storage connections. Changes apply when the workload is started."
-        }
-        dirty={hasChanges}
-        bodyClassName={displayBindings.length > 0 ? "divide-y divide-border" : undefined}
-        actions={
-          <div className="flex items-center gap-2">
-            {canManage && (
-              <Button
-                type="button"
-                variant="warning"
-                pending={saving}
-                disabled={disabled || loading || !hasChanges}
-                onClick={() => (onSaveRequested ? onSaveRequested() : void save())}
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                {recreatesRunningWorkload ? "Save & Recreate" : "Save"}
-              </Button>
-            )}
-            {canManage && (
-              <Button
-                type="button"
-                disabled={disabled || loading || saving}
-                onClick={openAddDialog}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add
-              </Button>
-            )}
-          </div>
-        }
-      >
-        {initialLoading ? null : displayBindings.length === 0 ? (
-          <EmptyState message="No managed storage links" embedded />
-        ) : (
-          displayBindings.map((entry) => {
-            // Saved into the workload's configuration; its next start or rollout runs it.
-            const awaitingWorkload =
-              entry.pending === null &&
-              entry.binding.status === "ready" &&
-              entry.binding.observedState === "target_applied";
-            const status =
-              entry.pending === "remove"
-                ? "will unlink"
-                : entry.pending === "add" || awaitingWorkload
-                  ? "pending"
-                  : entry.binding.status;
-            const badgeVariant =
-              entry.pending === "remove"
-                ? "warning"
-                : entry.pending === "add" || awaitingWorkload
-                  ? "secondary"
-                  : entry.binding.status === "ready"
-                    ? entry.binding.lastError
-                      ? "warning"
-                      : "success"
-                    : entry.binding.status === "error"
-                      ? "destructive"
-                      : "secondary";
-            const statusDetail =
-              entry.binding.lastError ??
-              (awaitingWorkload
-                ? "Saved in the workload's configuration. It takes effect when the workload next starts or finishes its current rollout."
-                : entry.binding.status === "ready"
-                  ? "Storage link is ready."
-                  : entry.binding.status === "creating"
-                    ? "Storage link is being created."
-                    : entry.binding.status === "deleting"
-                      ? "Storage link is being removed."
-                      : "Storage link failed.");
-            const description = [
-              entry.binding.buckets.join(", "),
-              environmentNames(entry.binding.environment).join(", "),
-            ]
-              .filter(Boolean)
-              .join(" · ");
-            return (
-              <SettingsControlRow
-                key={entry.binding.id}
-                title={entry.cluster.name}
-                description={description || "Storage credentials injected"}
-              >
-                <div className="flex items-center gap-2">
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Badge variant={badgeVariant} tabIndex={0}>
-                          {status}
-                        </Badge>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-sm">
-                        {entry.pending === "add"
-                          ? "Created when the changes are saved."
-                          : entry.pending === "remove"
-                            ? "Removed when the changes are saved."
-                            : statusDetail}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  {canManage &&
-                    (canManageCluster?.(entry.cluster.objectStorageConnectionId) ?? true) && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        title={
-                          entry.pending === "remove"
-                            ? "Keep link"
-                            : entry.pending === null && removeDisabledReason
-                              ? removeDisabledReason
-                              : "Unlink storage"
-                        }
-                        disabled={
-                          disabled ||
-                          saving ||
-                          (entry.pending === null && removeDisabledReason !== null)
-                        }
-                        onClick={() => stageUnlink(entry)}
-                      >
-                        {entry.pending === "remove" ? (
-                          <Undo2 className="h-4 w-4" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
-                      </Button>
-                    )}
-                </div>
-              </SettingsControlRow>
-            );
-          })
-        )}
-      </PanelShell>
+      {inLinksPanel ? (
+        rows
+      ) : (
+        <PanelShell
+          title="Managed Storage Links"
+          icon={<Link2 className="h-4 w-4" />}
+          description={
+            recreatesRunningWorkload
+              ? "Private object-storage connections. Changes apply with Save & Recreate."
+              : "Private object-storage connections. Changes apply when the workload is started."
+          }
+          dirty={hasChanges}
+          bodyClassName={displayBindings.length > 0 ? "divide-y divide-border" : undefined}
+          actions={
+            <div className="flex items-center gap-2">
+              {canManage && (
+                <Button
+                  type="button"
+                  variant="warning"
+                  pending={saving}
+                  disabled={disabled || loading || !hasChanges}
+                  onClick={saveDraft}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  {recreatesRunningWorkload ? "Save & Recreate" : "Save"}
+                </Button>
+              )}
+              {canManage && (
+                <Button
+                  type="button"
+                  disabled={disabled || loading || saving}
+                  onClick={openAddDialog}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add
+                </Button>
+              )}
+            </div>
+          }
+        >
+          {initialLoading ? null : displayBindings.length === 0 ? (
+            <EmptyState message="No managed storage links" embedded />
+          ) : (
+            rows
+          )}
+        </PanelShell>
+      )}
 
       <ManagedStorageLinkDialog
         open={addOpen}

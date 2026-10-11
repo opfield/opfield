@@ -482,7 +482,7 @@ export function DockerNetworks({
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     pending={removingNetworkId === net.id}
                     aria-label={`${net.name} actions`}
                   >

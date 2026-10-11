@@ -17,6 +17,7 @@ import { useAuthStore } from "@/stores/auth";
 import { DockerContainerDetail } from "../DockerContainerDetail";
 import { DockerResourceGitTabs } from "./DockerResourceGitTabs";
 import type { InspectData } from "./helpers";
+import { LinksPanel } from "./LinksPanel";
 import {
   type ManagedDatabaseLinkDraft,
   ManagedDatabaseLinksSection,
@@ -264,36 +265,41 @@ function PendingContainerLinks({
   }
   return (
     <div className="space-y-4 pb-6">
-      {hasDatabaseNode && (
-        <ManagedDatabaseLinksSection
-          ref={databaseLinksRef}
-          nodeId={nodeId}
-          targetType="container"
-          targetResourceId={containerName}
-          containerName={containerName}
-          disabled={saving}
-          existingVariableNames={storageDraft.managedVariableNames}
-          onDraftChange={setDatabaseDraft}
-          onSaveRequested={() => void save()}
-          recreatesRunningWorkload={false}
-        />
-      )}
-      {canViewStorage && (
-        <ManagedStorageLinksSection
-          ref={storageLinksRef}
-          nodeId={nodeId}
-          targetType="container"
-          targetResourceId={containerName}
-          containerName={containerName}
-          canManage={canManageStorage}
-          canManageCluster={canManageStorageCluster}
-          disabled={saving}
-          existingVariableNames={databaseDraft.managedVariableNames}
-          onDraftChange={setStorageDraft}
-          onSaveRequested={() => void save()}
-          recreatesRunningWorkload={false}
-        />
-      )}
+      <LinksPanel
+        description="Private connections to managed databases and managed storage. They apply when the first build creates the container."
+        onSave={() => void save()}
+      >
+        {hasDatabaseNode && (
+          <ManagedDatabaseLinksSection
+            ref={databaseLinksRef}
+            nodeId={nodeId}
+            targetType="container"
+            targetResourceId={containerName}
+            containerName={containerName}
+            disabled={saving}
+            existingVariableNames={storageDraft.managedVariableNames}
+            onDraftChange={setDatabaseDraft}
+            onSaveRequested={() => void save()}
+            recreatesRunningWorkload={false}
+          />
+        )}
+        {canViewStorage && (
+          <ManagedStorageLinksSection
+            ref={storageLinksRef}
+            nodeId={nodeId}
+            targetType="container"
+            targetResourceId={containerName}
+            containerName={containerName}
+            canManage={canManageStorage}
+            canManageCluster={canManageStorageCluster}
+            disabled={saving}
+            existingVariableNames={databaseDraft.managedVariableNames}
+            onDraftChange={setStorageDraft}
+            onSaveRequested={() => void save()}
+            recreatesRunningWorkload={false}
+          />
+        )}
+      </LinksPanel>
     </div>
   );
 }

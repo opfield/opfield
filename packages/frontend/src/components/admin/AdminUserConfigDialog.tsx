@@ -502,7 +502,7 @@ export function AdminUserConfigDialog({
                   </div>
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     onClick={() => revokeSession(session.id)}
                     pending={isBusy(`session:${session.id}`)}
                     disabled={saving}

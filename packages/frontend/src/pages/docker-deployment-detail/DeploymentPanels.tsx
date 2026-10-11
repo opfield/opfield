@@ -409,7 +409,7 @@ export function DeploymentConfig({
       actions={
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           onClick={() => copyToClipboard(jsonText)}
           title="Copy JSON"
         >

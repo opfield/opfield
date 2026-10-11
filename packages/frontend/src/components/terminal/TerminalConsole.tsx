@@ -356,7 +356,7 @@ export function TerminalConsole({
       <div ref={termRef} className="terminal-console absolute inset-0 bg-card overflow-hidden" />
       {popoutUrl && (
         <div className="absolute right-2.5 bottom-2.5 z-10">
-          <Button variant="outline" size="sm" onClick={openPopout}>
+          <Button variant="outline" onClick={openPopout}>
             <ExternalLink className="h-4 w-4" />
             Pop out
           </Button>

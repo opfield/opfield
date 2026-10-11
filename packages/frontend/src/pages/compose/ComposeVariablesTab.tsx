@@ -6,6 +6,7 @@ import { api } from "@/services/api";
 import type { DockerComposeProject } from "@/types";
 import { ContainerLinksSection } from "../docker-detail/ContainerLinksSection";
 import { EnvironmentTab } from "../docker-detail/EnvironmentTab";
+import { LinksPanel } from "../docker-detail/LinksPanel";
 import { ManagedDatabaseLinksSection } from "../docker-detail/ManagedDatabaseLinksSection";
 
 export function ComposeVariablesTab({
@@ -84,36 +85,45 @@ export function ComposeVariablesTab({
 
   return (
     <div className="space-y-4 pb-6">
-      <ManagedDatabaseLinksSection
-        nodeId={project.nodeId}
-        targetType="compose_service"
-        targetResourceId={project.id}
-        containerName={project.name}
-        disabled={(!beforeFirstRevision && serviceNames.length === 0) || !canManage}
-        removeDisabledReason={linkRemovalDisabledReason}
-        recreatesRunningWorkload={recreatesRunningProject}
-        composeBeforeFirstRevision={beforeFirstRevision}
-        composeServices={serviceNames.map((name) => ({
-          name,
-          existingVariableNames: Object.keys(
-            activeRevision?.normalizedModel.services[name]?.environment ?? {}
-          ),
-        }))}
-      />
-
-      {activeRevision && serviceNames.length > 0 && (
-        <ContainerLinksSection
+      <LinksPanel
+        description={
+          beforeFirstRevision
+            ? "Private connections to managed databases and other containers. Database links are saved now and added to the selected services by the project's first revision."
+            : "Private connections to managed databases and other containers, stored in each selected service's Compose revision."
+        }
+      >
+        <ManagedDatabaseLinksSection
           nodeId={project.nodeId}
-          type="compose_service"
-          resourceId={project.id}
-          workloadName={project.name}
-          services={serviceNames}
-          canManage={canManage}
-          canSetEnvironment={canManage}
+          targetType="compose_service"
+          targetResourceId={project.id}
+          containerName={project.name}
+          disabled={(!beforeFirstRevision && serviceNames.length === 0) || !canManage}
+          canAdd={canManage}
           removeDisabledReason={linkRemovalDisabledReason}
-          onApplied={onApplied}
+          recreatesRunningWorkload={recreatesRunningProject}
+          composeBeforeFirstRevision={beforeFirstRevision}
+          composeServices={serviceNames.map((name) => ({
+            name,
+            existingVariableNames: Object.keys(
+              activeRevision?.normalizedModel.services[name]?.environment ?? {}
+            ),
+          }))}
         />
-      )}
+
+        {activeRevision && serviceNames.length > 0 && (
+          <ContainerLinksSection
+            nodeId={project.nodeId}
+            type="compose_service"
+            resourceId={project.id}
+            workloadName={project.name}
+            services={serviceNames}
+            canManage={canManage}
+            canSetEnvironment={canManage}
+            removeDisabledReason={linkRemovalDisabledReason}
+            onApplied={onApplied}
+          />
+        )}
+      </LinksPanel>
 
       {activeRevision ? (
         <EnvironmentTab

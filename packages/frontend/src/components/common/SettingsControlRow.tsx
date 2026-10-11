@@ -77,6 +77,7 @@ export function SettingsHelpTitle({ label, help }: { label: string; help?: strin
       <TooltipProvider delayDuration={200}>
         <Tooltip>
           <TooltipTrigger asChild>
+            {/* size-exception: help glyph inline in a setting title */}
             <button
               type="button"
               aria-label={`About ${label}`}
