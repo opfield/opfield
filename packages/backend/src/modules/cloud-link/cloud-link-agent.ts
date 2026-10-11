@@ -1,4 +1,5 @@
-import WebSocket from 'ws';
+import { createRequire } from 'node:module';
+import type WebSocketClient from 'ws';
 import {
   OPERATION_LEASE_PROCESS,
   type OperationLeaseHold,
@@ -23,6 +24,14 @@ import {
 } from './cloud-link.types.js';
 import { CloudRequestAuditCoalescer } from './cloud-link-request-audit.js';
 import { answerCloudRequest, parseCloudRequest } from './cloud-link-requests.js';
+
+/**
+ * The `ws` package, loaded through require: the build's tsc-alias step rewrites a static `ws` import to the backend's
+ * own src/ws directory (dist/ws), which fails at runtime.
+ */
+const WS_PACKAGE = 'ws';
+const WebSocket = createRequire(import.meta.url)(WS_PACKAGE) as typeof WebSocketClient;
+type WebSocket = WebSocketClient;
 
 const logger = createChildLogger('CloudLinkAgent');
 

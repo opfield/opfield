@@ -3,9 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OperationLeaseStore } from '@/db/operation-lease.js';
+import { LicenseServerRequestError } from '@/modules/license/license.service.js';
 import { CloudLinkRequestError, type CloudLinkService } from './cloud-link.service.js';
-import { CloudLinkEnrollFile } from './cloud-link-enroll-file.js';
+import { CloudLinkEnrollFile, createEnrollFileLicense, type EnrollFileLicense } from './cloud-link-enroll-file.js';
 
+const KEY = 'WLT-GW-AAAA-BBBB-CCCC-DDDD';
 const leases = {
   claim: vi.fn(async () => ({ acquired: true as const, token: 't', claimedAt: 0 })),
   release: vi.fn(async () => undefined),
@@ -24,53 +26,110 @@ describe('cloud enrolment file', () => {
   });
 
   function service(connect: (...args: unknown[]) => Promise<unknown>, enrolled = false) {
+    let isEnrolled = enrolled;
     return {
-      isEnrolled: vi.fn(async () => enrolled),
-      connect: vi.fn(connect),
-      recordEnrollFileEvent: vi.fn(async () => undefined),
+      isEnrolled: vi.fn(async () => isEnrolled),
+      connect: vi.fn(async (...args: unknown[]) => {
+        const result = await connect(...args);
+        isEnrolled = true;
+        return result;
+      }),
+      recordEnrollFileEvent: vi.fn(async (_details: Record<string, unknown>) => undefined),
+      recordLicenseActivation: vi.fn(async (_details: Record<string, unknown>) => undefined),
     };
   }
 
-  it('enrols with the file code and portal, then removes the file', async () => {
-    await writeFile(path, JSON.stringify({ code: 'CLD-7K3M-Q9TX', portalUrl: 'https://account.example.test' }));
+  function license(activate: () => Promise<{ plan: string; moduleRestarting: boolean | null }>): EnrollFileLicense {
+    let active = false;
+    return {
+      isActive: vi.fn(async () => active),
+      activate: vi.fn(async () => {
+        const result = await activate();
+        active = true;
+        return result;
+      }),
+      isRetryable: createEnrollFileLicense({} as never, {} as never).isRetryable,
+    };
+  }
+
+  const exists = (file: string) =>
+    readFile(file).then(
+      () => true,
+      () => false
+    );
+
+  it('enrols, activates the key, and only then removes the file; the key is never audited', async () => {
+    await writeFile(
+      path,
+      JSON.stringify({ code: 'CLD-7K3M-Q9TX', portalUrl: 'https://account.example.test', licenseKey: KEY })
+    );
     const fake = service(async () => ({}));
-    const runner = new CloudLinkEnrollFile(fake as unknown as CloudLinkService, leases, path);
+    const keys = license(async () => ({ plan: 'business', moduleRestarting: true }));
+    const runner = new CloudLinkEnrollFile(fake as unknown as CloudLinkService, leases, keys, path);
     await expect(runner.runOnce()).resolves.toBe(false);
     expect(fake.connect).toHaveBeenCalledWith(
       'CLD-7K3M-Q9TX',
       { userId: null },
       { source: 'enroll-file', portalUrl: 'https://account.example.test', auditRetryableFailure: true }
     );
-    await expect(readFile(path)).rejects.toMatchObject({ code: 'ENOENT' });
-    expect(fake.recordEnrollFileEvent).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'enrolled' }));
+    expect(keys.activate).toHaveBeenCalledWith(KEY);
+    expect(fake.recordLicenseActivation).toHaveBeenCalledWith(
+      expect.objectContaining({ success: true, source: 'enroll-file', plan: 'business' })
+    );
+    expect(await exists(path)).toBe(false);
+    expect(fake.recordEnrollFileEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: 'settled', enrollment: 'done', license: 'done', removed: true })
+    );
+    expect(
+      JSON.stringify([fake.recordEnrollFileEvent.mock.calls, fake.recordLicenseActivation.mock.calls])
+    ).not.toContain('AAAA');
   });
 
-  it('retries while the portal may still accept the code and removes the file once it calls it invalid', async () => {
+  it('keeps the file while the license server is unreachable, then finishes without enrolling twice', async () => {
+    await writeFile(path, JSON.stringify({ code: 'CLD-7K3M-Q9TX', licenseKey: KEY }));
+    const fake = service(async () => ({}));
+    let reachable = false;
+    const keys = license(async () => {
+      if (!reachable) throw new LicenseServerRequestError(503, 'LICENSE_SERVER_UNAVAILABLE', 'unavailable');
+      return { plan: 'personal', moduleRestarting: false };
+    });
+    const runner = new CloudLinkEnrollFile(fake as unknown as CloudLinkService, leases, keys, path);
+    await expect(runner.runOnce()).resolves.toBe(true);
+    expect(await exists(path)).toBe(true);
+    reachable = true;
+    await expect(runner.runOnce()).resolves.toBe(false);
+    expect(fake.connect).toHaveBeenCalledTimes(1);
+    expect(await exists(path)).toBe(false);
+  });
+
+  it('removes the file once the portal and the license server refused for good', async () => {
+    await writeFile(path, JSON.stringify({ code: 'CLD-7K3M-Q9TX', licenseKey: KEY }));
+    const fake = service(async () => {
+      throw new CloudLinkRequestError(400, 'CLOUD_CODE_INVALID', 'invalid');
+    });
+    const keys = license(async () => {
+      throw new LicenseServerRequestError(400, 'INVALID_LICENSE_KEY', `Key ${KEY} is not valid`);
+    });
+    await expect(
+      new CloudLinkEnrollFile(fake as unknown as CloudLinkService, leases, keys, path).runOnce()
+    ).resolves.toBe(false);
+    expect(await exists(path)).toBe(false);
+    expect(fake.recordEnrollFileEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ enrollment: 'rejected', license: 'rejected' })
+    );
+    expect(JSON.stringify(fake.recordLicenseActivation.mock.calls)).not.toContain('AAAA');
+  });
+
+  it('retries while the portal may still accept the code', async () => {
     await writeFile(path, JSON.stringify({ code: 'CLD-7K3M-Q9TX' }));
     const unavailable = service(async () => {
       throw new CloudLinkRequestError(502, 'CLOUD_PORTAL_UNAVAILABLE', 'unreachable', true);
     });
+    const keys = license(async () => ({ plan: 'business', moduleRestarting: false }));
     await expect(
-      new CloudLinkEnrollFile(unavailable as unknown as CloudLinkService, leases, path).runOnce()
+      new CloudLinkEnrollFile(unavailable as unknown as CloudLinkService, leases, keys, path).runOnce()
     ).resolves.toBe(true);
-    await expect(readFile(path, 'utf8')).resolves.toContain('CLD-7K3M-Q9TX');
-
-    const invalid = service(async () => {
-      throw new CloudLinkRequestError(400, 'CLOUD_CODE_INVALID', 'invalid');
-    });
-    await expect(new CloudLinkEnrollFile(invalid as unknown as CloudLinkService, leases, path).runOnce()).resolves.toBe(
-      false
-    );
-    await expect(readFile(path)).rejects.toMatchObject({ code: 'ENOENT' });
-  });
-
-  it('leaves the file alone when the installation is enrolled already', async () => {
-    await writeFile(path, JSON.stringify({ code: 'CLD-7K3M-Q9TX' }));
-    const fake = service(async () => ({}), true);
-    await expect(new CloudLinkEnrollFile(fake as unknown as CloudLinkService, leases, path).runOnce()).resolves.toBe(
-      false
-    );
-    expect(fake.connect).not.toHaveBeenCalled();
-    await expect(readFile(path, 'utf8')).resolves.toContain('CLD');
+    expect(await exists(path)).toBe(true);
+    expect(keys.activate).not.toHaveBeenCalled();
   });
 });
