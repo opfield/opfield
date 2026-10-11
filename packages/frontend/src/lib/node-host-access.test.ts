@@ -3,6 +3,7 @@ import type { Node } from "@/types";
 import {
   DEFAULT_HOST_ACCESS_INSTALL_OPTIONS,
   isNodeHostFeatureDisabled,
+  isNodeProtected,
   nodeConsoleUnavailableMessage,
   nodeHostFeatureDisabledMessage,
   nodeHostFileAccessWarning,
@@ -47,6 +48,20 @@ describe("node host access", () => {
       `${command} \\\n  --disable-console \\\n  --disable-files`
     );
     expect(withHostAccessInstallFlags("", both)).toBe("");
+    expect(
+      withHostAccessInstallFlags(command, {
+        disableConsole: false,
+        disableFiles: false,
+        protectedMode: true,
+      })
+    ).toBe(`${command} \\\n  --protected`);
+  });
+
+  it("reads protected mode from the stored flag and the raw marker", () => {
+    expect(isNodeProtected(node("relay", {}))).toBe(false);
+    expect(isNodeProtected(null)).toBe(false);
+    expect(isNodeProtected(node("relay", { nodeProtected: true }))).toBe(true);
+    expect(isNodeProtected(node("relay", { capabilities: ["node_protected_v1"] }))).toBe(true);
   });
 
   it("names the config key and the daemon config file of the node type", () => {

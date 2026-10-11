@@ -112,6 +112,12 @@ func (b *Broker) OpenTunnel(stream relayv1.TunnelBroker_OpenTunnelServer) (resul
 		return failOpen(refusalLeaseGate, err)
 	}
 	if endpoint.SubjectKind == localServiceSubjectKind {
+		if snapshot.Mode != relayv1.RelayMode_RELAY_MODE_LOCAL_COMBINED {
+			// Only the local relay next to the Gateway serves built-in local
+			// services. A remote relay would dial the service's fixed name on
+			// its own host's network, which no policy may make it do.
+			return failOpen(refusalLocalService, status.Error(codes.PermissionDenied, "built-in local services are served only by the local relay"))
+		}
 		target, targetErr := config.BuiltinLocalServiceTarget(endpoint.SubjectId)
 		if targetErr != nil {
 			return failOpen(refusalLocalService, status.Error(codes.PermissionDenied, targetErr.Error()))

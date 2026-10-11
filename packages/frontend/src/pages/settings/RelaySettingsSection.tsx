@@ -25,6 +25,7 @@ import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { SimpleTable, type SimpleTableColumn } from "@/components/common/SimpleTable";
 import { HostAccessInstallOptions } from "@/components/nodes/HostAccessInstallOptions";
 import { NodeEnrollmentDialog } from "@/components/nodes/NodeEnrollmentDialog";
+import { ProtectedNodeBadge } from "@/components/nodes/ProtectedNodeBadge";
 import { UnreleasedInstallerNote } from "@/components/nodes/UnreleasedInstallerNote";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -551,7 +552,10 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
       header: "Instance",
       render: (row) => (
         <div>
-          <div className="font-medium">{row.displayName}</div>
+          <div className="flex items-center gap-2 font-medium">
+            {row.displayName}
+            {row.protected && <ProtectedNodeBadge size="inline" />}
+          </div>
           <div className="text-xs text-muted-foreground">
             {row.kind === "local"
               ? "Gateway host"
@@ -1267,7 +1271,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
           <UnreleasedInstallerNote installerRelease={shownReenrollment.installerRelease} />
         ) : null}
         {shownReenrollment ? (
-          <HostAccessInstallOptions value={hostAccess} onChange={setHostAccess} />
+          <HostAccessInstallOptions value={hostAccess} onChange={setHostAccess} relay />
         ) : null}
         {shownReenrollment?.installCommands.map((command) => {
           const value = withHostAccessInstallFlags(command.curl, hostAccess);

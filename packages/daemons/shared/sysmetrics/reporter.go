@@ -30,6 +30,18 @@ func (r *SystemReporter) RunPublicIPDiscovery(ctx context.Context) {
 // It can be called with an existing report (e.g., one that already has
 // daemon-specific fields populated) or with a new report.
 func (r *SystemReporter) CollectSystemHealth(report *pb.HealthReport) *pb.HealthReport {
+	return r.collect(report, false)
+}
+
+// CollectAggregateHealth populates only the aggregate resource usage (CPU,
+// memory, swap, load, uptime, file descriptors and free space of /), without
+// the host inventory: no disk mounts or disk I/O, network interfaces or IP
+// addresses. A daemon in protected mode reports only these.
+func (r *SystemReporter) CollectAggregateHealth(report *pb.HealthReport) *pb.HealthReport {
+	return r.collect(report, true)
+}
+
+func (r *SystemReporter) collect(report *pb.HealthReport, aggregateOnly bool) *pb.HealthReport {
 	if report == nil {
 		report = &pb.HealthReport{}
 	}
@@ -67,6 +79,10 @@ func (r *SystemReporter) CollectSystemHealth(report *pb.HealthReport) *pb.Health
 	openFD, maxFD := GetFileDescriptors()
 	report.OpenFileDescriptors = openFD
 	report.MaxFileDescriptors = maxFD
+
+	if aggregateOnly {
+		return report
+	}
 
 	// Disk mounts
 	report.DiskMounts = GetDiskMounts()

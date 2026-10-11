@@ -4,7 +4,10 @@ import {
   NODE_CONSOLE_DISABLED_CAPABILITY,
   NODE_CONSOLE_USER_UNAVAILABLE_CAPABILITY,
   NODE_FILES_DISABLED_CAPABILITY,
+  NODE_PROTECTED_CAPABILITY,
+  nodeConsoleRefusal,
   nodeHostAccessFlags,
+  RELAY_PROTECTED_WITNESS_ALLOWED_CAPABILITY,
 } from './node-host-access.js';
 
 function dispatchFor(advertised: string[]) {
@@ -79,6 +82,54 @@ describe('node host access switches', () => {
       success: true,
     });
     expect(sent).toHaveLength(2);
+  });
+
+  it('maps protected mode and its database witness switch to node capability flags', () => {
+    // A protected relay also advertises the console and file markers, for Gateways that know only those.
+    expect(
+      nodeHostAccessFlags([NODE_PROTECTED_CAPABILITY, NODE_CONSOLE_DISABLED_CAPABILITY, NODE_FILES_DISABLED_CAPABILITY])
+    ).toEqual({ nodeProtected: true, nodeConsoleDisabled: true, nodeFilesDisabled: true });
+    expect(nodeHostAccessFlags([NODE_PROTECTED_CAPABILITY, RELAY_PROTECTED_WITNESS_ALLOWED_CAPABILITY])).toEqual({
+      nodeProtected: true,
+      protectedWitnessAllowed: true,
+    });
+    // The witness switch means nothing without protected mode.
+    expect(nodeHostAccessFlags([RELAY_PROTECTED_WITNESS_ALLOWED_CAPABILITY])).toEqual({});
+  });
+
+  it('refuses every console and host file command for a protected relay with NODE_PROTECTED, before dispatching', async () => {
+    const { dispatch, sent } = dispatchFor([
+      NODE_PROTECTED_CAPABILITY,
+      NODE_CONSOLE_DISABLED_CAPABILITY,
+      NODE_FILES_DISABLED_CAPABILITY,
+    ]);
+    for (const action of ['create', 'resize', 'run']) {
+      await expect(dispatch.sendNodeExecCommand('node-1', action, { command: ['id'] })).rejects.toMatchObject({
+        statusCode: 409,
+        code: 'NODE_PROTECTED',
+        message: expect.stringContaining('protected mode'),
+      });
+    }
+    for (const action of ['list', 'read', 'write', 'delete', 'move', 'create-dir', 'upload-init', 'upload-abort']) {
+      await expect(dispatch.sendNodeFileCommand('node-1', action, { path: '/etc/passwd' })).rejects.toMatchObject({
+        statusCode: 409,
+        code: 'NODE_PROTECTED',
+      });
+    }
+    expect(sent).toEqual([]);
+    // The fixed host identity read is Gateway's own file, not host access.
+    await expect(dispatch.sendNodeFileCommand('node-1', 'ensure-host-identity')).resolves.toMatchObject({
+      success: true,
+    });
+    expect(sent).toHaveLength(1);
+  });
+
+  it('refuses the console WebSocket of a protected relay with NODE_PROTECTED', () => {
+    const registry = {
+      hasCapability: (_nodeId: string, capability: string) => capability === NODE_PROTECTED_CAPABILITY,
+    };
+    expect(nodeConsoleRefusal(registry, 'node-1')).toMatchObject({ statusCode: 409, code: 'NODE_PROTECTED' });
+    expect(nodeConsoleRefusal({ hasCapability: () => false }, 'node-1')).toBeNull();
   });
 
   it('dispatches console and file commands to a node that disabled nothing', async () => {
