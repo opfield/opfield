@@ -85,14 +85,13 @@ RAW_BASE="https://raw.githubusercontent.com/${REPO}"
 RELEASE_DOWNLOAD="https://github.com/${REPO}/releases/download"
 REAL_FEED="https://get.opfield.dev/gateway/releases"
 # Every address of the license service (config/license-service.json; --ssh passes them along): the DNS guard blocks
-# them all, the app-container lookup checks the first.
+# them all and check_license_guard looks every one up in the app container.
 if [[ -z "${GATEWAY_E2E_LICENSE_HOSTS:-}" && -f "${BASH_SOURCE[0]%/*}/../config/license-service.json" ]]; then
   GATEWAY_E2E_LICENSE_HOSTS="$(python3 -c 'import json, sys, urllib.parse
 print(",".join(urllib.parse.urlsplit(u).hostname for u in json.load(open(sys.argv[1]))["endpoints"]))' \
     "${BASH_SOURCE[0]%/*}/../config/license-service.json")"
 fi
 LICENSE_HOSTS="${GATEWAY_E2E_LICENSE_HOSTS:?run from a checkout (config/license-service.json) or set GATEWAY_E2E_LICENSE_HOSTS}"
-LICENSE_HOST="${LICENSE_HOSTS%%,*}"
 MAILPIT_IMAGE="docker.io/axllent/mailpit:v1.31.3"
 WEB_IMAGE="nginx:1.27-alpine"
 INSTALL_DIR="/opt/gateway"
@@ -1461,6 +1460,9 @@ LOG_ALLOW=(
   '"path":"/api/proxy-host-folders".*"status":403'
   'NO_UPDATE_AVAILABLE'
   '"path":"/api/system/daemon-updates/[^"]*".*"status":409'
+  # The local relay is the only relay of a single-host install: its update restarts it, and the daemons' tunnel accepts
+  # fail until it listens again (one episode, recovered within seconds).
+  '"msg":"relay endpoint tunnels failing".*dial tcp [^"]*:9443: connect: connection refused'
   # An unprivileged LXC host has no loop devices for disk-image volumes.
   'disk-image volume support unavailable.*loop-control'
   # The base daemons' own warnings while they are replaced (old code; lines of base processes are tagged
@@ -1857,15 +1859,16 @@ check_alerts_migrated() {
   api GET "/api/notifications/alert-rules"
   keep_json "alert-rules-${label// /-}"
   rule="$(jx "$RESP" '[r for r in items(d) if r.get("category") == "gateway" and r.get("eventPattern") == "outbound.unavailable"]')"
-  check "${label}: built-in \"Gateway lost outbound connectivity\" rule exists once" \
+  # 2.12 renames the untouched built-in rule to the Opfield name (bootstrap); a rule the user renamed keeps its name.
+  check "${label}: built-in \"Gateway/Opfield lost outbound connectivity\" rule exists once" \
     "$(window_value "$rule" '[(r.get("name"), r.get("isBuiltin")) for r in D]')" \
-    test "$(window_value "$rule" 'len(D) == 1 and D[0].get("name") == "Gateway lost outbound connectivity"')" = true
+    test "$(window_value "$rule" 'len(D) == 1 and D[0].get("name") in ("Gateway lost outbound connectivity", "Opfield lost outbound connectivity")')" = true
   if [[ "$(jx "$WORK/json/builtin-outbound-rule-base.json" 'len(d)')" == 1 ]]; then
     # The base already has the rule (2.11.4 on: migration 0235 creates it once, at the base's own install, before the
     # e2e webhook existed). An install that has such a rule keeps its own: expect it exactly as the base stored it.
     check "${label}: built-in rule kept as the base had it" \
       "$(window_value "$rule" '[(r.get("name"), r.get("enabled"), r.get("isBuiltin"), sorted(r.get("webhookIds") or [])) for r in D]'), base $(cat "$WORK/json/builtin-outbound-rule-base.json")" \
-      test "$(window_value "$rule" '[[r.get("name"), r.get("enabled"), r.get("isBuiltin"), sorted(r.get("webhookIds") or [])] for r in D] == json.load(open(args[0]))' "$WORK/json/builtin-outbound-rule-base.json")" = true
+      test "$(window_value "$rule" '(lambda base: len(D) == 1 and D[0].get("name") in (base[0], base[0].replace("Gateway lost", "Opfield lost")) and [D[0].get("enabled"), D[0].get("isBuiltin"), sorted(D[0].get("webhookIds") or [])] == base[1:])(json.load(open(args[0]))[0])' "$WORK/json/builtin-outbound-rule-base.json")" = true
   else
     check "${label}: built-in rule enabled, marked built-in, bound to the proxy/node rules' webhooks" \
       "$(window_value "$rule" '[(r.get("enabled"), r.get("isBuiltin"), r.get("webhookIds")) for r in D]'), expected webhook ${FACT[webhook]}" \
@@ -2061,6 +2064,20 @@ gateway_update() {
   check "${label}: route served throughout" \
     "$(window_value "$window" '"%s of %s probes failed, codes %s" % (D["routeFailures"], D["routeSamples"], D["routeCodes"])')" \
     test "$(window_value "$window" 'D["routeSamples"] > 0 and D["routeFailures"] == 0')" = true
+  # The update record: the new version reports no pending or failed attempt.
+  api GET /api/system/version
+  keep_json "version-${label// /-}"
+  check "${label}: update record shows success" \
+    "currentVersion $(jx "$RESP" 'D["currentVersion"]'), gatewayOperation $(jx "$RESP" 'D.get("gatewayOperation")' || echo none)" \
+    test "$(jx "$RESP" 'D["currentVersion"] == args[0] and D.get("gatewayOperation") is None' "$CANDIDATE")" = true
+  # The license heartbeat of the new version (it posts /api/v1/installations/heartbeat), while the server is reachable.
+  if [[ "$LICENSE_MODE" != block-all ]]; then
+    api POST /api/system/license/check
+    keep_json "license-check-${label// /-}"
+    check "${label}: license heartbeat from ${CANDIDATE}" \
+      "HTTP ${CODE}; registration $(jx "$RESP" 'D.get("registrationStatus")'), status $(jx "$RESP" 'D.get("status")'), serverUrl $(jx "$RESP" 'D.get("serverUrl")'), lastCheckedAt $(jx "$RESP" 'D.get("lastCheckedAt")'), error $(jx "$RESP" 'D.get("errorMessage")' || echo null)" \
+      test "$CODE" = 200 -a "$(jx "$RESP" 'D.get("registrationStatus") == "registered" and (D.get("serverUrl") or "").split("//")[-1].split("/")[0] in args[0].split(",")' "$LICENSE_HOSTS")" = true
+  fi
   if [[ "$LICENSE_MODE" == block && -z "$LICENSE_KEY" ]]; then
     sleep 20
     license_block 1
@@ -2595,7 +2612,7 @@ main() {
     PHASE=4; skip "forced rollback" "the base installation did not complete"
   fi
   if ((SKIP_FRESH)); then
-    PHASE=5; skip "fresh install of ${CANDIDATE}" "--skip-fresh"
+    PHASE=5; skip "fresh install of ${FINAL_CANDIDATE}" "--skip-fresh"
   else
     phase5_fresh
   fi
