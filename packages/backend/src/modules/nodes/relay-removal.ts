@@ -7,6 +7,7 @@ import {
   relayPoolUpdateRuns,
 } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { parkedDrainedAssignmentIds } from '@/services/relay-topology.js';
 
 type Instance = typeof relayInstances.$inferSelect;
 type Assignment = typeof relayEndpointAssignments.$inferSelect;
@@ -124,9 +125,12 @@ export async function validateRelayRemoval(tx: DrizzleTransaction, instanceId: s
         .orderBy(asc(relayEndpointAssignmentGenerations.id))
         .for('update')
     : [];
+  // A drained relay's assignments next to other relays in active generations go with it (parkedDrainedAssignmentIds).
+  const parked = parkedDrainedAssignmentIds(removed, assignments, generations);
   const retained = assignments.filter(
     (a) =>
       a.relayInstanceId === instanceId &&
+      !parked.has(a.id) &&
       generations.some((g) => g.id === a.assignmentGenerationId && ['active', 'staging', 'draining'].includes(g.state))
   );
   if (removed.state === 'offline') {

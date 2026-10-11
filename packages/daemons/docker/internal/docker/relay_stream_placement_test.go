@@ -363,3 +363,30 @@ func TestDrainHintForARelayThatStaysMovesNothing(t *testing.T) {
 		echoOnce(t, app)
 	}
 }
+
+// Stand 2.12 R-5: draining and resuming a relay that carries none of the streams moves none of them. Gateway keeps the
+// drained relay in the active generation, draining there, instead of placing every workload on a new generation
+// without it (and on another one with it once resumed), which re-pathed every stream onto a new grant twice.
+func TestDrainAndResumeOfAnEmptyRelayMoveNothing(t *testing.T) {
+	pair := newPoolPair(t)
+	apps, sessions := pair.openStreams(4)
+	waitPlacement(t, sessions, map[string]int{poolLocal + "/1": 4})
+
+	// NL drains: its candidates drain within generation 1.
+	pair.apply(2, generation(1, "active", poolLocal, poolUK), generation(1, "draining", poolNL))
+	time.Sleep(time.Second)
+	waitPlacement(t, sessions, map[string]int{poolLocal + "/1": 4})
+	// NL is resumed: generation 1 as before.
+	pair.apply(3, generation(1, "active", poolLocal, poolUK, poolNL))
+	time.Sleep(time.Second)
+	waitPlacement(t, sessions, map[string]int{poolLocal + "/1": 4})
+	if got := pair.source.relayStreamStats().GetMigrationsOkTotal(); got != 0 {
+		t.Fatalf("%d streams moved for the drain and resume of a relay that carried none", got)
+	}
+	for _, app := range apps {
+		echoOnce(t, app)
+	}
+	if pair.dials.Load() != 4 {
+		t.Fatalf("backend dialed %d times for 4 streams", pair.dials.Load())
+	}
+}
