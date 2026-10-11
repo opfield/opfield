@@ -205,6 +205,8 @@ message HealthReport {
   // Nginx daemons advertising ingress_group_v1: what the reserved endpoint
   // /.well-known/gateway-ingress-health answers (sf-ingress range 195-199).
   IngressHealthReport ingress_health = 195;
+  // Storage-profile docker daemons: their availability set members.
+  repeated AvailabilityMemberReport availability_members = 196;
 }
 
 // Connections across an update of the daemon. A daemon advertising
@@ -495,7 +497,207 @@ message GatewayCommand {
     // Relay supervisor only (relay_route_runtime_v1): the runtime of relay
     // routes as its worker counts them.
     GetRelayRouteRuntimeCommand get_relay_route_runtime = 77;
+    // Relay supervisor only (relay_witness_v1): the witness processes this
+    // relay hosts for availability sets, as the full desired set.
+    ApplyWitnessesCommand apply_witnesses = 80;
+    // Storage-profile docker daemons (managed_availability_member_v1): this
+    // node's member of a database or storage availability set.
+    AvailabilityMemberCommand availability_member = 81;
   }
+}
+
+// The witness processes a relay supervisor runs for availability sets (a
+// ClickHouse Keeper voter of a two-member set). The list is the full desired
+// set: a witness not listed is stopped and its data removed. The supervisor
+// keeps the last applied set across restarts, so witnesses keep running while
+// Gateway is down.
+message ApplyWitnessesCommand {
+  // Increases with every change for this relay; an older or equal revision
+  // than the applied one is acknowledged without changes.
+  uint64 revision = 1;
+  repeated WitnessSpec witnesses = 2;
+}
+
+message WitnessSpec {
+  // managed_availability_witnesses id.
+  string id = 1;
+  string set_id = 2;
+  // "clickhouse_keeper".
+  string kind = 3;
+  // "active" runs the process; "standby" fetches and verifies the artifact
+  // and stages the config without running it.
+  string role = 4;
+  WitnessArtifact artifact = 5;
+  // Keeper server id of this witness.
+  uint32 server_id = 6;
+  // Loopback ports of the relay-local endpoints the members reach this
+  // witness through (relaylocal range 39400-39499): Keeper client and raft.
+  uint32 client_port = 7;
+  uint32 raft_port = 8;
+  // The host the raft configuration names for this witness; "127.0.0.1"
+  // when empty. The raft listener always binds 127.0.0.1:raft_port.
+  string raft_host = 9;
+  // The other Keeper voters, each reached through a local forwarder that
+  // opens a relay-originated tunnel (RelayAdmin.DialRoute) on route_id.
+  repeated WitnessPeer peers = 10;
+  // The set's lease policy (holder-signed activation of a standby).
+  string lease_policy_id = 11;
+}
+
+message WitnessPeer {
+  uint32 server_id = 1;
+  // Loopback address (127.0.0.0/8) and port (39500-39999) the forwarder
+  // binds, exactly as the raft configuration names this peer.
+  string host = 2;
+  uint32 port = 3;
+  string route_id = 4;
+  // 0: the latest assignment of route_id in the relay's policy.
+  uint64 assignment_generation = 5;
+}
+
+message WitnessArtifact {
+  string version = 1;
+  string download_url = 2;
+  // Hex sha256 of the binary; the signed manifest (kind witness-binary,
+  // verified with the compiled update key) must name the same.
+  string sha256 = 3;
+  string signed_manifest = 4;
+  // Update component of the manifest, e.g. "witness-clickhouse-keeper".
+  string component = 5;
+}
+
+message WitnessStatus {
+  string id = 1;
+  string kind = 2;
+  string role = 3;
+  // fetching | staged | starting | running | updating | stopped | error |
+  // refused (local hosting gate).
+  string state = 4;
+  string version = 5;
+  string artifact_sha256 = 6;
+  // Keeper: leader | follower | observer | standalone; empty when unknown.
+  string keeper_role = 7;
+  uint64 last_zxid = 8;
+  string error = 9;
+  uint32 restarts = 10;
+  // Unix seconds of the last state change.
+  int64 since_unix = 11;
+}
+
+// This node's member of a database or storage availability set.
+message AvailabilityMemberCommand {
+  oneof action {
+    AvailabilityMemberConfig configure = 1;
+    AvailabilityMemberRemove remove = 2;
+    AvailabilityMemberEventsAck ack_events = 3;
+    // Manual pairs: the primary assignment (Gateway names the primary under a
+    // generation that grows with every switch).
+    AvailabilityPrimaryAssignment assign_primary = 4;
+    // Automatic sets: a planned switchover the holder runs (writes stop, the
+    // successor catches up, then the holder releases to it).
+    AvailabilityMemberSwitchover switchover = 5;
+  }
+}
+
+message AvailabilityMemberConfig {
+  string set_id = 1;
+  string member_id = 2;
+  // "postgres", "valkey", "seaweedfs" or "clickhouse".
+  string engine = 3;
+  // "managed_database" or "managed_storage", and the resource id.
+  string owner_kind = 4;
+  string owner_id = 5;
+  // "automatic" (lease) or "manual" (replicated pair without witness).
+  string mode = 6;
+  string lease_policy_id = 7;
+  // "synchronous" or "asynchronous".
+  string durability = 8;
+  uint32 sync_degrade_after_seconds = 9;
+  uint64 max_lag_bytes = 10;
+  repeated AvailabilityMemberPeer members = 11;
+  AvailabilityPrimaryAssignment primary = 12;
+  // A configuration older than the one applied is ignored.
+  uint64 config_revision = 13;
+  // The engine's own configuration (JSON), opaque to the member runtime.
+  bytes engine_config = 14;
+  // The member proxy's published port (direct publication); 0: none.
+  uint32 published_port = 15;
+}
+
+message AvailabilityMemberPeer {
+  string member_id = 1;
+  string node_id = 2;
+  uint32 member_index = 3;
+  int32 priority = 4;
+  bool removing = 5;
+}
+
+message AvailabilityPrimaryAssignment {
+  string set_id = 1;
+  string primary_member_id = 2;
+  uint64 generation = 3;
+  // Gateway signs every assignment with its relay policy signing key: Ed25519
+  // over "gateway-availability-member/primary-assignment/v1" || 0x00 ||
+  // u32be(len(set_id)) || set_id || u32be(len(primary_member_id)) ||
+  // primary_member_id || u64be(generation). A member accepts an assignment,
+  // from Gateway or relayed by its peer, only with a valid signature of a key
+  // it trusts.
+  string signing_key_id = 4;
+  bytes signature = 5;
+  // The policy signing keys, delivered over this authenticated stream (as in
+  // SyncAvailabilityLeaseCommand): the daemon trusts them directly. Gateway
+  // only; a peer-relayed assignment verifies against keys already trusted.
+  repeated AvailabilityLeasePolicyKey policy_keys = 6;
+}
+
+message AvailabilityMemberRemove {
+  string set_id = 1;
+  string member_id = 2;
+}
+
+message AvailabilityMemberEventsAck {
+  string set_id = 1;
+  string member_id = 2;
+  uint64 through_sequence = 3;
+}
+
+message AvailabilityMemberSwitchover {
+  string set_id = 1;
+  string successor_member_id = 2;
+  string operation_id = 3;
+}
+
+// One member as its node reports it, with the events Gateway has not
+// acknowledged yet (kept on disk with the time they happened).
+message AvailabilityMemberReport {
+  string set_id = 1;
+  string member_id = 2;
+  // "primary", "copy", "rebuilding", "fenced" or "unknown".
+  string role = 3;
+  bool serving = 4;
+  // The lease proposer role of the set's key on this node (automatic sets).
+  string lease_role = 5;
+  bool eligible = 6;
+  string eligibility_reason = 7;
+  uint64 lag_bytes = 8;
+  double lag_seconds = 9;
+  // "sync", "async" or "none".
+  string sync_state = 10;
+  map<string, string> position = 11;
+  uint64 disk_free_bytes = 12;
+  string last_error = 13;
+  uint64 config_revision = 14;
+  uint64 primary_generation = 15;
+  repeated AvailabilityMemberEvent events = 16;
+}
+
+message AvailabilityMemberEvent {
+  uint64 sequence = 1;
+  string kind = 2;
+  int64 at_unix_ms = 3;
+  string reason = 4;
+  string operation_id = 5;
+  map<string, string> detail = 6;
 }
 
 // A serialized relay.v1.ApplySnapshotRequest. Keeping the policy as opaque
@@ -558,6 +760,12 @@ message RelayRuntimeStatus {
   // The relay's acceptor and data-path gate view (relays advertising
   // availability_lease_v1). member_id is the relay instance id.
   AvailabilityLeaseReport availability_lease = 17;
+  // Witness hosting (relay_witness_v1). witness_hosting is the local gate:
+  // "allowed", "protected_needs_opt_in" (protected relay without the owner's
+  // witness opt-in) or "disabled" (this host cannot run witnesses).
+  string witness_hosting = 20;
+  repeated WitnessStatus witnesses = 21;
+  uint64 applied_witness_revision = 22;
 }
 
 message RelayAssignmentTunnelCount {
@@ -771,6 +979,55 @@ message RelayGrantAssignment {
   // Endpoint assignments only: the routes to this endpoint whose streams may
   // be resumable, with their current and previous resume keys.
   repeated RelayRouteResume resume_routes = 13;
+  // Database and storage availability sets (fields 213-219). Endpoint
+  // assignments: the member and port the endpoint serves. Peer route
+  // assignments: the member the route reaches.
+  RelayLeaseTarget lease_target = 213;
+  // Connect assignments of a set's resource: one route per member, each to
+  // that member's endpoint. The daemon opens the route of the member that the
+  // relay lease gate views name the holder first, then the others by rank
+  // (the relay admits only the holder while the set's lease runs). This
+  // assignment's own route fields are the group's first member, for daemons
+  // that do not know groups.
+  repeated RelayLeaseGroupRoute lease_group = 214;
+}
+
+// One member of a database or storage availability set as a relay path sees
+// it.
+message RelayLeaseTarget {
+  string set_id = 1;
+  string member_id = 2;
+  // The member's lease identity (its node id): the holder id in gate views.
+  string candidate_id = 3;
+  // The set's current lease policy id (the relay gate key); empty for a
+  // manual pair, whose primary is the only serving member.
+  string lease_policy_id = 4;
+  // Member order for the fallback when no gate view names a holder (0 first).
+  uint32 rank = 5;
+  // "managed_database" or "managed_storage", and the resource id.
+  string owner_kind = 6;
+  string owner_id = 7;
+  // Member peer endpoints and routes: the engine port name ("pg-repl",
+  // "kv-repl", "sw-master", "sw-volume", "sw-filer", "ch-interserver",
+  // "ch-keeper"). Empty for client paths.
+  string port_name = 8;
+  // A port that reaches the primary only ("primary-<port>"); otherwise each
+  // member is reached by its own alias ("member-<id>-<port>").
+  bool primary_port = 9;
+  // A route to a ClickHouse Keeper witness on a relay (relay-local endpoint):
+  // the witness id; reached as "witness-<id>-<port>". member_id is empty.
+  string witness_id = 10;
+}
+
+// One route of a lease group.
+message RelayLeaseGroupRoute {
+  string route_id = 1;
+  string target_endpoint_id = 2;
+  RelaySignedGrant grant = 3;
+  repeated RelayDataCandidate candidates = 4;
+  RelayStreamResume stream_resume = 5;
+  RelayLeaseTarget target = 6;
+  uint32 schema_version = 7;
 }
 
 // The source side of a resumable route (RSv1). The key never travels through
@@ -1351,6 +1608,15 @@ message AvailabilityLeaseKeyView {
   // commit of the committed ballot's proposer, Unix ms of its wall clock;
   // zero when unknown.
   int64 holder_since_unix_ms = 25;
+  // As in relay.v1 (same field numbers), stateful keys only
+  // (availability_lease_v3): whether this acceptor's memory of the key is
+  // KNOWN, the ballot it last accepted, "sha256:<hex>" of that state and of
+  // the latest commit's state. The state bytes are never reported.
+  bool stateful = 26;
+  bool state_known = 27;
+  string state_hash = 28;
+  AvailabilityLeaseBallot accepted = 29;
+  string committed_state_hash = 30;
 }
 
 message AvailabilityLeaseEvent {

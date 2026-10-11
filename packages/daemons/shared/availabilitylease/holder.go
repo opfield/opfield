@@ -129,7 +129,11 @@ func (n *Node) FenceComplete(key Key) {
 		default:
 			return
 		}
-		if releaseAfterFence(pk.fenceReason) && !pk.lastIssued.IsZero() {
+		// Stateful keys are not released after a local fence: a release makes
+		// the previous holder ineligible (AS6), and while the state is
+		// degraded it may be the only member with every acknowledged write.
+		// Successors wait out the acceptor hold instead.
+		if releaseAfterFence(pk.fenceReason) && !pk.lastIssued.IsZero() && !n.stateful(key.PolicyID) {
 			n.beginRelease(pk, "", now)
 			return
 		}
@@ -181,6 +185,7 @@ func (n *Node) AbandonFor(key Key, reason FenceReason) {
 		}
 		pk.round = nil
 		pk.role = RoleAbandoned
+		n.dropPending(pk, "renewals were abandoned")
 		n.emit(Event{Kind: EventFence, Key: key, Ballot: pk.ballot, Reason: pk.fenceReason, At: now})
 	})
 }
@@ -188,6 +193,7 @@ func (n *Node) AbandonFor(key Key, reason FenceReason) {
 func (n *Node) beginRelease(pk *proposerKey, successor string, now time.Duration) {
 	pk.round = nil
 	pk.role = RoleReleasing
+	n.dropPending(pk, "the lease was released")
 	pk.release = releaseState{successor: successor, ballot: pk.lastIssued, acks: map[string]bool{}, finalAcked: map[string]bool{}, nextAt: now}
 	kind := EventReleased
 	if successor != "" {

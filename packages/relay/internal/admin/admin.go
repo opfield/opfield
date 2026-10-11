@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
+	"github.com/wiolett-industries/gateway/daemon-shared/relaylocal"
 	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
 	"github.com/wiolett-industries/gateway/relay/internal/broker"
 	"github.com/wiolett-industries/gateway/relay/internal/identity"
@@ -50,6 +52,16 @@ func (l *logLimiter) allow(key string, now time.Time) bool {
 type LeaseReporter interface {
 	Report() *relayv1.AvailabilityLeaseReport
 }
+
+// HolderStatementVerifier checks holder statements of stateful lease keys
+// (availabilitylease.Node.VerifyHolderStatement).
+type HolderStatementVerifier interface {
+	VerifyHolderStatement(key availabilitylease.Key, domain string, payload, signature []byte) (string, error)
+}
+
+// HolderStatementCapability: the relay verifies holder statements for its
+// supervisor (VerifyHolderStatement).
+const HolderStatementCapability = "relay_holder_statement_v1"
 
 // SetLeaseReporter adds the availability lease view and capability to health.
 func (s *Service) SetLeaseReporter(reporter LeaseReporter) { s.lease = reporter }
@@ -134,13 +146,13 @@ func healthCapabilities(mode relayv1.RelayMode, availabilityLease bool) []string
 	capabilities := []string{
 		policy.PoolCapability, "signed_policy_envelope_v1", identity.ServerCertificateRolloverCapability,
 		policy.LongLeaseCapability, broker.EndpointRestartCapability, broker.DrainKeepsLocalServicesCapability,
-		broker.RegistryFairShareCapability,
+		broker.RegistryFairShareCapability, relaylocal.EndpointsCapability, relaylocal.DialRouteCapability,
 	}
 	if mode == relayv1.RelayMode_RELAY_MODE_LOCAL_COMBINED {
 		capabilities = append(capabilities, policy.TrustResetCapability)
 	}
 	if availabilityLease {
-		capabilities = append(capabilities, AvailabilityLeaseCapability)
+		capabilities = append(capabilities, AvailabilityLeaseCapability, availabilitylease.CapabilityV3, HolderStatementCapability)
 	}
 	return capabilities
 }
@@ -148,7 +160,10 @@ func healthCapabilities(mode relayv1.RelayMode, availabilityLease bool) []string
 // AvailabilityLeaseCapability tells Gateway the relay coordinates Docker
 // Availability data-plane leases (Coordinate, gate fencing, lease view). It is
 // versioned (D3): v2 sends clock beacons and carries its clock in lease frames
-// for peer-time freeze detection (D4). Gateway treats v1 as outdated.
+// for peer-time freeze detection (D4). Gateway treats v1 as outdated. Relays
+// that run it also advertise availability_lease_v3 (availabilitylease.
+// CapabilityV3): they accept, persist and report certified holder state of
+// stateful policies.
 const AvailabilityLeaseCapability = "availability_lease_v2"
 
 func (s *Service) leaseReport() *relayv1.AvailabilityLeaseReport {
@@ -241,6 +256,34 @@ func (s *Service) ResetLocalPolicyTrust(ctx context.Context, request *relayv1.Re
 	return &relayv1.ResetLocalPolicyTrustResponse{
 		KeyId: request.KeyId, PublicKeyFingerprint: request.PublicKeyFingerprint, ReplacedKeyIds: replaced,
 	}, nil
+}
+
+// DialRoute opens a relay-originated tunnel for the relay supervisor's witness
+// processes (relaylocal). Only the admin identity may call it.
+func (s *Service) DialRoute(stream relayv1.RelayAdmin_DialRouteServer) error {
+	if err := s.authorize(stream.Context()); err != nil {
+		return err
+	}
+	return s.broker.DialRoute(stream)
+}
+
+// VerifyHolderStatement checks a holder statement for the relay supervisor
+// (activation of a staged standby Keeper witness). Only the admin identity may
+// call it.
+func (s *Service) VerifyHolderStatement(ctx context.Context, request *relayv1.VerifyHolderStatementRequest) (*relayv1.VerifyHolderStatementResponse, error) {
+	if err := s.authorize(ctx); err != nil {
+		return nil, err
+	}
+	verifier, ok := s.lease.(HolderStatementVerifier)
+	if s.lease == nil || !ok {
+		return nil, status.Error(codes.FailedPrecondition, "this relay does not run the availability lease")
+	}
+	holder, err := verifier.VerifyHolderStatement(availabilitylease.Key{PolicyID: request.GetPolicyId(), Slot: request.GetSlot()},
+		request.GetDomain(), request.GetPayload(), request.GetSignature())
+	if err != nil {
+		return nil, status.Error(codes.PermissionDenied, err.Error())
+	}
+	return &relayv1.VerifyHolderStatementResponse{HolderId: holder}, nil
 }
 
 func (s *Service) SetDrain(ctx context.Context, request *relayv1.SetDrainRequest) (*relayv1.SetDrainResponse, error) {

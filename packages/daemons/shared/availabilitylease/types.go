@@ -186,6 +186,12 @@ type Event struct {
 	Successor string
 	Reason    FenceReason
 	At        time.Duration
+	// Forced is the operation id of a forced acquisition (AS10) on
+	// EventAcquired; empty otherwise.
+	Forced string
+	// Recovered: EventAcquired of a key this node recovered after a restart
+	// (Recover), not a takeover.
+	Recovered bool
 }
 
 // GateDecision is the relay data-path gate for one key (A2.4, A8, A11).
@@ -215,4 +221,13 @@ type KeyView struct {
 	// unknown (a commit restored after a restart). Reports turn it into the
 	// takeover time the Gateway records (N-5).
 	CommitSince time.Duration
+	// Stateful keys (v3): whether this acceptor's memory of the key is KNOWN
+	// (AS1), the ballot it last accepted as a voter and the hash of that
+	// state, and the hash of the latest commit's state. Hashes only; the state
+	// bytes are never exposed in views.
+	Stateful        bool
+	StateKnown      bool
+	AcceptedBallot  Ballot
+	StateHash       [32]byte
+	CommitStateHash [32]byte
 }

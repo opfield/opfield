@@ -290,6 +290,7 @@
       "emptyMethods": [
         "setEventBus",
         "setLicensePolicyService",
+        "setAvailabilityHost",
         "setCertificateRenewal",
         "setBindingsTeardown",
         "setAppCertificateFingerprint",
@@ -400,7 +401,8 @@
       "emptyMethods": [
         "setLicensePolicyService",
         "setEventBus",
-        "setCertificateRenewal"
+        "setCertificateRenewal",
+        "setAvailabilityHost"
       ],
       "emptyConstructor": true,
       "typeOnlyProperties": true

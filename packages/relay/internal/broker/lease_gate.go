@@ -4,7 +4,6 @@ import (
 	"time"
 
 	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
-	"github.com/wiolett-industries/gateway/relay/internal/grant"
 	"github.com/wiolett-industries/gateway/relay/internal/policy"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -67,10 +66,10 @@ type leaseVerdicts struct {
 	decisions map[leaseKey]LeaseAdmission
 }
 
-// tunnelLeaseVerdicts reads the gates a connect grant's tunnel depends on
-// from the current policy, without the broker's lock; nil when it depends on
-// none (the common case: no gate is read at all).
-func (b *Broker) tunnelLeaseVerdicts(claims grant.Claims) *leaseVerdicts {
+// tunnelLeaseVerdicts reads the gates a tunnel of a route depends on from the
+// current policy, without the broker's lock; nil when it depends on none (the
+// common case: no gate is read at all).
+func (b *Broker) tunnelLeaseVerdicts(routeID string, assignmentGeneration uint64) *leaseVerdicts {
 	if b.lease == nil {
 		return nil
 	}
@@ -79,12 +78,12 @@ func (b *Broker) tunnelLeaseVerdicts(claims grant.Claims) *leaseVerdicts {
 	if !snapshot.LeaseBound {
 		return nil
 	}
-	route := snapshot.Route(claims.RouteID, claims.AssignmentGeneration)
+	route := snapshot.Route(routeID, assignmentGeneration)
 	if route == nil {
 		return nil
 	}
 	var keys []leaseKey
-	if endpoint := snapshot.Endpoint(route.TargetEndpointId, claims.AssignmentGeneration); endpoint != nil && endpoint.LeasePolicyId != "" {
+	if endpoint := snapshot.Endpoint(route.TargetEndpointId, assignmentGeneration); endpoint != nil && endpoint.LeasePolicyId != "" {
 		keys = append(keys, leaseKey{endpoint.LeasePolicyId, endpoint.SubjectId})
 	}
 	if route.LeasePolicyId != "" {

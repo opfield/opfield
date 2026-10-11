@@ -1462,20 +1462,25 @@ test('the Docker installer restarts an installed lease watchdog after the run-us
   try {
     const binary = path.join(dir, 'gateway-lease-watchdog');
     await writeFile(binary, '#!/bin/sh\n', { mode: 0o755 });
-    const run = (installed, bin) =>
+    const run = (installed, bin, mode = 'docker') =>
       runShell(
         [
           "IFS=$'\\n\\t'",
           // Its heredocs hold a `}` line of their own (OpenRC depend()): the function ends at the `}` before a blank line.
+          /^lease_watchdog_profile\(\) \{\n[\s\S]*?^\}$/m.exec(source)[0],
           /^start_lease_watchdog\(\) \{\n[\s\S]*?^\}$(?=\n\n)/m.exec(source)[0],
           'has_systemd() { return 1; }; has_openrc() { return 1; }; warn() { echo "WARN $*"; }; ok() { echo "OK $*"; }',
-          `DOCKER_MODE=docker LEASE_WATCHDOG_INSTALLED=${installed} LEASE_WATCHDOG_BIN='${bin}' RUN_USER=gwdock`,
+          `DOCKER_MODE=${mode} LEASE_WATCHDOG_INSTALLED=${installed} LEASE_WATCHDOG_BIN='${bin}' RUN_USER=gwdock`,
           'start_lease_watchdog; echo done',
         ].join('\n')
       ).output;
     // Installed but not (re)downloaded by this run: it is still restarted (here: no service manager to do it with).
     assert.match(run(0, binary), /No service manager for the lease watchdog/);
     assert.doesNotMatch(run(0, path.join(dir, 'missing')), /WARN/);
+    // Storage nodes (availability sets) run it too; the Build Worker does not.
+    assert.match(run(0, binary, 'storage'), /No service manager for the lease watchdog/);
+    assert.match(run(0, binary, 'databases'), /No service manager for the lease watchdog/);
+    assert.doesNotMatch(run(0, binary, 'builder'), /WARN/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

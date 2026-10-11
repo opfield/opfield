@@ -122,6 +122,8 @@ export interface LeaseManifestContent {
    * on every other manifest, so their digest does not change.
    */
   retained?: LeaseRetainedSlot[];
+  /** v3 (AS8): keys carry certified holder state; strict partition mode only. */
+  stateful?: boolean;
 }
 
 /** A slot's retained holder in a closed manifest; holderId is one of the manifest's candidates. */
@@ -135,9 +137,31 @@ export interface LeaseRetainedSlot {
   ballot: DockerAvailabilityLeaseBallot | null;
 }
 
+let statefulSupported: boolean | null = null;
+
+/**
+ * Whether this build's relay.v1.LeaseManifest has the v3 `stateful` field. Without it a stateful manifest would be
+ * encoded as a stateless one (unknown fields are dropped), so the host never publishes a stateful policy then.
+ */
+export function leaseManifestSupportsStateful(): boolean {
+  if (statefulSupported === null) {
+    try {
+      const decoded = decodeRelayV1Message('LeaseManifest', encodeRelayV1Message('LeaseManifest', { stateful: true }));
+      statefulSupported = (decoded as { stateful?: unknown }).stateful === true;
+    } catch {
+      statefulSupported = false;
+    }
+  }
+  return statefulSupported;
+}
+
 /** Serialized relay.v1.LeaseManifest; schema version 1 and the fixed 30 s term. */
 export function encodeLeaseManifest(content: LeaseManifestContent, manifestVersion: number): Buffer {
+  if (content.stateful && !leaseManifestSupportsStateful()) {
+    throw new Error('This build cannot encode stateful lease manifests (relay.v1 LeaseManifest.stateful is missing)');
+  }
   return encodeRelayV1Message('LeaseManifest', {
+    ...(content.stateful ? { stateful: true } : {}),
     schemaVersion: 1,
     policyId: content.policyId,
     manifestVersion: String(manifestVersion),
@@ -213,14 +237,19 @@ export function leaseManifestCandidateIds(manifestBlock: string | null | undefin
   }
 }
 
-/** Digest of everything a manifest says except its version: a new digest publishes a new version. */
+/**
+ * Digest of everything a manifest says except its version: a new digest publishes a new version. A stateless
+ * manifest digests exactly as before v3, so an upgrade publishes no new version of a running policy.
+ */
 export function leaseManifestDigest(content: LeaseManifestContent): string {
+  const { stateful, ...rest } = content;
   return createHash('sha256')
     .update(
       JSON.stringify({
-        ...content,
+        ...rest,
         candidates: content.candidates.map((candidate) => [candidate.id, candidate.publicKey.toString('base64')]),
         members: content.members.map((member) => [member.id, member.role, member.publicKey.toString('base64')]),
+        ...(stateful ? { stateful: true } : {}),
       })
     )
     .digest('hex');

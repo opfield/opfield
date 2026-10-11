@@ -19,6 +19,7 @@ import { NotificationEvaluatorService } from '@/modules/notifications/notificati
 import { ProxyService } from '@/modules/proxy/proxy.service.js';
 import { backgroundWrites } from '@/services/background-writes.js';
 import { NginxCertificateDistributionService } from '@/services/nginx-certificate-distribution.service.js';
+import { MANAGED_AVAILABILITY_MEMBER_CAPABILITY } from '@/services/node-dispatch.service.js';
 import { nodeHostAccessFlags } from '@/services/node-host-access.js';
 import { bumpRelayPolicyRevision } from '@/services/relay-policy-reconciler.js';
 import { reportedPolicySigningKeyIds } from '@/services/relay-policy-signing-key.service.js';
@@ -1086,6 +1087,14 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                   });
                 });
               }
+              if (deps.relayWitness) {
+                void deps.relayWitness.ingestRuntime(instance.id, runtime).catch((error) => {
+                  logger.warn('Relay witness report was not recorded', {
+                    nodeId: activeNodeId,
+                    error: (error as Error).message,
+                  });
+                });
+              }
             } else if (msg.dockerBuildEvent) {
               const disposition = await dispatchDockerBuildEvent(activeNodeId, msg.dockerBuildEvent);
               const attempt = Number(msg.dockerBuildEvent.attempt ?? 0);
@@ -1175,6 +1184,19 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                 deps.registry.handleCommandResult(activeNodeId, msg.commandResult);
               }
             } else if (msg.healthReport) {
+              if (
+                deps.availabilityMembers &&
+                deps.registry.hasCapability(activeNodeId, MANAGED_AVAILABILITY_MEMBER_CAPABILITY)
+              ) {
+                void deps.availabilityMembers
+                  .ingestReports(activeNodeId, msg.healthReport.availabilityMembers ?? [])
+                  .catch((error) => {
+                    logger.warn('Availability member reports were not recorded', {
+                      nodeId: activeNodeId,
+                      error: (error as Error).message,
+                    });
+                  });
+              }
               if (msg.healthReport.availabilityLease && deps.availabilityLease) {
                 const leaseNodeType = deps.registry.getNode(activeNodeId)?.type ?? '';
                 void deps.availabilityLease

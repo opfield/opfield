@@ -50,6 +50,7 @@ import { NotificationEvaluatorService } from '@/modules/notifications/notificati
 import { CAService } from '@/modules/pki/ca.service.js';
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { StatusPageService } from '@/modules/status-page/status-page.service.js';
+import { AvailabilityMembersService } from '@/services/availability-members.service.js';
 import { closeDataStoresAfterWrites } from '@/services/background-writes.js';
 import type { RedisClient } from '@/services/cache.service.js';
 import { CryptoService } from '@/services/crypto.service.js';
@@ -63,6 +64,7 @@ import { RelayIdentityProvisionerService } from '@/services/relay-identity-provi
 import { RelayPolicyService } from '@/services/relay-policy.service.js';
 import { RelayStartupFinalizerService } from '@/services/relay-startup-finalizer.service.js';
 import { RelaySupervisorService } from '@/services/relay-supervisor.service.js';
+import { RelayWitnessService } from '@/services/relay-witness.service.js';
 import { SchedulerService } from '@/services/scheduler.service.js';
 import { ShutdownCoordinator, waitForShutdownTasks } from '@/services/shutdown-coordinator.service.js';
 import { markShuttingDown } from '@/services/shutdown-state.js';
@@ -255,6 +257,8 @@ async function main() {
         relayPeerFingerprint: relayIdentity?.relayClientFingerprint,
         relayPolicy,
         availabilityLease: container.resolve(AvailabilityLeaseService),
+        relayWitness: container.resolve(RelayWitnessService),
+        availabilityMembers: container.resolve(AvailabilityMembersService),
       }
     );
     registry.startAcceptingConnections();

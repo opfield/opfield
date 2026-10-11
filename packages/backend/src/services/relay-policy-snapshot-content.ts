@@ -78,6 +78,8 @@ export function relayPolicySnapshotContent(input: RelayPolicySnapshotInput) {
           ...(input.leaseGate?.endpoints.get(endpoint.id)
             ? { leasePolicyId: input.leaseGate.endpoints.get(endpoint.id) }
             : {}),
+          // A relay-local endpoint (an availability set's Keeper witness): served by the relay itself on its loopback.
+          ...(endpoint.relayLocalPort ? { relayLocalPort: endpoint.relayLocalPort } : {}),
         },
       ];
     }),

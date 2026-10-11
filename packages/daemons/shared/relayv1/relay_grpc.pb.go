@@ -280,6 +280,8 @@ const (
 	RelayAdmin_ReloadIdentity_FullMethodName         = "/relay.v1.RelayAdmin/ReloadIdentity"
 	RelayAdmin_CommitIdentityRotation_FullMethodName = "/relay.v1.RelayAdmin/CommitIdentityRotation"
 	RelayAdmin_SetDrain_FullMethodName               = "/relay.v1.RelayAdmin/SetDrain"
+	RelayAdmin_DialRoute_FullMethodName              = "/relay.v1.RelayAdmin/DialRoute"
+	RelayAdmin_VerifyHolderStatement_FullMethodName  = "/relay.v1.RelayAdmin/VerifyHolderStatement"
 )
 
 // RelayAdminClient is the client API for RelayAdmin service.
@@ -299,6 +301,19 @@ type RelayAdminClient interface {
 	ReloadIdentity(ctx context.Context, in *ReloadIdentityRequest, opts ...grpc.CallOption) (*ReloadIdentityResponse, error)
 	CommitIdentityRotation(ctx context.Context, in *CommitIdentityRotationRequest, opts ...grpc.CallOption) (*CommitIdentityRotationResponse, error)
 	SetDrain(ctx context.Context, in *SetDrainRequest, opts ...grpc.CallOption) (*SetDrainResponse, error)
+	// Opens a tunnel with this relay itself as the origin (a witness process
+	// the relay supervisor runs reaching availability set members). The first
+	// frame is dial; then the stream carries data like OpenTunnel. Only routes
+	// whose source is this relay instance (source_kind relay_instance) are
+	// dialled, under their target endpoint's lease gate and session limits.
+	// Relays advertise relay_dial_route_v1.
+	DialRoute(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[TunnelFrame, TunnelFrame], error)
+	// Checks a holder statement: signed by the holder this relay's latest
+	// verified commit of the stateful lease key names, with that holder's
+	// identity key from the adopted manifest (the supervisor activates a staged
+	// standby Keeper witness only on such a request). Relays advertise
+	// relay_holder_statement_v1.
+	VerifyHolderStatement(ctx context.Context, in *VerifyHolderStatementRequest, opts ...grpc.CallOption) (*VerifyHolderStatementResponse, error)
 }
 
 type relayAdminClient struct {
@@ -389,6 +404,29 @@ func (c *relayAdminClient) SetDrain(ctx context.Context, in *SetDrainRequest, op
 	return out, nil
 }
 
+func (c *relayAdminClient) DialRoute(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[TunnelFrame, TunnelFrame], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &RelayAdmin_ServiceDesc.Streams[0], RelayAdmin_DialRoute_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[TunnelFrame, TunnelFrame]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type RelayAdmin_DialRouteClient = grpc.BidiStreamingClient[TunnelFrame, TunnelFrame]
+
+func (c *relayAdminClient) VerifyHolderStatement(ctx context.Context, in *VerifyHolderStatementRequest, opts ...grpc.CallOption) (*VerifyHolderStatementResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VerifyHolderStatementResponse)
+	err := c.cc.Invoke(ctx, RelayAdmin_VerifyHolderStatement_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RelayAdminServer is the server API for RelayAdmin service.
 // All implementations must embed UnimplementedRelayAdminServer
 // for forward compatibility.
@@ -406,6 +444,19 @@ type RelayAdminServer interface {
 	ReloadIdentity(context.Context, *ReloadIdentityRequest) (*ReloadIdentityResponse, error)
 	CommitIdentityRotation(context.Context, *CommitIdentityRotationRequest) (*CommitIdentityRotationResponse, error)
 	SetDrain(context.Context, *SetDrainRequest) (*SetDrainResponse, error)
+	// Opens a tunnel with this relay itself as the origin (a witness process
+	// the relay supervisor runs reaching availability set members). The first
+	// frame is dial; then the stream carries data like OpenTunnel. Only routes
+	// whose source is this relay instance (source_kind relay_instance) are
+	// dialled, under their target endpoint's lease gate and session limits.
+	// Relays advertise relay_dial_route_v1.
+	DialRoute(grpc.BidiStreamingServer[TunnelFrame, TunnelFrame]) error
+	// Checks a holder statement: signed by the holder this relay's latest
+	// verified commit of the stateful lease key names, with that holder's
+	// identity key from the adopted manifest (the supervisor activates a staged
+	// standby Keeper witness only on such a request). Relays advertise
+	// relay_holder_statement_v1.
+	VerifyHolderStatement(context.Context, *VerifyHolderStatementRequest) (*VerifyHolderStatementResponse, error)
 	mustEmbedUnimplementedRelayAdminServer()
 }
 
@@ -439,6 +490,12 @@ func (UnimplementedRelayAdminServer) CommitIdentityRotation(context.Context, *Co
 }
 func (UnimplementedRelayAdminServer) SetDrain(context.Context, *SetDrainRequest) (*SetDrainResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetDrain not implemented")
+}
+func (UnimplementedRelayAdminServer) DialRoute(grpc.BidiStreamingServer[TunnelFrame, TunnelFrame]) error {
+	return status.Error(codes.Unimplemented, "method DialRoute not implemented")
+}
+func (UnimplementedRelayAdminServer) VerifyHolderStatement(context.Context, *VerifyHolderStatementRequest) (*VerifyHolderStatementResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VerifyHolderStatement not implemented")
 }
 func (UnimplementedRelayAdminServer) mustEmbedUnimplementedRelayAdminServer() {}
 func (UnimplementedRelayAdminServer) testEmbeddedByValue()                    {}
@@ -605,6 +662,31 @@ func _RelayAdmin_SetDrain_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RelayAdmin_DialRoute_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(RelayAdminServer).DialRoute(&grpc.GenericServerStream[TunnelFrame, TunnelFrame]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type RelayAdmin_DialRouteServer = grpc.BidiStreamingServer[TunnelFrame, TunnelFrame]
+
+func _RelayAdmin_VerifyHolderStatement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifyHolderStatementRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RelayAdminServer).VerifyHolderStatement(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RelayAdmin_VerifyHolderStatement_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RelayAdminServer).VerifyHolderStatement(ctx, req.(*VerifyHolderStatementRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RelayAdmin_ServiceDesc is the grpc.ServiceDesc for RelayAdmin service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -644,7 +726,18 @@ var RelayAdmin_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "SetDrain",
 			Handler:    _RelayAdmin_SetDrain_Handler,
 		},
+		{
+			MethodName: "VerifyHolderStatement",
+			Handler:    _RelayAdmin_VerifyHolderStatement_Handler,
+		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "DialRoute",
+			Handler:       _RelayAdmin_DialRoute_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "relay/v1/relay.proto",
 }

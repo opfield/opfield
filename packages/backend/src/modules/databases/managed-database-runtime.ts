@@ -1,11 +1,16 @@
-import { and, asc, eq, inArray, isNotNull, isNull, like, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, like, ne, or, sql } from 'drizzle-orm';
 import {
+  auditLog,
   databaseConnections,
+  managedAvailabilityMembers,
+  managedAvailabilitySets,
+  managedAvailabilityWitnesses,
   managedDatabaseBindingPlacements,
   managedDatabaseBindings,
   managedDatabaseInstances,
   managedStorageBindings,
   nodes,
+  relayInstances,
 } from '@/db/schema/index.js';
 import { grantCreatedResourcePermissions } from '@/lib/created-resource-permissions.js';
 import { createChildLogger } from '@/lib/logger.js';
@@ -18,10 +23,21 @@ import { assertDockerResourceScope } from '@/modules/docker/docker-access.middle
 import { resolveBindingTargetContainerIdentity } from '@/modules/docker/docker-binding-target-identity.js';
 import { isGatewayInternalContainer } from '@/modules/docker/docker-internal-containers.js';
 import { requireConfiguredLicensePolicy } from '@/modules/license/license-policy.service.js';
+import { currentWitnessVersion } from '@/modules/managed-workloads/witness-catalog.js';
+import {
+  KEEPER_MAX_MEMBER_INDEX,
+  keeperLoopbackHost,
+  memberInterserverPort,
+  memberKeeperPort,
+  memberKeeperServerId,
+} from '@/services/clickhouse-keeper-addressing.js';
+import { allocateWitnessPorts } from '@/services/relay-witness.service.js';
+import { relayMayHostWitnesses } from '@/services/relay-witness-hosting.js';
 
 const loggerManagedDatabaseService = createChildLogger('ManagedDatabaseService');
 const loggerManagedDatabaseBindings = createChildLogger('ManagedDatabaseBindings');
 const loggerManagedDatabaseBindingIdentityRuntime = createChildLogger('ManagedDatabaseBindingIdentityRuntime');
+const loggerManagedDatabaseAvailability = createChildLogger('ManagedDatabaseAvailability');
 
 export type { managedDatabaseInstances } from '@/db/schema/index.js';
 export type { LicensePolicyService } from '@/modules/license/license-policy.service.js';
@@ -67,4 +83,23 @@ export const managedDatabaseRuntime = {
   decodeComposeServiceTarget,
   assertDockerResourceScope,
   resolveBindingTargetContainerIdentity,
+  // Database availability sets (commercial control plane, databases/availability).
+  managedAvailabilitySets,
+  managedAvailabilityMembers,
+  managedAvailabilityWitnesses,
+  relayInstances,
+  auditLog,
+  ne,
+  or,
+  desc,
+  loggerManagedDatabaseAvailability,
+  // ClickHouse availability: Keeper addressing and witness hosting (engine-clickhouse.ts, keeper-witness.ts).
+  clickHouseKeeperAddressing: {
+    KEEPER_MAX_MEMBER_INDEX,
+    keeperLoopbackHost,
+    memberKeeperServerId,
+    memberKeeperPort,
+    memberInterserverPort,
+  },
+  availabilityWitnessHosting: { currentWitnessVersion, relayMayHostWitnesses, allocateWitnessPorts },
 };

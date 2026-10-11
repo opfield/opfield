@@ -170,6 +170,7 @@ func (c *Coordinator) Report() *relayv1.AvailabilityLeaseReport {
 				entry.HolderSinceUnixMs = wall.Add(-(now - view.CommitSince)).UnixMilli()
 			}
 		}
+		statefulView(entry, view)
 		report.Acceptor = append(report.Acceptor, entry)
 	}
 	c.mu.Lock()
@@ -183,6 +184,24 @@ func (c *Coordinator) Report() *relayv1.AvailabilityLeaseReport {
 	c.mu.Unlock()
 	sortStrings(report.ConnectedMemberIds)
 	return report
+}
+
+// statefulView adds the summary of a stateful key (availability_lease_v3):
+// whether this relay's memory of it is KNOWN, the ballot it last accepted
+// and hashes of that state and of the latest commit's. The state itself is
+// never reported or logged.
+func statefulView(entry *relayv1.AvailabilityLeaseKeyView, view availabilitylease.KeyView) {
+	if !view.Stateful {
+		return
+	}
+	entry.Stateful, entry.StateKnown = true, view.StateKnown
+	if view.StateKnown {
+		entry.StateHash = availabilitylease.StateHashString(view.StateHash)
+		entry.Accepted = leaseBallot(view.AcceptedBallot)
+	}
+	if view.CommitStateHash != ([32]byte{}) {
+		entry.CommittedStateHash = availabilitylease.StateHashString(view.CommitStateHash)
+	}
 }
 
 func leaseBallot(ballot availabilitylease.Ballot) *relayv1.AvailabilityLeaseBallot {

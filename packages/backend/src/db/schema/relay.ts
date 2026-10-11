@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   check,
@@ -64,6 +65,9 @@ export const relayPoolUpdateStepStateEnum = pgEnum('relay_pool_update_step_state
   // A member that was not connected; a later run updates it once it reconnects.
   'skipped',
 ]);
+
+/** A relay supervisor's local witness hosting state (decision 9 of the database availability plan). */
+export type RelayWitnessHostingLocal = 'allowed' | 'protected_needs_opt_in' | 'disabled';
 
 export interface RelayInstanceCapabilities {
   protocolMajor: number;
@@ -243,6 +247,11 @@ export const relayEndpoints = pgTable(
     certificateSha256: varchar('certificate_sha256', { length: 71 }).notNull(),
     status: varchar('status', { length: 32 }).notNull().default('active'),
     maxConcurrentSessions: integer('max_concurrent_sessions').notNull().default(256),
+    /**
+     * Relay-local endpoints (subject_kind relay_instance): the port on the relay's loopback its tunnels are served on,
+     * in the witness range 39400-39499 (an availability set's ClickHouse Keeper witness). Null for every other endpoint.
+     */
+    relayLocalPort: integer('relay_local_port'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -265,6 +274,11 @@ export const relayRoutes = pgTable(
     targetEndpointId: uuid('target_endpoint_id')
       .notNull()
       .references(() => relayEndpoints.id, { onDelete: 'cascade' }),
+    /**
+     * Availability set member routes (owner kind `set_member:<parent kind>`): the route whose path this one repeats
+     * toward another member's endpoint. Deleting the parent deletes its member routes.
+     */
+    parentRouteId: uuid('parent_route_id').references((): AnyPgColumn => relayRoutes.id, { onDelete: 'cascade' }),
     maxConcurrentSessions: integer('max_concurrent_sessions').notNull().default(16),
     maxFrameBytes: integer('max_frame_bytes')
       .notNull()
@@ -300,6 +314,7 @@ export const relayRoutes = pgTable(
       .where(sql`${table.ownerKind} = 'container_link'`),
     sourceIdx: index('relay_routes_source_idx').on(table.sourceKind, table.sourceId),
     targetIdx: index('relay_routes_target_idx').on(table.targetEndpointId),
+    parentIdx: index('relay_routes_parent_idx').on(table.parentRouteId),
   })
 );
 
@@ -367,6 +382,13 @@ export const relayInstances = pgTable(
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     health: jsonb('health').$type<RelayInstanceHealth>(),
     desiredArtifact: jsonb('desired_artifact').$type<RelayArtifactDescriptor>(),
+    /** Admin opt-in: this relay may host availability witnesses (lease voter, ClickHouse Keeper witness). */
+    witnessHostingAllowed: boolean('witness_hosting_allowed').notNull().default(false),
+    /**
+     * What the relay supervisor last reported about local witness hosting: allowed, protected_needs_opt_in (a protected
+     * relay without the local opt-in file) or disabled. Null until a supervisor that knows witnesses reported.
+     */
+    witnessHostingLocal: varchar('witness_hosting_local', { length: 32 }).$type<RelayWitnessHostingLocal>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

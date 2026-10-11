@@ -157,6 +157,7 @@ func (p *DockerPlugin) RunRelayTargetTunnels(ctx context.Context, conn *grpc.Cli
 	router.reconcileRegistrations()
 	router.reconcileAfterRestoreHold(ctx)
 	p.lease.attachRelay(ctx, conn, relayInstanceID)
+	go p.watchSetLeaseGates(ctx, router.client, relayInstanceID)
 	<-ctx.Done()
 }
 
@@ -201,14 +202,24 @@ func (r *relayTunnelRouter) reconcileRegistrations() []chan struct{} {
 	desired := map[string]relayRegistrationUpdate{}
 	if r.plugin.cfg.Docker.IsStorageProfile() {
 		for _, assignment := range bundle.Grants {
-			if assignment.Role == "endpoint" && (isManagedStorageRelayOwnerKind(assignment.OwnerKind) || isManagedDatabaseRelayOwnerKind(assignment.OwnerKind)) && assignment.EndpointId != "" {
+			if assignment.Role == "endpoint" && (isManagedStorageRelayOwnerKind(assignment.OwnerKind) || isManagedDatabaseRelayOwnerKind(assignment.OwnerKind) || isSetEndpointKind(assignment.OwnerKind)) && assignment.EndpointId != "" {
+				// Availability set members register on every assigned relay, dormant unless they serve.
+				state := r.plugin.setEndpointState(assignment)
 				for _, projected := range assignmentsForRelayTarget(assignment, r.targetID) {
-					desired[relayRegistrationKey(projected)] = relayRegistrationUpdate{assignment: projected}
+					desired[relayRegistrationKey(projected)] = relayRegistrationUpdate{assignment: projected, state: state}
 				}
 			}
 		}
 	} else {
 		for _, assignment := range bundle.Grants {
+			// A ClickHouse Keeper witness container of an availability set on this node.
+			if assignment.Role == "endpoint" && assignment.OwnerKind == setWitnessEndpointKind && assignment.EndpointId != "" {
+				state := r.plugin.setEndpointState(assignment)
+				for _, projected := range assignmentsForRelayTarget(assignment, r.targetID) {
+					desired[relayRegistrationKey(projected)] = relayRegistrationUpdate{assignment: projected, state: state}
+				}
+				continue
+			}
 			// A container link's target is an ingress binding of the shared connector, like a proxy secure link's.
 			if assignment.Role == "endpoint" && isConnectorIngressOwnerKind(assignment.OwnerKind) && assignment.EndpointId != "" {
 				// Availability members register on every assigned relay, dormant
@@ -663,6 +674,11 @@ type dialedEndpoint struct {
 func (r *relayTunnelRouter) dialEndpoint(ctx context.Context, assignment *pb.RelayGrantAssignment) (dialedEndpoint, error) {
 	if r.plugin.endpointDialer != nil {
 		return r.plugin.endpointDialer(ctx, assignment)
+	}
+	if isSetEndpointKind(assignment.OwnerKind) || assignment.GetLeaseTarget() != nil {
+		// A member of an availability set: its client endpoint (or the resource endpoint on the origin member's
+		// node) and its peer endpoints.
+		return r.dialSetEndpoint(ctx, assignment)
 	}
 	switch assignment.OwnerKind {
 	case "managed_database":

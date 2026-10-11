@@ -76,6 +76,38 @@ describe('per-policy voter epochs and joint consensus (A4, A16, A18)', () => {
     expect(joint.voterMembers.map(({ id }) => id)).toEqual(['d1', 'd2', 'd3', 'w1']);
   });
 
+  it('settles a stateful joint epoch only after every slot has a live holder that renewed under it (AS1)', () => {
+    const settled = plan(EMPTY, ['d1', 'd2', 'w1']).next;
+    const joint = plan(settled, ['d1', 'd3', 'w1']).next;
+    const acked = plan({ ...joint, jointVersion: 5 }, ['d1', 'd3', 'w1'], { acked: { d1: 2, w1: 2 } }).next;
+    const stateful = (bySlot: Array<[number, number]>, slots = 1) =>
+      planPolicyVoters({
+        state: acked,
+        desired: ['d1', 'd3', 'w1'],
+        memberOf: (id) => member(id),
+        ackedEpoch: () => 2,
+        activeLeaseEpochs: bySlot.map(([, epoch]) => epoch),
+        liveHolderEpochs: { slots, bySlot: new Map(bySlot) },
+        now: at(EPOCH_SETTLE_MS),
+      }).next.voterEpoch;
+    // A stateless policy without an active lease settles; a stateful one without a live holder never does.
+    expect(plan(acked, ['d1', 'd3', 'w1'], { now: at(EPOCH_SETTLE_MS) }).next.voterEpoch).toBe(3);
+    expect(stateful([])).toBe(2);
+    expect(stateful([[0, 1]])).toBe(2);
+    expect(stateful([[0, 2]])).toBe(3);
+    // Every slot needs its live holder's renewal under the joint epoch.
+    expect(stateful([[0, 2]], 2)).toBe(2);
+    expect(
+      stateful(
+        [
+          [0, 2],
+          [1, 2],
+        ],
+        2
+      )
+    ).toBe(3);
+  });
+
   it('bumps the epoch without a joint phase when a voter only changed its key', () => {
     const settled = plan(EMPTY, ['d1', 'd2', 'w1']).next;
     const rotated = plan(settled, ['d1', 'd2', 'w1'], { keys: { d2: 'pk-new' } });

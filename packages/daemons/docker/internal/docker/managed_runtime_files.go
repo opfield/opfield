@@ -66,7 +66,11 @@ func (m *managedStorageManager) restageRuntimeFiles(record managedStorageRecord,
 		if input.RootCredentials.AccessKey == "" || input.RootCredentials.SecretKey == "" {
 			return missing, nil
 		}
-		if _, err := m.stageSeaweedFS(record, *input); err != nil {
+		stage := m.stageSeaweedFS
+		if record.Set != nil {
+			stage = m.stageSeaweedFSSet
+		}
+		if _, err := stage(record, *input); err != nil {
 			return missing, fmt.Errorf("restage managed storage runtime files: %w", err)
 		}
 	} else {

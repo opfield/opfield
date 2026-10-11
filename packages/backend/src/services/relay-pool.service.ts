@@ -64,6 +64,7 @@ import {
   samePlannedAssignments,
 } from './relay-topology.js';
 import type { RelayTopologyService } from './relay-topology.service.js';
+import { relayWitnessHosting } from './relay-witness-hosting.js';
 import { isShuttingDown } from './shutdown-state.js';
 
 type RelayInstanceRow = typeof relayInstances.$inferSelect;
@@ -679,6 +680,27 @@ export class RelayPoolService {
   }
 
   /** Renews one remote relay's certificate now. */
+  /**
+   * The admin flag that lets a relay host availability witnesses. Turning it off does not stop witnesses by itself:
+   * witness placement moves them away (a running Keeper witness keeps its quorum role until it is replaced).
+   */
+  async setWitnessHosting(instanceId: string, allowed: boolean, userId: string | null) {
+    const [instance] = await this.db
+      .update(relayInstances)
+      .set({ witnessHostingAllowed: allowed, updatedAt: new Date() })
+      .where(eq(relayInstances.id, instanceId))
+      .returning({ id: relayInstances.id, poolId: relayInstances.poolId });
+    if (!instance) throw new AppError(404, 'RELAY_INSTANCE_NOT_FOUND', 'Relay instance not found');
+    await this.audit.log({
+      userId,
+      action: allowed ? 'relay.instance.witness_hosting_allowed' : 'relay.instance.witness_hosting_disallowed',
+      resourceType: 'relay_instance',
+      resourceId: instance.id,
+      details: { witnessHostingAllowed: allowed },
+    });
+    this.events.publish('system.relay.health.changed', { poolId: instance.poolId, instanceId: instance.id });
+  }
+
   async renewInstanceCertificate(instanceId: string, userId: string) {
     if (!this.certificateRenewal)
       throw new AppError(409, 'RELAY_CERTIFICATE_RENEWAL_UNAVAILABLE', 'Relay certificate renewal is not configured');
@@ -1275,7 +1297,8 @@ export class RelayPoolService {
       readyFaultDomains.size === 0
         ? []
         : endpoints.flatMap((endpoint) => {
-            if (endpoint.ownerKind === 'internal_registry') return [];
+            // A relay-local endpoint (an availability set's Keeper witness) stays on its own relay.
+            if (endpoint.ownerKind === 'internal_registry' || endpoint.subjectKind === 'relay_instance') return [];
             const spread = effectiveSpreads.get(endpoint.id) ?? generalSettings.relay.assignmentSpread;
             const active = activeByEndpoint.get(endpoint.id);
             const current = active ? (assignmentsByGeneration.get(active.id) ?? []) : [];
@@ -1466,6 +1489,8 @@ export class RelayPoolService {
            */
           reconnecting: reconnecting(instance),
           ...(reconnecting(instance) ? { state: reconnectingState(instance) } : {}),
+          /** Whether availability witnesses may run here (admin flag and the relay's local state). */
+          witnessHosting: relayWitnessHosting(instance),
         };
       }),
       staging: [...stagingByEndpoint.values()],
@@ -1743,7 +1768,7 @@ export class RelayPoolService {
       }> = [];
       let alreadyStaging = false;
       for (const endpoint of endpoints) {
-        if (endpoint.ownerKind === 'internal_registry') continue;
+        if (endpoint.ownerKind === 'internal_registry' || endpoint.subjectKind === 'relay_instance') continue;
         const [staging] = await tx
           .select({ id: relayEndpointAssignmentGenerations.id })
           .from(relayEndpointAssignmentGenerations)

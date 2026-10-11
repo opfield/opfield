@@ -24,6 +24,7 @@ import (
 	"github.com/wiolett-industries/gateway/daemon-shared/sysmetrics"
 	builderruntime "github.com/wiolett-industries/gateway/docker-daemon/internal/builder"
 	"github.com/wiolett-industries/gateway/docker-daemon/internal/config"
+	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
 	runtimemanager "github.com/wiolett-industries/gateway/docker-daemon/internal/runtime"
 )
 
@@ -60,6 +61,14 @@ type DockerPlugin struct {
 	relayGrants     *relayGrantStore
 	relayTunnelMu   sync.Mutex
 	relayTunnels    map[string]*relayTunnelRouter
+	// setGates: relay lease gate views and the member runtime of availability
+	// sets (relay_lease_groups.go); setMembers runs the members on a
+	// storage-profile daemon (set_member_runtime.go).
+	setGates   setLeaseGates
+	setMembers *memberha.Manager
+	// keeperWitnesses runs ClickHouse Keeper witness containers of sets whose
+	// witness is this node (keeper_witness_node.go).
+	keeperWitnesses *nodeKeeperWitnesses
 	// restartAnnounced freezes relay registrations once the daemon told its
 	// relays it restarts (B-13); proxyTunnels are the Secure Link tunnels it
 	// serves, drained before it exits.
@@ -146,8 +155,10 @@ type DockerPlugin struct {
 	buildEventMu     sync.RWMutex
 	buildEventWriter *stream.Writer
 	sessionCtx       context.Context
-	logStreamMu      sync.Mutex
-	logStreamCancel  map[string]context.CancelFunc // containerId -> cancel
+	// sessionLive: a Gateway control session is up (a manual pair's primary self-fences without it and its peer).
+	sessionLive     atomic.Bool
+	logStreamMu     sync.Mutex
+	logStreamCancel map[string]context.CancelFunc // containerId -> cancel
 }
 
 var _ lifecycle.ProxySecureLinkPlugin = (*DockerPlugin)(nil)
@@ -337,6 +348,8 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 	if err := p.startStorageConnectorRelay(); err != nil {
 		return err
 	}
+	// ClickHouse Keeper witness containers run on any docker node a set picks.
+	p.startNodeKeeperWitnesses()
 	// Storage connectors created while the daemon ran as another user (root or not) cannot reach this socket.
 	go p.reconcileStorageConnectorGroups(context.Background())
 	if p.cfg.Docker.IsStorageProfile() {
@@ -344,10 +357,14 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 		if err != nil {
 			return fmt.Errorf("initialize managed database storage for storage profile: %w", err)
 		}
+		p.wirePGSetHooks()
+		p.wireKVSetHooks()
+		p.databaseManager.plugin = p
 		p.storageManager, err = newManagedStorageManager(p.cfg, p.client, p.logger)
 		if err != nil {
 			return fmt.Errorf("initialize managed storage runtime: %w", err)
 		}
+		p.storageManager.plugin = p
 		// Release what interrupted deletes and older releases left behind
 		// before remounting: on a fixed loop-device pool, leaked devices would
 		// keep live instances down.
@@ -404,7 +421,8 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 	p.startRuntimeVerification(preflightCtx, p.runtimeManager)
 	cancelPreflight()
 	p.availability = availability
-	if availability != nil && p.lease == nil {
+	if (availability != nil || p.cfg.Docker.IsStorageProfile()) && p.lease == nil {
+		// Storage-profile daemons run the lease for their availability set members.
 		p.initAvailabilityLease()
 	}
 	if availability != nil && p.availabilityHealth == nil {
@@ -542,13 +560,18 @@ func (p *DockerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 				"relay_pool_v1",
 				relayresume.Capability,
 				handover.Capability,
+				managedAvailabilityRoutesCapability,
+				nodeKeeperWitnessCapability,
 			}
+			// The lease runtime runs on storage-profile daemons for their availability set members.
+			values = append(values, p.leaseCapabilities()...)
+			values = append(values, p.setMemberCapabilities()...)
 			if p.backupHandler != nil {
 				values = append(values, "database_backups_v1", "database_backups_deadline_v1", "database_backups_tls_verification_v1", storageCopyCapability)
 			}
 			return values
 		}
-		values := []string{"docker_deployments_v1", "docker_gpu_v1", dockerMigrationCapability, "docker_archive_v1", "docker_port_bind_ip_v1", "generic_relay_tunnel_v1", "relay_pool_v1", relayresume.Capability, handover.Capability, "proxy_secure_links_v1", "docker_registry_proxy_v1", "docker_runtime_management_v1", "docker_managed_volumes_v1", "docker_duplicate_label_filter_v1", "docker_duplicate_env_removal_v1", TaskCommandLookupCapability, dockerNetworkIsolationCapability}
+		values := []string{nodeKeeperWitnessCapability, "docker_deployments_v1", "docker_gpu_v1", dockerMigrationCapability, "docker_archive_v1", "docker_port_bind_ip_v1", "generic_relay_tunnel_v1", "relay_pool_v1", relayresume.Capability, handover.Capability, "proxy_secure_links_v1", "docker_registry_proxy_v1", "docker_runtime_management_v1", "docker_managed_volumes_v1", "docker_duplicate_label_filter_v1", "docker_duplicate_env_removal_v1", TaskCommandLookupCapability, dockerNetworkIsolationCapability}
 		if p.cfg.Docker.Mode == "" && p.availability != nil {
 			values = append(values, dockerAvailabilityCapability)
 		}
@@ -559,7 +582,7 @@ func (p *DockerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 		// watchdog_ready carries later changes within the session.
 		values = append(values, p.leaseCapabilities()...)
 		values = append(values, "managed_database_binding_listener_v1", managedStorageLinkCapability, managedLinkRuntimeCapability,
-			managedLinkCompletedCapability)
+			managedLinkCompletedCapability, managedAvailabilityRoutesCapability)
 		if p.secureLinks != nil {
 			// The shared connector serves egress, container links and create_link_network (C7).
 			values = append(values, secureLinkEgressCapability)

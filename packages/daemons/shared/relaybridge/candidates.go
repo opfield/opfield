@@ -59,7 +59,7 @@ func poolCandidates(assignment *pb.RelayGrantAssignment, includeStaging, include
 
 func RequiredTargets(bundle *pb.SyncRelayGrantsCommand) []Target {
 	byID := map[string]Target{}
-	for _, assignment := range bundle.GetGrants() {
+	for _, assignment := range withLeaseGroupRoutes(bundle.GetGrants()) {
 		// Staging candidates need physical lanes on both sides before their
 		// probes run. Normal tunnel selection still excludes them through
 		// PoolCandidates(..., false); this only prepares the transport.
@@ -84,6 +84,24 @@ func RequiredTargets(bundle *pb.SyncRelayGrantsCommand) []Target {
 		result = append(result, target)
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
+	return result
+}
+
+// withLeaseGroupRoutes adds, after each assignment, one connect assignment per
+// route of its lease group (an availability set's member routes), so the relays
+// that carry only another member's route get transports as well.
+func withLeaseGroupRoutes(assignments []*pb.RelayGrantAssignment) []*pb.RelayGrantAssignment {
+	result := make([]*pb.RelayGrantAssignment, 0, len(assignments))
+	for _, assignment := range assignments {
+		result = append(result, assignment)
+		for _, member := range assignment.GetLeaseGroup() {
+			result = append(result, &pb.RelayGrantAssignment{
+				Role: assignment.GetRole(), OwnerKind: assignment.GetOwnerKind(), OwnerId: assignment.GetOwnerId(),
+				RouteId: member.GetRouteId(), TargetEndpointId: member.GetTargetEndpointId(), Grant: member.GetGrant(),
+				Candidates: member.GetCandidates(), SchemaVersion: member.GetSchemaVersion(),
+			})
+		}
+	}
 	return result
 }
 

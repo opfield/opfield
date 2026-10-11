@@ -90,6 +90,8 @@ export function selectPolicyVoters(input: {
   pool: readonly LeaseWitnessCandidate[];
   configuredWitness: string | null;
   currentAutoWitnesses?: readonly string[];
+  /** An odd voter count to reach when enough witnesses are eligible (never ends even); see LeasePolicyDescriptor. */
+  preferredVoterCount?: number;
 }): PolicyVoterSelection {
   const candidates = input.candidates.filter((candidate) => candidate.publicKey && candidate.voterCapable !== false);
   const nonVotingCandidateIds = input.candidates
@@ -153,11 +155,21 @@ export function selectPolicyVoters(input: {
       }
       return left.member.id.localeCompare(right.member.id);
     });
+  const preferred =
+    input.preferredVoterCount !== undefined
+      ? Math.min(MAX_POLICY_VOTERS, Math.max(target, smallestOddAtLeast(input.preferredVoterCount)))
+      : target;
   for (const { member } of autos) {
-    if (cappedCandidates.length + chosen.length >= target) break;
+    if (cappedCandidates.length + chosen.length >= preferred) break;
     if (hosts.has(member.hostKey)) continue;
     hosts.add(member.hostKey);
     chosen.push({ member, auto: true });
+  }
+  // Beyond the smallest odd count, an even count adds no tolerance: drop the last automatic witness.
+  while (cappedCandidates.length + chosen.length > target && (cappedCandidates.length + chosen.length) % 2 === 0) {
+    const last = chosen.at(-1);
+    if (!last?.auto) break;
+    chosen.pop();
   }
   if (cappedCandidates.length + chosen.length < target) {
     warning ??= 'no_eligible_witness';

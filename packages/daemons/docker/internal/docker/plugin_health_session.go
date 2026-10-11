@@ -14,6 +14,7 @@ func (p *DockerPlugin) CollectHealth(base *pb.HealthReport) *pb.HealthReport {
 	// Lease state goes first: it must reach the Gateway even when Docker
 	// itself does not answer.
 	base.AvailabilityLease = p.availabilityLeaseReport()
+	base.AvailabilityMembers = p.availabilityMemberReports()
 	// So do the link counters: they come from the daemon's own state.
 	base.ManagedLinks = p.managedLinkRuntime()
 	base.RelayStreams = p.relayStreamStats()
@@ -60,6 +61,7 @@ func (p *DockerPlugin) CollectStats() *pb.StatsReport {
 
 // OnSessionStart is called when a new gRPC session is established.
 func (p *DockerPlugin) OnSessionStart(ctx context.Context, writer *stream.Writer) error {
+	p.sessionLive.Store(true)
 	p.writer = writer
 	p.buildEventMu.Lock()
 	p.buildEventWriter = writer
@@ -93,6 +95,7 @@ func (p *DockerPlugin) OnSessionStart(ctx context.Context, writer *stream.Writer
 
 // OnSessionEnd is called when a gRPC session ends.
 func (p *DockerPlugin) OnSessionEnd() {
+	p.sessionLive.Store(false)
 	// Exec sessions are cleaned up individually when their WebSocket closes.
 	// Don't CloseAll here — it would kill other users' active sessions.
 	p.execMgr = nil

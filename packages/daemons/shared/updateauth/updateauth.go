@@ -93,6 +93,64 @@ func VerifyDaemonManifest(signedManifest string, expected DaemonExpectation) (*D
 	return payload, nil
 }
 
+// WitnessBinaryKind is the manifest kind of a witness process artifact (a
+// ClickHouse Keeper binary a relay supervisor runs for an availability set).
+// It is data, not a daemon release: new versions need no relay release.
+const WitnessBinaryKind = "witness-binary"
+
+type WitnessManifestPayload struct {
+	Kind         string `json:"kind"`
+	Component    string `json:"component"`
+	Version      string `json:"version"`
+	Arch         string `json:"arch"`
+	ArtifactName string `json:"artifactName"`
+	DownloadURL  string `json:"downloadUrl"`
+	SHA256       string `json:"sha256"`
+	CreatedAt    string `json:"createdAt"`
+	GitCommitSHA string `json:"gitCommitSha,omitempty"`
+}
+
+type WitnessExpectation struct {
+	Component   string
+	Version     string
+	Arch        string
+	DownloadURL string
+	SHA256      string
+}
+
+// VerifyWitnessManifest checks a witness artifact manifest against the
+// compiled update key and the expected artifact. Only the witness-binary kind
+// is accepted, so a daemon manifest can never stand for a witness and the
+// reverse.
+func VerifyWitnessManifest(signedManifest string, expected WitnessExpectation) (*WitnessManifestPayload, error) {
+	payload, err := VerifyEnvelope[WitnessManifestPayload](signedManifest)
+	if err != nil {
+		return nil, err
+	}
+	if payload.Kind != WitnessBinaryKind {
+		return nil, errors.New("witness manifest kind is not witness-binary")
+	}
+	if payload.Component == "" || payload.Component != expected.Component {
+		return nil, errors.New("witness component mismatch")
+	}
+	if payload.Version != expected.Version {
+		return nil, errors.New("witness version mismatch")
+	}
+	if payload.Arch != expected.Arch {
+		return nil, errors.New("witness architecture mismatch")
+	}
+	if payload.DownloadURL != expected.DownloadURL {
+		return nil, errors.New("witness download URL mismatch")
+	}
+	if payload.SHA256 != expected.SHA256 || !isValidSHA256(payload.SHA256) {
+		return nil, errors.New("witness checksum mismatch")
+	}
+	if !isTrustedHTTPSURL(payload.DownloadURL) {
+		return nil, errors.New("witness download URL is not trusted")
+	}
+	return payload, nil
+}
+
 func VerifyEnvelope[T any](signedManifest string) (*T, error) {
 	var envelope Envelope
 	if err := json.Unmarshal([]byte(signedManifest), &envelope); err != nil {
@@ -120,7 +178,7 @@ func VerifyEnvelope[T any](signedManifest string) (*T, error) {
 		return nil, fmt.Errorf("decode update manifest signature: %w", err)
 	}
 
-	publicKey, err := trustedPublicKey()
+	publicKey, err := trustedKey()
 	if err != nil {
 		return nil, err
 	}
@@ -161,6 +219,9 @@ func SHA256Hex(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
 }
+
+// trustedKey is trustedPublicKey; tests of this package substitute a test key.
+var trustedKey = trustedPublicKey
 
 func trustedPublicKey() (ed25519.PublicKey, error) {
 	block, _ := pem.Decode([]byte(publicKeyPEM))

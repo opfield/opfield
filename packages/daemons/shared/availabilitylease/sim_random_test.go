@@ -29,6 +29,9 @@ type simTopology struct {
 	available       bool
 	bootstrap       bool
 	adversarial     bool
+	// stateful: p1 carries certified holder state (v3) with the database
+	// model of sim_state_test.go.
+	stateful bool
 }
 
 type seedResult struct {
@@ -37,10 +40,20 @@ type seedResult struct {
 	failover  time.Duration
 	delivered int
 	gateOpen  float64
+	// Stateful worlds: certified application transitions and forced
+	// acquisitions, for coverage.
+	transitions, forces int
 }
 
 // buildRandomWorld creates a seeded topology, clocks, network and Gateway.
 func buildRandomWorld(seed int64, wire bool) (*simWorld, simTopology) {
+	return buildWorld(seed, wire, false)
+}
+
+// buildWorld creates the seeded world; stateful makes p1 a strict failover
+// policy with holder state, bootstrapped by its first candidate. The draws of
+// the random stream stay those of the stateless world.
+func buildWorld(seed int64, wire, stateful bool) (*simWorld, simTopology) {
 	w := newSimWorld(seed)
 	w.wire = wire
 	rng := w.rng
@@ -49,6 +62,10 @@ func buildRandomWorld(seed int64, wire bool) (*simWorld, simTopology) {
 	topo.available = rng.Float64() < 0.15
 	topo.replicated = !topo.available && rng.Float64() < 0.2
 	topo.bootstrap = rng.Float64() < 0.3
+	if stateful {
+		topo.stateful, topo.available, topo.replicated, topo.bootstrap = true, false, false, true
+		w.state = newSimStateModel(w)
+	}
 	w.net.loss = rng.Float64() * 0.05
 	w.net.dup = rng.Float64() * 0.03
 	rate := func(fast bool) float64 {
@@ -75,7 +92,7 @@ func buildRandomWorld(seed int64, wire bool) (*simWorld, simTopology) {
 		w.newNode(id, false, rate(i > candidates))
 	}
 	w.gw = newSimGateway(w)
-	policy := &simPolicy{id: "p1", slots: 1, available: topo.available, candidates: topo.candidates, bootstrap: map[uint32]string{}}
+	policy := &simPolicy{id: "p1", slots: 1, available: topo.available, stateful: topo.stateful, candidates: topo.candidates, bootstrap: map[uint32]string{}}
 	if topo.replicated {
 		policy.slots = 2
 	}
@@ -159,7 +176,11 @@ func startWorld(w *simWorld, deliverP float64) {
 // kill the holder, a successor must commit within 45 s) or I4 (available:
 // one copy after the heal).
 func runRandomSeed(seed int64, trace, wire bool) (*simWorld, seedResult) {
-	w, topo := buildRandomWorld(seed, wire)
+	return runSeed(seed, trace, wire, false)
+}
+
+func runSeed(seed int64, trace, wire, stateful bool) (*simWorld, seedResult) {
+	w, topo := buildWorld(seed, wire, stateful)
 	w.traceOn = trace
 	startWorld(w, 0.85)
 	scheduleChaos(w, topo)
@@ -172,6 +193,8 @@ func runRandomSeed(seed int64, trace, wire bool) (*simWorld, seedResult) {
 			// invariants still ran through the whole quiet phase.
 			w.runUntil(w.now + healTimeout)
 			result.kind = "closed"
+		} else if topo.stateful {
+			checkStatefulFailover(w, topo, &result)
 		} else if topo.available {
 			checkConvergence(w, topo, &result)
 		} else {
@@ -321,15 +344,21 @@ func envInt(name string, fallback int) int {
 // (default 2000) starting at AVAILABILITY_LEASE_SIM_SEED_START. For a long
 // soak set AVAILABILITY_LEASE_SIM_SEEDS=200000.
 func TestSimulationRandomSeeds(t *testing.T) {
-	seeds := envInt("AVAILABILITY_LEASE_SIM_SEEDS", defaultSimSeeds)
-	first := int64(envInt("AVAILABILITY_LEASE_SIM_SEED_START", 1))
+	runSeeds(t, false, envInt("AVAILABILITY_LEASE_SIM_SEEDS", defaultSimSeeds), int64(envInt("AVAILABILITY_LEASE_SIM_SEED_START", 1)))
+}
+
+// runSeeds runs seeds seeded worlds from first on a few workers and fails
+// with the trace of the first violating seed.
+func runSeeds(t *testing.T, stateful bool, seeds int, first int64) {
 	var next atomic.Int64
 	next.Store(first)
 	var mu sync.Mutex
 	var failures []int64
 	kinds := map[string]int{}
+	examples := map[string][]int64{}
 	var worst time.Duration
 	var gateOpen float64
+	var transitions, forces int
 	var wg sync.WaitGroup
 	// At most AVAILABILITY_LEASE_SIM_WORKERS (default 3) workers, never more
 	// than GOMAXPROCS, so a run does not take over a developer machine.
@@ -343,10 +372,14 @@ func TestSimulationRandomSeeds(t *testing.T) {
 				if seed >= first+int64(seeds) {
 					return
 				}
-				_, result := runRandomSeed(seed, false, false)
+				_, result := runSeed(seed, false, false, stateful)
 				mu.Lock()
 				kinds[result.kind]++
+				if result.kind != "failover" && result.kind != "converge" && len(examples[result.kind]) < 5 {
+					examples[result.kind] = append(examples[result.kind], seed)
+				}
 				gateOpen += result.gateOpen
+				transitions, forces = transitions+result.transitions, forces+result.forces
 				if result.failover > worst {
 					worst = result.failover
 				}
@@ -359,16 +392,22 @@ func TestSimulationRandomSeeds(t *testing.T) {
 	}
 	wg.Wait()
 	t.Logf("seeds=%d outcomes=%v worst failover=%s mean gate-open share=%.1f%%", seeds, kinds, worst, 100*gateOpen/float64(seeds))
+	if len(examples) > 0 {
+		t.Logf("example seeds of other outcomes: %v", examples)
+	}
+	if stateful {
+		t.Logf("stateful: certified transitions=%d forced acquisitions=%d", transitions, forces)
+	}
 	if len(failures) > 0 {
 		sort.Slice(failures, func(i, j int) bool { return failures[i] < failures[j] })
 		for i, seed := range failures {
 			if i == 12 {
 				break
 			}
-			_, result := runRandomSeed(seed, false, false)
+			_, result := runSeed(seed, false, false, stateful)
 			t.Logf("seed %d: %s", seed, result.violation)
 		}
-		w, result := runRandomSeed(failures[0], true, false)
+		w, result := runSeed(failures[0], true, false, stateful)
 		t.Fatalf("%d/%d seeds violated invariants; first seed %d: %s\ntrace tail:\n%s",
 			len(failures), seeds, failures[0], result.violation, w.dumpTrace(250))
 	}
@@ -394,7 +433,7 @@ func TestSimulationTraceSeed(t *testing.T) {
 	if seed == 0 || path == "" {
 		t.Skip("set AVAILABILITY_LEASE_SIM_TRACE_SEED and AVAILABILITY_LEASE_SIM_TRACE_FILE")
 	}
-	w, result := runRandomSeed(int64(seed), true, os.Getenv("AVAILABILITY_LEASE_SIM_WIRE") != "")
+	w, result := runSeed(int64(seed), true, os.Getenv("AVAILABILITY_LEASE_SIM_WIRE") != "", os.Getenv("AVAILABILITY_LEASE_SIM_STATEFUL") != "")
 	if err := os.WriteFile(path, []byte(w.dumpTrace(len(w.trace))), 0o600); err != nil {
 		t.Fatal(err)
 	}

@@ -145,6 +145,9 @@ type managedDatabaseCommand struct {
 	ClickhouseConfig    string                 `json:"clickhouseConfigXml"`
 	RedisConfig         *managedRedisConfig    `json:"redisConfig,omitempty"`
 	PostgresConfig      *managedPostgresConfig `json:"postgresConfig,omitempty"`
+	// ClickhouseAvailability makes the container a ClickHouse availability set
+	// member (managed_clickhouse_member.go).
+	ClickhouseAvailability *clickHouseAvailabilityCommand `json:"clickhouseAvailability,omitempty"`
 	// Internal runtime preparation must not replace the durable lifecycle
 	// operation ID used by controller reconciliation after a lost response.
 	PreserveLifecycleOperationID bool `json:"preserveLifecycleOperationId,omitempty"`
@@ -255,9 +258,16 @@ type managedDatabaseRecord struct {
 	RedisConfigHash      string `json:"redisConfigHash,omitempty"`
 	// PostgresMaxConnections is the max_connections the container was started
 	// with; 0 is the engine default.
-	PostgresMaxConnections          int    `json:"postgresMaxConnections,omitempty"`
-	ClickhouseRuntimeProfileVersion int    `json:"clickhouseRuntimeProfileVersion,omitempty"`
-	OperationID                     string `json:"operationId"`
+	PostgresMaxConnections          int `json:"postgresMaxConnections,omitempty"`
+	ClickhouseRuntimeProfileVersion int `json:"clickhouseRuntimeProfileVersion,omitempty"`
+	// ClickhouseAvailabilitySetID/MemberID: the container is that ClickHouse
+	// availability set member's (the member runtime starts and stops it).
+	ClickhouseAvailabilitySetID    string `json:"clickhouseAvailabilitySetId,omitempty"`
+	ClickhouseAvailabilityMemberID string `json:"clickhouseAvailabilityMemberId,omitempty"`
+	// ClickhouseAvailabilityFiles: the container binds the availability files
+	// (a set member, or a standalone node that kept its Replicated databases).
+	ClickhouseAvailabilityFiles bool   `json:"clickhouseAvailabilityFiles,omitempty"`
+	OperationID                 string `json:"operationId"`
 	// Deleting is set before a delete tears anything down. An instance whose
 	// delete could not finish is never remounted; the repair pass and a
 	// repeated delete complete it.
@@ -265,6 +275,14 @@ type managedDatabaseRecord struct {
 	// DiskRepair is the last repair of the image's filesystem after it went
 	// read-only (see managed_disk_repair.go).
 	DiskRepair *managedDiskRepair `json:"diskRepair,omitempty"`
+	// AvailabilitySetID and AvailabilityMemberID: this database is this node's
+	// member of an availability set. The member runtime starts, stops,
+	// promotes and fences it; lifecycle commands change it live only.
+	AvailabilitySetID    string `json:"availabilitySetId,omitempty"`
+	AvailabilityMemberID string `json:"availabilityMemberId,omitempty"`
+	// AvailabilityLiftedFrom is the member this single-node database was
+	// lifted from (close or detach), so a repeated lift answers ready.
+	AvailabilityLiftedFrom string `json:"availabilityLiftedFrom,omitempty"`
 }
 
 // managedDatabaseRuntimeStats is intentionally a narrow managed-database
@@ -305,6 +323,15 @@ type managedDatabaseManager struct {
 	// nobody asked for.
 	repairs   diskRepairs
 	incidents *engineIncidents
+	// pgSets connects Postgres availability set members to the member
+	// runtime (managed_database_pg_commands.go).
+	pgSets pgSetHooks
+	// kvSets connects Valkey availability set members to the member runtime
+	// (managed_database_kv_member.go).
+	kvSets kvSetHooks
+	// plugin reaches the availability member runtime (set members are held
+	// while their container is replaced).
+	plugin *DockerPlugin
 }
 
 func newManagedDatabaseManager(cfg *config.Config, client *Client, logger *slog.Logger) (*managedDatabaseManager, error) {
@@ -417,6 +444,12 @@ func (m *managedDatabaseManager) handle(ctx context.Context, action, id, configJ
 	}
 	if !managedDatabaseIDPattern.MatchString(id) {
 		return "", errors.New("invalid managed database id")
+	}
+	if handled, detail, err := m.kvSetHandle(ctx, action, id, configJSON); handled {
+		return detail, err
+	}
+	if handled, detail, err := m.pgSetHandle(ctx, action, id, configJSON); handled {
+		return detail, err
 	}
 	// Certificate reloads wait for the engine without the manager lock, and so
 	// does a stats sample: Docker answers it after a second CPU reading, about

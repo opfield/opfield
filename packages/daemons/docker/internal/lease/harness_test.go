@@ -58,6 +58,8 @@ type daemonHost struct {
 	residualUntil time.Duration
 	// fences collects the reasons of the fence events fenceLog drained.
 	fences []string
+	// controller, when set, owns policies of this daemon's runtime.
+	controller Controller
 }
 
 // hostClock is a daemon host's BOOTTIME: the world clock minus the time the
@@ -314,7 +316,8 @@ func (w *world) startDaemon(h *daemonHost) {
 		Suspends: availabilitylease.NewSuspendWatchFrom(func() (time.Duration, bool) { return 0, false }),
 		Engine:   h.engine, Fence: h.fence, Endpoints: h.endpoints, Placements: fakePlacements{host: h.id, w: w},
 		Logger: w.logger, Store: h.store, Transport: w,
-		Async: func(fn func()) { h.ops = append(h.ops, fn) },
+		Async:      func(fn func()) { h.ops = append(h.ops, fn) },
+		Controller: h.controller,
 	})
 	if err != nil {
 		w.t.Fatal(err)

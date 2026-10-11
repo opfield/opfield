@@ -178,6 +178,12 @@
       "usedBy": "Managed ClickHouse 24.3.18.7"
     },
     {
+      "name": "clickhouse-keeper",
+      "tag": "25.8.28.1",
+      "source": "docker.io/clickhouse/clickhouse-keeper@sha256:79767b4b69aa0425057128c8f741dd31d8052ad5edab2f2839ebfa9c6d3ad3e6",
+      "usedBy": "Availability set witness Keeper (release witness artifact witness-clickhouse-keeper 25.8.28.1)"
+    },
+    {
       "name": "compose-bin",
       "tag": "v5.5.0",
       "source": "docker.io/docker/compose-bin@sha256:962d5ea7017e5ef425bfa47e492efa2c27d0492e8af58c497011e73b2ce98ee0",

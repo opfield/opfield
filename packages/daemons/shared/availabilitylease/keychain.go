@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	pb "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
 	"google.golang.org/protobuf/proto"
@@ -180,3 +181,23 @@ func SignPolicyKeyRotation(previousKeyID string, previous ed25519.PrivateKey, ke
 }
 
 func blockDomain(pb.LeaseBlockKind) string { return domainManifest }
+
+// VerifyGatewaySigned verifies a statement Gateway signed with a policy key
+// this node trusts, outside the lease blocks (for example a manual pair's
+// primary assignment): signature over domain || 0x00 || payload. The domain
+// must differ from every lease domain.
+func (n *Node) VerifyGatewaySigned(domain, keyID string, payload, signature []byte) error {
+	if domain == "" || strings.HasPrefix(domain, "gateway-availability-lease/") {
+		return errors.New("statement domain is reserved")
+	}
+	n.mu.Lock()
+	publicKey, ok := n.chain.lookup(keyID)
+	n.mu.Unlock()
+	if !ok {
+		return fmt.Errorf("statement signed by untrusted key %q", keyID)
+	}
+	if len(signature) != ed25519.SignatureSize || !ed25519.Verify(publicKey, blockMessage(domain, payload), signature) {
+		return errors.New("statement signature is invalid")
+	}
+	return nil
+}

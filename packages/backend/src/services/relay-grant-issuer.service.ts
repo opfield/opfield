@@ -22,6 +22,7 @@ import {
 import type { CryptoService } from './crypto.service.js';
 import { RelayGrantSigningContext, type RelayGrantSigningKey } from './relay-grant-signing.js';
 import { candidateAssignmentState } from './relay-local-takeover.js';
+import { completeSetGrants, type SetLeaseTarget } from './relay-managed-availability-grants.js';
 import type { RelayRevokedRouteFence } from './relay-revocation-fence.js';
 import { loadRevocationFenceState } from './relay-revocation-fence.service.js';
 import {
@@ -110,6 +111,18 @@ export interface RelayGrantAssignment {
   streamResume?: RelayStreamResumeAssignment;
   /** Endpoint assignments: the routes to the endpoint that may open resumable streams, with their keys. */
   resumeRoutes?: RelayRouteResumeAssignment[];
+  /** Availability sets: the member (and port) an endpoint serves, or the member a peer route reaches. */
+  leaseTarget?: SetLeaseTarget;
+  /** Availability sets: the routes to every member of the resource's set; the holder's is opened first. */
+  leaseGroup?: Array<{
+    routeId: string;
+    targetEndpointId: string;
+    grant: SignedRelayGrant;
+    candidates?: RelayDataCandidate[];
+    streamResume?: RelayStreamResumeAssignment;
+    target: SetLeaseTarget;
+    schemaVersion?: number;
+  }>;
 }
 
 export interface RelayDataCandidate {
@@ -358,6 +371,9 @@ export class RelayGrantIssuerService {
         ...this.streamResumeOf(resumeSecret, route),
       });
     }
+    // Availability sets: member targets and lease groups.
+    const completed = await completeSetGrants(this.db, grants, routes, targetEndpoints);
+    grants.splice(0, grants.length, ...completed);
     // Lease lanes only add transports; they must never hold grants back.
     const leaseLanes = await this.leaseLaneAssignment(nodeId).catch(() => null);
     if (leaseLanes) grants.push(leaseLanes);

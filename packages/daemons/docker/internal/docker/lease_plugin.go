@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
 	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
 	"github.com/wiolett-industries/gateway/daemon-shared/state"
 	"github.com/wiolett-industries/gateway/docker-daemon/internal/lease"
@@ -43,6 +44,10 @@ type leaseIntegration struct {
 
 	// watchdog bootstraps a missing lease watchdog (nodes installed before it).
 	watchdog *watchdogBootstrap
+
+	// keys is the node's identity (holder statements of availability set
+	// members are signed with the key the node signs lease frames with).
+	keys *identityKeys
 
 	// identity returns the PKIX DER public key that signs lease frames,
 	// for AvailabilityLeaseReport.identity_public_key.
@@ -83,7 +88,7 @@ func (p *DockerPlugin) initAvailabilityLease() {
 	}
 	integration := &leaseIntegration{
 		plugin: p, fence: lease.DirFence{Dir: leasefence.Dir{Root: root}},
-		identity: keys.publicKeyDER, serving: map[string]bool{},
+		identity: keys.publicKeyDER, keys: keys, serving: map[string]bool{},
 	}
 	runtime, err := lease.New(lease.Options{
 		NodeID: stored.NodeID, StateDir: p.cfg.StateDir, Signer: keys.InitialSigner(), Identity: keys,
@@ -98,13 +103,28 @@ func (p *DockerPlugin) initAvailabilityLease() {
 		return
 	}
 	integration.runtime = runtime
+	if p.cfg.Docker.IsStorageProfile() {
+		// Availability set members: the member runtime owns their policies; it
+		// is the controller before the runtime's first step.
+		if err := p.startSetMembers(runtime, integration.fence); err != nil {
+			p.logger.Warn("availability set members disabled", "error", err)
+		} else {
+			if p.databaseManager != nil {
+				p.databaseManager.restorePGMemberProxies(p.setMembers)
+			}
+			go p.serveAvailabilityControl(context.Background())
+		}
+	}
 	if _, statErr := os.Stat(integration.fence.Dir.HeartbeatPath()); statErr == nil {
 		for deadline := time.Now().Add(leaseWatchdogStartupWait); time.Now().Before(deadline) && !integration.watchdogReady(); {
 			time.Sleep(250 * time.Millisecond)
 		}
 	}
-	// Every user-workload start passes the lease start hook (A5, A12.1).
-	p.client.beforeStart = integration.beforeStart
+	if !p.cfg.Docker.IsStorageProfile() {
+		// Every user-workload start passes the lease start hook (A5, A12.1). A storage-profile daemon runs no
+		// Availability workloads; its set members arm their deadline records themselves.
+		p.client.beforeStart = integration.beforeStart
+	}
 	integration.ctx, integration.cancel = context.WithCancel(context.Background())
 	// Recover copies that run on live records before any relay registration,
 	// so they register serving, not dormant, after a daemon restart (B-13).
@@ -178,7 +198,10 @@ func (p *DockerPlugin) leaseCapabilities() []string {
 	if p.lease == nil {
 		return nil
 	}
-	capabilities := []string{availabilityLeaseCapability}
+	// v3: this daemon accepts, persists and reports certified holder state of
+	// stateful policies (a voter or witness of a DB HA lease). Candidacy for a
+	// stateful policy additionally needs the member runtime's own capability.
+	capabilities := []string{availabilityLeaseCapability, availabilitylease.CapabilityV3}
 	if !p.lease.watchdogReady() {
 		if unavailable, _ := p.lease.watchdog.Unavailable(); unavailable {
 			capabilities = append(capabilities, watchdogMissingCapability)

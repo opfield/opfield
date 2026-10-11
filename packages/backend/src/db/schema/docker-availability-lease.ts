@@ -14,6 +14,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 import { dockerAvailabilityPlacements, dockerAvailabilityPolicies } from './docker-availability.js';
+import { managedAvailabilitySets } from './managed-availability.js';
 import { nodes } from './nodes.js';
 import { relayInstances } from './relay.js';
 
@@ -78,12 +79,54 @@ export interface AvailabilityLeaseWitness {
   minRttMs: number | null;
 }
 
+/**
+ * What a lease policy protects. docker_availability: an Availability policy (stateless keys, the policy keeps its own
+ * id). managed_availability_set: the primary role of a database or storage availability set in one availability
+ * period (stateful keys, a fresh id on every enable so accepted state of an earlier period is never adopted, M10).
+ */
+export type LeasePolicyKind = 'docker_availability' | 'managed_availability_set';
+
+/**
+ * The lease policy registry: one row per lease policy of any kind. The id is the policy id of manifests, relay gates,
+ * lease state and observations (their policy_id columns reference it). The owner column of each kind ties the row, and
+ * with it the lease state, to its resource: deleting the resource deletes its lease policies.
+ */
+export const leasePolicies = pgTable(
+  'lease_policies',
+  {
+    id: uuid('id').primaryKey(),
+    kind: varchar('kind', { length: 32 }).$type<LeasePolicyKind>().notNull(),
+    resourceId: uuid('resource_id').notNull(),
+    /** Keys carry certified holder state (v3): strict partition mode only, explicit close only (AS8, AS9). */
+    stateful: boolean('stateful').notNull().default(false),
+    dockerAvailabilityPolicyId: uuid('docker_availability_policy_id').references(() => dockerAvailabilityPolicies.id, {
+      onDelete: 'cascade',
+    }),
+    managedAvailabilitySetId: uuid('managed_availability_set_id').references(() => managedAvailabilitySets.id, {
+      onDelete: 'cascade',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('lease_policies_kind_check', sql`${table.kind} IN ('docker_availability', 'managed_availability_set')`),
+    check(
+      'lease_policies_owner_check',
+      sql`(${table.kind} <> 'docker_availability' OR ${table.dockerAvailabilityPolicyId} IS NOT DISTINCT FROM ${table.resourceId}) AND (${table.kind} <> 'managed_availability_set' OR ${table.managedAvailabilitySetId} IS NOT DISTINCT FROM ${table.resourceId})`
+    ),
+    index('lease_policies_resource_idx').on(table.kind, table.resourceId),
+  ]
+);
+
+/**
+ * Lease state of one lease policy of any kind (policy_id = lease_policies.id): mode, voters, the published manifest and
+ * the bootstrap. The table keeps its original name; Availability rows keep their policy id.
+ */
 export const dockerAvailabilityLeaseState = pgTable(
   'docker_availability_lease_state',
   {
     policyId: uuid('policy_id')
       .primaryKey()
-      .references(() => dockerAvailabilityPolicies.id, { onDelete: 'cascade' }),
+      .references(() => leasePolicies.id, { onDelete: 'cascade' }),
     mode: varchar('mode', { length: 16 }).$type<DockerAvailabilityLeaseMode>().notNull().default('legacy'),
     reason: jsonb('reason').$type<DockerAvailabilityLeaseReason | null>(),
     manifestVersion: bigint('manifest_version', { mode: 'number' }).notNull().default(0),
@@ -122,6 +165,10 @@ export const dockerAvailabilityLeaseState = pgTable(
     /** When a voter majority first persisted the lease-closed manifest (A5). */
     closingAckedAt: timestamp('closing_acked_at', { withTimezone: true }),
     plannedHandoffs: jsonb('planned_handoffs').$type<DockerAvailabilityLeasePlannedHandoff[]>().notNull().default([]),
+    /** Candidate member ids of the source's last descriptor in rank order, for the lease view of every kind. */
+    candidateMemberIds: jsonb('candidate_member_ids').$type<string[]>().notNull().default([]),
+    /** Capabilities the source's last descriptor requires beyond the lease protocol (views name what is missing). */
+    requiredCapabilities: jsonb('required_capabilities').$type<string[]>().notNull().default([]),
     modeChangedAt: timestamp('mode_changed_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -202,16 +249,17 @@ export const availabilityLeaseMembers = pgTable(
 
 export type DockerAvailabilityLeaseObservationSource = 'daemon' | 'acceptor' | 'relay';
 
-/** The latest observed holder of each lease key (policy, slot), reconciled into placements by the controller. */
+/** The latest observed holder of each lease key (lease policy, slot), reconciled by the policy's source. */
 export const dockerAvailabilityLeaseObservations = pgTable(
   'docker_availability_lease_observations',
   {
     policyId: uuid('policy_id')
       .notNull()
-      .references(() => dockerAvailabilityPolicies.id, { onDelete: 'cascade' }),
+      .references(() => leasePolicies.id, { onDelete: 'cascade' }),
     slot: integer('slot').notNull(),
-    /** Candidate id (docker node id) holding the lease; null once it released or fenced. */
+    /** Candidate id (the daemon's lease identity, its node id) holding the lease; null once it released or fenced. */
     holderId: varchar('holder_id', { length: 64 }),
+    /** Availability only: the placement on the holder's node. */
     placementId: uuid('placement_id').references(() => dockerAvailabilityPlacements.id, { onDelete: 'set null' }),
     ballot: jsonb('ballot').$type<DockerAvailabilityLeaseBallot | null>(),
     epoch: bigint('epoch', { mode: 'number' }).notNull().default(0),
@@ -227,6 +275,8 @@ export const dockerAvailabilityLeaseObservations = pgTable(
      * listed (A5, A7).
      */
     claimants: jsonb('claimants').$type<Record<string, { role: string; observedAt: string }>>().notNull().default({}),
+    /** Stateful keys (v3): "sha256:<hex>" of the state certified by the observed commit, when a relay reported it. */
+    stateHash: varchar('state_hash', { length: 80 }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

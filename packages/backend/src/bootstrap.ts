@@ -194,6 +194,7 @@ import { LoggingSettingsService } from '@/modules/logging/logging-settings.servi
 import { LoggingTokenService } from '@/modules/logging/logging-token.service.js';
 import { LoggingValidationService } from '@/modules/logging/logging-validation.service.js';
 import { ManagedWorkloadLifecycle } from '@/modules/managed-workloads/managed-workload-lifecycle.js';
+import { WitnessCatalog } from '@/modules/managed-workloads/witness-catalog.js';
 import { McpSettingsService } from '@/modules/mcp/mcp-settings.service.js';
 import { DashboardReadModelService } from '@/modules/monitoring/dashboard-read-model.service.js';
 import { MonitoringService } from '@/modules/monitoring/monitoring.service.js';
@@ -267,7 +268,10 @@ import { StorageWorkloadProvider } from '@/modules/storage/storage-workload-prov
 import { StorageWorkloadStore } from '@/modules/storage/storage-workload-store.js';
 import { TokensService } from '@/modules/tokens/tokens.service.js';
 import { UIBootstrapService } from '@/modules/ui-bootstrap/ui-bootstrap.service.js';
+import { AvailabilityAssignmentSigner } from '@/services/availability-assignment-signing.js';
+import { AvailabilityMembersService } from '@/services/availability-members.service.js';
 import { CacheService, createRedisClient } from '@/services/cache.service.js';
+import { createKeeperPeerResolver } from '@/services/clickhouse-keeper-addressing.js';
 import { ConfigValidatorService } from '@/services/config-validator.service.js';
 import { CryptoService } from '@/services/crypto.service.js';
 import { scheduleQueuedDaemonUpdateResume } from '@/services/daemon-node-update.js';
@@ -287,6 +291,7 @@ import { HousekeepingService } from '@/services/housekeeping.service.js';
 import { NginxCertificateDistributionService } from '@/services/nginx-certificate-distribution.service.js';
 import { NginxConfigGenerator } from '@/services/nginx-config-generator.service.js';
 import { NodeDispatchService } from '@/services/node-dispatch.service.js';
+import { NodeKeeperWitnessService } from '@/services/node-keeper-witness.service.js';
 import { NodeRegistryService } from '@/services/node-registry.service.js';
 import { ReadModelCoordinator } from '@/services/read-model-coordinator.service.js';
 import { RelayCertificateRenewalService } from '@/services/relay-certificate-renewal.service.js';
@@ -301,6 +306,7 @@ import { RelayRegistryIngressService } from '@/services/relay-registry-ingress.s
 import { RelayStartupFinalizerService } from '@/services/relay-startup-finalizer.service.js';
 import { RelaySupervisorService } from '@/services/relay-supervisor.service.js';
 import { RelayTopologyService } from '@/services/relay-topology.service.js';
+import { RelayWitnessService } from '@/services/relay-witness.service.js';
 import { ResourceSnapshotStore } from '@/services/resource-snapshot.store.js';
 import { RuntimeRestartService } from '@/services/runtime-restart.service.js';
 import { SessionService } from '@/services/session.service.js';
@@ -1507,10 +1513,45 @@ export async function initializeContainer(): Promise<void> {
     new RelayPolicySigningKeyService(db, cryptoService)
   );
   container.registerInstance(AvailabilityLeaseService, availabilityLeaseService);
+  // Manual pairs' primary assignments are signed with the same relay policy key (decision 6).
+  const availabilityAssignmentSigner = new AvailabilityAssignmentSigner(
+    db,
+    new RelayPolicySigningKeyService(db, cryptoService)
+  );
+  container.registerInstance(AvailabilityAssignmentSigner, availabilityAssignmentSigner);
+  // Witness processes relays host for availability sets (decision 9): desired sets pushed, reports recorded.
+  const relayWitnessService = new RelayWitnessService(db, nodeDispatch);
+  relayWitnessService.setArtifactSource(new WitnessCatalog(env));
+  relayWitnessService.setKeeperPeerResolver(createKeeperPeerResolver(db));
+  container.registerInstance(RelayWitnessService, relayWitnessService);
+  // Keeper witness containers on docker nodes (ClickHouse sets whose witness is a non-member docker node).
+  const nodeKeeperWitnessService = new NodeKeeperWitnessService(db, nodeRegistry);
+  container.registerInstance(NodeKeeperWitnessService, nodeKeeperWitnessService);
+  // Members of database and storage availability sets: node configuration and health-stream reports.
+  const availabilityMembers = new AvailabilityMembersService(db, nodeDispatch);
+  availabilityMembers.setAssignmentSigner(container.resolve(AvailabilityAssignmentSigner));
+  container.registerInstance(AvailabilityMembersService, availabilityMembers);
+  // Database and storage availability sets run on one shared orchestration; both get the same host parts.
+  const availabilityHost = {
+    lease: availabilityLeaseService,
+    signer: availabilityAssignmentSigner,
+    settings: { relayPolicyLeaseHours: async () => (await generalSettingsService.getConfig()).relayPolicyLeaseHours },
+    members: availabilityMembers,
+    // Keeper witnesses run on relays (supervisor) and on docker nodes (containers): both get the set's desired state.
+    witnesses: {
+      syncSet: async (setId: string) => {
+        await relayWitnessService.syncSet(setId);
+        await nodeKeeperWitnessService.syncSet(setId);
+      },
+    },
+    ...(relayPolicyService ? { relay: relayPolicyService } : {}),
+  };
   if (relayPolicyService) {
     relayPolicyService.setAvailabilityLeaseSource(availabilityLeaseService);
     availabilityLeaseService.setRelayPublisher(relayPolicyService);
   }
+  managedDatabaseService.setAvailabilityHost(availabilityHost);
+  managedStorageService.setAvailabilityHost(availabilityHost);
   const dockerAvailabilityService = commercialEdition.createDockerAvailabilityService(
     {
       db,

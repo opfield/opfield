@@ -58,6 +58,11 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 		return "", err
 	}
 	env := engineEnvironment(input)
+	if input.Type == "clickhouse" && input.ClickhouseAvailability != nil && !input.ClickhouseAvailability.Standalone {
+		// A set member joins the set's Replicated databases; the image must not
+		// create the database as an Atomic one at its first start.
+		env = withoutEnv(env, "CLICKHOUSE_DB")
+	}
 	// Resolve the reference actually present locally (GHCR mirror or the
 	// upstream name) so a recreate never re-pulls or fails on the other name.
 	image, err := m.client.EnsureThirdPartyImage(ctx, input.Image)
@@ -109,10 +114,11 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 		if err := writeClickHouseConfig(filepath.Join(record.MountPath, "00-gateway-runtime.xml"), clickHouseRuntimeConfig); err != nil {
 			return "", fmt.Errorf("write ClickHouse runtime config: %w", err)
 		}
-		if err := writeClickHouseOwnerOverride(
-			clickHouseOwnerOverridePath(*record),
-			clickHouseOwnerOverrideConfig(input.OwnerUsername, input.OwnerPassword),
-		); err != nil {
+		ownerConfig := clickHouseOwnerOverrideConfig(input.OwnerUsername, input.OwnerPassword)
+		if clickHouseAvailabilitySetID(input) != "" {
+			ownerConfig = clickHouseMemberOwnerOverrideConfig(input.OwnerUsername, input.OwnerPassword)
+		}
+		if err := writeClickHouseOwnerOverride(clickHouseOwnerOverridePath(*record), ownerConfig); err != nil {
 			return "", fmt.Errorf("write ClickHouse owner override: %w", err)
 		}
 	}
@@ -142,6 +148,16 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 	if input.Type == "clickhouse" && input.TLSEnabled {
 		binds = append(binds, filepath.Join(record.MountPath, "gateway-tls.xml")+":/etc/clickhouse-server/config.d/gateway-tls.xml:ro")
 	}
+	availabilityMember := input.Type == "clickhouse" && clickHouseAvailabilitySetID(input) != ""
+	if input.Type == "clickhouse" && input.ClickhouseAvailability != nil {
+		availabilityBinds, err := stageClickHouseAvailability(record, input)
+		if err != nil {
+			return "", err
+		}
+		binds = append(binds, availabilityBinds...)
+	} else if input.Type == "clickhouse" {
+		record.ClickhouseAvailabilitySetID, record.ClickhouseAvailabilityMemberID, record.ClickhouseAvailabilityFiles = "", "", false
+	}
 	hostCfg := &container.HostConfig{
 		Binds:         binds,
 		RestartPolicy: engineRestartPolicy,
@@ -163,7 +179,9 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 		pids := input.PidsLimit
 		hostCfg.PidsLimit = &pids
 	}
-	if input.PublishTCP {
+	// A set member publishes no Docker port: its member proxy serves the
+	// published ports, admitting only while the member serves.
+	if input.PublishTCP && !availabilityMember {
 		containerPort, err := network.ParsePort(port)
 		if err != nil {
 			return "", fmt.Errorf("parse managed database port: %w", err)
@@ -179,6 +197,11 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 			hostCfg.PortBindings[nativePort] = []network.PortBinding{{HostIP: netip.MustParseAddr("0.0.0.0"), HostPort: fmt.Sprintf("%d", input.PublishedNativePort)}}
 		}
 	}
+	// A key-value store member of an availability set (managed_database_kv_member.go).
+	setNetwork, err := m.kvMemberContainer(*record, input, dataSource, containerCfg, hostCfg)
+	if err != nil {
+		return "", err
+	}
 	created, err := m.client.cli.ContainerCreate(ctx, mobyclient.ContainerCreateOptions{
 		Config:     containerCfg,
 		HostConfig: hostCfg,
@@ -190,6 +213,12 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 	if err != nil {
 		return "", fmt.Errorf("create managed database container: %w", err)
 	}
+	if setNetwork != "" {
+		if _, err := m.client.cli.NetworkConnect(ctx, setNetwork, mobyclient.NetworkConnectOptions{Container: created.ID, EndpointConfig: &network.EndpointSettings{}}); err != nil {
+			_ = m.client.RemoveContainer(ctx, created.ID, true)
+			return "", fmt.Errorf("attach the member to its availability set network: %w", err)
+		}
+	}
 	if _, err := m.client.cli.ContainerStart(ctx, created.ID, mobyclient.ContainerStartOptions{}); err != nil {
 		_ = m.client.RemoveContainer(ctx, created.ID, true)
 		return "", fmt.Errorf("start managed database container: %w", err)
@@ -198,7 +227,7 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 		_ = m.client.RemoveContainer(ctx, created.ID, true)
 		return "", err
 	}
-	if input.Type == "clickhouse" {
+	if input.Type == "clickhouse" && !availabilityMember {
 		if err := m.cleanupClickHouseSystemLogs(ctx, created.ID, input); err != nil {
 			m.logger.Warn("cleanup legacy ClickHouse system logs", "id", record.ID, "error", err)
 		}
@@ -808,12 +837,27 @@ func (m *managedDatabaseManager) reconcile(ctx context.Context) error {
 		if !record.DesiredRunning {
 			continue
 		}
+		if record.AvailabilityMemberID != "" {
+			// A set member is never started here: the member runtime starts it
+			// through standby at rest. Its storage is mounted for it.
+			if err := m.ensureStorageSize(ctx, &record, record.StorageSize); err != nil {
+				m.logger.Warn("availability member storage could not be restored at startup", "id", id, "error", err)
+			}
+			continue
+		}
 		if err := m.ensureStorageSize(ctx, &record, record.StorageSize); err != nil {
 			m.logger.Warn("managed database storage could not be restored at startup", "id", id, "error", err)
 			continue
 		}
 		if missing := m.missingRuntimeFiles(record); len(missing) > 0 {
 			m.logger.Warn("managed database is not started at startup", "id", id, "error", runtimeFilesMissingError("managed database", missing))
+			if err := m.saveRecord(record); err != nil {
+				return err
+			}
+			continue
+		}
+		if record.clickHouseAvailabilityMember() {
+			// The availability member runtime starts it (standby at rest first).
 			if err := m.saveRecord(record); err != nil {
 				return err
 			}

@@ -2,6 +2,7 @@ import type { DrizzleClient } from '@/db/client.js';
 import type { ManagedStorageClusterRow, ManagedStoragePendingOperation } from '@/db/schema/managed-storage.js';
 import { commercialModuleUnavailable } from '@/edition/unavailable.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
+import type { ManagedAvailabilityHost } from '@/modules/databases/managed-database-availability.types.js';
 import type { LicensePolicyService } from '@/modules/license/license-policy.service.js';
 import type { ManagedWorkloadDispatch } from '@/modules/managed-workloads/managed-workload-dispatch.js';
 import type { ManagedWorkloadLifecycle } from '@/modules/managed-workloads/managed-workload-lifecycle.js';
@@ -87,6 +88,8 @@ export class ManagedStorageService {
   setBindingsTeardown(_teardown: (cluster: ManagedStorageClusterRow, userId: string) => Promise<void>): void {}
   setEventBus(_bus: EventBusService): void {}
   setLicensePolicyService(_service: LicensePolicyService): void {}
+  /** Storage availability sets: the open-core host parts the commercial control plane uses (merged per call). */
+  setAvailabilityHost(_host: Partial<ManagedAvailabilityHost>): void {}
   listCatalog(): import('@/modules/managed-workloads/managed-workload-provider.js').ManagedWorkloadCatalogEntry[] {
     return commercialModuleUnavailable();
   }

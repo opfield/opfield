@@ -11,6 +11,7 @@ import {
   leaseKeyRotationMessage,
   leaseManifestClosure,
   leaseManifestDigest,
+  leaseManifestSupportsStateful,
   policyKeyFingerprint,
   signLeaseBlock,
 } from './lease-codec.js';
@@ -122,6 +123,36 @@ describe('availability lease codec', () => {
       })
     ).not.toBe(digest);
     expect(leaseManifestDigest({ ...manifest, candidates: [...manifest.candidates].reverse() })).not.toBe(digest);
+  });
+
+  it('digests a stateless manifest exactly as before v3 and a stateful one differently (AS8)', () => {
+    const digest = leaseManifestDigest(manifest);
+    expect(leaseManifestDigest({ ...manifest, stateful: false })).toBe(digest);
+    expect(leaseManifestDigest({ ...manifest, stateful: true })).not.toBe(digest);
+    // The pre-v3 digest input: the content without the flag, keys in publishing order.
+    const { stateful: _stateful, ...rest } = manifest;
+    expect(digest).toBe(
+      createHash('sha256')
+        .update(
+          JSON.stringify({
+            ...rest,
+            candidates: manifest.candidates.map((candidate) => [candidate.id, candidate.publicKey.toString('base64')]),
+            members: manifest.members.map((member) => [member.id, member.role, member.publicKey.toString('base64')]),
+          })
+        )
+        .digest('hex')
+    );
+  });
+
+  it('never encodes a stateful manifest as a stateless one', () => {
+    const stateful = { ...manifest, stateful: true };
+    if (!leaseManifestSupportsStateful()) {
+      expect(() => encodeLeaseManifest(stateful, 1)).toThrow(/stateful/);
+      return;
+    }
+    const decoded = decodeRelayV1Message('LeaseManifest', encodeLeaseManifest(stateful, 1)) as { stateful: boolean };
+    expect(decoded.stateful).toBe(true);
+    expect(encodeLeaseManifest(manifest, 1)).toEqual(encodeLeaseManifest({ ...manifest, stateful: false }, 1));
   });
 
   it('orders ballots by round, incarnation and proposer', () => {

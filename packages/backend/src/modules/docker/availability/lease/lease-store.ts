@@ -5,8 +5,10 @@ import {
   availabilityLeaseKeyRotations,
   availabilityLeaseMembers,
   dockerAvailabilityLeaseState,
+  leasePolicies,
 } from '@/db/schema/index.js';
 import { LEASE_CLUSTER_ID, MAX_KEY_ROTATION_LINKS } from './lease-constants.js';
+import { registerAvailabilityLeasePolicy } from './lease-policy-registry.js';
 
 export type LeaseClusterRow = typeof availabilityLeaseCluster.$inferSelect;
 export type LeaseMemberRow = typeof availabilityLeaseMembers.$inferSelect;
@@ -55,16 +57,33 @@ export async function loadLeaseKeyRotations(db: Executor): Promise<LeaseKeyRotat
     .slice(-MAX_KEY_ROTATION_LINKS);
 }
 
-/** Lease state of a policy, created in legacy on first use. */
+/** Lease state of a policy, created in legacy on first use (an Availability policy is registered first). */
 export async function ensureLeaseState(db: Executor, policyId: string): Promise<LeaseStateRow> {
-  await db.insert(dockerAvailabilityLeaseState).values({ policyId }).onConflictDoNothing();
+  const [registered] = await db
+    .select({ id: leasePolicies.id })
+    .from(leasePolicies)
+    .where(eq(leasePolicies.id, policyId))
+    .limit(1);
+  if (!registered) await registerAvailabilityLeasePolicy(db, policyId);
+  // Dated on Gateway's clock like every later mode change.
+  const now = new Date();
+  await db
+    .insert(dockerAvailabilityLeaseState)
+    .values({ policyId, modeChangedAt: now, updatedAt: now })
+    .onConflictDoNothing();
   const [row] = await db
     .select()
     .from(dockerAvailabilityLeaseState)
     .where(eq(dockerAvailabilityLeaseState.policyId, policyId))
     .limit(1);
-  if (!row) throw new Error(`Availability lease state for policy ${policyId} is unavailable`);
+  if (!row) throw new Error(`Lease state for lease policy ${policyId} is unavailable`);
   return row;
+}
+
+/** Lease state of an Availability policy (its own lease policy), registered and created in legacy on first use. */
+export async function ensureAvailabilityLeaseState(db: Executor, policyId: string): Promise<LeaseStateRow> {
+  await registerAvailabilityLeasePolicy(db, policyId);
+  return ensureLeaseState(db, policyId);
 }
 
 /** The members a relay last reported a live Coordinate stream from, and when. */

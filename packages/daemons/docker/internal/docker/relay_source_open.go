@@ -34,6 +34,10 @@ var (
 // over are served before the lanes are up. Later, a relay or target that is restarting is held for
 // relaySourceTransientWait.
 func (p *DockerPlugin) openRelaySource(assignment *pb.RelayGrantAssignment) (*relaySourceTunnel, error) {
+	if len(assignment.GetLeaseGroup()) > 0 {
+		// A route to an availability set's resource: one route per member, the holder's first.
+		return p.openLeaseGroupSource(assignment)
+	}
 	started := time.Now()
 	budget, hold := started.Add(relaySourceOpenBudget), started.Add(relaySourceTransientWait)
 	for {

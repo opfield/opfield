@@ -1,6 +1,12 @@
 package updateauth
 
-import "testing"
+import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 const testChecksum = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 const testURL = "https://gitlab.wiolett.net/api/v4/projects/wiolett%2Fgateway/packages/generic/nginx-daemon/v9.9.9-nginx/nginx-daemon-linux-amd64"
@@ -66,5 +72,68 @@ func TestTrustedHTTPSURLAllowsConfiguredGitLabOrigins(t *testing.T) {
 	}
 	if isTrustedHTTPSURL("http://gitlab.example.test/api/v4/projects/custom%2Fgateway/packages/generic/nginx-daemon/v9.9.9-nginx/nginx-daemon-linux-amd64") {
 		t.Fatal("expected non-HTTPS package URL to be rejected")
+	}
+}
+
+func witnessManifest(t *testing.T, private ed25519.PrivateKey, payload WitnessManifestPayload) string {
+	t.Helper()
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	envelope, err := json.Marshal(SignPayload(private, encoded))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(envelope)
+}
+
+// useTestKey makes the package trust a test key instead of the compiled one.
+func useTestKey(t *testing.T) ed25519.PrivateKey {
+	t.Helper()
+	public, private, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := trustedKey
+	trustedKey = func() (ed25519.PublicKey, error) { return public, nil }
+	t.Cleanup(func() { trustedKey = previous })
+	return private
+}
+
+func TestVerifyWitnessManifest(t *testing.T) {
+	private := useTestKey(t)
+	url := "https://github.com/the-square-labs/gateway/releases/download/v2.12.0/witness-clickhouse-keeper-25.3.6-linux-amd64"
+	good := WitnessManifestPayload{Kind: WitnessBinaryKind, Component: "witness-clickhouse-keeper", Version: "25.3.6", Arch: "amd64",
+		ArtifactName: "witness-clickhouse-keeper-25.3.6-linux-amd64", DownloadURL: url, SHA256: testChecksum, CreatedAt: "2026-10-11T00:00:00Z"}
+	expected := WitnessExpectation{Component: "witness-clickhouse-keeper", Version: "25.3.6", Arch: "amd64", DownloadURL: url, SHA256: testChecksum}
+	if _, err := VerifyWitnessManifest(witnessManifest(t, private, good), expected); err != nil {
+		t.Fatalf("valid witness manifest refused: %v", err)
+	}
+	daemonKind := good
+	daemonKind.Kind = "daemon-binary"
+	otherSHA := expected
+	otherSHA.SHA256 = strings.Repeat("f", 64)
+	otherComponent := expected
+	otherComponent.Component = "witness-other"
+	plainHTTP := good
+	plainHTTP.DownloadURL = "http://example.test/keeper"
+	plainExpected := expected
+	plainExpected.DownloadURL = plainHTTP.DownloadURL
+	_, foreign, _ := ed25519.GenerateKey(rand.Reader)
+	for name, test := range map[string]struct {
+		manifest string
+		expected WitnessExpectation
+	}{
+		"daemon manifest kind":  {witnessManifest(t, private, daemonKind), expected},
+		"wrong sha256":          {witnessManifest(t, private, good), otherSHA},
+		"wrong component":       {witnessManifest(t, private, good), otherComponent},
+		"plain http":            {witnessManifest(t, private, plainHTTP), plainExpected},
+		"signed by another key": {witnessManifest(t, foreign, good), expected},
+		"daemon manifest as-is": {testManifest, expected},
+	} {
+		if _, err := VerifyWitnessManifest(test.manifest, test.expected); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
 	}
 }

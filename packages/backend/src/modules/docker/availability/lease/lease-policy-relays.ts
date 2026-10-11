@@ -3,6 +3,9 @@ import type { DrizzleClient } from '@/db/client.js';
 import {
   containerLinkPlacements,
   dockerAvailabilityPlacements,
+  type LeasePolicyKind,
+  managedAvailabilityMembers,
+  managedAvailabilitySets,
   managedDatabaseBindingPlacements,
   proxyAdditionalSecureLinks,
   relayEndpointAssignmentGenerations,
@@ -10,6 +13,30 @@ import {
   relayEndpoints,
   relayRoutes,
 } from '@/db/schema/index.js';
+
+/**
+ * relay_endpoints.owner_kind of an availability set member endpoint: owner id = the member row id, subject = the
+ * member's node (its lease identity). In automatic mode the endpoint is gated by the set's lease policy (relay.v1
+ * EndpointPolicy.lease_policy_id); in manual mode only the primary's endpoint serves.
+ */
+export const MANAGED_AVAILABILITY_MEMBER_ENDPOINT_OWNER = 'managed_availability_member';
+
+/**
+ * relay_endpoints.owner_kind of an availability set member's peer endpoint (engine to engine): owner id
+ * `<member id>:<port>`. Lease-gated only for primary ports.
+ */
+export const MANAGED_AVAILABILITY_PEER_ENDPOINT_OWNER = 'managed_availability_peer';
+
+/**
+ * Peer ports that reach the primary only (primary-<port>); their peer endpoints are lease-gated. SeaweedFS speaks
+ * HTTP and gRPC on separate ports, so its master has two.
+ */
+export const MANAGED_AVAILABILITY_PRIMARY_PORTS: ReadonlySet<string> = new Set([
+  'pg-repl',
+  'kv-repl',
+  'sw-master',
+  'sw-master-grpc',
+]);
 
 /**
  * The relay instances that carry each policy's lease-gated traffic: the relays assigned to the Secure Link endpoint of
@@ -101,6 +128,91 @@ export async function loadPolicyRelays(db: DrizzleClient, policyIds: string[]): 
   for (const row of endpoints) add(row.endpointId, policyOfMember.get(row.ownerId));
   for (const row of routes) add(row.endpointId, policyOfProjection.get(row.ownerId));
   for (const row of targetEndpoints) add(row.endpointId, policyOfTarget.get(row.ownerId));
+  return relaysOfEndpoints(db, policiesOfEndpoint);
+}
+
+/**
+ * The relays that carry each availability set's lease policy traffic (AS12/M7): every relay assigned to a member
+ * endpoint of the set. Every route of a set (bindings, links, Gateway tools, backups, monitoring, member peer routes)
+ * targets a member endpoint, so these are all the relays that carry it; each of them shadow-accepts the policy.
+ */
+export async function loadManagedSetLeaseRelays(
+  db: DrizzleClient,
+  leasePolicyIds: string[]
+): Promise<Map<string, Set<string>>> {
+  if (leasePolicyIds.length === 0) return new Map();
+  const sets = await db
+    .select({
+      id: managedAvailabilitySets.id,
+      ownerKind: managedAvailabilitySets.ownerKind,
+      ownerId: managedAvailabilitySets.ownerId,
+      leasePolicyId: managedAvailabilitySets.leasePolicyId,
+    })
+    .from(managedAvailabilitySets)
+    .where(inArray(managedAvailabilitySets.leasePolicyId, leasePolicyIds));
+  if (sets.length === 0) return new Map();
+  const members = await db
+    .select({ memberId: managedAvailabilityMembers.id, setId: managedAvailabilityMembers.setId })
+    .from(managedAvailabilityMembers)
+    .where(
+      inArray(
+        managedAvailabilityMembers.setId,
+        sets.map((set) => set.id)
+      )
+    );
+  const policyOfSet = new Map(sets.flatMap((set) => (set.leasePolicyId ? [[set.id, set.leasePolicyId]] : [])));
+  const policyOfMember = new Map(
+    members.flatMap((row) => (policyOfSet.has(row.setId) ? [[row.memberId, policyOfSet.get(row.setId)!]] : []))
+  );
+  // Every endpoint of the set: the resource endpoint (the origin member's), the other members' client endpoints and
+  // every member's peer endpoints. Peer endpoints of non-primary ports are not gated, but a relay that carries them
+  // carries the set's replication and keeps the lease policy too.
+  const endpoints = await db
+    .select({ endpointId: relayEndpoints.id, ownerKind: relayEndpoints.ownerKind, ownerId: relayEndpoints.ownerId })
+    .from(relayEndpoints)
+    .where(
+      inArray(relayEndpoints.ownerKind, [
+        MANAGED_AVAILABILITY_MEMBER_ENDPOINT_OWNER,
+        MANAGED_AVAILABILITY_PEER_ENDPOINT_OWNER,
+        'managed_database',
+        'managed_storage',
+      ])
+    );
+  const policiesOfEndpoint = new Map<string, Set<string>>();
+  for (const row of endpoints) {
+    let policyId: string | undefined;
+    if (row.ownerKind === MANAGED_AVAILABILITY_MEMBER_ENDPOINT_OWNER) policyId = policyOfMember.get(row.ownerId);
+    else if (row.ownerKind === MANAGED_AVAILABILITY_PEER_ENDPOINT_OWNER) {
+      policyId = policyOfMember.get(row.ownerId.slice(0, Math.max(0, row.ownerId.indexOf(':'))));
+    } else {
+      const set = sets.find((entry) => entry.ownerKind === row.ownerKind && entry.ownerId === row.ownerId);
+      policyId = set?.leasePolicyId ?? undefined;
+    }
+    if (policyId) policiesOfEndpoint.set(row.endpointId, new Set([policyId]));
+  }
+  return relaysOfEndpoints(db, policiesOfEndpoint);
+}
+
+/** Carrying relays of lease policies of any kind. */
+export async function loadLeasePolicyRelays(
+  db: DrizzleClient,
+  policies: Array<{ kind: LeasePolicyKind; leasePolicyId: string }>
+): Promise<Map<string, Set<string>>> {
+  const ids = (kind: LeasePolicyKind) =>
+    policies.filter((policy) => policy.kind === kind).map((policy) => policy.leasePolicyId);
+  const [availability, databases] = await Promise.all([
+    loadPolicyRelays(db, ids('docker_availability')),
+    loadManagedSetLeaseRelays(db, ids('managed_availability_set')),
+  ]);
+  return new Map([...availability, ...databases]);
+}
+
+/** Relays assigned (active, staging or draining) to the endpoints, collected per lease policy. */
+async function relaysOfEndpoints(
+  db: DrizzleClient,
+  policiesOfEndpoint: Map<string, Set<string>>
+): Promise<Map<string, Set<string>>> {
+  const result = new Map<string, Set<string>>();
   if (policiesOfEndpoint.size === 0) return result;
   const assignments = await db
     .select({

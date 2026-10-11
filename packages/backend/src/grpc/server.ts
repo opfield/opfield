@@ -9,11 +9,13 @@ import { createChildLogger } from '@/lib/logger.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { AvailabilityLeaseService } from '@/modules/docker/availability/lease/availability-lease.service.js';
 import type { CAService } from '@/modules/pki/ca.service.js';
+import type { AvailabilityMembersService } from '@/services/availability-members.service.js';
 import type { CryptoService } from '@/services/crypto.service.js';
 import { validateGrpcServerCertificate } from '@/services/grpc-server-certificate.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import type { NodeRegistryService } from '@/services/node-registry.service.js';
 import type { RelayPolicyService } from '@/services/relay-policy.service.js';
+import type { RelayWitnessService } from '@/services/relay-witness.service.js';
 import type { SystemCAService } from '@/services/system-ca.service.js';
 import {
   configureRelayForwardedIdentityTrust,
@@ -110,6 +112,8 @@ export interface GrpcServerDeps {
   relayPeerFingerprint?: string;
   relayPolicy?: RelayPolicyService;
   availabilityLease?: Pick<AvailabilityLeaseService, 'ingestDaemonReport' | 'ingestRelayReport'>;
+  relayWitness?: Pick<RelayWitnessService, 'ingestRuntime'>;
+  availabilityMembers?: Pick<AvailabilityMembersService, 'ingestReports'>;
 }
 
 let server: grpc.Server | null = null;

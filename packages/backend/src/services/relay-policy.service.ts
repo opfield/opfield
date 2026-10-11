@@ -61,6 +61,19 @@ import {
   secureLinkEgressEqual,
 } from './relay-link-routes.js';
 import {
+  loadSetRelayViews,
+  orderedSetRoutes,
+  parentKindOfMemberRoute,
+  reconcileSetRelayPaths as reconcileSetPaths,
+  reconcileSetPathsOfEndpoint,
+  releaseSetRelayPaths as releaseSetPaths,
+  SET_PEER_ROUTE_KIND,
+  type SetRelayView,
+  setEndpointIds,
+  setOfOwner,
+  setServingMemberId,
+} from './relay-managed-availability.js';
+import {
   backfillRelayNodeFingerprints,
   bumpRelayPolicyRevision,
   reconcileManagedDatabaseRelayPolicy,
@@ -254,12 +267,16 @@ export function managedDatabaseListenerConfigsEqual(
  * database class with their cap. Only the class and caps change, never a generation, so open tunnels stay.
  */
 function relayRoutePolicy(
-  ownerKind: string,
+  routeOwnerKind: string,
   target?: RelaySessionLimitTarget
 ): {
   disableIdleTimeout: boolean;
   trafficClass: 'proxy' | 'database' | 'registry';
 } {
+  // An availability set's member route carries the same traffic as the route it repeats toward another member.
+  const ownerKind = parentKindOfMemberRoute(routeOwnerKind) ?? routeOwnerKind;
+  // Engine-to-engine replication between set members: long-lived database traffic.
+  if (ownerKind === SET_PEER_ROUTE_KIND) return { disableIdleTimeout: true, trafficClass: 'database' };
   if ((REGISTRY_ROUTE_OWNER_KINDS as readonly string[]).includes(ownerKind)) {
     return { disableIdleTimeout: true, trafficClass: 'registry' };
   }
@@ -1549,6 +1566,10 @@ export class RelayPolicyService {
     await backfillRelayNodeFingerprints(this.db);
     await reconcileManagedDatabaseRelayPolicy(this.db);
     await reconcileManagedStorageRelayPolicy(this.db);
+    // Availability set endpoints made by the pass above are placed on relays before the snapshot.
+    for (const endpointId of await setEndpointIds(this.db).catch(() => [] as string[])) {
+      await this.ensureLegacyCompatibleAssignment(endpointId).catch(() => undefined);
+    }
     const orphanedNodeIds = await removeOrphanedRelayState(this.db);
     const revision = await this.syncSnapshot();
     await this.refreshAllNodeGrantsIfDue().then(
@@ -1645,6 +1666,8 @@ export class RelayPolicyService {
   }
 
   async ensureManagedDatabaseEndpoint(managedDatabaseId: string, nodeId: string): Promise<string> {
+    const set = await setOfOwner(this.db, 'managed_database', managedDatabaseId);
+    if (set) return this.ensureSetResourceEndpoint(set);
     const [database] = await this.db
       .select({ nodeId: managedDatabaseInstances.nodeId, status: managedDatabaseInstances.status })
       .from(managedDatabaseInstances)
@@ -1695,6 +1718,8 @@ export class RelayPolicyService {
   }
 
   async ensureManagedStorageEndpoint(clusterId: string, nodeId: string): Promise<string> {
+    const set = await setOfOwner(this.db, 'managed_storage', clusterId);
+    if (set) return this.ensureSetResourceEndpoint(set);
     const [database] = await this.db
       .select({ nodeId: managedStorageClusters.nodeId, status: managedStorageClusters.status })
       .from(managedStorageClusters)
@@ -2364,7 +2389,107 @@ export class RelayPolicyService {
   /** A tunnel from Gateway to a managed database; its bytes cross from the tunnel worker (see gatewayTunnelEndpoint). */
   async openGatewayTunnel(managedDatabaseId: string, appCertificateFingerprint: string): Promise<Duplex> {
     const routeId = await this.gatewayDatabaseRoute(managedDatabaseId, appCertificateFingerprint);
+    const set = await setOfOwner(this.db, 'managed_database', managedDatabaseId);
+    if (set) return this.openSetRouteTunnel(set, routeId, appCertificateFingerprint);
     return this.openGatewayRouteTunnel(routeId, appCertificateFingerprint);
+  }
+
+  /**
+   * A tunnel from Gateway to the member of an availability set that serves now: the resource's Gateway route of
+   * `lane` (database tools or the storage browser), tried on the serving member's route first, then on the others by
+   * rank (the relays admit only the lease holder; a manual pair's primary is the only serving endpoint).
+   */
+  async openSetTunnel(setId: string, appCertificateFingerprint: string): Promise<Duplex> {
+    const [set] = await loadSetRelayViews(this.db, { setIds: [setId] });
+    if (!set) throw new Error('Availability set not found');
+    return set.ownerKind === 'managed_database'
+      ? this.openGatewayTunnel(set.ownerId, appCertificateFingerprint)
+      : this.openStorageGatewayTunnel(set.ownerId, appCertificateFingerprint);
+  }
+
+  private async openSetRouteTunnel(
+    set: SetRelayView,
+    parentRouteId: string,
+    appCertificateFingerprint: string
+  ): Promise<Duplex> {
+    const routes = await orderedSetRoutes(this.db, parentRouteId, set, await setServingMemberId(this.db, set));
+    let lastError: unknown = new Error('No member of the availability set is reachable');
+    for (const { routeId } of routes) {
+      try {
+        return await this.openGatewayRouteTunnel(routeId, appCertificateFingerprint);
+      } catch (error) {
+        if (isGatewayConnectionGone(error)) throw error;
+        lastError = error;
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(errorMessage(lastError));
+  }
+
+  /**
+   * The relay paths of an availability set now (created or converted, a member added, removed or its node's identity
+   * renewed, a manual pair's primary switched): member and peer endpoints placed on relays, member routes and the
+   * member mesh, the relay snapshot and the members' grants.
+   */
+  async reconcileSetRelayPaths(setId: string): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-policy-reconciliation'))`);
+      if (await reconcileSetPaths(tx, [setId])) await bumpRelayPolicyRevision(tx);
+    });
+    await this.syncSetPaths([setId]);
+  }
+
+  /**
+   * Turning a set off (AS9 close): the kept member's paths become the resource's single-node paths in place, every
+   * other member path goes, in one policy revision. Call before deleting the set row.
+   */
+  async releaseSetRelayPaths(setId: string, keepMemberId: string): Promise<void> {
+    const [set] = await loadSetRelayViews(this.db, { setIds: [setId] });
+    if (!set) return;
+    await this.db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-policy-reconciliation'))`);
+      if (await releaseSetPaths(tx, setId, keepMemberId)) await bumpRelayPolicyRevision(tx);
+    });
+    await this.syncSnapshot();
+    await Promise.allSettled(set.members.map((member) => this.syncNodeGrants(member.nodeId)));
+  }
+
+  private async syncSetPaths(setIds?: string[]): Promise<void> {
+    for (const endpointId of await setEndpointIds(this.db, setIds)) {
+      await this.ensureLegacyCompatibleAssignment(endpointId).catch((error) => {
+        logger.warn('Relay placement of an availability set endpoint is retried at the next reconcile', {
+          endpointId,
+          error: errorMessage(error),
+        });
+      });
+    }
+    await this.syncSnapshot();
+    const views = await loadSetRelayViews(this.db, setIds ? { setIds } : {});
+    await Promise.allSettled(
+      [...new Set(views.flatMap((view) => view.members.map((member) => member.nodeId)))].map((nodeId) =>
+        this.syncNodeGrants(nodeId, ROUTINE_GRANT_SYNC)
+      )
+    );
+  }
+
+  /** The resource endpoint of a set (the origin member's client endpoint), made with the set's paths if missing. */
+  private async ensureSetResourceEndpoint(set: SetRelayView): Promise<string> {
+    const kind = set.ownerKind === 'managed_database' ? 'managed_database' : 'managed_storage';
+    const find = async () =>
+      (
+        await this.db
+          .select({ id: relayEndpoints.id })
+          .from(relayEndpoints)
+          .where(and(eq(relayEndpoints.ownerKind, kind), eq(relayEndpoints.ownerId, set.ownerId)))
+          .limit(1)
+      )[0]?.id;
+    let endpointId = await find();
+    if (!endpointId) {
+      await this.reconcileSetRelayPaths(set.setId);
+      endpointId = await find();
+    }
+    if (!endpointId) throw new Error('The availability set has no relay endpoint yet');
+    await this.ensureLegacyCompatibleAssignment(endpointId);
+    return endpointId;
   }
 
   /** The managed database's Gateway route, made on first use; throws while the database is not up. */
@@ -2685,6 +2810,8 @@ export class RelayPolicyService {
   /** A tunnel from Gateway to a managed storage cluster; its bytes cross from the tunnel worker (see gatewayTunnelEndpoint). */
   async openStorageGatewayTunnel(clusterId: string, appCertificateFingerprint: string): Promise<Duplex> {
     const routeId = await this.gatewayStorageRoute(clusterId, appCertificateFingerprint);
+    const set = await setOfOwner(this.db, 'managed_storage', clusterId);
+    if (set) return this.openSetRouteTunnel(set, routeId, appCertificateFingerprint);
     return this.openGatewayRouteTunnel(routeId, appCertificateFingerprint);
   }
 
@@ -3175,6 +3302,7 @@ export class RelayPolicyService {
             secureLinkEgress: secureLinkEgress ?? null,
           })
           .returning({ id: relayRoutes.id });
+        await reconcileSetPathsOfEndpoint(tx, targetEndpointId);
         await bumpRelayPolicyRevision(tx);
         return created.id;
       }
@@ -3209,6 +3337,9 @@ export class RelayPolicyService {
             updatedAt: new Date(),
           })
           .where(eq(relayRoutes.id, current.id));
+        await reconcileSetPathsOfEndpoint(tx, targetEndpointId);
+        await bumpRelayPolicyRevision(tx);
+      } else if (await reconcileSetPathsOfEndpoint(tx, targetEndpointId)) {
         await bumpRelayPolicyRevision(tx);
       }
       return current.id;
