@@ -12,7 +12,7 @@ Gateway has two database models. Keep them apart:
 
 Start with `using-gateway` for connection, discovery, and safety rules. Read `read_gateway_documentation({ topic: "databases" })` (also `postgres`, `redis` for key-value stores, `clickhouse`) before an unfamiliar workflow.
 
-A key-value store is `type: "redis"` in the API and tools and works with Redis clients. New stores run Valkey 9.1.3 (with JSON, Bloom and Search); `get` reports `engine` `valkey`, or `redis` for a store created before 2.12 that still runs Redis.
+A key-value store is `type: "redis"` in the API and tools and works with Redis clients. New stores run Valkey 9.1.2 (with JSON, Bloom and Search); `get` reports `engine` `valkey`, or `redis` for a store created before 2.12 that still runs Redis.
 
 ## Give an application a database
 
@@ -39,7 +39,7 @@ Provisioning, `restart`, `pause`, `unpause`, `retry`, `update`, credential rotat
 
 ## Move a key-value store to Valkey
 
-Stores created before 2.12 keep running Redis until the user asks to move them; never move one on your own. `{ operation: "move_to_valkey", databaseId }` (`databases:edit`) works on a running store with `engine: "redis"` whose node daemon supports Valkey (`MANAGED_DATABASE_DAEMON_UPDATE_REQUIRED` otherwise). The store is `updating` while every key is copied into Valkey on the same node: writes pause, reads keep working. Poll `get` until it is `ready` and check `engine`. If anything fails, the store goes back to Redis. A store with Bloom or cuckoo filters, time series, vector sets, or search indexes is refused before anything changes; it stays `ready` on Redis and `lastError` names the key types. Tell the user about the write pause before starting.
+Stores created before 2.12 keep running Redis until the user asks to move them; never move one on your own. `{ operation: "move_to_valkey", databaseId }` (`databases:edit`) works on a running store with `engine: "redis"` whose node daemon supports Valkey (`MANAGED_DATABASE_DAEMON_UPDATE_REQUIRED` otherwise). The store is `updating` while every key is copied into Valkey on the same node: writes pause, reads keep working. Poll `get` until it is `ready` and check `engine`. If anything fails, the store goes back to Redis. A store with Bloom or cuckoo filters, time series, vector sets, or search indexes is refused before anything changes; it stays `ready` on Redis and `lastError` names the key types. First run `{ operation: "move_to_valkey_check", databaseId }` and tell the user the key count, `estimatedPauseSeconds` (the write pause) and any `blockers` (the move is refused while there are any). If `pendingStreamEntries` is above 0, the consumer groups move but their pending entries do not: say how many, and pass `acceptPendingStreamLoss: true` only after the user accepted that loss (without it the move is refused).
 
 ## Credentials
 

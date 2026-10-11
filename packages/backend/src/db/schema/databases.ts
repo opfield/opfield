@@ -168,6 +168,8 @@ export interface ManagedDatabasePendingOperation {
    * the store to Redis.
    */
   previousEngine?: { version: string; imageRef: string };
+  /** A move to Valkey the caller allowed to drop the pending entries of stream consumer groups. */
+  acceptPendingStreamLoss?: boolean;
 }
 
 export type ManagedDatabaseOwnerSeparationState = 'legacy' | 'preparing' | 'active' | 'error';

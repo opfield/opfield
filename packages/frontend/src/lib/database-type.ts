@@ -16,7 +16,7 @@ export function databaseTypeLabel(type: string): string {
 
 /**
  * The version of a managed instance as users see it. A key-value store names its engine
- * ("Valkey 9.1.3", "Redis 8.10.0"); other types show the plain version.
+ * ("Valkey 9.1.2", "Redis 8.10.0"); other types show the plain version.
  */
 export function managedDatabaseVersionLabel(managed: {
   type: DatabaseType;

@@ -484,3 +484,12 @@ export type ManagedDatabaseListQuery = z.infer<typeof ManagedDatabaseListQuerySc
 export type CreateManagedDatabaseInput = z.infer<typeof CreateManagedDatabaseSchema>;
 export type UpdateManagedDatabaseInput = z.infer<typeof UpdateManagedDatabaseSchema>;
 export type CreateManagedDatabaseBindingInput = z.infer<typeof CreateManagedDatabaseBindingSchema>;
+
+/** POST /databases/managed/{id}/move-to-valkey. The body is optional. */
+export const MoveManagedDatabaseToValkeySchema = z
+  .object({
+    /** Lets the move drop the pending entries of stream consumer groups (see the move check). */
+    acceptPendingStreamLoss: z.boolean().optional(),
+  })
+  .strict();
+export type MoveManagedDatabaseToValkeyInput = z.infer<typeof MoveManagedDatabaseToValkeySchema>;

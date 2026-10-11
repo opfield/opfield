@@ -158,7 +158,7 @@ async function waitForManagedDatabaseReady(id: string): Promise<ManagedDatabase>
 
 const DEFAULT_MANAGED_DATABASE_VERSIONS: Record<DatabaseType, string[]> = {
   postgres: ["18.4", "18.3", "17.10", "17.8", "16.14", "16.10", "15.18", "15.14", "14.23", "14.19"],
-  redis: ["9.1.3"],
+  redis: ["9.1.2"],
   clickhouse: [
     "26.7.1.1315",
     "26.6.2.81",

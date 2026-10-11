@@ -3,6 +3,7 @@ package docker
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -94,7 +95,11 @@ func (m *managedDatabaseManager) moveRedisToValkey(ctx context.Context, record *
 	if err != nil {
 		return redisMoveNotMoved(err)
 	}
-	if err := source.refuseUncopyable(ctx, databases); err != nil {
+	inventory, err := source.inventory(ctx, databases)
+	if err != nil {
+		return redisMoveNotMoved(err)
+	}
+	if err := inventory.refuseMove(input.AcceptPendingStreamLoss); err != nil {
 		return redisMoveNotMoved(err)
 	}
 	dumpPath := filepath.Join(record.MountPath, redisMoveDumpName)
@@ -803,45 +808,81 @@ func (c *redisMoveConn) keyspaceDatabases(ctx context.Context) ([]int, error) {
 	return databases, nil
 }
 
-// refuseUncopyable names the data a move cannot copy: module key types other
-// than JSON, and search indexes.
-func (c *redisMoveConn) refuseUncopyable(ctx context.Context, databases []int) error {
+// redisMoveInventory is what a move would copy and what stops it: the key
+// count and dataset size, the pending entries of stream consumer groups (a
+// move keeps the groups but not their pending entries) and the data Valkey
+// cannot take over. EstimatedPauseSeconds is the expected time writes are
+// unavailable, from the copy rate measured on a build host (about 5,000 small
+// keys or 100 MB a second, read and written once each) plus the restart of the
+// engine.
+type redisMoveInventory struct {
+	Keys                  int64    `json:"keys"`
+	UsedMemoryBytes       int64    `json:"usedMemoryBytes"`
+	PendingStreamEntries  int64    `json:"pendingStreamEntries"`
+	Blockers              []string `json:"blockers"`
+	EstimatedPauseSeconds int64    `json:"estimatedPauseSeconds"`
+}
+
+func redisMoveEstimatedPause(keys, bytes int64) int64 {
+	seconds := 3 + 2*(float64(keys)/5000+float64(bytes)/(100<<20))
+	return int64(seconds + 0.999)
+}
+
+// inventory scans every logical database (TYPE pipelined per SCAN page) and
+// the consumer groups of every stream.
+func (c *redisMoveConn) inventory(ctx context.Context, databases []int) (redisMoveInventory, error) {
+	result := redisMoveInventory{Blockers: []string{}}
 	found := map[string]int64{}
 	if indexes, err := c.do(ctx, "FT._LIST"); err == nil && len(indexes.items) > 0 {
 		found["search indexes"] = int64(len(indexes.items))
 	} else if err != nil && !isRedisUnknownCommand(err) {
-		return err
+		return result, err
+	}
+	if memory, err := c.do(ctx, "INFO", "memory"); err == nil {
+		for _, line := range strings.Split(memory.text, "\n") {
+			if value, ok := strings.CutPrefix(strings.TrimSpace(line), "used_memory_dataset:"); ok {
+				result.UsedMemoryBytes, _ = strconv.ParseInt(value, 10, 64)
+			}
+		}
 	}
 	for _, database := range databases {
 		if _, err := c.do(ctx, "SELECT", strconv.Itoa(database)); err != nil {
-			return err
+			return result, err
 		}
+		var streams []string
 		cursor := "0"
 		for {
 			reply, err := c.do(ctx, "SCAN", cursor, "COUNT", redisMoveScanCount)
 			if err != nil {
-				return err
+				return result, err
 			}
 			if len(reply.items) != 2 {
-				return errors.New("unexpected SCAN answer")
+				return result, errors.New("unexpected SCAN answer")
 			}
 			cursor = reply.items[0].text
 			keys := reply.items[1].strings()
 			c.deadline(ctx, 2*time.Minute)
 			for _, key := range keys {
 				if err := writeRespCommand(c.w, []string{"TYPE", key}); err != nil {
-					return err
+					return result, err
 				}
 			}
 			if err := c.w.Flush(); err != nil {
-				return err
+				return result, err
 			}
-			for range keys {
+			for _, key := range keys {
 				kind, err := readResp(c.r)
 				if err != nil {
-					return err
+					return result, err
 				}
-				if kind.kind == '+' && kind.text != "none" && !redisMoveCopyableTypes[kind.text] {
+				if kind.kind != '+' || kind.text == "none" {
+					continue
+				}
+				result.Keys++
+				if kind.text == "stream" {
+					streams = append(streams, key)
+				}
+				if !redisMoveCopyableTypes[kind.text] {
 					name := redisMoveTypeNames[kind.text]
 					if name == "" {
 						name = "keys of type " + kind.text
@@ -853,22 +894,77 @@ func (c *redisMoveConn) refuseUncopyable(ctx context.Context, databases []int) e
 				break
 			}
 			if err := ctx.Err(); err != nil {
-				return err
+				return result, err
+			}
+		}
+		for _, stream := range streams {
+			groups, err := c.do(ctx, "XINFO", "GROUPS", stream)
+			if err != nil {
+				return result, err
+			}
+			for _, group := range groups.items {
+				result.PendingStreamEntries += group.fieldMap()["pending"].integer
 			}
 		}
 	}
 	if _, err := c.do(ctx, "SELECT", "0"); err != nil {
-		return err
+		return result, err
 	}
-	if len(found) == 0 {
-		return nil
-	}
-	names := make([]string, 0, len(found))
 	for name, count := range found {
-		names = append(names, fmt.Sprintf("%s (%d)", name, count))
+		result.Blockers = append(result.Blockers, fmt.Sprintf("%s (%d)", name, count))
 	}
-	sort.Strings(names)
-	return fmt.Errorf("Valkey cannot take over %s; remove them and move again", strings.Join(names, ", "))
+	sort.Strings(result.Blockers)
+	result.EstimatedPauseSeconds = redisMoveEstimatedPause(result.Keys, result.UsedMemoryBytes)
+	return result, nil
+}
+
+// refuseMove names why a move cannot start: data Valkey cannot take over, or
+// pending stream entries the caller did not accept to lose.
+func (inventory redisMoveInventory) refuseMove(acceptPendingStreamLoss bool) error {
+	if len(inventory.Blockers) > 0 {
+		return fmt.Errorf("Valkey cannot take over %s; remove them and move again", strings.Join(inventory.Blockers, ", "))
+	}
+	if inventory.PendingStreamEntries > 0 && !acceptPendingStreamLoss {
+		return fmt.Errorf("%d pending stream entries would not be moved and their consumers would not see them again; move again accepting their loss", inventory.PendingStreamEntries)
+	}
+	return nil
+}
+
+// moveToValkeyPreflight reports what moving a Redis key-value store to
+// Valkey would copy and what would stop it. It only reads the store.
+func (m *managedDatabaseManager) moveToValkeyPreflight(ctx context.Context, record managedDatabaseRecord, ownerPassword string) (string, error) {
+	if record.Type != "redis" {
+		return "", errors.New("only a key-value store can be moved to Valkey")
+	}
+	valkey, exists, err := m.managedRedisContainerRunsValkey(ctx, record.ContainerID)
+	if err != nil {
+		return "", err
+	}
+	if !exists {
+		return "", errors.New("the key-value store has no container")
+	}
+	if valkey {
+		return "", errors.New("the key-value store already runs Valkey")
+	}
+	address, err := m.managedContainerAddress(ctx, record.ContainerID, record.NetworkName)
+	if err != nil {
+		return "", fmt.Errorf("the store must be running: %w", err)
+	}
+	source, err := dialRedisMove(ctx, address, ownerPassword)
+	if err != nil {
+		return "", fmt.Errorf("connect to Redis: %w", err)
+	}
+	defer source.close()
+	databases, err := source.keyspaceDatabases(ctx)
+	if err != nil {
+		return "", err
+	}
+	inventory, err := source.inventory(ctx, databases)
+	if err != nil {
+		return "", err
+	}
+	data, err := json.Marshal(inventory)
+	return string(data), err
 }
 
 // copyFunctions keeps the Redis Functions libraries (Redis 7 and newer).

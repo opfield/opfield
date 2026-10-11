@@ -33,6 +33,18 @@ export interface ManagedDatabase {
   updatedAt: string;
 }
 
+/** What moving a key-value store from Redis to Valkey involves, checked on the node. */
+export interface ManagedDatabaseMoveToValkeyCheck {
+  fromVersion: string;
+  toVersion: string;
+  keys: number;
+  usedMemoryBytes: number;
+  pendingStreamEntries: number;
+  /** Data Valkey cannot take over (for example "Bloom filters (2)"); the move is refused while any remain. */
+  blockers: string[];
+  estimatedPauseSeconds: number;
+}
+
 export interface ManagedDatabaseCatalogEntry {
   type: DatabaseType;
   versions: string[];

@@ -333,9 +333,21 @@ export class ManagedDatabaseService {
   }> {
     return commercialModuleUnavailable();
   }
+  async moveToValkeyPreflight(_id: string): Promise<{
+    fromVersion: string;
+    toVersion: string;
+    keys: number;
+    usedMemoryBytes: number;
+    pendingStreamEntries: number;
+    blockers: string[];
+    estimatedPauseSeconds: number;
+  }> {
+    return commercialModuleUnavailable();
+  }
   async moveToValkey(
     _id: string,
-    _userId: string
+    _userId: string,
+    _options?: { acceptPendingStreamLoss?: boolean }
   ): Promise<{
     id: string;
     databaseConnectionId: string | null;

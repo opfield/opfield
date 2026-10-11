@@ -195,7 +195,7 @@ export const sessionsDb = base({
     id: uuid(3112),
     nodeId: dbNode.id,
     nodeAvailable: true,
-    version: "9.1.3",
+    version: "9.1.2",
     engine: "valkey",
     storageSizeBytes: 8 * GiB,
     runtimeConfig: { cpuCores: 1, memoryMb: 2048, swapMb: 0 },
@@ -388,7 +388,7 @@ export const managedDatabases: ManagedDatabase[] = databaseRows
 
 export const managedDatabaseCatalog = [
   { type: "postgres" as const, versions: ["18.4", "17.8", "16.10", "15.14"] },
-  { type: "redis" as const, versions: ["9.1.3"] },
+  { type: "redis" as const, versions: ["9.1.2"] },
   { type: "clickhouse" as const, versions: ["26.3.17.56", "25.8.28.1"] },
 ];
 

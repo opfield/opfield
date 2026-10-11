@@ -49,6 +49,7 @@ import {
   updateDatabaseMonitoringCache,
 } from "./database-detail/database-detail-state";
 import { ManagedDatabaseSettingsTab } from "./database-detail/ManagedDatabaseSettingsTab";
+import { MoveToValkeyDialog } from "./database-detail/MoveToValkeyDialog";
 import { PostgresConfigDialog } from "./database-detail/PostgresConfigDialog";
 import {
   PostgresExtensionsTab,
@@ -110,6 +111,7 @@ function DatabaseDetailContent({
   const [clickHouseConfigOpen, setClickHouseConfigOpen] = useState(false);
   const [redisConfigOpen, setRedisConfigOpen] = useState(false);
   const [postgresConfigOpen, setPostgresConfigOpen] = useState(false);
+  const [moveToValkeyOpen, setMoveToValkeyOpen] = useState(false);
   const [explorerFocused, setExplorerFocused] = useState(false);
   const [revealedCredentials, setRevealedCredentials] = useState<Record<string, unknown> | null>(
     null
@@ -611,25 +613,6 @@ function DatabaseDetailContent({
     }
   };
 
-  const moveToValkey = async () => {
-    if (!database?.managed || !canMoveToValkey || database.managed.status !== "ready") return;
-    const ok = await confirm({
-      title: "Move to Valkey",
-      description:
-        "Copies every key into Valkey 9.1.3 on the same node and switches this key-value store to it. Writes pause while the keys are copied; reads keep working. The Redis data stays on the node until the copy is verified, and the store goes back to Redis if anything fails. Bloom and cuckoo filters, time series, vector sets and search indexes cannot be moved: the move stops before changing anything if the store has them.",
-      confirmLabel: "Move to Valkey",
-      variant: "default",
-    });
-    if (!ok) return;
-    try {
-      const moved = await api.moveManagedDatabaseToValkey(database.managed.id);
-      toast.success(moved.status === "updating" ? "Moving to Valkey" : "Moved to Valkey");
-      await load();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to move to Valkey");
-    }
-  };
-
   if (loading) return <DetailPageSkeleton label="Loading database" tabs={5} />;
   if (!database)
     return (
@@ -706,7 +689,7 @@ function DatabaseDetailContent({
               onConfigureClickHouse={() => setClickHouseConfigOpen(true)}
               onConfigureRedis={() => setRedisConfigOpen(true)}
               onConfigurePostgres={() => setPostgresConfigOpen(true)}
-              onMoveToValkey={() => void moveToValkey()}
+              onMoveToValkey={() => setMoveToValkeyOpen(true)}
               onRevealCredentials={() => void revealCredentials()}
               onRotateDirectCredentials={() => void rotateDirectCredentials()}
               onRotateCertificate={() => void rotateCertificate()}
@@ -975,6 +958,15 @@ function DatabaseDetailContent({
           open={clickHouseConfigOpen}
           onOpenChange={setClickHouseConfigOpen}
           onSaved={() => void load()}
+        />
+      )}
+
+      {canMoveToValkey && database.managed && (
+        <MoveToValkeyDialog
+          open={moveToValkeyOpen}
+          managedDatabaseId={database.managed.id}
+          onOpenChange={setMoveToValkeyOpen}
+          onMoved={() => void load()}
         />
       )}
 

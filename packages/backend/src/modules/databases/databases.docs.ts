@@ -37,6 +37,7 @@ import {
   ExecuteRedisCommandSchema,
   ExecuteSqlSchema,
   InsertSqlRowSchema,
+  MoveManagedDatabaseToValkeySchema,
   PostgresObjectSchema,
   RedisExpireKeySchema,
   RedisGetKeyQuerySchema,
@@ -159,7 +160,18 @@ export const moveManagedDatabaseToValkeyRoute = appRoute({
   tags: ['Databases'],
   summary: 'Move a key-value store that runs Redis to Valkey',
   description:
-    'Copies every key of a running key-value store that still runs Redis into Valkey on the same node and switches the store to it. Writes pause while the keys are copied; reads keep working. The Redis data stays on the node until the key counts match, and the store goes back to Redis if anything fails. A store holding keys that cannot be copied (Bloom or cuckoo filters, time series, vector sets, search indexes) is refused before anything changes, with the store left as it was.',
+    'Copies every key of a running key-value store that still runs Redis into Valkey on the same node and switches the store to it. Writes pause while the keys are copied; reads keep working. The Redis data stays on the node until the key counts match, and the store goes back to Redis if anything fails. A store holding keys that cannot be copied (Bloom or cuckoo filters, time series, vector sets, search indexes) is refused before anything changes, with the store left as it was. A store with pending entries in stream consumer groups is refused unless the body has `acceptPendingStreamLoss: true`: the groups are moved, their pending entries are not. Check the store first with GET on the same path.',
+  request: { params: IdParamSchema, ...optionalJsonBody(MoveManagedDatabaseToValkeySchema) },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const moveManagedDatabaseToValkeyPreflightRoute = appRoute({
+  method: 'get',
+  path: '/managed/{id}/move-to-valkey',
+  tags: ['Databases'],
+  summary: 'Check a key-value store before moving it to Valkey',
+  description:
+    'Reads the running store and answers what a move to Valkey would copy and what would stop it: `keys`, `usedMemoryBytes`, `pendingStreamEntries` (entries of stream consumer groups a move drops; the move then needs `acceptPendingStreamLoss: true`), `blockers` (data Valkey cannot take over; the move is refused while there are any), `estimatedPauseSeconds` (the expected time writes are unavailable), `fromVersion` and `toVersion`. Needs databases:edit.',
   request: { params: IdParamSchema },
   responses: okJson(UnknownDataResponseSchema),
 });

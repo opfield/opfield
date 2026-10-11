@@ -318,13 +318,14 @@ Pages serves immutable static Deployments owned by a Page Project. Use \`find_re
 Key-value stores work with Redis clients. The API, tools and saved connections keep the type \`redis\`; managed views also report \`engine\` (\`valkey\` or \`redis\`).
 
 ## Engines
-- New managed key-value stores run Valkey 9.1.3 with the JSON, Bloom and Search modules. The catalog lists only Valkey versions for \`redis\`; a create with an older Redis version gets the current Valkey version.
+- New managed key-value stores run Valkey 9.1.2 with the JSON, Bloom and Search modules. The catalog lists only Valkey versions for \`redis\`; a create with an older Redis version gets the current Valkey version.
 - Stores created before 2.12 keep running Redis (\`engine: "redis"\`) until the user runs Move to Valkey. Nothing moves them automatically.
 
 ## Move to Valkey
 - \`manage_managed_database\` \`move_to_valkey\` (REST \`POST /api/databases/managed/{id}/move-to-valkey\`, \`databases:edit\`) runs only on the user's request, on a running store that still runs Redis, on a node whose daemon supports Valkey.
 - The store is \`updating\` while it runs. Every key is copied into Valkey on the same node; writes pause while the keys are copied, reads keep working. The Redis data stays on the node until the key counts match.
 - If anything fails, the store goes back to Redis. A store holding keys that cannot be copied (Bloom or cuckoo filters, time series, vector sets, search indexes) is refused before anything changes: the store stays ready on Redis and \`lastError\` names the key types.
+- Check first with \`move_to_valkey_check\` (REST \`GET\` on the same path): \`keys\`, \`usedMemoryBytes\`, \`estimatedPauseSeconds\` (expected write pause), \`blockers\` (data Valkey cannot take over; the move is refused while there are any) and \`pendingStreamEntries\`. Stream consumer groups move with their last delivered ID, but their pending entries do not: with pending entries the move needs \`acceptPendingStreamLoss: true\`, set only after the user accepted the loss.
 - Refusals: \`MANAGED_DATABASE_ALREADY_VALKEY\`, \`MANAGED_DATABASE_NOT_RUNNING\`, \`MANAGED_DATABASE_DAEMON_UPDATE_REQUIRED\` (update the node daemon first), \`MANAGED_DATABASE_OPERATION_PENDING\`.
 
 ## Backups
