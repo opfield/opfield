@@ -67,6 +67,23 @@ const envSchema = z.object({
   // Cloud account portal that a connected installation enrols with and keeps its cloud link socket to.
   CLOUD_PORTAL_URL: z.string().url().default(DEFAULT_CLOUD_PORTAL_URL),
 
+  // License service address(es), comma-separated, tried before the ones Opfield finds by itself (docs/licensing.md).
+  LICENSE_SERVICE_URL: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z
+      .string()
+      .refine(
+        (value) =>
+          value
+            .split(',')
+            .map((entry) => entry.trim())
+            .filter(Boolean)
+            .every((entry) => URL.canParse(entry) && /^https?:$/.test(new URL(entry).protocol)),
+        'LICENSE_SERVICE_URL must be a comma-separated list of http(s) URLs'
+      )
+      .optional()
+  ),
+
   // Managed inference core. The distribution image repository is derived from
   // the Gateway's own image; the override exists for development/lab installs
   // where the Gateway image is a local build without the production repo name.

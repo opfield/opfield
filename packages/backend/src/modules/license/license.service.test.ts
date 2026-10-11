@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { LEGACY_LICENSE_SERVER_URLS } from '@/config/vendor-urls.js';
+import { LICENSE_SERVICE_URLS } from '@/config/vendor-urls.js';
 import { LicenseServerRequestError, LicenseService } from './license.service.js';
 import {
   COMMUNITY_ENTITLEMENTS,
@@ -162,8 +162,8 @@ function errorResponse(code: string, message: string, status = 409) {
   });
 }
 
-/** One request that gets no answer at all tries every address of the license server. */
-const LICENSE_SERVER_ADDRESSES = 1 + LEGACY_LICENSE_SERVER_URLS.length;
+/** One request that gets no answer at all tries every address of the license service. */
+const LICENSE_SERVER_ADDRESSES = LICENSE_SERVICE_URLS.length;
 
 function registerResponse(state = communityState()) {
   return dataResponse(
@@ -475,7 +475,7 @@ describe('LicenseService', () => {
     });
   });
 
-  it('falls back to the earlier license server name only when the current one gives no answer', async () => {
+  it('moves on to the next license service address only when one gives no answer', async () => {
     const db = createDb();
     const fetcher = vi
       .fn()
@@ -492,14 +492,32 @@ describe('LicenseService', () => {
     expect(await service.getStatus()).toMatchObject({ registrationStatus: 'registered' });
   });
 
-  it('does not retry an HTTP answer from the license server on an earlier name', async () => {
+  it('does not retry an answer from the license service on another address', async () => {
     const db = createDb();
-    const fetcher = vi.fn().mockImplementation(async () => new Response('{}', { status: 503 }));
+    const fetcher = vi.fn().mockImplementation(() => errorResponse('LICENSE_SERVER_ERROR', 'Unavailable', 503));
     const service = createService(db, fetcher);
 
     await service.heartbeat();
 
     expect(fetcher).toHaveBeenCalledOnce();
+  });
+
+  it('treats a response that is not the license service, such as a proxy error page, as no answer', async () => {
+    const db = createDb();
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('<html>Bad gateway</html>', { status: 502 }))
+      .mockResolvedValueOnce(new Response('{}', { status: 404 }))
+      .mockImplementation(() => registerResponse());
+    const service = createService(db, fetcher);
+
+    await service.heartbeat();
+
+    expect(fetcher.mock.calls.map(([url]) => new URL(url).origin)).toEqual(LICENSE_SERVICE_URLS);
+    expect(await service.getStatus()).toMatchObject({
+      registrationStatus: 'registered',
+      serverUrl: LICENSE_SERVICE_URLS[2],
+    });
   });
 
   it('keeps Community usable and pending when automatic registration is unavailable', async () => {

@@ -3,12 +3,19 @@
  * at once; CLOUD_PORTAL_URL, RELEASES_API_URL and ARTIFACT_BASE_URL can still be overridden through the environment
  * (see env.ts).
  */
-export const LICENSE_SERVER_URL = 'https://license.opfield.dev';
 /**
- * Earlier names of the same license server. They stay served forever; requests fall back to them only when the
- * primary address cannot be reached at all (DNS, egress allowlists written for older releases).
+ * Built-in addresses of the license service, in the order they are tried (config/license-service.json, the list CI and
+ * the release scripts read, holds the same). Every address serves the same license service and stays served; the signed
+ * endpoints document published with the release feed (LICENSE_ENDPOINTS_DOCUMENT) can name newer ones, and
+ * LICENSE_SERVICE_URL overrides them (see license-endpoints.ts).
  */
-export const LEGACY_LICENSE_SERVER_URLS: readonly string[] = ['https://license.thesqlabs.com'];
+export const LICENSE_SERVICE_URLS: readonly string[] = [
+  'https://license.opfield.dev',
+  'https://license.thesqlabs.com',
+  'https://license.wiolett.cloud',
+];
+/** The signed list of license service addresses, served by the update Worker under every update host name. */
+export const LICENSE_ENDPOINTS_DOCUMENT = 'license-endpoints.json';
 export const DEFAULT_CLOUD_PORTAL_URL = 'https://account.opfield.dev';
 /** Release feed and artifact host (the update Worker): `${UPDATES_BASE_URL}/releases`, `/<package>/<tag>/<file>`. */
 export const UPDATES_BASE_URL = 'https://get.opfield.dev/gateway';

@@ -15,6 +15,8 @@ It exposes:
   installers an Opfield release carries (`install.sh`, `setup-*.sh`, `gateway-daemon-installers.sha256`), in GitHub's
   release download layout
 - `GET|HEAD /` and `/install.sh`: `install.sh` of the latest stable release (cached for 5 minutes)
+- `GET|HEAD /gateway/license-endpoints.json`: the signed list of license service addresses
+  (`scripts/release/license-endpoints.mjs`), an asset of the latest stable release (cached for 5 minutes)
 
 `stable` is the default and excludes GitHub prereleases. `preview` additionally accepts release-candidate tags such as `v2.10.0-rc.1`, `v2.10.0-rc.1-relay`, and matching daemon component tags. Component-aware requests return the newest patch on the current minor first, otherwise the baseline release of the next minor; no update returns `204` with `Cache-Control: no-store`. Inference Core ignores the requested channel and remains stable-only. Its tags are `vX.Y.Z-opfield.N`, earlier `-thesqlabs.N` and `-wiolett.N`; on the same base version every build of a later line is newer than every build of an earlier one.
 
