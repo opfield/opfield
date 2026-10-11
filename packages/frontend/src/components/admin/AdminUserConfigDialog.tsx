@@ -492,7 +492,7 @@ export function AdminUserConfigDialog({
               {sessions.map((session) => (
                 <div
                   key={session.id}
-                  className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex items-center justify-between gap-3 px-3 py-3"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">
@@ -504,13 +504,15 @@ export function AdminUserConfigDialog({
                     </p>
                   </div>
                   <Button
-                    variant="outline"
-                    size="sm"
+                    variant="ghost"
+                    size="icon-sm"
                     onClick={() => revokeSession(session.id)}
                     pending={isBusy(`session:${session.id}`)}
                     disabled={saving}
+                    aria-label={`Revoke session from ${session.userAgent || session.ipAddress || "unknown browser"}`}
+                    title="Revoke session"
                   >
-                    Revoke
+                    <Trash2 />
                   </Button>
                 </div>
               ))}
