@@ -788,6 +788,44 @@ describe('UpdateService foundation migration', () => {
     expect(dockerService.pullImageRef).toHaveBeenCalledWith(artifact.imageRef);
   });
 
+  it('updates an install running the earlier repository to a release signed for either official repository', async () => {
+    for (const repository of OFFICIAL_IMAGE_REPOSITORIES) {
+      const dockerService = makeDockerService();
+      dockerService.inspectSelf.mockResolvedValue({
+        Config: {
+          Image: 'ghcr.io/the-square-labs/gateway:v2.11.5',
+          Labels: {
+            'com.docker.compose.project.working_dir': '/srv/gateway',
+            'com.docker.compose.project': 'gateway',
+          },
+        },
+      });
+      const service = makeUpdateService(dockerService, undefined, {
+        GATEWAY_UPDATE_IMAGE_REPOSITORIES: OFFICIAL_IMAGE_REPOSITORIES.join(','),
+      });
+      const artifact = makeArtifact(`${repository}@sha256:${'c'.repeat(64)}`);
+      artifact.payload.image = repository;
+
+      await service.performUpdate('v2.4.3', artifact);
+
+      expect(dockerService.pullImageRef).toHaveBeenCalledWith(artifact.imageRef);
+    }
+  });
+
+  it('still refuses a signed Gateway image outside the official repositories', async () => {
+    const dockerService = makeDockerService();
+    const service = makeUpdateService(dockerService, undefined, {
+      GATEWAY_UPDATE_IMAGE_REPOSITORIES: OFFICIAL_IMAGE_REPOSITORIES.join(','),
+    });
+    const artifact = makeArtifact(`ghcr.io/opfield/other@sha256:${'c'.repeat(64)}`);
+    artifact.payload.image = 'ghcr.io/opfield/other';
+
+    await expect(service.performUpdate('v2.4.3', artifact)).rejects.toThrow(
+      'is not an allowed Gateway image repository'
+    );
+    expect(dockerService.pullImageRef).not.toHaveBeenCalled();
+  });
+
   it('prepares a custom sandbox workspace directory from the migrator output', async () => {
     const dockerService = makeDockerService();
     dockerService.runOneShot
