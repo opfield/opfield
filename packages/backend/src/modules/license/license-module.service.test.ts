@@ -108,7 +108,7 @@ describe('paid module activation', () => {
   it('never tells browsers an update ended when another update won the race', async () => {
     const f = fixture();
     f.updates.performUpdate.mockRejectedValueOnce(
-      new AppError(409, 'UPDATE_IN_PROGRESS', 'A Gateway update is already in progress')
+      new AppError(409, 'UPDATE_IN_PROGRESS', 'An Opfield update is already in progress')
     );
     await f.service.ensureAvailable();
     f.jobs[0]();

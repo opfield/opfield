@@ -2,7 +2,7 @@
 
 [Back to README](../README.md)
 
-Gateway is an Nx and pnpm monorepo with TypeScript app packages and Go daemon packages.
+Opfield is an Nx and pnpm monorepo with TypeScript app packages and Go daemon packages.
 
 ## Requirements
 
@@ -88,12 +88,12 @@ Configure the canonical URL, authentication, and structured logging through the 
 gateway/
 +-- packages/
 |   +-- backend/          # Hono backend, REST API, OAuth, MCP, gRPC, jobs
-|   +-- frontend/         # React + Vite Gateway UI
+|   +-- frontend/         # React + Vite Opfield UI
 |   +-- status-page/      # Public status page frontend
 |   +-- logging-sdk/      # TypeScript structured logging client
 |   +-- gateway-inference/ # Interactive Codex/Claude Code inference companion
 |   +-- update-service/    # Cloudflare Worker for GitHub release discovery and signed assets
-|   +-- relay/            # Local long-lived Gateway relay worker
+|   +-- relay/            # Local long-lived Opfield relay worker
 |   +-- daemons/
 |       +-- nginx/        # nginx management daemon
 |       +-- docker/       # Docker management daemon
@@ -104,7 +104,7 @@ gateway/
 |       +-- secure-link-connector/ # Docker-to-nginx Secure Link sidecar
 |       +-- shared/       # shared Go packages and generated protobuf
 +-- proto/                # protobuf service definitions
-+-- scripts/              # Gateway and daemon installers
++-- scripts/              # Opfield and daemon installers
 +-- skills/               # agent skills served as gateway://skills (synced from gateway-skills)
 +-- docker-compose.yml    # production compose stack
 +-- docker-compose.dev.yml
@@ -235,10 +235,27 @@ pnpm test:daemon
 pnpm lint:daemon
 ```
 
-Run `pnpm proto` whenever the Gateway daemon or Relay protobuf contracts change. The daemon update command schema is part of the signed update trust boundary, so keep generated Go stubs and backend TypeScript command types aligned.
+Run `pnpm proto` whenever the Opfield daemon or Relay protobuf contracts change. The daemon update command schema is part of the signed update trust boundary, so keep generated Go stubs and backend TypeScript command types aligned.
 
 For full release confidence:
 
 ```bash
 pnpm build:all
 ```
+
+## Release Images
+
+Workflows `Image` and `Release` publish every image under `ghcr.io/the-square-labs/gateway` (`…/relay`,
+`…/secure-link-connector`, `…/backup-runner`, …). Installed releases pin that repository: signed update manifests
+name it and updates accept only it, so it stays fixed when the GitHub repository or organization moves. The
+repository variable `GATEWAY_IMAGE` overrides it for forks.
+
+Dual publishing to a second repository is opt-in:
+
+| Setting | Kind | Effect |
+| --- | --- | --- |
+| `GATEWAY_IMAGE_MIRROR` | repository variable | For example `ghcr.io/opfield/opfield`. Every release tag (`vX.Y.Z`, `X.Y.Z`, `latest`) of the Opfield, relay, secure-link connector and backup-runner images is copied there with the same digest. Unset: nothing is mirrored and nothing fails. |
+| `GHCR_PUSH_TOKEN` | repository secret | A token that can write packages in both organizations (a classic token with `write:packages`). Needed when the repository and one of the image repositories live in different organizations, for example mirroring to the new organization before the move or keeping the old path after it. Without it the workflow token is used. |
+
+Keep publishing to the old repository for at least a year after a move: GHCR does not redirect image pulls the way
+GitHub redirects release download URLs.

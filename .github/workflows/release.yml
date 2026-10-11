@@ -21,7 +21,12 @@ concurrency:
 
 env:
   CI: 'true'
-  GATEWAY_IMAGE: ghcr.io/${{ github.repository_owner }}/gateway
+  # Installs pin this repository (signed manifests name it), so it stays fixed across a repository or organization
+  # move. GATEWAY_IMAGE_MIRROR (repository variable, e.g. ghcr.io/opfield/opfield) additionally receives every
+  # release tag with the same digest; unset, nothing is mirrored. GHCR_PUSH_TOKEN (optional secret) is a token that
+  # can write packages in both organizations; without it the workflow token is used. See docs/development.md.
+  GATEWAY_IMAGE: ${{ vars.GATEWAY_IMAGE || 'ghcr.io/the-square-labs/gateway' }}
+  GATEWAY_IMAGE_MIRROR: ${{ vars.GATEWAY_IMAGE_MIRROR }}
 
 jobs:
   gateway:
@@ -81,7 +86,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ github.token }}
+          password: ${{ secrets.GHCR_PUSH_TOKEN || github.token }}
 
       - name: Set up builder
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
@@ -145,6 +150,14 @@ jobs:
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
           docker buildx imagetools create --tag "${GATEWAY_IMAGE}/backup-runner:${GITHUB_REF_NAME}" "$RUNNER_IMAGE"
           echo "Published ${GATEWAY_IMAGE}@${digest}"
+          if [[ -n "$GATEWAY_IMAGE_MIRROR" ]]; then
+            docker buildx imagetools create \
+              --tag "${GATEWAY_IMAGE_MIRROR}:${GITHUB_REF_NAME}" \
+              --tag "${GATEWAY_IMAGE_MIRROR}:${GITHUB_REF_NAME#v}" \
+              "${GATEWAY_IMAGE}@${digest}"
+            docker buildx imagetools create --tag "${GATEWAY_IMAGE_MIRROR}/backup-runner:${GITHUB_REF_NAME}" "$RUNNER_IMAGE"
+            echo "Mirrored ${GATEWAY_IMAGE}@${digest} to ${GATEWAY_IMAGE_MIRROR}"
+          fi
 
       - name: Smoke-test the bundled backup runner
         if: ${{ steps.tag.outputs.prerelease != 'true' }}
@@ -191,11 +204,11 @@ jobs:
         run: |
           git for-each-ref "refs/tags/${GITHUB_REF_NAME}" --format='%(contents)' > release-notes.md
           if ! grep -q '[^[:space:]]' release-notes.md; then
-            printf 'Gateway release %s\n' "$GITHUB_REF_NAME" > release-notes.md
+            printf 'Opfield release %s\n' "$GITHUB_REF_NAME" > release-notes.md
           fi
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             test "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" = true
-            args=(--title "Gateway ${GITHUB_REF_NAME}" --notes-file release-notes.md)
+            args=(--title "Opfield ${GITHUB_REF_NAME}" --notes-file release-notes.md)
             if [[ "$RELEASE_PRERELEASE" == "true" ]]; then
               args+=(--prerelease --latest=false)
             else
@@ -203,7 +216,7 @@ jobs:
             fi
             gh release edit "$GITHUB_REF_NAME" "${args[@]}"
           else
-            args=(--draft --verify-tag --title "Gateway ${GITHUB_REF_NAME}" --notes-file release-notes.md)
+            args=(--draft --verify-tag --title "Opfield ${GITHUB_REF_NAME}" --notes-file release-notes.md)
             if [[ "$RELEASE_PRERELEASE" == "true" ]]; then
               args+=(--prerelease --latest=false)
             fi
@@ -255,7 +268,11 @@ jobs:
         if: ${{ steps.tag.outputs.prerelease != 'true' }}
         env:
           DIGEST: ${{ steps.image.outputs.digest }}
-        run: docker buildx imagetools create --tag "${GATEWAY_IMAGE}:latest" "${GATEWAY_IMAGE}@${DIGEST}"
+        run: |
+          docker buildx imagetools create --tag "${GATEWAY_IMAGE}:latest" "${GATEWAY_IMAGE}@${DIGEST}"
+          if [[ -n "$GATEWAY_IMAGE_MIRROR" ]]; then
+            docker buildx imagetools create --tag "${GATEWAY_IMAGE_MIRROR}:latest" "${GATEWAY_IMAGE}@${DIGEST}"
+          fi
 
       # A stable Gateway release is the repository's Latest: releases/latest/download serves its installers.
       - name: Publish GitHub release
@@ -278,6 +295,7 @@ jobs:
     timeout-minutes: 30
     env:
       GH_TOKEN: ${{ github.token }}
+      GHCR_PUSH_TOKEN: ${{ secrets.GHCR_PUSH_TOKEN }}
       UPDATE_SIGNING_PRIVATE_KEY_PEM_B64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_PEM_B64 }}
     steps:
       - name: Check out tagged revision

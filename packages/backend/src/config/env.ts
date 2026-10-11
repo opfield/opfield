@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DEFAULT_CLOUD_PORTAL_URL } from './vendor-urls.js';
+import { DEFAULT_CLOUD_PORTAL_URL, UPDATES_BASE_URL } from './vendor-urls.js';
 
 export const DEVELOPMENT_SECURE_LINK_CONNECTOR_IMAGE = 'gateway-secure-link-connector:dev';
 export const BUILT_IN_GITHUB_OAUTH_CLIENT_ID = 'Ov23likbDL1gM8asWzfC';
@@ -52,8 +52,8 @@ const envSchema = z.object({
   COMPOSE_PROJECT_DIR: z.string().optional(),
 
   // Updates
-  RELEASES_API_URL: z.string().url().default('https://updates.thesqlabs.com/gateway/releases'),
-  ARTIFACT_BASE_URL: z.string().url().default('https://updates.thesqlabs.com/gateway'),
+  RELEASES_API_URL: z.string().url().default(`${UPDATES_BASE_URL}/releases`),
+  ARTIFACT_BASE_URL: z.string().url().default(UPDATES_BASE_URL),
   GATEWAY_UPDATE_IMAGE_REPOSITORIES: z.string().default('ghcr.io/the-square-labs/gateway'),
   INFERENCE_CORE_UPDATE_IMAGE_REPOSITORIES: z.string().default('ghcr.io/the-square-labs/inference-core'),
   UPDATE_CHECK_INTERVAL_HOURS: z.coerce.number().default(4),
@@ -143,7 +143,7 @@ export function getEnv(): Env {
     !OFFICIAL_CONNECTOR_RELEASE_TAG_PATTERN.test(parsedEnv.SECURE_LINK_CONNECTOR_IMAGE)
   ) {
     throw new Error(
-      'SECURE_LINK_CONNECTOR_IMAGE must use an immutable sha256 digest or an official Gateway Relay release tag in production'
+      'SECURE_LINK_CONNECTOR_IMAGE must use an immutable sha256 digest or an official Opfield Relay release tag in production'
     );
   }
   cachedEnv = parsedEnv;

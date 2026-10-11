@@ -447,7 +447,7 @@ describe('LicenseService', () => {
 
     expect(fetcher).toHaveBeenCalledOnce();
     const [url, request] = fetcher.mock.calls[0]!;
-    expect(url).toBe('https://license.thesqlabs.com/api/v1/installations/register');
+    expect(url).toBe('https://license.opfield.dev/api/v1/installations/register');
     const body = JSON.parse(request.body);
     expect(body).toMatchObject({
       installationName: 'gateway.example.com',
@@ -469,6 +469,33 @@ describe('LicenseService', () => {
       plan: 'community',
       registrationStatus: 'registered',
     });
+  });
+
+  it('falls back to the earlier license server name only when the current one gives no answer', async () => {
+    const db = createDb();
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockImplementation(() => registerResponse());
+    const service = createService(db, fetcher);
+
+    await service.heartbeat();
+
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      'https://license.opfield.dev/api/v1/installations/register',
+      'https://license.thesqlabs.com/api/v1/installations/register',
+    ]);
+    expect(await service.getStatus()).toMatchObject({ registrationStatus: 'registered' });
+  });
+
+  it('does not retry an HTTP answer from the license server on an earlier name', async () => {
+    const db = createDb();
+    const fetcher = vi.fn().mockImplementation(async () => new Response('{}', { status: 503 }));
+    const service = createService(db, fetcher);
+
+    await service.heartbeat();
+
+    expect(fetcher).toHaveBeenCalledOnce();
   });
 
   it('keeps Community usable and pending when automatic registration is unavailable', async () => {

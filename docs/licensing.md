@@ -2,17 +2,17 @@
 
 [Back to README](../README.md)
 
-Gateway is offered in four product plans: Community, Personal, Business, and Enterprise. Plans apply to one Gateway installation. Paid plans do not add per-node, per-user, or per-permission-group charges.
+Opfield is offered in four product plans: Community, Personal, Business, and Enterprise. Plans apply to one Opfield installation. Paid plans do not add per-node, per-user, or per-permission-group charges.
 
 The plan limits and feature availability below define the product access granted by each plan.
 
-Gateway source published by Square Labs is available under the [PolyForm Perimeter License 1.0.1](../LICENSE.md). It permits use, modification, and redistribution for noncompeting purposes, including ordinary internal business use. A Personal, Business, or Enterprise key unlocks the corresponding paid-plan features and limits for one official Gateway installation under the [Good Gateway Paid Key Terms 1.2](../COMMERCIAL-LICENSE.md).
+Opfield source is available under the [PolyForm Perimeter License 1.0.1](../LICENSE.md). It permits use, modification, and redistribution for noncompeting purposes, including ordinary internal business use. A Personal, Business, or Enterprise key unlocks the corresponding paid-plan features and limits for one official Opfield installation under the [Opfield Paid Key Terms 1.2](../COMMERCIAL-LICENSE.md).
 
-An ordinary paid key does not waive Perimeter's restriction on providing a product marketed as a substitute for Gateway. Competing hosted/SaaS, OEM, white-label, and resale offerings require a separate written agreement with Square Labs. Key expiration follows the plan-specific technical grace period, after which the same installation may keep operating paid-plan resources configured before expiration; renewal is required to create new paid-plan resources or expand into additional paid-only features. Revocation for breach, fraud, chargeback, or refund ends paid-plan access immediately, without grace, and under the Paid Key Terms also ends the right to continue operating paid-plan resources. Gateway itself never stops or deletes running workloads because of a license change; see [Grace periods and entitlement loss](#grace-periods-and-entitlement-loss).
+An ordinary paid key does not waive Perimeter's restriction on providing a product marketed as a substitute for Opfield. Competing hosted/SaaS, OEM, white-label, and resale offerings require a separate written agreement with Opfield. Key expiration follows the plan-specific technical grace period, after which the same installation may keep operating paid-plan resources configured before expiration; renewal is required to create new paid-plan resources or expand into additional paid-only features. Revocation for breach, fraud, chargeback, or refund ends paid-plan access immediately, without grace, and under the Paid Key Terms also ends the right to continue operating paid-plan resources. Opfield itself never stops or deletes running workloads because of a license change; see [Grace periods and entitlement loss](#grace-periods-and-entitlement-loss).
 
-Every official release includes the [Product Continuity MIT Grant](../CONTINUITY-MIT-GRANT.md), a source-continuity backstop for covered Square Labs code. The grant itself is the authoritative source for its scope, conditions, exclusions, and any MIT transition.
+Every official release includes the [Product Continuity MIT Grant](../CONTINUITY-MIT-GRANT.md), a source-continuity backstop for covered Opfield code. The grant itself is the authoritative source for its scope, conditions, exclusions, and any MIT transition.
 
-Entitlements schema version 5 is current. It adds storage connections, external database connections, managed object storage, AI Workspace Plan Mode, Scenarios, and AI sandboxes to every paid plan and moves GitLab integration out of Community. Version 4 kept `pages` on Personal, Business, and Enterprise, added `compose-applications` to every paid plan, and added `git-push-to-deploy` to Business and Enterprise. Gateway still accepts version 3 and version 4 grants, but they do not unlock the features added after them (managed Compose lifecycle and Git source builds for version 3, the version 5 features for both) until the license server reissues version 5 entitlements. Community grants include read-only external Compose discovery through the shared Docker feature but do not include Pages, managed Compose mutations, or GitLab integration.
+Entitlements schema version 5 is current. It adds storage connections, external database connections, managed object storage, AI Workspace Plan Mode, Scenarios, and AI sandboxes to every paid plan and moves GitLab integration out of Community. Version 4 kept `pages` on Personal, Business, and Enterprise, added `compose-applications` to every paid plan, and added `git-push-to-deploy` to Business and Enterprise. Opfield still accepts version 3 and version 4 grants, but they do not unlock the features added after them (managed Compose lifecycle and Git source builds for version 3, the version 5 features for both) until the license server reissues version 5 entitlements. Community grants include read-only external Compose discovery through the shared Docker feature but do not include Pages, managed Compose mutations, or GitLab integration.
 
 ## Plan Positioning
 
@@ -32,7 +32,7 @@ Entitlements schema version 5 is current. It adds storage connections, external 
 | Docker Container Management — Default Runtime (`runc`) | Ready | ✅ | ✅ | ✅ | ✅ |
 | External Compose Project Discovery, Monitoring, and Logs | Ready | ✅ | ✅ | ✅ | ✅ |
 | Docker ↔ Nginx Secure Links | Ready | ✅ | ✅ | ✅ | ✅ |
-| Private Gateway-Managed Internal Docker Registry | Ready | ✅ | ✅ | ✅ | ✅ |
+| Private Opfield-Managed Internal Docker Registry | Ready | ✅ | ✅ | ✅ | ✅ |
 | SSL/TLS Certificate Management | Ready | ✅ | ✅ | ✅ | ✅ |
 | Domain and DNS Management | Ready | ✅ | ✅ | ✅ | ✅ |
 | Infrastructure Monitoring | Ready | ✅ | ✅ | ✅ | ✅ |
@@ -42,11 +42,11 @@ Entitlements schema version 5 is current. It adds storage connections, external 
 | Folder- and Resource-Scoped Role-Based Access Control | Ready | ✅ | ✅ | ✅ | ✅ |
 | Audit Log | Ready | ✅ | ✅ | ✅ | ✅ |
 | REST API, OAuth, and MCP Automation | Ready | ✅ | ✅ | ✅ | ✅ |
-| General Gateway CLI | Expected in 2.13 | ✅ | ✅ | ✅ | ✅ |
+| General Opfield CLI | Expected in 2.13 | ✅ | ✅ | ✅ | ✅ |
 | AI Workspace Chat | Ready, opt-in | ✅ | ✅ | ✅ | ✅ |
-| Gateway Inference | Ready, opt-in | ✅ | ✅ | ✅ | ✅ |
+| Opfield Inference | Ready, opt-in | ✅ | ✅ | ✅ | ✅ |
 | Automated Installation and Signed Updates | Ready | ✅ | ✅ | ✅ | ✅ |
-| Gateway Configuration Export for Transfer to Another Instance | Expected in 2.12 | ✅ | ✅ | ✅ | ✅ |
+| Opfield Configuration Export for Transfer to Another Instance | Expected in 2.12 | ✅ | ✅ | ✅ | ✅ |
 | Managed Nodes | Plan limit | 25 | Unlimited | Unlimited | Unlimited |
 | Users | Plan limit | 3 | Unlimited | Unlimited | Unlimited |
 | Custom Permission Groups | Plan limit | 1 | Unlimited | Unlimited | Unlimited |
@@ -87,13 +87,13 @@ Entitlements schema version 5 is current. It adds storage connections, external 
 
 `In development` and `Expected in 2.x` identify future product availability separately from plan entitlement. A checkmark on such a row means the feature is intended to be included in that plan when released. Target versions are roadmap estimates, not currently available features.
 
-Workload Availability (HA) is available for mount-free Containers, Deployments, and whole Compose Projects on Business and Enterprise: 2–32 serving placements in Replicated mode or one serving placement with replacement in Failover mode. Once every node and relay of a workload runs 2.11, failover runs in the data plane (lease mode) and keeps working while Gateway is down; a license change never takes a policy out of lease mode (see [Data-Plane Failover](capabilities.md#data-plane-failover-lease-mode)). Ingress groups, which serve Routes, Pages Routes, and Domains from several nginx nodes, use the same Business and Enterprise entitlement; existing groups keep serving without it (see [Ingress Groups](capabilities.md#ingress-groups)). This is not HA for the Gateway control plane, registry storage, or shared volumes; metric autoscaling and same-node replicas remain in development.
+Workload Availability (HA) is available for mount-free Containers, Deployments, and whole Compose Projects on Business and Enterprise: 2–32 serving placements in Replicated mode or one serving placement with replacement in Failover mode. Once every node and relay of a workload runs 2.11, failover runs in the data plane (lease mode) and keeps working while Opfield is down; a license change never takes a policy out of lease mode (see [Data-Plane Failover](capabilities.md#data-plane-failover-lease-mode)). Ingress groups, which serve Routes, Pages Routes, and Domains from several nginx nodes, use the same Business and Enterprise entitlement; existing groups keep serving without it (see [Ingress Groups](capabilities.md#ingress-groups)). This is not HA for the Opfield control plane, registry storage, or shared volumes; metric autoscaling and same-node replicas remain in development.
 
 Runtime enforcement applies only to features marked ready. Community limits are enforced when creating a managed node, non-deleted user, or custom permission group; existing records are never deleted by a plan change. Storage-node enrollment is available on every plan, while creating a managed database requires Personal or higher.
 
 ### Grace periods and entitlement loss
 
-A paid plan can be lost by expiration, by a downgrade to a lower plan, by revocation, by moving the key to another installation (`replaced`), by explicit deactivation, or because Gateway cannot reach the license server. Until the matching grace period ends, everything keeps working exactly as before, including SIEM forwarding and external Docker-client access to the internal registry.
+A paid plan can be lost by expiration, by a downgrade to a lower plan, by revocation, by moving the key to another installation (`replaced`), by explicit deactivation, or because Opfield cannot reach the license server. Until the matching grace period ends, everything keeps working exactly as before, including SIEM forwarding and external Docker-client access to the internal registry.
 
 | Cause | Grace | Counted from |
 |---|---|---|
@@ -106,17 +106,17 @@ Revocation, replacement, and deactivation receive no grace because the [Paid Key
 
 After the grace period ends, the installation uses Community entitlements for new actions and keeps a continuity entitlement for the highest paid plan it held, as proven by a stored signed license state:
 
-- **Keeps working:** all existing workloads and the data plane (containers, deployments, Compose projects, routes, secure links, managed database and storage bindings and tunnels, relays, Pages deployments, PKI CRL downloads, structured-log ingestion); existing scheduled backups, their retention, and restores into existing databases; failover healing, start, stop, and restart of existing Availability workloads; failover, switching the primary, rebuilding copies, removing servers and turning availability off for databases and storage on several servers; scheduled syncs of existing GitLab connectors. For existing paid resources Gateway keeps viewing, logs, monitoring, connection tests, credential reveal and rotation, certificate revocation and export, and deletion.
+- **Keeps working:** all existing workloads and the data plane (containers, deployments, Compose projects, routes, secure links, managed database and storage bindings and tunnels, relays, Pages deployments, PKI CRL downloads, structured-log ingestion); existing scheduled backups, their retention, and restores into existing databases; failover healing, start, stop, and restart of existing Availability workloads; failover, switching the primary, rebuilding copies, removing servers and turning availability off for databases and storage on several servers; scheduled syncs of existing GitLab connectors. For existing paid resources Opfield keeps viewing, logs, monitoring, connection tests, credential reveal and rotation, certificate revocation and export, and deletion.
 - **Stops:** SIEM forwarding and external Docker-client access to the internal registry. SIEM keeps its configuration, delivery history, and already queued records, but new audit events are not queued while it is paused. The registry keeps its external entry point and settings, but its token endpoint issues no new tokens. Both resume on renewal without reconfiguration.
 - **Blocked:** creating paid resources, changing the configuration of existing paid resources, writing data through the database and object-storage explorers (deleting rows, keys, objects, and buckets remains available), and paid-only operations such as archive import/export, migration, audit export, and Git source builds. Creations above the Community node, user, and permission-group limits are refused. These return `LICENSE_ENTITLEMENT_REQUIRED` or `LICENSE_QUOTA_EXCEEDED`.
 
-Gateway never changes stored configuration, disables modules, or deletes managed resources because a plan changed. Renewing or reactivating a key restores full paid operations without rebuilding the existing infrastructure.
+Opfield never changes stored configuration, disables modules, or deletes managed resources because a plan changed. Renewing or reactivating a key restores full paid operations without rebuilding the existing infrastructure.
 
-An installation keeps receiving Gateway updates after its paid plan ends. An installation that holds or held a paid activation receives the matching private core with each update, so its existing paid resources keep running under the same rules; an installation that never held a paid plan updates as Community.
+An installation keeps receiving Opfield updates after its paid plan ends. An installation that holds or held a paid activation receives the matching private core with each update, so its existing paid resources keep running under the same rules; an installation that never held a paid plan updates as Community.
 
 The Operations Console shows plan badges on whole premium modules and uses one shared upgrade dialog for blocked actions. This UI is explanatory only; the backend independently enforces the same entitlements across REST, OAuth/MCP, AI tools, background workers, public PKI routes, and domain services. Missing features return `LICENSE_ENTITLEMENT_REQUIRED` (HTTP 403), reached plan limits return `LICENSE_QUOTA_EXCEEDED` (HTTP 409), and an internally inconsistent protected policy fails closed with a generic `SERVICE_UNAVAILABLE` response.
 
-AI Workspace and the separate multi-provider Gateway Inference are available in every plan. Both are opt-in and use administrator-configured providers, published models, access rules, and limits. Neither is required to operate Gateway through the Operations Console, REST API, OAuth, or MCP.
+AI Workspace and the separate multi-provider Opfield Inference are available in every plan. Both are opt-in and use administrator-configured providers, published models, access rules, and limits. Neither is required to operate Opfield through the Operations Console, REST API, OAuth, or MCP.
 
 AI Workspace includes guided operational Scenarios and Plan Mode. Plan Mode researches the requested outcome with read-only planning tools, validates a structured plan, and waits for explicit user confirmation before implementation. Confirmed plans expose progress controls and finish with a separate verification pass.
 
@@ -132,15 +132,19 @@ AI Workspace includes guided operational Scenarios and Plan Mode. Plan Mode rese
 | Business | $189 | $1,890 |
 | Enterprise | On request | On request |
 
-Contact [contact@thesqlabs.com](mailto:contact@thesqlabs.com) or [Good Gateway on Telegram](https://t.me/WiolettIndustries) for Enterprise terms.
+Contact [support@opfield.dev](mailto:support@opfield.dev) or [Opfield on Telegram](https://t.me/opfield) for Enterprise terms.
 
 ## Product License Verification
 
-Gateway verifies paid product license keys against:
+Opfield verifies paid product license keys against:
 
 ```text
-https://license.thesqlabs.com
+https://license.opfield.dev
 ```
+
+Releases up to 2.11 use `https://license.thesqlabs.com`, which serves the same license server and stays
+available. If `license.opfield.dev` cannot be reached at all, Opfield retries the request there, so an egress
+allowlist written for an older release keeps working; allow `license.opfield.dev` as well.
 
 Registration and activation flow:
 
@@ -152,32 +156,32 @@ Registration and activation flow:
    installation. It can be moved after explicit deactivation, or after the previous installation has
    been offline for more than one hour.
 4. The server returns the effective plan, license metadata, expiration, activation details, and
-   versioned entitlements as a signed state. Gateway stores credentials encrypted and caches the
+   versioned entitlements as a signed state. Opfield stores credentials encrypted and caches the
    latest signed state.
 
 Issuance of a paid key activates the paid-plan access described in [COMMERCIAL-LICENSE.md](../COMMERCIAL-LICENSE.md). Activation binds that entitlement to one installation at a time. Rights independently granted by PolyForm Perimeter do not depend on key activation, while paid product features can end when the server reports an authoritative non-valid state.
 
-Gateway sends paid heartbeats every 15 minutes and Community heartbeats every 30 minutes. If the
+Opfield sends paid heartbeats every 15 minutes and Community heartbeats every 30 minutes. If the
 license server is unreachable, a previously valid paid installation uses its last signed state for a
 100-day technical offline-validation grace period counted from that state's signed issue time. This
 connectivity grace does not extend paid product access beyond a known expiration deadline.
 
 After `expiresAt`, paid product entitlements remain active for 24 hours on Personal, 3 days on
-Business, and 7 days on Enterprise. During this period the server and Gateway report
+Business, and 7 days on Enterprise. During this period the server and Opfield report
 `expired_grace`, retain the original paid plan, expose `graceUntil`, and show an authenticated
-critical Dashboard warning. Gateway evaluates the deadline locally for every protected operation;
-at or after `graceUntil` it uses Community entitlements for new protected actions without waiting for another heartbeat. Existing paid resources and runtime modules remain in place and continue operating; Gateway does not reconcile ordinary expiration into service shutdown.
+critical Dashboard warning. Opfield evaluates the deadline locally for every protected operation;
+at or after `graceUntil` it uses Community entitlements for new protected actions without waiting for another heartbeat. Existing paid resources and runtime modules remain in place and continue operating; Opfield does not reconcile ordinary expiration into service shutdown.
 `revoked`, `replaced`, and `deactivated` remain immediate and receive no entitlement grace; existing
 paid resources keep running afterward as described in
 [Grace periods and entitlement loss](#grace-periods-and-entitlement-loss).
 
 ### Signed license states
 
-Every license state the server returns to Gateway is signed with Ed25519. The signed payload
+Every license state the server returns to Opfield is signed with Ed25519. The signed payload
 contains the installation ID, the request purpose (registration, heartbeat, activation,
-deactivation, or release authorization), a random nonce that Gateway sends with each request, the
+deactivation, or release authorization), a random nonce that Opfield sends with each request, the
 issue time, and the complete state: plan, paid license status, entitlements and their version,
-expiration, and `graceUntil`. Gateway release builds pin the license server's public keys by key ID
+expiration, and `graceUntil`. Opfield release builds pin the license server's public keys by key ID
 and apply a state only after verifying all of the following:
 
 - the signature is valid for a pinned key;
@@ -185,18 +189,18 @@ and apply a state only after verifying all of the following:
   captured response cannot be replayed or reused by another installation;
 - the issue time is within 15 minutes of the local clock.
 
-Gateway applies only the signed copy of a state, never the unsigned fields beside it. An unsigned,
+Opfield applies only the signed copy of a state, never the unsigned fields beside it. An unsigned,
 forged, replayed, stale, or foreign response is rejected like an unreachable server: the last valid
 signed state stays in force and the offline grace continues from its issue time. Registration and
 activation fail instead of storing credentials from an unsigned response, and a private core
 download is authorized only by a signed state for that request.
 
-Gateway stores the signed states and verifies them again whenever it reads the license, so editing
+Opfield stores the signed states and verifies them again whenever it reads the license, so editing
 the cached license in the database cannot raise the plan. A cached state without a valid signature,
 such as one written by a release that predates signed states, grants only Community entitlements and
 continuity for existing paid resources, and is replaced at the next successful heartbeat.
 
-Each request names the key IDs the Gateway release pins. The license server signs with the first
+Each request names the key IDs the Opfield release pins. The license server signs with the first
 key it holds from that list, which lets its signing key rotate without breaking installations that
 have not updated yet: a release pins the next key before the server starts using it.
 
@@ -204,42 +208,42 @@ Data sent to the license server:
 
 - Installation ID.
 - Installation name.
-- Gateway version.
+- Opfield version.
 - A locally generated registration nonce during registration.
 - A random request nonce and the pinned signing key IDs with every license request.
 - The installation token during heartbeats and license operations.
 - The paid license key only during activation.
 
-The installation name is derived from Gateway's persisted canonical public URL when possible, otherwise from the host name. Infrastructure configuration, managed-resource contents, logs, prompts, and model responses are not sent to the license server.
+The installation name is derived from Opfield's persisted canonical public URL when possible, otherwise from the host name. Infrastructure configuration, managed-resource contents, logs, prompts, and model responses are not sent to the license server.
 
 ## License Statuses
 
 | Status | Meaning |
 |---|---|
-| `community` | No paid product key is installed; Gateway is using Community status. |
+| `community` | No paid product key is installed; Opfield is using Community status. |
 | `valid` | The installed key is valid. After a downgrade, `graceUntil` shows when the higher plan's entitlements end. |
 | `expired_grace` | The key expired, but its original paid entitlements remain active until the plan-specific `graceUntil` deadline. |
-| `valid_with_warning` | The key was previously valid, but the license server is unreachable or its response was rejected, and Gateway remains within the offline grace. |
-| `unreachable_grace_expired` | Gateway cannot validate the key and the offline grace period expired, or the cached state carries no valid signature. New paid-only actions are blocked, but existing configured services remain running. |
+| `valid_with_warning` | The key was previously valid, but the license server is unreachable or its response was rejected, and Opfield remains within the offline grace. |
+| `unreachable_grace_expired` | Opfield cannot validate the key and the offline grace period expired, or the cached state carries no valid signature. New paid-only actions are blocked, but existing configured services remain running. |
 | `invalid` | The license key is not valid. |
-| `expired` | The plan-specific expiration grace ended. Gateway uses Community entitlements for new protected actions while preserving existing configured services. |
+| `expired` | The plan-specific expiration grace ended. Opfield uses Community entitlements for new protected actions while preserving existing configured services. |
 | `revoked` | The license key was revoked. Community entitlements apply immediately; existing configured services remain running. |
 | `replaced` | The license activation moved to another installation. Community entitlements apply immediately; existing configured services remain running. |
 | `deactivated` | The paid license was explicitly detached from this installation. Community entitlements apply immediately; existing configured services remain running. |
 
 ## Storage And Security
 
-Gateway stores a generated installation ID, an encrypted registration nonce, an encrypted
+Opfield stores a generated installation ID, an encrypted registration nonce, an encrypted
 installation token, the encrypted paid key when one is installed, and the latest signed state
 returned by the license server together with the signed state of the highest paid plan it held. Administrators can deactivate a paid license from **Settings > General >
 License**; the server binding is released before the local key is removed.
 
 ## Legal-use boundary
 
-Licensor-owned Gateway source is publicly available under the [PolyForm Perimeter License 1.0.1](../LICENSE.md). It permits use, modification, derivative works, and distribution for permitted purposes. The excluded purpose is providing to others a product marketed as a substitute for Gateway, regardless of whether that substitute is software, a hosted service, a port, or a free offering.
+Licensor-owned Opfield source is publicly available under the [PolyForm Perimeter License 1.0.1](../LICENSE.md). It permits use, modification, derivative works, and distribution for permitted purposes. The excluded purpose is providing to others a product marketed as a substitute for Opfield, regardless of whether that substitute is software, a hosted service, a port, or a free offering.
 
-The [Good Gateway Paid Key Terms 1.2](../COMMERCIAL-LICENSE.md) govern plan features, limits, grace, and continuity for Personal, Business, and Enterprise keys. A key does not limit rights independently available under Perimeter, and it does not automatically authorize an OEM, white-label, resale, competing hosted, or other substitute product. Those uses require a separate written agreement with the Licensor.
+The [Opfield Paid Key Terms 1.2](../COMMERCIAL-LICENSE.md) govern plan features, limits, grace, and continuity for Personal, Business, and Enterprise keys. A key does not limit rights independently available under Perimeter, and it does not automatically authorize an OEM, white-label, resale, competing hosted, or other substitute product. Those uses require a separate written agreement with the Licensor.
 
-The [Product Continuity MIT Grant](../CONTINUITY-MIT-GRANT.md) defines the complete source-continuity terms for covered Square Labs code. Refer to the grant itself for all triggers, exclusions, succession rules, and any MIT transition.
+The [Product Continuity MIT Grant](../CONTINUITY-MIT-GRANT.md) defines the complete source-continuity terms for covered Opfield code. Refer to the grant itself for all triggers, exclusions, succession rules, and any MIT transition.
 
-Third-party components remain governed by their own licenses. Already published Gateway releases remain governed by the terms distributed with those releases.
+Third-party components remain governed by their own licenses. Already published Opfield releases remain governed by the terms distributed with those releases.

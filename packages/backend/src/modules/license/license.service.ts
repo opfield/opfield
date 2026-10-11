@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import os from 'node:os';
 import { eq, inArray } from 'drizzle-orm';
 import type { Env } from '@/config/env.js';
+import { LEGACY_LICENSE_SERVER_URLS } from '@/config/vendor-urls.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { settings } from '@/db/schema/settings.js';
 import { type CommercialUpdateGrant, commercialVersionKey } from '@/edition/prepare-update.js';
@@ -325,7 +326,7 @@ export class LicenseService {
       edition: 'commercial',
       signedManifest: result.signedManifest,
       readFile: (path, releaseId) =>
-        this.fetcher(`${LICENSE_SERVER_URL}/api/v1/releases/file`, {
+        this.fetchLicenseServer('/api/v1/releases/file', () => ({
           method: 'POST',
           redirect: 'error',
           headers: { 'Content-Type': 'application/json' },
@@ -337,7 +338,7 @@ export class LicenseService {
             entitlementsVersion: LICENSE_ENTITLEMENTS_VERSION,
           }),
           signal: AbortSignal.timeout(10 * 60_000),
-        }),
+        })),
     };
   }
 
@@ -513,15 +514,32 @@ export class LicenseService {
     return nonce;
   }
 
+  /**
+   * The license server answers on its current address and on every earlier name. An earlier name is tried only when
+   * the current one gives no HTTP answer at all (DNS, an egress allowlist written for an older release), never after
+   * an HTTP response, so a refusal is not retried elsewhere.
+   */
+  private async fetchLicenseServer(path: string, init: () => RequestInit): Promise<Response> {
+    let lastError: unknown;
+    for (const base of [LICENSE_SERVER_URL, ...LEGACY_LICENSE_SERVER_URLS]) {
+      try {
+        return await this.fetcher(`${base}${path}`, init());
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError;
+  }
+
   private async post<T>(path: string, body: Record<string, unknown>): Promise<T> {
     let response: Response;
     try {
-      response = await this.fetcher(`${LICENSE_SERVER_URL}${path}`, {
+      response = await this.fetchLicenseServer(path, () => ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(10_000),
-      });
+      }));
     } catch {
       throw new LicenseServerRequestError(503, 'LICENSE_SERVER_UNAVAILABLE', 'License server is unavailable');
     }

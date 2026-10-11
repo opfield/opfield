@@ -5,9 +5,13 @@ set -euo pipefail
 tag=${GITHUB_REF_NAME:?GITHUB_REF_NAME is required}
 commit_sha=${GITHUB_SHA:?GITHUB_SHA is required}
 run_id=${GITHUB_RUN_ID:?GITHUB_RUN_ID is required}
-repository_owner=${GITHUB_REPOSITORY_OWNER:?GITHUB_REPOSITORY_OWNER is required}
 repository=${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}
-gateway_image="ghcr.io/${repository_owner,,}/gateway"
+# Installs pin this repository (signed manifests name it and updates only accept it), so it stays fixed across a
+# GitHub repository or organization move. GATEWAY_IMAGE overrides it for forks.
+gateway_image="${GATEWAY_IMAGE:-ghcr.io/the-square-labs/gateway}"
+# Optional second repository (repository variable GATEWAY_IMAGE_MIRROR, e.g. ghcr.io/opfield/opfield) that receives
+# every published tag with the same digest. Unset: nothing is mirrored. Signed manifests keep naming gateway_image.
+gateway_image_mirror="${GATEWAY_IMAGE_MIRROR:-}"
 source_url="https://github.com/${repository}"
 
 release_notes_file=release-notes.md
@@ -82,7 +86,21 @@ complete_release() {
 
 docker_login() {
   test -n "${GH_TOKEN:-}" || { printf 'GH_TOKEN is required\n' >&2; exit 1; }
-  printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+  # GHCR_PUSH_TOKEN (optional secret): a token that can write packages in both organizations, needed once the
+  # repository lives in another organization than gateway_image or gateway_image_mirror.
+  printf '%s' "${GHCR_PUSH_TOKEN:-$GH_TOKEN}" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+}
+
+# mirror_image <primary repository> <digest> <tag>...: copies a pushed image to the mirror repository.
+mirror_image() {
+  [[ -n "$gateway_image_mirror" ]] || return 0
+  local image=$1 digest=$2 target t
+  shift 2
+  target="${gateway_image_mirror}${image#"$gateway_image"}"
+  local args=()
+  for t in "$@"; do args+=(--tag "${target}:${t}"); done
+  docker buildx imagetools create "${args[@]}" "${image}@${digest}"
+  printf 'Mirrored %s@%s to %s\n' "$image" "$digest" "$target"
 }
 
 require_signing_key() {
@@ -102,7 +120,7 @@ publish_gateway() {
   local installers_dir=release-installers
   ./scripts/stage-installers.sh "$tag" "$installers_dir"
   local assets=(CONTINUITY-MIT-GRANT.md gateway-image.update.json "$installers_dir"/*)
-  prepare_release "Gateway ${tag}" "Gateway release ${tag}"
+  prepare_release "Opfield ${tag}" "Opfield release ${tag}"
   if [[ "$release_already_published" -eq 1 ]]; then
     complete_release "${assets[@]}"
     return
@@ -132,10 +150,13 @@ publish_gateway() {
   )
   docker tag "${gateway_image}:${tag}" "${gateway_image}:${tag#v}"
   docker push "${gateway_image}:${tag#v}"
+  local mirror_tags=("$tag" "${tag#v}")
   if [[ "$RELEASE_PRERELEASE" != "true" ]]; then
     docker tag "${gateway_image}:${tag}" "${gateway_image}:latest"
     docker push "${gateway_image}:latest"
+    mirror_tags+=(latest)
   fi
+  mirror_image "$gateway_image" "$digest" "${mirror_tags[@]}"
   complete_release "${assets[@]}"
 }
 
@@ -252,7 +273,7 @@ publish_relay() {
       "relay-worker-linux-${arch}.update.json"
     )
   done
-  prepare_release "Gateway Relay ${tag}" "Gateway Relay release ${tag}"
+  prepare_release "Opfield Relay ${tag}" "Opfield Relay release ${tag}"
   if [[ "$release_already_published" -eq 1 ]]; then
     complete_release "${assets[@]}"
     return
@@ -299,10 +320,14 @@ publish_relay() {
   build_daemon_assets relay relay-supervisor relay "main"
   docker tag "${relay_image}:${tag}" "${relay_image}:${relay_version}"
   docker push "${relay_image}:${relay_version}"
+  local mirror_tags=("$tag" "$relay_version")
   if [[ "$RELEASE_PRERELEASE" != "true" ]]; then
     docker tag "${relay_image}:${tag}" "${relay_image}:latest"
     docker push "${relay_image}:latest"
+    mirror_tags+=(latest)
   fi
+  mirror_image "$relay_image" "$relay_digest" "${mirror_tags[@]}"
+  mirror_image "$secure_link_image" "$secure_link_digest" "$tag"
   complete_release "${assets[@]}"
 }
 

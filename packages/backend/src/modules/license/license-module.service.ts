@@ -39,7 +39,7 @@ export class LicenseModuleService {
       throw new AppError(
         409,
         'COMMERCIAL_MODULE_ACTIVATION_UNAVAILABLE',
-        'Automatic activation requires a released Gateway version'
+        'Automatic activation requires a released Opfield version'
       );
     // Activation restarts Gateway through the update path: never start it on top of a running update.
     this.assertNoUpdateInProgress();
@@ -76,7 +76,7 @@ export class LicenseModuleService {
       throw new AppError(
         409,
         'UPDATE_IN_PROGRESS',
-        'A Gateway update is in progress. Activate paid features after it has finished.'
+        'An Opfield update is in progress. Activate paid features after it has finished.'
       );
   }
 }
