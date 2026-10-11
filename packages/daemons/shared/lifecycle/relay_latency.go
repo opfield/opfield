@@ -82,7 +82,7 @@ func runRelayLatencyProbes(ctx context.Context, conn *connector.Connector, plugi
 		targets, laneTargets := relayLatencyTargets(plugin)
 		due := dueRelayLatencyTargets(targets, probed, time.Now(), relaybridge.LatencySampleInterval)
 		if len(due) > 0 {
-			probeRelayLatencies(ctx, due, laneTargets, liveRelayTransports, conn.Address, relaybridge.Latency)
+			probeRelayLatencies(ctx, due, laneTargets, liveRelayTransports, conn.Address(), relaybridge.Latency)
 		}
 		timer.Reset(relayLatencyTick)
 	}

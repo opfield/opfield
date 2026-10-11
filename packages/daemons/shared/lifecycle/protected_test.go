@@ -64,10 +64,11 @@ func everyGatewayCommand(t *testing.T) []*pb.GatewayCommand {
 // The only shared commands a protected node runs. Everything else must be
 // allowed by the plugin.
 var protectedSharedAllowed = map[string]bool{
-	"request_health":        true,
-	"request_stats":         true,
-	"set_daemon_log_stream": true,
-	"update_daemon":         true,
+	"request_health":           true,
+	"request_stats":            true,
+	"set_daemon_log_stream":    true,
+	"update_daemon":            true,
+	"set_gateway_next_address": true,
 }
 
 func TestProtectedModeRefusesEveryCommandNotAllowed(t *testing.T) {

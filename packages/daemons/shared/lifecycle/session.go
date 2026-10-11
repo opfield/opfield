@@ -138,7 +138,7 @@ func (d *DaemonBase) buildRegistration() *pb.RegisterMessage {
 	if d.consoleUserRefusal != "" {
 		regMsg.Capabilities = append(regMsg.Capabilities, NodeConsoleUserUnavailableCapability)
 	}
-	regMsg.Capabilities = append(regMsg.Capabilities, CommandResultsResentCapability)
+	regMsg.Capabilities = append(regMsg.Capabilities, CommandResultsResentCapability, GatewayNextAddressCapability)
 	launcher := LauncherFeatures()
 	regMsg.Capabilities = append(regMsg.Capabilities, launcher.Capabilities()...)
 	regMsg.Capabilities = uniqueCapabilities(regMsg.Capabilities)
@@ -339,6 +339,7 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 		if !controlReady {
 			controlReady = true
 			d.sessionReceivedCommand = true
+			d.move.sessionStarted()
 			notifyLauncherControlReady(d.logger)
 			if err := recordGatewaySession(d.cfg.StateDir, receivedAt); err != nil {
 				d.logger.Warn("could not record the Opfield session for the installer", "error", err)
@@ -537,6 +538,12 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 				}
 				return result
 			})
+			continue
+		case *pb.GatewayCommand_SetGatewayNextAddress:
+			// A small config file edit: answered inline.
+			if failed, _, err := d.results.send(d.handleSetGatewayNextAddress(cmd), time.Now()); failed != nil {
+				return err
+			}
 			continue
 		case *pb.GatewayCommand_UpdateDaemon:
 			// Self-update: download new binary, replace it on disk, acknowledge the

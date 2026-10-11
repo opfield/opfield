@@ -65,6 +65,8 @@ type DaemonBase struct {
 	// protected is set at startup when the node owner turned protected mode
 	// on in the local config (protected.go). It never changes at run time.
 	protected bool
+	// move holds the address Opfield moves to (next_address.go); set in Run.
+	move *gatewayMove
 }
 
 // NewDaemonBase creates a new DaemonBase with the given plugin.
@@ -119,6 +121,7 @@ func (d *DaemonBase) Run(ctx context.Context) error {
 	// Step 2: Set up mTLS connector
 	tlsMgr := auth.NewTLSManager(d.cfg.TLS.CACert, d.cfg.TLS.ClientCert, d.cfg.TLS.ClientKey)
 	d.connector = connector.NewConnector(d.cfg.Gateway.Address, tlsMgr, d.logger)
+	d.startGatewayMove(ctx)
 
 	// Step 3: Start background cert renewal
 	go runCertRenewal(ctx, d)
@@ -154,6 +157,7 @@ func (d *DaemonBase) Run(ctx context.Context) error {
 		d.sessionReceivedCommand = false
 		startedAt := time.Now()
 		err := d.runSessionCycle(ctx)
+		d.move.sessionEnded()
 		if ctx.Err() != nil {
 			d.logger.Info("shutting down")
 			return nil

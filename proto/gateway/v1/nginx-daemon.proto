@@ -503,7 +503,20 @@ message GatewayCommand {
     // Storage-profile docker daemons (managed_availability_member_v1): this
     // node's member of a database or storage availability set.
     AvailabilityMemberCommand availability_member = 81;
+    // Every daemon advertising gateway_next_address_v1: the address Opfield
+    // moves to. See SetGatewayNextAddressCommand.
+    SetGatewayNextAddressCommand set_gateway_next_address = 82;
   }
+}
+
+// The address Opfield moves to (configuration export to another host). The
+// daemon keeps it next to its current Opfield address and switches its control
+// connection to it only after the current address stayed unreachable for a
+// while and the new one presents a certificate of the same System CA. An
+// empty address clears it.
+message SetGatewayNextAddressCommand {
+  // host:port, as the Opfield gRPC public target.
+  string address = 1;
 }
 
 // The witness processes a relay supervisor runs for availability sets (a

@@ -72,6 +72,9 @@ type RuntimeSupervisor struct {
 	Config   RuntimeConfig
 	lookPath func(string) (string, error)
 	run      func(string, ...string) error
+	// egressScriptPath is where ReapplyEgressPolicy writes the policy
+	// (DefaultEgressScriptPath when empty).
+	egressScriptPath string
 }
 
 func NewRuntimeSupervisor(config RuntimeConfig) *RuntimeSupervisor {
@@ -173,6 +176,28 @@ func (s *RuntimeSupervisor) Start() error {
 	if err := s.run("systemctl", "restart", buildkitServiceName); err != nil {
 		return err
 	}
+	return nil
+}
+
+// ReapplyEgressPolicy renders the egress policy of build steps for
+// controlPlaneAddress and applies it again (the egress unit runs it), leaving
+// containerd and BuildKit running: builds in progress continue. The daemon
+// calls it after Opfield moved to another address, so build steps stay fenced
+// off the control plane at its new address.
+func (s *RuntimeSupervisor) ReapplyEgressPolicy(controlPlaneAddress string) error {
+	config := s.Config
+	config.ControlPlaneAddress = controlPlaneAddress
+	path := s.egressScriptPath
+	if path == "" {
+		path = DefaultEgressScriptPath
+	}
+	if err := writeManagedFile(path, renderEgressScript(config), 0o700); err != nil {
+		return err
+	}
+	if err := s.run("systemctl", "restart", egressServiceName); err != nil {
+		return err
+	}
+	s.Config = config
 	return nil
 }
 

@@ -43,15 +43,18 @@ func pluginProtected(plugin DaemonPlugin) bool {
 
 // protectedCommandAllowed reports whether cmd may run on a protected node.
 // The shared lifecycle allows only health and stats requests, the log stream
-// switch for the daemon's own logs, a signed daemon update and the fixed
-// host-identity read (Gateway's own file, no caller-chosen path). Everything
+// switch for the daemon's own logs, a signed daemon update, the fixed
+// host-identity read (Gateway's own file, no caller-chosen path) and the
+// address Opfield moves to (the daemon switches to it only when it presents a
+// certificate of the same System CA, so it stays the same Opfield). Everything
 // else must be allowed by the plugin.
 func protectedCommandAllowed(plugin DaemonPlugin, cmd *pb.GatewayCommand) bool {
 	switch payload := cmd.GetPayload().(type) {
 	case *pb.GatewayCommand_RequestHealth,
 		*pb.GatewayCommand_RequestStats,
 		*pb.GatewayCommand_SetDaemonLogStream,
-		*pb.GatewayCommand_UpdateDaemon:
+		*pb.GatewayCommand_UpdateDaemon,
+		*pb.GatewayCommand_SetGatewayNextAddress:
 		return true
 	case *pb.GatewayCommand_NodeFile:
 		return payload.NodeFile.GetAction() == "ensure-host-identity"

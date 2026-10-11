@@ -33,6 +33,9 @@ type GatewayConfig struct {
 	Address    string `yaml:"address"`
 	Token      string `yaml:"token"`
 	CertSHA256 string `yaml:"cert_sha256"`
+	// NextAddress is the address Opfield announced it moves to
+	// (lifecycle.GatewayConfig.NextAddress).
+	NextAddress string `yaml:"next_address,omitempty"`
 }
 
 type TLSConfig struct {

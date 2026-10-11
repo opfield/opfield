@@ -14,6 +14,10 @@ type GatewayConfig struct {
 	Address    string `yaml:"address"`
 	Token      string `yaml:"token"`
 	CertSHA256 string `yaml:"cert_sha256"`
+	// NextAddress is the address Opfield announced it moves to (gateway next
+	// address). The daemon switches Address to it once Address stayed
+	// unreachable for a while and NextAddress answers.
+	NextAddress string `yaml:"next_address,omitempty"`
 }
 
 // TLSConfig holds the mTLS certificate paths.

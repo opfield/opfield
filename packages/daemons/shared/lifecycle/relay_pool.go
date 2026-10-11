@@ -170,6 +170,14 @@ func runRelayPoolTarget(
 		laneEnded := make(chan struct{}, laneCount)
 		laneDropped := make(chan struct{}, 1)
 		addresses := rotatedRelayAddresses(target.Addresses, addressOffset)
+		// A target without addresses is the relay at the Gateway address. When
+		// Opfield moved to another address (gateway next address), lanes that
+		// are down are rebuilt for the new one; lanes that are up stay up.
+		var controlMoved <-chan struct{}
+		if len(addresses) == 0 {
+			controlMoved = connector.AddressChanged()
+		}
+		staleControlAddress := false
 		// Each lane carries tunnels as soon as it is up: right after a start (a restart or update of the daemon) the
 		// connections the previous process handed over wait for the first lane, not for every lane of the relay.
 		openLanes := func(connectCtx context.Context) error {
@@ -236,8 +244,20 @@ func runRelayPoolTarget(
 			case <-laneEnded:
 				break lanesUp
 			case <-targetChanged:
+			case <-controlMoved:
+				controlMoved = nil
+				staleControlAddress = true
+				if !relayLanesReady(connections) {
+					logger.Info("Opfield address changed, replacing the lanes to its relay", "relay_instance_id", target.ID)
+					break lanesUp
+				}
+				continue
 			case <-laneDropped:
 				dropped = true
+				if staleControlAddress {
+					logger.Info("Opfield address changed, replacing the lanes to its relay", "relay_instance_id", target.ID)
+					break lanesUp
+				}
 			case <-missing:
 				attemptCtx, cancelAttempt := context.WithTimeout(ctx, relayLaneRetryAttempt)
 				if err := openLanes(attemptCtx); err != nil {

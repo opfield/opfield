@@ -40,9 +40,10 @@ func New(cfg *config.Config, cfgPath string, logger *slog.Logger) (*Daemon, erro
 	// Build base config from the nginx config
 	baseCfg := &lifecycle.BaseConfig{
 		Gateway: lifecycle.GatewayConfig{
-			Address:    cfg.Gateway.Address,
-			Token:      cfg.Gateway.Token,
-			CertSHA256: cfg.Gateway.CertSHA256,
+			Address:     cfg.Gateway.Address,
+			Token:       cfg.Gateway.Token,
+			CertSHA256:  cfg.Gateway.CertSHA256,
+			NextAddress: cfg.Gateway.NextAddress,
 		},
 		TLS: lifecycle.TLSConfig{
 			CACert:     cfg.TLS.CACert,
