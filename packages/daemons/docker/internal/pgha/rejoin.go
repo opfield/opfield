@@ -35,6 +35,8 @@ func (e *Engine) Rejoin(ctx context.Context) error {
 		return e.rebuild(ctx, config, "a rewind failed part-way")
 	case divergence == divergenceWALGone:
 		return e.rebuild(ctx, config, "the primary removed the WAL this member needs: "+detail)
+	case divergence == divergenceOtherCluster:
+		return e.rebuild(ctx, config, "the member's database cluster is not a copy of the primary's: "+detail)
 	}
 	if err := e.cleanShutdown(ctx, config); err != nil {
 		return err

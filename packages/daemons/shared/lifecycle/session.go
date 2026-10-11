@@ -324,6 +324,9 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 		}
 		receivedAt := time.Now()
 		clock.observe(cmd, receivedAt)
+		if contact, ok := d.plugin.(GatewayContactPlugin); ok {
+			contact.NoteGatewayContact()
+		}
 
 		// Terminal registration rejection: stop this session and back off.
 		if cmd.CommandId == registrationRejectedCommandID {

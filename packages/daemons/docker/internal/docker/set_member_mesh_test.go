@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/netip"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -81,9 +83,10 @@ func TestSetMeshCarriesExposedHostsToTheirAliases(t *testing.T) {
 func TestSetMeshDialsTheLocalPrimaryWhileItServes(t *testing.T) {
 	mesh, bridged := newTestMesh(t)
 	mesh.Expose(meshTestSet, "primary-sw-master", 9333, "primary-sw-master")
-	local := true
+	var local atomic.Bool
+	local.Store(true)
 	mesh.SetLocalPrimary(meshTestSet, func(_ context.Context, port string) (net.Conn, bool) {
-		if !local || port != "sw-master" {
+		if !local.Load() || port != "sw-master" {
 			return nil, false
 		}
 		client, server := net.Pipe()
@@ -94,7 +97,7 @@ func TestSetMeshDialsTheLocalPrimaryWhileItServes(t *testing.T) {
 	if got := readLine(t, addr); got != "local" {
 		t.Fatalf("the primary's own components reach its master locally, got %q", got)
 	}
-	local = false
+	local.Store(false)
 	if got := readLine(t, addr); got != "relay primary-sw-master" {
 		t.Fatalf("a copy reaches the primary through the relays, got %q", got)
 	}
@@ -124,5 +127,71 @@ func TestSetMeshLogsAFailedRouteOpenOnceAsWarning(t *testing.T) {
 		if !strings.Contains(lines[i], level) || !strings.Contains(lines[i], "no relay transport") {
 			t.Fatalf("line %d: want %s with the error, got %q", i, level, lines[i])
 		}
+	}
+}
+
+// A set's alias listeners never outlive it: when its network is gone (or the
+// set is released) the address is free again, so the next set that gets the
+// same subnet binds its listeners; a listener that cannot bind is reported.
+func TestSetMeshFreesTheAddressesOfASetThatLeft(t *testing.T) {
+	const nextSet = "22222222-2222-4222-8222-222222222222"
+	mesh, _ := newTestMesh(t)
+	mesh.listen = func(address string) (net.Listener, error) { return net.Listen("tcp", address) }
+	var mu sync.Mutex
+	networks := map[string]bool{setMeshNetworkName(meshTestSet): true, setMeshNetworkName(nextSet): true}
+	mesh.inspect = func(_ context.Context, name string) (netip.Addr, bool, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return netip.MustParseAddr("127.0.0.1"), networks[name], nil
+	}
+	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := uint16(probe.Addr().(*net.TCPAddr).Port)
+	address := probe.Addr().String()
+	_ = probe.Close()
+
+	mesh.Expose(meshTestSet, "primary-pg-repl", port, "primary-pg-repl")
+	meshListenerAddr(t, mesh, "primary-pg-repl")
+	if !mesh.boundIn(netip.MustParsePrefix("127.0.0.0/26")) {
+		t.Fatal("the bound subnet must not be handed out")
+	}
+	// The set was deleted and its network removed: its listener goes too.
+	mu.Lock()
+	networks[setMeshNetworkName(meshTestSet)] = false
+	mu.Unlock()
+	mesh.reconcile()
+	if conn, err := net.Dial("tcp", address); err == nil {
+		conn.Close()
+		t.Fatal("the listener of a set whose network is gone must be closed")
+	}
+	mesh.Release(context.Background(), meshTestSet)
+	if mesh.boundIn(netip.MustParsePrefix("127.0.0.0/26")) {
+		t.Fatal("a released set binds nothing")
+	}
+	// The next set on the same subnet binds the same address.
+	mesh.Expose(nextSet, "primary-pg-repl", port, "primary-pg-repl")
+	mesh.reconcile()
+	if failed := mesh.BindError(nextSet); failed != "" {
+		t.Fatalf("the next set must bind: %s", failed)
+	}
+	conn, err := net.Dial("tcp", address)
+	if err != nil {
+		t.Fatalf("the next set's listener: %v", err)
+	}
+	conn.Close()
+
+	// Something else holds an alias address: the member says so.
+	mesh.Release(context.Background(), nextSet)
+	holder, err := net.Listen("tcp", address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer holder.Close()
+	mesh.Expose(nextSet, "primary-pg-repl", port, "primary-pg-repl")
+	mesh.reconcile()
+	if failed := mesh.BindError(nextSet); !strings.Contains(failed, "could not bind") {
+		t.Fatalf("a bind failure must be reported, got %q", failed)
 	}
 }

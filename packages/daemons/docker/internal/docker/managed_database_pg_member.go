@@ -498,7 +498,8 @@ const pgStatusSQL = `SELECT pg_is_in_recovery(),
   coalesce((SELECT status FROM pg_stat_wal_receiver), ''),
   coalesce((SELECT received_tli::text FROM pg_stat_wal_receiver), ''),
   coalesce((SELECT latest_end_lsn::text FROM pg_stat_wal_receiver), ''),
-  current_setting('server_version_num')`
+  current_setting('server_version_num'),
+  (SELECT system_identifier::text FROM pg_control_system())`
 
 func (e *pgMember) Status(ctx context.Context) (pgha.ServerStatus, error) {
 	output, err := e.psql(ctx, pgStatusSQL)
@@ -507,10 +508,10 @@ func (e *pgMember) Status(ctx context.Context) (pgha.ServerStatus, error) {
 		return pgha.ServerStatus{}, nil
 	}
 	fields := strings.Split(strings.TrimSpace(output), "|")
-	if len(fields) != 9 {
+	if len(fields) != 10 {
 		return pgha.ServerStatus{}, fmt.Errorf("unexpected status row %q", strings.TrimSpace(output))
 	}
-	status := pgha.ServerStatus{Answering: true, InRecovery: fields[0] == "t", ReceiverStatus: fields[5]}
+	status := pgha.ServerStatus{Answering: true, InRecovery: fields[0] == "t", ReceiverStatus: fields[5], SystemID: fields[9]}
 	timeline, _ := strconv.ParseUint(fields[1], 10, 32)
 	status.Timeline = uint32(timeline)
 	received, _ := strconv.ParseUint(fields[6], 10, 32)

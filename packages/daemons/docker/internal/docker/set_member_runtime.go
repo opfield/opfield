@@ -166,6 +166,12 @@ func (a setMemberRuntimeAdapter) dialBackupSource(ctx context.Context, setID, me
 	return a.plugin.databaseManager.dial(ctx, config.OwnerID)
 }
 
+// NoteGatewayContact records that Gateway reached the daemon now (a command
+// arrived on the control stream).
+func (p *DockerPlugin) NoteGatewayContact() {
+	p.gatewayContactAt.Store(int64(leasefence.Now()))
+}
+
 // startSetMembers runs the availability set member runtime on a storage-profile
 // daemon, as the lease runtime's controller. Call before the lease runtime's
 // loop runs.
@@ -185,17 +191,23 @@ func (p *DockerPlugin) startSetMembers(runtime *lease.Runtime, fence lease.DirFe
 			return factory(p, config)
 		},
 		GatewayConnected: p.sessionLive.Load,
+		GatewayContactAt: func() time.Duration { return time.Duration(p.gatewayContactAt.Load()) },
 		PeerState:        p.setPeerState,
 		VerifyAssignment: func(setID string, assignment memberha.Assignment) error {
 			return runtime.Node().VerifyGatewaySigned(memberha.AssignmentDomain, assignment.SigningKeyID,
 				memberha.AssignmentStatement(setID, assignment), assignment.Signature)
 		},
+		// A member that leaves (lift, removal, set deleted) takes its member mesh with it.
+		Forgotten: func(setID string) { p.setMesh().Release(context.Background(), setID) },
 	}, store)
 	if err != nil {
 		return err
 	}
 	runtime.SetController(manager)
 	p.setMembers = manager
+	// Sets this node no longer has a member of keep no member mesh network
+	// (a set deleted while the daemon was down, or by an older daemon).
+	go p.setMesh().releaseOrphans(context.Background(), manager.Members)
 	p.SetSetMemberRuntime(setMemberRuntimeAdapter{manager: manager, plugin: p})
 	return nil
 }
@@ -307,6 +319,10 @@ func (p *DockerPlugin) availabilityMemberReports() []*pb.AvailabilityMemberRepor
 	reports := p.setMembers.Reports()
 	out := make([]*pb.AvailabilityMemberReport, 0, len(reports))
 	for _, report := range reports {
+		if failed := p.setMesh().BindError(report.SetID); failed != "" {
+			// The member cannot reach its peers: never eligible, and Gateway shows why.
+			report.LastError, report.Eligible, report.EligibilityReason = failed, false, "mesh_unavailable"
+		}
 		events := make([]*pb.AvailabilityMemberEvent, 0, len(report.Events))
 		for _, event := range report.Events {
 			events = append(events, &pb.AvailabilityMemberEvent{Sequence: event.Seq, Kind: event.Kind, AtUnixMs: event.AtUnixMs,

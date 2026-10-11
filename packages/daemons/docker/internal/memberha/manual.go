@@ -25,6 +25,10 @@ type manualRuntime struct {
 	peerGeneration uint64
 	peerPrimary    string
 	peerAt         time.Duration
+	// confirmedGen is the assignment generation Gateway or the peer confirmed
+	// to this process (in memory: a restart or a self-fence starts without
+	// one). A member promotes only under a confirmed assignment.
+	confirmedGen uint64
 }
 
 // manualStepLocked is the decision of one manual-pair member (decision 6):
@@ -59,8 +63,11 @@ func (m *Manager) manualStepLocked(mem *member, now time.Duration) {
 	primary := assignment.PrimaryMemberID == mem.cfg.MemberID && assignment.Generation > 0 && !newerPeer &&
 		!mem.state.Stopped
 	if primary && mem.state.SelfFenced == assignment.Generation {
-		if now-mem.manual.lastContact < selfFenceAfter {
-			// Gateway or the peer is back and no newer assignment exists: serve again.
+		// A self-fenced member never promotes on its own: only once Gateway or
+		// the peer confirmed that the newest assignment still names it (a
+		// newer one naming the copy may exist that it has not heard of).
+		if now-mem.manual.lastContact < selfFenceAfter && mem.manual.confirmedGen == assignment.Generation {
+			// Gateway or the peer is back and confirmed the assignment: serve again.
 			mem.state.SelfFenced = 0
 			if m.saveLocked(mem) != nil {
 				return
@@ -96,6 +103,7 @@ func (m *Manager) manualPrimaryStepLocked(mem *member, now time.Duration) {
 	if now-mem.manual.lastContact >= selfFenceAfter {
 		// One failure never stops writes; Gateway down and the peer down does.
 		mem.state.SelfFenced = assignment.Generation
+		mem.manual.confirmedGen = 0
 		if m.saveLocked(mem) != nil {
 			return
 		}
@@ -120,6 +128,13 @@ func (m *Manager) manualPrimaryStepLocked(mem *member, now time.Duration) {
 	if !obs.status.Writable {
 		m.closeServingLocked(mem)
 		if now < mem.holder.nextPromoteAt {
+			return
+		}
+		if mem.manual.confirmedGen != assignment.Generation {
+			// Promote only under an assignment Gateway or the peer confirmed to
+			// this process (after a restart or a fence the stored one may be
+			// stale); Gateway sends it again to an assigned primary that does
+			// not serve, the peer answers within peerProbeInterval.
 			return
 		}
 		generation := assignment.Generation
@@ -182,7 +197,13 @@ func (m *Manager) contactLocked(mem *member, now time.Duration) {
 		// could reach anyone.
 		mem.manual.lastContact = now
 	}
-	if m.deps.GatewayConnected() {
+	if m.deps.GatewayContactAt != nil {
+		// The last command that arrived from Gateway: a session that is dead
+		// without knowing it yet (keepalive) is no contact.
+		if at := m.deps.GatewayContactAt(); at > 0 && at <= now && at > mem.manual.lastContact {
+			mem.manual.lastContact = at
+		}
+	} else if m.deps.GatewayConnected() {
 		mem.manual.lastContact = now
 	}
 	if mem.manual.peerReachable && now-mem.manual.peerAt <= peerProbeInterval+peerProbeTimeout {
@@ -218,7 +239,7 @@ func (m *Manager) contactLocked(mem *member, now time.Duration) {
 				mem.manual.peerGeneration, mem.manual.peerPrimary, mem.manual.peerAt = 0, "", at
 				if verified != nil {
 					mem.manual.peerGeneration, mem.manual.peerPrimary = verified.Generation, verified.PrimaryMemberID
-					if verified.Generation > mem.state.Assignment.Generation {
+					if verified.Generation >= mem.state.Assignment.Generation {
 						if err := m.adoptAssignmentLocked(mem, *verified, "peer"); err != nil {
 							m.setErrorLocked(mem, "could not adopt the peer's primary assignment: "+err.Error())
 						}

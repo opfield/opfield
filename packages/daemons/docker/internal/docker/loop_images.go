@@ -79,12 +79,17 @@ type loopHost struct {
 	directIO func(ctx context.Context, device string) error
 	// placeholder mounts the read-only empty placeholder at path.
 	placeholder func(ctx context.Context, path string) error
+	// autoclear makes a mounted loop device detach by itself once nothing
+	// holds it (the last unmount, also of a daemon that died); nil leaves
+	// devices as they are.
+	autoclear func(device string) error
 }
 
 var systemLoopHost = &loopHost{
-	loops:    func() ([]loopDevice, error) { return readLoopDevices(sysBlockRoot) },
-	mounts:   readSelfMounts,
-	identity: loopBackingIdentity,
+	loops:     func() ([]loopDevice, error) { return readLoopDevices(sysBlockRoot) },
+	mounts:    readSelfMounts,
+	identity:  loopBackingIdentity,
+	autoclear: loopSetAutoclear,
 	unmount: func(ctx context.Context, path string) error {
 		return runLoopCommand(ctx, "umount", path)
 	},
@@ -319,10 +324,21 @@ func (h *loopHost) imageLoops(imagePath string) ([]loopDevice, error) {
 		return nil, err
 	}
 	path := canonicalLoopPath(imagePath)
+	imageDev, imageIno, identityErr := fileIdentity(path)
 	var result []loopDevice
 	for _, loop := range loops {
 		if loop.BackingFile == path && h.owns(loop) {
 			result = append(result, loop)
+			continue
+		}
+		// The same image under another name (an older layout, another mount
+		// view of the directory): the device node is ours and its backing
+		// inode is the image's. Missing it left a loop bound to the deleted
+		// image after a delete.
+		if identityErr == nil {
+			if dev, ino, ok := h.identity(loop.Path); ok && dev == imageDev && ino == imageIno {
+				result = append(result, loop)
+			}
 		}
 	}
 	return result, nil
@@ -410,6 +426,11 @@ func (h *loopHost) mountImage(ctx context.Context, imagePath, mountPath, options
 		// Nothing holds the fresh device yet, so the detach is immediate.
 		_ = h.detach(context.Background(), device)
 		return "", fmt.Errorf("mount storage image: %w", err)
+	}
+	if h.autoclear != nil {
+		// Best effort: the mount holds the device; once it is gone the kernel
+		// detaches it, so a missed release never leaks the device.
+		_ = h.autoclear(device)
 	}
 	return device, nil
 }
