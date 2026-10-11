@@ -140,6 +140,17 @@ function releasedNetworkBinding<T extends { targetNetwork: string; allowNetworkR
 }
 
 /** True when `after` differs from `before` only by the target network the daemon picked during target sync. */
+/** A Secure Link an app kill switch holds closed refuses changes until the incident is released (delete still works). */
+function assertNotIncidentSuspended(binding: Pick<ProxyAdditionalSecureLinkRow, 'incidentSuspendedBy'>): void {
+  if (binding.incidentSuspendedBy) {
+    throw new AppError(
+      409,
+      'APP_ISOLATED',
+      'This Secure Link is closed by an app kill switch; turn the kill switch off before changing it'
+    );
+  }
+}
+
 function isNetworkReselection(before: ProxyAdditionalSecureLinkRow, after: ProxyAdditionalSecureLinkRow): boolean {
   return (
     after.status === 'provisioning' &&
@@ -447,6 +458,39 @@ export class ProxySecureLinkService {
       this.syncTargetNode(updated.dockerNodeId),
     ]);
     return updated;
+  }
+
+  /**
+   * An app kill switch holds a Secure Link closed (`incidentId`) or opens it again (null). Its sources and its target
+   * leave it out of their sync sets, so the nginx socket and the connector endpoint close; the row, its generation and
+   * its listener stay, and Availability's own dormant flag is untouched. Returns the holder before the change (the
+   * prior state the incident records), or undefined when the link is gone.
+   */
+  async setIncidentSuspended(
+    linkId: string,
+    incidentId: string | null
+  ): Promise<{ previous: string | null } | undefined> {
+    const existing = await this.db.query.proxyAdditionalSecureLinks.findFirst({
+      where: eq(proxyAdditionalSecureLinks.id, linkId),
+    });
+    if (!existing) return undefined;
+    return this.withLinkOperation(linkId, async () => {
+      const [updated] = await this.db
+        .update(proxyAdditionalSecureLinks)
+        .set({ incidentSuspendedBy: incidentId, updatedAt: new Date() })
+        .where(eq(proxyAdditionalSecureLinks.id, linkId))
+        .returning();
+      if (!updated) return undefined;
+      if ((existing.incidentSuspendedBy ?? null) !== incidentId) {
+        const sources = await this.bindingSources(updated);
+        const syncs: Array<Promise<unknown>> = [this.syncSourceNodes(sources)];
+        if (isDockerUpstream(updated.upstreamKind)) syncs.push(this.syncTargetNode(updated.dockerNodeId));
+        const results = await Promise.allSettled(syncs);
+        const failed = results.find((result) => result.status === 'rejected');
+        if (failed && failed.status === 'rejected') throw failed.reason;
+      }
+      return { previous: existing.incidentSuspendedBy ?? null };
+    });
   }
 
   async deleteAvailabilityMember(
@@ -855,6 +899,7 @@ export class ProxySecureLinkService {
     actorScopes?: string[]
   ): Promise<ProxyAdditionalSecureLinkRow> {
     const binding = await this.requireAdditional(host.id, bindingId, 'user_managed');
+    assertNotIncidentSuspended(binding);
     if (!isDockerUpstream(binding.upstreamKind) && !isManagedStorageUpstream(binding.upstreamKind)) {
       throw new AppError(409, 'INVALID_SECURE_LINK_TARGET', 'Secure Link target is not supported');
     }
@@ -906,6 +951,7 @@ export class ProxySecureLinkService {
     applyRouteConfig?: (link: ProxyAdditionalSecureLinkRow) => Promise<void>
   ): Promise<ProxyAdditionalSecureLinkRow> {
     const binding = await this.requireAdditional(host.id, bindingId, 'user_managed');
+    assertNotIncidentSuspended(binding);
     if (!isDockerUpstream(input.upstreamKind) && !isManagedStorageUpstream(input.upstreamKind)) {
       throw new AppError(409, 'INVALID_SECURE_LINK_TARGET', 'Secure Link target is not supported');
     }
@@ -1434,7 +1480,7 @@ export class ProxySecureLinkService {
           await this.relayPolicy.ensureProxySecureLink(binding.id, relaySources(sources), binding.dockerNodeId);
         }
         await this.syncSourceNodes(sources);
-        if (!binding.dormant) {
+        if (!binding.dormant && !binding.incidentSuspendedBy) {
           await this.probeSources(sources, {
             linkId: binding.id,
             scheme: binding.forwardScheme,
@@ -2411,7 +2457,7 @@ export class ProxySecureLinkService {
         });
       }
       for (const binding of bindings) {
-        if (binding.status !== 'active' || binding.dormant) continue;
+        if (binding.status !== 'active' || binding.dormant || binding.incidentSuspendedBy) continue;
         await this.probeSecureLink(nodeId, {
           linkId: binding.id,
           scheme: binding.forwardScheme,
@@ -2470,7 +2516,7 @@ export class ProxySecureLinkService {
           allowNetworkReselection: host.upstreamKind === 'docker_container',
         })),
         ...additional
-          .filter((binding) => syncableAvailabilityMember(binding, members))
+          .filter((binding) => !binding.incidentSuspendedBy && syncableAvailabilityMember(binding, members))
           .map((binding) => ({
             linkId: binding.id,
             role: 'target' as const,
@@ -2717,7 +2763,7 @@ export class ProxySecureLinkService {
         };
       }),
       ...additional
-        .filter((binding) => syncableAvailabilityMember(binding, members))
+        .filter((binding) => !binding.incidentSuspendedBy && syncableAvailabilityMember(binding, members))
         .map((binding) => ({
           linkId: binding.id,
           role: 'source' as const,
