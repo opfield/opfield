@@ -46,6 +46,7 @@ type muDocker struct {
 	mu      sync.Mutex
 	calls   []string
 	images  map[string]string // container -> image
+	labels  map[string]map[string]string
 	running map[string]bool
 	majors  map[string]string // image digest -> PG_MAJOR
 	created []muCreated
@@ -60,7 +61,7 @@ type muCreated struct {
 	Networks   []string
 }
 
-var muPath = regexp.MustCompile(`^/v[0-9.]+/(containers|images)/(.+?)(/json|/start|/stop|/rename|/update)?$`)
+var muPath = regexp.MustCompile(`^/v[0-9.]+/(containers|images|networks)/(.+?)(/json|/start|/stop|/rename|/update|/connect)?$`)
 
 func (d *muDocker) client() *Client {
 	d.t.Helper()
@@ -110,6 +111,13 @@ func (d *muDocker) serve(w http.ResponseWriter, r *http.Request) {
 		sort.Strings(networks)
 		d.created = append(d.created, muCreated{Image: body.Image, Labels: body.Labels, ExtraHosts: body.HostConfig.ExtraHosts, Networks: networks})
 		d.images[created] = body.Image
+		if name := r.URL.Query().Get("name"); name != "" {
+			d.images[name] = body.Image
+			if d.labels == nil {
+				d.labels = map[string]map[string]string{}
+			}
+			d.labels[name] = body.Labels
+		}
 		d.calls = append(d.calls, "create "+created)
 		d.mu.Unlock()
 		reply(http.StatusCreated, map[string]any{"Id": created, "Warnings": []string{}})
@@ -118,6 +126,9 @@ func (d *muDocker) serve(w http.ResponseWriter, r *http.Request) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	switch {
+	case kind == "networks" && action == "/connect":
+		d.calls = append(d.calls, "connect "+id)
+		reply(http.StatusOK, nil)
 	case kind == "images":
 		digest := managedDatabaseImageDigest(id)
 		major, ok := d.majors[digest]
@@ -132,7 +143,7 @@ func (d *muDocker) serve(w http.ResponseWriter, r *http.Request) {
 			reply(http.StatusNotFound, map[string]string{"message": "no such container"})
 			return
 		}
-		reply(http.StatusOK, map[string]any{"Id": id, "Config": map[string]any{"Image": image}, "State": map[string]any{"Running": d.running[id]}})
+		reply(http.StatusOK, map[string]any{"Id": id, "Config": map[string]any{"Image": image, "Labels": d.labels[id]}, "State": map[string]any{"Running": d.running[id]}})
 	case action == "/stop":
 		d.calls = append(d.calls, "stop "+id)
 		d.running[id] = false
@@ -143,6 +154,16 @@ func (d *muDocker) serve(w http.ResponseWriter, r *http.Request) {
 		reply(http.StatusNoContent, nil)
 	case action == "/rename":
 		d.calls = append(d.calls, "rename "+id)
+		if to := r.URL.Query().Get("name"); to != "" {
+			if image, ok := d.images[id]; ok {
+				d.images[to] = image
+				delete(d.images, id)
+			}
+			if d.labels != nil {
+				d.labels[to] = d.labels[id]
+				delete(d.labels, id)
+			}
+		}
 		reply(http.StatusNoContent, nil)
 	case action == "/update":
 		d.calls = append(d.calls, "live_update "+id)

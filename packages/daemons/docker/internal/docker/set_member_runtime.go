@@ -224,7 +224,7 @@ func (p *DockerPlugin) setMemberCapabilities() []string {
 		return nil
 	}
 	capabilities := []string{managedAvailabilityMemberCapability, managedAvailabilityMemberLifecycleCapability,
-		managedAvailabilityBackupSourceCapability}
+		managedAvailabilityBackupSourceCapability, managedAvailabilitySeaweedFSImageMoveCapability}
 	for _, engine := range setMemberEngineNames() {
 		// Gateway's preflight requires the set's engine on every member node.
 		capabilities = append(capabilities, "managed_availability_"+engine+"_v1")
@@ -312,10 +312,20 @@ func (p *DockerPlugin) availabilityMemberReports() []*pb.AvailabilityMemberRepor
 			events = append(events, &pb.AvailabilityMemberEvent{Sequence: event.Seq, Kind: event.Kind, AtUnixMs: event.AtUnixMs,
 				Reason: event.Reason, OperationId: event.OperationID, Detail: event.Detail})
 		}
+		position := report.Position
+		if p.storageManager != nil && p.storageManager.setImages.pending(report.SetID) {
+			// A container of this SeaweedFS member runs another image than
+			// the pinned one: Gateway rolls the set over to it.
+			position = make(map[string]string, len(report.Position)+1)
+			for key, value := range report.Position {
+				position[key] = value
+			}
+			position[setImageMovePosition] = "pending"
+		}
 		out = append(out, &pb.AvailabilityMemberReport{
 			SetId: report.SetID, MemberId: report.MemberID, Role: report.Role, Serving: report.Serving, LeaseRole: report.LeaseRole,
 			Eligible: report.Eligible, EligibilityReason: report.EligibilityReason, LagBytes: report.LagBytes,
-			LagSeconds: report.LagSeconds, SyncState: report.SyncState, Position: report.Position,
+			LagSeconds: report.LagSeconds, SyncState: report.SyncState, Position: position,
 			DiskFreeBytes: report.DiskFreeBytes, LastError: report.LastError, ConfigRevision: report.ConfigRevision,
 			PrimaryGeneration: report.PrimaryGeneration, Events: events,
 			Stopped: report.Stopped, PendingRestartOperationId: report.PendingRestartOperationID,
