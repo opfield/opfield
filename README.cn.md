@@ -44,7 +44,7 @@ Opfield 已被集成到产品、企业、交易和金融科技基础设施中：
 在带 Docker 的 Linux 服务器上安装 Opfield：
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/the-square-labs/gateway/main/scripts/install.sh | bash
+curl -fsSL https://get.opfield.dev | bash
 ```
 
 > [!IMPORTANT]
@@ -249,4 +249,4 @@ Opfield 源代码依据 [PolyForm Perimeter License 1.0.1](LICENSE.md) 发布。
 
 付费密钥到期后，Personal、Business 和 Enterprise 的技术 entitlements 分别继续有效 24 小时、3 天和 7 天。此后 Opfield 会阻止创建新的付费资源和其他新的付费操作，但不会停止或删除已经配置的基础设施。已撤销、已替换、无效或明确停用的密钥会单独处理。
 
-Copyright (c) 2021-2026 [Opfield](https://opfield.dev)
+Copyright (c) 2021-2026 Alexandr Slavinschii, Republic of Moldova

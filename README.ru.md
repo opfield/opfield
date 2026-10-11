@@ -44,7 +44,7 @@ Opfield уже интегрируют в продуктовую, enterprise-, tr
 Установите Opfield на Linux-сервер с Docker:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/the-square-labs/gateway/main/scripts/install.sh | bash
+curl -fsSL https://get.opfield.dev | bash
 ```
 
 > [!IMPORTANT]
@@ -249,4 +249,4 @@ Managed services продолжают работать. Existing nginx configs �
 
 После истечения платного ключа технические entitlements продолжают действовать 24 часа для Personal, 3 дня для Business или 7 дней для Enterprise. Затем Opfield блокирует создание новых платных ресурсов и другие новые платные операции, но не останавливает и не удаляет уже настроенную инфраструктуру. Отозванные, заменённые, недействительные и явно деактивированные ключи обрабатываются отдельно.
 
-Copyright (c) 2021-2026 [Opfield](https://opfield.dev)
+Copyright (c) 2021-2026 Alexandr Slavinschii, Republic of Moldova

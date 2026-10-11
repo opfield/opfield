@@ -51,7 +51,7 @@ Opfield is already being integrated into product, enterprise, trading, and finte
 Install Opfield on a Linux server with Docker:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/the-square-labs/gateway/main/scripts/install.sh | bash
+curl -fsSL https://get.opfield.dev | bash
 ```
 
 > [!IMPORTANT]
@@ -256,4 +256,4 @@ See [Plans and licensing](docs/licensing.md) for the complete feature matrix, av
 
 After a paid key expires, full technical entitlements remain active for 24 hours on Personal, 3 days on Business, or 7 days on Enterprise. After that grace period, Opfield blocks creation of new paid-plan resources and other paid-only operations, but does not stop, delete, or disable already configured infrastructure. Existing services continue under the Paid Key Terms' continuity provisions. Revoked, replaced, invalid, or explicitly deactivated keys are handled separately and may disable protected entry points.
 
-Copyright (c) 2021-2026 [Opfield](https://opfield.dev)
+Copyright (c) 2021-2026 Alexandr Slavinschii, Republic of Moldova

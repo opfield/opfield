@@ -1,6 +1,6 @@
 # Opfield Inference Paid Access Notice
 
-Until a legal entity formed to operate Opfield receives the relevant rights through a legally effective written assignment, source in this package is licensed by [Alexandr Slavinskii](https://github.com/knownout). After that assignment, the legal entity becomes the Licensor. The succession does not revoke, invalidate, deactivate, or change any valid Opfield key solely because of the assignment.
+Source in this package is licensed by Alexandr Slavinschii, Republic of Moldova (alexandr.s@wiolett.net), the Licensor.
 
 The source is available under the [PolyForm Perimeter License 1.0.1](LICENSE.md). PolyForm Perimeter permits use, modification, and redistribution for permitted purposes, including internal business use. It does not permit providing to others a product marketed as a substitute for Opfield or this package.
 

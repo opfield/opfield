@@ -6,9 +6,9 @@ This is a present, non-revocable grant of a conditional future license. It is no
 
 ## Licensor And Succession
 
-Until a legal entity formed to operate Opfield receives the relevant rights through a legally effective written assignment, the **Licensor** is [**Alexandr Slavinskii**](https://github.com/knownout). After that assignment, the legal entity becomes the Licensor and a **Company Rights Holder**. References to the Licensor include any later valid successor or assignee.
+The **Licensor** is Alexandr Slavinschii, Republic of Moldova (alexandr.s@wiolett.net). References to the Licensor include any later valid successor to the relevant rights.
 
-That succession does not reduce rights already granted to users, change the conditions of this grant, terminate applicable paid-key terms, or revoke, invalidate, or deactivate any valid commercial key solely because of the assignment.
+A succession does not reduce rights already granted to users, change the conditions of this grant, terminate applicable paid-key terms, or revoke, invalidate, or deactivate any valid commercial key.
 
 A **Company Rights Holder** is a legal entity that owns the relevant rights in the Covered Source through a legally effective written assignment or succession. The automatic transition described below is unavailable unless and until the relevant rights are owned by a Company Rights Holder.
 
@@ -62,7 +62,7 @@ A general announcement about pausing or discontinuing the product is not a Volun
 
 MIT License
 
-Copyright (c) 2021-2026 Alexandr Slavinskii
+Copyright (c) 2021-2026 Alexandr Slavinschii
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

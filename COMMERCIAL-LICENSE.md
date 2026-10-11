@@ -2,9 +2,7 @@
 
 These terms govern Personal, Business, and Enterprise Opfield license keys issued by the **Licensor**. They supplement, and do not modify, the [PolyForm Perimeter License 1.0.1](LICENSE.md).
 
-Until a legal entity formed to operate Opfield receives the relevant rights through a legally effective written assignment, the Licensor is [**Alexandr Slavinskii**](https://github.com/knownout). After that assignment, the legal entity becomes the Licensor. References to the Licensor include any later valid successor or assignee that acquires the relevant rights and assumes the associated obligations.
-
-That succession does not revoke, invalidate, deactivate, or change the plan, installation, term, continuity, or restrictions of any valid key solely because of the assignment.
+The **Licensor** is Alexandr Slavinschii, Republic of Moldova (alexandr.s@wiolett.net), who issues the keys and grants these terms personally. References to the Licensor include any later successor to the relevant rights.
 
 PolyForm Perimeter permits use, modification, and redistribution for permitted purposes, including internal business use. It does not permit providing to others a product marketed as a substitute for Opfield. An ordinary paid key unlocks plan features and limits; it does not waive that competition restriction or grant OEM, white-label, resale, or competing hosted-service rights. Those uses require a separate written agreement signed by the Licensor.
 
@@ -49,9 +47,9 @@ Any additional rights require a separate written agreement signed by the Licenso
 
 These terms apply only to the paid key and Licensor-provided paid-plan access. Third-party components remain governed by their own license terms.
 
-## Assignment and succession
+## Succession
 
-The Licensor may assign these terms, the related paid-license records, and the Licensor's rights and obligations to a person or entity that acquires the relevant rights in Opfield. The assignment becomes effective only when that successor has legally acquired those rights and assumed the associated obligations. Existing valid keys continue under the same plan, installation, term, continuity, and restriction rules after that assignment unless the key holder and successor agree otherwise in writing.
+If the Licensor's rights in Opfield pass to a successor, existing valid keys continue under the same plan, installation, term, continuity, and restriction rules unless the key holder and the successor agree otherwise in writing. A succession does not revoke, invalidate, or deactivate any valid key.
 
 The key holder may not assign or transfer a key or these paid-plan rights except as expressly permitted by these terms or agreed by the Licensor in writing.
 
@@ -65,4 +63,4 @@ As far as the law allows, the software and paid-plan access are provided as is, 
 
 ## Contact
 
-Questions about competing products, OEM, white-label, resale, hosted services, or other commercial licensing may be sent to [support@opfield.dev](mailto:support@opfield.dev).
+Questions about competing products, OEM, white-label, resale, hosted services, or other commercial licensing may be sent to the Licensor at [alexandr.s@wiolett.net](mailto:alexandr.s@wiolett.net).

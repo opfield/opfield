@@ -2,7 +2,7 @@
 
 <https://polyformproject.org/licenses/perimeter/1.0.1>
 
-Required Notice: Copyright (c) 2026 [Alexandr Slavinskii](https://github.com/knownout), operating the project under the Opfield name. Until a legal entity formed to operate Opfield receives the relevant economic rights through a legally effective written assignment, Alexandr Slavinskii is the Licensor. After that assignment, the legal entity becomes the Licensor without reducing rights already granted under this license or revoking any valid commercial key solely because of the assignment.
+Required Notice: Copyright (c) 2026 Alexandr Slavinschii, Republic of Moldova (alexandr.s@wiolett.net), the licensor, who publishes the project under the Opfield name.
 
 ## Acceptance
 
