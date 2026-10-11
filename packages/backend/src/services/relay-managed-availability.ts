@@ -59,8 +59,11 @@ export type MemberPortName =
   | 'pg-repl'
   | 'kv-repl'
   | 'sw-master'
+  | 'sw-master-grpc'
   | 'sw-volume'
+  | 'sw-volume-grpc'
   | 'sw-filer'
+  | 'sw-filer-grpc'
   | 'ch-interserver'
   | 'ch-keeper'
   | 'member-control';
@@ -79,9 +82,13 @@ export const ENGINE_MEMBER_PORTS: Record<
   postgres: [{ name: 'pg-repl', primary: true }, MEMBER_CONTROL_PORT],
   valkey: [{ name: 'kv-repl', primary: true }, MEMBER_CONTROL_PORT],
   seaweedfs: [
+    // SeaweedFS serves HTTP and gRPC on separate ports: each component has a port of each.
     { name: 'sw-master', primary: true },
+    { name: 'sw-master-grpc', primary: true },
     { name: 'sw-volume', primary: false },
+    { name: 'sw-volume-grpc', primary: false },
     { name: 'sw-filer', primary: false },
+    { name: 'sw-filer-grpc', primary: false },
     MEMBER_CONTROL_PORT,
   ],
   clickhouse: [{ name: 'ch-interserver', primary: false }, { name: 'ch-keeper', primary: false }, MEMBER_CONTROL_PORT],

@@ -356,6 +356,7 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 		if err != nil {
 			return fmt.Errorf("initialize managed storage runtime: %w", err)
 		}
+		p.storageManager.plugin = p
 		// Release what interrupted deletes and older releases left behind
 		// before remounting: on a fixed loop-device pool, leaked devices would
 		// keep live instances down.
