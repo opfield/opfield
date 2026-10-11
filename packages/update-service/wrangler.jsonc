@@ -9,11 +9,9 @@
 		{
 			"pattern": "updates.thesqlabs.com",
 			"custom_domain": true
-		},
-		// Same Worker on the Opfield host: the feed and artifacts under /gateway/*, the server installer at the root.
-		{ "pattern": "get.opfield.dev/gateway/*", "zone_name": "opfield.dev" },
-		{ "pattern": "get.opfield.dev/", "zone_name": "opfield.dev" },
-		{ "pattern": "get.opfield.dev/install.sh", "zone_name": "opfield.dev" }
+		}
+		// get.opfield.dev lives in another Cloudflare account, so a route there can't target this Worker; a small proxy
+		// Worker in that account forwards get.opfield.dev to this host with the same paths.
 	],
 	"vars": {
 		"GITHUB_OWNER": "opfield",
