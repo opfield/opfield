@@ -68,6 +68,8 @@ type fakeRuntime struct {
 	bridge    func(connection net.Conn, alias string) error
 	started   int
 	listening []string
+	moved     []string
+	peers     map[string]map[string]string
 }
 
 func newFakeRuntime(config memberha.Config) *fakeRuntime {
@@ -147,6 +149,21 @@ func (f *fakeRuntime) Exists(relative string) bool {
 	defer f.mu.Unlock()
 	_, file := f.files[relative]
 	return f.exists[relative] || file
+}
+
+func (f *fakeRuntime) MoveAside(relative string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.moved = append(f.moved, relative)
+	delete(f.exists, relative)
+	return nil
+}
+
+func (f *fakeRuntime) PeerEngineState(_ context.Context, memberID string) (map[string]string, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	state, ok := f.peers[memberID]
+	return state, ok
 }
 
 func (f *fakeRuntime) InternalPasswordSHA256() (string, error) { return strings.Repeat("ab", 32), nil }

@@ -45,17 +45,21 @@ const (
 	ctSubnet  = "10.233.60.0/24"
 	ctSetID   = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 	ctImage   = "docker.io/clickhouse/clickhouse-server@sha256:a9d328123ff8a61bf6b16448528b577d59deb85758172e13b09054b0727f8adf" // 25.8.28.1
+	// ctKeeperImage is the pinned witness Keeper image (config/third-party-images.json).
+	ctKeeperImage = "docker.io/clickhouse/clickhouse-keeper@sha256:79767b4b69aa0425057128c8f741dd31d8052ad5edab2f2839ebfa9c6d3ad3e6"
 )
 
 var ctIPs = map[string]string{"ch1": "10.233.60.11", "ch2": "10.233.60.12", "kw": "10.233.60.13", "kw2": "10.233.60.14"}
 
 type ctHarness struct {
-	t      *testing.T
-	docker string
-	host   string
-	image  string
-	work   string
-	logger *slog.Logger
+	t           *testing.T
+	docker      string
+	host        string
+	image       string
+	keeperImage string
+	engines     map[string]*engine
+	work        string
+	logger      *slog.Logger
 
 	mu      sync.Mutex
 	configs map[string]memberha.Config
@@ -163,6 +167,31 @@ func (r *ctRuntime) Exists(relative string) bool {
 	_, err := os.Stat(filepath.Join(r.mount, relative))
 	return err == nil
 }
+func (r *ctRuntime) MoveAside(relative string) error {
+	// The data directory is the container's (uid 101): rename it as root.
+	source := filepath.Join(r.mount, relative)
+	return os.Rename(source, fmt.Sprintf("%s.wiped-%d", source, time.Now().UnixNano()))
+}
+
+func (r *ctRuntime) PeerEngineState(_ context.Context, memberID string) (map[string]string, bool) {
+	r.h.mu.Lock()
+	var peer *engine
+	for name, e := range r.h.engines {
+		if config, ok := r.h.configs[name]; ok && config.MemberID == memberID {
+			peer = e
+		}
+	}
+	r.h.mu.Unlock()
+	if peer == nil {
+		return nil, false
+	}
+	state, _, err := r.h.Container(peer)
+	if err != nil || !state {
+		return nil, false
+	}
+	return peer.PeerEngineState(), true
+}
+
 func (r *ctRuntime) InternalPasswordSHA256() (string, error) {
 	digest := sha256.Sum256([]byte(r.password()))
 	return hex.EncodeToString(digest[:]), nil
@@ -193,6 +222,13 @@ func (r *ctRuntime) Config() (memberha.Config, bool) {
 func (r *ctRuntime) GatewayConnected() bool              { return true }
 func (r *ctRuntime) Sign(string, []byte) ([]byte, error) { return []byte("test"), nil }
 func (r *ctRuntime) Logger() *slog.Logger                { return r.h.logger.With("member", r.name) }
+
+// Container reports whether an engine's container runs (a peer that does not
+// run does not answer on member-control).
+func (h *ctHarness) Container(e *engine) (bool, int, error) {
+	state, pid, err := e.rt.Container(context.Background())
+	return state.Running, pid, err
+}
 
 func (h *ctHarness) target(alias string) (string, bool) {
 	h.mu.Lock()
@@ -231,31 +267,25 @@ func ctEngineConfig(self uint32, witnesses []KeeperServer) EngineConfig {
 }
 
 func (h *ctHarness) setConfig(name string, ec EngineConfig, revision uint64) {
+	h.setConfigMode(name, ec, revision, memberha.ModeAutomatic)
+}
+
+func (h *ctHarness) setConfigMode(name string, ec EngineConfig, revision uint64, mode string) {
 	members := []string{testMemberA, testMemberB}
 	if name == "ch2" {
 		members = []string{testMemberB, testMemberA}
 	}
-	config := testConfig(memberha.ModeAutomatic, ec, members...)
+	config := testConfig(mode, ec, members...)
 	config.SetID, config.ConfigRevision = ctSetID, revision
 	h.mu.Lock()
 	h.configs[name] = config
 	h.mu.Unlock()
 }
 
-// witnessXML is the witness Keeper's config as the relay supervisor renders
-// it (raft entry on the set's loopback host), listening on all addresses of
-// its container instead of the relay's 127.0.0.1.
-func witnessXML(id uint32, raftPort uint32) string {
-	return fmt.Sprintf(`<clickhouse><logger><level>information</level><console>1</console></logger><listen_host>0.0.0.0</listen_host><path>/var/lib/clickhouse/</path>
-<keeper_server><tcp_port>9181</tcp_port><server_id>%d</server_id>
-<log_storage_path>/var/lib/clickhouse/coordination/log</log_storage_path><snapshot_storage_path>/var/lib/clickhouse/coordination/snapshots</snapshot_storage_path>
-<enable_reconfiguration>true</enable_reconfiguration><four_letter_word_white_list>ruok,srvr,mntr,conf,isro</four_letter_word_white_list>
-<coordination_settings><operation_timeout_ms>10000</operation_timeout_ms><session_timeout_ms>30000</session_timeout_ms><raft_logs_level>warning</raft_logs_level></coordination_settings>
-<raft_configuration><server><id>%d</id><hostname>127.48.54.1</hostname><port>%d</port><priority>1</priority></server>
-<server><id>1</id><hostname>127.48.54.1</hostname><port>39501</port><priority>3</priority></server><server><id>2</id><hostname>127.48.54.1</hostname><port>39502</port><priority>3</priority></server></raft_configuration>
-</keeper_server></clickhouse>`, id, id, raftPort)
-}
-
+// startWitness runs a Keeper witness the way a docker node does (decision 8):
+// the clickhouse-keeper image as the clickhouse user with the config the
+// daemon renders (RenderWitnessKeeperConfig), its client port below its raft
+// port, the members' endpoints bound in its network namespace.
 func (h *ctHarness) startWitness(name string, id, raftPort uint32) *forwarders {
 	h.t.Helper()
 	dir := filepath.Join(h.work, name)
@@ -263,12 +293,17 @@ func (h *ctHarness) startWitness(name string, id, raftPort uint32) *forwarders {
 		h.t.Fatal(err)
 	}
 	_ = os.Chmod(filepath.Join(dir, "data"), 0o777)
-	if err := os.WriteFile(filepath.Join(dir, "keeper.xml"), []byte(witnessXML(id, raftPort)), 0o644); err != nil {
+	config, err := RenderWitnessKeeperConfig(id, raftPort-1, raftPort, "127.48.54.1", []WitnessPeerEndpoint{
+		{ID: 1, Host: "127.48.54.1", Port: 39501}, {ID: 2, Host: "127.48.54.1", Port: 39502}})
+	if err != nil {
 		h.t.Fatal(err)
 	}
-	h.must("run", "-d", "--name", name, "--network", ctNetwork, "--ip", ctIPs[name], "--memory", "512m",
-		"-v", filepath.Join(dir, "data")+":/var/lib/clickhouse", "-v", filepath.Join(dir, "keeper.xml")+":/etc/kw/keeper.xml:ro",
-		"--entrypoint", "/usr/bin/clickhouse", h.image, "keeper", "--config-file=/etc/kw/keeper.xml")
+	if err := os.WriteFile(filepath.Join(dir, "keeper.xml"), config, 0o644); err != nil {
+		h.t.Fatal(err)
+	}
+	h.must("run", "-d", "--name", name, "--network", ctNetwork, "--ip", ctIPs[name], "--memory", "512m", "--user", "101:101",
+		"-v", filepath.Join(dir, "data")+":"+WitnessKeeperDataPath, "-v", filepath.Join(dir, "keeper.xml")+":"+WitnessKeeperConfigPath+":ro",
+		"--entrypoint", WitnessKeeperEntrypoint, h.keeperImage, "--config-file="+WitnessKeeperConfigPath)
 	pid, _ := strconv.Atoi(h.must("inspect", "-f", "{{.State.Pid}}", name))
 	fw := newForwarders(ListenInNetns, h.bridge, h.logger)
 	failed := fw.ensure(name, pid, map[string]string{
@@ -361,6 +396,7 @@ func TestContainerPairFailoverAndWitness(t *testing.T) {
 		t.Skip("CHHA_DOCKER_HOST is not set")
 	}
 	h := &ctHarness{t: t, docker: envOr("CHHA_DOCKER", "docker"), host: host, image: envOr("CHHA_IMAGE", ctImage),
+		keeperImage: envOr("CHHA_KEEPER_IMAGE", ctKeeperImage), engines: map[string]*engine{},
 		work: t.TempDir(), logger: slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})),
 		configs: map[string]memberha.Config{}, targets: map[string]string{
 			"member-" + testMemberA + "-ch-keeper":      ctIPs["ch1"] + ":39501",
@@ -373,8 +409,12 @@ func TestContainerPairFailoverAndWitness(t *testing.T) {
 	_ = os.Chmod(h.work, 0o777)
 	ctDiagnose = func() {
 		for _, name := range []string{"ch1", "ch2", "kw", "kw2"} {
-			t.Logf("--- %s srvr:\n%s", name, fourLetter(ctIPs[name]+":9181", "srvr"))
-			t.Logf("--- %s mntr:\n%s", name, fourLetter(ctIPs[name]+":9181", "mntr"))
+			port := "9181"
+			if strings.HasPrefix(name, "kw") {
+				port = map[string]string{"kw": "39432", "kw2": "39436"}[name]
+			}
+			t.Logf("--- %s srvr:\n%s", name, fourLetter(ctIPs[name]+":"+port, "srvr"))
+			t.Logf("--- %s mntr:\n%s", name, fourLetter(ctIPs[name]+":"+port, "mntr"))
 		}
 		for _, name := range []string{"ch1", "ch2"} {
 			out, _ := h.run("exec", name, "bash", "-c", "grep -iE 'raft|keeper' /var/log/clickhouse-server/clickhouse-server.err.log | tail -20")
@@ -398,6 +438,7 @@ func TestContainerPairFailoverAndWitness(t *testing.T) {
 		h.cleanup()
 	})
 	h.must("pull", "-q", h.image)
+	h.must("pull", "-q", h.keeperImage)
 	h.must("network", "create", "--subnet", ctSubnet, ctNetwork)
 	ctx := context.Background()
 
@@ -443,7 +484,7 @@ func TestContainerPairFailoverAndWitness(t *testing.T) {
 	waitFor(t, "the witness follows", 2*time.Minute, func() (bool, string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		mode, err := probeKeeper(ctx, ctIPs["kw"]+":9181")
+		mode, err := probeKeeper(ctx, ctIPs["kw"]+":39432")
 		return mode == "follower", fmt.Sprint(mode, err)
 	})
 	if s := status(t, e1); s.Writable {
@@ -563,6 +604,228 @@ func TestContainerPairFailoverAndWitness(t *testing.T) {
 		logs.WriteString(name + ": " + out + "\n")
 	}
 	t.Logf("tail of logs:\n%s", logs.String())
+}
+
+func manualConfig(self uint32, voter uint32) EngineConfig {
+	role := func(id uint32) string {
+		if id == voter {
+			return RoleVoter
+		}
+		return RoleLearner
+	}
+	return EngineConfig{Version: 1, LoopbackHost: "127.48.54.1", KeeperServerID: self,
+		KeeperServers: []KeeperServer{
+			{ID: 1, Port: 39501, MemberID: testMemberA, Role: role(1)},
+			{ID: 2, Port: 39502, MemberID: testMemberB, Role: role(2)},
+		},
+		Interserver: []InterserverPeer{{MemberID: testMemberA, Port: 39000}, {MemberID: testMemberB, Port: 39001}},
+		Databases:   []string{"app"}}
+}
+
+// ctSupervisor stands in for the member runtime of a manual pair (memberha):
+// it starts a stopped container through standby at rest, promotes the
+// assigned primary, demotes any other writable member, and runs a copy's
+// rejoin when the engine asks for one.
+type ctSupervisor struct {
+	mu      sync.Mutex
+	primary string
+	down    map[string]bool
+	stop    chan struct{}
+}
+
+func (s *ctSupervisor) run(t *testing.T, name string, e *engine) {
+	for {
+		select {
+		case <-s.stop:
+			return
+		case <-time.After(time.Second):
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		s.mu.Lock()
+		primary, down := s.primary, s.down[name]
+		s.mu.Unlock()
+		state, _, err := e.rt.Container(ctx)
+		switch {
+		case err != nil || !state.Exists || down:
+		case !state.Running:
+			if e.PrepareStandby(ctx) == nil {
+				_ = e.Start(ctx)
+			}
+		default:
+			status, _ := e.Status(ctx)
+			switch {
+			case primary == name && status.Answering && !status.Writable:
+				if err := e.Promote(ctx, nil); err != nil {
+					t.Logf("%s promote: %v", name, err)
+				}
+			case primary != name && status.Writable:
+				_ = e.Kill(ctx)
+				if e.PrepareStandby(ctx) == nil {
+					_ = e.Start(ctx)
+				}
+			case primary != name && status.NeedsRejoin:
+				t.Logf("%s rejoins its Keeper: %s", name, status.Position[posRejoin])
+				_ = e.Kill(ctx)
+				if e.Rejoin(ctx) == nil && e.PrepareStandby(ctx) == nil {
+					_ = e.Start(ctx)
+				}
+			}
+		}
+		cancel()
+	}
+}
+
+// A manual pair (no witness): the primary's Keeper is the only voter and the
+// copy's a learner. A planned switch moves the client role only; losing the
+// voter makes the new primary recover its Keeper alone (two restarts); the
+// old voter returns diverged, is refused by its peer's voters, wipes its
+// Keeper state and joins as a learner.
+func TestContainerManualPairSwitchAndRecovery(t *testing.T) {
+	host := os.Getenv("CHHA_DOCKER_HOST")
+	if host == "" {
+		t.Skip("CHHA_DOCKER_HOST is not set")
+	}
+	h := &ctHarness{t: t, docker: envOr("CHHA_DOCKER", "docker"), host: host, image: envOr("CHHA_IMAGE", ctImage),
+		keeperImage: envOr("CHHA_KEEPER_IMAGE", ctKeeperImage), engines: map[string]*engine{},
+		work: t.TempDir(), logger: slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})),
+		configs: map[string]memberha.Config{}, targets: map[string]string{
+			"member-" + testMemberA + "-ch-keeper":      ctIPs["ch1"] + ":39501",
+			"member-" + testMemberB + "-ch-keeper":      ctIPs["ch2"] + ":39502",
+			"member-" + testMemberA + "-ch-interserver": ctIPs["ch1"] + ":39000",
+			"member-" + testMemberB + "-ch-interserver": ctIPs["ch2"] + ":39001",
+		}}
+	_ = os.Chmod(h.work, 0o777)
+	h.cleanup()
+	t.Cleanup(func() {
+		if t.Failed() {
+			for _, name := range []string{"ch1", "ch2"} {
+				out, _ := h.run("logs", "--tail", "30", name)
+				t.Logf("--- %s logs:\n%s", name, out)
+			}
+		}
+		h.cleanup()
+	})
+	h.must("pull", "-q", h.image)
+	h.must("network", "create", "--subnet", ctSubnet, ctNetwork)
+	ctx := context.Background()
+	h.setConfigMode("ch1", manualConfig(1, 1), 1, memberha.ModeManual)
+	h.setConfigMode("ch2", manualConfig(2, 1), 1, memberha.ModeManual)
+	rt1, rt2 := h.createMember("ch1"), h.createMember("ch2")
+	open := func(rt *ctRuntime) *engine {
+		config, _ := rt.Config()
+		opened, err := New(config, rt)
+		if err != nil {
+			t.Fatal(err)
+		}
+		e := opened.(*engine)
+		h.mu.Lock()
+		h.engines[rt.name] = e
+		h.mu.Unlock()
+		return e
+	}
+	e1, e2 := open(rt1), open(rt2)
+	for _, pair := range []struct {
+		e  *engine
+		rt *ctRuntime
+	}{{e1, rt1}, {e2, rt2}} {
+		if err := pair.e.PrepareStandby(ctx); err != nil {
+			t.Fatal(err)
+		}
+		h.createContainer(pair.rt)
+	}
+	sup := &ctSupervisor{primary: "ch1", down: map[string]bool{}, stop: make(chan struct{})}
+	t.Cleanup(func() {
+		close(sup.stop)
+		h.mu.Lock()
+		h.configs = map[string]memberha.Config{}
+		h.mu.Unlock()
+	})
+	go sup.run(t, "ch1", e1)
+	go sup.run(t, "ch2", e2)
+	setPrimary := func(name string) { sup.mu.Lock(); sup.primary = name; sup.mu.Unlock() }
+	setDown := func(name string, down bool) { sup.mu.Lock(); sup.down[name] = down; sup.mu.Unlock() }
+
+	// 1. One voter, one learner; the primary takes inserts.
+	waitFor(t, "manual Keeper: ch1 leads alone, ch2 learns", 3*time.Minute, func() (bool, string) {
+		m1, m2 := status(t, e1).Position[posKeeper], status(t, e2).Position[posKeeper]
+		return m1 == "leader" && keeperServing(m2) && m2 != "leader", m1 + "/" + m2
+	})
+	waitFor(t, "ch1 writable, app replicated on both", 2*time.Minute, func() (bool, string) {
+		engines2, err := e2.databaseEngines(ctx)
+		return status(t, e1).Writable && err == nil && engines2["app"] == "Replicated", fmt.Sprint(engines2["app"], err)
+	})
+	if _, err := rt1.Query(ctx, "CREATE TABLE app.ledger (id UInt64) ORDER BY id"); err != nil {
+		t.Fatal(err)
+	}
+	for i := 1; i <= 20; i++ {
+		if _, err := rt1.Query(ctx, fmt.Sprintf("INSERT INTO app.ledger SELECT number + %d FROM numbers(100)", i*1000)); err != nil {
+			t.Fatalf("insert %d: %v", i, err)
+		}
+	}
+	// The copy (learner) is down: the primary keeps writing.
+	setDown("ch2", true)
+	_ = e2.Kill(ctx)
+	if _, err := rt1.Query(ctx, "INSERT INTO app.ledger SELECT number + 50000 FROM numbers(100)"); err != nil {
+		t.Fatalf("insert with the copy down: %v", err)
+	}
+	setDown("ch2", false)
+	waitFor(t, "ch2 back as a copy, caught up", 3*time.Minute, func() (bool, string) {
+		n1, _ := count(rt1)
+		n2, err := count(rt2)
+		return err == nil && n1 == n2 && !status(t, e2).Writable, fmt.Sprint(n1, n2, err)
+	})
+
+	// 2. Planned switch: the client role moves, the Keeper voter stays on ch1.
+	setPrimary("ch2")
+	waitFor(t, "ch2 primary, ch1 a copy", 2*time.Minute, func() (bool, string) {
+		s1, s2 := status(t, e1), status(t, e2)
+		return s2.Writable && !s1.Writable && keeperServing(s1.Position[posKeeper]), fmt.Sprint(s1.Writable, s2.Writable, s1.Position[posKeeper])
+	})
+	if _, err := rt2.Query(ctx, "INSERT INTO app.ledger SELECT number + 60000 FROM numbers(100)"); err != nil {
+		t.Fatalf("insert on the switched primary (learner Keeper): %v", err)
+	}
+	before, _ := count(rt2)
+
+	// 3. The voter (ch1) is lost: ch2 recovers its Keeper alone and writes again.
+	setDown("ch1", true)
+	_ = e1.Kill(ctx)
+	lost := time.Now()
+	waitFor(t, "ch2 recovered as the only voter and writable", 4*time.Minute, func() (bool, string) {
+		_, err := rt2.Query(ctx, "INSERT INTO app.ledger SELECT number + 70000 FROM numbers(10)")
+		s := status(t, e2)
+		return err == nil && s.Position[posKeeperVoters] == "2", fmt.Sprint(s.Position[posKeeperVoters], s.Position[posRecovery], err)
+	})
+	t.Logf("ch2 writable again %.0fs after ch1 was lost", time.Since(lost).Seconds())
+	after, _ := count(rt2)
+	if after < before {
+		t.Fatalf("rows lost on the recovered primary: %d < %d", after, before)
+	}
+	// Gateway adopts the recovery (ch2 voter, ch1 learner).
+	h.setConfigMode("ch1", manualConfig(1, 2), 2, memberha.ModeManual)
+	h.setConfigMode("ch2", manualConfig(2, 2), 2, memberha.ModeManual)
+
+	// 4. The old voter returns diverged: it wipes its Keeper and joins as a learner.
+	setDown("ch1", false)
+	waitFor(t, "ch1 joined ch2's Keeper as a learner and caught up", 5*time.Minute, func() (bool, string) {
+		current, err := e2.keeperConfig(ctx)
+		if err != nil {
+			return false, err.Error()
+		}
+		n1, _ := count(rt1)
+		n2, _ := count(rt2)
+		entry, ok := current[1]
+		return ok && entry.learner && n1 == n2 && n2 > 0, fmt.Sprintf("config %v rows %d/%d", current, n1, n2)
+	})
+	if _, err := rt2.Query(ctx, "INSERT INTO app.ledger SELECT number + 80000 FROM numbers(10)"); err != nil {
+		t.Fatalf("insert after the old voter rejoined: %v", err)
+	}
+	if out, _ := rt1.Query(ctx, "SELECT count() FROM system.detached_parts"); strings.TrimSpace(out) != "" {
+		t.Logf("ch1 detached parts after its rejoin: %s", strings.TrimSpace(out))
+	}
+	moved, _ := filepath.Glob(filepath.Join(rt1.mount, "coordination.wiped-*"))
+	if len(moved) == 0 {
+		t.Fatal("ch1's diverged Keeper state was not kept aside")
+	}
 }
 
 func envOr(name, fallback string) string {

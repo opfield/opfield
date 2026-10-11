@@ -269,6 +269,7 @@ import { HousekeepingService } from '@/services/housekeeping.service.js';
 import { NginxCertificateDistributionService } from '@/services/nginx-certificate-distribution.service.js';
 import { NginxConfigGenerator } from '@/services/nginx-config-generator.service.js';
 import { NodeDispatchService } from '@/services/node-dispatch.service.js';
+import { NodeKeeperWitnessService } from '@/services/node-keeper-witness.service.js';
 import { NodeRegistryService } from '@/services/node-registry.service.js';
 import { ReadModelCoordinator } from '@/services/read-model-coordinator.service.js';
 import { RelayCertificateRenewalService } from '@/services/relay-certificate-renewal.service.js';
@@ -1404,6 +1405,9 @@ export async function initializeContainer(): Promise<void> {
   relayWitnessService.setArtifactSource(new WitnessCatalog(env));
   relayWitnessService.setKeeperPeerResolver(createKeeperPeerResolver(db));
   container.registerInstance(RelayWitnessService, relayWitnessService);
+  // Keeper witness containers on docker nodes (ClickHouse sets whose witness is a non-member docker node).
+  const nodeKeeperWitnessService = new NodeKeeperWitnessService(db, nodeRegistry);
+  container.registerInstance(NodeKeeperWitnessService, nodeKeeperWitnessService);
   // Members of database and storage availability sets: node configuration and health-stream reports.
   const availabilityMembers = new AvailabilityMembersService(db, nodeDispatch);
   availabilityMembers.setAssignmentSigner(container.resolve(AvailabilityAssignmentSigner));
@@ -1414,7 +1418,13 @@ export async function initializeContainer(): Promise<void> {
     signer: availabilityAssignmentSigner,
     settings: { relayPolicyLeaseHours: async () => (await generalSettingsService.getConfig()).relayPolicyLeaseHours },
     members: availabilityMembers,
-    witnesses: relayWitnessService,
+    // Keeper witnesses run on relays (supervisor) and on docker nodes (containers): both get the set's desired state.
+    witnesses: {
+      syncSet: async (setId: string) => {
+        await relayWitnessService.syncSet(setId);
+        await nodeKeeperWitnessService.syncSet(setId);
+      },
+    },
     ...(relayPolicyService ? { relay: relayPolicyService } : {}),
   };
   if (relayPolicyService) {

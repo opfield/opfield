@@ -85,6 +85,12 @@ type SwitchoverPreparer interface {
 	SwitchoverReady(certified []byte, successorMemberID string) bool
 }
 
+// PeerStater adds engine facts to the member-control answer its peers read
+// (PeerState.Engine). It must not block.
+type PeerStater interface {
+	PeerEngineState() map[string]string
+}
+
 // ForcedValuer is the value a forced promotion of this member certifies
 // (AS10: the forced flag and the fork position).
 type ForcedValuer interface {

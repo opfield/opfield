@@ -57,16 +57,19 @@ func (v Value) encode() ([]byte, error) {
 
 // Engine status fields the value logic reads (Position keys).
 const (
-	posQuorum        = "insertQuorum"
-	posMinActive     = "minActiveReplicas"
-	posTables        = "replicatedTables"
-	posReadonly      = "readonlyTables"
-	posDelay         = "maxAbsoluteDelaySeconds"
-	posKeeper        = "keeperMode"
-	posKeeperVoters  = "keeperVoters"
-	posDatabasesLate = "databasesSyncing"
-	posActivated     = "activatedWitness"
-	posConvert       = "convert"
+	posQuorum         = "insertQuorum"
+	posMinActive      = "minActiveReplicas"
+	posTables         = "replicatedTables"
+	posReadonly       = "readonlyTables"
+	posDelay          = "maxAbsoluteDelaySeconds"
+	posKeeper         = "keeperMode"
+	posKeeperVoters   = "keeperVoters"
+	posDatabasesLate  = "databasesSyncing"
+	posActivated      = "activatedWitness"
+	posConvert        = "convert"
+	posKeeperLearners = "keeperLearners"
+	posRecovery       = "keeperRecovery"
+	posRejoin         = "keeperRejoin"
 )
 
 // sample is the parsed engine status the value logic uses.

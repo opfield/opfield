@@ -674,5 +674,8 @@ func (m *Manager) PeerState(setID string) (PeerState, bool) {
 		assignment := mem.state.Assignment
 		state.Assignment = &assignment
 	}
+	if stater, ok := mem.engine.(PeerStater); ok {
+		state.Engine = stater.PeerEngineState()
+	}
 	return state, true
 }

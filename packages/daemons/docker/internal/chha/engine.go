@@ -42,6 +42,13 @@ type Runtime interface {
 	WriteFile(name string, data []byte) error
 	// Exists reports whether a path under the data mount exists.
 	Exists(relative string) bool
+	// MoveAside renames a path under the data mount out of the way (a wiped
+	// Keeper state is kept, not deleted).
+	MoveAside(relative string) error
+	// PeerEngineState is what another member's engine says on its
+	// member-control port (memberha.PeerState.Engine); false when it does
+	// not answer.
+	PeerEngineState(ctx context.Context, memberID string) (map[string]string, bool)
 	// InternalPasswordSHA256 is the internal user's password hash.
 	InternalPasswordSHA256() (string, error)
 	// Listen binds address in the network namespace of process pid.
@@ -103,6 +110,26 @@ type engine struct {
 	lastRqld       time.Duration
 	lastReconfig   time.Duration
 
+	// Keeper roles (roles.go): a forced recovery in progress, why this copy
+	// must wipe its Keeper state, whether its Keeper was a learner, since
+	// when it does not serve, since when other voters are unreachable.
+	rec             *recovery
+	rejoinReason    string
+	wasLearner      bool
+	keeperDownSince time.Duration
+	votersDownSince time.Duration
+	learners        string
+	joining         atomic.Bool
+	// keeperGate: this member's Keeper may reach the other members (manual
+	// pairs check their peer first); peerVoters is what it tells its peers.
+	keeperGate     atomic.Bool
+	peerVoters     atomic.Value
+	gateAskedSince time.Duration
+	// runningID is the Keeper server id the running container started with
+	// (a learner promoted to a voter gets a new id: re-adding a removed id
+	// crashed Keeper 25.8).
+	runningID atomic.Uint32
+
 	loopOnce sync.Once
 	stopped  atomic.Bool
 }
@@ -130,6 +157,19 @@ func New(config memberha.Config, rt Runtime) (memberha.Engine, error) {
 	if raw, err := rt.ReadFile(activationFile); err == nil {
 		e.activated, _ = decodeActivation(raw)
 	}
+	if raw, err := rt.ReadFile(recoveryFile); err == nil {
+		e.rec = decodeRecovery(raw)
+	}
+	e.joining.Store(rt.Exists(joiningMarker))
+	e.peerVoters.Store("")
+	if raw, err := rt.ReadFile(ServerConfigFile); err == nil {
+		e.runningID.Store(renderedServerID(raw))
+	}
+	// A manual pair's member that may hold a diverged Keeper state (its
+	// primary recovered alone while it was away) asks its peer before its
+	// Keeper may reach it: a diverged leader's traffic broke the recovered one
+	// in the prototype.
+	e.keeperGate.Store(config.Mode != memberha.ModeManual || e.joining.Load())
 	e.loopOnce.Do(func() { go e.loop() })
 	return e, nil
 }
@@ -168,7 +208,7 @@ func (e *engine) Status(ctx context.Context) (memberha.EngineStatus, error) {
 		return memberha.EngineStatus{}, err
 	}
 	if state.Running {
-		e.fw.ensure(state.ID, pid, desiredForwards(snap.config.MemberID, snap.ec))
+		e.fw.ensure(state.ID, pid, desiredForwardsGated(snap.config.MemberID, snap.ec, e.keeperGate.Load()))
 	}
 	text, err := e.rt.Query(ctx, statusQuery)
 	if err != nil {
@@ -196,9 +236,20 @@ func (e *engine) Status(ctx context.Context) (memberha.EngineStatus, error) {
 	if e.activated != nil {
 		extra[posActivated] = fmt.Sprintf("%s>%s", e.activated.StandbyWitnessID, e.activated.ReplacesWitness)
 	}
+	if e.learners != "" {
+		extra[posKeeperLearners] = e.learners
+	}
+	if e.rec != nil {
+		extra[posRecovery] = e.rec.Phase
+	}
 	voters := e.voters
+	rejoin := e.rejoinReason
 	e.mu.Unlock()
 	status := toStatus(row, mode, syncing, voters, extra)
+	if rejoin != "" {
+		status.NeedsRejoin = true
+		status.Position[posRejoin] = rejoin
+	}
 	e.mu.Lock()
 	e.lastSample = sampleOf(status)
 	e.mu.Unlock()
@@ -351,7 +402,15 @@ func (e *engine) PrepareStandby(ctx context.Context) error {
 		return err
 	}
 	logEmpty := !e.rt.Exists("coordination/log")
-	if _, err := e.writeIfChanged(ServerConfigFile, RenderServerConfig(snap.config, snap.ec, logEmpty)); err != nil {
+	if logEmpty && !e.rt.Exists(joiningMarker) {
+		// A Keeper without a log waits to be added (or bootstraps from the
+		// bootstrap voters); its peers see that on member-control.
+		if err := e.rt.WriteFile(joiningMarker, []byte("joining\n")); err != nil {
+			return err
+		}
+		e.joining.Store(true)
+	}
+	if _, err := e.writeIfChanged(ServerConfigFile, RenderServerConfigMode(snap.config, snap.ec, logEmpty, e.renderMode(snap))); err != nil {
 		return err
 	}
 	users, err := e.usersConfig(snap, e.restQuorum(snap))
@@ -386,7 +445,22 @@ func (e *engine) Start(ctx context.Context) error {
 			return err
 		}
 	}
+	if raw, err := e.rt.ReadFile(ServerConfigFile); err == nil {
+		e.runningID.Store(renderedServerID(raw))
+	}
 	return e.rt.Start(ctx)
+}
+
+// renderedServerID reads <server_id> of a rendered server config.
+func renderedServerID(raw []byte) uint32 {
+	text := string(raw)
+	start := strings.Index(text, "<server_id>")
+	end := strings.Index(text, "</server_id>")
+	if start < 0 || end < start {
+		return 0
+	}
+	id, _ := strconv.ParseUint(strings.TrimSpace(text[start+len("<server_id>"):end]), 10, 32)
+	return uint32(id)
 }
 
 func (e *engine) StopClean(ctx context.Context, timeout time.Duration) error {
@@ -451,8 +525,113 @@ func (e *engine) Promote(ctx context.Context, certified []byte) error {
 }
 
 // Rejoin: a ClickHouse copy catches up from the Keeper log by itself; a
-// member whose databases are missing joins them in the background loop.
-func (e *engine) Rejoin(context.Context) error { return nil }
+// member whose databases are missing joins them in the background loop. A
+// copy whose Keeper must change role or diverged (roles.go) moves its Keeper
+// state aside and starts again as a joining server.
+func (e *engine) Rejoin(context.Context) error {
+	e.mu.Lock()
+	reason := e.rejoinReason
+	e.mu.Unlock()
+	if reason == "" {
+		return nil
+	}
+	if e.rt.Exists("coordination") {
+		if err := e.rt.MoveAside("coordination"); err != nil {
+			return err
+		}
+	}
+	if err := e.rt.WriteFile(joiningMarker, []byte("joining\n")); err != nil {
+		return err
+	}
+	e.joining.Store(true)
+	e.keeperGate.Store(true)
+	e.mu.Lock()
+	e.rejoinReason, e.wasLearner, e.keeperDownSince = "", false, 0
+	e.mu.Unlock()
+	e.logger.Warn("ClickHouse member moved its Keeper state aside and joins again", "reason", reason)
+	return nil
+}
+
+// renderMode is the server config's raft list mode (a forced recovery's two
+// restarts, roles.go).
+func (e *engine) renderMode(snap *configSnapshot) RenderMode {
+	e.mu.Lock()
+	rec := e.rec
+	e.mu.Unlock()
+	switch {
+	case rec == nil || recoveryAdopted(snap.ec):
+		return RenderNormal
+	case rec.Phase == phaseRecovering:
+		return RenderRecovery
+	default:
+		return RenderSoleVoter
+	}
+}
+
+// PeerEngineState tells peers that this member's Keeper waits to be added,
+// and the voters its Keeper's configuration lists.
+func (e *engine) PeerEngineState() map[string]string {
+	out := map[string]string{}
+	if e.joining.Load() {
+		out[peerKeeperJoining] = "true"
+	}
+	if voters, _ := e.peerVoters.Load().(string); voters != "" {
+		out[peerKeeperVoters] = voters
+	}
+	return out
+}
+
+// checkKeeperGate opens a manual pair member's Keeper path to its peer once
+// the peer's Keeper lists this member as a voter, this member is not a voter
+// itself, or the peer does not answer (or serves no Keeper) for
+// recoveryAfter. A voter the peer's Keeper does not list diverged: it joins
+// again with a wiped state.
+func (e *engine) checkKeeperGate(ctx context.Context, snap *configSnapshot, current map[uint32]keeperEntry, writable bool, now time.Duration) {
+	if e.keeperGate.Load() {
+		return
+	}
+	selfID := snap.ec.KeeperServerID
+	ownVoter := false
+	if entry, ok := current[selfID]; ok && !entry.learner {
+		ownVoter = true
+	}
+	e.mu.Lock()
+	if e.gateAskedSince == 0 {
+		e.gateAskedSince = now
+	}
+	askedFor := now - e.gateAskedSince
+	e.mu.Unlock()
+	for _, peer := range snap.config.Others() {
+		if peer.Removing {
+			continue
+		}
+		state, ok := e.rt.PeerEngineState(ctx, peer.MemberID)
+		voters := state[peerKeeperVoters]
+		if !ok || voters == "" {
+			continue
+		}
+		listed := false
+		for _, id := range strings.Split(voters, ",") {
+			listed = listed || id == strconv.FormatUint(uint64(selfID), 10)
+		}
+		switch {
+		case listed || !ownVoter || current == nil:
+			e.keeperGate.Store(true)
+		case !writable:
+			e.mu.Lock()
+			if e.rejoinReason == "" {
+				e.rejoinReason = "diverged"
+				e.logger.Warn("ClickHouse copy's Keeper diverged from its primary's; it joins again", "set_id", snap.config.SetID,
+					"peer_voters", voters)
+			}
+			e.mu.Unlock()
+		}
+		return
+	}
+	if askedFor >= recoveryAfter {
+		e.keeperGate.Store(true)
+	}
+}
 
 // Switchover stops client writes on the holder and waits until the successor
 // has fetched every replication log entry of every replicated table.
@@ -651,7 +830,7 @@ func (e *engine) reconcile(ctx context.Context, snap *configSnapshot) {
 		e.fw.close()
 		return
 	}
-	e.fw.ensure(state.ID, pid, desiredForwards(snap.config.MemberID, snap.ec))
+	e.fw.ensure(state.ID, pid, desiredForwardsGated(snap.config.MemberID, snap.ec, e.keeperGate.Load()))
 	text, err := e.rt.Query(ctx, statusQuery)
 	if err != nil {
 		return
@@ -663,9 +842,16 @@ func (e *engine) reconcile(ctx context.Context, snap *configSnapshot) {
 	now := bootNow()
 	e.trackGateway(now)
 	e.ensureDatabases(ctx, snap)
-	var current map[uint32]string
+	var current map[uint32]keeperEntry
 	e.mu.Lock()
-	readConfig := row.writable() || e.lastConfigRead == 0 || now-e.lastConfigRead >= copyKeeperConfigPeriod
+	readConfig := row.writable() || snap.config.Mode == memberha.ModeManual || e.lastConfigRead == 0 ||
+		now-e.lastConfigRead >= copyKeeperConfigPeriod
+	serving := e.lastSample.keeperQuorum
+	if serving {
+		e.keeperDownSince = 0
+	} else if e.keeperDownSince == 0 {
+		e.keeperDownSince = now
+	}
 	e.mu.Unlock()
 	if readConfig {
 		current, err = e.keeperConfig(ctx)
@@ -676,6 +862,19 @@ func (e *engine) reconcile(ctx context.Context, snap *configSnapshot) {
 		e.mu.Lock()
 		e.lastConfigRead = now
 		e.voters = voterList(current)
+		e.peerVoters.Store(e.voters)
+		e.learners = idList(current, true)
+		ownID := e.runningID.Load()
+		if ownID == 0 {
+			ownID = snap.ec.KeeperServerID
+		}
+		if own, ok := current[ownID]; ok {
+			e.wasLearner = own.learner
+			if e.joining.Load() {
+				_ = e.rt.WriteFile(joiningMarker, nil)
+				e.joining.Store(false)
+			}
+		}
 		for id := range current {
 			if _, ok := e.inConfig[id]; !ok {
 				e.inConfig[id] = now
@@ -688,7 +887,14 @@ func (e *engine) reconcile(ctx context.Context, snap *configSnapshot) {
 		}
 		e.mu.Unlock()
 	}
+	if snap.config.Mode == memberha.ModeManual {
+		e.checkKeeperGate(ctx, snap, current, row.writable(), now)
+	}
 	if !row.writable() {
+		e.copyRoles(snap, current, now)
+		return
+	}
+	if snap.config.Mode == memberha.ModeManual && e.manualRecovery(ctx, snap, current, now) {
 		return
 	}
 	e.requestLeadership(ctx, now)
@@ -771,8 +977,105 @@ func (e *engine) holderQuorum(ctx context.Context, snap *configSnapshot, row eng
 	}
 }
 
+// copyRoles evaluates the copy's Keeper role (roles.go): a rejoin with a wiped
+// Keeper state when it must become a voter, diverged, or is out of step.
+func (e *engine) copyRoles(snap *configSnapshot, current map[uint32]keeperEntry, now time.Duration) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.rejoinReason != "" {
+		return
+	}
+	voters, learners := effectiveRoles(snap.config, snap.ec, e.activated, nil)
+	notServing := time.Duration(0)
+	if e.keeperDownSince > 0 {
+		notServing = now - e.keeperDownSince
+	}
+	reason := copyRejoinReason(snap.ec.KeeperServerID, current, e.wasLearner, notServing, voters, learners,
+		snap.config.Mode == memberha.ModeManual)
+	if running := e.runningID.Load(); reason == "" && running != 0 && running != snap.ec.KeeperServerID && e.wasLearner {
+		// Gateway gave this learner a voter's server id: it joins again under it.
+		reason = "renumbered"
+	}
+	if reason != "" {
+		e.rejoinReason = reason
+		e.logger.Warn("ClickHouse copy must join its Keeper again", "set_id", snap.config.SetID, "reason", reason)
+	}
+}
+
+// manualRecovery runs a manual pair primary's forced Keeper recovery
+// (roles.go): its Keeper is a learner whose voters are all unreachable for
+// recoveryAfter, so it restarts as the only voter with force_recovery, then
+// once more with reconfiguration on. It reports whether a restart was started.
+func (e *engine) manualRecovery(ctx context.Context, snap *configSnapshot, current map[uint32]keeperEntry, now time.Duration) bool {
+	e.mu.Lock()
+	rec := e.rec
+	serving := e.lastSample.keeperQuorum
+	downFor := time.Duration(0)
+	if e.keeperDownSince > 0 {
+		downFor = now - e.keeperDownSince
+	}
+	wasLearner := e.wasLearner
+	e.mu.Unlock()
+	switch {
+	case rec != nil && rec.Phase == phaseRecovering && serving:
+		// Recovered alone: restart with reconfiguration on.
+		return e.restartForRecovery(ctx, snap, phaseSoleVoter)
+	case rec == nil && !serving && wasLearner && downFor >= recoveryAfter:
+		for _, voter := range snap.ec.KeeperServers {
+			if voter.ID == snap.ec.KeeperServerID || voter.Role == RoleLeaving || voter.Witness() {
+				continue
+			}
+			if e.rt.Probe(ctx, voter.Alias()) == nil {
+				e.mu.Lock()
+				e.votersDownSince = 0
+				e.mu.Unlock()
+				return false
+			}
+		}
+		e.mu.Lock()
+		if e.votersDownSince == 0 {
+			e.votersDownSince = now
+		}
+		down := now - e.votersDownSince
+		e.mu.Unlock()
+		if down < recoveryAfter {
+			return false
+		}
+		e.logger.Warn("manual primary recovers its Keeper alone: its voter is unreachable", "set_id", snap.config.SetID)
+		return e.restartForRecovery(ctx, snap, phaseRecovering)
+	}
+	return false
+}
+
+// restartForRecovery persists the recovery phase and stops the container; the
+// member runtime starts it again through PrepareStandby (which renders the
+// phase's raft list) and promotes it.
+func (e *engine) restartForRecovery(ctx context.Context, snap *configSnapshot, phase string) bool {
+	rec := &recovery{Phase: phase, AtUnixMs: time.Now().UnixMilli()}
+	if err := e.rt.WriteFile(recoveryFile, mustJSON(rec)); err != nil {
+		e.logger.Warn("could not persist the Keeper recovery", "set_id", snap.config.SetID, "error", err)
+		return false
+	}
+	e.mu.Lock()
+	e.rec = rec
+	e.mu.Unlock()
+	if err := e.rt.StopClean(ctx, 30*time.Second); err != nil {
+		e.logger.Warn("could not restart for the Keeper recovery", "set_id", snap.config.SetID, "error", err)
+	}
+	return true
+}
+
+func (e *engine) clearRecovery() {
+	e.mu.Lock()
+	e.rec = nil
+	e.mu.Unlock()
+	if err := e.rt.WriteFile(recoveryFile, nil); err != nil {
+		e.logger.Warn("could not clear the Keeper recovery record", "error", err)
+	}
+}
+
 // keeperConfig reads the Keeper's cluster configuration.
-func (e *engine) keeperConfig(ctx context.Context) (map[uint32]string, error) {
+func (e *engine) keeperConfig(ctx context.Context) (map[uint32]keeperEntry, error) {
 	text, err := e.rt.KeeperClient(ctx, keeperConfigCommand)
 	if err != nil {
 		return nil, err
@@ -808,9 +1111,10 @@ func (e *engine) requestLeadership(ctx context.Context, now time.Duration) {
 // holderKeeper moves the Keeper membership toward the desired voters and,
 // while Gateway is down, activates the standby witness when the active one
 // is dead (decision 8).
-func (e *engine) holderKeeper(ctx context.Context, snap *configSnapshot, current map[uint32]string, now time.Duration) {
+func (e *engine) holderKeeper(ctx context.Context, snap *configSnapshot, current map[uint32]keeperEntry, now time.Duration) {
 	e.mu.Lock()
 	act := e.activated
+	rec := e.rec
 	since := make(map[uint32]time.Duration, len(e.inConfig))
 	for id, at := range e.inConfig {
 		since[id] = at
@@ -857,7 +1161,28 @@ func (e *engine) holderKeeper(ctx context.Context, snap *configSnapshot, current
 		// The configuration read may predate the last reconfiguration.
 		return
 	}
-	action, ok := planKeeper(snap.ec.KeeperServerID, current, desiredVoters(snap.ec, act), reachable, since, now)
+	if rec != nil && recoveryAdopted(snap.ec) {
+		e.clearRecovery()
+		rec = nil
+	}
+	voters, learners := effectiveRoles(snap.config, snap.ec, act, rec)
+	joiningOf := map[string]bool{}
+	blocked := func(id uint32) bool {
+		server, ok := snap.ec.Server(id)
+		if !ok || server.MemberID == "" {
+			return false
+		}
+		joining, asked := joiningOf[server.MemberID]
+		if !asked {
+			state, answered := e.rt.PeerEngineState(ctx, server.MemberID)
+			joining = answered && state[peerKeeperJoining] == "true"
+			joiningOf[server.MemberID] = joining
+		}
+		// A member is added only once its Keeper waits to join (first start or
+		// after a wipe): never a returning server with a diverged state.
+		return !joining
+	}
+	action, ok := planKeeper(snap.ec.KeeperServerID, current, voters, learners, reachable, blocked, since, now)
 	if !ok {
 		return
 	}

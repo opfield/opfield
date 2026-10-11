@@ -157,7 +157,7 @@ func TestHolderActivatesStandbyWhileGatewayIsDown(t *testing.T) {
 	e.lastSample.keeperQuorum = true
 	e.gatewayDown = time.Second
 	e.mu.Unlock()
-	current := map[uint32]string{1: "a", 2: "b", 101: "w"}
+	current := map[uint32]keeperEntry{1: {endpoint: "a"}, 2: {endpoint: "b"}, 101: {endpoint: "w"}}
 	start := 10 * time.Minute
 	e.holderKeeper(ctx, snap, current, start)
 	if len(received) != 0 {
@@ -182,7 +182,7 @@ func TestHolderActivatesStandbyWhileGatewayIsDown(t *testing.T) {
 	if len(rt.keeper) == 0 || rt.keeper[len(rt.keeper)-1] != "reconfig add 'server.102=127.12.34.1:39437;participant;1'" {
 		t.Fatalf("keeper commands %v", rt.keeper)
 	}
-	current[102] = "w2"
+	current[102] = keeperEntry{endpoint: "w2"}
 	e.mu.Lock()
 	for id := range current {
 		e.inConfig[id] = start

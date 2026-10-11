@@ -1,5 +1,6 @@
+import { inArray } from 'drizzle-orm';
 import type { DrizzleExecutor } from '@/db/client.js';
-import type { relayEndpoints, relayRoutes } from '@/db/schema/index.js';
+import { managedAvailabilityWitnesses, type relayEndpoints, type relayRoutes } from '@/db/schema/index.js';
 import {
   isPrimaryMemberPort,
   loadSetRelayViews,
@@ -9,6 +10,7 @@ import {
   SET_CLIENT_ENDPOINT_KIND,
   SET_PEER_ENDPOINT_KIND,
   SET_PEER_ROUTE_KIND,
+  SET_WITNESS_ENDPOINT_KIND,
   SET_WITNESS_ROUTE_KIND,
   type SetRelayMember,
   type SetRelayView,
@@ -82,6 +84,7 @@ function mayInvolveSets(grants: SetGrantAssignment[], ownRoutes: RouteRow[]): bo
         grant.ownerKind === SET_PEER_ENDPOINT_KIND ||
         grant.ownerKind === SET_PEER_ROUTE_KIND ||
         grant.ownerKind === SET_WITNESS_ROUTE_KIND ||
+        grant.ownerKind === SET_WITNESS_ENDPOINT_KIND ||
         parentKindOfMemberRoute(grant.ownerKind) !== null
     ) || ownRoutes.some((route) => Boolean(route.parentRouteId))
   );
@@ -121,7 +124,40 @@ export async function completeSetGrants<T extends SetGrantAssignment>(
     return view && member ? { view, member } : null;
   };
 
+  // Keeper witnesses on docker nodes serve an endpoint of their own (owner id = witness id).
+  const witnessGrantIds = grants
+    .filter((grant) => grant.role === 'endpoint' && grant.ownerKind === SET_WITNESS_ENDPOINT_KIND)
+    .map((grant) => grant.ownerId);
+  const witnessSet = new Map(
+    witnessGrantIds.length
+      ? (
+          await db
+            .select({ id: managedAvailabilityWitnesses.id, setId: managedAvailabilityWitnesses.setId })
+            .from(managedAvailabilityWitnesses)
+            .where(inArray(managedAvailabilityWitnesses.id, witnessGrantIds))
+        ).map((row) => [row.id, row.setId])
+      : []
+  );
+  const viewBySet = new Map(views.map((view) => [view.setId, view]));
   for (const grant of grants) {
+    if (grant.role === 'endpoint' && grant.ownerKind === SET_WITNESS_ENDPOINT_KIND) {
+      const view = viewBySet.get(witnessSet.get(grant.ownerId) ?? '');
+      if (view) {
+        grant.leaseTarget = {
+          setId: view.setId,
+          memberId: '',
+          candidateId: '',
+          leasePolicyId: view.leasePolicyId ?? '',
+          rank: 0,
+          ownerKind: view.ownerKind,
+          ownerId: view.ownerId,
+          portName: 'ch-keeper',
+          primaryPort: false,
+          witnessId: grant.ownerId,
+        };
+      }
+      continue;
+    }
     if (grant.role === 'endpoint') {
       if (grant.ownerKind === SET_PEER_ENDPOINT_KIND) {
         const parsed = parsePeerEndpointOwnerId(grant.ownerId);
@@ -140,9 +176,15 @@ export async function completeSetGrants<T extends SetGrantAssignment>(
       continue;
     }
     if (grant.role === 'connect' && grant.ownerKind === SET_WITNESS_ROUTE_KIND) {
-      // A member's route to a Keeper witness: `<member id>><witness id>`.
+      // A member's route to a Keeper witness: `<member id>><witness id>`; a docker-node witness's route to a member:
+      // `<witness id>><member id>` (a relay witness's routes start at its relay, never in a daemon's bundle).
       const [sourceMemberId, witnessId] = grant.ownerId.split('>');
       const found = sourceMemberId ? memberById.get(sourceMemberId) : undefined;
+      const reached = !found && witnessId ? memberById.get(witnessId) : undefined;
+      if (reached && sourceMemberId) {
+        grant.leaseTarget = { ...target(reached.view, reached.member, 'ch-keeper'), witnessId: sourceMemberId };
+        continue;
+      }
       if (found && witnessId) {
         grant.leaseTarget = {
           setId: found.view.setId,

@@ -105,6 +105,9 @@ type PeerState struct {
 	// one counts (a newer generation makes this member step down and adopt
 	// it).
 	Assignment *Assignment `json:"assignment,omitempty"`
+	// Engine is what the engine tells its peers (PeerStater), e.g. that its
+	// ClickHouse Keeper waits to be added.
+	Engine map[string]string `json:"engine,omitempty"`
 }
 
 // Deps are the runtime's collaborators.

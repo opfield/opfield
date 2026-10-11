@@ -118,7 +118,7 @@ func (p *DockerPlugin) SetMemberServingChanged() []chan struct{} {
 
 // isSetEndpointKind reports the endpoint kinds only availability sets have.
 func isSetEndpointKind(ownerKind string) bool {
-	return ownerKind == setClientEndpointKind || ownerKind == setPeerEndpointKind
+	return ownerKind == setClientEndpointKind || ownerKind == setPeerEndpointKind || ownerKind == setWitnessEndpointKind
 }
 
 // setEndpointState is the state a set endpoint registers with on every relay.
@@ -128,6 +128,10 @@ func isSetEndpointKind(ownerKind string) bool {
 // single-node one, any other set endpoint stays DORMANT. A peer endpoint
 // serves while the member's engine port takes peer traffic.
 func (p *DockerPlugin) setEndpointState(assignment *pb.RelayGrantAssignment) relayv1.EndpointServingState {
+	if assignment.GetOwnerKind() == setWitnessEndpointKind {
+		// A ClickHouse Keeper witness container on this (non-member) node.
+		return p.witnessEndpointState(assignment)
+	}
 	target := assignment.GetLeaseTarget()
 	if target == nil {
 		return relayv1.EndpointServingState_ENDPOINT_SERVING_STATE_UNSPECIFIED
@@ -165,6 +169,10 @@ func (p *DockerPlugin) setMemberServes(assignment *pb.RelayGrantAssignment) bool
 // client endpoint to the resource's engine on this node, a peer endpoint to
 // the member's engine port.
 func (r *relayTunnelRouter) dialSetEndpoint(ctx context.Context, assignment *pb.RelayGrantAssignment) (dialedEndpoint, error) {
+	if assignment.GetOwnerKind() == setWitnessEndpointKind {
+		connection, err := r.plugin.dialWitness(ctx, assignment)
+		return dialedEndpoint{conn: connection}, err
+	}
 	target := assignment.GetLeaseTarget()
 	if target == nil {
 		return dialedEndpoint{}, errEndpointNotServed
