@@ -1,4 +1,5 @@
 import { and, eq, inArray } from 'drizzle-orm';
+import { container } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import {
   databaseConnections,
@@ -19,6 +20,7 @@ import { hasScopeForResource } from '@/lib/permissions.js';
 import type { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import { hasDockerResourceScope } from '@/modules/docker/docker-access-resource.service.js';
+import { ProxyService } from '@/modules/proxy/proxy.service.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import { APP_ENV_MANAGE_SCOPE, assertAppScope, hasAppScope } from './app-access.js';
 import { type AppFamily, type AppMemberType, familyOfMemberType } from './app-families.js';
@@ -651,6 +653,14 @@ export class AppMembersService {
           };
           if (row.isSystem) {
             resolved.refusal = { code: 'ROUTE_NOT_PLACEABLE', message: 'System routes cannot join an app' };
+          } else if (
+            container.isRegistered(ProxyService) &&
+            (await container.resolve(ProxyService).servesGatewayPublicUrl({ domainNames: row.domainNames ?? [] }))
+          ) {
+            resolved.refusal = {
+              code: 'ROUTE_NOT_PLACEABLE',
+              message: 'The route serving the Gateway public URL cannot join an app',
+            };
           }
           out.push(resolved);
           break;

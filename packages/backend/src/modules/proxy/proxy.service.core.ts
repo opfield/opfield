@@ -24,6 +24,7 @@ import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import type { RelayPoolService } from '@/services/relay-pool.service.js';
 import type { AdditionalRouteService } from './additional-route.service.js';
 import { supportsPagesRouteTemplate } from './additional-route-template.js';
+import { effectiveMaintenance } from './effective-maintenance.js';
 import { MAINTENANCE_FLAG_CAPABILITY } from './nginx-maintenance-flag-guard.js';
 import type { NginxTemplateService } from './nginx-template.service.js';
 import type { CreateProxyHostInput, UpdateProxyHostInput } from './proxy.schemas.js';
@@ -812,7 +813,7 @@ export abstract class ProxyServiceCore {
           )
         : null;
     let result = flagGuard ?? rendered;
-    if (!flagGuard && host.maintenanceEnabled) {
+    if (!flagGuard && effectiveMaintenance(host)) {
       const access =
         this.maintenanceAccess && (await this.maintenanceAccess.isNodeSupported(host.nodeId))
           ? { hostId: host.id, secret: this.maintenanceAccess.secretForHost(host.id) }
@@ -847,11 +848,11 @@ export abstract class ProxyServiceCore {
    * does not (the flag stays as it is).
    */
   protected async maintenanceFlagFor(
-    host: Pick<ProxyHostRow, 'enabled' | 'maintenanceEnabled'>,
+    host: Pick<ProxyHostRow, 'enabled' | 'maintenanceEnabled'> & { appMaintenanceMode?: string | null },
     nodeId: string | null
   ): Promise<boolean | undefined> {
     if (!(await this.nodeKeepsMaintenanceFlags(nodeId))) return undefined;
-    return host.enabled && host.maintenanceEnabled;
+    return host.enabled && effectiveMaintenance(host);
   }
 
   protected async nodeKeepsMaintenanceFlags(nodeId: string | null): Promise<boolean> {

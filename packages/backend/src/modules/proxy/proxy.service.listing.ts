@@ -6,6 +6,7 @@ import { AppError } from '@/middleware/error-handler.js';
 import { type AppMemberRef, AppMembershipService, appMemberFolderCondition } from '@/modules/apps/app-membership.js';
 import { proxyHostsServedByNode } from '@/modules/ingress-groups/ingress-nodes.js';
 import type { PaginatedResponse } from '@/types.js';
+import { type AppMaintenanceMode, effectiveMaintenance } from './effective-maintenance.js';
 import type { ProxyHostListQuery } from './proxy.schemas.js';
 import { attachDockerUpstreamDisplay } from './proxy-upstream-display.js';
 
@@ -237,6 +238,49 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
     }
 
     return (await attachDockerUpstreamDisplay(this.db, [updated]))[0]!;
+  }
+
+  /**
+   * Apps set a route's maintenance overlay (environment switch, app override, phase 2 incidents). The route's own
+   * switch is never touched; its nodes get the effective state like a toggle (a flag without reload where the node
+   * keeps maintenance flags). A node that cannot be reached gets it with its next resync. Returns whether it changed.
+   */
+  async setAppMaintenanceMode(id: string, mode: AppMaintenanceMode): Promise<boolean> {
+    return withProxyHostLock(id, async () => {
+      const existing = await this.db.query.proxyHosts.findFirst({ where: eq(proxyHosts.id, id) });
+      if (!existing || (existing.appMaintenanceMode ?? 'off') === mode) return false;
+      const [updated] = await this.db
+        .update(proxyHosts)
+        .set({ appMaintenanceMode: mode, updatedAt: new Date() })
+        .where(eq(proxyHosts.id, id))
+        .returning();
+      const effectiveChanged = effectiveMaintenance(existing) !== effectiveMaintenance(updated);
+      if (updated.enabled && effectiveChanged) {
+        try {
+          await this.deliverHost(updated, {
+            certOptions: { preserveLegacyOnUnsupported: true },
+            apply: { reuseActiveBundle: true },
+          });
+        } catch (error) {
+          logger.warn('App maintenance overlay not delivered now; the node gets it with its next resync', {
+            hostId: id,
+            mode,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      this.emitHost(id, 'updated', existing.domainNames?.[0], { appMaintenanceMode: mode });
+      if (effectiveChanged) this.reconcileMaintenanceAlerts(id);
+      if (effectiveChanged && !effectiveMaintenance(updated) && updated.healthCheckEnabled) {
+        this.runImmediateHealthCheck(id);
+      }
+      return true;
+    });
+  }
+
+  /** Whether a route serves the Gateway public URL (it never joins an app maintenance overlay or an app). */
+  async servesGatewayPublicUrl(host: Pick<ProxyHostRow, 'domainNames'>): Promise<boolean> {
+    return this.isGatewayPublicRoute(host);
   }
 
   async toggleMaintenance(id: string, enabled: boolean, userId: string) {

@@ -65,6 +65,30 @@ function mapProxyHostCertificateReferenceError(error: unknown): never {
 }
 
 export abstract class ProxyServiceMutations extends ProxyServicePlacement {
+  /** Recomputes the app maintenance overlay of routes (set by the apps module). */
+  protected appOverlay?: (routeIds: string[]) => Promise<void>;
+
+  setAppOverlayHook(hook: (routeIds: string[]) => Promise<void>) {
+    this.appOverlay = hook;
+  }
+
+  /** A route created in, or changed inside, an app environment takes the environment's maintenance overlay. */
+  protected async refreshAppOverlay(host: {
+    id: string;
+    folderId?: string | null;
+    appMaintenanceMode?: string | null;
+  }) {
+    if (!this.appOverlay || (!host.folderId && (host.appMaintenanceMode ?? 'off') === 'off')) return;
+    try {
+      await this.appOverlay([host.id]);
+    } catch (error) {
+      logger.warn('Failed to refresh the app maintenance overlay of a route', {
+        hostId: host.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   /** Every nginx node as a route destination: identity and availability only (no node details). */
   protected async loadRouteIngressNodeCandidates(): Promise<RouteIngressNodeCandidate[]> {
     const rows = await this.db
@@ -402,6 +426,8 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
       this.runImmediateHealthCheck(host.id);
     }
 
+    await this.refreshAppOverlay(host);
+
     // 7. Return created host
     return (await attachDockerUpstreamDisplay(this.db, [host]))[0]!;
   }
@@ -419,9 +445,14 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
     // Serialize the DB write and node apply with every other change to this
     // host, so the node always serves the last committed row. A move also
     // fences reconnect cleanup on the target node.
-    return withProxyLocks([proxyHostLockKey(id), input.nodeId && proxyNodeLockKey(input.nodeId)], () =>
+    const updated = await withProxyLocks([proxyHostLockKey(id), input.nodeId && proxyNodeLockKey(input.nodeId)], () =>
       this.updateProxyHostLocked(id, input, userId, validationOptions)
     );
+    // A type or raw-mode change decides whether the route can carry its environment's maintenance overlay.
+    await this.refreshAppOverlay(
+      updated as { id: string; folderId?: string | null; appMaintenanceMode?: string | null }
+    );
+    return updated;
   }
 
   private async updateProxyHostLocked(
