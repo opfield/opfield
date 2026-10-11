@@ -35,7 +35,8 @@ export interface IncidentRunHooks {
  * Runs incidents: applies pending/failed items phase by phase (ascending) while the incident is applying or active,
  * and restores every item from its recorded prior state phase by phase (descending) while it is releasing. Failures
  * stay on the item (failed / restore_failed) and are retried by the next run (the 30 s job and node reconnects); the
- * incident ends `released` once every item is restored or gone. One run per incident at a time across processes
+ * incident ends `released` once every item is restored or gone. A resource removed meanwhile (a route, a binding, a
+ * network) ends its item `gone`, never failed. One run per incident at a time across processes
  * (operation lease), and within this process.
  */
 export class AppIncidentRunner {
@@ -143,10 +144,12 @@ export class AppIncidentRunner {
         try {
           if (item.itemKind === 'route_overlay') await this.repo.updateItem(item.id, { status: 'restored' });
           const outcome = await this.actions.restore(item, { incidentId: incident.id, userId: incident.releasedById });
+          // A restored or gone item keeps the restore's note (what it could not put back as it was) in place of an
+          // error; the incident view shows it as the item's detail.
           await this.repo.updateItem(item.id, {
             status: outcome.status === 'gone' ? 'gone' : 'restored',
             attempts: item.attempts + 1,
-            lastError: null,
+            lastError: outcome.status === 'applied' ? null : (outcome.detail ?? null),
           });
         } catch (error) {
           await this.repo.updateItem(item.id, {

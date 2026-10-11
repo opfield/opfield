@@ -117,4 +117,81 @@ describe('the recreate watcher', () => {
     expect(onComplete).toHaveBeenCalledWith(NEW_RUNTIME);
     expect(emitContainer).toHaveBeenCalledWith('node-1', 'api', NEW_RUNTIME, 'recreated', { oldId: OLD_RUNTIME });
   });
+
+  /** Watches a recreate whose daemon task answers `task` and whose container list answers `listed`. */
+  function watch(
+    listed: Array<Record<string, unknown>>,
+    task: { success: boolean; detail?: string; error?: string },
+    expectedState = 'running'
+  ) {
+    const dispatch = vi.fn(async (_nodeId: string, action: string) =>
+      action === 'list' ? { success: true, detail: JSON.stringify(listed) } : task
+    );
+    const context = {
+      nodeDispatch: { sendDockerContainerCommand: dispatch },
+      parseResult: (result: { success: boolean; detail?: string; error?: string }) => {
+        if (!result.success) throw new Error(result.error);
+        return result.detail ? JSON.parse(result.detail) : null;
+      },
+      clearTransition: vi.fn(),
+      emitContainer: vi.fn(),
+      failTask: vi.fn().mockResolvedValue(undefined),
+    };
+    const onComplete = vi.fn().mockResolvedValue(undefined);
+    const onDaemonTaskFailed = vi.fn().mockResolvedValue(undefined);
+    watchDockerRecreateByName(
+      context as never,
+      'node-1',
+      'api',
+      OLD_RUNTIME,
+      'task-1',
+      'Container recreated',
+      expectedState,
+      630_000,
+      onComplete,
+      'daemon-task-1',
+      onDaemonTaskFailed
+    );
+    return { context, onComplete, onDaemonTaskFailed };
+  }
+
+  it('releases the container at once when the daemon is done with a replacement that never started', async () => {
+    vi.useFakeTimers();
+    const succeeded = { success: true, detail: JSON.stringify({ status: 'succeeded' }) };
+    const listed = [{ id: NEW_RUNTIME, name: 'api', state: 'created', status: 'Created' }];
+    const { context, onComplete } = watch(listed, succeeded);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(context.failTask).toHaveBeenCalledWith(
+      'task-1',
+      'Replacement container was created but did not start (Created)',
+      'node-1',
+      'api'
+    );
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it('completes a recreate asked created once the daemon started the replacement as an earlier one meant', async () => {
+    vi.useFakeTimers();
+    const succeeded = { success: true, detail: JSON.stringify({ status: 'succeeded' }) };
+    const listed = [{ id: NEW_RUNTIME, name: 'api', state: 'running' }];
+    const { context, onComplete } = watch(listed, succeeded, 'created');
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(onComplete).toHaveBeenCalledWith(NEW_RUNTIME);
+    expect(context.clearTransition).toHaveBeenCalledWith('node-1', 'api');
+    expect(context.failTask).not.toHaveBeenCalled();
+  });
+
+  it('releases the container at once when the daemon restarted and no longer knows the task', async () => {
+    vi.useFakeTimers();
+    const unknownTask = { success: false, error: 'docker task not found' };
+    const { context, onDaemonTaskFailed } = watch([{ id: OLD_RUNTIME, name: 'api', state: 'created' }], unknownTask);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(onDaemonTaskFailed).toHaveBeenCalledTimes(1);
+    expect(context.failTask).toHaveBeenCalledWith(
+      'task-1',
+      'The Docker daemon restarted before the container was replaced',
+      'node-1',
+      'api'
+    );
+  });
 });

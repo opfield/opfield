@@ -4,7 +4,7 @@ import { AppError } from '@/middleware/error-handler.js';
 import { type DockerTaskFollowUpTrigger, TASK_COMMAND_LOOKUP_CAPABILITY } from './docker-env-follow-ups.js';
 import { resolveDockerImageByIdentifier } from './docker-internal-images.js';
 import type { ContainerAction, DockerLifecycleWatchContext } from './docker-lifecycle-watch.js';
-import { getReplacementContainerFailureMessage } from './docker-recreate-watch.js';
+import { getReplacementContainerFailureMessage, replacementReached } from './docker-recreate-watch.js';
 import type { DockerTaskRow, DockerTaskService } from './docker-task.service.js';
 
 const logger = createChildLogger('DockerTaskReconciler');
@@ -244,6 +244,8 @@ export class DockerTaskReconciler {
     tracking: Extract<DockerTaskTracking, { kind: 'replace' }>
   ): Promise<Outcome> {
     let daemonTaskRunning = false;
+    // The daemon is done with the replacement (its task succeeded, or it restarted and no longer runs it).
+    let daemonTaskSettled = false;
     let notOnNode = false;
     const lookupId = tracking.daemonTaskId || task.commandId;
     if (lookupId) {
@@ -262,6 +264,7 @@ export class DockerTaskReconciler {
           return { status: 'failed', error: String(daemonTask?.error || 'Docker daemon task failed') };
         }
         daemonTaskRunning = daemonStatus === 'running' || daemonStatus === 'pending';
+        daemonTaskSettled = daemonStatus === 'succeeded';
       } else {
         // A daemon that restarted no longer knows the task, an older one cannot tell: the containers tell then.
         // Any other answer (a busy daemon) is asked again at the next pass.
@@ -269,6 +272,7 @@ export class DockerTaskReconciler {
         if (error !== LEGACY_TASK_STATUS_ERROR && error !== DAEMON_TASK_NOT_FOUND_ERROR) {
           throw new Error(error || 'task_status failed');
         }
+        daemonTaskSettled = error === DAEMON_TASK_NOT_FOUND_ERROR;
         notOnNode =
           error === DAEMON_TASK_NOT_FOUND_ERROR &&
           (!!tracking.daemonTaskId || !!ctx.nodeHasCapability?.(task.nodeId, TASK_COMMAND_LOOKUP_CAPABILITY));
@@ -284,8 +288,7 @@ export class DockerTaskReconciler {
     if (match && !daemonTaskRunning) {
       const newId = String(match.id ?? match.Id ?? '');
       const state = String(match.state ?? match.State ?? '');
-      const reached =
-        state === tracking.expectedState || (tracking.expectedState === 'running' && state === 'restarting');
+      const reached = replacementReached(state, tracking.expectedState, daemonTaskSettled);
       if (newId && newId !== tracking.oldContainerId && reached) {
         await ctx.preserveContainerIdentity?.(task.nodeId, tracking.containerName, newId);
         await this.runFollowUps(ctx, task, { kind: 'replaced', newContainerId: newId });
@@ -298,7 +301,12 @@ export class DockerTaskReconciler {
             }),
         };
       }
-      const failure = getReplacementContainerFailureMessage(match, tracking.oldContainerId, tracking.expectedState);
+      const failure = getReplacementContainerFailureMessage(
+        match,
+        tracking.oldContainerId,
+        tracking.expectedState,
+        daemonTaskSettled
+      );
       if (failure) return { status: 'failed', error: failure };
       if (notOnNode && String(match.id ?? match.Id ?? '') === tracking.oldContainerId) {
         // What the operation saved beforehand is put back, as when its dispatch fails.

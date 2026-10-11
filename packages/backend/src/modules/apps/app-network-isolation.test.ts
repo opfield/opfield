@@ -146,11 +146,33 @@ describe('app network isolation', () => {
     expect(dispatch.restoreContainerNetworks).toHaveBeenCalledWith('n1', 'app', [daemonEndpoint]);
     expect(result).toEqual({
       restored: ['app-net'],
+      gone: [],
+      networkModeGone: null,
+      fallbackNetwork: null,
       failed: [{ networkName: 'gone', networkId: 'id-gone', error: 'network gone not found' }],
     });
     const failed = await appError(
       setup({ success: false, error: 'No such container: app' }).isolation.restore('n1', 'app', [])
     );
     expect([failed.statusCode, failed.code]).toEqual([502, 'NETWORK_RESTORE_FAILED']);
+  });
+
+  it('returns the networks that are gone and the network the container fell back to', async () => {
+    const { isolation } = setup({
+      detail: JSON.stringify({
+        restored: [],
+        gone: ['gateway-db-fbde43'],
+        failed: [],
+        networkModeGone: 'gateway-db-fbde43',
+        fallbackNetwork: 'bridge',
+      }),
+    });
+    await expect(isolation.restore('n1', 'app', [endpoint])).resolves.toEqual({
+      restored: [],
+      gone: ['gateway-db-fbde43'],
+      networkModeGone: 'gateway-db-fbde43',
+      fallbackNetwork: 'bridge',
+      failed: [],
+    });
   });
 });

@@ -61,7 +61,7 @@ export const releaseAppIsolationRoute = appRoute({
   path: '/{id}/isolation',
   tags: TAGS,
   summary: 'Turn the kill switch off',
-  description: `Restores every recorded item from its prior state in reverse order. Items whose resource is gone end as gone; a failed restore is retried until it succeeds (the incident stays releasing). ${SCOPE_TEXT}`,
+  description: `Restores every recorded item from its prior state in reverse order. Items whose resource is gone end as gone, and so does a network removed meanwhile (skipped, named in the item detail); a failed restore is retried until it succeeds (the incident stays releasing). ${SCOPE_TEXT}`,
   request: { params: AppParams, ...jsonBody(AppIncidentScopeSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -72,7 +72,7 @@ export const listAppIncidentsRoute = appRoute({
   tags: TAGS,
   summary: 'App incidents',
   description:
-    'Shutdowns and kill switch isolations of the environments you can view: open ones first, then recent ones, each with its items (kind, label, status pending/applied/failed/restored/restore_failed/gone, attempts, last error).',
+    'Shutdowns and kill switch isolations of the environments you can view: open ones first, then recent ones, each with its items (kind, label, status pending/applied/failed/restored/restore_failed/gone, attempts, last error, and detail: what a restored or gone item could not put back as it was).',
   request: { params: AppParams },
   responses: okJson(UnknownDataResponseSchema),
 });

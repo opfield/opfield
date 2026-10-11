@@ -178,6 +178,29 @@ describe('App incident runner', () => {
     expect(store.state.state).toBe('released');
   });
 
+  it('keeps what a restore could not put back as the detail of a done item, never as a failure', async () => {
+    const store = memoryRepo(INCIDENT, ITEMS);
+    const note = 'Skipped network gateway-db-1: it no longer exists';
+    const actions: AppIncidentActions = {
+      apply: vi.fn(async () => ({ status: 'applied', priorState: { x: 1 } }) as IncidentActionOutcome),
+      restore: vi.fn(async (item) =>
+        item.itemKind === 'container_network'
+          ? ({ status: 'restored', detail: note } as IncidentActionOutcome)
+          : ({ status: 'gone' } as IncidentActionOutcome)
+      ),
+    };
+    const runner = new AppIncidentRunner(store.repo as never, actions, { changed: vi.fn() }, leases as never);
+    await runner.run(INCIDENT.id);
+    await store.repo.setState(INCIDENT.id, 'releasing');
+    await runner.run(INCIDENT.id);
+    const network = store.rows.find((row) => row.itemKind === 'container_network');
+    expect(network).toMatchObject({ status: 'restored', lastError: note });
+    const link = store.rows.find((row) => row.itemKind === 'container_link');
+    expect(link).toMatchObject({ status: 'gone', lastError: null });
+    expect(store.state.state).toBe('released');
+    expect(actions.restore).toHaveBeenCalledTimes(4);
+  });
+
   it('marks items that never applied as restored without touching them', async () => {
     const store = memoryRepo(INCIDENT, ITEMS);
     const actions: AppIncidentActions = {

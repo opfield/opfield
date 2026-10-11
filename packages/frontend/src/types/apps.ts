@@ -329,6 +329,8 @@ export interface AppIncidentItem {
   status: AppIncidentItemStatus;
   attempts: number;
   lastError: string | null;
+  /** What a restored or gone item could not put back as it was (a network removed meanwhile, for one). */
+  detail?: string | null;
 }
 
 export interface AppIncidentPerson {
