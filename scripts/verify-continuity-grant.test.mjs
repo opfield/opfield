@@ -50,9 +50,17 @@ test('rejects removal of the end-of-life and incapacity triggers', async () => {
 });
 
 test('rejects removal of the right to run without the license server', async () => {
-  await assertRejected('- the right to run that release without the license server', '- the right to run that release');
+  await assertRejected('- the right to run that release without the license service', '- the right to run that release');
 });
 
-test('rejects removal of the commercial core from the grant', async () => {
-  await assertRejected(', including its commercial core', '');
+test('rejects removal of the commercial core from the MIT license', async () => {
+  await assertRejected('the source code of the last release, including its commercial core, to everyone', 'the source code of the last release to everyone');
+});
+
+test('rejects tying the license service to one address', async () => {
+  await assertRejected('at any address the Licensor publishes for it', 'at https://license.opfield.dev');
+});
+
+test('rejects removal of the publication duty', async () => {
+  await assertRejected('within 90 days of the Continuity Event', 'when convenient');
 });
