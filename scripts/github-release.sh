@@ -113,6 +113,20 @@ require_signing_key() {
   }
 }
 
+# Keyless image signatures and SBOMs (scripts/release/supply-chain.sh, docs/verify-releases.md), on when the
+# repository variable SIGN_IMAGES is true. The workflow installs cosign and syft first.
+signing_enabled() {
+  [[ "${SIGN_IMAGES:-}" == "true" ]]
+}
+
+# binary_sboms <binary>...: writes <binary>.spdx.json next to each release binary.
+binary_sboms() {
+  local binary
+  for binary in "$@"; do
+    scripts/release/supply-chain.sh sbom-file "$binary" "${binary}.spdx.json"
+  done
+}
+
 push_image_with_digest() {
   local image_ref=$1 digest_file=$2 label=$3
   sh scripts/push-image-with-digest.sh "$image_ref" "$digest_file" "$label"
@@ -258,6 +272,12 @@ publish_daemon() {
   require_signing_key
   ./scripts/sync-update-trust-anchor.sh
   build_daemon_assets "$daemon_dir" "$daemon_name" "$daemon_suffix" "$ldflags_version_pkg"
+  if signing_enabled; then
+    for arch in amd64 arm64; do
+      binary_sboms "${daemon_name}-linux-${arch}"
+      assets+=("${daemon_name}-linux-${arch}.spdx.json")
+    done
+  fi
   complete_release "${assets[@]}"
 }
 
@@ -331,6 +351,24 @@ publish_relay() {
   fi
   mirror_image "$relay_image" "$relay_digest" "${mirror_tags[@]}"
   mirror_image "$secure_link_image" "$secure_link_digest" "$tag"
+  if signing_enabled; then
+    local relay_also=() connector_also=() binary
+    if [[ -n "$gateway_image_mirror" ]]; then
+      relay_also=(--also "${gateway_image_mirror}/relay")
+      connector_also=(--also "${gateway_image_mirror}/secure-link-connector")
+    fi
+    scripts/release/supply-chain.sh sign "${relay_image}@${relay_digest}" \
+      --sbom "relay-${tag}.spdx.json" "${relay_also[@]}"
+    scripts/release/supply-chain.sh sign "${secure_link_image}@${secure_link_digest}" \
+      --sbom "secure-link-connector-${tag}.spdx.json" "${connector_also[@]}"
+    assets+=("relay-${tag}.spdx.json" "secure-link-connector-${tag}.spdx.json")
+    for arch in amd64 arm64; do
+      for binary in relay-supervisor relay-worker; do
+        binary_sboms "${binary}-linux-${arch}"
+        assets+=("${binary}-linux-${arch}.spdx.json")
+      done
+    done
+  fi
   complete_release "${assets[@]}"
 }
 

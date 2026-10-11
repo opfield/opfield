@@ -81,6 +81,7 @@ For flags, non-interactive installs, custom SSL, OIDC details, updates, and node
 | Configure tokens, OAuth, MCP, logging, updates, and AI | [Operations guide](docs/operations.md) |
 | Configure the multi-provider inference proxy | [Inference proxy](docs/inference.md) |
 | Review the security model | [Security model](docs/security.md) |
+| Verify release images, SBOMs, and signed manifests | [Verifying releases](docs/verify-releases.md) |
 | Understand license tiers and activation | [Licensing](docs/licensing.md) |
 | Run the project locally or contribute | [Development guide](docs/development.md) |
 | Review permission scopes | [SCOPES.md](SCOPES.md) |
@@ -177,6 +178,22 @@ Opfield is designed to be secure by default as an infrastructure control plane:
 
 The result is a PKI-backed trust model: short-lived enrollment tokens get a node into the system only after the daemon confirms it is talking to the pinned Opfield certificate, and long-term trust is based on certificate identity rather than reusable shared secrets. This gives Opfield a strong default posture against token interception during setup and node hijacking after enrollment. Read the [security model](docs/security.md) for the full explanation and deployment hardening checklist.
 
+## Verifying Releases
+
+Every release can be checked independently:
+
+- Opfield and its daemons install an update only after verifying its Ed25519-signed manifest against the public key compiled into them. The manifests are release assets (`*.update.json`).
+- From Opfield 2.12, every published image (Opfield, relay, Secure Link connector, backup runner, patched SeaweedFS, the mirrored third-party images, and the inference core) is signed with Sigstore keyless signing by the GitHub Actions workflow that published it and recorded in the Rekor transparency log.
+- Each release lists SPDX SBOMs of its images and binaries, which are also attached to the images as signed attestations.
+
+```bash
+cosign verify ghcr.io/opfield/opfield:v2.12.0 \
+  --certificate-identity https://github.com/opfield/opfield/.github/workflows/release.yml@refs/tags/v2.12.0 \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+See [Verifying releases](docs/verify-releases.md) for every image, SBOM checks, and manual manifest verification. Release notes are published with each GitHub release ([CHANGELOG.md](CHANGELOG.md)). Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
+
 ## FAQ
 
 <details>
@@ -232,6 +249,8 @@ No. AI Workspace is optional. The Operations Console, REST API, OAuth, and MCP r
 Opfield has four product plans. Paid plans apply to one Opfield installation and do not add per-node, per-user, or per-permission-group charges.
 
 Opfield source is available under the [PolyForm Perimeter License 1.0.1](LICENSE.md). It permits use, modification, and redistribution for noncompeting purposes, including ordinary internal business use. A Personal, Business, or Enterprise key unlocks the corresponding paid-plan features and limits under the [Paid Key Terms](COMMERCIAL-LICENSE.md); it does not waive Perimeter's restriction on providing a product marketed as a substitute for Opfield. Competing hosted/SaaS, OEM, white-label, and resale offerings require a separate written agreement with the Licensor.
+
+This repository is the open core: the frontend, the backend, the node daemons, the relay, and the installers. Paid-plan backend features ship as the commercial core, a separately signed package that is not in this repository. Activating a paid key installs the core that matches the running Opfield version through the signed update mechanism; Community builds and runs from this repository alone. See [Community and the commercial core](docs/commercial-core.md).
 
 Every official release also carries the [Product Continuity Grant](CONTINUITY-GRANT.md): if Opfield stops being provided (12 consecutive months with no new release while the license service is unavailable, or an end-of-life notice) or the Licensor can no longer act, the source code of the last release, including the commercial core, becomes available to everyone under the MIT License, and holders of a valid key keep a perpetual, royalty-free right to use and self-host that release and to run it without the license service.
 

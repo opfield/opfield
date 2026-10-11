@@ -79,6 +79,7 @@ Installer запускает Opfield и выводит одноразовый к
 | Настроить tokens, OAuth, MCP, logging, updates и AI | [Operations guide](docs/operations.md) |
 | Настроить multi-provider inference proxy | [Inference proxy](docs/inference.md) |
 | Изучить security model | [Security model](docs/security.md) |
+| Проверить образы, SBOM и подписанные манифесты релиза | [Verifying releases](docs/verify-releases.md) |
 | Понять license tiers и activation | [Licensing](docs/licensing.md) |
 | Запустить проект локально или внести вклад | [Development guide](docs/development.md) |
 | Посмотреть permission scopes | [SCOPES.md](SCOPES.md) |
@@ -175,6 +176,22 @@ Opfield по умолчанию ориентирован на безопасну
 
 Итог - PKI-backed trust model: short-lived enrollment tokens вводят узел в систему только после того, как daemon подтвердит, что говорит с pinned Opfield certificate, а долгосрочное доверие основано на certificate identity вместо reusable shared secrets. Это дает Opfield сильную базовую защиту от token interception во время setup и node hijacking после enrollment. Полное объяснение и hardening checklist см. в [security model](docs/security.md).
 
+## Проверка релизов
+
+Каждый релиз можно проверить независимо:
+
+- Opfield и его демоны устанавливают обновление только после проверки манифеста, подписанного Ed25519, открытым ключом, встроенным в них. Манифесты публикуются в ассетах релиза (`*.update.json`).
+- Начиная с Opfield 2.12 каждый публикуемый образ (Opfield, relay, коннектор Secure Link, backup runner, пропатченный SeaweedFS, зеркала сторонних образов и inference core) подписывается через Sigstore без долгоживущего ключа: подпись ставит workflow GitHub Actions, который опубликовал образ, и она записывается в журнал прозрачности Rekor.
+- В каждом релизе есть SBOM в формате SPDX для его образов и бинарников; те же SBOM прикреплены к образам как подписанные аттестации.
+
+```bash
+cosign verify ghcr.io/opfield/opfield:v2.12.0 \
+  --certificate-identity https://github.com/opfield/opfield/.github/workflows/release.yml@refs/tags/v2.12.0 \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Все образы, проверка SBOM и ручная проверка манифестов — в [Verifying releases](docs/verify-releases.md). Описание изменений публикуется в каждом GitHub-релизе ([CHANGELOG.md](CHANGELOG.md)). Об уязвимостях сообщайте по [SECURITY.md](SECURITY.md).
+
 ## FAQ
 
 <details>
@@ -230,6 +247,8 @@ Managed services продолжают работать. Existing nginx configs �
 У Opfield четыре продуктовых плана. Платные планы применяются к одной установке Opfield без отдельной оплаты за managed nodes, пользователей или custom permission groups.
 
 Исходный код Opfield публикуется по [PolyForm Perimeter License 1.0.1](LICENSE.md). Код можно использовать, изменять и распространять, в том числе внутри коммерческой компании. Ограничение касается предложения другим людям или организациям продукта, который позиционируется как замена Opfield. Ключ Personal, Business или Enterprise открывает возможности и лимиты соответствующего тарифа по [Paid Key Terms](COMMERCIAL-LICENSE.md); обычный ключ не даёт права выпускать OEM- или white-label-версию, перепродавать Opfield либо предлагать конкурирующий hosted-сервис.
+
+Этот репозиторий — открытое ядро: фронтенд, бэкенд, демоны узлов, relay и установщики. Возможности платных тарифов в бэкенде поставляются как коммерческое ядро — отдельно подписанный пакет, которого нет в этом репозитории. При активации платного ключа Opfield устанавливает ядро для своей текущей версии через механизм подписанных обновлений; Community собирается и работает только из этого репозитория. Подробнее — в [Community and the commercial core](docs/commercial-core.md).
 
 Каждый официальный релиз также содержит [Product Continuity Grant](CONTINUITY-GRANT.md): если Opfield перестаёт поставляться (12 месяцев подряд без новых релизов при недоступном сервисе лицензий или объявление о прекращении поддержки) или лицензиар больше не может действовать, исходный код последнего релиза, включая коммерческое ядро, становится доступен всем по лицензии MIT, а владельцы действующего ключа сохраняют бессрочное безвозмездное право использовать и размещать у себя этот релиз и запускать его без сервиса лицензий. Полные условия — в самом документе.
 

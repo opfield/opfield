@@ -48,7 +48,7 @@ describe('normalizeRequestHost', () => {
 });
 
 describe('isLocalMachineHost', () => {
-  const localAddresses = new Set(['172.20.0.131', '192.168.50.10', 'fd00::10', 'fe80::20', '217.19.208.197']);
+  const localAddresses = new Set(['172.20.0.131', '192.168.50.10', 'fd00::10', 'fe80::20', '203.0.113.197']);
 
   it.each([
     'localhost',
@@ -64,7 +64,7 @@ describe('isLocalMachineHost', () => {
     '172.20.0.132',
     '10.0.0.8',
     'fd00::11',
-    '217.19.208.197',
+    '203.0.113.197',
     '8.8.8.8',
     'gateway.example.com',
   ])('rejects non-local or public address %s', (host) => expect(isLocalMachineHost(host, localAddresses)).toBe(false));

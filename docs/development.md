@@ -256,6 +256,7 @@ Workflows `Image` and `Release` publish every image (`…/relay`, `…/secure-li
 | `GATEWAY_IMAGE`, `GATEWAY_IMAGE_MIRROR` | repository variables | Override the primary repository and the mirror (forks). |
 | `GHCR_PUSH_TOKEN` | repository secret | A token that can write packages in both organizations (a classic token with `write:packages`). Needed while the repository and one of the image repositories live in different organizations. Without it the workflow token is used. |
 | `COMMERCIAL_REPOSITORY` | repository variable | The private commercial core repository CI and releases dispatch to. Defaults to `opfield/opfield-commercial` in the opfield organization, `<owner>/gateway-commercial` elsewhere. |
+| `SIGN_IMAGES` | repository variable | `true` signs every published image keyless with cosign (GitHub OIDC, `id-token: write`, no secret), attaches SPDX SBOM attestations made with syft, and adds the SBOMs to the release assets (`scripts/release/supply-chain.sh`). Turn it on once the repository publishes from the opfield organization, so the signing identity is the one [Verifying releases](verify-releases.md) documents; the first Image run then also signs the builds that already exist. The Ed25519 update manifests do not depend on it. |
 
 Docker nodes and the installer pull the third-party mirrors and the patched SeaweedFS from
 `ghcr.io/the-square-labs/gateway`, where existing containers were created from. Keep publishing there for at least a

@@ -76,8 +76,8 @@ function makeDevExpiringItems(): ExpiringItem[] {
   });
 
   return [
-    makeItem("dev-expiring-preview", "backend.preview.pearldivergame.com", 15),
-    makeItem("dev-expiring-staging", "backend.staging.pearldivergame.com", 15),
+    makeItem("dev-expiring-preview", "backend.preview.example.com", 15),
+    makeItem("dev-expiring-staging", "backend.staging.example.com", 15),
   ];
 }
 
