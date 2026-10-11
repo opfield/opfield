@@ -22,6 +22,15 @@ import {
 export const MANAGED_AVAILABILITY_MEMBER_ENDPOINT_OWNER = 'managed_availability_member';
 
 /**
+ * relay_endpoints.owner_kind of an availability set member's peer endpoint (engine to engine): owner id
+ * `<member id>:<port>`. Lease-gated only for primary ports.
+ */
+export const MANAGED_AVAILABILITY_PEER_ENDPOINT_OWNER = 'managed_availability_peer';
+
+/** Peer ports that reach the primary only (primary-<port>); their peer endpoints are lease-gated. */
+export const MANAGED_AVAILABILITY_PRIMARY_PORTS: ReadonlySet<string> = new Set(['pg-repl', 'kv-repl', 'sw-master']);
+
+/**
  * The relay instances that carry each policy's lease-gated traffic: the relays assigned to the Secure Link endpoint of
  * every Availability member and to the container link endpoint of every target placement, and to the target endpoint
  * of every managed-database binding route of its placements.
@@ -124,27 +133,53 @@ export async function loadManagedSetLeaseRelays(
   leasePolicyIds: string[]
 ): Promise<Map<string, Set<string>>> {
   if (leasePolicyIds.length === 0) return new Map();
-  const members = await db
-    .select({ memberId: managedAvailabilityMembers.id, leasePolicyId: managedAvailabilitySets.leasePolicyId })
-    .from(managedAvailabilityMembers)
-    .innerJoin(managedAvailabilitySets, eq(managedAvailabilitySets.id, managedAvailabilityMembers.setId))
+  const sets = await db
+    .select({
+      id: managedAvailabilitySets.id,
+      ownerKind: managedAvailabilitySets.ownerKind,
+      ownerId: managedAvailabilitySets.ownerId,
+      leasePolicyId: managedAvailabilitySets.leasePolicyId,
+    })
+    .from(managedAvailabilitySets)
     .where(inArray(managedAvailabilitySets.leasePolicyId, leasePolicyIds));
+  if (sets.length === 0) return new Map();
+  const members = await db
+    .select({ memberId: managedAvailabilityMembers.id, setId: managedAvailabilityMembers.setId })
+    .from(managedAvailabilityMembers)
+    .where(
+      inArray(
+        managedAvailabilityMembers.setId,
+        sets.map((set) => set.id)
+      )
+    );
+  const policyOfSet = new Map(sets.flatMap((set) => (set.leasePolicyId ? [[set.id, set.leasePolicyId]] : [])));
   const policyOfMember = new Map(
-    members.flatMap((row) => (row.leasePolicyId ? [[row.memberId, row.leasePolicyId]] : []))
+    members.flatMap((row) => (policyOfSet.has(row.setId) ? [[row.memberId, policyOfSet.get(row.setId)!]] : []))
   );
-  if (policyOfMember.size === 0) return new Map();
+  // Every endpoint of the set: the resource endpoint (the origin member's), the other members' client endpoints and
+  // every member's peer endpoints. Peer endpoints of non-primary ports are not gated, but a relay that carries them
+  // carries the set's replication and keeps the lease policy too.
   const endpoints = await db
-    .select({ endpointId: relayEndpoints.id, ownerId: relayEndpoints.ownerId })
+    .select({ endpointId: relayEndpoints.id, ownerKind: relayEndpoints.ownerKind, ownerId: relayEndpoints.ownerId })
     .from(relayEndpoints)
     .where(
-      and(
-        eq(relayEndpoints.ownerKind, MANAGED_AVAILABILITY_MEMBER_ENDPOINT_OWNER),
-        inArray(relayEndpoints.ownerId, [...policyOfMember.keys()])
-      )
+      inArray(relayEndpoints.ownerKind, [
+        MANAGED_AVAILABILITY_MEMBER_ENDPOINT_OWNER,
+        MANAGED_AVAILABILITY_PEER_ENDPOINT_OWNER,
+        'managed_database',
+        'managed_storage',
+      ])
     );
   const policiesOfEndpoint = new Map<string, Set<string>>();
   for (const row of endpoints) {
-    const policyId = policyOfMember.get(row.ownerId);
+    let policyId: string | undefined;
+    if (row.ownerKind === MANAGED_AVAILABILITY_MEMBER_ENDPOINT_OWNER) policyId = policyOfMember.get(row.ownerId);
+    else if (row.ownerKind === MANAGED_AVAILABILITY_PEER_ENDPOINT_OWNER) {
+      policyId = policyOfMember.get(row.ownerId.slice(0, Math.max(0, row.ownerId.indexOf(':'))));
+    } else {
+      const set = sets.find((entry) => entry.ownerKind === row.ownerKind && entry.ownerId === row.ownerId);
+      policyId = set?.leasePolicyId ?? undefined;
+    }
     if (policyId) policiesOfEndpoint.set(row.endpointId, new Set([policyId]));
   }
   return relaysOfEndpoints(db, policiesOfEndpoint);

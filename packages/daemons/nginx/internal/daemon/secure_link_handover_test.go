@@ -181,7 +181,7 @@ func TestRestartHandsSecureLinkSocketsToTheNextProcess(t *testing.T) {
 	}
 	_ = connection.Close()
 	// The relays report another holder: it closes like any member socket.
-	coordinator.gates.apply("relay-1", holderView("node-b"), time.Now())
+	coordinator.gates.Apply("relay-1", holderView("node-b"), time.Now())
 	coordinator.reconcileSockets()
 	if _, err := net.DialTimeout("unix", paths[testMemberLinkID], time.Second); !errors.Is(err, syscall.ECONNREFUSED) {
 		t.Fatalf("connect to a closed member socket = %v, want a refusal", err)

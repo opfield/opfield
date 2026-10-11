@@ -1295,7 +1295,8 @@ export class RelayPoolService {
       readyFaultDomains.size === 0
         ? []
         : endpoints.flatMap((endpoint) => {
-            if (endpoint.ownerKind === 'internal_registry') return [];
+            // A relay-local endpoint (an availability set's Keeper witness) stays on its own relay.
+            if (endpoint.ownerKind === 'internal_registry' || endpoint.subjectKind === 'relay_instance') return [];
             const spread = effectiveSpreads.get(endpoint.id) ?? generalSettings.relay.assignmentSpread;
             const active = activeByEndpoint.get(endpoint.id);
             const current = active ? (assignmentsByGeneration.get(active.id) ?? []) : [];
@@ -1761,7 +1762,7 @@ export class RelayPoolService {
       }> = [];
       let alreadyStaging = false;
       for (const endpoint of endpoints) {
-        if (endpoint.ownerKind === 'internal_registry') continue;
+        if (endpoint.ownerKind === 'internal_registry' || endpoint.subjectKind === 'relay_instance') continue;
         const [staging] = await tx
           .select({ id: relayEndpointAssignmentGenerations.id })
           .from(relayEndpointAssignmentGenerations)

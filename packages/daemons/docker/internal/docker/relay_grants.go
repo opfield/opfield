@@ -139,6 +139,19 @@ func (s *relayGrantStore) get() *pb.SyncRelayGrantsCommand {
 // bundle in place (it is replaced, never modified) and copy at most one
 // assignment, never the whole bundle (B-22).
 
+// filter returns copies of the assignments of the current bundle that match.
+func (s *relayGrantStore) filter(match func(*pb.RelayGrantAssignment) bool) []*pb.RelayGrantAssignment {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var result []*pb.RelayGrantAssignment
+	for _, assignment := range s.current.GetGrants() {
+		if assignment != nil && match(assignment) {
+			result = append(result, proto.Clone(assignment).(*pb.RelayGrantAssignment))
+		}
+	}
+	return result
+}
+
 // lookup returns a copy of one assignment of the current bundle.
 func (s *relayGrantStore) lookup(role, ownerKind, ownerID string) *pb.RelayGrantAssignment {
 	s.mu.RLock()

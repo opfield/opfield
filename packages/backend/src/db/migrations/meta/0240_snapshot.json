@@ -1,5 +1,5 @@
 {
-  "id": "53118628-565e-4f6c-a317-63ee997f8d93",
+  "id": "55b5c8ee-dcdc-49ff-8ec5-8ccb334ed525",
   "prevId": "6824e3e4-e5c8-4ecb-bfbf-bfd0d0f2448c",
   "version": "7",
   "dialect": "postgresql",
@@ -23414,6 +23414,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "relay_local_port": {
+          "name": "relay_local_port",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "artifact_version": {
           "name": "artifact_version",
           "type": "varchar(64)",
@@ -33735,6 +33741,12 @@
           "notNull": true,
           "default": 256
         },
+        "relay_local_port": {
+          "name": "relay_local_port",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -34769,6 +34781,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "parent_route_id": {
+          "name": "parent_route_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "max_concurrent_sessions": {
           "name": "max_concurrent_sessions",
           "type": "integer",
@@ -34996,6 +35014,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "relay_routes_parent_idx": {
+          "name": "relay_routes_parent_idx",
+          "columns": [
+            {
+              "expression": "parent_route_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -35005,6 +35038,19 @@
           "tableTo": "relay_endpoints",
           "columnsFrom": [
             "target_endpoint_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "relay_routes_parent_route_id_relay_routes_id_fk": {
+          "name": "relay_routes_parent_route_id_relay_routes_id_fk",
+          "tableFrom": "relay_routes",
+          "tableTo": "relay_routes",
+          "columnsFrom": [
+            "parent_route_id"
           ],
           "columnsTo": [
             "id"

@@ -1139,6 +1139,39 @@ export interface RelayGrantAssignment {
   streamResume?: RelayStreamResume;
   /** Endpoint assignments only: routes to this endpoint whose streams may be resumable, with their keys. */
   resumeRoutes?: RelayRouteResume[];
+  /** Availability sets: the member (and port) an endpoint serves, or the member a peer route reaches. */
+  leaseTarget?: RelayLeaseTarget;
+  /** Availability sets: one route per member of the resource's set; the daemon opens the holder's route first. */
+  leaseGroup?: RelayLeaseGroupRoute[];
+}
+
+/** One member of a database or storage availability set as a relay path sees it. */
+export interface RelayLeaseTarget {
+  setId: string;
+  memberId: string;
+  /** The member's lease identity (its node id). */
+  candidateId: string;
+  /** Empty for a manual pair. */
+  leasePolicyId: string;
+  rank: number;
+  ownerKind: string;
+  ownerId: string;
+  /** Peer endpoints and routes: the engine port name; empty for client paths. */
+  portName?: string;
+  primaryPort?: boolean;
+  /** Routes to a ClickHouse Keeper witness on a relay: the witness id (memberId is empty). */
+  witnessId?: string;
+}
+
+/** One route of a lease group. */
+export interface RelayLeaseGroupRoute {
+  routeId: string;
+  targetEndpointId: string;
+  grant: RelaySignedGrant;
+  candidates?: RelayDataCandidate[];
+  streamResume?: RelayStreamResume;
+  target: RelayLeaseTarget;
+  schemaVersion?: number;
 }
 
 /** The source side of a resumable route (RSv1). The key never travels through a relay. */

@@ -84,6 +84,7 @@ CREATE TABLE "managed_availability_witnesses" (
 	"node_id" uuid,
 	"role" varchar(16) DEFAULT 'active' NOT NULL,
 	"keeper_server_id" integer,
+	"relay_local_port" integer,
 	"artifact_version" varchar(64),
 	"artifact_sha256" varchar(71),
 	"desired_state" varchar(16) DEFAULT 'running' NOT NULL,
@@ -113,6 +114,8 @@ CREATE TABLE "lease_policies" (
 --> statement-breakpoint
 ALTER TABLE "relay_instances" ADD COLUMN "witness_hosting_allowed" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE "relay_instances" ADD COLUMN "witness_hosting_local" varchar(32);--> statement-breakpoint
+ALTER TABLE "relay_routes" ADD COLUMN "parent_route_id" uuid;--> statement-breakpoint
+ALTER TABLE "relay_endpoints" ADD COLUMN "relay_local_port" integer;--> statement-breakpoint
 ALTER TABLE "managed_availability_sets" ADD CONSTRAINT "managed_availability_sets_managed_database_id_managed_database_instances_id_fk" FOREIGN KEY ("managed_database_id") REFERENCES "public"."managed_database_instances"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "managed_availability_sets" ADD CONSTRAINT "managed_availability_sets_managed_storage_cluster_id_managed_storage_clusters_id_fk" FOREIGN KEY ("managed_storage_cluster_id") REFERENCES "public"."managed_storage_clusters"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "managed_availability_members" ADD CONSTRAINT "managed_availability_members_set_id_managed_availability_sets_id_fk" FOREIGN KEY ("set_id") REFERENCES "public"."managed_availability_sets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -123,6 +126,8 @@ ALTER TABLE "managed_availability_witnesses" ADD CONSTRAINT "managed_availabilit
 ALTER TABLE "managed_availability_witnesses" ADD CONSTRAINT "managed_availability_witnesses_node_id_nodes_id_fk" FOREIGN KEY ("node_id") REFERENCES "public"."nodes"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "lease_policies" ADD CONSTRAINT "lease_policies_docker_availability_policy_id_docker_availability_policies_id_fk" FOREIGN KEY ("docker_availability_policy_id") REFERENCES "public"."docker_availability_policies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "lease_policies" ADD CONSTRAINT "lease_policies_managed_availability_set_id_managed_availability_sets_id_fk" FOREIGN KEY ("managed_availability_set_id") REFERENCES "public"."managed_availability_sets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "relay_routes" ADD CONSTRAINT "relay_routes_parent_route_id_relay_routes_id_fk" FOREIGN KEY ("parent_route_id") REFERENCES "public"."relay_routes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "relay_routes_parent_idx" ON "relay_routes" USING btree ("parent_route_id");--> statement-breakpoint
 CREATE INDEX "managed_availability_members_node_idx" ON "managed_availability_members" USING btree ("node_id");--> statement-breakpoint
 CREATE INDEX "managed_availability_witnesses_set_idx" ON "managed_availability_witnesses" USING btree ("set_id");--> statement-breakpoint
 CREATE INDEX "managed_availability_witnesses_relay_idx" ON "managed_availability_witnesses" USING btree ("relay_instance_id");--> statement-breakpoint

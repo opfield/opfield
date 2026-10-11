@@ -40,7 +40,7 @@ func (c *availabilityLeaseCoordinator) runForTarget(ctx context.Context, conn *g
 				}
 				break
 			}
-			c.gates.apply(relayID, snapshot, time.Now())
+			c.gates.Apply(relayID, snapshot, time.Now())
 			c.reconcileSockets()
 		}
 		if ctx.Err() != nil {

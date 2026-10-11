@@ -60,6 +60,9 @@ type DockerPlugin struct {
 	relayGrants     *relayGrantStore
 	relayTunnelMu   sync.Mutex
 	relayTunnels    map[string]*relayTunnelRouter
+	// setGates: relay lease gate views and the member runtime of availability
+	// sets (relay_lease_groups.go).
+	setGates setLeaseGates
 	// restartAnnounced freezes relay registrations once the daemon told its
 	// relays it restarts (B-13); proxyTunnels are the Secure Link tunnels it
 	// serves, drained before it exits.
@@ -541,6 +544,7 @@ func (p *DockerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 				"relay_pool_v1",
 				relayresume.Capability,
 				handover.Capability,
+				managedAvailabilityRoutesCapability,
 			}
 			if p.backupHandler != nil {
 				values = append(values, "database_backups_v1", "database_backups_deadline_v1", "database_backups_tls_verification_v1", storageCopyCapability)
@@ -558,7 +562,7 @@ func (p *DockerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 		// watchdog_ready carries later changes within the session.
 		values = append(values, p.leaseCapabilities()...)
 		values = append(values, "managed_database_binding_listener_v1", managedStorageLinkCapability, managedLinkRuntimeCapability,
-			managedLinkCompletedCapability)
+			managedLinkCompletedCapability, managedAvailabilityRoutesCapability)
 		if p.secureLinks != nil {
 			// The shared connector serves egress, container links and create_link_network (C7).
 			values = append(values, secureLinkEgressCapability)

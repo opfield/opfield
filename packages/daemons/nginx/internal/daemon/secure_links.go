@@ -1505,7 +1505,7 @@ func (p *NginxPlugin) memberHasServingAlternative(linkID string) bool {
 	if !gated {
 		return false
 	}
-	return p.availabilityLease.gates.otherMemberServes(policyID, candidateID, time.Now())
+	return p.availabilityLease.gates.OtherMemberServes(policyID, candidateID, time.Now())
 }
 
 func (p *NginxPlugin) ProbeRelayCandidate(command *pb.ProbeRelayCandidateCommand) (string, error) {
