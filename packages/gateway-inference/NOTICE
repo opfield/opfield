@@ -17,8 +17,9 @@ Inference features and limits. It does not waive the source
 license's competition restriction. See COMMERCIAL-LICENSE.md.
 
 The package includes the Product Continuity Grant: if Opfield stops
-being provided or the Licensor can no longer act, holders of a valid
-key keep a perpetual license to use the last release for their own
-use. See CONTINUITY-GRANT.md.
+being provided or the Licensor can no longer act, the source code of
+the last release becomes available to everyone under the MIT License
+and holders of a valid key keep a perpetual license to use it. See
+CONTINUITY-GRANT.md.
 
 Third-party components remain governed by their own licenses.

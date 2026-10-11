@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 const grantPath = process.argv[2] ?? 'CONTINUITY-GRANT.md';
 const grant = await readFile(grantPath, 'utf8');
-const expectedSha256 = 'a2f9d203cd85870532c16690e88d11e50c3b2396aef3c70e91ba84a7623ec477';
+const expectedSha256 = '053d9d00ce049363153edbe7450e50038ff6a539d7d9cc6485b3b6c1ddb4c986';
 const actualSha256 = createHash('sha256').update(grant).digest('hex');
 
 if (actualSha256 !== expectedSha256) {
@@ -16,13 +16,16 @@ const required = [
   '# Opfield Product Continuity Grant 1.0',
   'Alexandr Slavinschii, Republic of Moldova',
   'It cannot be revoked.',
-  'for 12 consecutive months, no new Opfield release is published and the Opfield license server is not available',
+  'at any address the Licensor publishes for it. It is available while any of those addresses answers.',
+  'for 12 consecutive months, no new Opfield release is published and the license service is not available',
   'end of life',
   'dies or is legally declared unable to act',
+  'including its commercial core, to everyone under the MIT License terms below. This license is irrevocable.',
+  'within 90 days of the Continuity Event',
   'valid at the moment of the Continuity Event',
   'perpetual, worldwide, royalty-free license',
-  'including its commercial core',
-  'without the license server',
+  'without the license service',
+  'MIT License Terms',
 ];
 
 for (const marker of required) {

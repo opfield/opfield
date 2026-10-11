@@ -25,12 +25,13 @@ license's competition restriction. See COMMERCIAL-LICENSE.md.
 
 PRODUCT CONTINUITY
 ------------------
-If Opfield stops being provided (12 consecutive months with no
-release and no license server, or an end-of-life notice) or the
-Licensor dies or can no longer act, holders of a key valid at that
-moment keep a perpetual, royalty-free license to use, self-host and
-modify for their own use the last release, including the commercial
-core, and to run it without the license server. See
+If Opfield stops being provided (12 consecutive months with no new
+release while the license service is unavailable, or an end-of-life
+notice) or the Licensor dies or can no longer act, the source code of
+the last release, including the commercial core, becomes available to
+everyone under the MIT License, and holders of a key valid at that
+moment keep a perpetual, royalty-free license to use and self-host
+that release and to run it without the license service. See
 CONTINUITY-GRANT.md for the complete terms.
 
 THIRD-PARTY SOFTWARE
