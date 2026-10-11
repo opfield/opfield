@@ -32,6 +32,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -528,42 +529,24 @@ export function SSLCertificates() {
       ),
     },
     {
-      id: "domains",
-      label: "Domains",
-      width: "minmax(200px, 1.25fr)",
-      renderCell: (cert) => (
-        <div className="min-w-0">
-          <p className="truncate text-sm text-muted-foreground">
-            {cert.domainNames.slice(0, 2).join(", ") || "-"}
-          </p>
-          {cert.domainNames.length > 2 && (
-            <p className="text-xs text-muted-foreground">+{cert.domainNames.length - 2} more</p>
-          )}
-        </div>
-      ),
-    },
-    {
-      id: "type",
-      label: "Type",
-      width: "110px",
-      renderCell: (cert) => <SSLTypeBadge type={cert.type} />,
-    },
-    {
       id: "status",
       label: "Status",
       width: "120px",
+      align: "right",
       renderCell: (cert) => <SSLStatusBadge status={cert.status} />,
     },
     {
       id: "tls",
       label: "Deployments",
       width: "minmax(130px, 0.7fr)",
+      align: "right",
       renderCell: (cert) => <TLSDeploymentBadge distribution={cert.distribution} />,
     },
     {
       id: "expires",
       label: "Expires",
       width: "190px",
+      align: "right",
       cellClassName: "whitespace-nowrap",
       renderCell: (cert) => {
         const expDays = cert.notAfter ? daysUntil(cert.notAfter) : null;
@@ -579,9 +562,9 @@ export function SSLCertificates() {
             )}
           >
             {formatDate(cert.notAfter)}
-            {expDays !== null && expDays > 0 && <span className="ml-1 text-xs">({expDays}d)</span>}
+            {expDays !== null && expDays > 0 && <span className="ml-1">({expDays}d)</span>}
             {expDays !== null && expDays === 0 && hoursUntil(cert.notAfter) > 0 && (
-              <span className="ml-1 text-xs">({hoursUntil(cert.notAfter)}h)</span>
+              <span className="ml-1">({hoursUntil(cert.notAfter)}h)</span>
             )}
           </span>
         ) : (
@@ -592,7 +575,8 @@ export function SSLCertificates() {
     {
       id: "autoRenew",
       label: "Auto-Renew",
-      width: "150px",
+      width: "8.5rem",
+      align: "right",
       renderCell: (cert) => {
         if (cert.type === "internal") {
           return cert.autoRenew ? (
@@ -620,9 +604,9 @@ export function SSLCertificates() {
     },
     {
       id: "actions",
-      label: "",
+      label: "Actions",
       align: "right",
-      width: "64px",
+      width: "5rem",
       renderCell: (cert) => {
         const hasPendingDNSVerification =
           (cert.acmePendingOperation === "issue" || cert.acmePendingOperation === "renewal") &&
@@ -665,17 +649,16 @@ export function SSLCertificates() {
           cert.distribution !== undefined &&
           cert.distribution.status !== "ready" &&
           cert.distribution.status !== "not_deployed";
-        const hasActions =
+        const hasOtherActions =
           canContinueDNSVerification ||
           canRenewCert ||
           canEnableCloudflareAutoRenew ||
           canDisableCloudflareAutoRenew ||
           canEnableInternalAutoRenew ||
-          canRetryDeployments ||
-          canDeleteCert;
-        if (!hasActions) return null;
+          canRetryDeployments;
+        if (!hasOtherActions && !canDeleteCert) return null;
         return (
-          <div onClick={(event) => event.stopPropagation()}>
+          <div className="flex justify-end" onClick={(event) => event.stopPropagation()}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon-sm" aria-label="Certificate actions">
@@ -726,13 +709,16 @@ export function SSLCertificates() {
                   </DropdownMenuItem>
                 )}
                 {canDeleteCert && (
-                  <DropdownMenuItem
-                    onClick={() => handleDelete(cert.id, cert.name)}
-                    className="text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </DropdownMenuItem>
+                  <>
+                    {hasOtherActions && <DropdownMenuSeparator />}
+                    <DropdownMenuItem
+                      onClick={() => handleDelete(cert.id, cert.name)}
+                      className="text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
@@ -859,7 +845,7 @@ export function SSLCertificates() {
               }}
             />
           }
-          minWidth={1128}
+          minWidth={860}
           canManageFolders={canManageFolders}
           canReorganizeItem={(certificate) => canManageFolders && !certificate.isSystem}
           getResourceLabel={(certificate) => certificate.name}
