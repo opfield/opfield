@@ -11,6 +11,7 @@ import {
   UnknownDataResponseSchema,
   UnknownListResponseSchema,
 } from '@/lib/openapi.js';
+import { availabilityRouteDocs } from '@/modules/databases/managed-availability.docs.js';
 import {
   ManagedCertificateStatusSchema,
   RenewManagedCertificateSchema,
@@ -22,6 +23,7 @@ import {
   CreateManagedStorageSchema,
   DeleteManagedStorageBindingSchema,
   ImportManagedStorageAccessKeysSchema,
+  ManagedStorageAvailabilityCreatePreflightSchema,
   ManagedStorageListQuerySchema,
   MoveManagedStorageBindingSchema,
   RehomeManagedStorageBackupHistorySchema,
@@ -283,4 +285,16 @@ export const rehomeManagedStorageBackupHistoryRoute = appRoute({
     'After the backup files were copied to targetStorageId (same buckets and keys), points finished backup runs at it so this cluster can be deleted without forgetting the history. A run moves only when every artifact exists in the target with its manifest size; blocked runs are reported and stay. Active runs refuse the move; backup policies are not changed. dryRun only reports. Needs storage:edit on both clusters.',
   request: { params: IdParamSchema, ...jsonBody(RehomeManagedStorageBackupHistorySchema) },
   responses: okJson(UnknownDataResponseSchema),
+});
+
+/** Storage availability (one storage on several servers), served by the commercial edition. */
+export const managedStorageAvailabilityRoutes = availabilityRouteDocs({
+  base: '/{id}',
+  createPreflightPath: '/availability/preflight',
+  createPreflightSchema: ManagedStorageAvailabilityCreatePreflightSchema,
+  tag: TAG,
+  noun: 'storage',
+  viewScope: 'storage:view',
+  editScope: 'storage:edit',
+  createScope: 'storage:create',
 });

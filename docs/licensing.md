@@ -69,6 +69,7 @@ Entitlements schema version 5 is current. It adds storage connections, external 
 | Git Repository Push-To-Deploy for Containers, Deployments, Compose, and Pages; Isolated Build Workers | Ready | — | — | ✅ | ✅ |
 | External Docker-Client Access to the Internal Registry | Ready, opt-in | — | — | ✅ | ✅ |
 | Multi-node Workload Availability (Container, Deployment, Compose) | Ready | — | — | ✅ | ✅ |
+| Managed Databases and Storage on Several Servers (Failover, Replicated Pairs) | Ready | — | — | ✅ | ✅ |
 | Ingress Groups: Routes, Pages Routes, and Domains Served by Several Nginx Nodes | Ready | — | — | ✅ | ✅ |
 | Git Build Vulnerability Scanning and Admission Policy | Ready | — | — | ✅ | ✅ |
 | Structured Logging | Ready, opt-in | — | — | ✅ | ✅ |
@@ -105,7 +106,7 @@ Revocation, replacement, and deactivation receive no grace because the [Paid Key
 
 After the grace period ends, the installation uses Community entitlements for new actions and keeps a continuity entitlement for the highest paid plan it held, as proven by a stored signed license state:
 
-- **Keeps working:** all existing workloads and the data plane (containers, deployments, Compose projects, routes, secure links, managed database and storage bindings and tunnels, relays, Pages deployments, PKI CRL downloads, structured-log ingestion); existing scheduled backups, their retention, and restores into existing databases; failover healing, start, stop, and restart of existing Availability workloads; scheduled syncs of existing GitLab connectors. For existing paid resources Gateway keeps viewing, logs, monitoring, connection tests, credential reveal and rotation, certificate revocation and export, and deletion.
+- **Keeps working:** all existing workloads and the data plane (containers, deployments, Compose projects, routes, secure links, managed database and storage bindings and tunnels, relays, Pages deployments, PKI CRL downloads, structured-log ingestion); existing scheduled backups, their retention, and restores into existing databases; failover healing, start, stop, and restart of existing Availability workloads; failover, switching the primary, rebuilding copies, removing servers and turning availability off for databases and storage on several servers; scheduled syncs of existing GitLab connectors. For existing paid resources Gateway keeps viewing, logs, monitoring, connection tests, credential reveal and rotation, certificate revocation and export, and deletion.
 - **Stops:** SIEM forwarding and external Docker-client access to the internal registry. SIEM keeps its configuration, delivery history, and already queued records, but new audit events are not queued while it is paused. The registry keeps its external entry point and settings, but its token endpoint issues no new tokens. Both resume on renewal without reconfiguration.
 - **Blocked:** creating paid resources, changing the configuration of existing paid resources, writing data through the database and object-storage explorers (deleting rows, keys, objects, and buckets remains available), and paid-only operations such as archive import/export, migration, audit export, and Git source builds. Creations above the Community node, user, and permission-group limits are refused. These return `LICENSE_ENTITLEMENT_REQUIRED` or `LICENSE_QUOTA_EXCEEDED`.
 

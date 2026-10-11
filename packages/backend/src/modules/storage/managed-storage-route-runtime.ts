@@ -5,6 +5,15 @@ import { getResourceScopedIds, hasScope, hasScopeBase, hasScopeForCreation } fro
 import { AppError } from '@/middleware/error-handler.js';
 import { appsHostRuntime } from '@/modules/apps/apps-host-runtime.js';
 import { authMiddleware, rejectImpersonation, requireScopeBase } from '@/modules/auth/auth.middleware.js';
+import {
+  ManagedAvailabilityAddMemberSchema,
+  ManagedAvailabilityDisableSchema,
+  ManagedAvailabilityEnableSchema,
+  ManagedAvailabilityEventsQuerySchema,
+  ManagedAvailabilityMakePrimarySchema,
+  ManagedAvailabilityPreflightSchema,
+  ManagedAvailabilitySettingsSchema,
+} from '@/modules/databases/databases.schemas.js';
 import { RenewManagedCertificateSchema } from '@/modules/managed-workloads/certificate-renewal.docs.js';
 import { ObjectStorageFolderService } from '@/modules/object-storage/object-storage-folders.service.js';
 import {
@@ -23,6 +32,7 @@ import {
   listManagedStorageBindingsRoute,
   listManagedStorageCatalogRoute,
   listManagedStorageRoute,
+  managedStorageAvailabilityRoutes,
   moveManagedStorageBindingRoute,
   rehomeManagedStorageBackupHistoryRoute,
   removeManagedStorageAccessKeyRoute,
@@ -39,6 +49,7 @@ import {
   CreateManagedStorageSchema,
   DeleteManagedStorageBindingSchema,
   ImportManagedStorageAccessKeysSchema,
+  ManagedStorageAvailabilityCreatePreflightSchema,
   ManagedStorageListQuerySchema,
   MoveManagedStorageBindingSchema,
   RehomeManagedStorageBackupHistorySchema,
@@ -97,4 +108,14 @@ export const managedStorageRouteRuntime = {
   MoveManagedStorageBindingSchema,
   ImportManagedStorageAccessKeysSchema,
   RehomeManagedStorageBackupHistorySchema,
+  // Availability (storage on several servers): route docs and inputs shared with databases.
+  managedStorageAvailabilityRoutes,
+  ManagedStorageAvailabilityCreatePreflightSchema,
+  ManagedAvailabilityAddMemberSchema,
+  ManagedAvailabilityDisableSchema,
+  ManagedAvailabilityEnableSchema,
+  ManagedAvailabilityEventsQuerySchema,
+  ManagedAvailabilityMakePrimarySchema,
+  ManagedAvailabilityPreflightSchema,
+  ManagedAvailabilitySettingsSchema,
 };

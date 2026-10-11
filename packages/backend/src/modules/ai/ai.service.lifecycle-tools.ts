@@ -386,6 +386,16 @@ export class AIServiceLifecycleTools extends AIServiceAdministrationTools {
         }
         return relayPool.getSnapshot();
       }
+      case 'set_witness_hosting': {
+        // PATCH /system/relay/instances/{id} { witnessHostingAllowed }: the relay row with its witnesses.
+        const instanceId = z.string().uuid().parse(a.instanceId);
+        const allowed = z.boolean().parse(a.allowed);
+        const relayPool = container.resolve(RelayPoolService);
+        await relayPool.setWitnessHosting(instanceId, allowed, user.id);
+        const instance = (await relayPool.getSnapshot()).instances.find((candidate) => candidate.id === instanceId);
+        if (!instance) throw new AppError(404, 'RELAY_INSTANCE_NOT_FOUND', 'Relay instance not found');
+        return instance;
+      }
       case 'renew_certificate': {
         // POST /system/relay/instances/{id}/renew-certificate: renew the relay's certificates now.
         const instanceId = z.string().uuid().parse(a.instanceId);

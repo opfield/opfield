@@ -574,7 +574,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_relay_pool',
     description:
-      'Inspect and operate the Relay Pool like Settings > Relay. Operations: get (pool and local relay health, instances with policyTrust, certificate, health.lastError, assignments; settings:gateway:view), local_policy_trust_status (policy signing trust of the local relay as seen by automatic recovery; settings:gateway:view), retry_recovery (retry local relay recovery), rebalance (stage a rebalance of relay assignments), drain_instance (stop placing new sessions on a relay; confirm: true required), resume_instance (undo a drain), force_disconnect_instance (drop every session on a relay; confirm: true required), renew_certificate (renew the server and admin certificates of a remote relay now instead of waiting for automatic renewal 60 days before expiry), reenroll_instance (single-use re-enrollment token for an enrolled remote relay whose policy trust is locked out; confirm: true required; returns installCommands pinned to the pool relay version with --version; give the user the installCommands entry (curl or wget) for the target the relay host can reach and the token expiry, and do not drop --version). Mutations require admin:system. Relay updates use manage_system_updates; relay tuning uses update_gateway_settings generalSettings.relay.',
+      'Inspect and operate the Relay Pool like Settings > Relay. Operations: get (pool and local relay health, instances with policyTrust, certificate, health.lastError, assignments; settings:gateway:view), local_policy_trust_status (policy signing trust of the local relay as seen by automatic recovery; settings:gateway:view), retry_recovery (retry local relay recovery), rebalance (stage a rebalance of relay assignments), drain_instance (stop placing new sessions on a relay; confirm: true required), resume_instance (undo a drain), force_disconnect_instance (drop every session on a relay; confirm: true required), renew_certificate (renew the server and admin certificates of a remote relay now instead of waiting for automatic renewal 60 days before expiry), reenroll_instance (single-use re-enrollment token for an enrolled remote relay whose policy trust is locked out; confirm: true required; returns installCommands pinned to the pool relay version with --version; give the user the installCommands entry (curl or wget) for the target the relay host can reach and the token expiry, and do not drop --version), set_witness_hosting (allowed: true|false; whether availability witnesses of databases and storage on several servers may run on the relay; get shows the witnessHosting of each instance: allowed, protected_needs_opt_in (a protected relay whose owner has not allowed database witnesses in its local config), not_reported or disabled, and its witnesses with set, purpose, role and status). Mutations require admin:system. Relay updates use manage_system_updates; relay tuning uses update_gateway_settings generalSettings.relay.',
     parameters: {
       type: 'object',
       properties: {
@@ -590,10 +590,15 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
             'force_disconnect_instance',
             'renew_certificate',
             'reenroll_instance',
+            'set_witness_hosting',
           ],
           description: 'Relay Pool operation to perform.',
         },
         instanceId: { type: 'string', description: 'Relay instance UUID for instance operations.' },
+        allowed: {
+          type: 'boolean',
+          description: 'set_witness_hosting only: allow availability witnesses on the relay.',
+        },
         confirm: {
           type: 'boolean',
           description: 'Must be true for drain_instance, force_disconnect_instance, and reenroll_instance.',

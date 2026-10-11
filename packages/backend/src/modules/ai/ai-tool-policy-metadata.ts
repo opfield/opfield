@@ -147,7 +147,7 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
   }),
   manage_relay_pool: operationPolicies({
     read: ['get', 'local_policy_trust_status'],
-    update: ['reenroll_instance'],
+    update: ['reenroll_instance', 'set_witness_hosting'],
     execute: ['retry_recovery', 'rebalance', 'drain_instance', 'resume_instance', 'renew_certificate'],
     destructive: ['force_disconnect_instance'],
   }),
@@ -313,12 +313,23 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
       'get_binding_runtime',
       'certificate_status',
       'move_to_valkey_check',
+      'availability',
+      'availability_preflight',
+      'availability_events',
     ],
-    create: ['create', 'create_binding'],
-    update: ['update', 'retry', 'rotate_certificate', 'move_to_valkey'],
-    // Rotation returns the new direct-access password.
-    execute: ['restart', 'pause', 'unpause', 'reveal_credentials', 'reveal_binding_credentials', 'rotate_credentials'],
-    delete: ['delete', 'delete_binding'],
+    create: ['create', 'create_binding', 'make_available', 'add_member'],
+    update: ['update', 'retry', 'rotate_certificate', 'move_to_valkey', 'update_availability', 'rebuild_member'],
+    // Rotation returns the new direct-access password; a primary switch moves every client to another server.
+    execute: [
+      'restart',
+      'pause',
+      'unpause',
+      'reveal_credentials',
+      'reveal_binding_credentials',
+      'rotate_credentials',
+      'make_primary',
+    ],
+    delete: ['delete', 'delete_binding', 'remove_member', 'disable_availability'],
   }),
   manage_pages: operationPolicies({
     read: [
@@ -509,12 +520,23 @@ const COMPOSITE_OPERATION_POLICIES: Record<
         'list_access_keys',
         'ca_certificate',
         'certificate_status',
+        'availability',
+        'availability_preflight',
+        'availability_events',
       ],
-      create: ['create', 'create_binding', 'create_access_key', 'import_access_keys'],
-      update: ['update', 'retry', 'move_binding', 'rehome_backup_history', 'renew_certificate'],
-      // A write freeze and its reversal change what every client of the cluster can do.
-      execute: ['restart', 'reveal_credentials', 'freeze_writes', 'unfreeze_writes'],
-      delete: ['delete', 'delete_binding', 'remove_access_key'],
+      create: ['create', 'create_binding', 'create_access_key', 'import_access_keys', 'make_available', 'add_member'],
+      update: [
+        'update',
+        'retry',
+        'move_binding',
+        'rehome_backup_history',
+        'renew_certificate',
+        'update_availability',
+        'rebuild_member',
+      ],
+      // A write freeze and its reversal change what every client of the cluster can do; so does a primary switch.
+      execute: ['restart', 'reveal_credentials', 'freeze_writes', 'unfreeze_writes', 'make_primary'],
+      delete: ['delete', 'delete_binding', 'remove_access_key', 'remove_member', 'disable_availability'],
     }),
   },
   manage_logging: {

@@ -20,6 +20,92 @@ export interface EventMapping {
   };
 }
 
+// ── Availability (a managed database or storage on several servers) ──
+
+/**
+ * The resource an availability alert is about: the database connection or storage connection users pick in rules
+ * (falls back to the managed resource id while it has none).
+ */
+type AvailabilityResource = (p: any) => { type: string; id: string; name?: string };
+
+/** Data of availability alerts: identifiers, codes and times only (`occurred_at` keeps the servers' time on replay). */
+function availabilityData(p: any): Record<string, unknown> {
+  const details = (p.availability ?? {}) as Record<string, unknown>;
+  return {
+    set_id: details.setId ?? null,
+    member_id: details.memberId ?? details.toMemberId ?? null,
+    nodeId: details.nodeId ?? null,
+    code: details.code ?? null,
+    reason: details.reason ?? null,
+    occurred_at: details.occurredAt ?? null,
+  };
+}
+
+/** Point events: action `availability.<event>` (sync_degraded is a member's `availability.degraded` with that kind). */
+const AVAILABILITY_POINT_EVENTS: Array<{ eventId: string; match: (p: any) => boolean }> = [
+  // A replicated pair without automatic failover switches by hand (make_primary): the same alert as a switchover.
+  {
+    eventId: 'availability.switchover',
+    match: (p: any) => p.action === 'availability.switchover' || p.action === 'availability.make_primary',
+  },
+  ...[
+    'failover',
+    'forced_promotion',
+    'member_offline',
+    'sync_far',
+    'witness_lost',
+    'witness_moved',
+    'fenced',
+    'rejoined',
+    'rebuilt',
+    'cancelled_sync_wait',
+  ].map((event) => ({ eventId: `availability.${event}`, match: (p: any) => p.action === `availability.${event}` })),
+  {
+    eventId: 'availability.sync_degraded',
+    match: (p: any) => p.action === 'availability.degraded' && p.availability?.kind === 'sync_degraded',
+  },
+];
+
+const AVAILABILITY_STATES = ['availability.degraded', 'availability.no_failover', 'availability.restored'];
+
+/** Availability alerts of one category: point events, and the set state (it changes only when published). */
+function availabilityMappings(
+  category: AlertCategory,
+  matchOwner: (p: any) => boolean,
+  resource: AvailabilityResource
+): EventMapping[] {
+  return [
+    ...AVAILABILITY_POINT_EVENTS.map(
+      ({ eventId, match }): EventMapping => ({
+        category,
+        eventId,
+        match: (p) => matchOwner(p) && match(p),
+        extractResource: resource,
+        extractData: availabilityData,
+      })
+    ),
+    {
+      category,
+      eventId: 'availability.degraded',
+      // Set state events carry the state they moved to; member events do not.
+      match: (p) =>
+        matchOwner(p) && AVAILABILITY_STATES.includes(p.action) && typeof p.availability?.state === 'string',
+      extractResource: resource,
+      extractData: availabilityData,
+      stateful: {
+        currentState: (p) =>
+          p.availability.state === 'healthy'
+            ? 'availability.restored'
+            : p.availability.state === 'no_failover'
+              ? 'availability.no_failover'
+              : 'availability.degraded',
+        observedPatterns: AVAILABILITY_STATES,
+        holdsUntilNextEvent: true,
+      },
+    },
+  ];
+}
+
 export const EVENT_BUS_MAPPINGS: Record<string, EventMapping[]> = {
   'hosting.vm.observed': [
     {
@@ -756,5 +842,17 @@ export const EVENT_BUS_MAPPINGS: Record<string, EventMapping[]> = {
       extractResource: (p) => ({ type: 'database', id: p.id, name: p.name }),
       extractData: (p) => ({ health_status: p.healthStatus }),
     },
+    ...(['postgres', 'clickhouse', 'redis'] as const).flatMap((type) =>
+      availabilityMappings(
+        `database_${type}` as AlertCategory,
+        (p) => p.resourceKind === 'managed_database' && p.type === type && typeof p.action === 'string',
+        (p) => ({ type: 'database', id: p.id ?? p.managedDatabaseId, name: p.name })
+      )
+    ),
   ],
+  'managed-storage.changed': availabilityMappings(
+    'managed_storage',
+    (p) => typeof p.action === 'string' && typeof p.managedStorageClusterId === 'string',
+    (p) => ({ type: 'managed_storage', id: p.id ?? p.managedStorageClusterId, name: p.name })
+  ),
 };

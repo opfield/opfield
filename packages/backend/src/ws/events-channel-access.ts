@@ -10,6 +10,20 @@ import { INFERENCE_SETUP_EVENT_CHANNEL } from '@/modules/inference/inference-set
 import { gitConnectorVisibility } from '@/modules/integrations/integration-permissions.js';
 import { hasLoggingHealthAccess } from '@/modules/logging/logging-permissions.js';
 
+/** Lease transitions of database and storage availability sets ({setId, ownerKind, ownerId, action}). */
+export const AVAILABILITY_SET_CHANNEL = 'availability.set.changed';
+
+/**
+ * An availability set event carries only ids. It goes to viewers of every database (or every storage) of its kind;
+ * a viewer granted single resources learns of the change from the resource's own events and its page's refresh.
+ */
+export function hasAvailabilitySetEventAccess(scopes: string[], payload: unknown): boolean {
+  const kind = (payload as { ownerKind?: unknown } | null | undefined)?.ownerKind;
+  if (kind === 'managed_database') return hasScope(scopes, 'databases:view');
+  if (kind === 'managed_storage') return hasScope(scopes, 'storage:view');
+  return false;
+}
+
 export const DATABASE_CHANNEL_SCOPE_BASES = [
   'databases:view',
   'databases:edit',
@@ -65,6 +79,7 @@ export function requiredScopeFor(channel: string): string | null {
   if (channel.startsWith('docker.')) return 'docker:containers:view';
   if (channel === 'database.folder.changed') return 'databases:view';
   if (channel.startsWith('database.')) return 'databases:view';
+  if (channel === AVAILABILITY_SET_CHANNEL) return 'databases:view';
   if (channel === 'pages.profile.changed') return 'pages:settings:view';
   if (channel === 'pages.folder.changed') return 'pages:view';
   if (channel.startsWith('pages.')) return 'pages:view';
@@ -123,6 +138,9 @@ export function hasChannelAccess(scopes: string[], channel: string): boolean {
       hasScopeBase(scopes, 'integrations:hosting:view')
     );
   if (channel.startsWith('permissions.changed.')) return true;
+  // Availability sets of databases and storage: subscribing needs a view grant of either kind (see events.ws.ts).
+  if (channel === AVAILABILITY_SET_CHANNEL)
+    return hasScopeBase(scopes, 'databases:view') || hasScopeBase(scopes, 'storage:view');
   if (channel.startsWith(MFA_REQUIRED_CHANNEL_PREFIX)) return true;
   if (channel.startsWith(TOOL_STORE_INVALIDATION_CHANNEL_PREFIX)) return true;
   if (userResourceChannelUserId(channel)) return true;

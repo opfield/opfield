@@ -20,6 +20,7 @@ export interface AlertRule {
     | "database_postgres"
     | "database_clickhouse"
     | "database_redis"
+    | "managed_storage"
     | "hosting_vm"
     | "hosting_account";
   severity: "info" | "warning" | "critical";

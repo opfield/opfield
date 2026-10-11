@@ -12,6 +12,9 @@ import type {
 } from '@/services/system-certificate-renewal.service.js';
 import type {
   CreateManagedDatabaseInput,
+  ManagedAvailabilityEnableInput,
+  ManagedAvailabilityPreflightInput,
+  ManagedAvailabilitySettingsInput,
   ManagedDatabaseListQuery,
   UpdateManagedDatabaseInput,
 } from './databases.schemas.js';
@@ -465,6 +468,14 @@ export class ManagedDatabaseService {
   ): Promise<ManagedDatabaseRuntimeStats | null> {
     return commercialModuleUnavailable();
   }
+  /** Replication metrics of a database on several servers (null on one server): worst copy lag, server round trip. */
+  async getAvailabilityMetricsByDatabaseConnectionId(_databaseConnectionId: string): Promise<{
+    replication_lag_bytes: number | null;
+    replication_lag_seconds: number | null;
+    rtt_ms: number | null;
+  } | null> {
+    return commercialModuleUnavailable();
+  }
   async reconcilePendingOperations(): Promise<void> {
     return commercialModuleUnavailable();
   }
@@ -478,6 +489,55 @@ export class ManagedDatabaseService {
     _holdOwnerId: string,
     _userId: string | null
   ): Promise<{ publishedPort: number | null; publishedNativePort: number | null } | null> {
+    return commercialModuleUnavailable();
+  }
+  // Availability (one database on several servers): the commercial edition serves these; REST and MCP share them.
+  async availabilityPreflightForCreate(
+    _input: ManagedAvailabilityPreflightInput & {
+      type: CreateManagedDatabaseInput['type'];
+      version: string;
+      tlsEnabled?: boolean;
+      storageSizeGb?: number;
+    }
+  ): Promise<unknown> {
+    return commercialModuleUnavailable();
+  }
+  async availabilityPreflight(_id: string, _input: ManagedAvailabilityPreflightInput): Promise<unknown> {
+    return commercialModuleUnavailable();
+  }
+  async enableAvailability(_id: string, _input: ManagedAvailabilityEnableInput, _userId: string): Promise<unknown> {
+    return commercialModuleUnavailable();
+  }
+  async updateAvailability(_id: string, _input: ManagedAvailabilitySettingsInput, _userId: string): Promise<unknown> {
+    return commercialModuleUnavailable();
+  }
+  async addAvailabilityMember(
+    _id: string,
+    _input: { nodeId: string; priority?: number },
+    _userId: string
+  ): Promise<unknown> {
+    return commercialModuleUnavailable();
+  }
+  async removeAvailabilityMember(_id: string, _memberId: string, _userId: string): Promise<unknown> {
+    return commercialModuleUnavailable();
+  }
+  async makeAvailabilityPrimary(
+    _id: string,
+    _input: { memberId: string; acceptDataLoss?: boolean },
+    _userId: string
+  ): Promise<unknown> {
+    return commercialModuleUnavailable();
+  }
+  async rebuildAvailabilityMember(_id: string, _memberId: string, _userId: string): Promise<unknown> {
+    return commercialModuleUnavailable();
+  }
+  async disableAvailability(_id: string, _userId: string, _input?: { keepMemberId?: string }): Promise<unknown> {
+    return commercialModuleUnavailable();
+  }
+  async availabilityView(_id: string): Promise<unknown> {
+    return commercialModuleUnavailable();
+  }
+  async availabilityEvents(_id: string, _query: { page?: number; limit?: number }): Promise<unknown> {
     return commercialModuleUnavailable();
   }
   /** Republish the same ports and release the hold. False when the database is gone. */

@@ -286,7 +286,7 @@ The notification system sends HTTP webhook notifications when alert conditions a
 
 ## Alert Rules
 Each alert rule defines:
-- **Category**: node, container, build, compose, proxy, pages, gateway, logging, integration, certificate, security, database_postgres, database_clickhouse, or database_redis
+- **Category**: node, container, build, compose, proxy, pages, gateway, logging, integration, certificate, security, database_postgres, database_clickhouse, database_redis, or managed_storage
 - **Type**: threshold (metric breaches a value) or event (something happens)
 - **Threshold fields** (for threshold type): metric, metricTarget (optional sub-target such as a specific node disk mount), operator (>, >=, <, <=), thresholdValue, durationSeconds (fire observation window), fireThresholdPercent (percent of probes in that window that must breach), resolveAfterSeconds (resolve observation window, default 60s), resolveThresholdPercent (percent of probes in that window that must be clear)
 - **Event fields** (for event type): eventPattern (offline, stopped, oom_killed, etc.)
@@ -327,6 +327,7 @@ The category metadata returned by \`GET /api/notifications/alert-rules/categorie
 - database_clickhouse metrics: latency_ms, database_size_mb, disk_used_pct, disk_available_mb, pending_mutations.
 - database_redis (key-value stores) metrics: latency_ms, memory_pct.
 - database health events: health.offline, health.degraded, health.online. These events can also be used with threshold-style observation windows when supportsThreshold is true.
+- Availability (a database or storage on several servers): the three database categories and managed_storage have the events availability.failover, availability.switchover, availability.forced_promotion, availability.degraded, availability.no_failover and availability.restored (set states, supportsThreshold), availability.member_offline, availability.sync_degraded, availability.sync_far, availability.witness_lost, availability.witness_moved, availability.fenced, availability.rejoined, availability.rebuilt and availability.cancelled_sync_wait. Their \`details.reason\`, \`details.member_id\` and \`details.occurred_at\` say why, which server, and when it happened (events the servers queued while Gateway was down keep their own time). The database categories also have the metrics replication_lag_bytes and replication_lag_seconds (worst copy) and rtt_ms (round trip between the servers). managed_storage rules name storage connection ids.
 
 ## Handlebars Helpers
 Available in all templates:
