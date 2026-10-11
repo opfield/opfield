@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEFAULT_CLOUD_PORTAL_URL } from './vendor-urls.js';
 
 export const DEVELOPMENT_SECURE_LINK_CONNECTOR_IMAGE = 'gateway-secure-link-connector:dev';
 export const BUILT_IN_GITHUB_OAUTH_CLIENT_ID = 'Ov23likbDL1gM8asWzfC';
@@ -58,7 +59,7 @@ const envSchema = z.object({
   UPDATE_CHECK_INTERVAL_HOURS: z.coerce.number().default(4),
 
   // Cloud account portal that a connected installation enrols with and keeps its cloud link socket to.
-  CLOUD_PORTAL_URL: z.string().url().default('https://account.opfield.dev'),
+  CLOUD_PORTAL_URL: z.string().url().default(DEFAULT_CLOUD_PORTAL_URL),
 
   // Managed inference core. The distribution image repository is derived from
   // the Gateway's own image; the override exists for development/lab installs

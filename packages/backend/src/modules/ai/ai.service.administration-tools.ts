@@ -309,10 +309,10 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
             case 'connect': {
               const code = String(a.code ?? '').trim();
               if (!code) throw new AppError(400, 'CLOUD_CODE_INVALID', 'code is required');
-              return await service.connect(code);
+              return await service.connect(code, { userId: user.id });
             }
             case 'disconnect':
-              return await service.disconnect();
+              return await service.disconnect({ userId: user.id });
             default:
               throw new Error('Unsupported cloud operation');
           }

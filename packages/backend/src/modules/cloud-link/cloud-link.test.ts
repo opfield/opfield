@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { redactArgsForAudit } from '@/modules/ai/ai.service.tool-helpers.js';
 import { AI_TOOLS } from '@/modules/ai/ai.tools.js';
 import { classifyAIToolForApproval } from '@/modules/ai/ai-approval-policy.js';
-import { normalizeCloudCode } from './cloud-link.service.js';
+import { CloudLinkService, normalizeCloudCode } from './cloud-link.service.js';
 import type { CloudLinkProbe } from './cloud-link.types.js';
-import { cloudAgentSocketUrl, cloudBackoffDelay } from './cloud-link-agent.js';
+import { cloudAgentSocketUrl, cloudBackoffDelay, cloudRequestAudit } from './cloud-link-agent.js';
 import { answerCloudRequest, parseCloudRequest } from './cloud-link-requests.js';
 
 describe('cloud link', () => {
@@ -82,5 +82,44 @@ describe('cloud link', () => {
       operation: 'connect',
       code: '[REDACTED]',
     });
+  });
+
+  it('audits every served request with what was asked and how it was answered', () => {
+    const request = { id: 'r9', type: 'logs', params: { service: 'relay', tail: 500, since: '2026-10-11T09:00:00Z' } };
+    expect(cloudRequestAudit(request, { id: 'r9', ok: true, data: {} }, 1234, 41.6)).toEqual({
+      requestId: 'r9',
+      type: 'logs',
+      service: 'relay',
+      tail: 500,
+      since: '2026-10-11T09:00:00Z',
+      ok: true,
+      resultBytes: 1234,
+      durationMs: 42,
+    });
+    expect(
+      cloudRequestAudit({ id: 'r10', type: 'state', params: {} }, { id: 'r10', ok: false, error: 'no host' }, 40, 3)
+    ).toEqual({ requestId: 'r10', type: 'state', ok: false, error: 'no host', resultBytes: 40, durationMs: 3 });
+  });
+
+  it('audits a failed connect without the code', async () => {
+    const log = vi.fn(async () => true);
+    const service = new CloudLinkService(
+      {} as never,
+      {} as never,
+      { CLOUD_PORTAL_URL: 'https://account.example.test', APP_VERSION: 'v2.12.0' },
+      { getInstallationId: async () => 'installation', getInstallationName: () => 'gw' },
+      null
+    );
+    service.setAuditService({ log });
+    await expect(service.connect('not-a-code', { userId: 'user-1' })).rejects.toMatchObject({
+      code: 'CLOUD_CODE_INVALID',
+    });
+    expect(log).toHaveBeenCalledWith({
+      userId: 'user-1',
+      action: 'cloud.connect',
+      resourceType: 'cloud-link',
+      details: expect.objectContaining({ success: false, errorCode: 'CLOUD_CODE_INVALID' }),
+    });
+    expect(JSON.stringify(log.mock.calls)).not.toContain('not-a-code');
   });
 });

@@ -1,4 +1,4 @@
-export const LICENSE_SERVER_URL = 'https://license.thesqlabs.com';
+export { LICENSE_SERVER_URL } from '@/config/vendor-urls.js';
 export const LICENSE_LEGACY_ENTITLEMENTS_VERSION = 3;
 export const LICENSE_PREVIOUS_ENTITLEMENTS_VERSION = 4;
 export const LICENSE_ENTITLEMENTS_VERSION = 5;

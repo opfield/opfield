@@ -63,6 +63,31 @@ export interface CloudLinkStatusView {
   socket: { state: CloudSocketState; since: string | null; lastError: string | null } | null;
   disconnectedAt: string | null;
   disconnectedReason: string | null;
+  /** The latest portal requests the link served (connected only), newest first. */
+  recentRequests: CloudRequestSummary[];
+}
+
+/** What the audit log keeps of one portal request (details of a `cloud.request` entry). */
+export interface CloudRequestAudit {
+  requestId: string;
+  type: string;
+  service?: string;
+  tail?: number;
+  since?: string;
+  ok: boolean;
+  error?: string;
+  /** Size of the JSON answer sent back, in bytes. */
+  resultBytes: number;
+  durationMs: number;
+}
+
+export interface CloudRequestSummary {
+  at: string;
+  type: string;
+  service: string | null;
+  ok: boolean;
+  error: string | null;
+  resultBytes: number | null;
 }
 
 export interface CloudDisconnectResult extends CloudLinkStatusView {

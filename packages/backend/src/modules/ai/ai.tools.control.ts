@@ -36,7 +36,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'get_cloud_status',
     description:
-      'Read whether this Gateway is connected to a cloud account: not_connected, connected (account email, portal URL, connected since, socket online/connecting/reconnecting with the last error) or disconnected_by_account (when and why).',
+      'Read whether this Gateway is connected to a cloud account: not_connected, connected (account email, portal URL, connected since, socket online/connecting/reconnecting with the last error) or disconnected_by_account (when and why), plus the 5 latest requests the account sent over the link.',
     parameters: { type: 'object', properties: {} },
     destructive: false,
     category: 'Maintenance',

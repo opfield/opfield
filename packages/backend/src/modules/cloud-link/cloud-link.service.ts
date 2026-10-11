@@ -1,8 +1,10 @@
-import { eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { Env } from '@/config/env.js';
 import type { DrizzleClient } from '@/db/client.js';
+import { auditLog } from '@/db/schema/index.js';
 import { settings } from '@/db/schema/settings.js';
 import { createChildLogger } from '@/lib/logger.js';
+import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { LicenseService } from '@/modules/license/license.service.js';
 import type { CacheService } from '@/services/cache.service.js';
 import type { CryptoService } from '@/services/crypto.service.js';
@@ -13,6 +15,8 @@ import {
   type CloudCredentials,
   type CloudDisconnectResult,
   type CloudLinkStatusView,
+  type CloudRequestAudit,
+  type CloudRequestSummary,
   type CloudSocketStatus,
   type StoredCloudDisconnect,
   type StoredCloudEnrollment,
@@ -27,6 +31,15 @@ const SETTINGS_KEYS = {
 /** The socket state of the replica that holds the link, for the status a request on any replica reads. */
 const SOCKET_STATUS_CACHE_KEY = 'cloud:link:socket';
 const SOCKET_STATUS_TTL_SECONDS = 60;
+/** Audit actions of the cloud link; every entry has resource type `cloud-link` and the agent id as resource id. */
+export const CLOUD_AUDIT_ACTIONS = {
+  connect: 'cloud.connect',
+  disconnect: 'cloud.disconnect',
+  disconnectedByAccount: 'cloud.disconnected_by_account',
+  request: 'cloud.request',
+} as const;
+export const CLOUD_AUDIT_RESOURCE_TYPE = 'cloud-link';
+const RECENT_REQUESTS_SHOWN = 5;
 const DISCONNECTED_BY_ACCOUNT_REASON = 'Your cloud account disconnected this installation.';
 
 type Fetcher = typeof fetch;
@@ -101,6 +114,7 @@ export class CloudLinkService {
   private readonly listeners = new Set<() => void>();
   private localSocketStatus: (() => CloudSocketStatus | null) | null = null;
   private queue: Promise<void> = Promise.resolve();
+  private auditService: Pick<AuditService, 'log'> | null = null;
 
   constructor(
     private readonly db: DrizzleClient,
@@ -110,6 +124,11 @@ export class CloudLinkService {
     private readonly cache: Pick<CacheService, 'get' | 'set' | 'delete'> | null,
     private readonly fetcher: Fetcher = fetch
   ) {}
+
+  /** Connects, disconnects and every portal request the link serves are written to the audit log. */
+  setAuditService(auditService: Pick<AuditService, 'log'>): void {
+    this.auditService = auditService;
+  }
 
   /** Called after every enrolment change (connect, disconnect, revoked by the account). */
   onEnrollmentChanged(listener: () => void): () => void {
@@ -149,6 +168,7 @@ export class CloudLinkService {
           : { state: 'connecting', since: null, lastError: null },
         disconnectedAt: null,
         disconnectedReason: null,
+        recentRequests: await this.recentRequests(enrollment.agentId),
       };
     }
     if (stored.disconnect) {
@@ -160,6 +180,7 @@ export class CloudLinkService {
         socket: null,
         disconnectedAt: stored.disconnect.disconnectedAt,
         disconnectedReason: stored.disconnect.reason,
+        recentRequests: [],
       };
     }
     return {
@@ -170,21 +191,52 @@ export class CloudLinkService {
       socket: null,
       disconnectedAt: null,
       disconnectedReason: null,
+      recentRequests: [],
     };
   }
 
   /** Enrols with a code from the account portal. Enrolling again replaces the previous agent. */
-  async connect(code: string): Promise<CloudLinkStatusView> {
-    const normalized = normalizeCloudCode(code);
-    if (!normalized) {
-      throw new CloudLinkRequestError(
-        400,
-        'CLOUD_CODE_INVALID',
-        'Enter the code exactly as your cloud account shows it, for example CLD-7K3M-Q9TX'
-      );
+  async connect(code: string, actor: { userId: string | null } = { userId: null }): Promise<CloudLinkStatusView> {
+    const portalUrl = this.configuredPortalUrl;
+    let agentId: string | null = null;
+    let accountEmail: string | null = null;
+    try {
+      const normalized = normalizeCloudCode(code);
+      if (!normalized) {
+        throw new CloudLinkRequestError(
+          400,
+          'CLOUD_CODE_INVALID',
+          'Enter the code exactly as your cloud account shows it, for example CLD-7K3M-Q9TX'
+        );
+      }
+      await this.enroll(normalized, portalUrl, (enrolled) => {
+        agentId = enrolled.agentId;
+        accountEmail = enrolled.accountEmail || null;
+      });
+    } catch (error) {
+      await this.writeAudit(CLOUD_AUDIT_ACTIONS.connect, actor.userId, null, {
+        success: false,
+        portalUrl,
+        errorCode: error instanceof CloudLinkRequestError ? error.code : 'CLOUD_CONNECT_FAILED',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
     }
+    await this.writeAudit(CLOUD_AUDIT_ACTIONS.connect, actor.userId, agentId, {
+      success: true,
+      portalUrl,
+      accountEmail,
+    });
+    this.notify();
+    return this.getStatus();
+  }
+
+  private async enroll(
+    normalized: string,
+    portalUrl: string,
+    onEnrolled: (enrollment: StoredCloudEnrollment) => void
+  ): Promise<void> {
     await this.serialized(async () => {
-      const portalUrl = this.configuredPortalUrl;
       const hello = await this.helloInfo();
       const { status, body } = await this.portalRequest(
         `${portalUrl}/api/cloud/enroll`,
@@ -209,16 +261,17 @@ export class CloudLinkService {
       };
       await this.setSetting(SETTINGS_KEYS.enrollment, enrollment);
       await this.deleteSetting(SETTINGS_KEYS.disconnect);
+      onEnrolled(enrollment);
       logger.info('Installation connected to the cloud account', { agentId: enrollment.agentId });
     });
-    this.notify();
-    return this.getStatus();
   }
 
   /** Revokes the agent at the portal, then forgets the enrolment here (also when the portal cannot be reached). */
-  async disconnect(): Promise<CloudDisconnectResult> {
+  async disconnect(actor: { userId: string | null } = { userId: null }): Promise<CloudDisconnectResult> {
     let warning: string | undefined;
+    let forgotten: StoredCloudEnrollment | null = null;
     await this.serialized(async () => {
+      forgotten = (await this.readStored()).enrollment;
       const credentials = await this.readCredentials();
       if (credentials) {
         try {
@@ -241,6 +294,15 @@ export class CloudLinkService {
       await this.publishSocketStatus(null);
       logger.info('Installation disconnected from the cloud account', { confirmed: !warning });
     });
+    const previous = forgotten as StoredCloudEnrollment | null;
+    await this.writeAudit(CLOUD_AUDIT_ACTIONS.disconnect, actor.userId, previous?.agentId ?? null, {
+      success: true,
+      wasConnected: previous !== null,
+      portalUrl: previous?.portalUrl ?? null,
+      accountEmail: previous?.accountEmail || null,
+      confirmedByAccount: previous !== null && !warning,
+      ...(warning ? { warning } : {}),
+    });
     this.notify();
     return { ...(await this.getStatus()), ...(warning ? { warning } : {}) };
   }
@@ -262,8 +324,75 @@ export class CloudLinkService {
       await this.publishSocketStatus(null);
       changed = true;
       logger.warn('The cloud account disconnected this installation', { agentId });
+      await this.writeAudit(CLOUD_AUDIT_ACTIONS.disconnectedByAccount, null, agentId, {
+        portalUrl: enrollment.portalUrl,
+        accountEmail: enrollment.accountEmail || null,
+        reason: 'The cloud account refused the agent (HTTP 401)',
+      });
     });
     if (changed) this.notify();
+  }
+
+  /** One audit entry per portal request the link served, whatever its result. */
+  async recordRequest(agentId: string, request: CloudRequestAudit): Promise<void> {
+    await this.writeAudit(CLOUD_AUDIT_ACTIONS.request, null, agentId, { ...request });
+  }
+
+  /** The latest portal requests of this agent, newest first, read back from the audit log. */
+  private async recentRequests(agentId: string): Promise<CloudRequestSummary[]> {
+    try {
+      const rows = await this.db
+        .select({ createdAt: auditLog.createdAt, details: auditLog.details })
+        .from(auditLog)
+        .where(
+          and(
+            eq(auditLog.resourceType, CLOUD_AUDIT_RESOURCE_TYPE),
+            eq(auditLog.resourceId, agentId),
+            eq(auditLog.action, CLOUD_AUDIT_ACTIONS.request)
+          )
+        )
+        .orderBy(desc(auditLog.createdAt))
+        .limit(RECENT_REQUESTS_SHOWN);
+      return rows.map((row) => {
+        const details = (row.details ?? {}) as Partial<CloudRequestAudit>;
+        return {
+          at: row.createdAt.toISOString(),
+          type: typeof details.type === 'string' ? details.type : 'unknown',
+          service: typeof details.service === 'string' ? details.service : null,
+          ok: details.ok === true,
+          error: typeof details.error === 'string' ? details.error : null,
+          resultBytes: typeof details.resultBytes === 'number' ? details.resultBytes : null,
+        };
+      });
+    } catch (error) {
+      logger.debug('Could not read the latest cloud requests', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return [];
+    }
+  }
+
+  private async writeAudit(
+    action: string,
+    userId: string | null,
+    agentId: string | null,
+    details: Record<string, unknown>
+  ): Promise<void> {
+    if (!this.auditService) return;
+    try {
+      await this.auditService.log({
+        userId,
+        action,
+        resourceType: CLOUD_AUDIT_RESOURCE_TYPE,
+        ...(agentId ? { resourceId: agentId } : {}),
+        details,
+      });
+    } catch (error) {
+      logger.warn('Could not write a cloud link audit entry', {
+        action,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   /** The enrolled agent with its secret decrypted; null when not connected or the secret cannot be read. */

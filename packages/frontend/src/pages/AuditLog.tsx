@@ -1,6 +1,7 @@
 import { Download, Settings } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Combobox, type ComboboxOption } from "@/components/common/Combobox";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
@@ -77,6 +78,10 @@ const AUDIT_ACTION_OPTIONS = [
   "cert.export_key",
   "cert.issue",
   "cert.revoke",
+  "cloud.connect",
+  "cloud.disconnect",
+  "cloud.disconnected_by_account",
+  "cloud.request",
   "created",
   "database.connection.create",
   "database.connection.delete",
@@ -194,6 +199,7 @@ const AUDIT_RESOURCE_OPTIONS = [
   "ca",
   "certificate",
   "certificate_authority",
+  "cloud-link",
   "database",
   "docker-container",
   "docker-deployment",
@@ -350,10 +356,18 @@ export function AuditLog({
   headerActionsTarget?: HTMLElement | null;
 }) {
   const initialViewConfig = useMemo(() => readAuditViewConfig(), []);
+  // Links from other pages open the log filtered: ?action=…&resource=… (for example the Cloud block's audit link).
+  const [searchParams] = useSearchParams();
+  const [initialFilters] = useState(() => ({
+    action: searchParams.get("action")?.trim() || "all",
+    resource: searchParams.get("resource")?.trim() || "all",
+  }));
   const initialAuditCacheKey =
+    initialFilters.action !== "all" ||
+    initialFilters.resource !== "all" ||
     initialViewConfig.excludedActions.length > 0 ||
     initialViewConfig.excludedResourceTypes.length > 0
-      ? `admin:audit:all:all:all:${initialViewConfig.excludedActions.join(",")}:${initialViewConfig.excludedResourceTypes.join(",")}`
+      ? `admin:audit:${initialFilters.action}:${initialFilters.resource}:all:${initialViewConfig.excludedActions.join(",")}:${initialViewConfig.excludedResourceTypes.join(",")}`
       : DEFAULT_AUDIT_CACHE_KEY;
   const [entries, setEntries] = useState<AuditLogEntry[]>(
     () => api.getCached<AuditLogEntry[]>(initialAuditCacheKey) ?? []
@@ -368,19 +382,27 @@ export function AuditLog({
   const [total, setTotal] = useState(
     () => api.getCached<number>(`${initialAuditCacheKey}:total`) ?? 0
   );
-  const [actionFilter, setActionFilter] = useState("all");
-  const [resourceFilter, setResourceFilter] = useState("all");
+  const [actionFilter, setActionFilter] = useState(initialFilters.action);
+  const [resourceFilter, setResourceFilter] = useState(initialFilters.resource);
   const [userFilter, setUserFilter] = useState("all");
   const [knownActions, setKnownActions] = useState<string[]>(() =>
     mergeAuditFilterValues(
       [...AUDIT_ACTION_OPTIONS],
-      [...initialViewConfig.excludedActions, ...entries.map((entry) => entry.action)]
+      [
+        ...initialViewConfig.excludedActions,
+        ...(initialFilters.action === "all" ? [] : [initialFilters.action]),
+        ...entries.map((entry) => entry.action),
+      ]
     )
   );
   const [knownResources, setKnownResources] = useState<string[]>(() =>
     mergeAuditFilterValues(
       [...AUDIT_RESOURCE_OPTIONS],
-      [...initialViewConfig.excludedResourceTypes, ...entries.map((entry) => entry.resourceType)]
+      [
+        ...initialViewConfig.excludedResourceTypes,
+        ...(initialFilters.resource === "all" ? [] : [initialFilters.resource]),
+        ...entries.map((entry) => entry.resourceType),
+      ]
     )
   );
   const [knownUsers, setKnownUsers] = useState<AuditFilterUserOption[]>([]);

@@ -91,6 +91,15 @@ export interface LicenseEntitlements {
 export type CloudLinkState = "not_connected" | "connected" | "disconnected_by_account";
 export type CloudSocketState = "connecting" | "online" | "reconnecting";
 
+export interface CloudRequestSummary {
+  at: string;
+  type: string;
+  service: string | null;
+  ok: boolean;
+  error: string | null;
+  resultBytes: number | null;
+}
+
 export interface CloudLinkStatusView {
   state: CloudLinkState;
   portalUrl: string;
@@ -99,6 +108,8 @@ export interface CloudLinkStatusView {
   socket: { state: CloudSocketState; since: string | null; lastError: string | null } | null;
   disconnectedAt: string | null;
   disconnectedReason: string | null;
+  /** The latest requests the cloud account sent over the link, newest first. */
+  recentRequests: CloudRequestSummary[];
   /** Set by a disconnect the cloud account could not confirm. */
   warning?: string;
 }

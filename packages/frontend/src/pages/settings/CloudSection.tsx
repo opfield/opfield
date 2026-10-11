@@ -1,5 +1,6 @@
 import { Cloud, Unplug } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { DetailRow } from "@/components/common/DetailRow";
@@ -9,10 +10,13 @@ import { useContentLoading } from "@/components/common/reveal-gate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { formatBytes } from "@/lib/utils";
 import { api } from "@/services/api";
-import type { CloudLinkStatusView, CloudSocketState } from "@/types";
+import type { CloudLinkStatusView, CloudRequestSummary, CloudSocketState } from "@/types";
 
 const CACHE_KEY = "settings:cloud-link-status";
+/** The audit log filtered to the cloud link's entries (connects, disconnects, every request it served). */
+const CLOUD_AUDIT_LOG_PATH = "/administration/audit?resource=cloud-link";
 const POLL_INTERVAL_MS = 10_000;
 /** Code alphabet of the cloud account: A–Z without I and O, digits 2–9. */
 const CODE_ALPHABET = /^[A-HJ-NP-Z2-9]{8}$/;
@@ -41,11 +45,65 @@ function PortalLink({ url }: { url: string }) {
   );
 }
 
-interface CloudSectionProps {
-  canManage: boolean;
+function RecentRequests({
+  requests,
+  canViewAudit,
+}: {
+  requests: CloudRequestSummary[];
+  canViewAudit: boolean;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-4 px-4 pt-3 pb-1">
+        <span className="text-sm text-muted-foreground">Last requests</span>
+        {canViewAudit && (
+          <Button asChild variant="link" size="inline">
+            <Link to={CLOUD_AUDIT_LOG_PATH}>All in the audit log</Link>
+          </Button>
+        )}
+      </div>
+      {requests.length === 0 ? (
+        <p className="px-4 pb-3 text-sm text-muted-foreground">
+          Your cloud account has not read anything yet.
+        </p>
+      ) : (
+        <ul className="pb-1">
+          {requests.map((request, index) => (
+            <li
+              key={`${request.at}-${index}`}
+              className="grid grid-cols-[6rem_minmax(0,1fr)_auto] items-center gap-4 px-4 py-2 text-sm md:grid-cols-[10rem_minmax(0,1fr)_auto]"
+            >
+              <RelativeTime value={request.at} className="text-muted-foreground" />
+              <span className="min-w-0 truncate" title={request.error ?? undefined}>
+                <span className="font-mono text-xs">{request.type}</span>
+                {request.service && (
+                  <span className="text-muted-foreground"> · {request.service}</span>
+                )}
+                {!request.ok && request.error && (
+                  <span className="text-muted-foreground"> · {request.error}</span>
+                )}
+              </span>
+              {request.ok ? (
+                <Badge variant="success">
+                  {request.resultBytes !== null ? `OK · ${formatBytes(request.resultBytes)}` : "OK"}
+                </Badge>
+              ) : (
+                <Badge variant="destructive">Error</Badge>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
-export function CloudSection({ canManage }: CloudSectionProps) {
+interface CloudSectionProps {
+  canManage: boolean;
+  canViewAudit: boolean;
+}
+
+export function CloudSection({ canManage, canViewAudit }: CloudSectionProps) {
   const [status, setStatus] = useState<CloudLinkStatusView | null>(
     () => api.getCached<CloudLinkStatusView>(CACHE_KEY) ?? null
   );
@@ -210,6 +268,7 @@ export function CloudSection({ canManage }: CloudSectionProps) {
           {status.socket?.state === "reconnecting" && status.socket.lastError && (
             <DetailRow label="Last error" value={status.socket.lastError} />
           )}
+          <RecentRequests requests={status.recentRequests} canViewAudit={canViewAudit} />
         </div>
       )}
 

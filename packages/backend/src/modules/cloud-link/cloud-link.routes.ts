@@ -23,7 +23,9 @@ cloudLinkRoutes.openapi({ ...cloudStatusRoute, middleware: requireScope('license
 cloudLinkRoutes.openapi({ ...connectCloudRoute, middleware: requireScope('license:manage') }, async (c) => {
   const body = ConnectCloudSchema.parse(await c.req.json());
   try {
-    return c.json({ data: await container.resolve(CloudLinkService).connect(body.code) });
+    return c.json({
+      data: await container.resolve(CloudLinkService).connect(body.code, { userId: c.get('user')?.id ?? null }),
+    });
   } catch (error) {
     throw toAppError(error);
   }
@@ -31,7 +33,9 @@ cloudLinkRoutes.openapi({ ...connectCloudRoute, middleware: requireScope('licens
 
 cloudLinkRoutes.openapi({ ...disconnectCloudRoute, middleware: requireScope('license:manage') }, async (c) => {
   try {
-    return c.json({ data: await container.resolve(CloudLinkService).disconnect() });
+    return c.json({
+      data: await container.resolve(CloudLinkService).disconnect({ userId: c.get('user')?.id ?? null }),
+    });
   } catch (error) {
     throw toAppError(error);
   }
