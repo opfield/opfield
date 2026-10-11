@@ -31,6 +31,25 @@ const DAEMON_CONFIG_PATHS: Partial<Record<NodeType, string>> = {
   relay: "/etc/gateway-relay-supervisor/config.yaml",
 };
 
+/**
+ * Protected mode: the owner of the machine a relay runs on turned it on in the relay's local config
+ * (`relay-supervisor protected on`). Gateway cannot open a console, run commands, read or write files or collect host
+ * diagnostics on it, and cannot turn it off; it can only update the relay with official signed releases and route
+ * traffic through it.
+ */
+export function isNodeProtected(node: Node | NodeDetail | null | undefined): boolean {
+  const capabilities = (node?.capabilities ?? {}) as Record<string, unknown>;
+  return (
+    capabilities.nodeProtected === true ||
+    (Array.isArray(capabilities.capabilities) &&
+      capabilities.capabilities.includes("node_protected_v1"))
+  );
+}
+
+/** What the Protected badge explains. */
+export const PROTECTED_NODE_DESCRIPTION =
+  "Protected by the machine owner: no console, files, commands or host diagnostics from Gateway. Gateway can update the relay with official signed releases and route traffic through it.";
+
 export function isNodeHostFeatureDisabled(
   node: Node | NodeDetail | null | undefined,
   feature: NodeHostFeature
@@ -96,6 +115,8 @@ export function nodeHostFileAccessWarning(
 export interface HostAccessInstallOptions {
   disableConsole: boolean;
   disableFiles: boolean;
+  /** Relay installer only: --protected (protected mode, which the machine owner alone can turn off). */
+  protectedMode?: boolean;
 }
 
 export const DEFAULT_HOST_ACCESS_INSTALL_OPTIONS: HostAccessInstallOptions = {
@@ -112,6 +133,7 @@ export function withHostAccessInstallFlags(
   const flags = [
     ...(options.disableConsole ? ["--disable-console"] : []),
     ...(options.disableFiles ? ["--disable-files"] : []),
+    ...(options.protectedMode ? ["--protected"] : []),
   ];
   return flags.reduce((result, flag) => `${result} \\\n  ${flag}`, command);
 }

@@ -26,6 +26,7 @@ import { relayRemovableAfter } from '@/modules/nodes/relay-removal.js';
 import type { GeneralSettingsService, RelayAssignmentSpread } from '@/modules/settings/general-settings.service.js';
 import type { EventBusService } from './event-bus.service.js';
 import { type LocalRelayOutageSignal, localRelayOutagePhase, upWhenLocalRelayWentDown } from './local-relay-outage.js';
+import { NODE_PROTECTED_CAPABILITY } from './node-host-access.js';
 import type { NodeRegistryService } from './node-registry.service.js';
 import { pruneEndedAssignmentGenerations } from './relay-assignment-history.js';
 import type { RelayCertificateRenewalService, RelayCertificateStatus } from './relay-certificate-renewal.service.js';
@@ -1447,6 +1448,8 @@ export class RelayPoolService {
           dataPlaneFailing: dataPlaneFailing.has(instance.id),
           /** An offline remote relay: when its removal becomes possible (expired policy, 90 s silent). */
           removableAfter: instance.kind === 'remote' ? relayRemovableAfter(instance) : null,
+          /** Its machine owner turned protected mode on in the relay's local config (no host access from Gateway). */
+          protected: instance.capabilities?.features?.includes(NODE_PROTECTED_CAPABILITY) === true,
           policyTrust: policyTrust.get(instance.id) ?? null,
           certificate: certificates.get(instance.id) ?? null,
           /** Revoked routes this relay has not applied; `stale` once past the deadline. */

@@ -101,7 +101,7 @@ func (p *Plugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 		NodeId: nodeID, Hostname: hostname, DaemonVersion: lifecycle.Version,
 		CpuModel: cpuModel, CpuCores: int32(cpuCores), Architecture: sysmetrics.GetArchitecture(),
 		KernelVersion: sysmetrics.GetKernelVersion(), DaemonType: "relay",
-		Capabilities: []string{relayPoolCapability, relayRouteRuntimeCapability},
+		Capabilities: append([]string{relayPoolCapability, relayRouteRuntimeCapability}, p.protectedCapabilities()...),
 	}
 	if state != nil {
 		register.HostIdentityId = state.HostIdentityID
@@ -115,6 +115,11 @@ func (p *Plugin) HandleCommand(command *pb.GatewayCommand) *pb.CommandResult {
 	var err error
 	switch payload := command.GetPayload().(type) {
 	case *pb.GatewayCommand_SyncRelayPolicy:
+		if refusal := p.protectedPolicyRefusal(payload.SyncRelayPolicy.GetApplySnapshotRequest()); refusal != "" {
+			result.Success = false
+			result.Error = refusal
+			return result
+		}
 		var responseRevision uint64
 		var responseUnchanged bool
 		var responseExpiry int64
@@ -144,6 +149,11 @@ func (p *Plugin) HandleCommand(command *pb.GatewayCommand) *pb.CommandResult {
 		}
 	case *pb.GatewayCommand_UpdateRelayWorker:
 		update := payload.UpdateRelayWorker
+		if refusal := p.protectedWorkerUpdateRefusal(update.GetTargetVersion()); refusal != "" {
+			result.Success = false
+			result.Error = refusal
+			return result
+		}
 		err = p.worker.update(
 			context.Background(),
 			update.GetDownloadUrl(),
@@ -246,7 +256,7 @@ func (p *Plugin) syncAdminClientIfDue(ctx context.Context) {
 func (p *Plugin) collectRuntime(ctx context.Context) *pb.RelayRuntimeStatus {
 	state, _ := loadEnrollmentState(p.cfg.StateDir)
 	status := &pb.RelayRuntimeStatus{
-		State: "joining", Capabilities: []string{relayPoolCapability},
+		State: "joining", Capabilities: append([]string{relayPoolCapability}, p.protectedCapabilities()...),
 		AdvertisedAddresses: append([]string(nil), p.cfg.Worker.AdvertisedAddresses...), ServicePort: uint32(p.cfg.Worker.ServicePort),
 	}
 	if state != nil {
@@ -277,7 +287,7 @@ func (p *Plugin) collectRuntime(ctx context.Context) *pb.RelayRuntimeStatus {
 	}
 	status.BuildVersion = health.GetBuildVersion()
 	status.ProtocolMajor = health.GetProtocolMajor()
-	status.Capabilities = append([]string(nil), health.GetCapabilities()...)
+	status.Capabilities = append(append([]string(nil), health.GetCapabilities()...), p.protectedCapabilities()...)
 	status.AppliedPolicyRevision = health.GetAppliedRevision()
 	status.PolicyExpiresAtUnix = health.GetPolicyExpiresAtUnix()
 	status.RegisteredEndpoints = health.GetRegisteredEndpoints()

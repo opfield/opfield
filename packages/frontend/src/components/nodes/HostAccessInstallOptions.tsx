@@ -8,9 +8,12 @@ import type { HostAccessInstallOptions as Options } from "@/lib/node-host-access
 export function HostAccessInstallOptions({
   value,
   onChange,
+  relay = false,
 }: {
   value: Options;
   onChange: (value: Options) => void;
+  /** The relay installer also offers protected mode. */
+  relay?: boolean;
 }) {
   return (
     <div className="grid gap-2 sm:grid-cols-2">
@@ -26,6 +29,14 @@ export function HostAccessInstallOptions({
         label="Disable host files"
         description="Adds --disable-files: no host file browsing or writes from Gateway. Disable both to remove host access."
       />
+      {relay && (
+        <CheckboxCard
+          checked={value.protectedMode === true}
+          onCheckedChange={(protectedMode) => onChange({ ...value, protectedMode })}
+          label="Protected relay"
+          description="Adds --protected: no console, files, commands or host diagnostics from Gateway, for a relay on someone else's machine. Only the machine owner can turn it off."
+        />
+      )}
     </div>
   );
 }

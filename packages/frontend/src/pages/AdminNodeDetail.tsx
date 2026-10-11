@@ -40,6 +40,7 @@ import { HostingResizeDialog } from "@/components/nodes/HostingResizeDialog";
 import { NodeEnrollmentDialog } from "@/components/nodes/NodeEnrollmentDialog";
 import { NodeFirewallTab } from "@/components/nodes/NodeFirewallTab";
 import { NodeSnapshotsTab } from "@/components/nodes/NodeSnapshotsTab";
+import { ProtectedNodeBadge } from "@/components/nodes/ProtectedNodeBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -74,6 +75,7 @@ import {
 import { nodeChangesFor } from "@/lib/node-changed";
 import {
   isNodeHostFeatureDisabled,
+  isNodeProtected,
   nodeConsoleUnavailableMessage,
   nodeHostFeatureDisabledMessage,
   nodeHostFileAccessWarning,
@@ -528,13 +530,18 @@ export function AdminNodeDetail({
   const canEditBuilderSettings = !!id && node?.type === "builder" && canManageNode;
   // Secure runtime setup restarts this node's Docker daemon: node manage (admin:update still works for one release).
   const canManageSecureRuntime = canManageNode || hasScope("admin:update");
+  // A protected relay: its machine owner locked Gateway out of the host, so it has no Files or Console tab.
+  const nodeProtected = isNodeProtected(node);
   const canReadNodeFiles =
-    !!id && (hasScope("nodes:files:read") || hasScope(`nodes:files:read:${id}`));
+    !!id && !nodeProtected && (hasScope("nodes:files:read") || hasScope(`nodes:files:read:${id}`));
   const canWriteNodeFiles =
-    !!id && (hasScope("nodes:files:write") || hasScope(`nodes:files:write:${id}`));
+    !!id &&
+    !nodeProtected &&
+    (hasScope("nodes:files:write") || hasScope(`nodes:files:write:${id}`));
   const isCompatibleNode = !!node && !isNodeIncompatible(node);
   const canShowNodeConsole =
     isCompatibleNode &&
+    !nodeProtected &&
     !nodeUpdating &&
     (node.status === "online" || node.status === "offline") &&
     canUseNodeConsole;
@@ -990,6 +997,7 @@ export function AdminNodeDetail({
                   Locked
                 </Badge>
               )}
+              {nodeProtected && <ProtectedNodeBadge size="inline" />}
             </>
           }
           description={

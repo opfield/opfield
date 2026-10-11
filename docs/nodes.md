@@ -216,6 +216,7 @@ Common daemon setup options:
 | `--secure-runtime` | Docker installer, `docker` profile only: install [Secure Runtime](#setup-and-compatibility) on an existing install too, and fail when it cannot. A fresh install sets it up anyway. |
 | `--nginx-mode <mode>` / `--skip-nginx` | Nginx installer only: `managed` or `integrate` (see [Nginx Node Modes](#nginx-node-modes)); `--skip-nginx` reuses an installed nginx 1.25.1 or newer. |
 | `--disable-console` / `--disable-files` | Turn the host console or host file access off on this node (writes `console.enabled: false` / `files.enabled: false`, see [Host Console And File Access](#host-console-and-file-access)). Environment: `GATEWAY_NODE_DISABLE_CONSOLE=1`, `GATEWAY_NODE_DISABLE_FILES=1`. |
+| `--protected` | Relay installer only: install the relay in [protected mode](#protected-relays) (writes `protected.enabled: true`). Environment: `GATEWAY_RELAY_PROTECTED=1`. |
 | `--dry-run` | Validate inputs and show the plan without changing the host. |
 | `-y`, `--yes` | Non-interactive mode. An installation that is declined at "Proceed with installation?" or stopped after the summary exits with a non-zero code. Without it the installer asks on the terminal and stops when it cannot read an answer (no terminal, or `sudo` with its output piped through `tee`), instead of using the defaults. |
 | `--help` | Show all supported options. |
@@ -319,6 +320,42 @@ Gateway also renews its own gRPC, web, and local relay certificates while runnin
 If Gateway is behind Cloudflare for the UI/API, configure Gateway's public gRPC target as a direct `9443/tcp` endpoint. A Cloudflare-proxied web hostname must not be selected unless it explicitly routes the Gateway gRPC port. Generated commands use the configured target, so normal enrollment does not require replacing the address by hand.
 
 Daemons report local and detected public IP addresses in their health data. For Docker nodes, Gateway uses an explicitly configured service address first, then the first reported local address, then a reported public address for the endpoints other hosts and clients connect to directly: managed database links and published storage. Proxy routes to Docker containers, deployments, and Compose services do not use it: they always reach the workload through a Secure Link, without a host port. Configure the service address on the node detail page when automatic selection is not routable from the hosts or clients that use those endpoints.
+
+### Protected Relays
+
+A relay installed on a machine that belongs to someone else (a partner or customer whose host may hold personal data) can run in protected mode. In protected mode a Gateway administrator cannot get into the host through the relay:
+
+- no console: the relay refuses the interactive shell, one-shot commands (including the assistant and MCP `execute_node_console_command`), and console input;
+- no files: the relay refuses every host file operation (browse, read, write, upload, move, delete);
+- no host diagnostics: health reports carry only aggregate CPU, memory, swap, load, uptime, file descriptor and free disk space figures, with no disk mounts, disk I/O, network interfaces, IP addresses, CPU model or kernel version, and the relay does not look up its public IP address;
+- no other commands: the relay runs only its own operation (signed policy, drain, worker update, certificate renewal, its route counters, health, and its own logs) and refuses everything else Gateway sends, including commands added by later Gateway versions, with an error that says the relay is protected.
+
+What Gateway can still do: route traffic through the relay, drain and resume it, renew its certificate, read its own logs and counters, and update it. Updates install only official releases signed with the release key built into the relay, as on every node, and a protected relay accepts no update to an older release than the one it runs (an older release could predate protected mode). A protected relay also refuses a policy that names a built-in local service: only the local relay next to Gateway serves those.
+
+Protected mode is the machine owner's setting. It lives only in the relay's local configuration, `/etc/gateway-relay-supervisor/config.yaml` (readable by root, and by the relay's run user on a non-root install). Gateway has no command that changes it, and a protected relay refuses every command that could write that file.
+
+- Install a new relay protected: add `--protected` to the generated command (the relay setup dialogs offer **Protected relay**, which adds it). Re-running the installer keeps protected mode on; the installer never turns it off.
+- Turn it on or off on an existing relay, as root on the relay host:
+
+  ```bash
+  relay-supervisor protected status
+  relay-supervisor protected on      # or: relay-supervisor protected off
+  systemctl restart gateway-relay-supervisor   # OpenRC: rc-service gateway-relay-supervisor restart
+  ```
+
+  `relay-supervisor protected on|off` writes the setting into the configuration file and keeps everything else in it. Editing the file by hand works the same way:
+
+  ```yaml
+  protected:
+    enabled: true
+    allow_database_witness: false
+  ```
+
+  The change applies when the relay supervisor restarts. The relay reports it when it reconnects.
+
+Gateway shows a **Protected** badge on the relay in **Nodes**, on its node page, and in **Settings > Relay** (`protected: true` in `GET /api/system/relay`). A protected relay has no **Console** or **Files** tab and no console or file commands in the command palette. The API, the assistant and MCP refuse console and host file requests for it with `409 NODE_PROTECTED`.
+
+`allow_database_witness` (default `false`) lets Gateway run database availability witness processes on a protected relay; without it, a protected relay must not get one. It has no effect while protected mode is off.
 
 ## Daemon Configuration
 
