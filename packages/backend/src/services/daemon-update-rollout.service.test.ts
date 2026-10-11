@@ -150,6 +150,25 @@ describe('DaemonUpdateRollout', () => {
     expect(rollout.pending()).toEqual([]);
   });
 
+  it('lets a waiting request go at once on the operator\'s "update now"', async () => {
+    const cluster = fakeCluster({ checkout: ['d1', 'd2'] });
+    cluster.set('d1', { updating: true });
+    const rollout = new DaemonUpdateRollout({
+      loadView: async () => cluster.view(),
+      now: cluster.now,
+      ...manualPasses,
+    });
+    const run = vi.fn();
+    const waiting = rollout.enqueue({ memberId: 'd2', run });
+    await rollout.runPass();
+    expect(run).not.toHaveBeenCalled();
+    expect(rollout.releaseWait('d9')).toBe(false);
+    expect(rollout.releaseWait('d2')).toBe(true);
+    await waiting;
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(rollout.pending()).toEqual([]);
+  });
+
   it('drops a waiting request when its rollout is abandoned', async () => {
     const cluster = fakeCluster({ checkout: ['d1', 'r1'] });
     cluster.set('d1', { updating: true });

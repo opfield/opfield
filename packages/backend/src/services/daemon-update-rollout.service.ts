@@ -48,6 +48,8 @@ export interface DaemonUpdateRolloutRequest {
 interface QueuedRequest extends DaemonUpdateRolloutRequest {
   enqueuedAt: number;
   waitKey: string;
+  /** The operator's "update now": the request goes in the next pass whatever it waits for. */
+  skipWait?: boolean;
   resolve: () => void;
   reject: (error: Error) => void;
 }
@@ -108,6 +110,18 @@ export class DaemonUpdateRollout {
       );
       this.arm(this.coalesceMs);
     });
+  }
+
+  /**
+   * The operator's "update now" for a member whose update waits in the queue: it goes in the next pass without waiting
+   * for its lease peers. False when no update of the member waits here.
+   */
+  releaseWait(memberId: string): boolean {
+    const request = this.queue.find((queued) => queued.memberId === memberId);
+    if (!request) return false;
+    request.skipWait = true;
+    void this.runPass();
+    return true;
   }
 
   /**
@@ -185,7 +199,12 @@ export class DaemonUpdateRollout {
           }))
         );
       }
-      if (blockers.length > 0) {
+      if (blockers.length > 0 && request.skipWait) {
+        logger.warn('Daemon update goes ahead on request without waiting for its lease peers', {
+          memberId: request.memberId,
+          waitingFor: blockers,
+        });
+      } else if (blockers.length > 0) {
         if (timedOut) {
           this.remove(request);
           request.reject(new DaemonUpdateWaitTimeoutError(request.memberId, blockers));

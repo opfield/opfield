@@ -181,7 +181,7 @@ export class AIServiceLifecycleTools extends AIServiceAdministrationTools {
           case 'update_daemon': {
             const nodeId = String(a.nodeId ?? '');
             if (!nodeId) throw new Error('nodeId is required');
-            // Same as POST /system/daemon-updates/:nodeId: `now` skips (or ends) the wait for the node's long tasks.
+            // Same as POST /system/daemon-updates/:nodeId: `now` skips (or ends) the wait for the node's long tasks and lease peers.
             return dispatchNodeDaemonUpdate(
               nodeId,
               {

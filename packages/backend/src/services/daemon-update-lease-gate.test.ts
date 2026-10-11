@@ -7,6 +7,7 @@ import {
   type LeaseUpdateView,
   leasePoliciesOf,
   leaseUpdateBlockers,
+  setHoldsUpdates,
 } from './daemon-update-lease-gate.js';
 
 const NOW = 1_800_000_000_000;
@@ -130,5 +131,16 @@ describe('leaseUpdateBlockers', () => {
       leaseUpdateBlockers(view({ [policy]: ['p', 'c'] }, { p: quiet, c: { ...quiet, updating: true } }), 'p', NOW)
         .blockers
     ).toEqual([{ memberId: 'c', policyId: policy, reason: 'updating' }]);
+  });
+});
+
+describe('setHoldsUpdates', () => {
+  it('lets a set that has not converged or is being turned off hold no node update', () => {
+    expect(setHoldsUpdates({ state: 'healthy', operation: null })).toBe(true);
+    expect(setHoldsUpdates({ state: 'degraded', operation: { kind: 'add_member' } })).toBe(true);
+    expect(setHoldsUpdates({ state: 'converting', operation: { kind: 'convert' } })).toBe(false);
+    // A convert past the lease start still seeds its copies.
+    expect(setHoldsUpdates({ state: 'degraded', operation: { kind: 'create' } })).toBe(false);
+    expect(setHoldsUpdates({ state: 'closing', operation: { kind: 'disable' } })).toBe(false);
   });
 });

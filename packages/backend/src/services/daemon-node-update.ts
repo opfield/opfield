@@ -28,7 +28,7 @@ export interface NodeDaemonUpdateDeps {
   daemonUpdateService: DaemonUpdateService;
   dispatch: Pick<NodeDispatchService, 'sendUpdateDaemonCommand' | 'isNodeConnected'>;
   /** Sequences restarts of lease members; without it every update is sent at once. */
-  rollout?: Pick<DaemonUpdateRollout, 'isLeaseMember' | 'enqueue'>;
+  rollout?: Pick<DaemonUpdateRollout, 'isLeaseMember' | 'enqueue'> & Partial<Pick<DaemonUpdateRollout, 'releaseWait'>>;
   /** The long tasks running on a node; listNodeLongTasks by default. */
   listLongTasks?: (nodeId: string) => Promise<NodeLongTask[]>;
   /** Timing of the task wait (tests). */
@@ -82,8 +82,8 @@ export async function batchUpdatesBefore(
 
 export interface NodeDaemonUpdateOptions {
   /**
-   * The operator's confirmed "update now": the update does not wait for the long tasks of the node (they may fail),
-   * and an update that already waits for them stops waiting.
+   * The operator's confirmed "update now": the update waits neither for the long tasks of the node (they may fail) nor
+   * for its lease peers (its result keeps a warning), and an update that already waits for either stops waiting.
    */
   now?: boolean;
   /** What a waiting update carried before a Gateway restart (resumeQueuedDaemonUpdates). */
@@ -111,9 +111,12 @@ export interface NodeDaemonUpdateResult {
    * `updateWaitingForTasks` meanwhile.
    */
   waitingForTasks?: number;
-  /** "Update now" ended the task wait of an update that was already waiting. */
+  /** "Update now" ended the wait (for tasks or lease peers) of an update that was already waiting. */
   waitSkipped?: true;
 }
+
+/** The warning of an update that went ahead on request without waiting for its lease peers. */
+export const LEASE_WAIT_SKIPPED_WARNING = 'Updated on request without waiting for its lease peers';
 
 /** Task waits of this process by node: "update now" ends them at once. */
 const taskWaits = new Map<string, { operationId: string; controller: AbortController }>();
@@ -209,12 +212,21 @@ export async function dispatchNodeDaemonUpdate(
     );
   }
   const metadata = (node.metadata ?? {}) as Record<string, unknown>;
-  if (options.now && metadata.updateInProgress === true && metadata.updatePhase === NODE_UPDATE_TASK_WAIT_PHASE) {
+  if (
+    options.now &&
+    metadata.updateInProgress === true &&
+    (metadata.updatePhase === NODE_UPDATE_TASK_WAIT_PHASE || metadata.updatePhase === NODE_UPDATE_WAITING_PHASE)
+  ) {
     const waiting = await daemonUpdateService.requestNodeUpdateNow(nodeId);
     if (waiting) {
-      const taskWait = taskWaits.get(nodeId);
-      if (taskWait?.operationId === waiting.operationId) taskWait.controller.abort();
-      logger.warn('Daemon update proceeds without waiting for the running tasks of the node', { nodeId });
+      if (waiting.phase === NODE_UPDATE_TASK_WAIT_PHASE) {
+        const taskWait = taskWaits.get(nodeId);
+        if (taskWait?.operationId === waiting.operationId) taskWait.controller.abort();
+        logger.warn('Daemon update proceeds without waiting for the running tasks of the node', { nodeId });
+      } else {
+        deps.rollout?.releaseWait?.(nodeId);
+        logger.warn('Daemon update proceeds without waiting for its lease peers', { nodeId });
+      }
       return { scheduled: true, targetVersion: waiting.targetVersion, waitSkipped: true };
     }
   }
@@ -298,7 +310,12 @@ export async function dispatchNodeDaemonUpdate(
   if (options.now && tasks.length > 0) warnings.push(`Updated on request while ${describeTasks(tasks)} ran`);
 
   if (options.now || tasks.length === 0) {
-    if (!(await sequenced())) {
+    // "Update now" does not wait for the lease peers either; the result says so.
+    const skipped = warnings.some((warning) => warning.startsWith(LEASE_WAIT_SKIPPED_WARNING));
+    if (options.now && !skipped && deps.rollout && (await deps.rollout.isLeaseMember(nodeId))) {
+      warnings.push(LEASE_WAIT_SKIPPED_WARNING);
+    }
+    if (options.now || !(await sequenced())) {
       const operationId = await daemonUpdateService.markNodeUpdateInProgress(nodeId, release.version, { warnings });
       try {
         await send(operationId);
@@ -331,10 +348,15 @@ export async function dispatchNodeDaemonUpdate(
     .then(async (outcome) => {
       if (!outcome) return;
       if (outcome.warning) logger.warn('Daemon update goes ahead while tasks run on the node', { nodeId, ...outcome });
-      const leaseSequenced = await sequenced();
+      // "Update now" ended the task wait: it does not wait for the lease peers either.
+      const now = controller.signal.aborted;
+      const leaseSequenced = !now && (await sequenced());
       const waitEnded = await daemonUpdateService.endNodeUpdateTaskWait(nodeId, operationId, {
         waitForLeasePeers: leaseSequenced,
-        warning: outcome.warning,
+        warning:
+          now && deps.rollout && (await deps.rollout.isLeaseMember(nodeId))
+            ? [...(outcome.warning ? [outcome.warning] : []), LEASE_WAIT_SKIPPED_WARNING]
+            : outcome.warning,
       });
       if (!waitEnded) return;
       if (leaseSequenced) {

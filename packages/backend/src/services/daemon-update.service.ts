@@ -723,7 +723,7 @@ export class DaemonUpdateService {
   async endNodeUpdateTaskWait(
     nodeId: string,
     operationId: string,
-    options: { waitForLeasePeers: boolean; warning?: string }
+    options: { waitForLeasePeers: boolean; warning?: string | string[] }
   ): Promise<boolean> {
     const metadata = await this.readQueuedUpdate(nodeId, operationId, NODE_UPDATE_TASK_WAIT_PHASE);
     if (!metadata) return false;
@@ -731,7 +731,8 @@ export class DaemonUpdateService {
     delete metadata.updateWaitingForTasks;
     delete metadata.updateTaskWaitStartedAt;
     delete metadata.updateNow;
-    if (options.warning) metadata.updateWarnings = [...updateWarnings(metadata), options.warning];
+    const added = typeof options.warning === 'string' ? [options.warning] : (options.warning ?? []);
+    if (added.length > 0) metadata.updateWarnings = [...updateWarnings(metadata), ...added];
     metadata.updatePhase = options.waitForLeasePeers ? NODE_UPDATE_WAITING_PHASE : 'executing';
     metadata.updateDeadlineAt = new Date(Date.now() + deadlineMs).toISOString();
     if (!(await this.writeUpdateMetadata(nodeId, operationId, metadata))) return false;
@@ -742,27 +743,43 @@ export class DaemonUpdateService {
   }
 
   /**
-   * The operator's "update now" for an update that waits for the long tasks of its node: marks it so that it stops
-   * waiting, also when it is taken up again after a Gateway restart. Null when no update of the node waits for tasks.
+   * The operator's "update now" for an update that waits for the long tasks of its node or for its lease peers: marks
+   * it so that it stops waiting (for both), also when it is taken up again after a Gateway restart. Null when no update
+   * of the node waits.
    */
-  async requestNodeUpdateNow(nodeId: string): Promise<{ operationId: string; targetVersion: string } | null> {
+  async requestNodeUpdateNow(
+    nodeId: string
+  ): Promise<{ operationId: string; targetVersion: string; phase: string } | null> {
     const [node] = await this.db.select({ metadata: nodes.metadata }).from(nodes).where(eq(nodes.id, nodeId)).limit(1);
     if (!node) return null;
     const metadata = { ...((node.metadata ?? {}) as Record<string, unknown>) };
     const operationId = metadata.updateOperationId;
+    const phase = metadata.updatePhase;
     if (
       metadata.updateInProgress !== true ||
-      metadata.updatePhase !== NODE_UPDATE_TASK_WAIT_PHASE ||
+      (phase !== NODE_UPDATE_TASK_WAIT_PHASE && phase !== NODE_UPDATE_WAITING_PHASE) ||
       typeof operationId !== 'string'
     ) {
       return null;
     }
     metadata.updateNow = true;
+    if (phase === NODE_UPDATE_WAITING_PHASE) {
+      const waitingFor = Array.isArray(metadata.updateWaitingFor)
+        ? (metadata.updateWaitingFor as Array<{ memberId?: unknown; reason?: unknown }>)
+            .map((blocker) => `${String(blocker.memberId)} ${String(blocker.reason)}`)
+            .join(', ')
+        : '';
+      metadata.updateWarnings = [
+        ...updateWarnings(metadata),
+        `Updated on request without waiting for its lease peers${waitingFor ? ` (${waitingFor})` : ''}`,
+      ];
+    }
     if (!(await this.writeUpdateMetadata(nodeId, operationId, metadata))) return null;
     this.emitNodeUpdated(nodeId);
     return {
       operationId,
       targetVersion: typeof metadata.updateTargetVersion === 'string' ? metadata.updateTargetVersion : '',
+      phase,
     };
   }
 

@@ -162,6 +162,56 @@ describe('daemon update task wait', () => {
     expect(node.metadata.updateWarnings).toEqual(['Updated on request while 1 running task (Backup of orders) ran']);
   });
 
+  it('"update now" does not wait for the lease peers of a new update and says so', async () => {
+    const { deps, node, enqueue, sendUpdateDaemonCommand } = harness({ leaseMember: true });
+    await expect(dispatchNodeDaemonUpdate(NODE_ID, deps, { now: true })).resolves.toEqual({
+      scheduled: true,
+      targetVersion: 'v2.12.1',
+    });
+    expect(enqueue).not.toHaveBeenCalled();
+    expect(sendUpdateDaemonCommand).toHaveBeenCalledTimes(1);
+    expect(node.metadata.updateWarnings).toEqual(['Updated on request without waiting for its lease peers']);
+  });
+
+  it('"update now" ends the wait of an update queued for its lease peers', async () => {
+    const { deps, node, enqueue } = harness({ leaseMember: true });
+    let queued: { run: () => Promise<void> } | null = null;
+    enqueue.mockImplementation(async (request: { run: () => Promise<void> }) => {
+      queued = request;
+    });
+    const releaseWait = vi.fn(() => {
+      void queued?.run();
+      return true;
+    });
+    Object.assign(deps.rollout as object, { releaseWait });
+    await dispatchNodeDaemonUpdate(NODE_ID, deps);
+    expect(node.metadata.updatePhase).toBe('waiting_for_lease_peers');
+    node.metadata.updateWaitingFor = [{ memberId: 'peer', policyId: 'p', reason: 'availability_catching_up' }];
+
+    await expect(dispatchNodeDaemonUpdate(NODE_ID, deps, { now: true })).resolves.toEqual({
+      scheduled: true,
+      targetVersion: 'v2.12.1',
+      waitSkipped: true,
+    });
+    expect(releaseWait).toHaveBeenCalledWith(NODE_ID);
+    await vi.waitFor(() => expect(node.metadata.updatePhase).toBe('executing'));
+    expect(node.metadata.updateWarnings).toEqual([
+      'Updated on request without waiting for its lease peers (peer availability_catching_up)',
+    ]);
+  });
+
+  it('"update now" during the task wait of a lease member skips its lease peers too', async () => {
+    const { deps, node, enqueue, sendUpdateDaemonCommand } = harness({ tasks: [BACKUP], leaseMember: true });
+    await dispatchNodeDaemonUpdate(NODE_ID, deps);
+    await dispatchNodeDaemonUpdate(NODE_ID, deps, { now: true });
+    await vi.waitFor(() => expect(sendUpdateDaemonCommand).toHaveBeenCalledTimes(1));
+    expect(enqueue).not.toHaveBeenCalled();
+    expect(node.metadata.updateWarnings).toEqual([
+      'Updated on request while 1 running task (Backup of orders) ran',
+      'Updated on request without waiting for its lease peers',
+    ]);
+  });
+
   it('sends an ingress node through the rollout queue, where it waits for the other nodes of its batch', async () => {
     const { deps, node, enqueue, sendUpdateDaemonCommand } = harness({ type: 'nginx' });
     await expect(dispatchNodeDaemonUpdate(NODE_ID, deps)).resolves.toEqual({
