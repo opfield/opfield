@@ -16,9 +16,25 @@ type WorkerConfig struct {
 	AdvertisedAddresses []string `yaml:"advertised_addresses"`
 }
 
+// ProtectedConfig is protected mode, set by the owner of the machine the relay
+// runs on. Only this file turns it on or off: Gateway has no command that
+// changes it, and in protected mode no command that could write this file.
+type ProtectedConfig struct {
+	// Enabled refuses console, command execution, file access and host
+	// diagnostics from Gateway, whatever it sends. Gateway can still update
+	// the relay with official signed releases (same or newer version) and
+	// route traffic through it.
+	Enabled bool `yaml:"enabled"`
+	// AllowDatabaseWitness lets Gateway run database availability witness
+	// processes on a protected relay. Off by default; it has no effect
+	// without Enabled.
+	AllowDatabaseWitness bool `yaml:"allow_database_witness"`
+}
+
 type Config struct {
 	lifecycle.BaseConfig `yaml:",inline"`
-	Worker               WorkerConfig `yaml:"worker"`
+	Worker               WorkerConfig    `yaml:"worker"`
+	Protected            ProtectedConfig `yaml:"protected"`
 }
 
 func Load(path string) (*Config, error) {

@@ -37,8 +37,10 @@ func main() {
 			return
 		case "run":
 			exitOnExtraArgs()
+		case "protected":
+			os.Exit(runProtectedCommand(os.Args[2:], supervisorConfigPath(), os.Stdout, os.Stderr))
 		default:
-			fmt.Fprintln(os.Stderr, "Usage: relay-supervisor [run|version]")
+			fmt.Fprintln(os.Stderr, "Usage: relay-supervisor [run|version|protected]")
 			os.Exit(1)
 		}
 	}
@@ -49,10 +51,7 @@ func main() {
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: launcher unavailable; continuing in direct mode: %v\n", err)
 	}
-	configPath := os.Getenv("RELAY_SUPERVISOR_CONFIG")
-	if configPath == "" {
-		configPath = "/etc/gateway-relay-supervisor/config.yaml"
-	}
+	configPath := supervisorConfigPath()
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "load relay supervisor config: %v\n", err)
@@ -175,7 +174,7 @@ func logLevel(value string) slog.Level {
 // exitOnExtraArgs ends with the usage when run or version got arguments (lifecycle.ExtraArgs).
 func exitOnExtraArgs() {
 	if err := lifecycle.ExtraArgs(os.Args); err != nil {
-		fmt.Fprintf(os.Stderr, "%v\nUsage: relay-supervisor [run|version]\n", err)
+		fmt.Fprintf(os.Stderr, "%v\nUsage: relay-supervisor [run|version|protected]\n", err)
 		os.Exit(1)
 	}
 }
