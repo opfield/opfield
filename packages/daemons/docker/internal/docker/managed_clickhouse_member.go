@@ -464,10 +464,9 @@ func (r *clickHouseMemberRuntime) KeeperClient(ctx context.Context, command stri
 	}
 	var output bytes.Buffer
 	err = r.plugin.databaseManager.runManagedDatabaseExecTo(ctx, record.ContainerID,
-		[]string{"clickhouse", "keeper-client", "--host", "127.0.0.1", "--port", strconv.Itoa(chha.KeeperClientPort), "--query", command},
-		"", nil, &output)
+		chha.KeeperClientCommand(command), "", nil, &output)
 	text := output.String()
-	if err == nil && (strings.Contains(text, "Coordination::Exception") || strings.Contains(text, "Syntax error")) {
+	if err == nil && chha.KeeperClientFailed(text) {
 		err = errors.New(strings.TrimSpace(text))
 	}
 	return text, err

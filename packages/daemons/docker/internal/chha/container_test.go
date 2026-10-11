@@ -67,7 +67,11 @@ type ctHarness struct {
 }
 
 func (h *ctHarness) run(args ...string) (string, error) {
-	cmd := exec.Command(h.docker, args...)
+	return h.runContext(context.Background(), args...)
+}
+
+func (h *ctHarness) runContext(ctx context.Context, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, h.docker, args...)
 	cmd.Env = append(os.Environ(), "DOCKER_HOST="+h.host)
 	out, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(out)), err
@@ -145,9 +149,9 @@ func (r *ctRuntime) Query(ctx context.Context, query string) (string, error) {
 	return string(body), nil
 }
 
-func (r *ctRuntime) KeeperClient(_ context.Context, command string) (string, error) {
-	out, err := r.h.run("exec", r.name, "clickhouse", "keeper-client", "--host", "127.0.0.1", "--port", "9181", "--query", command)
-	if err == nil && (strings.Contains(out, "Exception") || strings.Contains(out, "Syntax error")) {
+func (r *ctRuntime) KeeperClient(ctx context.Context, command string) (string, error) {
+	out, err := r.h.runContext(ctx, append([]string{"exec", r.name}, KeeperClientCommand(command)...)...)
+	if err == nil && KeeperClientFailed(out) {
 		err = fmt.Errorf("%s", out)
 	}
 	return out, err
@@ -344,7 +348,7 @@ func waitFor(t *testing.T, what string, timeout time.Duration, check func() (boo
 	for time.Now().Before(deadline) {
 		ok, detail := check()
 		if ok {
-			t.Logf("%s (%s)", what, detail)
+			t.Logf("%s %s (%s)", time.Now().UTC().Format("15:04:05"), what, detail)
 			return
 		}
 		last = detail
@@ -702,11 +706,22 @@ func TestContainerManualPairSwitchAndRecovery(t *testing.T) {
 		}}
 	_ = os.Chmod(h.work, 0o777)
 	h.cleanup()
+	ctDiagnose = func() {
+		for _, name := range []string{"ch1", "ch2"} {
+			t.Logf("--- %s srvr:\n%s", name, fourLetter(ctIPs[name]+":9181", "srvr"))
+			out, _ := h.run("exec", name, "bash", "-c", "tail -40 /var/log/clickhouse-server/clickhouse-server.err.log")
+			t.Logf("--- %s err.log:\n%s", name, out)
+		}
+	}
+	defer func() { ctDiagnose = nil }()
 	t.Cleanup(func() {
 		if t.Failed() {
 			for _, name := range []string{"ch1", "ch2"} {
 				out, _ := h.run("logs", "--tail", "30", name)
 				t.Logf("--- %s logs:\n%s", name, out)
+			}
+			if os.Getenv("CHHA_KEEP") != "" {
+				return
 			}
 		}
 		h.cleanup()
@@ -796,6 +811,7 @@ func TestContainerManualPairSwitchAndRecovery(t *testing.T) {
 	setDown("ch1", true)
 	_ = e1.Kill(ctx)
 	lost := time.Now()
+	t.Logf("%s ch1 lost", lost.UTC().Format("15:04:05"))
 	waitFor(t, "ch2 recovered as the only voter and writable", 4*time.Minute, func() (bool, string) {
 		_, err := rt2.Query(ctx, "INSERT INTO app.ledger SELECT number + 70000 FROM numbers(10)")
 		s := status(t, e2)

@@ -23,6 +23,26 @@ const (
 	gatewayDownFor = 30 * time.Second
 )
 
+// KeeperClientCommand is the clickhouse keeper-client invocation of one
+// command against the member's own Keeper. A short connection timeout keeps a
+// pass short while the Keeper serves no session (a learner without its
+// leader is retried for the default 10 s per attempt).
+func KeeperClientCommand(command string) []string {
+	return []string{"clickhouse", "keeper-client", "--host", "127.0.0.1", "--port", strconv.Itoa(KeeperClientPort),
+		"--connection-timeout=3", "--query", command}
+}
+
+// KeeperClientFailed reports a keeper-client error printed with exit status 0
+// (a refused reconfig prints "Coordination error: Bad arguments").
+func KeeperClientFailed(output string) bool {
+	for _, marker := range []string{"Coordination::Exception", "Coordination error", "Syntax error", "DB::Exception"} {
+		if strings.Contains(output, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 // keeperConfigCommand reads the Keeper's replicated cluster configuration
 // (system.zookeeper does not list the virtual /keeper/config node).
 const keeperConfigCommand = "get '/keeper/config'"

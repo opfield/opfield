@@ -152,3 +152,76 @@ func TestKeeperGate(t *testing.T) {
 		t.Fatalf("closed gate keeps only interserver forwards: %v", fw)
 	}
 }
+
+// The gate across restarts: an empty Keeper state opens it, a persisted
+// learner role keeps it open (a learner needs its peer to serve at all), and
+// every start of a voter closes it until its peer answers; a peer that does
+// not answer never opens a voter's gate.
+func TestKeeperGateAcrossRestarts(t *testing.T) {
+	ctx := context.Background()
+	ec := manualEngineConfig(1)
+	rt := newFakeRuntime(testConfig(memberha.ModeManual, ec, testMemberA, testMemberB))
+	rt.files[joiningMarker] = nil // a cleared marker is not a joining Keeper
+	e := newTestEngine(t, rt)
+	if e.joining.Load() || e.keeperGate.Load() {
+		t.Fatalf("cleared marker: joining %v gate %v", e.joining.Load(), e.keeperGate.Load())
+	}
+	// Fresh Keeper (no log): joining, and its path opens before it starts.
+	if err := e.PrepareStandby(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !e.joining.Load() || !e.keeperGate.Load() {
+		t.Fatalf("fresh Keeper: joining %v gate %v", e.joining.Load(), e.keeperGate.Load())
+	}
+	if err := e.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !e.keeperGate.Load() {
+		t.Fatal("a joining Keeper's start closed its path")
+	}
+
+	// It joined as a voter; it stops and starts again: its path closes.
+	e.joining.Store(false)
+	e.setRole(RoleVoter)
+	if rt.file(keeperRoleFile) != RoleVoter {
+		t.Fatalf("role file %q", rt.file(keeperRoleFile))
+	}
+	_ = e.Kill(ctx)
+	if err := e.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if e.keeperGate.Load() {
+		t.Fatal("a voter's start must check its peer again")
+	}
+	snap := e.snapshot.Load()
+	view := map[uint32]keeperEntry{1: {endpoint: "a"}, 2: {endpoint: "b", learner: true}}
+	e.checkKeeperGate(ctx, snap, view, false, time.Second)
+	e.checkKeeperGate(ctx, snap, view, false, time.Minute)
+	if e.keeperGate.Load() {
+		t.Fatal("a voter's path opened while its peer does not answer")
+	}
+	rt.peers = map[string]map[string]string{testMemberB: {peerKeeperRole: RoleLearner}}
+	e.checkKeeperGate(ctx, snap, view, false, time.Minute)
+	if !e.keeperGate.Load() || e.rejoinReason != "" {
+		t.Fatalf("a learner peer without a session: gate %v reason %q", e.keeperGate.Load(), e.rejoinReason)
+	}
+	_ = e.Kill(ctx)
+	_ = e.Start(ctx)
+	rt.peers = map[string]map[string]string{testMemberB: {peerKeeperJoining: "true", peerKeeperVoters: "2"}}
+	e.checkKeeperGate(ctx, snap, view, true, time.Minute)
+	if !e.keeperGate.Load() {
+		t.Fatal("a joining peer (wiped Keeper) may be reached")
+	}
+
+	// A learner's start keeps its path open, and the role survives a daemon restart.
+	e.setRole(RoleLearner)
+	_ = e.Kill(ctx)
+	_ = e.Start(ctx)
+	if !e.keeperGate.Load() {
+		t.Fatal("a learner's start closed its path")
+	}
+	again := newTestEngine(t, rt)
+	if !again.keeperGate.Load() || !again.wasLearner || again.PeerEngineState()[peerKeeperRole] != RoleLearner {
+		t.Fatalf("restored learner: gate %v wasLearner %v state %v", again.keeperGate.Load(), again.wasLearner, again.PeerEngineState())
+	}
+}
