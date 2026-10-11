@@ -1509,7 +1509,7 @@ describe('UpdateService interrupted updates', () => {
     await service.performRelayUpdate('v2.4.3', {} as never, 'admin-1');
 
     expect(runtime.dispatchSupervisorUpdate).toHaveBeenCalledTimes(1);
-    expect(supervisorAt).toHaveBeenCalledWith('node-1', 'v2.4.3', expect.any(AbortSignal));
+    expect(supervisorAt).toHaveBeenCalledWith('node-1', 'v2.4.3', expect.any(AbortSignal), undefined);
     expect(runtime.dispatchSupervisorUpdate.mock.invocationCallOrder[0]).toBeLessThan(
       supervisorAt.mock.invocationCallOrder[0]
     );

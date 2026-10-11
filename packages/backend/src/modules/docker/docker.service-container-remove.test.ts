@@ -237,23 +237,23 @@ describe('DockerManagementService app incident hold', () => {
     };
   }
 
-  it.each(['APP_ISOLATED', 'APP_INCIDENT_ACTIVE'])(
-    'refuses removing or renaming a member before Docker is asked (%s)',
-    async (code) => {
-      const dispatch = { sendDockerContainerCommand: vi.fn().mockResolvedValue(inspectResult('exited')) };
-      const { service } = createService(dispatch);
-      const guard = freezeGuard(code);
-      service.setAppFreezeGuard(guard);
+  it.each([
+    'APP_ISOLATED',
+    'APP_INCIDENT_ACTIVE',
+  ])('refuses removing or renaming a member before Docker is asked (%s)', async (code) => {
+    const dispatch = { sendDockerContainerCommand: vi.fn().mockResolvedValue(inspectResult('exited')) };
+    const { service } = createService(dispatch);
+    const guard = freezeGuard(code);
+    service.setAppFreezeGuard(guard);
 
-      await expect(service.removeContainer('node-1', 'container-1', false, 'user-1')).rejects.toMatchObject({ code });
-      await expect(service.renameContainer('node-1', 'container-1', 'api-2', 'user-1')).rejects.toMatchObject({ code });
+    await expect(service.removeContainer('node-1', 'container-1', false, 'user-1')).rejects.toMatchObject({ code });
+    await expect(service.renameContainer('node-1', 'container-1', 'api-2', 'user-1')).rejects.toMatchObject({ code });
 
-      expect(guard.assertContainerKept).toHaveBeenCalledWith('node-1', 'api');
-      const actions = dispatch.sendDockerContainerCommand.mock.calls.map((call) => call[1]);
-      expect(actions).not.toContain('remove');
-      expect(actions).not.toContain('rename');
-    }
-  );
+    expect(guard.assertContainerKept).toHaveBeenCalledWith('node-1', 'api');
+    const actions = dispatch.sendDockerContainerCommand.mock.calls.map((call) => call[1]);
+    expect(actions).not.toContain('remove');
+    expect(actions).not.toContain('rename');
+  });
 
   it('removes as before when no incident is open', async () => {
     const answer = async (_node: string, action: string) =>

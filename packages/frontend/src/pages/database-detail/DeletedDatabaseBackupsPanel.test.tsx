@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "@/stores/auth";
 import type { User } from "@/types";
@@ -12,6 +13,28 @@ const api = vi.hoisted(() => ({
 }));
 
 vi.mock("@/services/api", () => ({ api }));
+// The real table virtualizes its rows, and jsdom has no layout to measure them.
+vi.mock("@/components/ui/data-table", () => ({
+  DataTable: ({
+    columns,
+    data,
+    keyFn,
+  }: {
+    columns: { key: string; render: (row: unknown) => ReactNode }[];
+    data: unknown[];
+    keyFn: (row: unknown) => string;
+  }) => (
+    <div>
+      {data.map((row) => (
+        <div key={keyFn(row)}>
+          {columns.map((column) => (
+            <div key={column.key}>{column.render(row)}</div>
+          ))}
+        </div>
+      ))}
+    </div>
+  ),
+}));
 vi.mock("@/lib/managed-database-nodes", () => ({
   listManagedDatabaseCandidateNodes: async () => [],
   isDatabaseBackupCandidateNode: () => true,

@@ -29,8 +29,8 @@ import { usePinnedDatabasesStore } from "@/stores/pinned-databases";
 import type { DatabaseConnection, DatabaseMetricSnapshot } from "@/types";
 import { ClickHouseConfigDialog } from "./database-detail/ClickHouseConfigDialog";
 import {
-  backupExecutorOptions,
   type BackupSelectionOption,
+  backupExecutorOptions,
   DatabaseBackupsTab,
 } from "./database-detail/DatabaseBackupsTab";
 import { DatabaseConsoleTab } from "./database-detail/DatabaseConsoleTab";

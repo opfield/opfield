@@ -386,12 +386,16 @@ describe('an update whose daemon restarted and forgot it', () => {
     expect(t.environment.stored.get('api')).toEqual(STORED);
   });
 
-  it('puts back the saved env when its watch times out with the old container still running', async () => {
+  it('puts back the saved env when the daemon forgot the update with the old container still running', async () => {
     const t = setup();
     const result = await updateContainerEnv(t.first.ctx, NODE, 'api', { API_KEY: NEW_SECRET }, undefined, 'user-1');
     t.node.forgetTasks();
     await vi.advanceTimersByTimeAsync(640_000);
-    expect(t.task(result.taskId)).toMatchObject({ status: 'failed', error: 'Timed out', followUps: null });
+    expect(t.task(result.taskId)).toMatchObject({
+      status: 'failed',
+      error: 'The Docker daemon restarted before the container was replaced',
+      followUps: null,
+    });
     expect(t.environment.stored.get('api')).toEqual(STORED);
   });
 });
