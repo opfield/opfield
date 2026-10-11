@@ -1,0 +1,84 @@
+package chha
+
+import (
+	"testing"
+	"time"
+)
+
+func TestParseKeeperConfig(t *testing.T) {
+	current, err := parseKeeperConfig("server.1=127.12.34.1:39501;participant;1\nserver.2=127.12.34.1:39502;participant;1\nserver.101=127.12.34.1:39433;participant;0\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(current) != 3 || current[101] != "127.12.34.1:39433" || voterList(current) != "1,2,101" {
+		t.Fatalf("parsed %v", current)
+	}
+	if _, err := parseKeeperConfig(""); err == nil {
+		t.Fatal("empty configuration accepted")
+	}
+	if _, err := parseKeeperConfig("server.x=a:1"); err == nil {
+		t.Fatal("bad id accepted")
+	}
+}
+
+// Re-placement order (P0-T02 item 7): add the new witness as soon as it is
+// reachable, remove the dead one only after every desired voter settled.
+func TestPlanKeeperReplacement(t *testing.T) {
+	ec := pairEngineConfig()
+	ec.KeeperServers[2].Role = RoleLeaving                 // dead witness 101
+	ec.KeeperServers[3].Role = RoleVoter                   // new witness 102
+	current := map[uint32]string{1: "a", 2: "b", 101: "w"} // 102 not added yet
+	since := map[uint32]time.Duration{1: 0, 2: 0, 101: 0}
+	reachable := map[uint32]bool{}
+	probe := func(s KeeperServer) bool { return reachable[s.ID] }
+	if _, ok := planKeeper(1, current, ec.Voters(), probe, since, time.Minute); ok {
+		t.Fatal("added an unreachable witness or removed before it joined")
+	}
+	reachable[102] = true
+	action, ok := planKeeper(1, current, ec.Voters(), probe, since, time.Minute)
+	if !ok || action.add == nil || action.add.ID != 102 || action.command(ec) != "reconfig add 'server.102=127.12.34.1:39437;participant;0'" {
+		t.Fatalf("expected add of 102, got %+v %v", action, ok)
+	}
+	current[102] = "w2"
+	since[102] = time.Minute
+	if _, ok := planKeeper(1, current, ec.Voters(), probe, since, time.Minute+5*time.Second); ok {
+		t.Fatal("removed before the new witness settled")
+	}
+	action, ok = planKeeper(1, current, ec.Voters(), probe, since, time.Minute+settleAfterAdd)
+	if !ok || action.remove != 101 || action.command(ec) != "reconfig remove '101'" {
+		t.Fatalf("expected remove of 101, got %+v %v", action, ok)
+	}
+	// Never removes itself, never empties the configuration.
+	if _, ok := planKeeper(1, map[uint32]string{1: "a"}, nil, probe, since, time.Hour); ok {
+		t.Fatal("removed the last voter")
+	}
+}
+
+func TestActivationDesiredVoters(t *testing.T) {
+	ec := pairEngineConfig()
+	act := &activation{StandbyID: 102, StandbyWitnessID: testStandby, ReplacesID: 101, ReplacesWitness: testWitness}
+	voters := desiredVoters(ec, act)
+	if len(voters) != 3 || voters[2].ID != 102 || voters[2].Role != RoleVoter {
+		t.Fatalf("activation applied: %+v", voters)
+	}
+	if act.adopted(ec) {
+		t.Fatal("Gateway has not adopted the activation yet")
+	}
+	ec.KeeperServers[2].Role = RoleLeaving
+	if !act.adopted(ec) {
+		t.Fatal("the replaced witness is no voter in Gateway's configuration any more")
+	}
+	if !activationDue(time.Minute, 3*time.Minute, true, nil, pairEngineConfig()) {
+		t.Fatal("activation due")
+	}
+	for name, due := range map[string]bool{
+		"gateway up":     activationDue(10*time.Second, 3*time.Minute, true, nil, pairEngineConfig()),
+		"witness flaps":  activationDue(time.Minute, time.Minute, true, nil, pairEngineConfig()),
+		"no quorum":      activationDue(time.Minute, 3*time.Minute, false, nil, pairEngineConfig()),
+		"already active": activationDue(time.Minute, 3*time.Minute, true, act, pairEngineConfig()),
+	} {
+		if due {
+			t.Errorf("%s: activation must not be due", name)
+		}
+	}
+}

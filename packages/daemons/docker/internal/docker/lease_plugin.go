@@ -45,6 +45,10 @@ type leaseIntegration struct {
 	// watchdog bootstraps a missing lease watchdog (nodes installed before it).
 	watchdog *watchdogBootstrap
 
+	// keys is the node's identity (holder statements of availability set
+	// members are signed with the key the node signs lease frames with).
+	keys *identityKeys
+
 	// identity returns the PKIX DER public key that signs lease frames,
 	// for AvailabilityLeaseReport.identity_public_key.
 	identity func() []byte
@@ -84,7 +88,7 @@ func (p *DockerPlugin) initAvailabilityLease() {
 	}
 	integration := &leaseIntegration{
 		plugin: p, fence: lease.DirFence{Dir: leasefence.Dir{Root: root}},
-		identity: keys.publicKeyDER, serving: map[string]bool{},
+		identity: keys.publicKeyDER, keys: keys, serving: map[string]bool{},
 	}
 	runtime, err := lease.New(lease.Options{
 		NodeID: stored.NodeID, StateDir: p.cfg.StateDir, Signer: keys.InitialSigner(), Identity: keys,

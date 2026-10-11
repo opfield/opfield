@@ -247,3 +247,52 @@ func (m *Manager) DetachProxy(setID string) {
 		proxy.Close()
 	}
 }
+
+// proxyKey names one of a set's published ports ("" is AttachProxy's).
+func proxyKey(setID, name string) string {
+	if name == "" {
+		return setID
+	}
+	return setID + "/" + name
+}
+
+// AttachProxyPort serves one of several published ports of a member (an
+// engine with more than one client protocol, e.g. ClickHouse HTTP and
+// native). Admission is the member's (ProxyAdmits); a session of a port
+// whose member stops serving is closed by the proxy's sweep.
+func (m *Manager) AttachProxyPort(setID, name, address string, dial func(ctx context.Context) (net.Conn, error)) error {
+	key := proxyKey(setID, name)
+	m.mu.Lock()
+	if existing := m.proxies[key]; existing != nil {
+		m.mu.Unlock()
+		if existing.address == address {
+			return nil
+		}
+		existing.Close()
+		m.mu.Lock()
+	}
+	proxy := NewProxy(address, func() bool { return m.ProxyAdmits(setID) }, dial, m.logger)
+	m.proxies[key] = proxy
+	m.mu.Unlock()
+	if err := proxy.Start(); err != nil {
+		m.mu.Lock()
+		if m.proxies[key] == proxy {
+			delete(m.proxies, key)
+		}
+		m.mu.Unlock()
+		return err
+	}
+	return nil
+}
+
+// DetachProxyPort stops one named published port of a member.
+func (m *Manager) DetachProxyPort(setID, name string) {
+	key := proxyKey(setID, name)
+	m.mu.Lock()
+	proxy := m.proxies[key]
+	delete(m.proxies, key)
+	m.mu.Unlock()
+	if proxy != nil {
+		proxy.Close()
+	}
+}
