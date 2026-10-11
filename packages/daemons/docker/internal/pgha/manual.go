@@ -25,7 +25,10 @@ var manualPromoteWait = 60 * time.Second
 // manualPoll is how often the wait reads the walreceiver.
 var manualPoll = 250 * time.Millisecond
 
-// manualHolderWork keeps the manual primary's names.
+// manualHolderWork keeps the manual primary's names, its principals and the
+// replication slots of its peers. A pair converted from a running database
+// never promoted its primary, so the slot upkeep is what creates the copy's
+// slot there (the copy streams through it).
 func (e *Engine) manualHolderWork(view memberha.HolderView) (string, func(context.Context) error, bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -52,7 +55,7 @@ func (e *Engine) manualHolderWork(view memberha.HolderView) (string, func(contex
 		}
 	}
 	if e.namesKnownEqual(desired) {
-		return "", nil, false
+		return e.manualUpkeepLocked(now)
 	}
 	names := syncNames(desired)
 	return "sync_names", func(ctx context.Context) error {
@@ -66,6 +69,29 @@ func (e *Engine) manualHolderWork(view memberha.HolderView) (string, func(contex
 		e.sync.names, e.sync.namesKnown = normalizeSet(desired), true
 		return nil
 	}, true
+}
+
+// manualUpkeepLocked converges the set principals and the peers' slots on the
+// manual primary, as the automatic holder does.
+func (e *Engine) manualUpkeepLocked(now time.Duration) (string, func(context.Context) error, bool) {
+	if identities := e.cfg.Engine.Identities; identities != nil && identities.Hash() != e.holder.identities {
+		copied, hash := *identities, identities.Hash()
+		return "principals", func(ctx context.Context) error {
+			if err := e.pg.EnsureIdentities(ctx, copied); err != nil {
+				return fmt.Errorf("converge the replication principals: %w", err)
+			}
+			e.mu.Lock()
+			e.holder.identities = hash
+			e.mu.Unlock()
+			return nil
+		}, true
+	}
+	if e.holder.slotsAt != 0 && now-e.holder.slotsAt < slotsInterval {
+		return "", nil, false
+	}
+	e.holder.slotsAt = now
+	keep := slotNames(e.cfg.ActiveOthers())
+	return "slots", func(ctx context.Context) error { return e.pg.SyncSlots(ctx, keep) }, true
 }
 
 func (e *Engine) namesKnownEqual(desired []string) bool {
