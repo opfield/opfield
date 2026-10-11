@@ -9,6 +9,7 @@ import { createChildLogger } from '@/lib/logger.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { AvailabilityLeaseService } from '@/modules/docker/availability/lease/availability-lease.service.js';
 import type { CAService } from '@/modules/pki/ca.service.js';
+import type { AvailabilityMembersService } from '@/services/availability-members.service.js';
 import type { CryptoService } from '@/services/crypto.service.js';
 import { validateGrpcServerCertificate } from '@/services/grpc-server-certificate.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
@@ -112,6 +113,7 @@ export interface GrpcServerDeps {
   relayPolicy?: RelayPolicyService;
   availabilityLease?: Pick<AvailabilityLeaseService, 'ingestDaemonReport' | 'ingestRelayReport'>;
   relayWitness?: Pick<RelayWitnessService, 'ingestRuntime'>;
+  availabilityMembers?: Pick<AvailabilityMembersService, 'ingestReports'>;
 }
 
 let server: grpc.Server | null = null;

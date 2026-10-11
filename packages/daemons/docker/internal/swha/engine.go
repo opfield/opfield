@@ -275,6 +275,7 @@ func (e *Engine) Status(ctx context.Context) (memberha.EngineStatus, error) {
 	if !writable && meta > 0 {
 		status.LagSeconds = max(0, float64(now.UnixNano()-meta)/1e9)
 	}
+	status.Position["volumeRegistered"] = fmt.Sprint(writable || status.Streaming)
 	status.Position["maxVolumeId"] = fmt.Sprint(e.st.KnownMaxVolumeID)
 	status.Position["metaProgressNs"] = fmt.Sprint(meta)
 	if e.st.DegradedSince != 0 {

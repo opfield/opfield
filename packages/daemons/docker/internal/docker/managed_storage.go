@@ -244,6 +244,17 @@ func (m *managedStorageManager) handle(ctx context.Context, action, id, configJS
 			return "", err
 		}
 		record, err := m.loadRecord(id)
+		if errors.Is(err, os.ErrNotExist) && input.Set != nil && !input.Set.Origin {
+			// A member Gateway added to the set: the set's update creates it.
+			if err := validateSeaweedFSSetCommand(input, true); err != nil {
+				return "", err
+			}
+			created, err := m.createSetMember(ctx, id, input)
+			if err != nil {
+				return "", err
+			}
+			return m.marshalManagedStorageDetail(ctx, created, m.storageStatus(ctx, created))
+		}
 		if err != nil {
 			return "", err
 		}
@@ -259,6 +270,12 @@ func (m *managedStorageManager) handle(ctx context.Context, action, id, configJS
 			}
 		}
 		switch {
+		case record.Set != nil && input.Set == nil:
+			// The set was turned off around this member: it serves as a
+			// single node again.
+			if err := m.revertSetMember(ctx, &record, input); err != nil {
+				return "", err
+			}
 		case record.Set != nil:
 			if err := m.updateSetMember(ctx, &record, input); err != nil {
 				return "", err

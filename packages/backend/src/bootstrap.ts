@@ -246,6 +246,7 @@ import { StorageWorkloadProvider } from '@/modules/storage/storage-workload-prov
 import { StorageWorkloadStore } from '@/modules/storage/storage-workload-store.js';
 import { TokensService } from '@/modules/tokens/tokens.service.js';
 import { UIBootstrapService } from '@/modules/ui-bootstrap/ui-bootstrap.service.js';
+import { AvailabilityMembersService } from '@/services/availability-members.service.js';
 import { CacheService, createRedisClient } from '@/services/cache.service.js';
 import { ConfigValidatorService } from '@/services/config-validator.service.js';
 import { CryptoService } from '@/services/crypto.service.js';
@@ -1394,6 +1395,8 @@ export async function initializeContainer(): Promise<void> {
   const relayWitnessService = new RelayWitnessService(db, nodeDispatch);
   relayWitnessService.setArtifactSource(new WitnessCatalog(env));
   container.registerInstance(RelayWitnessService, relayWitnessService);
+  // Members of database and storage availability sets: node configuration and health-stream reports.
+  container.registerInstance(AvailabilityMembersService, new AvailabilityMembersService(db, nodeDispatch));
   if (relayPolicyService) {
     relayPolicyService.setAvailabilityLeaseSource(availabilityLeaseService);
     availabilityLeaseService.setRelayPublisher(relayPolicyService);

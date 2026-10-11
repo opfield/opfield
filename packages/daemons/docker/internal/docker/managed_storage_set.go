@@ -1039,3 +1039,118 @@ func (m *managedStorageManager) startSetMember(ctx context.Context, record manag
 	}
 	return nil
 }
+
+// revertSetMember turns the member (the one the set kept when it was turned
+// off) back into the single-node container on the same data: volumes stay in
+// /data, the filer store in /data/filerldb2. Its volumes get one copy again
+// (a single volume server cannot keep two). On failure the member's
+// containers run again.
+func (m *managedStorageManager) revertSetMember(ctx context.Context, record *managedStorageRecord, input managedStorageCommand) error {
+	set := *record.Set
+	release := func() {}
+	if m.plugin != nil && m.plugin.setMembers != nil {
+		held, err := m.plugin.setMembers.Hold(ctx, set.SetID)
+		if err != nil {
+			return err
+		}
+		release = held
+	}
+	defer release()
+	single := *record
+	single.Set = nil
+	single.ContainerID = ""
+	single.ContainerName = fmt.Sprintf("gateway-storage-%s-%d", record.ID, record.MemberIndex)
+	single.PublishS3, single.PublishedPort = input.PublishS3, input.PublishedPort
+	if input.TLS != nil {
+		single.TLSEnabled, single.TLSServerName = true, input.TLS.ServerName
+	}
+	for _, role := range []swha.Role{swha.RoleMaster, swha.RoleFiler, swha.RoleVolume} {
+		if err := m.client.StopContainer(ctx, seaweedfsSetContainerName(record.ID, set.MemberIndex, role), 20); err != nil && !isNotFoundErr(err) {
+			return err
+		}
+	}
+	restore := func(cause error) error {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), managedDatabaseCleanupTimeout)
+		defer cancel()
+		if single.ContainerID != "" {
+			_ = m.client.RemoveContainer(cleanupCtx, single.ContainerID, true)
+		}
+		for _, role := range []swha.Role{swha.RoleVolume, swha.RoleFiler} {
+			_ = m.startContainer(cleanupCtx, seaweedfsSetContainerName(record.ID, set.MemberIndex, role))
+		}
+		return fmt.Errorf("the storage member was not turned back into a single node and runs as before: %w", cause)
+	}
+	// The filer container holds the single-node name: set it aside first.
+	filer := seaweedfsSetContainerName(record.ID, set.MemberIndex, swha.RoleFiler)
+	setAside := filer + "-member"
+	if err := m.client.RenameContainer(ctx, filer, setAside); err != nil && !isNotFoundErr(err) {
+		return restore(err)
+	}
+	renamedBack := func() {
+		_ = m.client.RenameContainer(context.Background(), setAside, filer)
+	}
+	// A public single node binds its S3 port itself, on a network that is not
+	// internal (the single-node rule).
+	if err := m.ensureNetworkIsolation(ctx, single, ""); err != nil {
+		renamedBack()
+		return restore(err)
+	}
+	if _, err := m.stageSeaweedFS(single, input); err != nil {
+		renamedBack()
+		return restore(err)
+	}
+	containerID, err := m.createSeaweedFSContainer(ctx, &single, input)
+	if err != nil {
+		renamedBack()
+		return restore(err)
+	}
+	single.ContainerID = containerID
+	if err := m.waitForReady(ctx, single); err != nil {
+		renamedBack()
+		return restore(err)
+	}
+	if err := m.singleCopyVolumes(ctx, single); err != nil {
+		m.logger.Warn("the volumes of the storage that left its set keep two copies; new objects still get one", "id", record.ID, "error", err)
+	}
+	for _, role := range []swha.Role{swha.RoleMaster, swha.RoleVolume} {
+		_ = m.client.RemoveContainer(ctx, seaweedfsSetContainerName(record.ID, set.MemberIndex, role), true)
+	}
+	_ = m.client.RemoveContainer(ctx, setAside, true)
+	if m.plugin != nil && m.plugin.setMembers != nil {
+		if config, ok := m.plugin.setMembers.Config(set.SetID); ok && config.MemberID == set.MemberID {
+			if err := m.plugin.setMembers.Forget(set.SetID); err != nil {
+				m.logger.Warn("the member runtime keeps the storage member that left its set", "id", record.ID, "error", err)
+			}
+		}
+	}
+	if mesh := m.mesh(); mesh != nil {
+		mesh.Release(ctx, set.SetID)
+	}
+	_ = removeStagingTree(m.seaweedfsSetDir(record.ID, set.MemberIndex))
+	if input.OperationID != "" {
+		single.OperationID = input.OperationID
+	}
+	*record = single
+	m.logger.Info("managed storage left its availability set and serves as a single node", "id", record.ID)
+	return nil
+}
+
+// singleCopyVolumes sets every volume of a single node to one copy and drops
+// the set's bucket rule.
+func (m *managedStorageManager) singleCopyVolumes(ctx context.Context, record managedStorageRecord) error {
+	raw, err := m.engineExec(ctx, record.ContainerID, seaweedfsVolumeStatusCommand, "")
+	if err != nil {
+		return err
+	}
+	volumes, err := parseSeaweedFSVolumeStatus(raw)
+	if err != nil {
+		return err
+	}
+	lines := []string{"lock"}
+	for _, volume := range volumes {
+		lines = append(lines, fmt.Sprintf("volume.configure.replication -volumeId=%d -replication=000", volume.ID))
+	}
+	lines = append(lines, "fs.configure -locationPrefix=/buckets/ -delete -apply", "unlock")
+	_, err = m.engineExec(ctx, record.ContainerID, seaweedfsShellCommand, strings.Join(lines, "\n")+"\n")
+	return err
+}
