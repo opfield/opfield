@@ -25,6 +25,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { OpfieldMark } from "@/components/common/OpfieldMark";
 import { AccountMenuContent } from "@/components/layout/AccountMenuContent";
 import {
   dashboardAttentionDotClass,
@@ -692,7 +693,7 @@ export function AILiteSidebar({
               }
             >
               <span className="flex items-center gap-1.5 whitespace-nowrap pl-1 text-sm font-semibold text-foreground/80">
-                <img src="/android-chrome-192x192.png" alt="Opfield" className="h-5 w-5" />
+                <OpfieldMark className="h-5 w-5" />
                 Opfield AI
               </span>
               <div className="flex items-center gap-0.5">

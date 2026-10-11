@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { AIButton } from "@/components/ai/AIButton";
+import { OpfieldMark } from "@/components/common/OpfieldMark";
 import { AccountMenuContent } from "@/components/layout/AccountMenuContent";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -374,7 +375,7 @@ export function SidebarContent({
               style={{ paddingTop: 10, paddingBottom: 10, paddingLeft: 10 }}
             >
               <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground/80 whitespace-nowrap pl-1">
-                <img src="/android-chrome-192x192.png" alt="Opfield" className="h-5 w-5" />
+                <OpfieldMark className="h-5 w-5" />
                 Opfield
               </span>
 
