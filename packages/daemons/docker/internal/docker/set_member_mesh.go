@@ -87,6 +87,9 @@ type setMesh struct {
 	inspect func(ctx context.Context, name string) (netip.Addr, bool, error)
 	listen  func(address string) (net.Listener, error)
 	bridge  func(conn net.Conn, setID, alias string) error
+	// warned: routes (set id + alias) whose failed open was logged as a
+	// warning; later failures of the same route log at info.
+	warned map[string]struct{}
 }
 
 // setMesh is the plugin's member mesh.
@@ -412,7 +415,32 @@ func (s *setMesh) serve(setID string, spec setMeshExpose, conn net.Conn) {
 		stop := s.closeOnHolderChange(setID, spec.alias, conn)
 		defer stop()
 	}
-	_ = s.bridge(conn, setID, spec.alias)
+	if err := s.bridge(conn, setID, spec.alias); err != nil {
+		s.logBridgeFailure(setID, spec.alias, err)
+	}
+}
+
+// logBridgeFailure reports a member connection the relays could not carry
+// (no route to the peer, no relay lane): the first failure of a route as a
+// warning, the next ones at info, so a member mesh that cannot open shows in
+// the node logs without flooding them.
+func (s *setMesh) logBridgeFailure(setID, alias string, err error) {
+	if s.plugin == nil || s.plugin.logger == nil {
+		return
+	}
+	key := setID + "/" + alias
+	s.mu.Lock()
+	if s.warned == nil {
+		s.warned = map[string]struct{}{}
+	}
+	_, seen := s.warned[key]
+	s.warned[key] = struct{}{}
+	s.mu.Unlock()
+	if seen {
+		s.plugin.logger.Info("availability member connection could not open its relay route again", "set_id", setID, "alias", alias, "error", err)
+		return
+	}
+	s.plugin.logger.Warn("availability member connection could not open its relay route", "set_id", setID, "alias", alias, "error", err)
 }
 
 const proxyDialTimeoutForMesh = 5 * time.Second

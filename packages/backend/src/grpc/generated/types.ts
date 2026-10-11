@@ -1201,6 +1201,7 @@ export interface RelayGrantAssignment {
   grant: RelaySignedGrant;
   candidates?: RelayDataCandidate[];
   schemaVersion?: number;
+  managedDatabaseListener?: ManagedDatabaseListener;
   secureLinkEgress?: SecureLinkEgress;
   /** Connect assignments only: streams of this route are resumable (RSv1). Absent: raw streams. */
   streamResume?: RelayStreamResume;
@@ -1268,6 +1269,15 @@ export interface RelayRouteResume {
  * Desired connector egress listener for a consumer-side link (managed storage, managed database or container
  * link), carried with the signed connect assignment so revocation also removes the local entry point.
  */
+export interface ManagedDatabaseListener {
+  networkName: string;
+  listenAddress: string;
+  listenPort: number;
+  allowedSources: string[];
+  /** uint64 */
+  routeGeneration: number | string;
+}
+
 export interface SecureLinkEgress {
   /** gateway-db-*, gateway-storage-* or gateway-link-* */
   networkName: string;
