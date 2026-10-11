@@ -79,6 +79,17 @@ function RecentRequests({
                 {request.service && (
                   <span className="text-muted-foreground"> · {request.service}</span>
                 )}
+                {request.count > 1 && (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · {request.count}×
+                    {request.lastAt && (
+                      <>
+                        , last <RelativeTime value={request.lastAt} />
+                      </>
+                    )}
+                  </span>
+                )}
                 {!request.ok && request.error && (
                   <span className="text-muted-foreground"> · {request.error}</span>
                 )}

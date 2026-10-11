@@ -21,6 +21,7 @@ import {
   type CloudSocketState,
   type CloudSocketStatus,
 } from './cloud-link.types.js';
+import { CloudRequestAuditCoalescer } from './cloud-link-request-audit.js';
 import { answerCloudRequest, parseCloudRequest } from './cloud-link-requests.js';
 
 const logger = createChildLogger('CloudLinkAgent');
@@ -95,18 +96,22 @@ export class CloudLinkAgent {
   private status: CloudSocketStatus | null = null;
   private inFlight = 0;
   private unsubscribe: (() => void) | null = null;
+  private readonly requestAudit: CloudRequestAuditCoalescer;
 
   constructor(
     private readonly service: CloudLinkService,
     private readonly leases: OperationLeaseStore,
     private readonly probe: CloudLinkProbe,
     private readonly options: { tickMs?: number } = {}
-  ) {}
+  ) {
+    this.requestAudit = new CloudRequestAuditCoalescer((agentId, audit) => this.service.recordRequest(agentId, audit));
+  }
 
   start(): void {
     if (this.running) return;
     this.running = true;
     this.service.setLocalSocketStatusReader(() => (this.leaseToken ? this.status : null));
+    this.service.setLiveRequestWindowsReader(() => this.requestAudit.live());
     this.unsubscribe = this.service.onEnrollmentChanged(() => this.kick());
     this.tickTimer = setInterval(() => this.kick(), this.options.tickMs ?? DEFAULT_TICK_MS);
     this.tickTimer.unref?.();
@@ -124,6 +129,8 @@ export class CloudLinkAgent {
     this.closeSocket(1001, 'Gateway is stopping');
     this.credentials = null;
     this.service.setLocalSocketStatusReader(null);
+    this.service.setLiveRequestWindowsReader(null);
+    await this.requestAudit.flush();
     await this.releaseLease();
   }
 
@@ -271,6 +278,8 @@ export class CloudLinkAgent {
     socket.on('close', (code) => {
       if (this.socket === socket) this.socket = null;
       this.clearIdleTimer();
+      // The socket stopped: the repeated reads it counted are written as their summaries now.
+      void this.requestAudit.flush();
       if (this.credentials?.agentId !== credentials.agentId || !this.running) return;
       if (revoked) {
         logger.warn('The cloud account refused the agent; the cloud link stops');
@@ -325,6 +334,7 @@ export class CloudLinkAgent {
     const socket = this.socket;
     this.socket = null;
     if (!socket) return;
+    void this.requestAudit.flush();
     socket.removeAllListeners('close');
     socket.on('error', () => undefined);
     if (socket.readyState === WebSocket.OPEN) socket.close(code, reason);
@@ -357,9 +367,7 @@ export class CloudLinkAgent {
     }
     const resultBytes = this.send(socket, answer);
     if (agentId) {
-      void this.service
-        .recordRequest(agentId, cloudRequestAudit(request, answer, resultBytes, performance.now() - startedAt))
-        .catch(() => undefined);
+      this.requestAudit.record(agentId, cloudRequestAudit(request, answer, resultBytes, performance.now() - startedAt));
     }
   }
 

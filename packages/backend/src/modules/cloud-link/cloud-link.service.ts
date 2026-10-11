@@ -21,6 +21,7 @@ import {
   type StoredCloudDisconnect,
   type StoredCloudEnrollment,
 } from './cloud-link.types.js';
+import type { CloudRequestWindowView } from './cloud-link-request-audit.js';
 
 const logger = createChildLogger('CloudLink');
 
@@ -115,6 +116,7 @@ export class CloudLinkService {
   private localSocketStatus: (() => CloudSocketStatus | null) | null = null;
   private queue: Promise<void> = Promise.resolve();
   private auditService: Pick<AuditService, 'log'> | null = null;
+  private liveRequestWindows: (() => CloudRequestWindowView[]) | null = null;
 
   constructor(
     private readonly db: DrizzleClient,
@@ -333,7 +335,15 @@ export class CloudLinkService {
     if (changed) this.notify();
   }
 
-  /** One audit entry per portal request the link served, whatever its result. */
+  /** The open coalescing windows of this process when it holds the link (repeats not written yet). */
+  setLiveRequestWindowsReader(reader: (() => CloudRequestWindowView[]) | null): void {
+    this.liveRequestWindows = reader;
+  }
+
+  /**
+   * Writes the audit entry of a served request: a failed read, the first read of a (type, service), or the summary
+   * of the identical reads that followed it (see CloudRequestAuditCoalescer).
+   */
   async recordRequest(agentId: string, request: CloudRequestAudit): Promise<void> {
     await this.writeAudit(CLOUD_AUDIT_ACTIONS.request, null, agentId, { ...request });
   }
@@ -353,15 +363,21 @@ export class CloudLinkService {
         )
         .orderBy(desc(auditLog.createdAt))
         .limit(RECENT_REQUESTS_SHOWN);
+      const live = new Map((this.liveRequestWindows?.() ?? []).map((window) => [window.openedBy, window]));
       return rows.map((row) => {
         const details = (row.details ?? {}) as Partial<CloudRequestAudit>;
+        const summary = details.summary;
+        const counting = typeof details.requestId === 'string' && !summary ? live.get(details.requestId) : undefined;
+        const resultBytes = typeof details.resultBytes === 'number' ? details.resultBytes : null;
         return {
-          at: row.createdAt.toISOString(),
+          at: summary?.firstAt ?? row.createdAt.toISOString(),
           type: typeof details.type === 'string' ? details.type : 'unknown',
           service: typeof details.service === 'string' ? details.service : null,
           ok: details.ok === true,
           error: typeof details.error === 'string' ? details.error : null,
-          resultBytes: typeof details.resultBytes === 'number' ? details.resultBytes : null,
+          resultBytes: counting && resultBytes !== null ? resultBytes + counting.repeatBytes : resultBytes,
+          count: summary ? summary.count : 1 + (counting?.repeats ?? 0),
+          lastAt: summary?.lastAt ?? counting?.lastAt ?? null,
         };
       });
     } catch (error) {

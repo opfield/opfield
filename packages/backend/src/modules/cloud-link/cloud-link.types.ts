@@ -76,9 +76,22 @@ export interface CloudRequestAudit {
   since?: string;
   ok: boolean;
   error?: string;
-  /** Size of the JSON answer sent back, in bytes. */
+  /** Size of the JSON answer sent back, in bytes (all repeats together in a summary). */
   resultBytes: number;
-  durationMs: number;
+  durationMs?: number;
+  /** On the entry of a first read: identical reads in this window are counted, not written one by one. */
+  coalescingWindowMs?: number;
+  /** A summary of the identical successful reads that followed a first read within its window. */
+  summary?: {
+    count: number;
+    firstAt: string;
+    lastAt: string;
+    windowStartedAt: string;
+    /** Request id of the first read, which has its own entry. */
+    openedBy: string;
+    firstRequestId: string;
+    lastRequestId: string;
+  };
 }
 
 export interface CloudRequestSummary {
@@ -88,6 +101,10 @@ export interface CloudRequestSummary {
   ok: boolean;
   error: string | null;
   resultBytes: number | null;
+  /** Reads this entry stands for: 1, or the repeats a summary counted (plus those still counting on the first read). */
+  count: number;
+  /** The latest read the entry covers, when it covers more than one. */
+  lastAt: string | null;
 }
 
 export interface CloudDisconnectResult extends CloudLinkStatusView {
