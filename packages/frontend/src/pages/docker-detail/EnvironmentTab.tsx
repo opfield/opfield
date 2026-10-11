@@ -933,15 +933,15 @@ export function EnvironmentTab({
             }
             actions={
               <>
+                <Button variant="ghost" onClick={openTextEditor}>
+                  <FileCode2 className="h-3.5 w-3.5" />
+                  Edit as text
+                </Button>
                 {canEdit && (
                   <Button variant="ghost" size="icon-sm" onClick={addVar} title="Add variable">
                     <Plus className="h-3.5 w-3.5" />
                   </Button>
                 )}
-                <Button variant="ghost" onClick={openTextEditor}>
-                  <FileCode2 className="h-3.5 w-3.5" />
-                  Edit as text
-                </Button>
                 {canEdit && (
                   <Button
                     variant="warning"

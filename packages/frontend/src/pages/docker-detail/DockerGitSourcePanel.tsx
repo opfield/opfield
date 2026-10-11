@@ -1408,6 +1408,10 @@ export function DockerGitSourcePanel({
           actions={
             canEdit ? (
               <div className="flex items-center gap-2">
+                <Button variant="ghost" onClick={openBuildVariablesText}>
+                  <FileCode2 className="h-4 w-4" />
+                  Edit as text
+                </Button>
                 <Button
                   onClick={() => {
                     setVariableName("");
@@ -1417,10 +1421,6 @@ export function DockerGitSourcePanel({
                 >
                   <Plus className="h-4 w-4" />
                   Add variable
-                </Button>
-                <Button variant="ghost" onClick={openBuildVariablesText}>
-                  <FileCode2 className="h-4 w-4" />
-                  Edit as text
                 </Button>
                 {saveButton("variables", "Save Build Variables")}
               </div>
