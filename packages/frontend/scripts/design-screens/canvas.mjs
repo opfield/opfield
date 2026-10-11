@@ -30,9 +30,10 @@ const PAGES = [
     id: "overview",
     title: "Overview",
     group: "Overview",
-    subject: "dashboard and assistant",
+    subject: "dashboard, apps and assistant",
     sections: [
       { title: "Dashboard", match: ["dashboard"] },
+      { title: "Apps", match: ["apps"] },
       { title: "AI Workspace", match: ["overview-ai-chat", "overview-ai"] },
     ],
   },
