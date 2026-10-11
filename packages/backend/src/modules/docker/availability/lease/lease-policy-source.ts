@@ -126,6 +126,11 @@ export interface LeaseHolderChangeNotice extends LeaseHolderChange {
   noticedAt?: Date;
   /** Stateful keys: "sha256:<hex>" of the certified state of the observed commit, when known. */
   stateHash?: string | null;
+  /**
+   * Availability set failovers: what the new holder may have missed, by the members' last reports before it took over.
+   * bytes is how far it was behind (null when unknown); since is the old holder's last report, writes after it may be lost.
+   */
+  loss?: { bytes: number | null; since: string | null };
 }
 
 /**

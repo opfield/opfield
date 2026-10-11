@@ -209,6 +209,30 @@ func TestManagedDatabaseRemoveUnmountsDetachesThenDeletes(t *testing.T) {
 	}
 }
 
+// A loop bound to the image under another name (an older layout or mount
+// view) is found by its backing inode and detached before the image goes:
+// it was left bound to the deleted image until a reboot.
+func TestManagedDatabaseRemoveDetachesTheImageUnderAnotherName(t *testing.T) {
+	loops := newFakeLoops(t)
+	m := newTestDatabaseManager(t, loops)
+	record := saveTestDatabase(t, m, "db-old-layout")
+	dev, ino, err := fileIdentity(record.ImagePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loops.loops = append(loops.loops, loopDevice{Path: "/dev/loop9", Number: "7:9", BackingFile: "/images/db-old-layout.img"})
+	loops.ids["/dev/loop9"] = [2]uint64{dev, ino}
+	// Another guest's device with the same name but another inode is never touched.
+	loops.loops = append(loops.loops, loopDevice{Path: "/dev/loop8", Number: "7:8", BackingFile: "/images/db-old-layout.img"})
+	loops.ids["/dev/loop8"] = [2]uint64{dev, ino + 1}
+	if err := m.remove(context.Background(), record); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if !slices.Contains(loops.calls, "detach /dev/loop9") || slices.Contains(loops.calls, "detach /dev/loop8") {
+		t.Fatalf("calls = %v", loops.calls)
+	}
+}
+
 func TestManagedDatabaseRemoveReportsHeldLoopAndRepairFinishesIt(t *testing.T) {
 	loops := newFakeLoops(t)
 	m := newTestDatabaseManager(t, loops)

@@ -41,7 +41,7 @@ export function HealthOverviewCard({ healthHosts }: HealthOverviewCardProps) {
     <PanelShell
       title="Health Overview"
       actions={
-        <Link to="/proxy-hosts" className="text-sm text-muted-foreground hover:text-foreground">
+        <Link to="/routes" className="text-sm text-muted-foreground hover:text-foreground">
           View all
         </Link>
       }

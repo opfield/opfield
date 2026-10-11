@@ -7,7 +7,7 @@ it("ingress-domains", async () => {
     id: "ingress-domains",
     title: "Domains",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     handlers: domainsHandlers(),
     ready: async () => {
       await screen.findByText("grafana.example.com");

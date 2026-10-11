@@ -6,7 +6,7 @@ The **Licensor** is Alexandr Slavinschii, Republic of Moldova (alexandr.s@wiolet
 
 PolyForm Perimeter permits use, modification, and redistribution for permitted purposes, including internal business use. It does not permit providing to others a product marketed as a substitute for Opfield. An ordinary paid key unlocks plan features and limits; it does not waive that competition restriction or grant OEM, white-label, resale, or competing hosted-service rights. Those uses require a separate written agreement signed by the Licensor.
 
-Every release includes the [Product Continuity Grant](CONTINUITY-GRANT.md): if Opfield stops being provided (12 months with no release and no license server, or an end-of-life notice) or the Licensor can no longer act, holders of a valid key keep a perpetual, royalty-free right to use, self-host and modify for their own use the last release, including the commercial core, and to run it without the license server.
+Every release includes the [Product Continuity Grant](CONTINUITY-GRANT.md): if Opfield stops being provided (12 consecutive months with no new release while the license service is unavailable, or an end-of-life notice) or the Licensor can no longer act, the source code of the last release, including the commercial core, becomes available to everyone under the MIT License, and holders of a valid key keep a perpetual, royalty-free right to use and self-host that release and to run it without the license service.
 
 ## Acceptance
 

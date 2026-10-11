@@ -6,6 +6,7 @@ import { AccessScopesDialog } from "@/components/access/AccessScopesDialog";
 import { useAccessEditor } from "@/components/access/use-access-editor";
 import { AuthWindowLoader } from "@/components/auth/AuthShell";
 import { Notice } from "@/components/common/Notice";
+import { OpfieldMark } from "@/components/common/OpfieldMark";
 import {
   allResourcePages,
   canLoadScopeResource,
@@ -331,7 +332,7 @@ export function OAuthConsent() {
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-3">
-                    <img src="/android-chrome-192x192.png" alt="Opfield" className="h-9 w-9" />
+                    <OpfieldMark className="h-9 w-9" />
                     <div>
                       <p className="text-xs font-medium text-muted-foreground">Opfield OAuth</p>
                       <h1 className="text-xl font-semibold text-foreground">

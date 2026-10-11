@@ -11,7 +11,7 @@ it("certs-dialog-ssl-acme-cloudflare", async () => {
     id: "certs-dialog-ssl-acme-cloudflare",
     title: "Add SSL Certificate · Let's Encrypt via Cloudflare DNS",
     group: "Certificates",
-    route: "/ssl-certificates",
+    route: "/certificates",
     handlers: [
       ...sslHandlers(),
       ...domainsHandlers(),

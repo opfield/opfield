@@ -1,6 +1,7 @@
 import { FolderPlus, Plus } from "lucide-react";
 import { useRef } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { HubTabs } from "@/components/common/HubTabs";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
@@ -34,8 +35,18 @@ const TABS = [
   },
 ] as const;
 
-export function TemplatesPage() {
-  const { tab: tabParam } = useParams<{ tab?: string }>();
+const KIND_DESCRIPTIONS = {
+  pki: "PKI certificate templates",
+  nginx: "Nginx configuration templates",
+} as const;
+
+/**
+ * PKI and nginx templates. With `kind` it is the Templates tab of the Certificates (PKI) or Routes
+ * (nginx) page and shows only that kind.
+ */
+export function TemplatesPage({ kind }: { kind?: "pki" | "nginx" } = {}) {
+  const { tab: routeTab } = useParams<{ tab?: string }>();
+  const tabParam = kind ?? routeTab;
   const navigate = useNavigate();
   const { hasScope, hasScopedAccess } = useAuthStore();
   const scopes = useAuthStore((s) => s.user?.scopes ?? NO_SCOPES);
@@ -46,6 +57,7 @@ export function TemplatesPage() {
   const createFolderRefs = useRef<Record<string, () => void>>({});
 
   const visibleTabs = TABS.filter((t) => {
+    if (kind && t.value !== kind) return false;
     if (t.value === "pki" && !pkiEnabled) return false;
     return hasScopedAccess(t.scope);
   });
@@ -132,7 +144,9 @@ export function TemplatesPage() {
           leading={<LiteModeBackButton />}
           title="Templates"
           badges={activeTab === "pki" ? <LicensePlanBadge feature="internal-pki" /> : null}
-          description="Certificate and nginx configuration templates"
+          description={
+            kind ? KIND_DESCRIPTIONS[kind] : "Certificate and nginx configuration templates"
+          }
           actions={
             <ResponsiveHeaderActions actions={[...folderActions, ...createActions]}>
               {canManageFolders && (
@@ -145,9 +159,10 @@ export function TemplatesPage() {
             </ResponsiveHeaderActions>
           }
         />
+        <HubTabs />
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col">
-          {pkiEnabled && (
+          {pkiEnabled && !kind && (
             <TabsList className="shrink-0">
               {visibleTabs.map((tab) => (
                 <TabsTrigger key={tab.value} value={tab.value} className="gap-1.5">
@@ -158,7 +173,7 @@ export function TemplatesPage() {
           )}
 
           {visibleTabs.some((tab) => tab.value === "pki") && (
-            <TabsContent value="pki">
+            <TabsContent value="pki" className={kind ? "mt-0" : undefined}>
               <Templates
                 embedded
                 onCreateRef={(fn) => {
@@ -171,7 +186,7 @@ export function TemplatesPage() {
             </TabsContent>
           )}
           {visibleTabs.some((tab) => tab.value === "nginx") && (
-            <TabsContent value="nginx">
+            <TabsContent value="nginx" className={kind ? "mt-0" : undefined}>
               <NginxTemplates
                 embedded
                 onCreateRef={(fn) => {

@@ -508,6 +508,7 @@ export class ManagedDatabaseService {
       version: string;
       tlsEnabled?: boolean;
       storageSizeGb?: number;
+      folderId?: string | null;
     }
   ): Promise<unknown> {
     return commercialModuleUnavailable();

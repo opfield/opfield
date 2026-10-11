@@ -9,7 +9,7 @@ it("ingress-dialog-access-list-create", async () => {
     id: "ingress-dialog-access-list-create",
     title: "Access Lists · Create Access List",
     group: "Ingress",
-    route: "/access-lists",
+    route: "/routes/access-lists",
     handlers: [...accessListHandlers(), ...backgroundPrewarmHandlers()],
     ready: async () => {
       await screen.findByText("Support portal");

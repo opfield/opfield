@@ -13,7 +13,7 @@
 AI-first 但不依赖 AI 的自托管基础设施控制平面，用于 nginx ingress、Docker 工作负载、证书、数据库、日志、监控、状态页和自动化。
 
 > [!NOTE]
-> 主要开发在 [GitHub](https://github.com/the-square-labs/gateway) 进行。Issues 和功能请求可以提交到 [GitHub issue tracker](https://github.com/the-square-labs/gateway/issues)。
+> 主要开发在 [GitHub](https://github.com/opfield/opfield) 进行。Issues 和功能请求可以提交到 [GitHub issue tracker](https://github.com/opfield/opfield/issues)。
 
 ## 为什么需要 Opfield
 
@@ -91,24 +91,24 @@ curl -fsSL https://get.opfield.dev | bash
 <td align="center"><strong>AI Workspace 规划</strong></td>
 </tr>
 <tr>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/dashboard-overview.png" width="100%" alt="Opfield dashboard，展示 routes、databases、nodes、health 和资源使用情况"></td>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/ai-workspace.png" width="100%" alt="AI Workspace 展示经过审阅的基础设施部署计划"></td>
+<td><img src="https://docs.opfield.dev/screenshots/product-tour/dashboard-overview.png" width="100%" alt="Opfield dashboard，展示 routes、databases、nodes、health 和资源使用情况"></td>
+<td><img src="https://docs.opfield.dev/screenshots/product-tour/ai-workspace.png" width="100%" alt="AI Workspace 展示经过审阅的基础设施部署计划"></td>
 </tr>
 <tr>
 <td align="center"><strong>Workload 与 Secure Link runtime</strong></td>
 <td align="center"><strong>Managed database 可观测性</strong></td>
 </tr>
 <tr>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/container-secure-link.png" width="100%" alt="Docker workload overview 与 Secure Link runtime metrics"></td>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/managed-database.png" width="100%" alt="Managed PostgreSQL database health 与 performance overview"></td>
+<td><img src="https://docs.opfield.dev/screenshots/product-tour/container-secure-link.png" width="100%" alt="Docker workload overview 与 Secure Link runtime metrics"></td>
+<td><img src="https://docs.opfield.dev/screenshots/product-tour/managed-database.png" width="100%" alt="Managed PostgreSQL database health 与 performance overview"></td>
 </tr>
 <tr>
 <td align="center"><strong>Ingress route 与 health</strong></td>
 <td align="center"><strong>分布式 node inventory</strong></td>
 </tr>
 <tr>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/ingress-route.png" width="100%" alt="由 Docker Secure Link 支持的健康 ingress route"></td>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/nodes.png" width="100%" alt="Opfield node inventory，包含 ingress、Docker、database、monitoring、build 和 relay roles"></td>
+<td><img src="https://docs.opfield.dev/screenshots/product-tour/ingress-route.png" width="100%" alt="由 Docker Secure Link 支持的健康 ingress route"></td>
+<td><img src="https://docs.opfield.dev/screenshots/product-tour/nodes.png" width="100%" alt="Opfield node inventory，包含 ingress、Docker、database、monitoring、build 和 relay roles"></td>
 </tr>
 </table>
 
@@ -231,17 +231,17 @@ Opfield 提供四个产品计划。付费计划适用于一个 Opfield 实例，
 
 Opfield 源代码依据 [PolyForm Perimeter License 1.0.1](LICENSE.md) 发布。该许可证允许为非竞争性目的使用、修改和再分发代码，包括企业内部使用；但不允许向他人提供被宣传为 Opfield 替代品的产品。Personal、Business 或 Enterprise 密钥依据 [Paid Key Terms](COMMERCIAL-LICENSE.md) 解锁相应计划的功能与限制；普通付费密钥不会自动授予 OEM、白标、转售或竞争性托管服务的权利。
 
-每个官方版本还附带[产品连续性授权](CONTINUITY-GRANT.md)：如果 Opfield 停止提供（连续 12 个月没有新版本且许可证服务器不可用，或发布停止支持公告），或许可方无法再履行职责，持有当时有效密钥的用户将获得永久、免版税的许可，可为自身用途继续使用、自行托管和修改最后一个版本（包括商业核心），并可在没有许可证服务器的情况下运行。完整条款以授权文件为准。
+每个官方版本还附带[产品连续性授权](CONTINUITY-GRANT.md)：如果 Opfield 停止提供（连续 12 个月没有新版本且许可证服务不可用，或发布停止支持公告），或许可方无法再履行职责，最后一个版本的源代码（包括商业核心）将以 MIT 许可证向所有人开放，持有当时有效密钥的用户还将获得永久、免版税的许可，可继续使用和自行托管该版本，并在没有许可证服务的情况下运行。完整条款以授权文件为准。
 
 > [!NOTE]
 > 以下价格为初步价格，不构成要约，并可能发生变化。购买前请确认最新价格和条款。
 
 | 计划 | 月付 | 年付 | 规模与重点 |
 |------|------|------|------------|
-| ![Community](docs/assets/license/wiolett-gw-community-24.png)<br>Community | $0 | $0 | 核心平台、AI Workspace 和 Opfield Inference，可用于内部及其他非竞争性用途；最多 25 个 managed nodes、3 个用户和 1 个 custom permission group；提供只读 Compose 项目发现、inventory、monitoring 和 logs；Pages、databases、storage、GitLab integration 以及 AI Workspace 的 Scenarios、Plan Mode 和 sandboxes 不可用。 |
-| ![Personal](docs/assets/license/wiolett-gw-personal-24.png)<br>Personal | $29 | $290 | managed nodes/users/groups 的 plan quotas 不限，并包含 Compose deployment 与 lifecycle management、container archive import/export、blue/green deployments、cross-node migration、managed databases 和带备份的 external database connections、storage connections 和 managed SeaweedFS object storage、GitLab integration、AI Workspace 的 Scenarios、Plan Mode 和 sandboxes、public status pages、Pages 静态站点托管和 registry discovery；多节点 Workload Availability 需要 Business 或 Enterprise。 |
-| ![Business](docs/assets/license/wiolett-gw-business-24.png)<br>Business | $189 | $1,890 | 包含 Personal（包括 Compose management 和 Pages）的全部功能，并增加面向 containers、blue/green deployments、Compose Projects 与 Pages、带隔离 Build Workers 和 build vulnerability policy 的 Git push-to-deploy、private internal registry 的可选 external access、Docker Secure Runtime、structured logging、audit export、guided onboarding、已可用的多节点 Workload Availability (HA)，以及发布后的更广泛安全扫描、基于指标的自动扩缩容和 same-node multi-instance 功能。 |
-| ![Enterprise](docs/assets/license/wiolett-gw-enterprise-24.png)<br>Enterprise | 询价 | 询价 | 包含 Business（包括 Pages）的全部功能，并增加 Internal PKI、SIEM export、专属技术联系人，以及部署和迁移协助。 |
+| ![Community](docs/assets/license/opfield-community-24.png)<br>Community | $0 | $0 | 核心平台、AI Workspace 和 Opfield Inference，可用于内部及其他非竞争性用途；最多 25 个 managed nodes、3 个用户和 1 个 custom permission group；提供只读 Compose 项目发现、inventory、monitoring 和 logs；Pages、databases、storage、GitLab integration 以及 AI Workspace 的 Scenarios、Plan Mode 和 sandboxes 不可用。 |
+| ![Personal](docs/assets/license/opfield-personal-24.png)<br>Personal | $29 | $290 | managed nodes/users/groups 的 plan quotas 不限，并包含 Compose deployment 与 lifecycle management、container archive import/export、blue/green deployments、cross-node migration、managed databases 和带备份的 external database connections、storage connections 和 managed SeaweedFS object storage、GitLab integration、AI Workspace 的 Scenarios、Plan Mode 和 sandboxes、public status pages、Pages 静态站点托管和 registry discovery；多节点 Workload Availability 需要 Business 或 Enterprise。 |
+| ![Business](docs/assets/license/opfield-business-24.png)<br>Business | $189 | $1,890 | 包含 Personal（包括 Compose management 和 Pages）的全部功能，并增加面向 containers、blue/green deployments、Compose Projects 与 Pages、带隔离 Build Workers 和 build vulnerability policy 的 Git push-to-deploy、private internal registry 的可选 external access、Docker Secure Runtime、structured logging、audit export、guided onboarding、已可用的多节点 Workload Availability (HA)，以及发布后的更广泛安全扫描、基于指标的自动扩缩容和 same-node multi-instance 功能。 |
+| ![Enterprise](docs/assets/license/opfield-enterprise-24.png)<br>Enterprise | 询价 | 询价 | 包含 Business（包括 Pages）的全部功能，并增加 Internal PKI、SIEM export、专属技术联系人，以及部署和迁移协助。 |
 
 上述 Community 限制以及现在需要 Personal 及以上计划的功能自 2.11 起生效；2.10 的 Community 允许 100 个 managed nodes、10 个用户和 5 个 custom permission groups。计划限制只在创建时检查，因此已经超出限制的实例会保留现有节点、用户和组，但在仍处于或超过限制时无法再添加。
 

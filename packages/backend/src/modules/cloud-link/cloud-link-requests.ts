@@ -1,18 +1,21 @@
 import {
   CLOUD_LOG_TAIL_DEFAULT,
   CLOUD_LOG_TAIL_MAX,
+  CLOUD_MANAGED_ONLY_REQUEST_TYPES,
   CLOUD_NODE_KINDS,
   CLOUD_PRIVILEGED_REQUEST_TYPES,
   type CloudAnswer,
   type CloudLinkAccess,
   type CloudLinkProbe,
   type CloudRequest,
+  NOT_MANAGED_BY_CLOUD,
   REMOTE_MANAGEMENT_OFF,
   resolveCloudNodeKind,
 } from './cloud-link.types.js';
 
 const MAX_REQUEST_ID_LENGTH = 200;
 const MAX_SERVICE_NAME_LENGTH = 128;
+const MAX_CLIENT_SECRET_LENGTH = 4096;
 
 /** A text frame from the portal as a request; null for anything that is not one (pings, unknown messages). */
 export function parseCloudRequest(text: string): CloudRequest | null {
@@ -47,6 +50,9 @@ export async function answerCloudRequest(
     // Reads are allowed once connected; actions need a managed cloud VM or "Allow remote management".
     if (CLOUD_PRIVILEGED_REQUEST_TYPES.has(request.type) && !(await access.privilegedAllowed())) {
       return { id: request.id, ok: false, ...REMOTE_MANAGEMENT_OFF };
+    }
+    if (CLOUD_MANAGED_ONLY_REQUEST_TYPES.has(request.type) && !(await access.managedByCloud())) {
+      return { id: request.id, ok: false, ...NOT_MANAGED_BY_CLOUD };
     }
     switch (request.type) {
       case 'state':
@@ -112,6 +118,22 @@ export async function answerCloudRequest(
         }
         const { started } = await probe.update(version ?? undefined);
         return { id: request.id, ok: true, data: { started } };
+      }
+      case 'sso-secret': {
+        const { clientSecret } = request.params;
+        if (
+          typeof clientSecret !== 'string' ||
+          !clientSecret.trim() ||
+          clientSecret.length > MAX_CLIENT_SECRET_LENGTH
+        ) {
+          return { id: request.id, ok: false, error: 'params.clientSecret is the new client secret' };
+        }
+        try {
+          return { id: request.id, ok: true, data: await probe.ssoSecret(clientSecret) };
+        } catch (error) {
+          // The answer and its audit entry never carry the secret.
+          return { id: request.id, ok: false, error: errorMessage(error).replaceAll(clientSecret, '[REDACTED]') };
+        }
       }
       default:
         return { id: request.id, ok: false, error: `Unknown request type: ${request.type.slice(0, 64)}` };

@@ -10,7 +10,7 @@ Opfield source is available under the [PolyForm Perimeter License 1.0.1](../LICE
 
 An ordinary paid key does not waive Perimeter's restriction on providing a product marketed as a substitute for Opfield. Competing hosted/SaaS, OEM, white-label, and resale offerings require a separate written agreement with the Licensor. Key expiration follows the plan-specific technical grace period, after which the same installation may keep operating paid-plan resources configured before expiration; renewal is required to create new paid-plan resources or expand into additional paid-only features. Revocation for breach, fraud, chargeback, or refund ends paid-plan access immediately, without grace, and under the Paid Key Terms also ends the right to continue operating paid-plan resources. Opfield itself never stops or deletes running workloads because of a license change; see [Grace periods and entitlement loss](#grace-periods-and-entitlement-loss).
 
-Every official release includes the [Product Continuity Grant](../CONTINUITY-GRANT.md): if Opfield stops being provided (12 months with no release and no license server, or an end-of-life notice) or the Licensor can no longer act, holders of a valid key keep a perpetual, royalty-free right to use, self-host and modify for their own use the last release, including the commercial core, and to run it without the license server. The grant itself is the authoritative text.
+Every official release includes the [Product Continuity Grant](../CONTINUITY-GRANT.md): if Opfield stops being provided (12 consecutive months with no new release while the license service is unavailable, or an end-of-life notice) or the Licensor can no longer act, the source code of the last release, including the commercial core, becomes available to everyone under the MIT License, and holders of a valid key keep a perpetual, royalty-free right to use and self-host that release and to run it without the license service. The grant itself is the authoritative text.
 
 Entitlements schema version 5 is current. It adds storage connections, external database connections, managed object storage, AI Workspace Plan Mode, Scenarios, and AI sandboxes to every paid plan and moves GitLab integration out of Community. Version 4 kept `pages` on Personal, Business, and Enterprise, added `compose-applications` to every paid plan, and added `git-push-to-deploy` to Business and Enterprise. Opfield still accepts version 3 and version 4 grants, but they do not unlock the features added after them (managed Compose lifecycle and Git source builds for version 3, the version 5 features for both) until the license server reissues version 5 entitlements. Community grants include read-only external Compose discovery through the shared Docker feature but do not include Pages, managed Compose mutations, or GitLab integration.
 
@@ -136,15 +136,14 @@ Contact [support@opfield.dev](mailto:support@opfield.dev) or [Opfield on Telegra
 
 ## Product License Verification
 
-Opfield verifies paid product license keys against:
+Opfield verifies paid product license keys with the Opfield license server and finds it automatically:
+it keeps an up-to-date list of the license server's addresses and uses whichever answers. Today these are
+`https://license.opfield.dev`, `https://license.thesqlabs.com` and `https://license.wiolett.cloud`; allow them in an
+egress allowlist, together with the update host `https://get.opfield.dev`.
 
-```text
-https://license.opfield.dev
-```
-
-Releases up to 2.11 use `https://license.thesqlabs.com`, which serves the same license server and stays
-available. If `license.opfield.dev` cannot be reached at all, Opfield retries the request there, so an egress
-allowlist written for an older release keeps working; allow `license.opfield.dev` as well.
+To send license requests through an address of your own, such as an egress proxy, set `LICENSE_SERVICE_URL` in
+Opfield's `.env` (several addresses can be separated by commas) and restart Opfield. Opfield tries that address first
+and the license server's own addresses after it.
 
 Registration and activation flow:
 
@@ -244,6 +243,6 @@ Licensor-owned Opfield source is publicly available under the [PolyForm Perimete
 
 The [Opfield Paid Key Terms 1.2](../COMMERCIAL-LICENSE.md) govern plan features, limits, grace, and continuity for Personal, Business, and Enterprise keys. A key does not limit rights independently available under Perimeter, and it does not automatically authorize an OEM, white-label, resale, competing hosted, or other substitute product. Those uses require a separate written agreement with the Licensor.
 
-The [Product Continuity Grant](../CONTINUITY-GRANT.md) defines when key holders keep a perpetual license to the last release and may run it without the license server.
+The [Product Continuity Grant](../CONTINUITY-GRANT.md) defines when the source code of the last release, including the commercial core, becomes available under the MIT License, and when key holders keep a perpetual license to that release and may run it without the license service. The license service is the licensing service the Licensor operates at any address he publishes; it counts as available while any of those addresses answers.
 
 Third-party components remain governed by their own licenses. Already published Opfield releases remain governed by the terms distributed with those releases.

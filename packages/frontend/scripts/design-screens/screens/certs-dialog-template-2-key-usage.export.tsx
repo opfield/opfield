@@ -9,7 +9,7 @@ it("certs-dialog-template-2-key-usage", async () => {
     id: "certs-dialog-template-2-key-usage",
     title: "Create Template · Key Usage",
     group: "Certificates",
-    route: "/templates/pki",
+    route: "/certificates/templates",
     handlers: [...pkiHandlers(), ...backgroundPrewarmHandlers()],
     height: 1100,
     before: preparePkiLists,

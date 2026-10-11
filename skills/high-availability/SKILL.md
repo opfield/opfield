@@ -1,13 +1,13 @@
 ---
 name: high-availability
-description: Preflight, enable, and operate Opfield Docker Workload Availability, which places a Container, blue/green Deployment, or whole Compose Project on several independent Docker Nodes in replicated or failover mode. Use when asked to make a workload highly available, add replicas, set up failover, check an availability policy, or recover after losing a Node. Business and Enterprise only. Use after using-gateway, and after deploying-workloads for the underlying workload.
+description: Preflight, enable, and operate Opfield Docker Workload Availability, which places a Container, blue/green Deployment, or whole Compose Project on several independent Docker Nodes in replicated or failover mode. Use when asked to make a workload highly available, add replicas, set up failover, check an availability policy, or recover after losing a Node. Business and Enterprise only. Use after using-opfield, and after deploying-workloads for the underlying workload.
 ---
 
 # High Availability
 
 Docker Workload Availability adds multi-node placements to an existing standalone Container, blue/green Deployment, or whole Compose Project. It creates no new resource type: a policy attaches to the workload and from then on owns placement count, generations, routing membership, and cleanup. It is a Business and Enterprise feature.
 
-Start with `using-gateway` for connection, discovery, and safety rules, and `deploying-workloads` for the workload itself. One tool covers the lifecycle: `manage_docker_availability({ operation, ... })`, gated by `docker:availability:manage` (folder grants resolve through the workload's folder; the scope also implies `docker:containers:view`).
+Start with `using-opfield` for connection, discovery, and safety rules, and `deploying-workloads` for the workload itself. One tool covers the lifecycle: `manage_docker_availability({ operation, ... })`, gated by `docker:availability:manage` (folder grants resolve through the workload's folder; the scope also implies `docker:containers:view`).
 
 ## Modes
 

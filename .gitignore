@@ -45,3 +45,5 @@ update-signing-private.pem.b64
 
 # Design canvases (foss-design)
 .design/
+
+__pycache__/

@@ -21,12 +21,16 @@ concurrency:
 
 env:
   CI: 'true'
-  # Installs pin this repository (signed manifests name it), so it stays fixed across a repository or organization
-  # move. GATEWAY_IMAGE_MIRROR (repository variable, e.g. ghcr.io/opfield/opfield) additionally receives every
-  # release tag with the same digest; unset, nothing is mirrored. GHCR_PUSH_TOKEN (optional secret) is a token that
-  # can write packages in both organizations; without it the workflow token is used. See docs/development.md.
-  GATEWAY_IMAGE: ${{ vars.GATEWAY_IMAGE || 'ghcr.io/the-square-labs/gateway' }}
-  GATEWAY_IMAGE_MIRROR: ${{ vars.GATEWAY_IMAGE_MIRROR }}
+  # Image repositories (scripts/release/image-repositories.sh, docs/development.md). With the repository variable
+  # OPFIELD_GHCR=true ghcr.io/opfield/opfield is the primary and the one signed manifests name (GATEWAY_SIGNED_IMAGE),
+  # and ghcr.io/the-square-labs/gateway, the earlier repository, receives every release tag with the same digest.
+  # GATEWAY_IMAGE, GATEWAY_IMAGE_MIRROR and GATEWAY_SIGNED_IMAGE (repository variables) override them for forks.
+  # GHCR_PUSH_TOKEN (secret) is a token that can write packages in both organizations; without it the workflow
+  # token is used. Keep these lines identical in image.yml.
+  OPFIELD_GHCR: ${{ vars.OPFIELD_GHCR }}
+  GATEWAY_IMAGE: ${{ vars.GATEWAY_IMAGE || (vars.OPFIELD_GHCR == 'true' && 'ghcr.io/opfield/opfield' || 'ghcr.io/the-square-labs/gateway') }}
+  GATEWAY_IMAGE_MIRROR: ${{ vars.GATEWAY_IMAGE_MIRROR || (vars.OPFIELD_GHCR == 'true' && 'ghcr.io/the-square-labs/gateway' || '') }}
+  GATEWAY_SIGNED_IMAGE: ${{ vars.GATEWAY_SIGNED_IMAGE }}
 
 jobs:
   gateway:
@@ -57,6 +61,12 @@ jobs:
         env:
           RELEASE_KIND: ${{ steps.tag.outputs.kind }}
         run: test "$RELEASE_KIND" = gateway
+
+      - name: Resolve image repositories
+        run: |
+          source scripts/release/image-repositories.sh
+          echo "GATEWAY_SIGNED_IMAGE=${GATEWAY_SIGNED_IMAGE}" >> "$GITHUB_ENV"
+          echo "Primary ${GATEWAY_IMAGE}, mirror ${GATEWAY_IMAGE_MIRROR:-none}, manifests name ${GATEWAY_SIGNED_IMAGE}"
 
       - name: Verify product continuity grant
         run: node scripts/verify-continuity-grant.mjs
@@ -183,7 +193,7 @@ jobs:
               --kind gateway-image \
               --version "$GITHUB_REF_NAME" \
               --tag "$GITHUB_REF_NAME" \
-              --image "$GATEWAY_IMAGE" \
+              --image "$GATEWAY_SIGNED_IMAGE" \
               --digest "$DIGEST" \
               --git-commit-sha "$SHA" \
               --git-pipeline-id "$GITHUB_RUN_ID" \
@@ -197,6 +207,15 @@ jobs:
           UPDATE_SIGNING_PRIVATE_KEY_PEM_B64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_PEM_B64 }}
           GIT_COMMIT_SHA: ${{ steps.tag.outputs.sha }}
         run: scripts/release/witness-artifacts.sh "$GITHUB_REF_NAME" "${RUNNER_TEMP}/witness-artifacts"
+
+      # The signed list of license service addresses (config/license-service.json) installations fetch daily; the
+      # update Worker serves it from the latest stable release and .github/workflows/license-endpoints.yml re-signs it
+      # there weekly. Off until the repository variable LICENSE_ENDPOINTS_PUBLISH is true.
+      - name: Sign the license endpoints document
+        if: ${{ vars.LICENSE_ENDPOINTS_PUBLISH == 'true' }}
+        env:
+          UPDATE_SIGNING_PRIVATE_KEY_PEM_B64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_PEM_B64 }}
+        run: node scripts/release/license-endpoints.mjs "${RUNNER_TEMP}/license-endpoints/license-endpoints.json"
 
       - name: Prepare the draft GitHub release
         env:
@@ -226,6 +245,10 @@ jobs:
           installers_dir="${RUNNER_TEMP}/installers"
           scripts/stage-installers.sh "$GITHUB_REF_NAME" "$installers_dir"
           assets=(CONTINUITY-GRANT.md gateway-image.update.json "$installers_dir"/* "${RUNNER_TEMP}/witness-artifacts"/*)
+          license_endpoints="${RUNNER_TEMP}/license-endpoints/license-endpoints.json"
+          if [[ -f "$license_endpoints" ]]; then
+            assets+=("$license_endpoints")
+          fi
           gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
           uploaded=$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')
           for asset in "${assets[@]}"; do
@@ -238,7 +261,7 @@ jobs:
       - name: Package the commercial core
         env:
           GH_TOKEN: ${{ secrets.COMMERCIAL_CI_TOKEN }}
-          COMMERCIAL_REPOSITORY: ${{ github.repository_owner }}/gateway-commercial
+          COMMERCIAL_REPOSITORY: ${{ vars.COMMERCIAL_REPOSITORY || (github.repository_owner == 'opfield' && 'opfield/opfield-commercial' || format('{0}/gateway-commercial', github.repository_owner)) }}
         run: |
           test -n "$GH_TOKEN" || { echo '::error::COMMERCIAL_CI_TOKEN is not set' >&2; exit 1; }
           title="Package commercial core ${GITHUB_REF_NAME}"

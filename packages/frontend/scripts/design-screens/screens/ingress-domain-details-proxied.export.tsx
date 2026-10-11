@@ -10,7 +10,7 @@ it("ingress-domain-details-proxied", async () => {
     id: "ingress-domain-details-proxied",
     title: "Domain · Details (Cloudflare proxied)",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     height: 1000,
     handlers: [...domainDetailHandlers(), ...domainsHandlers(), ...backgroundPrewarmHandlers()],
     ready: async () => {

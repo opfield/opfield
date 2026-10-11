@@ -8,7 +8,7 @@ it("state-page-loader", async () => {
     id: "state-page-loader",
     title: "Page loader",
     group: "States",
-    route: "/domains",
+    route: "/routes/domains",
     handlers: [
       // The domain list never answers, so the page stays behind its loader.
       http.get("*/api/domains", () => new Promise<never>(() => {})),

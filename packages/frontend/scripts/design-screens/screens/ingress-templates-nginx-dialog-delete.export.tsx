@@ -12,7 +12,7 @@ it("ingress-templates-nginx-dialog-delete", async () => {
     id: "ingress-templates-nginx-dialog-delete",
     title: "Templates · Nginx Config · Delete Template",
     group: "Ingress",
-    route: "/templates/nginx",
+    route: "/routes/templates",
     before: prepareNginxTemplateList,
     handlers: [...nginxTemplateHandlers(), ...backgroundPrewarmHandlers()],
     ready: async () => {

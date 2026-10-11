@@ -10,7 +10,7 @@ it("ingress-domain-dialog-create-route", async () => {
     id: "ingress-domain-dialog-create-route",
     title: "Domain · Create Route",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     handlers: [...domainDetailHandlers(), ...domainsHandlers(), ...backgroundPrewarmHandlers()],
     before: addBillingDomain,
     ready: async () => {

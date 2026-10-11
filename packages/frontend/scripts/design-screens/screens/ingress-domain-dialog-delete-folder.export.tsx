@@ -9,7 +9,7 @@ it("ingress-domain-dialog-delete-folder", async () => {
     id: "ingress-domain-dialog-delete-folder",
     title: "Domains · Delete Folder",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     handlers: [...domainsHandlers(), ...backgroundPrewarmHandlers()],
     ready: async () => {
       await screen.findByText("grafana.example.com");

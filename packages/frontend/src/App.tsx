@@ -27,6 +27,7 @@ import {
   type InferenceUsageChangedEvent,
 } from "@/lib/inference-self-usage";
 import { canViewLoggingHealth } from "@/lib/logging-permissions";
+import { NAVIGATION_HUBS } from "@/lib/navigation-hubs";
 import {
   databaseRoute,
   dockerContainerRoute,
@@ -38,7 +39,6 @@ import {
   proxyHostRoute,
   storageRoute,
 } from "@/lib/resource-routes";
-import { AccessLists } from "@/pages/AccessLists";
 import { Administration } from "@/pages/Administration";
 import { AdminNodeDetail } from "@/pages/AdminNodeDetail";
 import { AdminNodes } from "@/pages/AdminNodes";
@@ -48,9 +48,7 @@ import { AppPage } from "@/pages/apps/AppPage";
 import { AppsList } from "@/pages/apps/AppsList";
 import { BlockedPage } from "@/pages/Blocked";
 import { CADetail } from "@/pages/CADetail";
-import { CAs } from "@/pages/CAs";
 import { CertificateDetail } from "@/pages/CertificateDetail";
-import { Certificates } from "@/pages/Certificates";
 import { Dashboard } from "@/pages/Dashboard";
 import { DatabaseDetail } from "@/pages/DatabaseDetail";
 import { Databases } from "@/pages/Databases";
@@ -63,15 +61,14 @@ import { DockerDeploymentDetail } from "@/pages/DockerDeploymentDetail";
 import { DockerFilePopout } from "@/pages/DockerFilePopout";
 import { DockerLogsPopout } from "@/pages/DockerLogsPopout";
 import { DockerVolumeDetail } from "@/pages/DockerVolumeDetail";
-import { Domains } from "@/pages/Domains";
 import {
   DockerPendingContainerDetail,
   resolveContainerOrPendingSource,
 } from "@/pages/docker-detail/DockerPendingContainerDetail";
 import { HostingPage } from "@/pages/hosting/HostingPage";
 import { IngressGroupDetail } from "@/pages/IngressGroupDetail";
-import { IngressGroups } from "@/pages/IngressGroups";
 import { Logging } from "@/pages/Logging";
+import { LegacyNavigationRedirect, NavigationHubPage } from "@/pages/NavigationHubPage";
 import { NginxTemplateEdit } from "@/pages/NginxTemplateEdit";
 import { NodeConsolePopout } from "@/pages/NodeConsolePopout";
 import { Notifications } from "@/pages/Notifications";
@@ -79,16 +76,13 @@ import { OAuthConsent } from "@/pages/OAuthConsent";
 import { OAuthError } from "@/pages/OAuthError";
 import { Profile } from "@/pages/Profile";
 import { ProxyHostDetail } from "@/pages/ProxyHostDetail";
-import { ProxyHosts } from "@/pages/ProxyHosts";
 import { PageProjectDetail } from "@/pages/pages/PageProjectDetail";
 import { Pages } from "@/pages/pages/Pages";
 import { Settings } from "@/pages/Settings";
 import { SetupWizardPage } from "@/pages/SetupWizard";
-import { SSLCertificates } from "@/pages/SSLCertificates";
 import { StatusPage } from "@/pages/StatusPage";
 import { Storage } from "@/pages/Storage";
 import { StorageDetail } from "@/pages/StorageDetail";
-import { TemplatesPage } from "@/pages/TemplatesPage";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
 import { eventStream } from "@/services/event-stream";
@@ -487,26 +481,15 @@ function ProxyHostDetailGuard() {
   if (!canAccess) return <Navigate to="/" replace />;
   if (resolved.loading) return <DetailRouteLoading />;
   if (resolved.error) {
-    return <DetailRouteFailure error={resolved.error} fallbackPath="/proxy-hosts" />;
+    return <DetailRouteFailure error={resolved.error} fallbackPath="/routes" />;
   }
-  if (!resolved.data) return <Navigate to="/proxy-hosts" replace />;
+  if (!resolved.data) return <Navigate to="/routes" replace />;
   return (
     <ProxyHostDetail
       resolvedProxyHostId={resolved.data.id}
       resolvedProxySlug={resolved.data.slug}
     />
   );
-}
-
-function ProxyHostsPageGuard({ create = false }: { create?: boolean } = {}) {
-  const hasScope = useAuthStore((s) => s.hasScope);
-  const hasScopedAccess = useAuthStore((s) => s.hasScopedAccess);
-
-  if (!hasScopedAccess("proxy:view") && !hasScope("proxy:folders:manage")) {
-    return <Navigate to="/" replace />;
-  }
-
-  return <ProxyHosts initialCreateDialogOpen={create} />;
 }
 
 function PagesPageGuard() {
@@ -564,18 +547,6 @@ function PageProjectDetailGuard() {
   );
 }
 
-function CAsPageGuard() {
-  const hasScopedAccess = useAuthStore((s) => s.hasScopedAccess);
-  const pkiEnabled = useSystemConfigStore((s) => s.config.features.pkiEnabled);
-
-  // pki:ca:view is CA-scopable: any CA view grant opens the list (filtered by the backend).
-  if (!pkiEnabled || !hasScopedAccess("pki:ca:view")) {
-    return <Navigate to="/" replace />;
-  }
-
-  return <CAs />;
-}
-
 function CADetailGuard() {
   const { id } = useParams<{ id: string }>();
   const hasScope = useAuthStore((s) => s.hasScope);
@@ -598,27 +569,6 @@ function CertificateDetailGuard() {
   }
 
   return <CertificateDetail />;
-}
-
-export function CertificatesPageGuard() {
-  const hasScopedAccess = useAuthStore((s) => s.hasScopedAccess);
-  const pkiEnabled = useSystemConfigStore((s) => s.config.features.pkiEnabled);
-
-  if (!pkiEnabled || !hasScopedAccess("pki:cert:view")) {
-    return <Navigate to="/" replace />;
-  }
-
-  return <Certificates />;
-}
-
-export function DomainsPageGuard() {
-  const hasScopedAccess = useAuthStore((s) => s.hasScopedAccess);
-
-  if (!hasScopedAccess("domains:view")) {
-    return <Navigate to="/" replace />;
-  }
-
-  return <Domains />;
 }
 
 function NginxTemplateEditGuard() {
@@ -1564,26 +1514,29 @@ function GatewayApp() {
                   </AppsPageGuard>
                 }
               />
-              <Route path="/proxy-hosts" element={<ProxyHostsPageGuard />} />
-              <Route path="/proxy-hosts/new" element={<ProxyHostsPageGuard create />} />
+              {NAVIGATION_HUBS.flatMap((hub) =>
+                hub.tabs.map((tab) => (
+                  <Route
+                    key={tab.path}
+                    path={tab.path}
+                    element={<NavigationHubPage hubId={hub.id} tab={tab.value} />}
+                  />
+                ))
+              )}
+              <Route
+                path="/routes/new"
+                element={<NavigationHubPage hubId="routes" tab="routes" create />}
+              />
+              <Route path="/proxy-hosts" element={<LegacyNavigationRedirect />} />
+              <Route path="/proxy-hosts/new" element={<LegacyNavigationRedirect />} />
               <Route path="/proxy-hosts/:proxySlug/:tab?" element={<ProxyHostDetailGuard />} />
               <Route path="/pages/:projectSlug/:tab?" element={<PageProjectDetailGuard />} />
               <Route path="/pages" element={<PagesPageGuard />} />
               <Route path="/nginx-templates/new" element={<NginxTemplateEditGuard />} />
               <Route path="/nginx-templates/:id" element={<NginxTemplateEditGuard />} />
-              <Route
-                path="/ssl-certificates"
-                element={scoped("ssl:cert:view", <SSLCertificates />)}
-              />
-              <Route path="/domains" element={<DomainsPageGuard />} />
-              <Route
-                path="/ingress-groups"
-                element={
-                  <IngressGroupsGuard>
-                    <IngressGroups />
-                  </IngressGroupsGuard>
-                }
-              />
+              <Route path="/ssl-certificates/*" element={<LegacyNavigationRedirect />} />
+              <Route path="/domains/*" element={<LegacyNavigationRedirect />} />
+              <Route path="/ingress-groups" element={<LegacyNavigationRedirect />} />
               <Route
                 path="/ingress-groups/:groupId"
                 element={
@@ -1592,12 +1545,11 @@ function GatewayApp() {
                   </IngressGroupsGuard>
                 }
               />
-              <Route path="/access-lists" element={scoped("acl:view", <AccessLists />)} />
-              <Route path="/cas" element={<CAsPageGuard />} />
+              <Route path="/access-lists/*" element={<LegacyNavigationRedirect />} />
+              <Route path="/cas" element={<LegacyNavigationRedirect />} />
               <Route path="/cas/:id" element={<CADetailGuard />} />
-              <Route path="/certificates" element={<CertificatesPageGuard />} />
               <Route path="/certificates/:id" element={<CertificateDetailGuard />} />
-              <Route path="/templates/:tab?" element={<TemplatesPage />} />
+              <Route path="/templates/*" element={<LegacyNavigationRedirect />} />
               <Route path="/administration" element={<AdministrationPageGuard />} />
               <Route path="/administration/:tab" element={<AdministrationPageGuard />} />
               <Route

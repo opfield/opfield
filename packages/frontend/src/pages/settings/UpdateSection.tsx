@@ -4,6 +4,7 @@ import Markdown from "react-markdown";
 import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { DetailRow } from "@/components/common/DetailRow";
+import { OpfieldMark } from "@/components/common/OpfieldMark";
 import { PanelShell } from "@/components/common/PanelShell";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import { Badge } from "@/components/ui/badge";
@@ -293,7 +294,7 @@ export function UpdateSection({ canUpdate }: UpdateSectionProps) {
       >
         <div className="border-b border-border p-4">
           <div className="flex items-center gap-4">
-            <img src="/android-chrome-192x192.png" alt="Opfield" className="h-10 w-10" />
+            <OpfieldMark className="h-10 w-10" />
             <div>
               <p className="text-sm font-semibold">Opfield</p>
               <p className="text-xs text-muted-foreground">Infrastructure control plane</p>

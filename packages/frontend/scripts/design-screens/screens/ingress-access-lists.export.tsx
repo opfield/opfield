@@ -8,7 +8,7 @@ it("ingress-access-lists", async () => {
     id: "ingress-access-lists",
     title: "Access Lists",
     group: "Ingress",
-    route: "/access-lists",
+    route: "/routes/access-lists",
     handlers: [...accessListHandlers(), ...backgroundPrewarmHandlers()],
     ready: async () => {
       await screen.findByText("Support portal");

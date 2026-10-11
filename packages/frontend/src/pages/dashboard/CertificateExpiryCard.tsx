@@ -40,7 +40,7 @@ export function CertificateExpiryCard({ expiringItems: visible }: CertificateExp
                   ? `/cas/${item.id}`
                   : item.type === "pki"
                     ? `/certificates/${item.id}`
-                    : "/ssl-certificates"
+                    : "/certificates"
               }
               className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors"
             >

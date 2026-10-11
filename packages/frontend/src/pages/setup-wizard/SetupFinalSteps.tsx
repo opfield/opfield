@@ -53,7 +53,7 @@ export function LicenseStep({
           Community is available for internal and other noncompeting use under the{" "}
           <a
             className="underline underline-offset-4 hover:text-foreground"
-            href="https://github.com/the-square-labs/gateway/blob/main/LICENSE.md"
+            href="https://github.com/opfield/opfield/blob/main/LICENSE.md"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -63,7 +63,7 @@ export function LicenseStep({
           activating it, you agree to the{" "}
           <a
             className="underline underline-offset-4 hover:text-foreground"
-            href="https://github.com/the-square-labs/gateway/blob/main/COMMERCIAL-LICENSE.md"
+            href="https://github.com/opfield/opfield/blob/main/COMMERCIAL-LICENSE.md"
             target="_blank"
             rel="noopener noreferrer"
           >

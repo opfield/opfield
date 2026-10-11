@@ -55,6 +55,9 @@ type Value struct {
 	Final *Final `json:"fin,omitempty"`
 	// Forced records the last forced promotion (AS10), for reports and audit.
 	Forced *Forced `json:"fr,omitempty"`
+	// SystemID is the database cluster's system identifier, certified by the
+	// holder: a member whose cluster has another one never takes over.
+	SystemID string `json:"sid,omitempty"`
 }
 
 // Final is the designated successor of a planned switchover and the LSN it

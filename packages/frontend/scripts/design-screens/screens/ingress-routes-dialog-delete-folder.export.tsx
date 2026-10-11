@@ -10,7 +10,7 @@ it("ingress-routes-dialog-delete-folder", async () => {
     id: "ingress-routes-dialog-delete-folder",
     title: "Routes · Delete Folder",
     group: "Ingress",
-    route: "/proxy-hosts",
+    route: "/routes",
     handlers: routeHandlers(),
     before: expandRouteFolders,
     ready: async () => {

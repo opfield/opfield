@@ -2,6 +2,8 @@ import { container } from '@/container.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { RELEASE_VERSION_PATTERN } from '@/lib/semver.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { AuthService } from '@/modules/auth/auth.service.js';
+import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
 import { enrollmentInstallation, publicUrlFallbackGateway } from '@/modules/nodes/node-installer.js';
 import { CreateNodeSchema } from '@/modules/nodes/nodes.schemas.js';
 import { NodesService } from '@/modules/nodes/nodes.service.js';
@@ -10,6 +12,7 @@ import { SetupAccessService } from '@/modules/setup/setup-access.service.js';
 import { SetupTokenPolicyService } from '@/modules/setup/setup-token-policy.js';
 import { EventBusService } from '@/services/event-bus.service.js';
 import { UpdateService } from '@/services/update.service.js';
+import { CloudLinkService } from './cloud-link.service.js';
 import {
   CLOUD_NODE_KINDS,
   type CloudLinkActions,
@@ -26,7 +29,8 @@ const MAX_NODE_NAME_LENGTH = 255;
 
 /**
  * What the cloud account may do over the link besides reading, each the same mechanism the product already has:
- * the first-admin setup code of setup-code.js, Nodes → Add node, and the Update now of Settings.
+ * the first-admin setup code of setup-code.js, Nodes → Add node, the Update now of Settings, and a new client secret
+ * of the Opfield account sign-in (managed installations only).
  */
 export function createCloudLinkActions(): CloudLinkActions {
   return {
@@ -84,6 +88,15 @@ export function createCloudLinkActions(): CloudLinkActions {
           operation?.status === 'updating' ||
           operation?.status === 'waiting_for_operations',
       };
+    },
+
+    // The account portal rotated the client of the Opfield account sign-in: stored encrypted, used at the next sign-in
+    // on every replica (the discovery cache follows the stored client).
+    async ssoSecret(clientSecret) {
+      await container.resolve(OidcSettingsService).rotateOpfieldAccountSecret(clientSecret);
+      container.resolve(AuthService).invalidateOidcConfiguration();
+      await container.resolve(CloudLinkService).recordManagedSso({ step: 'secret_rotated', source: 'cloud-link' });
+      return { saved: true };
     },
 
     // Mirrors POST /api/system/update (Settings → Update now).

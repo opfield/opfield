@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "complete": true,
-  "privateSourceRepository": "gateway-commercial",
+  "privateSourceRepository": "opfield-commercial",
   "removedBackendSources": [
     "modules/integrations/gitlab-client.ts",
     "modules/integrations/gitlab-provider.ts",

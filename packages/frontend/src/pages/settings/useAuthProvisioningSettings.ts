@@ -106,6 +106,7 @@ const DEFAULT_OIDC_DRAFT = {
   clientSecret: "",
   redirectUri: "",
   scopes: "openid email profile",
+  displayName: "",
 };
 const DEFAULT_LOGGING_DRAFT = {
   mode: "disabled" as "disabled" | "local" | "external",
@@ -169,6 +170,7 @@ function oidcDraftFrom(settings: AuthProvisioningSettings | null | undefined) {
     clientSecret: "",
     redirectUri: settings.oidc?.redirectUri ?? "",
     scopes: settings.oidc?.scopes ?? "openid email profile",
+    displayName: settings.oidc?.displayName ?? "",
   };
 }
 
@@ -489,6 +491,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
           ...(oidcDraft.clientSecret ? { clientSecret: oidcDraft.clientSecret } : {}),
           redirectUri: oidcDraft.redirectUri.trim(),
           scopes: oidcDraft.scopes.trim(),
+          displayName: oidcDraft.displayName.trim() || null,
         },
       });
       applySettings(withDefaultGeneralSettings(updated)!);
@@ -990,7 +993,8 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
         oidcDraft.clientId.trim() !== (settings.oidc?.clientId ?? "") ||
         oidcDraft.clientSecret.length > 0 ||
         oidcDraft.redirectUri.trim() !== (settings.oidc?.redirectUri ?? "") ||
-        oidcDraft.scopes.trim() !== (settings.oidc?.scopes ?? "openid email profile"))
+        oidcDraft.scopes.trim() !== (settings.oidc?.scopes ?? "openid email profile") ||
+        oidcDraft.displayName.trim() !== (settings.oidc?.displayName ?? ""))
   );
   const loggingHasChanges = Boolean(
     settings &&

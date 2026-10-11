@@ -10,7 +10,7 @@ import { DEFAULT_RELAY_SERVICE_PORT, requestedRelayServicePort } from '@/service
 // The update Worker serves a release's installers in GitHub's release download layout.
 const RELEASE_DOWNLOADS = `${INSTALLER_RELEASES_URL}/download`;
 // An unreleased build has no release assets of its own, so its commands run the installers from main.
-const MAIN_INSTALLERS = 'https://raw.githubusercontent.com/the-square-labs/gateway/main/scripts';
+const MAIN_INSTALLERS = 'https://raw.githubusercontent.com/opfield/opfield/main/scripts';
 const INSTALLER_CHECKSUMS = 'gateway-daemon-installers.sha256';
 
 const NODE_INSTALLERS: Readonly<Record<string, string>> = {

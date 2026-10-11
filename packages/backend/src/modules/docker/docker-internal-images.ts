@@ -1,3 +1,5 @@
+import { OFFICIAL_IMAGE_REPOSITORIES } from '@/config/vendor-urls.js';
+
 export type GatewayInternalImageKind =
   | 'secure-link-connector'
   | 'database-connector'
@@ -36,6 +38,14 @@ function normalizedRepository(reference: string): string {
 
 function normalizedReference(reference: string): string {
   return reference.replace(/^index\.docker\.io\//, 'docker.io/');
+}
+
+/** Whether a repository is `<name>` under a Gateway image repository: any `…/gateway/<name>`, or an official one. */
+function isGatewayComponentRepository(repository: string, name: string): boolean {
+  return (
+    repository.endsWith(`/gateway/${name}`) ||
+    OFFICIAL_IMAGE_REPOSITORIES.some((official) => repository === `${official}/${name}`)
+  );
 }
 
 function normalizedImageId(identifier: string): string {
@@ -153,10 +163,13 @@ export function resolvePulledDockerImage<T extends DockerImageLike>(
 export function gatewayInternalImageKind(image: DockerImageLike): GatewayInternalImageKind | null {
   for (const reference of dockerImageReferences(image)) {
     const repository = normalizedRepository(reference);
-    if (repository === 'gateway-secure-link-connector' || repository.endsWith('/gateway/secure-link-connector')) {
+    if (
+      repository === 'gateway-secure-link-connector' ||
+      isGatewayComponentRepository(repository, 'secure-link-connector')
+    ) {
       return 'secure-link-connector';
     }
-    if (repository === 'gateway-database-connector' || repository.endsWith('/gateway/database-connector')) {
+    if (repository === 'gateway-database-connector' || isGatewayComponentRepository(repository, 'database-connector')) {
       return 'database-connector';
     }
     if (repository === 'docker/compose-bin' || repository === 'docker.io/docker/compose-bin') {

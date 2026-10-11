@@ -11,7 +11,7 @@ it("ingress-dialog-add-domain", async () => {
     id: "ingress-dialog-add-domain",
     title: "Add Domain dialog",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     handlers: [...domainPreviewHandlers(), ...domainsHandlers(), ...backgroundPrewarmHandlers()],
     ready: async () => {
       await screen.findByText("grafana.example.com");

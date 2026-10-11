@@ -9,7 +9,7 @@ it("ingress-routes-empty", async () => {
     id: "ingress-routes-empty",
     title: "Routes · Empty",
     group: "Ingress",
-    route: "/proxy-hosts",
+    route: "/routes",
     handlers: [
       http.get("*/api/proxy-host-folders/grouped", () =>
         wrapped({ folders: [], ungroupedHosts: [], totalHosts: 0 })

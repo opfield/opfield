@@ -80,10 +80,10 @@ const ASSETS = [
     [path.join(FRONTEND, "public/mstile-70x70.png"), "mstile-70x70.png", "Windows tile, 70px."],
   ] },
   { group: "Editions", files: [
-    [path.join(FRONTEND, "public/license/wiolett-gw-personal.png"), "wiolett-gw-personal.png", "Personal edition badge, 128px (licence settings)."],
-    [path.join(FRONTEND, "public/license/wiolett-gw-community.png"), "wiolett-gw-community.png", "Community edition badge, 128px."],
-    [path.join(FRONTEND, "public/license/wiolett-gw-business.png"), "wiolett-gw-business.png", "Business edition badge, 128px."],
-    [path.join(FRONTEND, "public/license/wiolett-gw-enterprise.png"), "wiolett-gw-enterprise.png", "Enterprise edition badge, 128px."],
+    [path.join(FRONTEND, "public/license/opfield-personal.png"), "opfield-personal.png", "Personal edition badge, 128px (licence settings)."],
+    [path.join(FRONTEND, "public/license/opfield-community.png"), "opfield-community.png", "Community edition badge, 128px."],
+    [path.join(FRONTEND, "public/license/opfield-business.png"), "opfield-business.png", "Business edition badge, 128px."],
+    [path.join(FRONTEND, "public/license/opfield-enterprise.png"), "opfield-enterprise.png", "Enterprise edition badge, 128px."],
   ] },
 ];
 

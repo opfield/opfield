@@ -9,7 +9,7 @@ it("ingress-routes-dialog-rename-folder", async () => {
     id: "ingress-routes-dialog-rename-folder",
     title: "Routes · Rename Folder",
     group: "Ingress",
-    route: "/proxy-hosts",
+    route: "/routes",
     handlers: routeHandlers(),
     before: expandRouteFolders,
     ready: async () => {

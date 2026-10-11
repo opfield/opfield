@@ -187,8 +187,17 @@ export function planRelayWitnesses(
   return plan;
 }
 
-function witnessRowStatus(state: string): string {
+/** A Keeper witness may wait this long for a quorum of its voters before it counts as failed. */
+export const WITNESS_QUORUM_WAIT_MS = 10 * 60_000;
+
+/**
+ * The witness row status of what a relay reports. A Keeper witness that runs but has no quorum yet (the relay reports
+ * it starting, or, past its health bound, failing with "no quorum yet") is `waiting_quorum`: during a convert its
+ * voters only join after the members restart, so this is the normal bootstrap, not a failure.
+ */
+export function witnessRowStatus(state: string, error = ''): string {
   if (state === 'running' || state === 'staged') return 'ready';
+  if (state === 'starting' || (state === 'error' && /no quorum/i.test(error))) return 'waiting_quorum';
   if (state === 'error' || state === 'refused') return 'error';
   return 'pending';
 }
@@ -404,6 +413,7 @@ export class RelayWitnessService {
         observedState: managedAvailabilityWitnesses.observedState,
         status: managedAvailabilityWitnesses.status,
         lastError: managedAvailabilityWitnesses.lastError,
+        updatedAt: managedAvailabilityWitnesses.updatedAt,
       })
       .from(managedAvailabilityWitnesses)
       .where(
@@ -418,9 +428,22 @@ export class RelayWitnessService {
       if (!row) continue;
       const next = {
         observedState: status.state.slice(0, 32),
-        status: witnessRowStatus(status.state),
+        status: witnessRowStatus(status.state, status.error ?? ''),
         lastError: status.error ? status.error.slice(0, 1000) : null,
       };
+      if (
+        next.status === 'waiting_quorum' &&
+        row.status === 'waiting_quorum' &&
+        Date.now() - row.updatedAt.getTime() >= WITNESS_QUORUM_WAIT_MS
+      ) {
+        // Waiting since the row became waiting_quorum (identical reports do not touch it): it failed after all.
+        next.status = 'error';
+        next.lastError =
+          `The Keeper witness has had no quorum for ${WITNESS_QUORUM_WAIT_MS / 60_000} minutes${status.error ? `: ${status.error}` : ''}`.slice(
+            0,
+            1000
+          );
+      }
       if (row.observedState === next.observedState && row.status === next.status && row.lastError === next.lastError) {
         continue;
       }

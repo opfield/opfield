@@ -12,6 +12,7 @@ import {
 import { InterfaceChoiceDialog } from "@/components/ai/InterfaceChoiceDialog";
 import { CommandPalette } from "@/components/common/CommandPalette";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { OpfieldMark } from "@/components/common/OpfieldMark";
 import { PageTransition } from "@/components/common/PageTransition";
 import { DemoModeDialog } from "@/components/demo/DemoModeDialog";
 import { LicenseUpgradeDialog } from "@/components/license/LicenseUpgradeDialog";
@@ -539,17 +540,17 @@ export function DashboardLayout() {
         switch (e.key) {
           case "h":
             e.preventDefault();
-            navigate("/proxy-hosts/new");
+            navigate("/routes/new");
             break;
           case "s":
             e.preventDefault();
-            navigate("/ssl-certificates");
+            navigate("/certificates");
             useUIStore.getState().openModal("createSSLCert");
             break;
           case "r":
             e.preventDefault();
             if (!features.pkiEnabled) break;
-            navigate("/cas");
+            navigate("/certificates/authorities");
             useUIStore.getState().openModal("createCA");
             break;
         }
@@ -654,7 +655,7 @@ export function DashboardLayout() {
                 <Menu className="h-5 w-5" />
               </Button>
               <span className="ml-2 flex items-center gap-1.5 text-sm font-semibold">
-                <img src="/android-chrome-192x192.png" alt="Opfield" className="h-5 w-5" />
+                <OpfieldMark className="h-5 w-5" />
                 Opfield
               </span>
               <div className="ml-2">

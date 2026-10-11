@@ -1,11 +1,11 @@
 ---
 name: observability
-description: Work with Opfield observability, including Opfield's own health, resources and logs, structured-logging environments, schemas, ingest tokens, and log search, alert rules and notification webhooks, SIEM audit export, public status pages and incidents, and the audit log. Use when asked to search logs, set up log ingestion, create or debug an alert or webhook, export audit events to a SIEM, manage a status page or incident, or find who changed something. Use after using-gateway has confirmed the Opfield MCP connection.
+description: Work with Opfield observability, including Opfield's own health, resources and logs, structured-logging environments, schemas, ingest tokens, and log search, alert rules and notification webhooks, SIEM audit export, public status pages and incidents, and the audit log. Use when asked to search logs, set up log ingestion, create or debug an alert or webhook, export audit events to a SIEM, manage a status page or incident, or find who changed something. Use after using-opfield has confirmed the Opfield MCP connection.
 ---
 
 # Observability
 
-Start with `using-gateway` for connection, discovery, and safety rules. For an incident, begin with its diagnosis reference and use this skill for the logs, alerts, and audit evidence. Read `read_gateway_documentation({ topic })` with `logging`, `notifications`, `siem`, `status-page`, or `audit` before an unfamiliar workflow.
+Start with `using-opfield` for connection, discovery, and safety rules. For an incident, begin with its diagnosis reference and use this skill for the logs, alerts, and audit evidence. Read `read_gateway_documentation({ topic })` with `logging`, `notifications`, `siem`, `status-page`, or `audit` before an unfamiliar workflow.
 
 ## Opfield itself
 

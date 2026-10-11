@@ -9,7 +9,7 @@ it("certs-dialog-issue-3-review", async () => {
     id: "certs-dialog-issue-3-review",
     title: "Issue Certificate · Review",
     group: "Certificates",
-    route: "/certificates",
+    route: "/certificates/pki",
     handlers: [...pkiHandlers(), ...backgroundPrewarmHandlers()],
     before: preparePkiLists,
     ready: async () => {

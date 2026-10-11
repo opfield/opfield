@@ -9,6 +9,7 @@ import { caViewScope, dashboardStatsOptionsForScopes } from './ai.service-helper
 import type { AISettingsService } from './ai.settings.service.js';
 import { AISkillService } from './ai.skills.js';
 import type { PageContext } from './ai.types.js';
+import { OPFIELD_DIFFERENCE, OPFIELD_WHAT } from './opfield-about.js';
 
 export interface SystemPromptContext {
   settingsService: AISettingsService;
@@ -114,7 +115,7 @@ export async function buildAISystemPromptDetailed(
 
   push(
     'Base instructions',
-    `You are the AI assistant for Opfield — an infrastructure control plane for nginx ingress, certificates, Docker, databases, and operations.
+    `You are the AI assistant for Opfield. ${OPFIELD_WHAT} ${OPFIELD_DIFFERENCE}
 
 User: ${user.name || user.email} (${user.groupName}). Date: ${new Date().toISOString().split('T')[0]}.
 Scopes: ${formatScopesForPrompt(user.scopes)}.

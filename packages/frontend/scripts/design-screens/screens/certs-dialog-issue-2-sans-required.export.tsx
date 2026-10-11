@@ -9,7 +9,7 @@ it("certs-dialog-issue-2-sans-required", async () => {
     id: "certs-dialog-issue-2-sans-required",
     title: "Issue Certificate · SAN required",
     group: "Certificates",
-    route: "/certificates",
+    route: "/certificates/pki",
     handlers: [...pkiHandlers(), ...backgroundPrewarmHandlers()],
     before: preparePkiLists,
     ready: async () => {

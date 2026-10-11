@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, uti
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { OFFICIAL_IMAGE_REPOSITORIES } from '@/config/vendor-urls.js';
 import { relayInstances, relayPoolUpdateRuns, relayPoolUpdateSteps } from '@/db/schema/index.js';
 import type { TrustedGatewayUpdateArtifact, TrustedRelayUpdateArtifact } from '@/lib/update-artifact-trust.js';
 import {
@@ -665,6 +666,24 @@ describe('UpdateService foundation migration', () => {
     expect(dockerService.pullImageRef).toHaveBeenNthCalledWith(1, relay.imageRef);
   });
 
+  it('accepts signed images from both official repositories by default', async () => {
+    for (const repository of OFFICIAL_IMAGE_REPOSITORIES) {
+      const dockerService = makeDockerService();
+      const service = makeUpdateService(dockerService, undefined, {
+        GATEWAY_UPDATE_IMAGE_REPOSITORIES: OFFICIAL_IMAGE_REPOSITORIES.join(','),
+      });
+      const relay = makeRelayArtifact();
+      relay.imageRef = `${repository}/relay@${relay.digest}`;
+      relay.payload.image = `${repository}/relay`;
+      relay.payload.imageRef = relay.imageRef;
+
+      await service.performRelayUpdate('v2.4.3', relay);
+
+      expect(dockerService.pullImageRef).toHaveBeenNthCalledWith(1, relay.imageRef);
+    }
+    expect(OFFICIAL_IMAGE_REPOSITORIES).toEqual(['ghcr.io/opfield/opfield', 'ghcr.io/the-square-labs/gateway']);
+  });
+
   it('rejects a signed Relay artifact outside the configured repository allowlist', async () => {
     const dockerService = makeDockerService();
     const service = makeUpdateService(dockerService, undefined, {
@@ -767,6 +786,44 @@ describe('UpdateService foundation migration', () => {
     await service.performUpdate('v2.4.3', artifact);
 
     expect(dockerService.pullImageRef).toHaveBeenCalledWith(artifact.imageRef);
+  });
+
+  it('updates an install running the earlier repository to a release signed for either official repository', async () => {
+    for (const repository of OFFICIAL_IMAGE_REPOSITORIES) {
+      const dockerService = makeDockerService();
+      dockerService.inspectSelf.mockResolvedValue({
+        Config: {
+          Image: 'ghcr.io/the-square-labs/gateway:v2.11.5',
+          Labels: {
+            'com.docker.compose.project.working_dir': '/srv/gateway',
+            'com.docker.compose.project': 'gateway',
+          },
+        },
+      });
+      const service = makeUpdateService(dockerService, undefined, {
+        GATEWAY_UPDATE_IMAGE_REPOSITORIES: OFFICIAL_IMAGE_REPOSITORIES.join(','),
+      });
+      const artifact = makeArtifact(`${repository}@sha256:${'c'.repeat(64)}`);
+      artifact.payload.image = repository;
+
+      await service.performUpdate('v2.4.3', artifact);
+
+      expect(dockerService.pullImageRef).toHaveBeenCalledWith(artifact.imageRef);
+    }
+  });
+
+  it('still refuses a signed Gateway image outside the official repositories', async () => {
+    const dockerService = makeDockerService();
+    const service = makeUpdateService(dockerService, undefined, {
+      GATEWAY_UPDATE_IMAGE_REPOSITORIES: OFFICIAL_IMAGE_REPOSITORIES.join(','),
+    });
+    const artifact = makeArtifact(`ghcr.io/opfield/other@sha256:${'c'.repeat(64)}`);
+    artifact.payload.image = 'ghcr.io/opfield/other';
+
+    await expect(service.performUpdate('v2.4.3', artifact)).rejects.toThrow(
+      'is not an allowed Opfield image repository'
+    );
+    expect(dockerService.pullImageRef).not.toHaveBeenCalled();
   });
 
   it('prepares a custom sandbox workspace directory from the migrator output', async () => {

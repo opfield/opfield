@@ -32,6 +32,10 @@ type ServerStatus struct {
 	LatestEndLSN LSN
 	// ServerVersion is server_version_num.
 	ServerVersion int
+	// SystemID is the cluster's system identifier (pg_control_system): a
+	// copy of the primary has the primary's; a cluster created on its own
+	// (initdb) has another and can never stream from it.
+	SystemID string
 }
 
 // Position is the standby's durable WAL position: what it would have after

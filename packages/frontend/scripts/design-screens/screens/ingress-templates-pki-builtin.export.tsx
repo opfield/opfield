@@ -10,7 +10,7 @@ it("ingress-templates-pki-builtin", async () => {
     id: "ingress-templates-pki-builtin",
     title: "Templates · PKI built-in template",
     group: "Ingress",
-    route: "/templates/pki",
+    route: "/certificates/templates",
     before: preparePkiLists,
     handlers: [...pkiHandlers(), ...backgroundPrewarmHandlers()],
     ready: async () => {

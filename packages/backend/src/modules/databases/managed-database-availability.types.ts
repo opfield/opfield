@@ -101,7 +101,8 @@ export interface ManagedAvailabilityMembersPort {
     onlyMemberId?: string
   ): Promise<Array<{ memberId: string; nodeId: string; error: string; refused: boolean }>>;
   removeMember(setId: string, memberId: string, nodeId: string): Promise<CommandResult | null>;
-  assignPrimary(setId: string, assignment: AvailabilityPrimaryAssignment): Promise<string[]>;
+  /** Sends a signed assignment to every member, or only to onlyMemberId (a planned manual switch's step-down). */
+  assignPrimary(setId: string, assignment: AvailabilityPrimaryAssignment, onlyMemberId?: string): Promise<string[]>;
   switchover(
     setId: string,
     holderNodeId: string,

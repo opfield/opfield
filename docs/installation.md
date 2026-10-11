@@ -76,6 +76,19 @@ When the UI/API is behind Cloudflare or another web proxy, choose a direct host 
 
 Finish the wizard before using Opfield. The setup session and one-time code are invalidated at completion.
 
+## Managed Cloud Installations
+
+A managed installation bought in the Opfield account comes up ready, without the wizard. Its provisioning leaves `/var/lib/gateway/cloud-enroll.json` in the app container; on first start Opfield connects to the cloud account, activates the license key and, when the file names the account's sign-in client and owner:
+
+- sets the public URL (and, when unset, the public gRPC target to its host);
+- adds an OIDC provider named "Opfield account" with `https://account.opfield.dev` as issuer and the client created for this installation (redirect URI `<public URL>/auth/callback`);
+- creates the owner of the account as system administrator, bound to that account;
+- marks setup complete.
+
+These steps happen together or not at all: if one fails, nothing is kept and the installation stays on the setup code flow. The client secret is stored encrypted and removed from the file; the whole file is removed once every step finished. Each step is in the audit log as `cloud.managed_sso`, without secrets.
+
+Open the installation and choose **Sign in with Opfield account**. Add other users later from Users, with your own SSO, password, or email code. The provider is a normal OIDC provider: rename it in Settings > Authentication, or replace it with your own SSO once another administrator can sign in another way; Opfield refuses a change after which no administrator could sign in. A managed installation whose file has no sign-in client or owner uses the setup code flow above. Self-hosted installations are unchanged.
+
 ## Native HTTPS And Reverse Proxies
 
 Native HTTPS and HTTP use the same port, `3000`. Native HTTPS uses a dedicated `gateway-web` leaf certificate issued by the existing Opfield System CA; it does not create a second root CA.

@@ -8,7 +8,7 @@ export const databaseRoute = (slug: string, tab?: string) =>
   withTab(`/databases/${segment(slug)}`, tab);
 export const proxyHostRoute = (slug: string, tab?: string) =>
   withTab(`/proxy-hosts/${segment(slug)}`, tab);
-export const ingressGroupsRoute = () => "/ingress-groups";
+export const ingressGroupsRoute = () => "/routes/ingress-groups";
 export const ingressGroupRoute = (id: string) => `/ingress-groups/${segment(id)}`;
 export const pageProjectRoute = (slug: string, tab?: string) =>
   withTab(`/pages/${segment(slug)}`, tab);

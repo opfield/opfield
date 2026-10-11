@@ -64,7 +64,7 @@ export function QuickStatsCard({
           value={displayStats.proxyHosts.total}
           icon={Globe}
           subtitle={`${displayStats.proxyHosts.online} online, ${displayStats.proxyHosts.offline} offline`}
-          href="/proxy-hosts"
+          href="/routes"
         />
       )}
       {hasScope("ssl:cert:view") && (
@@ -77,7 +77,7 @@ export function QuickStatsCard({
               ? `${displayStats.sslCertificates.expiringSoon} expiring soon`
               : "All certificates valid"
           }
-          href="/ssl-certificates"
+          href="/certificates"
         />
       )}
       {pkiEnabled && hasScope("pki:cert:view") && (
@@ -86,7 +86,7 @@ export function QuickStatsCard({
           value={displayStats.pkiCertificates.active}
           icon={Award}
           subtitle={`${displayStats.pkiCertificates.total} total`}
-          href="/certificates"
+          href="/certificates/pki"
         />
       )}
       {hasScope("nodes:details") && (

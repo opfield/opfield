@@ -123,8 +123,12 @@ type Deps struct {
 	// Async runs background operations; default: a goroutine.
 	Async func(func())
 	// GatewayConnected reports whether the Gateway control session is up
-	// (manual mode self-fence).
+	// (manual mode self-fence when GatewayContactAt is nil).
 	GatewayConnected func() bool
+	// GatewayContactAt is when Gateway last reached this node (a command
+	// arrived), on Clock; 0 when never. A manual primary counts its contact
+	// from it (not from a session that may be dead without knowing it yet).
+	GatewayContactAt func() time.Duration
 	// PeerState asks a manual pair's peer for its primary assignment over the
 	// member mesh; false when the peer does not answer.
 	PeerState func(ctx context.Context, setID, peerMemberID string) (PeerState, bool)
@@ -132,6 +136,10 @@ type Deps struct {
 	// assignment (AssignmentStatement under AssignmentDomain, a trusted relay
 	// policy key). Nil refuses every assignment.
 	VerifyAssignment func(setID string, assignment Assignment) error
+	// Forgotten runs after the runtime forgot a set's member (lift, removal,
+	// set deleted): the node releases what it kept for the set (its member
+	// mesh listeners and network).
+	Forgotten func(setID string)
 }
 
 func (d *Deps) defaults() error {

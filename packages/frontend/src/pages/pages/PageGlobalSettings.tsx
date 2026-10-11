@@ -246,7 +246,7 @@ export function PagesSettingsSection() {
               description={
                 <span>
                   Choose a registered wildcard Domain.{" "}
-                  <Link className="text-primary underline" to="/domains">
+                  <Link className="text-primary underline" to="/routes/domains">
                     Create or manage Domains <ExternalLink className="inline h-3 w-3" />
                   </Link>
                 </span>

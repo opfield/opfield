@@ -94,24 +94,24 @@ For flags, non-interactive installs, custom SSL, OIDC details, updates, and node
 <td align="center"><strong>AI Workspace planning</strong></td>
 </tr>
 <tr>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/dashboard-overview.png" width="100%" alt="Opfield dashboard with routes, databases, nodes, health, and resource utilization"></td>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/ai-workspace.png" width="100%" alt="AI Workspace presenting a reviewed infrastructure deployment plan"></td>
+<td><img src="https://docs.opfield.dev/screenshots/product-tour/dashboard-overview.png" width="100%" alt="Opfield dashboard with routes, databases, nodes, health, and resource utilization"></td>
+<td><img src="https://docs.opfield.dev/screenshots/product-tour/ai-workspace.png" width="100%" alt="AI Workspace presenting a reviewed infrastructure deployment plan"></td>
 </tr>
 <tr>
 <td align="center"><strong>Workload and Secure Link runtime</strong></td>
 <td align="center"><strong>Managed database observability</strong></td>
 </tr>
 <tr>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/container-secure-link.png" width="100%" alt="Docker workload overview with Secure Link runtime metrics"></td>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/managed-database.png" width="100%" alt="Managed PostgreSQL database health and performance overview"></td>
+<td><img src="https://docs.opfield.dev/screenshots/product-tour/container-secure-link.png" width="100%" alt="Docker workload overview with Secure Link runtime metrics"></td>
+<td><img src="https://docs.opfield.dev/screenshots/product-tour/managed-database.png" width="100%" alt="Managed PostgreSQL database health and performance overview"></td>
 </tr>
 <tr>
 <td align="center"><strong>Ingress route and health</strong></td>
 <td align="center"><strong>Distributed node inventory</strong></td>
 </tr>
 <tr>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/ingress-route.png" width="100%" alt="Healthy ingress route backed by a Docker Secure Link"></td>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/nodes.png" width="100%" alt="Opfield node inventory with ingress, Docker, database, monitoring, build, and relay roles"></td>
+<td><img src="https://docs.opfield.dev/screenshots/product-tour/ingress-route.png" width="100%" alt="Healthy ingress route backed by a Docker Secure Link"></td>
+<td><img src="https://docs.opfield.dev/screenshots/product-tour/nodes.png" width="100%" alt="Opfield node inventory with ingress, Docker, database, monitoring, build, and relay roles"></td>
 </tr>
 </table>
 
@@ -234,17 +234,17 @@ Opfield has four product plans. Paid plans apply to one Opfield installation and
 
 Opfield source is available under the [PolyForm Perimeter License 1.0.1](LICENSE.md). It permits use, modification, and redistribution for noncompeting purposes, including ordinary internal business use. A Personal, Business, or Enterprise key unlocks the corresponding paid-plan features and limits under the [Paid Key Terms](COMMERCIAL-LICENSE.md); it does not waive Perimeter's restriction on providing a product marketed as a substitute for Opfield. Competing hosted/SaaS, OEM, white-label, and resale offerings require a separate written agreement with the Licensor.
 
-Every official release also carries the [Product Continuity Grant](CONTINUITY-GRANT.md): if Opfield stops being provided (12 months with no release and no license server, or an end-of-life notice) or the Licensor can no longer act, holders of a valid key keep a perpetual, royalty-free right to use, self-host and modify for their own use the last release, including the commercial core, and to run it without the license server.
+Every official release also carries the [Product Continuity Grant](CONTINUITY-GRANT.md): if Opfield stops being provided (12 consecutive months with no new release while the license service is unavailable, or an end-of-life notice) or the Licensor can no longer act, the source code of the last release, including the commercial core, becomes available to everyone under the MIT License, and holders of a valid key keep a perpetual, royalty-free right to use and self-host that release and to run it without the license service.
 
 > [!NOTE]
 > Pricing is preliminary, does not constitute an offer, and is subject to change. Confirm current pricing and terms before purchase.
 
 | Plan | Monthly | Annual | Scale and focus |
 |------|---------|--------|-----------------|
-| ![Community](docs/assets/license/wiolett-gw-community-24.png)<br>Community | $0 | $0 | Core platform, AI Workspace, and Opfield Inference for internal and other noncompeting use; up to 25 managed nodes, 3 users, and 1 custom permission group; read-only Compose discovery, inventory, monitoring, and logs. Pages, databases, storage, GitLab integration, and AI Workspace Scenarios, Plan Mode, and sandboxes unavailable. |
-| ![Personal](docs/assets/license/wiolett-gw-personal-24.png)<br>Personal | $29 | $290 | Unlimited managed-node/user/group plan quotas, Compose deployment and lifecycle management, container archive import/export, blue/green deployments, cross-node migration, managed databases and external database connections with backups, storage connections and managed SeaweedFS object storage, GitLab integration, AI Workspace Scenarios, Plan Mode, and sandboxes, public status pages, Pages static-site hosting, and registry discovery. Multi-node Workload Availability requires Business or Enterprise. |
-| ![Business](docs/assets/license/wiolett-gw-business-24.png)<br>Business | $189 | $1,890 | Personal (including Compose management and Pages) plus Git push-to-deploy for containers, blue/green deployments, Compose Projects, and Pages with isolated Build Workers and build vulnerability policy, optional external access to the private internal registry, Docker Secure Runtime, structured logging, audit export, guided onboarding, multi-node Workload Availability (HA), and broader security scanning, metric autoscaling, and same-node replicas when released. |
-| ![Enterprise](docs/assets/license/wiolett-gw-enterprise-24.png)<br>Enterprise | On request | On request | Business (including Pages) plus Internal PKI, SIEM export, a dedicated technical contact, and assisted deployment and migration. |
+| ![Community](docs/assets/license/opfield-community-24.png)<br>Community | $0 | $0 | Core platform, AI Workspace, and Opfield Inference for internal and other noncompeting use; up to 25 managed nodes, 3 users, and 1 custom permission group; read-only Compose discovery, inventory, monitoring, and logs. Pages, databases, storage, GitLab integration, and AI Workspace Scenarios, Plan Mode, and sandboxes unavailable. |
+| ![Personal](docs/assets/license/opfield-personal-24.png)<br>Personal | $29 | $290 | Unlimited managed-node/user/group plan quotas, Compose deployment and lifecycle management, container archive import/export, blue/green deployments, cross-node migration, managed databases and external database connections with backups, storage connections and managed SeaweedFS object storage, GitLab integration, AI Workspace Scenarios, Plan Mode, and sandboxes, public status pages, Pages static-site hosting, and registry discovery. Multi-node Workload Availability requires Business or Enterprise. |
+| ![Business](docs/assets/license/opfield-business-24.png)<br>Business | $189 | $1,890 | Personal (including Compose management and Pages) plus Git push-to-deploy for containers, blue/green deployments, Compose Projects, and Pages with isolated Build Workers and build vulnerability policy, optional external access to the private internal registry, Docker Secure Runtime, structured logging, audit export, guided onboarding, multi-node Workload Availability (HA), and broader security scanning, metric autoscaling, and same-node replicas when released. |
+| ![Enterprise](docs/assets/license/opfield-enterprise-24.png)<br>Enterprise | On request | On request | Business (including Pages) plus Internal PKI, SIEM export, a dedicated technical contact, and assisted deployment and migration. |
 
 These Community limits, and the features above that now need Personal or higher, apply from 2.11; 2.10 Community allowed 100 managed nodes, 10 users, and 5 custom permission groups. Plan limits are checked only when something is created, so an installation already above them keeps its existing nodes, users, and groups but cannot add more while it stays at or above a limit.
 

@@ -11,7 +11,7 @@ it("certs-dialog-ssl-internal", async () => {
     id: "certs-dialog-ssl-internal",
     title: "Add SSL Certificate · Internal CA",
     group: "Certificates",
-    route: "/ssl-certificates",
+    route: "/certificates",
     handlers: [
       ...sslHandlers(),
       ...domainsHandlers(),

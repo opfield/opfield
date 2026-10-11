@@ -292,7 +292,7 @@ export function ProxyHostDetail({
         }
         if (!silent) {
           toast.error("Failed to load route");
-          navigate("/proxy-hosts");
+          navigate("/routes");
         }
       } finally {
         if (!silent) setIsLoading(false);
@@ -314,7 +314,7 @@ export function ProxyHostDetail({
     }
     if (ev.action === "deleted") {
       toast.info("Route was deleted");
-      navigate("/proxy-hosts");
+      navigate("/routes");
       return;
     }
     loadHost(true);
@@ -813,7 +813,7 @@ export function ProxyHostDetail({
     usePinnedProxiesStore.getState().removePin(deletingHostId);
     useFolderStore.getState().removeHost(deletingHostId);
     toast.success("Route deleted");
-    navigate("/proxy-hosts");
+    navigate("/routes");
   };
 
   const handleMaintenance = async () => {
@@ -996,7 +996,7 @@ export function ProxyHostDetail({
         {/* ── Header ─────────────────────────────────────────── */}
         <PageHeader
           className="shrink-0"
-          leading={<PageBackButton onClick={() => navigate("/proxy-hosts")} />}
+          leading={<PageBackButton onClick={() => navigate("/routes")} />}
           title={host.domainNames[0] || "Route"}
           badges={
             <>

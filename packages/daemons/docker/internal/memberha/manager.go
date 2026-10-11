@@ -8,6 +8,7 @@ import (
 	"net"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -33,8 +34,12 @@ type Manager struct {
 	store  *Store
 	logger *slog.Logger
 
-	mu       sync.Mutex
-	members  map[string]*member // by set id
+	mu      sync.Mutex
+	members map[string]*member // by set id
+	// configs mirrors each member's configuration for readers that must never
+	// wait for mu (engine hosts call Config from engine constructors and
+	// callbacks; the lease runtime asks Owns on every step).
+	configs  sync.Map // set id -> Config
 	results  []func()
 	watchdog watchdogTracker
 	// watchdogFresh mirrors watchdog.fresh for the lease callbacks, which never take mu.
@@ -135,18 +140,37 @@ func NewManager(deps Deps, store *Store) (*Manager, error) {
 	sort.Strings(ids)
 	for _, id := range ids {
 		entry := stored[id]
-		if _, addErr := m.addMemberLocked(entry.Config, entry.State); addErr != nil {
+		if _, addErr := m.addMember(entry.Config, entry.State); addErr != nil {
 			m.logger.Error("availability member could not be loaded", "set_id", id, "error", addErr)
 		}
 	}
 	return m, nil
 }
 
-func (m *Manager) addMemberLocked(config Config, state MemberState) (*member, error) {
+// addMember opens the member's engine without holding mu (engine constructors
+// call back into the runtime: Config, the member mesh) and then adds it. A
+// member that appeared meanwhile is kept and reported as existing.
+func (m *Manager) addMember(config Config, state MemberState) (*member, error) {
+	m.configs.Store(config.SetID, config)
 	engine, err := m.deps.Engine(config)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if existing := m.members[config.SetID]; existing != nil {
+		m.configs.Store(config.SetID, existing.cfg)
+		return existing, errMemberExists
+	}
 	if err != nil {
+		m.configs.Delete(config.SetID)
 		return nil, err
 	}
+	return m.addMemberWithEngineLocked(config, state, engine), nil
+}
+
+// errMemberExists: another configuration added the member while its engine opened.
+var errMemberExists = errors.New("the member was added meanwhile")
+
+func (m *Manager) addMemberWithEngineLocked(config Config, state MemberState, engine Engine) *member {
+	m.configs.Store(config.SetID, config)
 	mem := &member{cfg: config, state: state, engine: engine}
 	mem.gateStopped.Store(state.Stopped)
 	mem.gatePaused.Store(config.Stopped)
@@ -154,7 +178,7 @@ func (m *Manager) addMemberLocked(config Config, state MemberState) (*member, er
 	if config.Mode == ModeAutomatic {
 		m.registerHandlerLocked(mem)
 	}
-	return mem, nil
+	return mem
 }
 
 // registerHandlerLocked registers the member's lease state handler. The
@@ -222,14 +246,13 @@ func (m *Manager) Owns(policyID string) bool {
 	if policyID == "" {
 		return false
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for _, mem := range m.members {
-		if mem.cfg.LeasePolicyID == policyID {
-			return true
-		}
-	}
-	return false
+	// Never waits for mu: the lease runtime asks on every step.
+	owned := false
+	m.configs.Range(func(_, value any) bool {
+		owned = value.(Config).LeasePolicyID == policyID
+		return !owned
+	})
+	return owned
 }
 
 // ObserveFreeze: a freeze of this host the lease protocol detected; the lease
@@ -545,15 +568,15 @@ func (m *Manager) Members() []string {
 	return out
 }
 
-// Config is the configuration of this node's member of setID.
+// Config is the configuration of this node's member of setID. It never waits
+// for the manager's lock: engine hosts call it from engine constructors and
+// callbacks that run while the manager holds it.
 func (m *Manager) Config(setID string) (Config, bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	mem := m.members[setID]
-	if mem == nil {
+	value, ok := m.configs.Load(setID)
+	if !ok {
 		return Config{}, false
 	}
-	return mem.cfg, true
+	return value.(Config), true
 }
 
 // Configure adds or updates this node's member of a set (Gateway's
@@ -572,22 +595,32 @@ func (m *Manager) Configure(config Config) error {
 		if mem.cfg.MemberID != config.MemberID {
 			return fmt.Errorf("set %s already has member %s on this node", config.SetID, mem.cfg.MemberID)
 		}
+		if reconfigurer, ok := mem.engine.(Reconfigurer); ok {
+			// The engine applies it outside mu (files, a reload of the
+			// engine): reports and the lease runtime never wait for it.
+			m.mu.Unlock()
+			err := reconfigurer.Reconfigure(config)
+			m.mu.Lock()
+			if err != nil {
+				return err
+			}
+			if m.members[config.SetID] != mem || config.ConfigRevision < mem.cfg.ConfigRevision {
+				// Forgotten or configured newer meanwhile.
+				return nil
+			}
+		}
 		if mem.cfg.LeasePolicyID != config.LeasePolicyID && mem.cfg.LeasePolicyID != "" {
 			// A new availability period: the old policy is never adopted again.
 			m.deps.Lease.SetStateHandler(mem.cfg.LeasePolicyID, nil)
 			m.deps.Lease.SetCandidateReady(mem.cfg.LeasePolicyID, false)
 			mem.ready = false
 		}
-		if reconfigurer, ok := mem.engine.(Reconfigurer); ok {
-			if err := reconfigurer.Reconfigure(config); err != nil {
-				return err
-			}
-		}
 		if mem.cfg.Stopped && !config.Stopped {
 			// The pause ends: a primary whose engine is down starts at once.
 			mem.resumeStart = true
 		}
 		mem.cfg = config
+		m.configs.Store(config.SetID, config)
 		mem.state.Stopped = false
 		if err := m.saveLocked(mem); err != nil {
 			return err
@@ -600,7 +633,16 @@ func (m *Manager) Configure(config Config) error {
 	if err := m.store.Save(config, MemberState{}); err != nil {
 		return err
 	}
-	_, err := m.addMemberLocked(config, MemberState{})
+	// The engine opens outside mu (its constructor calls back into the runtime).
+	m.mu.Unlock()
+	_, err := m.addMember(config, MemberState{})
+	m.mu.Lock()
+	if errors.Is(err, errMemberExists) {
+		// Added meanwhile by another configuration: apply this one to it.
+		m.mu.Unlock()
+		err = m.Configure(config)
+		m.mu.Lock()
+	}
 	return err
 }
 
@@ -624,8 +666,23 @@ func (m *Manager) Remove(setID string) error {
 
 // Forget drops a removed member once its container and data are gone.
 func (m *Manager) Forget(setID string) error {
+	err := m.forgetLocked(setID)
+	if m.deps.Forgotten != nil {
+		m.deps.Forgotten(setID)
+	}
+	return err
+}
+
+func (m *Manager) forgetLocked(setID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	// Every published port of the set goes, named ones included.
+	for key, proxy := range m.proxies {
+		if key == setID || strings.HasPrefix(key, setID+"/") {
+			proxy.Close()
+			delete(m.proxies, key)
+		}
+	}
 	mem := m.members[setID]
 	if mem == nil {
 		return nil
@@ -634,11 +691,8 @@ func (m *Manager) Forget(setID string) error {
 		m.deps.Lease.SetStateHandler(mem.cfg.LeasePolicyID, nil)
 		m.deps.Lease.SetCandidateReady(mem.cfg.LeasePolicyID, false)
 	}
-	if proxy := m.proxies[setID]; proxy != nil {
-		proxy.Close()
-		delete(m.proxies, setID)
-	}
 	delete(m.members, setID)
+	m.configs.Delete(setID)
 	return m.store.Delete(setID)
 }
 
@@ -675,12 +729,19 @@ func (m *Manager) adoptAssignmentLocked(mem *member, assignment Assignment, sour
 	if mem.cfg.Mode != ModeManual {
 		return errors.New("only a manual pair has a primary assignment")
 	}
-	if assignment.Generation <= mem.state.Assignment.Generation {
+	current := mem.state.Assignment
+	if assignment.Generation == current.Generation && assignment.PrimaryMemberID == current.PrimaryMemberID && current.Generation > 0 {
+		// The assignment this member holds, confirmed again by Gateway or the peer.
+		mem.manual.confirmedGen = current.Generation
+		return nil
+	}
+	if assignment.Generation <= current.Generation {
 		return nil
 	}
 	if _, ok := mem.cfg.Peer(assignment.PrimaryMemberID); !ok {
 		return errors.New("the assigned primary is no member of the set")
 	}
+	mem.manual.confirmedGen = assignment.Generation
 	mem.state.Assignment = assignment
 	if err := m.saveLocked(mem); err != nil {
 		return err

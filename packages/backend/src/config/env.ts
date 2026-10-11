@@ -1,11 +1,16 @@
 import { z } from 'zod';
-import { DEFAULT_CLOUD_PORTAL_URL, UPDATES_BASE_URL } from './vendor-urls.js';
+import {
+  DEFAULT_CLOUD_PORTAL_URL,
+  OFFICIAL_IMAGE_REPOSITORIES,
+  OFFICIAL_INFERENCE_CORE_IMAGE_REPOSITORIES,
+  UPDATES_BASE_URL,
+} from './vendor-urls.js';
 
 export const DEVELOPMENT_SECURE_LINK_CONNECTOR_IMAGE = 'gateway-secure-link-connector:dev';
 export const BUILT_IN_GITHUB_OAUTH_CLIENT_ID = 'Ov23likbDL1gM8asWzfC';
 const IMMUTABLE_CONNECTOR_IMAGE_PATTERN = /^.+@sha256:[0-9a-f]{64}$/i;
 const OFFICIAL_CONNECTOR_RELEASE_TAG_PATTERN =
-  /^ghcr\.io\/the-square-labs\/gateway\/secure-link-connector:v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?-relay$/;
+  /^ghcr\.io\/(?:opfield\/opfield|the-square-labs\/gateway)\/secure-link-connector:v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?-relay$/;
 const deploymentModeSchema = z.enum(['standard', 'demo']).default('standard');
 
 const optionalNonEmptyString = z.preprocess(
@@ -54,12 +59,30 @@ const envSchema = z.object({
   // Updates
   RELEASES_API_URL: z.string().url().default(`${UPDATES_BASE_URL}/releases`),
   ARTIFACT_BASE_URL: z.string().url().default(UPDATES_BASE_URL),
-  GATEWAY_UPDATE_IMAGE_REPOSITORIES: z.string().default('ghcr.io/the-square-labs/gateway'),
-  INFERENCE_CORE_UPDATE_IMAGE_REPOSITORIES: z.string().default('ghcr.io/the-square-labs/inference-core'),
+  // Signed update images are accepted from the installation's own repository and these (comma-separated).
+  GATEWAY_UPDATE_IMAGE_REPOSITORIES: z.string().default(OFFICIAL_IMAGE_REPOSITORIES.join(',')),
+  INFERENCE_CORE_UPDATE_IMAGE_REPOSITORIES: z.string().default(OFFICIAL_INFERENCE_CORE_IMAGE_REPOSITORIES.join(',')),
   UPDATE_CHECK_INTERVAL_HOURS: z.coerce.number().default(4),
 
   // Cloud account portal that a connected installation enrols with and keeps its cloud link socket to.
   CLOUD_PORTAL_URL: z.string().url().default(DEFAULT_CLOUD_PORTAL_URL),
+
+  // License service address(es), comma-separated, tried before the ones Opfield finds by itself (docs/licensing.md).
+  LICENSE_SERVICE_URL: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z
+      .string()
+      .refine(
+        (value) =>
+          value
+            .split(',')
+            .map((entry) => entry.trim())
+            .filter(Boolean)
+            .every((entry) => URL.canParse(entry) && /^https?:$/.test(new URL(entry).protocol)),
+        'LICENSE_SERVICE_URL must be a comma-separated list of http(s) URLs'
+      )
+      .optional()
+  ),
 
   // Managed inference core. The distribution image repository is derived from
   // the Gateway's own image; the override exists for development/lab installs

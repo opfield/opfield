@@ -1,7 +1,9 @@
+import { OPFIELD_ABOUT_MARKDOWN } from './opfield-about.js';
+
 export const GUIDE_DOCS: Record<string, string> = {
   overview: `# Opfield Overview
 
-Opfield is an infrastructure control plane. It combines secure access management with operations for reverse proxies, Pages, certificates, compute, storage, databases, observability, and integrations.
+${OPFIELD_ABOUT_MARKDOWN}
 
 ## Main Capabilities
 - **Access and administration**: groups, scopes, resource-scoped permissions, audit logs, OIDC/password/email-code sign-in, passkeys, API tokens, OAuth, and MCP.

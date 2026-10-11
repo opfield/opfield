@@ -157,9 +157,11 @@ type DockerPlugin struct {
 	buildEventWriter *stream.Writer
 	sessionCtx       context.Context
 	// sessionLive: a Gateway control session is up (a manual pair's primary self-fences without it and its peer).
-	sessionLive     atomic.Bool
-	logStreamMu     sync.Mutex
-	logStreamCancel map[string]context.CancelFunc // containerId -> cancel
+	sessionLive atomic.Bool
+	// gatewayContactAt: when Gateway's last command arrived (leasefence clock, ns; 0: none yet).
+	gatewayContactAt atomic.Int64
+	logStreamMu      sync.Mutex
+	logStreamCancel  map[string]context.CancelFunc // containerId -> cancel
 }
 
 var _ lifecycle.ProxySecureLinkPlugin = (*DockerPlugin)(nil)

@@ -176,7 +176,7 @@ The assistant can manage the current browser user's Opfield API tokens with mana
 Token scopes must be a subset of the current user's scopes. registryAccess is the token's internal registry access for docker login: { pull?: "all" | [repositories], push?: "all" | [repositories] } (exact repository names; {} removes it). Pull needs view access to a Docker workload or image, push edit or manage on a workload; a token may have registry access and no scopes. Token secrets are returned only by create and cannot be read later. manage_api_token is browser-session-only and is not exposed through MCP.
 
 ## Creating an API Token
-1. Go to **Profile** → **Authorizations** → **API Tokens**
+1. Open **Profile** from the account menu (avatar at the bottom of the sidebar) → **Authorizations** → **API Tokens**
 2. Click **Create Token** → enter a name and select the scopes (permissions) the token should have
 3. Token scopes must be a subset of your own group's scopes — you cannot grant permissions you don't have
 4. The token is shown **once** after creation (prefixed with \`gw_\`) — copy and store it securely

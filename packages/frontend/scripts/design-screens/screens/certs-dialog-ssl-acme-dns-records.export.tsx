@@ -17,7 +17,7 @@ it("certs-dialog-ssl-acme-dns-records", async () => {
     id: "certs-dialog-ssl-acme-dns-records",
     title: "Add SSL Certificate · DNS records to add",
     group: "Certificates",
-    route: "/ssl-certificates",
+    route: "/certificates",
     handlers: [
       ...acmeDnsRecordsHandlers(),
       ...sslHandlers(),

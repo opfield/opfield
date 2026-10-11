@@ -10,7 +10,7 @@ it("ingress-dialog-add-domain-conflict", async () => {
     id: "ingress-dialog-add-domain-conflict",
     title: "Add Domain · Cloudflare record conflict",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     height: 1000,
     handlers: [
       ...addDomainPreviewHandlers("conflict"),

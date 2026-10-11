@@ -11,7 +11,7 @@ it("certs-dialog-ssl-upload", async () => {
     id: "certs-dialog-ssl-upload",
     title: "Add SSL Certificate · Upload",
     group: "Certificates",
-    route: "/ssl-certificates",
+    route: "/certificates",
     handlers: [
       ...sslHandlers(),
       ...domainsHandlers(),

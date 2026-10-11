@@ -50,10 +50,11 @@ export interface SetupApplyInput {
   logging: LoggingSettingsInput;
 }
 
-const FIRST_ADMIN_CLAIM_KEY = 'setup:first_admin_claim';
+/** Held while the first administrator is created (by the wizard, or by a managed installation's enrolment). */
+export const FIRST_ADMIN_CLAIM_KEY = 'setup:first_admin_claim';
 const SETUP_WIZARD_PHASE_KEY = 'setup:wizard_phase';
 const SETUP_AI_WORKSPACE_OUTCOME_KEY = 'setup:ai_workspace_outcome';
-const FIRST_ADMIN_CLAIM_TTL_MS = 10 * 60 * 1000;
+export const FIRST_ADMIN_CLAIM_TTL_MS = 10 * 60 * 1000;
 const logger = createChildLogger('SetupWizard');
 /** General settings the setup wizard writes, and so the only ones its rollback restores. */
 const SETUP_GENERAL_SETTINGS_FIELDS = ['publicUrl', 'gatewayGrpcPublicTarget', 'gatewayGrpcLocalIp'] as const;

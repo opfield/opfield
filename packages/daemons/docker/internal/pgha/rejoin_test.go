@@ -127,6 +127,35 @@ func TestRebuildWhenWALIsGone(t *testing.T) {
 	}
 }
 
+// A copy whose database cluster is not a copy of the primary's (a fresh
+// initdb: the walreceiver reports another system identifier) is never
+// rewound: it is rebuilt from the primary with a base backup.
+func TestRebuildWhenTheClusterIsAnotherOne(t *testing.T) {
+	h := newHarness(t)
+	h.pg.set(func(p *fakePG) { p.startReceiver = "" })
+	divergedStandby(h, `FATAL:  database system identifier differs between the primary and standby`)
+	h.run(12, time.Second)
+	h.requireOrder("pg:stop_clean", "pg:rebuild", "pg:start:recovery=true")
+	h.requireNo("pg:rewind")
+	events := h.events(EventRebuilt)
+	if len(events) != 1 || !strings.Contains(events[0].Reason, "not a copy of the primary") {
+		t.Fatalf("rebuild events = %+v", events)
+	}
+}
+
+// A member of another cluster is never eligible, whatever its positions.
+func TestAnotherClusterIsNeverEligible(t *testing.T) {
+	view := viewData{config: Config{MemberID: "m"}, inRecovery: true, timeline: 1, systemID: "7001"}
+	value, _ := Value{Timeline: 1, Durability: DurabilityAsynchronous, ProgressFloor: 1, SystemID: "7000"}.Encode()
+	if ok, reason := view.evaluate(memberha.EligibilityInput{Adopted: HolderState{Value: value}}); ok || reason != ReasonOtherCluster {
+		t.Fatalf("eligible = %v %s", ok, reason)
+	}
+	view.systemID = "7000"
+	if ok, reason := view.evaluate(memberha.EligibilityInput{Adopted: HolderState{Value: value}}); reason == ReasonOtherCluster {
+		t.Fatalf("the same cluster is judged by its positions: %v %s", ok, reason)
+	}
+}
+
 // A rewind that is impossible falls back to a rebuild.
 func TestImpossibleRewindRebuilds(t *testing.T) {
 	h := newHarness(t)

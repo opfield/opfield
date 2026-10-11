@@ -239,10 +239,16 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
             clientSecret: { type: 'string', description: 'Omit to keep the saved client secret.' },
             redirectUri: { type: 'string' },
             scopes: { type: 'string' },
+            displayName: {
+              type: ['string', 'null'],
+              description:
+                'Name on the sign-in button ("Sign in with <name>"); null or empty shows "Sign in with SSO". Omit to keep it.',
+            },
           },
           required: ['issuer', 'clientId', 'redirectUri'],
           additionalProperties: false,
-          description: 'OIDC/SSO identity provider. Requires admin:system.',
+          description:
+            'OIDC/SSO identity provider. Requires admin:system. Another issuer is refused (LAST_ADMIN_SIGN_IN) when no administrator could sign in afterwards.',
         },
         logging: {
           type: 'object',
@@ -769,7 +775,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'read_gateway_documentation',
     description:
-      'Read Opfield internal operational documentation through remote MCP. Topic access is filtered by the OAuth token scopes; general MCP workflow topics remain available to every authenticated MCP connection.',
+      'Read Opfield internal operational documentation through remote MCP. Start with topic "overview": what Opfield is, how it differs from a single-host Docker panel, and which topic and tools cover each area. Topic access is filtered by the OAuth token scopes; general MCP workflow topics remain available to every authenticated MCP connection.',
     parameters: {
       type: 'object',
       properties: {

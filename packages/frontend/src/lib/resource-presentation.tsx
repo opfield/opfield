@@ -156,17 +156,17 @@ function resourceHref(resource: {
     case "proxy_template":
       return `/nginx-templates/${encodeURIComponent(resource.resourceId)}`;
     case "ssl_certificate":
-      return "/ssl-certificates";
+      return "/certificates";
     case "domain":
-      return "/domains";
+      return "/routes/domains";
     case "access_list":
-      return "/access-lists";
+      return "/routes/access-lists";
     case "ca":
       return `/cas/${encodeURIComponent(resource.resourceId)}`;
     case "pki_certificate":
       return `/certificates/${encodeURIComponent(resource.resourceId)}`;
     case "pki_template":
-      return "/templates/pki";
+      return "/certificates/templates";
     case "docker_container":
       return resource.nodeSlug
         ? dockerContainerRoute(resource.nodeSlug, resource.label)
@@ -215,21 +215,21 @@ function resourceParentHref(type: AIResourceReferenceType): string {
     case "node":
       return "/nodes";
     case "proxy_host":
-      return "/proxy-hosts";
+      return "/routes";
     case "proxy_template":
-      return "/templates/nginx";
+      return "/routes/templates";
     case "ssl_certificate":
-      return "/ssl-certificates";
+      return "/certificates/pki";
     case "domain":
-      return "/domains";
+      return "/routes/domains";
     case "access_list":
-      return "/access-lists";
+      return "/routes/access-lists";
     case "ca":
-      return "/cas";
+      return "/certificates/authorities";
     case "pki_certificate":
       return "/certificates";
     case "pki_template":
-      return "/templates/pki";
+      return "/certificates/templates";
     case "docker_container":
       return "/docker/containers";
     case "docker_deployment":

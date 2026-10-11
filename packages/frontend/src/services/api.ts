@@ -703,6 +703,7 @@ class ApiClient extends withAppsApi(
       clientSecret?: string;
       redirectUri: string;
       scopes?: string;
+      displayName?: string | null;
     };
     logging?: {
       mode: "disabled" | "local" | "external";

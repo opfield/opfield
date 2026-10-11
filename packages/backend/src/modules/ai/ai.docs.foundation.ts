@@ -318,7 +318,7 @@ Let's Encrypt integration for free, automated SSL certificates.
 - Rate limits: 50 certs per registered domain per week (production)
 
 ## Troubleshooting
-- **Challenge fails**: Verify domain resolves to your nginx node IP (check Domains page). Ensure port 80 is open and not blocked by firewall.
+- **Challenge fails**: Verify domain resolves to your nginx node IP (check Routes > Domains). Ensure port 80 is open and not blocked by firewall.
 - **DNS-01 fails**: Verify TXT record is propagated (use dig or nslookup). TTL must be low enough for timely propagation.
 - **Rate limited**: Switch to staging for testing. Production limit: 5 duplicate certs per week, 50 per domain per week.
 - **Renewal fails**: For HTTP-01, check the assigned ingress node and daemon logs. For Cloudflare DNS-01, check the connector, zone access, and TXT propagation.`,

@@ -6,7 +6,7 @@ import (
 )
 
 // Health release (D6) ports the backend health watch
-// (gateway-commercial docker-availability.service.ts watchPlacementHealth /
+// (opfield-commercial docker-availability.service.ts watchPlacementHealth /
 // observePlacementHealth and adapters.ts runtimeInspection): the worst
 // container decides; missing outranks stopped, which outranks restarting,
 // which outranks a failing health check; a growing restart count is a loop.

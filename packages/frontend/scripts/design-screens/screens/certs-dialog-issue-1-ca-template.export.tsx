@@ -9,7 +9,7 @@ it("certs-dialog-issue-1-ca-template", async () => {
     id: "certs-dialog-issue-1-ca-template",
     title: "Issue Certificate · CA and template",
     group: "Certificates",
-    route: "/certificates",
+    route: "/certificates/pki",
     handlers: [...pkiHandlers(), ...backgroundPrewarmHandlers()],
     before: preparePkiLists,
     ready: async () => {

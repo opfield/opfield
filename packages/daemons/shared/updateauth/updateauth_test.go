@@ -103,7 +103,7 @@ func useTestKey(t *testing.T) ed25519.PrivateKey {
 
 func TestVerifyWitnessManifest(t *testing.T) {
 	private := useTestKey(t)
-	url := "https://github.com/the-square-labs/gateway/releases/download/v2.12.0/witness-clickhouse-keeper-25.3.6-linux-amd64"
+	url := "https://github.com/opfield/opfield/releases/download/v2.12.0/witness-clickhouse-keeper-25.3.6-linux-amd64"
 	good := WitnessManifestPayload{Kind: WitnessBinaryKind, Component: "witness-clickhouse-keeper", Version: "25.3.6", Arch: "amd64",
 		ArtifactName: "witness-clickhouse-keeper-25.3.6-linux-amd64", DownloadURL: url, SHA256: testChecksum, CreatedAt: "2026-10-11T00:00:00Z"}
 	expected := WitnessExpectation{Component: "witness-clickhouse-keeper", Version: "25.3.6", Arch: "amd64", DownloadURL: url, SHA256: testChecksum}

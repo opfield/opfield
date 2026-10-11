@@ -16,7 +16,7 @@ it("ingress-routes-new-2-404", async () => {
     id: "ingress-routes-new-2-404",
     title: "Create Route · 404",
     group: "Ingress",
-    route: "/proxy-hosts/new",
+    route: "/routes/new",
     handlers: [...routeHandlers(), ...backgroundPrewarmHandlers()],
     before: expandRouteFolders,
     ready: async () => {

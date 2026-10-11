@@ -12,7 +12,7 @@ it("ingress-routes-new", async () => {
     title: "Create Route · Configuration",
     group: "Ingress",
     // The Add Route entrypoint; step 1 alone is the States board `state-create-route-dialog`.
-    route: "/proxy-hosts/new",
+    route: "/routes/new",
     handlers: [...routeHandlers(), ...backgroundPrewarmHandlers()],
     height: 1100,
     before: expandRouteFolders,

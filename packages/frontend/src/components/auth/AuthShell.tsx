@@ -1,4 +1,5 @@
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+import { OpfieldMark } from "@/components/common/OpfieldMark";
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
@@ -44,7 +45,7 @@ export function AuthShell({
       >
         <div className="flex flex-col items-center gap-3">
           <div className="flex items-center gap-3">
-            <img src="/android-chrome-192x192.png" alt="Opfield" className="h-10 w-10" />
+            <OpfieldMark className="h-10 w-10" />
             <h1 className="text-3xl font-bold tracking-tight text-foreground">Opfield</h1>
           </div>
           <p className="text-sm text-muted-foreground">Infrastructure control plane</p>

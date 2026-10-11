@@ -1,10 +1,12 @@
-import { readFile, rm } from 'node:fs/promises';
+import { readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { type OperationLeaseStore, operationLeaseKey } from '@/db/operation-lease.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { LicenseServerRequestError, type LicenseService } from '@/modules/license/license.service.js';
 import type { LicenseModuleService } from '@/modules/license/license-module.service.js';
+import { type CloudEnrollFileContract, parseCloudEnrollOwner, parseCloudEnrollSso } from './cloud-enroll-contract.js';
 import { CloudLinkRequestError, type CloudLinkService } from './cloud-link.service.js';
 import { cloudBackoffDelay } from './cloud-link-agent.js';
+import type { ManagedSsoInput, ManagedSsoOutcome } from './cloud-link-managed-sso.js';
 
 const logger = createChildLogger('CloudLinkEnrollFile');
 
@@ -13,17 +15,18 @@ export const CLOUD_ENROLL_FILE_PATH = '/var/lib/gateway/cloud-enroll.json';
 /** One replica redeems the single-use code and activates the key. */
 const LEASE_KEY = operationLeaseKey('cloud-link', 'enroll-file');
 
-interface EnrollFile {
-  code: string;
-  portalUrl?: string;
-  /** The paid license key managed cloud is sold with. A secret: never logged or audited. */
-  licenseKey?: string;
+/** The file as read (see CloudEnrollFileContract); a malformed sso or owner is left out. */
+type EnrollFile = CloudEnrollFileContract;
+
+/** The Opfield account sign-in of a managed installation (CloudManagedSso). */
+export interface EnrollFileSso {
+  apply(input: ManagedSsoInput): Promise<ManagedSsoOutcome>;
 }
 
 type ReadResult = { kind: 'missing' } | { kind: 'unreadable'; error: string } | { kind: 'file'; file: EnrollFile };
 
 /** How a step of the file ended in one pass: done, refused for good, or worth another try. */
-type StepOutcome = 'done' | 'rejected' | 'retry';
+type StepOutcome = ManagedSsoOutcome;
 
 async function readEnrollFile(path: string): Promise<ReadResult> {
   let text: string;
@@ -46,6 +49,9 @@ async function readEnrollFile(path: string): Promise<ReadResult> {
         ...(typeof value.licenseKey === 'string' && value.licenseKey.trim()
           ? { licenseKey: value.licenseKey.trim() }
           : {}),
+        ...(typeof value.publicUrl === 'string' && value.publicUrl.trim() ? { publicUrl: value.publicUrl.trim() } : {}),
+        ...(parseCloudEnrollSso(value.sso) ? { sso: parseCloudEnrollSso(value.sso)! } : {}),
+        ...(parseCloudEnrollOwner(value.owner) ? { owner: parseCloudEnrollOwner(value.owner)! } : {}),
       },
     };
   } catch {
@@ -96,9 +102,9 @@ export function createEnrollFileLicense(
 
 /**
  * Auto-enrolment of a managed installation. On start, the code its provisioning left in the enrolment file enrols an
- * installation that is not enrolled, and the paid license key in it is activated. A step the cloud account or the
- * license server may still accept is retried with backoff; the file is removed once both steps succeeded or were
- * refused for good.
+ * installation that is not enrolled, and the paid license key in it is activated. With `sso` and `owner` in the file,
+ * sign-in with the Opfield account is set up first (CloudManagedSso) and the client secret leaves the file. A step
+ * that may still succeed is retried with backoff; the file is removed once every step succeeded or was refused for good.
  */
 export class CloudLinkEnrollFile {
   private running = false;
@@ -108,6 +114,8 @@ export class CloudLinkEnrollFile {
   /** Steps this process settled already: refused for good is not asked again until the next start. */
   private enrollSettled: StepOutcome | null = null;
   private licenseSettled: StepOutcome | null = null;
+  private ssoSettled: StepOutcome | null = null;
+  private sso: EnrollFileSso | null = null;
 
   constructor(
     private readonly service: CloudLinkService,
@@ -116,6 +124,11 @@ export class CloudLinkEnrollFile {
     private readonly path = CLOUD_ENROLL_FILE_PATH,
     private readonly delay: (attempt: number) => number = cloudBackoffDelay
   ) {}
+
+  /** Sign-in with the Opfield account from the file's sso and owner; without it they are ignored. */
+  setManagedSso(sso: EnrollFileSso): void {
+    this.sso = sso;
+  }
 
   start(): void {
     if (this.running) return;
@@ -143,17 +156,67 @@ export class CloudLinkEnrollFile {
     const claim = await this.leases.claim([LEASE_KEY], {});
     if (!claim.acquired) return true;
     try {
+      // Sign-in first: it is local, so the owner can sign in while the account or the license server is still away.
+      const hasSso = Boolean(this.sso && (read.file.sso || read.file.owner));
+      const sso = hasSso ? (this.ssoSettled ?? (await this.applySso(read.file))) : 'done';
+      if (sso !== 'retry') {
+        this.ssoSettled = sso;
+        if (read.file.sso?.clientSecret) await this.removeClientSecret(sso);
+      }
       const enroll = this.enrollSettled ?? (await this.enroll(read.file));
       if (enroll !== 'retry') this.enrollSettled = enroll;
       const license = read.file.licenseKey
         ? (this.licenseSettled ?? (await this.activate(read.file.licenseKey)))
         : 'done';
       if (license !== 'retry') this.licenseSettled = license;
-      if (enroll === 'retry' || license === 'retry') return true;
-      await this.remove({ enroll, license: read.file.licenseKey ? license : 'none' });
+      if (sso === 'retry' || enroll === 'retry' || license === 'retry') return true;
+      await this.remove({
+        enroll,
+        license: read.file.licenseKey ? license : 'none',
+        ...(hasSso ? { sso } : {}),
+      });
       return false;
     } finally {
       await this.leases.release([LEASE_KEY], claim.token).catch(() => undefined);
+    }
+  }
+
+  private async applySso(file: EnrollFile): Promise<StepOutcome> {
+    return this.sso!.apply({
+      ...(file.publicUrl ? { publicUrl: file.publicUrl } : {}),
+      ...(file.sso ? { sso: file.sso } : {}),
+      ...(file.owner ? { owner: file.owner } : {}),
+    });
+  }
+
+  /**
+   * The client secret is stored encrypted (or refused for good): it leaves the file at once, as the other secrets
+   * leave with the file, even while enrolment or activation is still retried. Written to a temporary file and renamed,
+   * so a crash never leaves a half-written file.
+   */
+  private async removeClientSecret(outcome: StepOutcome): Promise<void> {
+    try {
+      const value = JSON.parse(await readFile(this.path, 'utf8')) as Record<string, unknown>;
+      const sso = value.sso as Record<string, unknown> | undefined;
+      if (!sso || typeof sso !== 'object' || !('clientSecret' in sso)) return;
+      delete sso.clientSecret;
+      const temporary = `${this.path}.tmp`;
+      await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
+      await rename(temporary, this.path);
+      await this.service.recordManagedSso({ step: 'secret_removed', path: this.path, outcome });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn('Could not remove the client secret from the cloud enrolment file', {
+        path: this.path,
+        error: message,
+      });
+      await this.service.recordManagedSso({
+        step: 'secret_removed',
+        path: this.path,
+        outcome,
+        removed: false,
+        error: message,
+      });
     }
   }
 
@@ -245,8 +308,17 @@ export class CloudLinkEnrollFile {
   }
 
   /** Both steps are settled: the file goes, with what became of each step in the audit. */
-  private async remove(outcome: { enroll: StepOutcome; license: StepOutcome | 'none' }): Promise<void> {
-    const details = { path: this.path, enrollment: outcome.enroll, license: outcome.license };
+  private async remove(outcome: {
+    enroll: StepOutcome;
+    license: StepOutcome | 'none';
+    sso?: StepOutcome;
+  }): Promise<void> {
+    const details = {
+      path: this.path,
+      enrollment: outcome.enroll,
+      license: outcome.license,
+      ...(outcome.sso ? { sso: outcome.sso } : {}),
+    };
     try {
       await rm(this.path, { force: true });
       await this.service.recordEnrollFileEvent({ outcome: 'settled', ...details, removed: true });

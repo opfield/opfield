@@ -21,7 +21,7 @@ it("ingress-routes-new-2-pages", async () => {
     id: "ingress-routes-new-2-pages",
     title: "Create Route · Pages",
     group: "Ingress",
-    route: "/proxy-hosts/new",
+    route: "/routes/new",
     handlers: [...routeHandlers(), ...backgroundPrewarmHandlers()],
     height: 1100,
     before: expandRouteFolders,

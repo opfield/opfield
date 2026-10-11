@@ -10,7 +10,7 @@ it("ingress-domain-dialog-delete-dns", async () => {
     id: "ingress-domain-dialog-delete-dns",
     title: "Domain · Delete Cloudflare DNS Too?",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     handlers: [
       ...adoptedDomainDeleteHandlers(),
       ...domainsHandlers(),

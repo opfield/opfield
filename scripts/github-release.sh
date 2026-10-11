@@ -6,12 +6,13 @@ tag=${GITHUB_REF_NAME:?GITHUB_REF_NAME is required}
 commit_sha=${GITHUB_SHA:?GITHUB_SHA is required}
 run_id=${GITHUB_RUN_ID:?GITHUB_RUN_ID is required}
 repository=${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}
-# Installs pin this repository (signed manifests name it and updates only accept it), so it stays fixed across a
-# GitHub repository or organization move. GATEWAY_IMAGE overrides it for forks.
-gateway_image="${GATEWAY_IMAGE:-ghcr.io/the-square-labs/gateway}"
-# Optional second repository (repository variable GATEWAY_IMAGE_MIRROR, e.g. ghcr.io/opfield/opfield) that receives
-# every published tag with the same digest. Unset: nothing is mirrored. Signed manifests keep naming gateway_image.
-gateway_image_mirror="${GATEWAY_IMAGE_MIRROR:-}"
+# Primary repository, mirror and the repository signed manifests name (installs pull it): see
+# scripts/release/image-repositories.sh.
+# shellcheck source=release/image-repositories.sh
+source scripts/release/image-repositories.sh
+gateway_image="$GATEWAY_IMAGE"
+gateway_image_mirror="$GATEWAY_IMAGE_MIRROR"
+signed_image="$GATEWAY_SIGNED_IMAGE"
 source_url="https://github.com/${repository}"
 
 release_notes_file=release-notes.md
@@ -88,8 +89,8 @@ complete_release() {
 
 docker_login() {
   test -n "${GH_TOKEN:-}" || { printf 'GH_TOKEN is required\n' >&2; exit 1; }
-  # GHCR_PUSH_TOKEN (optional secret): a token that can write packages in both organizations, needed once the
-  # repository lives in another organization than gateway_image or gateway_image_mirror.
+  # GHCR_PUSH_TOKEN (secret): a token that can write packages in both organizations, needed once the repository lives
+  # in another organization than gateway_image or gateway_image_mirror.
   printf '%s' "${GHCR_PUSH_TOKEN:-$GH_TOKEN}" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
 }
 
@@ -144,7 +145,7 @@ publish_gateway() {
       --kind gateway-image \
       --version "$tag" \
       --tag "$tag" \
-      --image "$gateway_image" \
+      --image "$signed_image" \
       --digest "$digest" \
       --git-commit-sha "$commit_sha" \
       --git-pipeline-id "$run_id" \
@@ -309,11 +310,11 @@ publish_relay() {
       --kind relay-image \
       --version "$relay_version" \
       --tag "$tag" \
-      --image "$relay_image" \
+      --image "${signed_image}/relay" \
       --digest "$relay_digest" \
       --relay-protocol-major 1 \
       --min-gateway-version "$min_gateway_version" \
-      --secure-link-connector-image "${secure_link_image}@${secure_link_digest}" \
+      --secure-link-connector-image "${signed_image}/secure-link-connector@${secure_link_digest}" \
       --git-commit-sha "$commit_sha" \
       --git-pipeline-id "$run_id" \
       --out ../../relay-image.update.json

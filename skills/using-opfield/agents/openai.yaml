@@ -1,0 +1,4 @@
+interface:
+  display_name: "Using Opfield"
+  short_description: "Deploy and operate through Opfield MCP"
+  default_prompt: "Use $using-opfield to inspect this application and complete the requested Opfield-native workflow."

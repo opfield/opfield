@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/moby/moby/api/types/container"
-	"github.com/moby/moby/api/types/mount"
 	"github.com/moby/moby/api/types/network"
 	mobyclient "github.com/moby/moby/client"
 
@@ -361,13 +360,20 @@ func seaweedfsSetHealthcheck(role swha.Role, set managedStorageSetRecord, tlsEna
 	}
 }
 
+// seaweedfsSetMasterTmpfs is the master's scratch directory: 64 MiB, mode
+// 0700, owned by the runtime user the container runs as.
+func seaweedfsSetMasterTmpfs() map[string]string {
+	return map[string]string{seaweedfsSetMasterDataDir: fmt.Sprintf("rw,noexec,nosuid,nodev,size=%d,mode=0700,uid=%d,gid=%d",
+		64*mebibyte, seaweedfsRuntimeUID, seaweedfsRuntimeGID)}
+}
+
 // createSetContainer creates one member container (not started).
 func (m *managedStorageManager) createSetContainer(ctx context.Context, record managedStorageRecord, role swha.Role, setNetwork, staging, hostsPath string) (string, error) {
 	set := *record.Set
 	var cmd []string
 	aliases := []string{}
 	binds := []string{staging + ":" + seaweedfsContainerRoot + ":ro", hostsPath + ":/etc/hosts:ro"}
-	var mounts []mount.Mount
+	var tmpfs map[string]string
 	restart := engineRestartPolicy
 	switch role {
 	case swha.RoleVolume:
@@ -380,8 +386,9 @@ func (m *managedStorageManager) createSetContainer(ctx context.Context, record m
 		binds = append(binds, record.MountPath+":/data")
 	case swha.RoleMaster:
 		cmd = seaweedfsSetMasterCommand(record)
-		mounts = append(mounts, mount.Mount{Type: mount.TypeTmpfs, Target: seaweedfsSetMasterDataDir,
-			TmpfsOptions: &mount.TmpfsOptions{SizeBytes: 64 * mebibyte, Mode: 0o700}})
+		// The master runs as the SeaweedFS runtime user: its scratch tmpfs is
+		// that user's (a root-owned 0700 tmpfs made it exit at once).
+		tmpfs = seaweedfsSetMasterTmpfs()
 		restart = container.RestartPolicy{Name: container.RestartPolicyDisabled}
 	}
 	memory := seaweedfsSetMemory(record.MemoryBytes, role)
@@ -401,7 +408,7 @@ func (m *managedStorageManager) createSetContainer(ctx context.Context, record m
 		swap = max(swap*memory/max(record.MemoryBytes, 1), memory)
 	}
 	hostCfg := &container.HostConfig{
-		Binds: binds, Mounts: mounts, RestartPolicy: restart,
+		Binds: binds, Tmpfs: tmpfs, RestartPolicy: restart,
 		Resources:   container.Resources{Memory: memory, MemorySwap: swap, NanoCPUs: record.NanoCPUs},
 		LogConfig:   container.LogConfig{Type: "json-file", Config: map[string]string{"max-size": "10m", "max-file": "3"}},
 		CapDrop:     []string{"ALL"},

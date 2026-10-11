@@ -9,7 +9,7 @@ it("certs-dialog-issue-2-subject", async () => {
     id: "certs-dialog-issue-2-subject",
     title: "Issue Certificate · Subject details",
     group: "Certificates",
-    route: "/certificates",
+    route: "/certificates/pki",
     handlers: [...pkiHandlers(), ...backgroundPrewarmHandlers()],
     before: preparePkiLists,
     ready: async () => {

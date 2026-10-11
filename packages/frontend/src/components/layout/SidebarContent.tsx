@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { AIButton } from "@/components/ai/AIButton";
+import { OpfieldMark } from "@/components/common/OpfieldMark";
 import { AccountMenuContent } from "@/components/layout/AccountMenuContent";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -241,8 +242,11 @@ export function SidebarContent({
                         className={cn(
                           // The button's own hover stays; the active fill fades like the expanded items'.
                           "transition-[color,background-color,box-shadow] shadow-[inset_0_0_0_100vmax_transparent]",
-                          isSidebarNavigationActive(location.pathname, item.href) &&
-                            SIDEBAR_ITEM_FILL
+                          isSidebarNavigationActive(
+                            location.pathname,
+                            item.href,
+                            item.activePaths
+                          ) && SIDEBAR_ITEM_FILL
                         )}
                         onClick={() => navigate(item.href)}
                       >
@@ -374,7 +378,7 @@ export function SidebarContent({
               style={{ paddingTop: 10, paddingBottom: 10, paddingLeft: 10 }}
             >
               <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground/80 whitespace-nowrap pl-1">
-                <img src="/android-chrome-192x192.png" alt="Opfield" className="h-5 w-5" />
+                <OpfieldMark className="h-5 w-5" />
                 Opfield
               </span>
 
@@ -437,7 +441,11 @@ export function SidebarContent({
                       </p>
                     )}
                     {group.items.map((item) => {
-                      const isActive = isSidebarNavigationActive(location.pathname, item.href);
+                      const isActive = isSidebarNavigationActive(
+                        location.pathname,
+                        item.href,
+                        item.activePaths
+                      );
                       const navigationAttention = navigationAttentionForItem(
                         dashboardBootstrap,
                         item.id

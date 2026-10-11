@@ -8,10 +8,12 @@ import {
   Clock,
   FileText,
   FolderOpen,
+  Globe2,
   HardDrive,
   Image,
   KeyRound,
   ListTodo,
+  Lock,
   LogOut,
   Monitor,
   Moon,
@@ -21,6 +23,8 @@ import {
   Plus,
   ScrollText,
   Settings,
+  ShieldAlert,
+  ShieldCheck,
   Sparkles,
   Sun,
   Terminal,
@@ -45,6 +49,12 @@ import { type AppNavigationItemId, visibleNavigationGroups } from "@/lib/app-nav
 import { hasCreationDestination } from "@/lib/creation-folders";
 import { setDevForcedUpdateMode } from "@/lib/dev-force-updates";
 import { hasLowInferenceUsage } from "@/lib/inference-self-usage";
+import {
+  CERTIFICATES_HUB,
+  legacyPathForPath,
+  type NavigationHub,
+  ROUTES_HUB,
+} from "@/lib/navigation-hubs";
 import { isNodeProtected } from "@/lib/node-host-access";
 import {
   resourceSearchHref,
@@ -87,10 +97,86 @@ interface DeepLinkDefinition {
   label: string;
   href: string;
   icon: React.ElementType;
-  parentId: AppNavigationItemId;
+  /** Shown only while this sidebar item is; without one the link follows `visible` alone. */
+  parentId?: AppNavigationItemId;
   keywords?: readonly string[];
   visible?: boolean;
 }
+
+/** Palette entries for the Routes and Certificates tabs, findable by their former page names. */
+const HUB_TAB_LINKS: readonly {
+  id: string;
+  hub: NavigationHub;
+  tab: string;
+  label: string;
+  icon: React.ElementType;
+  keywords: readonly string[];
+}[] = [
+  {
+    id: "domains",
+    hub: ROUTES_HUB,
+    tab: "domains",
+    label: "Domains",
+    icon: Globe2,
+    keywords: ["routes", "dns", "cloudflare"],
+  },
+  {
+    id: "ingress-groups",
+    hub: ROUTES_HUB,
+    tab: "ingress-groups",
+    label: "Ingress Groups",
+    icon: Network,
+    keywords: ["routes", "sites", "failover", "multi-node", "availability", "nginx nodes"],
+  },
+  {
+    id: "access-lists",
+    hub: ROUTES_HUB,
+    tab: "access-lists",
+    label: "Access Lists",
+    icon: ShieldAlert,
+    keywords: ["routes", "acl", "ip rules", "basic auth"],
+  },
+  {
+    id: "templates-nginx",
+    hub: ROUTES_HUB,
+    tab: "templates",
+    label: "Nginx templates",
+    icon: Award,
+    keywords: ["routes", "templates", "nginx config"],
+  },
+  {
+    id: "ssl-certificates-tab",
+    hub: CERTIFICATES_HUB,
+    tab: "ssl",
+    label: "SSL Certificates",
+    icon: Lock,
+    keywords: ["certificates", "tls", "acme", "letsencrypt"],
+  },
+  {
+    id: "authorities",
+    hub: CERTIFICATES_HUB,
+    tab: "authorities",
+    label: "Authorities",
+    icon: ShieldCheck,
+    keywords: ["certificates", "ca", "certificate authority", "root", "intermediate", "pki"],
+  },
+  {
+    id: "certificates",
+    hub: CERTIFICATES_HUB,
+    tab: "pki",
+    label: "PKI Certificates",
+    icon: FileText,
+    keywords: ["certificates", "pki"],
+  },
+  {
+    id: "templates-pki",
+    hub: CERTIFICATES_HUB,
+    tab: "templates",
+    label: "Certificate templates",
+    icon: Award,
+    keywords: ["certificates", "templates", "pki templates"],
+  },
+];
 
 function fuzzyMatch(text: string, query: string): number {
   if (!query) return 1;
@@ -178,7 +264,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const commandQuery = isCommandMode ? search.slice(1).trim().toLowerCase() : "";
   const searchQuery = isCommandMode ? "" : search.toLowerCase().trim();
   const aiScopeOk = hasScope(AI_SCOPE);
-  const routeSection = location.pathname.split("/").filter(Boolean)[0] ?? "dashboard";
+  // Tabs keep their former page's section, so quick-action usage recorded there still counts.
+  const routeSection =
+    legacyPathForPath(location.pathname).split("/").filter(Boolean)[0] ?? "dashboard";
   const activePageResource =
     resolvedPageStatus === "ready" &&
     resolvedPageRouteKey &&
@@ -384,11 +472,17 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     );
     const links: DeepLinkDefinition[] = [
       {
+        id: "profile",
+        label: "Profile",
+        href: "/profile",
+        icon: UserRound,
+        keywords: ["account", "preferences", "authorizations", "tokens", "oauth"],
+      },
+      {
         id: "profile-preferences",
         label: "Profile preferences",
         href: "/profile/preferences",
         icon: UserRound,
-        parentId: "profile",
         keywords: ["theme", "appearance"],
       },
       {
@@ -396,25 +490,22 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         label: "Profile authorizations",
         href: "/profile/authorizations",
         icon: KeyRound,
-        parentId: "profile",
         keywords: ["oauth", "tokens", "sessions"],
       },
-      {
-        id: "templates-nginx",
-        label: "Nginx templates",
-        href: "/templates/nginx",
-        icon: Award,
-        parentId: "templates",
-        visible: hasScopedAccess("proxy:templates:view"),
-      },
-      {
-        id: "templates-pki",
-        label: "Certificate templates",
-        href: "/templates/pki",
-        icon: Award,
-        parentId: "templates",
-        visible: pkiEnabled && hasScopedAccess("pki:templates:view"),
-      },
+      ...HUB_TAB_LINKS.flatMap((link) => {
+        const tab = link.hub.tabs.find((candidate) => candidate.value === link.tab);
+        if (!tab) return [];
+        return [
+          {
+            id: link.id,
+            label: link.label,
+            href: tab.path,
+            icon: link.icon,
+            keywords: link.keywords,
+            visible: tab.canAccess({ scopes: user?.scopes ?? [], pkiEnabled }),
+          },
+        ];
+      }),
       {
         id: "docker-containers",
         label: "Docker containers",
@@ -629,7 +720,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     ];
 
     return links
-      .filter((link) => accessibleParents.has(link.parentId) && link.visible !== false)
+      .filter(
+        (link) =>
+          (link.parentId === undefined || accessibleParents.has(link.parentId)) &&
+          link.visible !== false
+      )
       .map((link) => ({
         id: `navigation:${link.id}`,
         label: link.label,
@@ -646,6 +741,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     navigate,
     navigationGroups,
     pkiEnabled,
+    user?.scopes,
   ]);
 
   const contextActions = useMemo<PaletteEntry[]>(() => {
@@ -779,7 +875,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         contexts: ["proxy-hosts", "proxy-host"],
         icon: Plus,
         shortcut: "⌃H",
-        action: () => navigate("/proxy-hosts/new"),
+        action: () => navigate("/routes/new"),
       });
     }
     if (canCreateSslCertificate) {
@@ -790,7 +886,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         icon: Plus,
         shortcut: "⌃S",
         action: () => {
-          navigate("/ssl-certificates");
+          navigate("/certificates");
           useUIStore.getState().openModal("createSSLCert");
         },
       });
@@ -803,7 +899,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         icon: Plus,
         shortcut: "⌃R",
         action: () => {
-          navigate("/cas");
+          navigate("/certificates/authorities");
           useUIStore.getState().openModal("createCA");
         },
       });

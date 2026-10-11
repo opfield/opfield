@@ -1,49 +1,42 @@
 import {
   Activity,
   AppWindow,
-  Award,
   Bell,
   Box,
   Database,
-  FileText,
   Globe,
-  Globe2,
   HardDrive,
   LayoutDashboard,
   Lock,
-  Network,
   PanelsTopLeft,
   ScrollText,
   Server,
   Settings,
-  ShieldAlert,
-  ShieldCheck,
-  UserRound,
   Users,
 } from "lucide-react";
 import type { ElementType } from "react";
+import {
+  CERTIFICATES_HUB,
+  type HubAccessContext,
+  type NavigationHub,
+  ROUTES_HUB,
+  visibleHubTabs,
+} from "@/lib/navigation-hubs";
 import { hasScopeBase, scopeMatches } from "@/lib/scope-utils";
 
-export type AppNavigationGroupId = "main" | "reverse-proxy" | "pki" | "resources" | "management";
+export type AppNavigationGroupId = "main" | "reverse-proxy" | "resources" | "management";
 
 export type AppNavigationItemId =
   | "dashboard"
   | "apps"
-  | "profile"
   | "proxy-hosts"
-  | "domains"
-  | "ingress-groups"
   | "ssl-certificates"
-  | "authorities"
-  | "certificates"
   | "docker"
   | "pages"
   | "databases"
   | "storage"
   | "logging"
   | "nodes"
-  | "templates"
-  | "access-lists"
   | "notifications"
   | "status-page"
   | "administration"
@@ -56,6 +49,8 @@ export interface AppNavigationItem {
   icon: ElementType;
   shortcutKey?: string;
   keywords?: readonly string[];
+  /** Other URL prefixes that belong to this item (its tabs and detail pages); it stays highlighted there. */
+  activePaths?: readonly string[];
 }
 
 export interface AppNavigationGroup {
@@ -98,13 +93,6 @@ export const APP_NAVIGATION_GROUPS: readonly AppNavigationGroup[] = [
         icon: AppWindow,
         keywords: ["applications", "environments", "projects", "staging", "production"],
       },
-      {
-        id: "profile",
-        name: "Profile",
-        href: "/profile",
-        icon: UserRound,
-        keywords: ["preferences", "authorizations", "tokens", "oauth"],
-      },
     ],
   },
   {
@@ -114,55 +102,44 @@ export const APP_NAVIGATION_GROUPS: readonly AppNavigationGroup[] = [
       {
         id: "proxy-hosts",
         name: "Routes",
-        href: "/proxy-hosts",
+        href: "/routes",
         icon: Globe,
         shortcutKey: "3",
-        keywords: ["nginx", "upstream", "reverse proxy", "route"],
+        keywords: [
+          "nginx",
+          "upstream",
+          "reverse proxy",
+          "route",
+          "proxy hosts",
+          "domains",
+          "dns",
+          "ingress groups",
+          "access lists",
+          "acl",
+          "nginx templates",
+        ],
+        activePaths: ["/proxy-hosts", "/ingress-groups", "/nginx-templates"],
       },
       {
         id: "ssl-certificates",
-        name: "SSL Certificates",
-        href: "/ssl-certificates",
-        icon: Lock,
-        shortcutKey: "4",
-        keywords: ["tls", "acme", "letsencrypt"],
-      },
-      {
-        id: "domains",
-        name: "Domains",
-        href: "/domains",
-        icon: Globe2,
-        shortcutKey: "2",
-        keywords: ["dns", "cloudflare"],
-      },
-      {
-        id: "ingress-groups",
-        name: "Ingress Groups",
-        href: "/ingress-groups",
-        icon: Network,
-        keywords: ["sites", "failover", "multi-node", "availability", "nginx nodes"],
-      },
-    ],
-  },
-  {
-    id: "pki",
-    label: "PKI",
-    items: [
-      {
-        id: "authorities",
-        name: "Authorities",
-        href: "/cas",
-        icon: ShieldCheck,
-        shortcutKey: "5",
-        keywords: ["ca", "certificate authority", "root", "intermediate"],
-      },
-      {
-        id: "certificates",
         name: "Certificates",
         href: "/certificates",
-        icon: FileText,
-        shortcutKey: "6",
-        keywords: ["pki certificates"],
+        icon: Lock,
+        shortcutKey: "4",
+        keywords: [
+          "ssl",
+          "tls",
+          "acme",
+          "letsencrypt",
+          "ssl certificates",
+          "pki",
+          "pki certificates",
+          "authorities",
+          "certificate authority",
+          "ca",
+          "certificate templates",
+        ],
+        activePaths: ["/cas"],
       },
     ],
   },
@@ -220,22 +197,6 @@ export const APP_NAVIGATION_GROUPS: readonly AppNavigationGroup[] = [
     id: "management",
     label: "Management",
     items: [
-      {
-        id: "templates",
-        name: "Templates",
-        href: "/templates",
-        icon: Award,
-        shortcutKey: "7",
-        keywords: ["nginx templates", "pki templates", "certificate templates"],
-      },
-      {
-        id: "access-lists",
-        name: "Access Lists",
-        href: "/access-lists",
-        icon: ShieldAlert,
-        shortcutKey: "0",
-        keywords: ["acl", "ip rules", "basic auth"],
-      },
       {
         id: "notifications",
         name: "Notifications",
@@ -338,20 +299,10 @@ export function canAccessNavigationItem(
       return hasDashboardContent(context);
     case "apps":
       return hasScopeBase(scopes, "apps:view") || scopeMatches(scopes, "apps:create");
-    case "profile":
-      return true;
     case "proxy-hosts":
-      return hasScopeBase(scopes, "proxy:view") || scopeMatches(scopes, "proxy:folders:manage");
-    case "domains":
-      return hasScopeBase(scopes, "domains:view");
-    case "ingress-groups":
-      return hasScopeBase(scopes, "ingress:groups:view");
+      return visibleHubTabs(ROUTES_HUB, hubContext(context)).length > 0;
     case "ssl-certificates":
-      return hasScopeBase(scopes, "ssl:cert:view");
-    case "authorities":
-      return context.pkiEnabled && hasScopeBase(scopes, "pki:ca:view");
-    case "certificates":
-      return context.pkiEnabled && hasScopeBase(scopes, "pki:cert:view");
+      return visibleHubTabs(CERTIFICATES_HUB, hubContext(context)).length > 0;
     case "docker": {
       const canAccess =
         hasScopeBase(scopes, "docker:containers:view") ||
@@ -396,13 +347,6 @@ export function canAccessNavigationItem(
       );
     case "nodes":
       return hasScopeBase(scopes, "nodes:details") || scopeMatches(scopes, "nodes:folders:manage");
-    case "templates":
-      return (
-        (context.pkiEnabled && hasScopeBase(scopes, "pki:templates:view")) ||
-        hasScopeBase(scopes, "proxy:templates:view")
-      );
-    case "access-lists":
-      return hasScopeBase(scopes, "acl:view");
     case "notifications":
       return (
         hasAnyScope(scopes, NOTIFICATION_CORE_SCOPES) ||
@@ -429,10 +373,31 @@ export function canAccessNavigationItem(
   }
 }
 
+function hubContext(context: AppNavigationVisibility): HubAccessContext {
+  return { scopes: context.scopes, pkiEnabled: context.pkiEnabled };
+}
+
+const HUB_BY_NAVIGATION_ITEM: Partial<Record<AppNavigationItemId, NavigationHub>> = {
+  "proxy-hosts": ROUTES_HUB,
+  "ssl-certificates": CERTIFICATES_HUB,
+};
+
+/** A hub item links to its first tab the user may open, so a Domains-only user lands on Domains. */
+function withVisibleHref(item: AppNavigationItem, context: AppNavigationVisibility) {
+  const hub = HUB_BY_NAVIGATION_ITEM[item.id];
+  if (!hub) return item;
+  const tabs = visibleHubTabs(hub, hubContext(context));
+  const href = tabs[0]?.path ?? item.href;
+  if (href === item.href) return item;
+  return { ...item, href, activePaths: [item.href, ...(item.activePaths ?? [])] };
+}
+
 export function visibleNavigationGroups(context: AppNavigationVisibility): AppNavigationGroup[] {
   return APP_NAVIGATION_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => canAccessNavigationItem(item, context)),
+    items: group.items
+      .filter((item) => canAccessNavigationItem(item, context))
+      .map((item) => withVisibleHref(item, context)),
   })).filter((group) => group.items.length > 0);
 }
 

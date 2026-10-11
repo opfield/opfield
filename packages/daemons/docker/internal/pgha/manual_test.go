@@ -54,3 +54,19 @@ func TestManualPrimaryKeepsAndRelaxesSyncNames(t *testing.T) {
 		t.Fatalf("a stalled peer must release the names: %q", got)
 	}
 }
+
+// A manual pair converted from a running database never promotes its
+// primary: the primary's upkeep creates the copy's replication slot, which the
+// copy streams through.
+func TestManualPrimaryKeepsItsPeersSlots(t *testing.T) {
+	h := manualHarness(t)
+	h.pg.set(func(p *fakePG) {
+		p.inRecovery, p.timeline, p.flush = false, 1, MustLSN("0/5000000")
+	})
+	if err := h.manager.AssignPrimary(setID, memberha.Assignment{PrimaryMemberID: selfMember, Generation: 1, Signature: []byte("x")}); err != nil {
+		t.Fatal(err)
+	}
+	h.settle()
+	h.requireOrder("endpoints:true", "pg:slots:"+SlotName(memberB))
+	h.pg.requireNoViolations(t)
+}

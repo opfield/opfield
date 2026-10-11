@@ -620,6 +620,31 @@ type kvSetHost struct {
 	cgroups *leaseEngine
 }
 
+// aclMarkerPath remembers that this member mirrored its primary's ACL list
+// (kvha.ACLMarker): it survives a daemon restart, as Valkey's ACL file does.
+func (h *kvSetHost) aclMarkerPath() string {
+	return filepath.Join(h.plugin.cfg.StateDir, "availability-valkey", h.initial.SetID+"-"+h.initial.MemberID+".acl-mirrored")
+}
+
+func (h *kvSetHost) ACLMirrored() bool {
+	if h.plugin == nil || h.plugin.cfg == nil {
+		return false
+	}
+	_, err := os.Stat(h.aclMarkerPath())
+	return err == nil
+}
+
+func (h *kvSetHost) MarkACLMirrored() error {
+	if h.plugin == nil || h.plugin.cfg == nil {
+		return nil
+	}
+	path := h.aclMarkerPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(path, nil, 0o600)
+}
+
 func (h *kvSetHost) Config() memberha.Config {
 	if h.plugin.setMembers != nil {
 		if config, ok := h.plugin.setMembers.Config(h.initial.SetID); ok {
