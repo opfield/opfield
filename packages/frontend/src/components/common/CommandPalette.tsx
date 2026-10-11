@@ -45,6 +45,7 @@ import { type AppNavigationItemId, visibleNavigationGroups } from "@/lib/app-nav
 import { hasCreationDestination } from "@/lib/creation-folders";
 import { setDevForcedUpdateMode } from "@/lib/dev-force-updates";
 import { hasLowInferenceUsage } from "@/lib/inference-self-usage";
+import { isNodeProtected } from "@/lib/node-host-access";
 import {
   resourceSearchHref,
   resourceTypeIcon,
@@ -730,7 +731,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       });
     }
 
-    if (resource.resourceType === "node") {
+    // A protected relay offers no console or files: its machine owner locked Gateway out of the host.
+    if (
+      resource.resourceType === "node" &&
+      !isNodeProtected(nodes.find((node) => node.id === resource.resourceId))
+    ) {
       if (hasScope("nodes:console") || hasScope(`nodes:console:${resource.resourceId}`)) {
         actions.push({
           id: "context:node-console",
@@ -754,7 +759,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       }
     }
     return actions;
-  }, [activePageResource, hasScope, navigate, resolvedPageRouteKey]);
+  }, [activePageResource, hasScope, navigate, nodes, resolvedPageRouteKey]);
 
   const canCreateSslCertificate = hasCreationDestination(user?.scopes ?? [], "ssl:cert:issue");
   const primaryActions = useMemo<PaletteEntry[]>(() => {
@@ -985,6 +990,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     }
 
     for (const node of nodes) {
+      // A protected relay offers no console or files: its machine owner locked Gateway out of the host.
+      if (isNodeProtected(node)) continue;
       if (
         node.status === "online" &&
         (hasScope("nodes:console") || hasScope(`nodes:console:${node.id}`))

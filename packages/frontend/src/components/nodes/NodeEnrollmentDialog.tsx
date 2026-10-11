@@ -321,7 +321,10 @@ export function NodeEnrollmentDialog({
 
   const targets = result?.installCommands ?? [];
   const selectedTarget = targets.find((target) => target.target === targetId) ?? targets[0];
-  const command = withHostAccessInstallFlags(selectedTarget?.[transport] ?? "", hostAccess);
+  const command = withHostAccessInstallFlags(
+    selectedTarget?.[transport] ?? "",
+    result?.type === "relay" ? hostAccess : { ...hostAccess, protectedMode: false }
+  );
 
   const setupDescription =
     result?.type === "relay"
@@ -563,7 +566,11 @@ export function NodeEnrollmentDialog({
                 </TabsList>
               </Tabs>
             </div>
-            <HostAccessInstallOptions value={hostAccess} onChange={setHostAccess} />
+            <HostAccessInstallOptions
+              value={hostAccess}
+              onChange={setHostAccess}
+              relay={result?.type === "relay"}
+            />
             {selectedTarget && (
               <CopyCodeBlock
                 label={`${transport} command`}
