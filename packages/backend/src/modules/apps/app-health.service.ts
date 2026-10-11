@@ -26,6 +26,8 @@ export interface MemberStatus {
   cpuPercent: number | null;
   memoryBytes: number | null;
   memoryLimitBytes: number | null;
+  /** Docker runtime container name: the container itself, or the active slot of a deployment. */
+  runtimeName?: string | null;
 }
 
 /** failing beats degraded beats healthy; no member is healthy. */
@@ -248,6 +250,7 @@ export class AppHealthService implements AppHealthProvider {
           const stats = slot ? runtime.get(`${member.nodeId}\u0000${slot.containerName}`) : undefined;
           return {
             ...base,
+            runtimeName: slot?.containerName ?? null,
             health: deploymentHealth(row?.status, check),
             cpuPercent: stats?.cpuPercent ?? null,
             memoryBytes: stats?.memoryBytes ?? null,
@@ -261,6 +264,7 @@ export class AppHealthService implements AppHealthProvider {
           )?.healthStatus;
           return {
             ...base,
+            runtimeName: member.id,
             health: containerHealth(stats?.state, check),
             cpuPercent: stats?.cpuPercent ?? null,
             memoryBytes: stats?.memoryBytes ?? null,

@@ -3,6 +3,7 @@ import { AppError } from '@/middleware/error-handler.js';
 import { AppMaintenanceAccessService } from '@/modules/apps/app-maintenance-access.js';
 import { AppMembersService } from '@/modules/apps/app-members.service.js';
 import { AppNodesService } from '@/modules/apps/app-nodes.service.js';
+import { AppOverviewService } from '@/modules/apps/app-overview.service.js';
 import { AppVariablesService } from '@/modules/apps/app-variables.service.js';
 import {
   CreateAppEnvironmentSchema,
@@ -23,6 +24,7 @@ export const APP_TOOL_NAMES = new Set([
   'manage_app_environment',
   'manage_app_members',
   'manage_app_variables',
+  'get_app_overview',
 ]);
 
 function requiredString(value: unknown, field: string, operation: string): string {
@@ -47,6 +49,14 @@ export async function executeAppTool(user: User, toolName: string, args: Record<
       return manageMembers(service, actor, args);
     case 'manage_app_variables':
       return manageVariables(actor, args);
+    case 'get_app_overview':
+      return container
+        .resolve(AppOverviewService)
+        .overview(
+          actor.scopes,
+          requiredString(args.appId, 'appId', 'get_app_overview'),
+          args.range === '24h' ? '24h' : '1h'
+        );
     default:
       throw new AppError(400, 'VALIDATION_ERROR', `Unknown app tool: ${toolName}`);
   }

@@ -48,6 +48,7 @@ import { AppMaintenanceAccessService } from '@/modules/apps/app-maintenance-acce
 import { AppMembersReader, AppMembersService } from '@/modules/apps/app-members.service.js';
 import { AppMembershipService } from '@/modules/apps/app-membership.js';
 import { AppNodesService } from '@/modules/apps/app-nodes.service.js';
+import { AppOverviewService } from '@/modules/apps/app-overview.service.js';
 import { AppVariablesService } from '@/modules/apps/app-variables.service.js';
 import { AppsService } from '@/modules/apps/apps.service.js';
 import { AlertService } from '@/modules/audit/alert.service.js';
@@ -766,6 +767,10 @@ export async function initializeContainer(): Promise<void> {
   const appHealthService = new AppHealthService(db, appMembersReader);
   container.registerInstance(AppHealthService, appHealthService);
   appsService.setHealthProvider(appHealthService);
+  container.registerInstance(
+    AppOverviewService,
+    new AppOverviewService(db, appsService, appMembersReader, appHealthService)
+  );
   container.registerInstance(AppNodesService, new AppNodesService(db, auditService, appsService, appMembersReader));
   const appEnvLayerService = new AppEnvLayerService(db, cryptoService, appMembersReader);
   container.registerInstance(AppEnvLayerService, appEnvLayerService);

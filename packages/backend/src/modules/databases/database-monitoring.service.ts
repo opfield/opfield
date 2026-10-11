@@ -28,6 +28,17 @@ export class DatabaseMonitoringService extends EventEmitter {
   async getHistory(_databaseId: string): Promise<DatabaseMetricSnapshot[]> {
     return commercialModuleUnavailable();
   }
+  /**
+   * Overview series for app monitoring: per database, samples over `range` (oldest first, any spacing; the caller
+   * buckets them), each with the metrics of getHistory (database_size_bytes, total_connections, max_connections,
+   * transaction_rate, ...). Implemented by the commercial core.
+   */
+  async getOverviewSeries(
+    _databaseIds: readonly string[],
+    _range: '1h' | '24h'
+  ): Promise<Record<string, DatabaseMetricSnapshot[]>> {
+    return commercialModuleUnavailable();
+  }
   registerClient(_databaseId: string): void {
     commercialModuleUnavailable();
   }
