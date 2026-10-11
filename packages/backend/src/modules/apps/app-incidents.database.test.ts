@@ -38,7 +38,8 @@ const ALL = [
  * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): the kill switch and shutdown over the real tables. Isolation locks
  * the environment's routes and routes outside the app whose upstream is a member down (own switches untouched),
  * freezes members, refuses membership moves and app deletes, and release restores exactly. Shutdown overlays
- * maintenance with team access and Start restores it. Non-route items run through fake actions.
+ * maintenance with team access, holds no member (moves and deletes work), and Start restores it, listing what was
+ * deleted meanwhile. Non-route items run through fake actions.
  */
 describe.skipIf(!url)('app incidents on disposable PostgreSQL', () => {
   let database: Awaited<ReturnType<typeof disposableDatabase>>;
@@ -52,6 +53,7 @@ describe.skipIf(!url)('app incidents on disposable PostgreSQL', () => {
   let repo: AppIncidentsRepo;
   const applied: string[] = [];
   const restored: string[] = [];
+  let audit: { log: ReturnType<typeof vi.fn> };
   const q = (text: string, values: unknown[] = []) => pool.query(text, values);
   let userId = '';
   let nginxNode = '';
@@ -87,7 +89,7 @@ describe.skipIf(!url)('app incidents on disposable PostgreSQL', () => {
     await migrateDatabase(pool);
     db = drizzle(pool, { schema });
     const folders = new AppFolderService(db);
-    const audit = { log: vi.fn().mockResolvedValue(true) };
+    audit = { log: vi.fn().mockResolvedValue(true) };
     const reader = new AppMembersReader(db, folders);
     apps = new AppsService(db, audit as never, folders, reader);
     members = new AppMembersService(db, audit as never, folders, apps);
@@ -109,6 +111,10 @@ describe.skipIf(!url)('app incidents on disposable PostgreSQL', () => {
       restore: async (item) => {
         restored.push(item.itemKey);
         if (item.itemKind === 'route_overlay') await maintenance.applyModes([String(item.ref.routeId)]);
+        // A member deleted while the app was shut down (as DefaultAppIncidentActions reports it).
+        if (item.ref.deleted === true) {
+          return { status: 'gone', detail: 'Deleted while the app was shut down; not started' };
+        }
         return { status: 'restored' };
       },
     };
@@ -117,7 +123,12 @@ describe.skipIf(!url)('app incidents on disposable PostgreSQL', () => {
       hold: () => ({ stop: () => undefined }) as never,
       release: async () => undefined,
     };
-    runner = new AppIncidentRunner(repo, actions, { changed: () => freeze.invalidate() }, leases as never);
+    runner = new AppIncidentRunner(
+      repo,
+      actions,
+      { changed: () => freeze.invalidate(), released: (incident) => service.recordReleased(incident) },
+      leases as never
+    );
     service = new AppIncidentService(
       db,
       apps,
@@ -128,7 +139,7 @@ describe.skipIf(!url)('app incidents on disposable PostgreSQL', () => {
       audit as never
     );
     apps.setIncidentGuard(service);
-    members.setIncidentCheck((environmentId) => service.environmentHasIncident(environmentId));
+    members.setIsolationCheck((environmentId) => service.environmentHasIncident(environmentId, 'isolation'));
     const group = (await q(`insert into permission_groups (name) values ('apps-inc') returning id`)).rows[0].id;
     userId = (
       await q(`insert into users (email, name, group_id) values ('inc@example.test', 'I', $1) returning id`, [group])
@@ -185,13 +196,6 @@ describe.skipIf(!url)('app incidents on disposable PostgreSQL', () => {
       code: 'APP_ISOLATED',
     });
     await expect(freeze.assertNotFrozen({ kind: 'route', id: unrelated })).resolves.toBeUndefined();
-    await expect(freeze.assertNoOpenIncident({ kind: 'route', id: member })).rejects.toMatchObject({
-      code: 'APP_ISOLATED',
-    });
-    await expect(freeze.assertNoOpenIncident({ kind: 'route', id: unrelated })).resolves.toBeUndefined();
-    // Deleting or unbinding a member (the delete paths call assertNoOpenIncident) is refused while isolated.
-    const web = { kind: 'container', nodeId: dockerNode, name: 'web' } as const;
-    await expect(freeze.assertNoOpenIncident(web)).rejects.toMatchObject({ code: 'APP_ISOLATED' });
     // A network the release reconnects the member to stays; others do not matter.
     await expect(freeze.assertNetworkNotHeld(dockerNode, { id: 'net-app-1', name: 'app-net' })).rejects.toMatchObject({
       code: 'APP_ISOLATED',
@@ -211,7 +215,13 @@ describe.skipIf(!url)('app incidents on disposable PostgreSQL', () => {
     expect(await repo.openFor(env.id, 'shutdown')).toBeNull();
 
     const moved = await members.place(actor(), { target: null, members: [{ type: 'route', id: member }] } as never);
-    expect(moved.refused).toEqual([expect.objectContaining({ code: 'APP_INCIDENT_ACTIVE' })]);
+    expect(moved.refused).toEqual([expect.objectContaining({ code: 'APP_ISOLATED' })]);
+    await expect(
+      members.place(actor(), {
+        target: { appId: app.id, environmentId: env.id },
+        members: [{ type: 'route', id: unrelated }],
+      } as never)
+    ).rejects.toMatchObject({ code: 'APP_ISOLATED' });
     await expect(apps.delete(actor(), app.id)).rejects.toMatchObject({ code: 'APP_INCIDENT_ACTIVE' });
     expect((await apps.list(ALL)).find((item) => item.id === app.id)?.incident).toBe('isolated');
     const detail = await apps.get(ALL, app.id);
@@ -245,30 +255,74 @@ describe.skipIf(!url)('app incidents on disposable PostgreSQL', () => {
     await settle(incidents);
     expect(await mode(own)).toMatchObject({ maintenance_enabled: true, app_maintenance_mode: 'maintenance' });
     expect(await mode(plain)).toMatchObject({ maintenance_enabled: false, app_maintenance_mode: 'maintenance' });
-    // Edits of members are not frozen by a shutdown (Start picks them up).
+    // A shutdown holds no member: edits, deletes, unbinds and renames pass the freeze (only the kill switch refuses).
     await expect(freeze.assertNotFrozen({ kind: 'route', id: plain })).resolves.toBeUndefined();
-    // Deleting or unbinding a member is: Start would no longer find what it restores.
     await q(
       `insert into docker_container_folder_assignments (node_id, resource_type, resource_key, container_name, folder_id)
        values ($1, 'container', 'blog-web', 'blog-web', $2)`,
       [dockerNode, env.placementFolderIds.containers]
     );
-    const kept = { kind: 'container', nodeId: dockerNode, name: 'blog-web' } as const;
-    await expect(freeze.assertNoOpenIncident(kept)).rejects.toMatchObject({ code: 'APP_INCIDENT_ACTIVE' });
+    await expect(
+      freeze.assertNotFrozen({ kind: 'container', nodeId: dockerNode, name: 'blog-web' })
+    ).resolves.toBeUndefined();
     // Placing new resources in a shut-down environment stays allowed.
     const placement = await appPlacementForFolder(db, 'routes', env.placementFolderIds.routes);
     await expect(assertPlacementNotIsolated(db, placement)).resolves.toBeUndefined();
-    // Changes that need a running environment (moving a key-value store to Valkey) are refused while it is shut down.
-    await expect(freeze.assertNoOpenIncident({ kind: 'route', id: plain })).rejects.toMatchObject({
-      code: 'APP_INCIDENT_ACTIVE',
-      message: expect.stringContaining('Blog'),
-    });
+    // Members move out of and into a shut-down environment.
+    await q('insert into app_environment_nodes (environment_id, node_id) values ($1, $2)', [env.id, nginxNode]);
+    const outside = await route(null);
+    const movedOut = await members.place(actor(), { target: null, members: [{ type: 'route', id: plain }] } as never);
+    expect(movedOut.refused).toEqual([]);
+    const movedIn = await members.place(actor(), {
+      target: { appId: app.id, environmentId: env.id },
+      members: [{ type: 'route', id: outside }],
+    } as never);
+    expect(movedIn.refused).toEqual([]);
+    // Deleting the app or the environment stays refused while it is shut down (the incident belongs to it).
+    await expect(apps.delete(actor(), app.id)).rejects.toMatchObject({ code: 'APP_INCIDENT_ACTIVE' });
+    // A member deleted while shut down: Start skips it and reports it.
+    await repo.addItems(incidents[0]!.id, [
+      {
+        itemKind: 'deployment_stop',
+        itemKey: 'deployment:deleted',
+        phase: 20,
+        ref: { deploymentId: randomUUID(), label: 'blog-worker', deleted: true },
+        priorState: { status: 'ready' },
+      },
+    ]);
     expect((await apps.list(ALL)).find((item) => item.id === app.id)?.incident).toBe('stopped');
     await settle(await service.start(actor(), app.id, [env.id]));
     expect(await mode(own)).toMatchObject({ maintenance_enabled: true, app_maintenance_mode: 'off' });
+    // Moved out while shut down, it ran at shutdown: Start brings it back too.
     expect(await mode(plain)).toMatchObject({ maintenance_enabled: false, app_maintenance_mode: 'off' });
     await expect(service.start(actor(), app.id, [env.id])).rejects.toMatchObject({ code: 'APP_INCIDENT_NOT_ACTIVE' });
-    await expect(freeze.assertNoOpenIncident({ kind: 'route', id: plain })).resolves.toBeUndefined();
+    // The incident view and the release audit list the member Start skipped.
+    const [view] = (await service.list(ALL, app.id)).filter((incident) => incident.id === incidents[0]!.id);
+    expect(view?.state).toBe('released');
+    expect(view?.skipped).toEqual([
+      expect.objectContaining({
+        kind: 'deployment_stop',
+        label: 'blog-worker',
+        detail: 'Deleted while the app was shut down; not started',
+      }),
+    ]);
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'app.start.completed',
+        resourceId: env.id,
+        details: expect.objectContaining({
+          appName: 'Blog',
+          incidentId: incidents[0]!.id,
+          skipped: [
+            {
+              kind: 'deployment_stop',
+              label: 'blog-worker',
+              detail: 'Deleted while the app was shut down; not started',
+            },
+          ],
+        }),
+      })
+    );
   });
 
   it('needs apps:operate on every environment it touches', async () => {

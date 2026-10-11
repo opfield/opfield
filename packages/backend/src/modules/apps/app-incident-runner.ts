@@ -36,8 +36,8 @@ export interface IncidentRunHooks {
  * and restores every item from its recorded prior state phase by phase (descending) while it is releasing. Failures
  * stay on the item (failed / restore_failed) and are retried by the next run (the 30 s job and node reconnects); the
  * incident ends `released` once every item is restored or gone. A resource removed meanwhile (a route, a binding, a
- * network) ends its item `gone`, never failed. One run per incident at a time across processes
- * (operation lease), and within this process.
+ * network, or any member deleted while the app was shut down) ends its item `gone`, never failed; the `released` hook
+ * lists those. One run per incident at a time across processes (operation lease), and within this process.
  */
 export class AppIncidentRunner {
   private readonly running = new Map<string, Promise<void>>();
@@ -104,11 +104,12 @@ export class AppIncidentRunner {
         if (!current || (current.state !== 'applying' && current.state !== 'active')) return;
         try {
           const outcome = await this.actions.apply(item, { incidentId: incident.id, userId: incident.startedById });
+          // A gone item keeps its note (a resource deleted while the app was shut down) as its detail.
           await this.repo.updateItem(item.id, {
             status: outcome.status === 'gone' ? 'gone' : 'applied',
             priorState: outcome.status === 'applied' ? outcome.priorState : item.priorState,
             attempts: item.attempts + 1,
-            lastError: null,
+            lastError: outcome.status === 'gone' ? (outcome.detail ?? null) : null,
           });
         } catch (error) {
           await this.repo.updateItem(item.id, {

@@ -1,11 +1,13 @@
-import { eq } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray } from 'drizzle-orm';
 import { container } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import {
   type AppIncidentItem,
   containerLinks,
+  dockerComposeOperations,
   dockerComposeProjects,
   dockerDeployments,
+  dockerMigrations,
   managedDatabaseBindings,
   managedDatabaseInstances,
   managedStorageBindings,
@@ -48,6 +50,34 @@ export interface AppIncidentActions {
 }
 
 const SYSTEM_ACTOR = 'system';
+
+/**
+ * The detail of a shutdown item whose resource was deleted while the app was shut down (members take every change
+ * then): Start skips it, and the incident view and the release audit list it.
+ */
+export const DELETED_WHILE_SHUT_DOWN = 'Deleted while the app was shut down; not started';
+
+/** Shutdown items Start brings back (stopped workloads, paused data engines). */
+const STARTED_KINDS: ReadonlySet<AppIncidentItemKind> = new Set([
+  'container_stop',
+  'deployment_stop',
+  'compose_stop',
+  'database_pause',
+  'storage_pause',
+]);
+
+/** Migrations of a container that took it to another node (cut over), followed by Start. */
+const MIGRATED_STATUSES = ['completed', 'cleanup_pending'] as const;
+/** How many migrations in a row Start follows (a container moved on again after its first move). */
+const MAX_MIGRATION_HOPS = 5;
+
+/** Where a container a shutdown stopped is now: node, the key Docker finds it by (name or runtime ID), its state. */
+interface FoundContainer {
+  nodeId: string;
+  key: string;
+  state: string;
+  note?: string;
+}
 
 function isNotFound(error: unknown): boolean {
   const status = (error as { statusCode?: number })?.statusCode;
@@ -231,16 +261,19 @@ export class DefaultAppIncidentActions implements AppIncidentActions {
         case 'container_network':
           return await this.isolateContainer(item, userId);
         case 'container_stop': {
-          const state = await this.containerState(str(ref.nodeId), str(ref.name));
-          if (state === null) return { status: 'gone' };
-          if (state === 'running') {
+          const status = await this.containerStatus(str(ref.nodeId), str(ref.name));
+          if (status === null) return { status: 'gone', detail: DELETED_WHILE_SHUT_DOWN };
+          if (status.state === 'running') {
             await this.docker().stopContainer(str(ref.nodeId), str(ref.name), undefined, userId ?? SYSTEM_ACTOR);
           }
-          return { status: 'applied', priorState: item.priorState ?? { state } };
+          // The runtime ID finds the container again when it is renamed while the app is shut down.
+          return { status: 'applied', priorState: item.priorState ?? { state: status.state, containerId: status.id } };
         }
         case 'deployment_stop': {
           const deployment = await this.deployment(str(ref.deploymentId));
-          if (!deployment) return { status: 'gone' };
+          if (!deployment || deployment.status === 'deleting') {
+            return { status: 'gone', detail: DELETED_WHILE_SHUT_DOWN };
+          }
           if (deployment.status !== 'stopped') {
             await this.resolve(DockerDeploymentService).stop(deployment.nodeId, deployment.id, userId);
           }
@@ -248,7 +281,7 @@ export class DefaultAppIncidentActions implements AppIncidentActions {
         }
         case 'compose_stop': {
           const project = await this.composeProject(str(ref.projectId));
-          if (!project) return { status: 'gone' };
+          if (!project || project.status === 'deleting') return { status: 'gone', detail: DELETED_WHILE_SHUT_DOWN };
           if (project.status !== 'stopped') {
             const operation = await this.resolve(DockerComposeService).startOperation(
               project.nodeId,
@@ -263,7 +296,7 @@ export class DefaultAppIncidentActions implements AppIncidentActions {
         }
         case 'database_pause': {
           const database = await this.managedDatabase(str(ref.databaseId));
-          if (!database) return { status: 'gone' };
+          if (!database || database.status === 'deleting') return { status: 'gone', detail: DELETED_WHILE_SHUT_DOWN };
           if (database.status !== 'paused') {
             await this.resolve(ManagedDatabaseService).pause(database.id, userId ?? SYSTEM_ACTOR);
           }
@@ -271,13 +304,13 @@ export class DefaultAppIncidentActions implements AppIncidentActions {
         }
         case 'storage_pause': {
           const storage = await this.managedStorage(str(ref.storageId));
-          if (!storage) return { status: 'gone' };
+          if (!storage || storage.status === 'deleting') return { status: 'gone', detail: DELETED_WHILE_SHUT_DOWN };
           if (storage.status !== 'paused') await this.resolve(ManagedStorageService).pause(storage.id, userId);
           return { status: 'applied', priorState: item.priorState ?? { status: storage.status } };
         }
       }
     } catch (error) {
-      if (isNotFound(error)) return { status: 'gone' };
+      if (isNotFound(error)) return this.goneOutcome(item);
       throw error;
     }
     throw new Error(`Unknown incident item kind ${item.itemKind}`);
@@ -389,19 +422,21 @@ export class DefaultAppIncidentActions implements AppIncidentActions {
         case 'container_network':
           return await this.restoreContainer(item, userId);
         case 'container_stop': {
-          // Start only what was running and is still stopped (a container started by hand meanwhile is left alone).
-          const state = await this.containerState(str(ref.nodeId), str(ref.name));
-          if (state === null) return { status: 'gone' };
-          if (prior.state === 'running' && state !== 'running') {
-            await this.docker().startContainer(str(ref.nodeId), str(ref.name), userId ?? SYSTEM_ACTOR, {
-              appIncident: true,
-            });
+          // Start only what was running and is still stopped (a container started by hand meanwhile is left alone),
+          // wherever it is now; a container deleted while shut down is skipped.
+          const found = await this.findStoppedContainer(item, str(ref.nodeId), str(ref.name), prior.containerId);
+          if (!found) return { status: 'gone', detail: DELETED_WHILE_SHUT_DOWN };
+          if (prior.state === 'running' && found.state !== 'running') {
+            await this.docker().startContainer(found.nodeId, found.key, userId ?? SYSTEM_ACTOR, { appIncident: true });
           }
-          return { status: 'restored' };
+          return found.note ? { status: 'restored', detail: found.note } : { status: 'restored' };
         }
         case 'deployment_stop': {
+          // By ID: a deployment renamed, migrated or moved to another environment meanwhile is still started.
           const deployment = await this.deployment(str(ref.deploymentId));
-          if (!deployment) return { status: 'gone' };
+          if (!deployment || deployment.status === 'deleting') {
+            return { status: 'gone', detail: DELETED_WHILE_SHUT_DOWN };
+          }
           if (prior.status !== 'stopped' && deployment.status === 'stopped') {
             await this.resolve(DockerDeploymentService).start(deployment.nodeId, deployment.id, userId);
           }
@@ -409,24 +444,33 @@ export class DefaultAppIncidentActions implements AppIncidentActions {
         }
         case 'compose_stop': {
           const project = await this.composeProject(str(ref.projectId));
-          if (!project) return { status: 'gone' };
+          if (!project || project.status === 'deleting') return { status: 'gone', detail: DELETED_WHILE_SHUT_DOWN };
           if (prior.status !== 'stopped' && project.status === 'stopped') {
+            // A project taken down while shut down has no containers to start: it comes up from its active revision.
+            const takenDown = await this.composeTakenDownSince(project.id, item.createdAt);
+            const action = takenDown ? 'apply' : 'start';
             const operation = await this.resolve(DockerComposeService).startOperation(
               project.nodeId,
               project.id,
-              'start',
-              { idempotencyKey: `app-incident:${item.id}:start:${item.attempts}`, volumeNames: [] },
+              action,
+              { idempotencyKey: `app-incident:${item.id}:${action}:${item.attempts}`, volumeNames: [] },
               userId ?? SYSTEM_ACTOR,
               false,
               { appIncident: true }
             );
             await this.waitForCompose(project.id, (operation as { id?: string })?.id);
+            if (takenDown) {
+              return {
+                status: 'restored',
+                detail: 'Taken down while the app was shut down; brought up again from its active revision',
+              };
+            }
           }
           return { status: 'restored' };
         }
         case 'database_pause': {
           const database = await this.managedDatabase(str(ref.databaseId));
-          if (!database) return { status: 'gone' };
+          if (!database || database.status === 'deleting') return { status: 'gone', detail: DELETED_WHILE_SHUT_DOWN };
           if (prior.status !== 'paused' && database.status === 'paused') {
             await this.resolve(ManagedDatabaseService).unpause(database.id, userId ?? SYSTEM_ACTOR);
           }
@@ -434,7 +478,7 @@ export class DefaultAppIncidentActions implements AppIncidentActions {
         }
         case 'storage_pause': {
           const storage = await this.managedStorage(str(ref.storageId));
-          if (!storage) return { status: 'gone' };
+          if (!storage || storage.status === 'deleting') return { status: 'gone', detail: DELETED_WHILE_SHUT_DOWN };
           if (prior.status !== 'paused' && storage.status === 'paused') {
             await this.resolve(ManagedStorageService).unpause(storage.id, userId);
           }
@@ -442,10 +486,97 @@ export class DefaultAppIncidentActions implements AppIncidentActions {
         }
       }
     } catch (error) {
-      if (isNotFound(error)) return { status: 'gone' };
+      if (isNotFound(error)) return this.goneOutcome(item);
       throw error;
     }
     throw new Error(`Unknown incident item kind ${item.itemKind}`);
+  }
+
+  /** A resource found missing: a shutdown item says it was deleted while the app was shut down. */
+  private goneOutcome(item: AppIncidentItem): IncidentActionOutcome {
+    return STARTED_KINDS.has(item.itemKind as AppIncidentItemKind)
+      ? { status: 'gone', detail: DELETED_WHILE_SHUT_DOWN }
+      : { status: 'gone' };
+  }
+
+  /**
+   * The container a shutdown stopped, where it is now. Members take every change while the app is shut down, so:
+   * a migration since the shutdown is followed to the node it took the container to; otherwise the name on its node
+   * (a container recreated under the name is the same container), then the runtime ID recorded when it was stopped
+   * (renamed meanwhile). Null when nothing is left (deleted).
+   */
+  private async findStoppedContainer(
+    item: AppIncidentItem,
+    nodeId: string,
+    name: string,
+    containerId: unknown
+  ): Promise<FoundContainer | null> {
+    let node = nodeId;
+    let since = item.createdAt;
+    for (let hop = 0; hop < MAX_MIGRATION_HOPS; hop += 1) {
+      const migration = await this.migrationSince(node, name, since);
+      if (!migration) break;
+      node = migration.targetNodeId;
+      since = migration.cutoverAt;
+    }
+    if (node !== nodeId) {
+      const status = await this.containerStatus(node, name);
+      return status
+        ? { nodeId: node, key: name, state: status.state, note: 'Migrated to another node while the app was shut down' }
+        : null;
+    }
+    const byName = await this.containerStatus(nodeId, name);
+    if (byName) return { nodeId, key: name, state: byName.state };
+    if (typeof containerId !== 'string' || !containerId) return null;
+    const byId = await this.containerStatus(nodeId, containerId);
+    if (!byId) return null;
+    return {
+      nodeId,
+      key: containerId,
+      state: byId.state,
+      ...(byId.name ? { note: `Renamed to ${byId.name} while the app was shut down` } : {}),
+    };
+  }
+
+  /** The migration that took a container from a node since a moment (cut over), if any. */
+  private async migrationSince(
+    nodeId: string,
+    name: string,
+    since: Date
+  ): Promise<{ targetNodeId: string; cutoverAt: Date } | null> {
+    const [row] = await this.db
+      .select({ targetNodeId: dockerMigrations.targetNodeId, cutoverAt: dockerMigrations.cutoverAt })
+      .from(dockerMigrations)
+      .where(
+        and(
+          eq(dockerMigrations.resourceType, 'container'),
+          eq(dockerMigrations.sourceNodeId, nodeId),
+          eq(dockerMigrations.resourceName, name),
+          inArray(dockerMigrations.status, [...MIGRATED_STATUSES]),
+          gt(dockerMigrations.cutoverAt, since)
+        )
+      )
+      .orderBy(desc(dockerMigrations.cutoverAt))
+      .limit(1);
+    return row?.cutoverAt ? { targetNodeId: row.targetNodeId, cutoverAt: row.cutoverAt } : null;
+  }
+
+  /** Whether the last Compose down/apply/start that succeeded on a project since a moment was a down. */
+  private async composeTakenDownSince(projectId: string, since: Date): Promise<boolean> {
+    const [row] = await this.db
+      .select({ action: dockerComposeOperations.action })
+      .from(dockerComposeOperations)
+      .where(
+        and(
+          eq(dockerComposeOperations.projectId, projectId),
+          eq(dockerComposeOperations.status, 'succeeded'),
+          inArray(dockerComposeOperations.action, ['down', 'apply', 'pull_apply', 'start']),
+          gt(dockerComposeOperations.createdAt, since)
+        )
+      )
+      .orderBy(desc(dockerComposeOperations.createdAt))
+      .limit(1);
+    return row?.action === 'down';
   }
 
   /**
@@ -557,24 +688,26 @@ export class DefaultAppIncidentActions implements AppIncidentActions {
     }
   }
 
-  /** `running`, another Docker state, or null when the container does not exist (asked live, not from a snapshot). */
-  private async containerState(nodeId: string, name: string): Promise<string | null> {
-    return (await this.containerStatus(nodeId, name))?.state ?? null;
-  }
-
-  /** The container's state (as `containerState`) and runtime ID, or null when it does not exist. */
-  private async containerStatus(nodeId: string, name: string): Promise<{ state: string; id: string } | null> {
+  /**
+   * The container's state (`running` or another Docker state, asked live, not from a snapshot), runtime ID and name,
+   * or null when it does not exist.
+   */
+  private async containerStatus(
+    nodeId: string,
+    nameOrId: string
+  ): Promise<{ state: string; id: string; name: string } | null> {
     try {
-      const data = (await this.docker().inspectContainer(nodeId, name)) as Record<string, any> | null;
+      const data = (await this.docker().inspectContainer(nodeId, nameOrId)) as Record<string, any> | null;
       if (!data) return null;
       const id = String(data.Id ?? data.id ?? '');
+      const name = String(data.Name ?? data.name ?? '').replace(/^\//, '');
       const state = data.State ?? data.state;
-      if (typeof state === 'string') return { state: state.toLowerCase(), id };
+      if (typeof state === 'string') return { state: state.toLowerCase(), id, name };
       if (state && typeof state === 'object') {
-        if (state.Running === true || state.running === true) return { state: 'running', id };
-        return { state: String(state.Status ?? state.status ?? 'exited').toLowerCase(), id };
+        if (state.Running === true || state.running === true) return { state: 'running', id, name };
+        return { state: String(state.Status ?? state.status ?? 'exited').toLowerCase(), id, name };
       }
-      return { state: 'exited', id };
+      return { state: 'exited', id, name };
     } catch (error) {
       if (isNotFound(error) || /no such container|not found/i.test(String((error as Error)?.message ?? ''))) {
         return null;
