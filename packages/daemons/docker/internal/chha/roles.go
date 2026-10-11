@@ -29,8 +29,15 @@ import (
 //     and this member as the only voter works, then a second restart with
 //     reconfiguration on (reconfig answers "Unimplemented" until then).
 const (
-	recoveryFile     = "gateway-availability-recovery.json"
-	joiningMarker    = "gateway-keeper-joining"
+	recoveryFile  = "gateway-availability-recovery.json"
+	joiningMarker = "gateway-keeper-joining"
+	// keeperRoleFile keeps the role this member's Keeper last had in its own
+	// cluster configuration (voter or learner; empty after a wipe). A manual
+	// pair's member reads it before its Keeper can answer: a learner cannot
+	// hold a diverged state that harms its peer and needs its peer's Keeper to
+	// serve at all (ClickHouse exits at startup without a ZooKeeper session),
+	// so only a voter's Keeper waits for the peer check (checkKeeperGate).
+	keeperRoleFile   = "gateway-keeper-role"
 	recoveryAfter    = 15 * time.Second
 	learnerOutOfStep = 30 * time.Second
 	// peerKeeperJoining is the PeerState.Engine key of a member whose Keeper
@@ -38,6 +45,8 @@ const (
 	peerKeeperJoining = "keeperJoining"
 	// peerKeeperVoters lists the voters of the member's Keeper configuration.
 	peerKeeperVoters = "keeperVoters"
+	// peerKeeperRole is the member's own Keeper role (keeperRoleFile).
+	peerKeeperRole = "keeperRole"
 )
 
 // Recovery phases of a manual pair's primary.

@@ -125,6 +125,9 @@ type engine struct {
 	keeperGate     atomic.Bool
 	peerVoters     atomic.Value
 	gateAskedSince time.Duration
+	// ownRole is this member's Keeper role in its own cluster configuration
+	// (keeperRoleFile): RoleVoter, RoleLearner or "" (unknown, wiped).
+	ownRole atomic.Value
 	// runningID is the Keeper server id the running container started with
 	// (a learner promoted to a voter gets a new id: re-adding a removed id
 	// crashed Keeper 25.8).
@@ -160,8 +163,15 @@ func New(config memberha.Config, rt Runtime) (memberha.Engine, error) {
 	if raw, err := rt.ReadFile(recoveryFile); err == nil {
 		e.rec = decodeRecovery(raw)
 	}
-	e.joining.Store(rt.Exists(joiningMarker))
+	e.joining.Store(e.markerSet(joiningMarker))
 	e.peerVoters.Store("")
+	e.ownRole.Store("")
+	if raw, err := rt.ReadFile(keeperRoleFile); err == nil {
+		if role := strings.TrimSpace(string(raw)); role == RoleVoter || role == RoleLearner {
+			e.ownRole.Store(role)
+			e.wasLearner = role == RoleLearner
+		}
+	}
 	if raw, err := rt.ReadFile(ServerConfigFile); err == nil {
 		e.runningID.Store(renderedServerID(raw))
 	}
@@ -169,9 +179,41 @@ func New(config memberha.Config, rt Runtime) (memberha.Engine, error) {
 	// primary recovered alone while it was away) asks its peer before its
 	// Keeper may reach it: a diverged leader's traffic broke the recovered one
 	// in the prototype.
-	e.keeperGate.Store(config.Mode != memberha.ModeManual || e.joining.Load())
+	e.keeperGate.Store(!e.gateNeeded(config))
 	e.loopOnce.Do(func() { go e.loop() })
 	return e, nil
+}
+
+// markerSet reports a non-empty marker file in the data mount (a cleared
+// marker is kept as an empty file).
+func (e *engine) markerSet(name string) bool {
+	raw, err := e.rt.ReadFile(name)
+	return err == nil && len(bytes.TrimSpace(raw)) > 0
+}
+
+func (e *engine) role() string {
+	role, _ := e.ownRole.Load().(string)
+	return role
+}
+
+// setRole persists this member's Keeper role ("" after a wipe).
+func (e *engine) setRole(role string) {
+	if e.role() == role {
+		return
+	}
+	if err := e.rt.WriteFile(keeperRoleFile, []byte(role)); err != nil {
+		e.logger.Warn("could not persist the member's Keeper role", "role", role, "error", err)
+		return
+	}
+	e.ownRole.Store(role)
+}
+
+// gateNeeded: a manual pair's member whose Keeper may be a voter with a
+// diverged state checks its peer before its Keeper may reach the other
+// members (checkKeeperGate). A joining Keeper (empty state) and a learner
+// cannot diverge harmfully, and a learner needs its peer to serve at all.
+func (e *engine) gateNeeded(config memberha.Config) bool {
+	return config.Mode == memberha.ModeManual && !e.joining.Load() && e.role() != RoleLearner
 }
 
 // refresh reads the current configuration; false once the member is gone.
@@ -402,13 +444,18 @@ func (e *engine) PrepareStandby(ctx context.Context) error {
 		return err
 	}
 	logEmpty := !e.rt.Exists("coordination/log")
-	if logEmpty && !e.rt.Exists(joiningMarker) {
+	if logEmpty && !e.markerSet(joiningMarker) {
 		// A Keeper without a log waits to be added (or bootstraps from the
 		// bootstrap voters); its peers see that on member-control.
 		if err := e.rt.WriteFile(joiningMarker, []byte("joining\n")); err != nil {
 			return err
 		}
+	}
+	if e.markerSet(joiningMarker) {
+		// An empty Keeper state cannot have diverged: its Keeper may reach the
+		// other members at once.
 		e.joining.Store(true)
+		e.keeperGate.Store(true)
 	}
 	if _, err := e.writeIfChanged(ServerConfigFile, RenderServerConfigMode(snap.config, snap.ec, logEmpty, e.renderMode(snap))); err != nil {
 		return err
@@ -443,6 +490,14 @@ func (e *engine) Start(ctx context.Context) error {
 		e.roleMu.Unlock()
 		if err != nil {
 			return err
+		}
+		// Every start of a voter's Keeper is checked against the peer again:
+		// it may have diverged while it was down (its peer recovered alone).
+		if snap, _ := e.refresh(); e.gateNeeded(snap.config) {
+			e.keeperGate.Store(false)
+			e.mu.Lock()
+			e.gateAskedSince = 0
+			e.mu.Unlock()
 		}
 	}
 	if raw, err := e.rt.ReadFile(ServerConfigFile); err == nil {
@@ -545,6 +600,8 @@ func (e *engine) Rejoin(context.Context) error {
 	}
 	e.joining.Store(true)
 	e.keeperGate.Store(true)
+	e.setRole("")
+	e.peerVoters.Store("")
 	e.mu.Lock()
 	e.rejoinReason, e.wasLearner, e.keeperDownSince = "", false, 0
 	e.mu.Unlock()
@@ -578,22 +635,35 @@ func (e *engine) PeerEngineState() map[string]string {
 	if voters, _ := e.peerVoters.Load().(string); voters != "" {
 		out[peerKeeperVoters] = voters
 	}
+	if role := e.role(); role != "" {
+		out[peerKeeperRole] = role
+	}
 	return out
 }
 
-// checkKeeperGate opens a manual pair member's Keeper path to its peer once
-// the peer's Keeper lists this member as a voter, this member is not a voter
-// itself, or the peer does not answer (or serves no Keeper) for
-// recoveryAfter. A voter the peer's Keeper does not list diverged: it joins
-// again with a wiped state.
+// checkKeeperGate opens a manual pair member's Keeper path to its peer. A
+// learner (by its Keeper's configuration, or the persisted role while its
+// Keeper does not answer) opens at once. A voter opens once a peer's Keeper
+// lists it as a voter, the peer's Keeper waits to join (wiped state), or the
+// peer is a learner that cannot read its configuration yet (it needs this
+// voter to serve). A peer that does not answer keeps a voter's gate closed:
+// a voter serves alone, and the check runs again when the peer returns. A
+// voter the peer's Keeper does not list diverged: a copy joins again with a
+// wiped state.
 func (e *engine) checkKeeperGate(ctx context.Context, snap *configSnapshot, current map[uint32]keeperEntry, writable bool, now time.Duration) {
 	if e.keeperGate.Load() {
 		return
 	}
-	selfID := snap.ec.KeeperServerID
-	ownVoter := false
-	if entry, ok := current[selfID]; ok && !entry.learner {
-		ownVoter = true
+	selfID := e.runningID.Load()
+	if selfID == 0 {
+		selfID = snap.ec.KeeperServerID
+	}
+	role := e.role()
+	if entry, ok := current[selfID]; ok {
+		role = RoleVoter
+		if entry.learner {
+			role = RoleLearner
+		}
 	}
 	e.mu.Lock()
 	if e.gateAskedSince == 0 {
@@ -601,23 +671,47 @@ func (e *engine) checkKeeperGate(ctx context.Context, snap *configSnapshot, curr
 	}
 	askedFor := now - e.gateAskedSince
 	e.mu.Unlock()
+	switch role {
+	case RoleLearner:
+		e.keeperGate.Store(true)
+		return
+	case "":
+		// Unknown role (never seen in its own configuration): the peer
+		// check below decides, or the wait runs out.
+		if askedFor >= recoveryAfter {
+			e.keeperGate.Store(true)
+			return
+		}
+	}
+	self := strconv.FormatUint(uint64(selfID), 10)
 	for _, peer := range snap.config.Others() {
 		if peer.Removing {
 			continue
 		}
 		state, ok := e.rt.PeerEngineState(ctx, peer.MemberID)
+		if !ok {
+			continue
+		}
+		if state[peerKeeperJoining] == "true" {
+			e.keeperGate.Store(true)
+			return
+		}
 		voters := state[peerKeeperVoters]
-		if !ok || voters == "" {
+		if voters == "" {
+			if state[peerKeeperRole] == RoleLearner {
+				e.keeperGate.Store(true)
+				return
+			}
 			continue
 		}
 		listed := false
 		for _, id := range strings.Split(voters, ",") {
-			listed = listed || id == strconv.FormatUint(uint64(selfID), 10)
+			listed = listed || id == self
 		}
 		switch {
-		case listed || !ownVoter || current == nil:
+		case listed:
 			e.keeperGate.Store(true)
-		case !writable:
+		case role == RoleVoter && !writable:
 			e.mu.Lock()
 			if e.rejoinReason == "" {
 				e.rejoinReason = "diverged"
@@ -627,9 +721,6 @@ func (e *engine) checkKeeperGate(ctx context.Context, snap *configSnapshot, curr
 			e.mu.Unlock()
 		}
 		return
-	}
-	if askedFor >= recoveryAfter {
-		e.keeperGate.Store(true)
 	}
 }
 
@@ -841,22 +932,33 @@ func (e *engine) reconcile(ctx context.Context, snap *configSnapshot) {
 	}
 	now := bootNow()
 	e.trackGateway(now)
-	e.ensureDatabases(ctx, snap)
 	var current map[uint32]keeperEntry
 	e.mu.Lock()
 	readConfig := row.writable() || snap.config.Mode == memberha.ModeManual || e.lastConfigRead == 0 ||
 		now-e.lastConfigRead >= copyKeeperConfigPeriod
+	e.mu.Unlock()
+	if readConfig {
+		current, err = e.keeperConfig(ctx)
+	} else {
+		err = errSkipped
+	}
+	e.mu.Lock()
+	// A learner reports "standalone" whether or not it reaches a leader: in a
+	// manual pair (configuration read every pass) a configuration read, a
+	// Keeper session, is what shows it serves.
 	serving := e.lastSample.keeperQuorum
+	if snap.config.Mode == memberha.ModeManual {
+		serving = err == nil
+	}
 	if serving {
 		e.keeperDownSince = 0
 	} else if e.keeperDownSince == 0 {
 		e.keeperDownSince = now
 	}
 	e.mu.Unlock()
-	if readConfig {
-		current, err = e.keeperConfig(ctx)
-	} else {
-		err = errSkipped
+	if serving {
+		// Joining a Replicated database needs a Keeper session.
+		e.ensureDatabases(ctx, snap)
 	}
 	if err == nil {
 		e.mu.Lock()
@@ -870,6 +972,11 @@ func (e *engine) reconcile(ctx context.Context, snap *configSnapshot) {
 		}
 		if own, ok := current[ownID]; ok {
 			e.wasLearner = own.learner
+			if own.learner {
+				e.setRole(RoleLearner)
+			} else {
+				e.setRole(RoleVoter)
+			}
 			if e.joining.Load() {
 				_ = e.rt.WriteFile(joiningMarker, nil)
 				e.joining.Store(false)
@@ -982,7 +1089,8 @@ func (e *engine) holderQuorum(ctx context.Context, snap *configSnapshot, row eng
 func (e *engine) copyRoles(snap *configSnapshot, current map[uint32]keeperEntry, now time.Duration) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.rejoinReason != "" {
+	if e.rejoinReason != "" || e.rec != nil {
+		// A forced recovery's member is not writable between its restarts.
 		return
 	}
 	voters, learners := effectiveRoles(snap.config, snap.ec, e.activated, nil)
@@ -1009,7 +1117,9 @@ func (e *engine) copyRoles(snap *configSnapshot, current map[uint32]keeperEntry,
 func (e *engine) manualRecovery(ctx context.Context, snap *configSnapshot, current map[uint32]keeperEntry, now time.Duration) bool {
 	e.mu.Lock()
 	rec := e.rec
-	serving := e.lastSample.keeperQuorum
+	// serving: a Keeper session works (reconcile); a sole voter's mode also
+	// shows it.
+	serving := e.keeperDownSince == 0 || (rec != nil && e.lastSample.keeperQuorum)
 	downFor := time.Duration(0)
 	if e.keeperDownSince > 0 {
 		downFor = now - e.keeperDownSince
@@ -1020,7 +1130,13 @@ func (e *engine) manualRecovery(ctx context.Context, snap *configSnapshot, curre
 	case rec != nil && rec.Phase == phaseRecovering && serving:
 		// Recovered alone: restart with reconfiguration on.
 		return e.restartForRecovery(ctx, snap, phaseSoleVoter)
-	case rec == nil && !serving && wasLearner && downFor >= recoveryAfter:
+	case serving:
+		e.mu.Lock()
+		e.votersDownSince = 0
+		e.mu.Unlock()
+	case rec == nil && !serving && wasLearner:
+		// Both clocks run from the first pass without a Keeper session, so the
+		// recovery starts recoveryAfter after the voter was lost (plus one pass).
 		for _, voter := range snap.ec.KeeperServers {
 			if voter.ID == snap.ec.KeeperServerID || voter.Role == RoleLeaving || voter.Witness() {
 				continue
@@ -1038,7 +1154,7 @@ func (e *engine) manualRecovery(ctx context.Context, snap *configSnapshot, curre
 		}
 		down := now - e.votersDownSince
 		e.mu.Unlock()
-		if down < recoveryAfter {
+		if down < recoveryAfter || downFor < recoveryAfter {
 			return false
 		}
 		e.logger.Warn("manual primary recovers its Keeper alone: its voter is unreachable", "set_id", snap.config.SetID)
@@ -1059,7 +1175,16 @@ func (e *engine) restartForRecovery(ctx context.Context, snap *configSnapshot, p
 	e.mu.Lock()
 	e.rec = rec
 	e.mu.Unlock()
-	if err := e.rt.StopClean(ctx, 30*time.Second); err != nil {
+	// Its Keeper restarts as the only voter.
+	e.setRole(RoleVoter)
+	// The first stop is of a member whose Keeper serves no session (its
+	// tables are read-only): ClickHouse's clean shutdown then waits on its
+	// ZooKeeper client, so it gets less time.
+	timeout := 30 * time.Second
+	if phase == phaseRecovering {
+		timeout = 10 * time.Second
+	}
+	if err := e.rt.StopClean(ctx, timeout); err != nil {
 		e.logger.Warn("could not restart for the Keeper recovery", "set_id", snap.config.SetID, "error", err)
 	}
 	return true
@@ -1074,8 +1199,14 @@ func (e *engine) clearRecovery() {
 	}
 }
 
+// keeperConfigTimeout bounds a configuration read (a Keeper without a leader
+// may keep the client waiting).
+const keeperConfigTimeout = 5 * time.Second
+
 // keeperConfig reads the Keeper's cluster configuration.
 func (e *engine) keeperConfig(ctx context.Context) (map[uint32]keeperEntry, error) {
+	ctx, cancel := context.WithTimeout(ctx, keeperConfigTimeout)
+	defer cancel()
 	text, err := e.rt.KeeperClient(ctx, keeperConfigCommand)
 	if err != nil {
 		return nil, err
