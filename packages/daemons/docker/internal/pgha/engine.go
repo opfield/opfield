@@ -436,6 +436,18 @@ func (e *Engine) engineStatusLocked(now time.Duration) memberha.EngineStatus {
 		out.Detail = e.standby.divergenceDetail
 	} else {
 		out.Position["lsn"] = st.FlushLSN.String()
+		if e.obs.peersOK {
+			// The copies the primary's walsenders confirm synchronously: a
+			// standby cannot see its own sync_state (manual pairs certify
+			// nothing, so Gateway reads it here).
+			var syncCopies []string
+			for _, peer := range e.cfg.ActiveOthers() {
+				if row, found := findPeer(e.obs.peers, peer); found && (row.SyncState == "sync" || row.SyncState == "quorum") {
+					syncCopies = append(syncCopies, peer.MemberID)
+				}
+			}
+			out.Position["syncCopies"] = strings.Join(syncCopies, ",")
+		}
 	}
 	if out.DiskFull {
 		out.Detail = e.standby.diskFullDetail

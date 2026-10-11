@@ -2,6 +2,7 @@ package memberha
 
 import (
 	"sort"
+	"time"
 
 	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
 )
@@ -46,6 +47,42 @@ type Report struct {
 // its own sync_state; the holder certifies the sync set).
 type CertifiedSyncStater interface {
 	CertifiedSyncState(value []byte) (string, bool)
+}
+
+// ManualEligibility is an engine's extra condition for a manual pair's copy
+// to count as eligible (a Valkey copy that has not mirrored the ACL list).
+type ManualEligibility interface {
+	ManualEligible(status EngineStatus) (bool, string)
+}
+
+// manualEligibleLocked is a manual pair's copy eligibility for the report and
+// Gateway's view (rolling changes wait on it): no lease and no certified
+// value, so it is what the copy observes itself: it runs as a copy, streams
+// from the primary within maxLagBytes and needs no rejoin.
+func (m *Manager) manualEligibleLocked(mem *member, now time.Duration) (bool, string) {
+	st := mem.obs.status
+	switch {
+	case mem.cfg.Stopped:
+		return false, "stopped"
+	case mem.dataBusy():
+		return false, "rejoining"
+	case mem.obs.at == 0 || now-mem.obs.at > 3*observeInterval:
+		return false, "not_observed"
+	case mem.primaryRunning():
+		return false, "held"
+	case !mem.copyRunning():
+		return false, "engine_not_answering"
+	case st.NeedsRejoin:
+		return false, "needs_rejoin"
+	case !st.Streaming:
+		return false, "not_streaming"
+	case mem.cfg.MaxLagBytes > 0 && st.LagBytes > mem.cfg.MaxLagBytes:
+		return false, "behind"
+	}
+	if extra, ok := mem.engine.(ManualEligibility); ok {
+		return extra.ManualEligible(st)
+	}
+	return true, ""
 }
 
 // reportCheck is a copy whose eligibility and sync state the report takes
@@ -112,6 +149,9 @@ func (m *Manager) reportsLocked() ([]Report, []reportCheck) {
 		mem.eligMu.Lock()
 		report.Eligible, report.EligibilityReason = mem.eligible, mem.eligibleReason
 		mem.eligMu.Unlock()
+		if mem.cfg.Mode == ModeManual {
+			report.Eligible, report.EligibilityReason = m.manualEligibleLocked(mem, m.deps.Clock.Now())
+		}
 		if mem.cfg.Stopped {
 			report.Eligible, report.EligibilityReason = false, "stopped"
 			report.Stopped = !mem.busy && mem.obs.at > 0 && mem.obs.at > mem.lastOpDone && !mem.obs.container.Running

@@ -149,8 +149,9 @@ type Engine struct {
 }
 
 var (
-	_ memberha.Engine       = (*Engine)(nil)
-	_ memberha.ForcedValuer = (*Engine)(nil)
+	_ memberha.Engine            = (*Engine)(nil)
+	_ memberha.ForcedValuer      = (*Engine)(nil)
+	_ memberha.ManualEligibility = (*Engine)(nil)
 )
 
 // New opens the engine of one member.
@@ -374,6 +375,17 @@ func (e *Engine) Eligible(input memberha.EligibilityInput, _ memberha.EngineStat
 	}
 	if e.offset < value.OffsetFloor-e.maxLag() {
 		return false, "behind"
+	}
+	return true, ""
+}
+
+// ManualEligible: a manual pair's Valkey copy may take over only once it
+// mirrored the primary's ACL list (users do not replicate with the data).
+func (e *Engine) ManualEligible(memberha.EngineStatus) (bool, string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.aclSynced.IsZero() && !e.aclMirroredBefore {
+		return false, "acl_not_mirrored"
 	}
 	return true, ""
 }
