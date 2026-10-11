@@ -282,7 +282,7 @@ Durability is synchronous by default when the servers are near (round trip up to
 
 While a resource runs on several servers, changing its settings, restarting, pausing and deleting it are refused (`AVAILABILITY_ENABLED`); turn availability off first. Turning it off keeps the primary as the single server and removes the copies.
 
-Alerts: the database categories and the **Managed storage** category offer failover, switch, degraded, no automatic failover, restored, server not reporting, copy no longer synchronous, servers now far apart, witness lost or moved, and rejoin and rebuild events, and the metrics replication lag (bytes, seconds) and round trip. The page lists the same events.
+Alerts: the database categories and the **Managed storage** category offer failover, switch, degraded, no automatic failover, restored, server not reporting, copy no longer synchronous, servers now far apart, witness lost or moved, and rejoin and rebuild events, and the metrics replication lag (bytes, seconds) and round trip. The page lists the same events, and the Dashboard shows a notice while a set cannot fail over, a replicated pair's primary does not report, a witness is lost, a set is degraded, or for a day after a failover.
 
 After the license grace period, everything that runs keeps running: failover, fencing, copies rejoining, **Make this copy primary**, rebuilding a copy, removing a server, turning availability off and witness moves. Turning it on, adding a server and changing settings are refused until the license is renewed.
 

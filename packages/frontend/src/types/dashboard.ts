@@ -311,6 +311,8 @@ export interface DashboardBootstrap {
   relay: DashboardRelaySnapshot | null;
   /** Managed database and storage certificates that need attention, limited to what the viewer may see. */
   managedCertificates?: DashboardManagedCertificate[];
+  /** Databases and storage on several servers that need a look, limited to what the viewer may see. */
+  managedAvailability?: DashboardAvailabilityAttention[];
   pinned: {
     dashboard: DashboardBootstrapPinnedResources;
     sidebar: DashboardBootstrapPinnedResources;
@@ -326,6 +328,19 @@ export interface DashboardBootstrap {
     docker: NavigationAttentionSeverity | null;
     "status-page": NavigationAttentionSeverity | null;
   };
+}
+
+export interface DashboardAvailabilityAttention {
+  kind: "storage" | "database";
+  /** The storage or database connection. */
+  id: string;
+  slug: string;
+  name: string;
+  reason: "primary_unreachable" | "no_failover" | "witness_lost" | "degraded" | "failover";
+  /** The set's own explanation, when it has one. */
+  message: string | null;
+  /** Since when (the failover's time for `failover`). */
+  since: string | null;
 }
 
 export interface DashboardManagedCertificate {
