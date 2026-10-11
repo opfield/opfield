@@ -62,6 +62,8 @@ export interface ManagedDatabaseConnectionMetadata {
   nodeId: string;
   nodeAvailable: boolean;
   version: string;
+  /** The engine the store runs: for type redis, valkey or (stores created before 2.12) redis. */
+  engine: 'postgres' | 'redis' | 'valkey' | 'clickhouse';
   storageSizeBytes: number;
   runtimeConfig: {
     cpuCores: number;

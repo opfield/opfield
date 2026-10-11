@@ -7,7 +7,11 @@ export const DATABASE_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        type: { type: 'string', enum: ['postgres', 'redis', 'clickhouse'], description: 'Optional provider filter' },
+        type: {
+          type: 'string',
+          enum: ['postgres', 'redis', 'clickhouse'],
+          description: 'Optional provider filter (redis is the key-value type)',
+        },
         healthStatus: {
           type: 'string',
           enum: ['online', 'offline', 'degraded', 'unknown'],
@@ -71,7 +75,7 @@ export const DATABASE_AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'browse_redis_keys',
-    description: 'Browse keys in a saved Redis connection using SCAN.',
+    description: 'Browse keys in a saved key-value connection (type redis) using SCAN.',
     parameters: {
       type: 'object',
       properties: {
@@ -88,12 +92,12 @@ export const DATABASE_AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'get_redis_key',
-    description: 'Get the value, type, and TTL of a Redis key from a saved connection.',
+    description: 'Get the value, type, and TTL of a key from a saved key-value connection.',
     parameters: {
       type: 'object',
       properties: {
         databaseId: { type: 'string', description: 'Database connection UUID' },
-        key: { type: 'string', description: 'Redis key name' },
+        key: { type: 'string', description: 'Key name' },
       },
       required: ['databaseId', 'key'],
     },
@@ -104,13 +108,14 @@ export const DATABASE_AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'set_redis_key',
-    description: 'Create or replace a Redis key using the visual-editor-compatible payload format.',
+    description:
+      'Create or replace a key in a saved key-value connection using the visual-editor-compatible payload format.',
     parameters: {
       type: 'object',
       properties: {
         databaseId: { type: 'string', description: 'Database connection UUID' },
-        key: { type: 'string', description: 'Redis key name' },
-        type: { type: 'string', enum: ['string', 'hash', 'list', 'set', 'zset'], description: 'Redis value type' },
+        key: { type: 'string', description: 'Key name' },
+        type: { type: 'string', enum: ['string', 'hash', 'list', 'set', 'zset'], description: 'Value type' },
         value: {
           type: 'object',
           description:
@@ -127,7 +132,7 @@ export const DATABASE_AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'execute_redis_command',
-    description: 'Run a single Redis command against a saved Redis connection.',
+    description: 'Run a single Redis command against a saved key-value connection.',
     parameters: {
       type: 'object',
       properties: {
@@ -166,7 +171,7 @@ export const DATABASE_AI_TOOLS: AIToolDefinition[] = [
         config: {
           type: 'object',
           description:
-            'Connection config. Postgres: connectionString or host/port/database/username/password/sslEnabled. Redis: connectionString or host/port/username/password/db/tlsEnabled. ClickHouse: connectionString/url or host/port/database/username/password/tlsEnabled. TLS verification (all types): tlsVerifyCertificate (default true: verify the server certificate chain and hostname; false disables verification and is insecure) and tlsCaCertificate (PEM CA bundle for a private CA; null clears it). Create and update test the connection with these settings before saving, so enabling verification on an existing connection fails without changes when the certificate cannot be verified.',
+            'Connection config. Postgres: connectionString or host/port/database/username/password/sslEnabled. Key-value (redis): connectionString or host/port/username/password/db/tlsEnabled. ClickHouse: connectionString/url or host/port/database/username/password/tlsEnabled. TLS verification (all types): tlsVerifyCertificate (default true: verify the server certificate chain and hostname; false disables verification and is insecure) and tlsCaCertificate (PEM CA bundle for a private CA; null clears it). Create and update test the connection with these settings before saving, so enabling verification on an existing connection fails without changes when the certificate cannot be verified.',
         },
       },
       required: ['operation'],
@@ -248,7 +253,7 @@ export const DATABASE_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_redis_data',
     description:
-      'Explore and edit Redis data for a saved connection. Operations: scan_keys, get_key, set_key, delete_key, expire_key, execute_command. Command intent controls required read/write/admin query scope.',
+      'Explore and edit data of a saved key-value connection (type redis). Operations: scan_keys, get_key, set_key, delete_key, expire_key, execute_command. Command intent controls required read/write/admin query scope.',
     parameters: {
       type: 'object',
       properties: {

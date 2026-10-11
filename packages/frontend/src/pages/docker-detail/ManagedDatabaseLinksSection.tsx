@@ -38,6 +38,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
+import { databaseTypeLabel } from "@/lib/database-type";
 import { listManagedDatabaseCandidateNodes } from "@/lib/managed-database-nodes";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
 import { api } from "@/services/api";
@@ -1080,7 +1081,7 @@ export const ManagedDatabaseLinksSection = forwardRef<
                             value={database.id}
                             description={
                               <span className="flex items-center gap-2">
-                                <span>{database.type}</span>
+                                <span>{databaseTypeLabel(database.type)}</span>
                                 {databaseNodeById.get(database.nodeId) && (
                                   <Badge
                                     variant="secondary"

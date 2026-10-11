@@ -18,7 +18,7 @@ The list is defined by the server; never invent an ID.
 | `proxy` | Domains, Routes, route folders, nginx templates, Access Lists, raw Route operations |
 | `certificates` | CAs, PKI certificates and templates, SSL certificates, system PKI leaf audit |
 | `docker` | Containers, Deployments, images, volumes, networks, registries, Tasks, config, migrations |
-| `databases` | Database connections, managed databases and bindings, PostgreSQL and Redis data tools |
+| `databases` | Database connections, managed databases and bindings, PostgreSQL and key-value data tools |
 | `storage` | Storage connections, objects, server-side copy, managed SeaweedFS, workload links |
 | `pages` | Page Projects, Deployments, Tags, runtime config, profile |
 | `logging` | Logging backend, environments, tokens, schemas, metadata, search, facets |

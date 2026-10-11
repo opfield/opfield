@@ -317,7 +317,7 @@ The category metadata returned by \`GET /api/notifications/alert-rules/categorie
 ## Database Alert Categories
 - database_postgres metrics: latency_ms, active_connections_pct, database_size_mb.
 - database_clickhouse metrics: latency_ms, database_size_mb, disk_used_pct, disk_available_mb, pending_mutations.
-- database_redis metrics: latency_ms, memory_pct.
+- database_redis (key-value stores) metrics: latency_ms, memory_pct.
 - database health events: health.offline, health.degraded, health.online. These events can also be used with threshold-style observation windows when supportsThreshold is true.
 
 ## Handlebars Helpers

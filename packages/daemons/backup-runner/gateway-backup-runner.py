@@ -423,10 +423,40 @@ def redis_command_secret_last(endpoint, command, secret):
     return redis_command(endpoint, command, last_argument=secret)
 
 
+def redis_server(endpoint):
+    """The engine and version of a key-value server: Valkey reports valkey_version
+    beside redis_version, which only names the Redis release it stays compatible with."""
+    fields = {}
+    for line in redis_command(endpoint, ["INFO", "server"]).replace("\r", "").splitlines():
+        name, separator, value = line.partition(":")
+        if separator: fields[name] = value.strip()
+    if fields.get("valkey_version"): return "valkey", fields["valkey_version"]
+    if fields.get("redis_version"): return "redis", fields["redis_version"]
+    raise BackupError("key-value server version is unavailable")
+
+
 def redis_version(endpoint):
-    for line in redis_command(endpoint, ["INFO", "server"]).splitlines():
-        if line.startswith("redis_version:"): return line.split(":", 1)[1]
-    raise BackupError("Redis server version is unavailable")
+    """The engineVersion of a key-value backup: "valkey <version>" for Valkey, the bare version for Redis."""
+    engine, version = redis_server(endpoint)
+    return f"valkey {version}" if engine == "valkey" else version
+
+
+def redis_engine_label(engine, version):
+    return f"{'Valkey' if engine == 'valkey' else 'Redis'} {version}"
+
+
+def assert_same_redis_engine(target, stage):
+    """Valkey and Redis cannot load each other's data: the staged server runs the
+    engine the backup was taken from, and the target must run the same one."""
+    target_engine, target_version = redis_server(target)
+    stage_engine, stage_version = redis_server(stage)
+    if target_engine == stage_engine:
+        return
+    where = "a new key-value store or one that still runs Redis" if stage_engine == "redis" else "a key-value store that runs Valkey"
+    raise BackupError(
+        f"this backup was taken from {redis_engine_label(stage_engine, stage_version)} and the restore target runs "
+        f"{redis_engine_label(target_engine, target_version)}, which cannot load it; restore it into {where}"
+    )
 
 
 def assert_empty_target(engine, target):
@@ -555,6 +585,7 @@ def restore_redis(config, artifact):
     os.replace(stage_dir / "dump.rdb.tmp", stage_dir / "dump.rdb")
     wait_for_redis_stage(config, stage)
     redis_command(target, ["PING"])
+    assert_same_redis_engine(target, stage)
     previous_masterauth = redis_config_value(target, "masterauth")
     # From here on every outcome, a stop request included, detaches the target.
     try:
@@ -623,12 +654,13 @@ def redis_info_number(info, field):
 
 def redis_load_failure(target, stage):
     try:
-        target_version, stage_version = redis_version(target), redis_version(stage)
+        target_server, stage_server = redis_server(target), redis_server(stage)
     except BackupError:
-        return "the restore target could not load the data replicated to it; restore into the Redis version the backup was taken with or a newer one"
+        return "the restore target could not load the data replicated to it; restore into the engine version the backup was taken with or a newer one"
+    stage_label = redis_engine_label(*stage_server)
     return (
-        f"the restore target runs Redis {target_version}, which could not load the data of this backup "
-        f"replicated from Redis {stage_version}; restore into Redis {stage_version} or newer"
+        f"the restore target runs {redis_engine_label(*target_server)}, which could not load the data of this backup "
+        f"replicated from {stage_label}; restore into {stage_label} or newer"
     )
 
 

@@ -318,6 +318,30 @@ class RedisRestoreTests(unittest.TestCase):
         self.restore(fake)
         self.assert_detached(fake)
 
+    def test_a_backup_of_another_engine_is_refused_before_the_target_changes(self):
+        fake = FakeRedis(link_up=True)
+        original = fake.command
+
+        def valkey_target(endpoint, command, last_argument=None):
+            if endpoint["host"] == "target" and command == ["INFO", "server"]:
+                return "# Server\r\nredis_version:7.2.4\r\nvalkey_version:9.1.2\r\n"
+            return original(endpoint, command, last_argument)
+
+        fake.command = valkey_target
+        with self.assertRaises(runner.BackupError) as raised:
+            self.restore(fake)
+        self.assertIn("taken from Redis 8.10.0", str(raised.exception))
+        self.assertIn("runs Valkey 9.1.2", str(raised.exception))
+        target_calls = [name for host, name in fake.calls if host == "target"]
+        self.assertNotIn("REPLICAOF stage 21345", target_calls)
+        self.assertEqual(fake.secrets, [])
+
+    def test_a_valkey_backup_records_its_engine(self):
+        with patch.object(runner, "redis_command", return_value="# Server\r\nredis_version:7.2.4\r\nvalkey_version:9.1.2\r\n"):
+            self.assertEqual(runner.redis_version({"host": "kv", "port": 6379}), "valkey 9.1.2")
+        with patch.object(runner, "redis_command", return_value="# Server\r\nredis_version:8.10.0\r\n"):
+            self.assertEqual(runner.redis_version({"host": "kv", "port": 6379}), "8.10.0")
+
     def test_a_target_that_never_connects_fails_instead_of_waiting_for_the_deadline(self):
         fake = FakeRedis(stage_full_syncs=0)
         clock = iter(range(0, 10_000, 30))

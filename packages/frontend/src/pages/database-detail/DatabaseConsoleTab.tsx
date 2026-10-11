@@ -315,10 +315,10 @@ export function DatabaseConsoleTab({ database }: { database: DatabaseConnection 
       <div className="flex items-center justify-between gap-4 px-4 py-3 bg-card border-b border-border shrink-0">
         <div>
           <h3 className="text-sm font-semibold">
-            {database.type === "redis" ? "Redis Command Console" : "SQL Console"}
+            {database.type === "redis" ? "Command Console" : "SQL Console"}
           </h3>
           <p className="text-xs text-muted-foreground">
-            Run one or more {database.type === "redis" ? "Redis commands" : "SQL statements"}.
+            Run one or more {database.type === "redis" ? "commands" : "SQL statements"}.
           </p>
         </div>
         <div className="flex items-center gap-2">
