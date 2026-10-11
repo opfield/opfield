@@ -101,6 +101,10 @@ type PeerState struct {
 	MemberID   string `json:"memberId"`
 	Generation uint64 `json:"generation"`
 	Primary    string `json:"primary"`
+	// Assignment is the peer's signed primary assignment; only a verified
+	// one counts (a newer generation makes this member step down and adopt
+	// it).
+	Assignment *Assignment `json:"assignment,omitempty"`
 }
 
 // Deps are the runtime's collaborators.
@@ -121,6 +125,10 @@ type Deps struct {
 	// PeerState asks a manual pair's peer for its primary assignment over the
 	// member mesh; false when the peer does not answer.
 	PeerState func(ctx context.Context, setID, peerMemberID string) (PeerState, bool)
+	// VerifyAssignment checks Gateway's signature of a manual pair's primary
+	// assignment (AssignmentStatement under AssignmentDomain, a trusted relay
+	// policy key). Nil refuses every assignment.
+	VerifyAssignment func(setID string, assignment Assignment) error
 }
 
 func (d *Deps) defaults() error {
@@ -135,6 +143,11 @@ func (d *Deps) defaults() error {
 	}
 	if d.GatewayConnected == nil {
 		d.GatewayConnected = func() bool { return false }
+	}
+	if d.VerifyAssignment == nil {
+		d.VerifyAssignment = func(string, Assignment) error {
+			return errors.New("primary assignments cannot be verified on this node")
+		}
 	}
 	if d.PeerState == nil {
 		d.PeerState = func(context.Context, string, string) (PeerState, bool) { return PeerState{}, false }

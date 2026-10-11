@@ -280,7 +280,7 @@ func TestManualPrimarySelfFencesWithoutGatewayAndPeerAndResumes(t *testing.T) {
 	h := newHarness(t, ModeManual)
 	h.engine.container.Running = true
 	h.engine.status = EngineStatus{Answering: true}
-	if err := h.manager.AssignPrimary(testSet, Assignment{PrimaryMemberID: testMemberA, Generation: 1}); err != nil {
+	if err := h.manager.AssignPrimary(testSet, signed(testMemberA, 1)); err != nil {
 		t.Fatal(err)
 	}
 	h.step(5, time.Second)
@@ -289,7 +289,7 @@ func TestManualPrimarySelfFencesWithoutGatewayAndPeerAndResumes(t *testing.T) {
 	}
 	// Only Gateway lost: writes continue.
 	h.gateway = false
-	h.peer = &PeerState{MemberID: testMemberB, Generation: 1, Primary: testMemberA}
+	h.peer = peerWith(signed(testMemberA, 1))
 	h.step(40, time.Second)
 	if log := h.calls.take(); indexOf(log, "engine.kill") >= 0 {
 		t.Fatalf("one failure must never stop writes: %v", log)
@@ -305,7 +305,7 @@ func TestManualPrimarySelfFencesWithoutGatewayAndPeerAndResumes(t *testing.T) {
 		t.Fatal("a self-fenced primary must not serve")
 	}
 	// The peer answers again under the same generation: the primary serves again.
-	h.peer = &PeerState{MemberID: testMemberB, Generation: 1, Primary: testMemberA}
+	h.peer = peerWith(signed(testMemberA, 1))
 	h.step(10, time.Second)
 	log = h.calls.take()
 	if indexOf(log, "engine.promote") < 0 {
@@ -318,14 +318,14 @@ func TestManualMemberStepsDownWhenThePeerServesANewerGeneration(t *testing.T) {
 	h := newHarness(t, ModeManual)
 	h.engine.container.Running = true
 	h.engine.status = EngineStatus{Answering: true, Writable: true}
-	if err := h.manager.AssignPrimary(testSet, Assignment{PrimaryMemberID: testMemberA, Generation: 1}); err != nil {
+	if err := h.manager.AssignPrimary(testSet, signed(testMemberA, 1)); err != nil {
 		t.Fatal(err)
 	}
-	h.peer = &PeerState{MemberID: testMemberB, Generation: 2, Primary: testMemberB}
+	h.peer = peerWith(signed(testMemberB, 2))
 	h.step(10, time.Second)
 	log := h.calls.take()
-	if indexOf(log, "engine.kill") < 0 {
-		t.Fatalf("a primary that sees a newer generation must step down: %v", log)
+	if indexOf(log, "engine.stop_clean") < 0 {
+		t.Fatalf("a primary that sees a newer generation must step down (clean stop): %v", log)
 	}
 	if indexOf(log, "engine.promote") >= 0 {
 		t.Fatalf("it must never promote again under the older generation: %v", log)
@@ -334,7 +334,7 @@ func TestManualMemberStepsDownWhenThePeerServesANewerGeneration(t *testing.T) {
 
 func TestManualCopyNeverPromotes(t *testing.T) {
 	h := newHarness(t, ModeManual)
-	if err := h.manager.AssignPrimary(testSet, Assignment{PrimaryMemberID: testMemberB, Generation: 3}); err != nil {
+	if err := h.manager.AssignPrimary(testSet, signed(testMemberB, 3)); err != nil {
 		t.Fatal(err)
 	}
 	h.step(10, time.Second)
@@ -343,7 +343,7 @@ func TestManualCopyNeverPromotes(t *testing.T) {
 		t.Fatalf("a manual copy must never promote: %v", log)
 	}
 	assertStandbyBeforeStart(t, log)
-	if err := h.manager.AssignPrimary(testSet, Assignment{PrimaryMemberID: testMemberA, Generation: 2}); err != nil {
+	if err := h.manager.AssignPrimary(testSet, signed(testMemberA, 2)); err != nil {
 		t.Fatal(err)
 	}
 	if state, _ := h.manager.PeerState(testSet); state.Generation != 3 {

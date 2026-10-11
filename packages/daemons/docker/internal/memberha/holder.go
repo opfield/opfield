@@ -42,8 +42,9 @@ type holderRuntime struct {
 }
 
 type proposal struct {
-	id   string
-	kind string
+	id    string
+	kind  string
+	value []byte
 }
 
 // armRecordLocked writes the container's watchdog deadline record: before any
@@ -141,7 +142,7 @@ func (m *Manager) holderStepLocked(mem *member, status HolderStatus, now time.Du
 		return
 	}
 	mem.holder.alerted = false
-	if cert.State.PendingPromotion || cert.State.Holder != mem.cfg.NodeID {
+	if cert.State.PendingPromotion || cert.State.Holder != mem.cfg.NodeID || !m.certifiedCurrentLocked(mem, cert) {
 		m.closeServingLocked(mem)
 		if free {
 			m.certifyPromotionLocked(mem, cert)
@@ -150,9 +151,13 @@ func (m *Manager) holderStepLocked(mem *member, status HolderStatus, now time.Du
 	}
 	if !mem.holder.announced {
 		mem.holder.announced = true
+		mem.state.Held = true
 		m.eventLocked(mem, Event{Kind: EventPromoted, Detail: map[string]string{"ballot": status.Ballot.String()}})
 	}
 	m.openServingLocked(mem)
+	if m.holderExtrasLocked(mem, status, cert, free, now) {
+		return
+	}
 	if free {
 		value, kind, changed, err := mem.engine.NextValue(cert.State.Value, obs.status, now)
 		if err != nil {
@@ -170,7 +175,9 @@ func (m *Manager) holderStepLocked(mem *member, status HolderStatus, now time.Du
 func (m *Manager) resolvePendingLocked(mem *member, key Key) bool {
 	p := mem.holder.pending
 	if p == nil {
-		return true
+		// A transition restored by the library after a restart (or queued
+		// by an earlier incarnation) resolves before anything new.
+		return !m.libraryPendingLocked(key)
 	}
 	outcome, reason := m.deps.Lease.TransitionStatus(key, p.id)
 	switch outcome {
@@ -194,7 +201,7 @@ func (m *Manager) proposeLocked(mem *member, kind string, value []byte, promoted
 		m.logger.Info("availability state transition not queued", "set_id", mem.cfg.SetID, "kind", kind, "error", err)
 		return false
 	}
-	mem.holder.pending = &proposal{id: id, kind: kind}
+	mem.holder.pending = &proposal{id: id, kind: kind, value: value}
 	return true
 }
 
@@ -208,11 +215,12 @@ func (m *Manager) promoteLocked(mem *member, status HolderStatus, cert Certified
 	}
 	key := mem.cfg.Key()
 	certified := cert.State.Value
+	pending := m.pendingValueLocked(mem, key)
 	m.launch(mem, opPromote, opTimeout, func(ctx context.Context) func() {
 		if st := m.deps.Lease.HolderStatus(key); !st.MayStart {
 			return nil
 		}
-		err := mem.engine.Promote(ctx, certified)
+		err := m.promoteEngine(ctx, mem, certified, pending)
 		if err == nil {
 			err = mem.engine.PrepareStandby(ctx)
 		}

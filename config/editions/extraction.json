@@ -400,7 +400,8 @@
       "emptyMethods": [
         "setLicensePolicyService",
         "setEventBus",
-        "setCertificateRenewal"
+        "setCertificateRenewal",
+        "setAvailabilityHost"
       ],
       "emptyConstructor": true,
       "typeOnlyProperties": true

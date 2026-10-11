@@ -4707,8 +4707,20 @@ type AvailabilityPrimaryAssignment struct {
 	SetId           string                 `protobuf:"bytes,1,opt,name=set_id,json=setId,proto3" json:"set_id,omitempty"`
 	PrimaryMemberId string                 `protobuf:"bytes,2,opt,name=primary_member_id,json=primaryMemberId,proto3" json:"primary_member_id,omitempty"`
 	Generation      uint64                 `protobuf:"varint,3,opt,name=generation,proto3" json:"generation,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Gateway signs every assignment with its relay policy signing key: Ed25519
+	// over "gateway-availability-member/primary-assignment/v1" || 0x00 ||
+	// u32be(len(set_id)) || set_id || u32be(len(primary_member_id)) ||
+	// primary_member_id || u64be(generation). A member accepts an assignment,
+	// from Gateway or relayed by its peer, only with a valid signature of a key
+	// it trusts.
+	SigningKeyId string `protobuf:"bytes,4,opt,name=signing_key_id,json=signingKeyId,proto3" json:"signing_key_id,omitempty"`
+	Signature    []byte `protobuf:"bytes,5,opt,name=signature,proto3" json:"signature,omitempty"`
+	// The policy signing keys, delivered over this authenticated stream (as in
+	// SyncAvailabilityLeaseCommand): the daemon trusts them directly. Gateway
+	// only; a peer-relayed assignment verifies against keys already trusted.
+	PolicyKeys    []*AvailabilityLeasePolicyKey `protobuf:"bytes,6,rep,name=policy_keys,json=policyKeys,proto3" json:"policy_keys,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AvailabilityPrimaryAssignment) Reset() {
@@ -4760,6 +4772,27 @@ func (x *AvailabilityPrimaryAssignment) GetGeneration() uint64 {
 		return x.Generation
 	}
 	return 0
+}
+
+func (x *AvailabilityPrimaryAssignment) GetSigningKeyId() string {
+	if x != nil {
+		return x.SigningKeyId
+	}
+	return ""
+}
+
+func (x *AvailabilityPrimaryAssignment) GetSignature() []byte {
+	if x != nil {
+		return x.Signature
+	}
+	return nil
+}
+
+func (x *AvailabilityPrimaryAssignment) GetPolicyKeys() []*AvailabilityLeasePolicyKey {
+	if x != nil {
+		return x.PolicyKeys
+	}
+	return nil
 }
 
 type AvailabilityMemberRemove struct {
@@ -15427,13 +15460,17 @@ const file_gateway_v1_nginx_daemon_proto_rawDesc = "" +
 	"\anode_id\x18\x02 \x01(\tR\x06nodeId\x12!\n" +
 	"\fmember_index\x18\x03 \x01(\rR\vmemberIndex\x12\x1a\n" +
 	"\bpriority\x18\x04 \x01(\x05R\bpriority\x12\x1a\n" +
-	"\bremoving\x18\x05 \x01(\bR\bremoving\"\x82\x01\n" +
+	"\bremoving\x18\x05 \x01(\bR\bremoving\"\x8f\x02\n" +
 	"\x1dAvailabilityPrimaryAssignment\x12\x15\n" +
 	"\x06set_id\x18\x01 \x01(\tR\x05setId\x12*\n" +
 	"\x11primary_member_id\x18\x02 \x01(\tR\x0fprimaryMemberId\x12\x1e\n" +
 	"\n" +
 	"generation\x18\x03 \x01(\x04R\n" +
-	"generation\"N\n" +
+	"generation\x12$\n" +
+	"\x0esigning_key_id\x18\x04 \x01(\tR\fsigningKeyId\x12\x1c\n" +
+	"\tsignature\x18\x05 \x01(\fR\tsignature\x12G\n" +
+	"\vpolicy_keys\x18\x06 \x03(\v2&.gateway.v1.AvailabilityLeasePolicyKeyR\n" +
+	"policyKeys\"N\n" +
 	"\x18AvailabilityMemberRemove\x12\x15\n" +
 	"\x06set_id\x18\x01 \x01(\tR\x05setId\x12\x1b\n" +
 	"\tmember_id\x18\x02 \x01(\tR\bmemberId\"|\n" +
@@ -16683,93 +16720,94 @@ var file_gateway_v1_nginx_daemon_proto_depIdxs = []int32{
 	35,  // 106: gateway.v1.AvailabilityMemberCommand.switchover:type_name -> gateway.v1.AvailabilityMemberSwitchover
 	31,  // 107: gateway.v1.AvailabilityMemberConfig.members:type_name -> gateway.v1.AvailabilityMemberPeer
 	32,  // 108: gateway.v1.AvailabilityMemberConfig.primary:type_name -> gateway.v1.AvailabilityPrimaryAssignment
-	163, // 109: gateway.v1.AvailabilityMemberReport.position:type_name -> gateway.v1.AvailabilityMemberReport.PositionEntry
-	37,  // 110: gateway.v1.AvailabilityMemberReport.events:type_name -> gateway.v1.AvailabilityMemberEvent
-	164, // 111: gateway.v1.AvailabilityMemberEvent.detail:type_name -> gateway.v1.AvailabilityMemberEvent.DetailEntry
-	44,  // 112: gateway.v1.RelayRuntimeStatus.assignment_tunnels:type_name -> gateway.v1.RelayAssignmentTunnelCount
-	118, // 113: gateway.v1.RelayRuntimeStatus.availability_lease:type_name -> gateway.v1.AvailabilityLeaseReport
-	28,  // 114: gateway.v1.RelayRuntimeStatus.witnesses:type_name -> gateway.v1.WitnessStatus
-	50,  // 115: gateway.v1.PagesMaterializePreviewCommand.access:type_name -> gateway.v1.PagesPreviewAccess
-	51,  // 116: gateway.v1.PagesPreviewAccess.ip_rules:type_name -> gateway.v1.PagesPreviewIpRule
-	0,   // 117: gateway.v1.PagesStageRuntimeConfigCommand.binding_kind:type_name -> gateway.v1.PagesRuntimeConfigBindingKind
-	0,   // 118: gateway.v1.PagesActivateRuntimeConfigCommand.binding_kind:type_name -> gateway.v1.PagesRuntimeConfigBindingKind
-	0,   // 119: gateway.v1.PagesRemoveRuntimeConfigCommand.binding_kind:type_name -> gateway.v1.PagesRuntimeConfigBindingKind
-	66,  // 120: gateway.v1.SyncRelayGrantsCommand.grants:type_name -> gateway.v1.RelayGrantAssignment
-	64,  // 121: gateway.v1.SyncRelayGrantsCommand.revocation_fences:type_name -> gateway.v1.RelayRevocationFence
-	63,  // 122: gateway.v1.SyncRelayGrantsCommand.relay_latency_targets:type_name -> gateway.v1.RelayLatencyTarget
-	65,  // 123: gateway.v1.RelayRevocationFence.routes:type_name -> gateway.v1.RelayRevokedRoute
-	73,  // 124: gateway.v1.RelayGrantAssignment.grant:type_name -> gateway.v1.RelaySignedGrant
-	74,  // 125: gateway.v1.RelayGrantAssignment.candidates:type_name -> gateway.v1.RelayDataCandidate
-	72,  // 126: gateway.v1.RelayGrantAssignment.managed_database_listener:type_name -> gateway.v1.ManagedDatabaseListener
-	71,  // 127: gateway.v1.RelayGrantAssignment.secure_link_egress:type_name -> gateway.v1.SecureLinkEgress
-	69,  // 128: gateway.v1.RelayGrantAssignment.stream_resume:type_name -> gateway.v1.RelayStreamResume
-	70,  // 129: gateway.v1.RelayGrantAssignment.resume_routes:type_name -> gateway.v1.RelayRouteResume
-	67,  // 130: gateway.v1.RelayGrantAssignment.lease_target:type_name -> gateway.v1.RelayLeaseTarget
-	68,  // 131: gateway.v1.RelayGrantAssignment.lease_group:type_name -> gateway.v1.RelayLeaseGroupRoute
-	73,  // 132: gateway.v1.RelayLeaseGroupRoute.grant:type_name -> gateway.v1.RelaySignedGrant
-	74,  // 133: gateway.v1.RelayLeaseGroupRoute.candidates:type_name -> gateway.v1.RelayDataCandidate
-	69,  // 134: gateway.v1.RelayLeaseGroupRoute.stream_resume:type_name -> gateway.v1.RelayStreamResume
-	67,  // 135: gateway.v1.RelayLeaseGroupRoute.target:type_name -> gateway.v1.RelayLeaseTarget
-	73,  // 136: gateway.v1.RelayDataCandidate.grant:type_name -> gateway.v1.RelaySignedGrant
-	75,  // 137: gateway.v1.RelayDataCandidate.topology:type_name -> gateway.v1.RelayCandidateTopology
-	74,  // 138: gateway.v1.ProbeRelayCandidateCommand.candidate:type_name -> gateway.v1.RelayDataCandidate
-	78,  // 139: gateway.v1.SyncProxySecureLinksCommand.bindings:type_name -> gateway.v1.ProxySecureLinkBinding
-	1,   // 140: gateway.v1.ApplyConfigCommand.maintenance:type_name -> gateway.v1.ProxyMaintenanceFlag
-	87,  // 141: gateway.v1.ApplyTlsBundleCommand.certificates:type_name -> gateway.v1.VersionedCertBundle
-	1,   // 142: gateway.v1.ApplyTlsBundleCommand.maintenance:type_name -> gateway.v1.ProxyMaintenanceFlag
-	93,  // 143: gateway.v1.FullSyncCommand.hosts:type_name -> gateway.v1.HostConfig
-	94,  // 144: gateway.v1.FullSyncCommand.certs:type_name -> gateway.v1.CertBundle
-	95,  // 145: gateway.v1.FullSyncCommand.htpasswd_files:type_name -> gateway.v1.HtpasswdFile
-	1,   // 146: gateway.v1.HostConfig.maintenance:type_name -> gateway.v1.ProxyMaintenanceFlag
-	165, // 147: gateway.v1.DockerVolumeCommand.labels:type_name -> gateway.v1.DockerVolumeCommand.LabelsEntry
-	166, // 148: gateway.v1.DockerComposeCommand.variables:type_name -> gateway.v1.DockerComposeCommand.VariablesEntry
-	167, // 149: gateway.v1.DockerComposeCommand.secrets:type_name -> gateway.v1.DockerComposeCommand.SecretsEntry
-	115, // 150: gateway.v1.SyncAvailabilityLeaseCommand.policy_keys:type_name -> gateway.v1.AvailabilityLeasePolicyKey
-	119, // 151: gateway.v1.AvailabilityLeaseReport.manifests:type_name -> gateway.v1.AvailabilityLeaseManifestAck
-	120, // 152: gateway.v1.AvailabilityLeaseReport.held:type_name -> gateway.v1.AvailabilityLeaseHeld
-	121, // 153: gateway.v1.AvailabilityLeaseReport.acceptor:type_name -> gateway.v1.AvailabilityLeaseKeyView
-	122, // 154: gateway.v1.AvailabilityLeaseReport.events:type_name -> gateway.v1.AvailabilityLeaseEvent
-	117, // 155: gateway.v1.AvailabilityLeaseHeld.ballot:type_name -> gateway.v1.AvailabilityLeaseBallot
-	117, // 156: gateway.v1.AvailabilityLeaseKeyView.promised:type_name -> gateway.v1.AvailabilityLeaseBallot
-	117, // 157: gateway.v1.AvailabilityLeaseKeyView.committed:type_name -> gateway.v1.AvailabilityLeaseBallot
-	117, // 158: gateway.v1.AvailabilityLeaseKeyView.gate_ballot:type_name -> gateway.v1.AvailabilityLeaseBallot
-	117, // 159: gateway.v1.AvailabilityLeaseKeyView.accepted:type_name -> gateway.v1.AvailabilityLeaseBallot
-	117, // 160: gateway.v1.AvailabilityLeaseEvent.ballot:type_name -> gateway.v1.AvailabilityLeaseBallot
-	168, // 161: gateway.v1.DockerBuildCommand.build_args:type_name -> gateway.v1.DockerBuildCommand.BuildArgsEntry
-	169, // 162: gateway.v1.DockerBuildCommand.build_secrets:type_name -> gateway.v1.DockerBuildCommand.BuildSecretsEntry
-	130, // 163: gateway.v1.SyncDockerRegistryBindingsCommand.bindings:type_name -> gateway.v1.DockerRegistryBinding
-	134, // 164: gateway.v1.DockerConfigPushCommand.registries:type_name -> gateway.v1.RegistryConfig
-	141, // 165: gateway.v1.LogStreamMessage.subscribe_ack:type_name -> gateway.v1.LogSubscribeAck
-	142, // 166: gateway.v1.LogStreamMessage.entry:type_name -> gateway.v1.LogEntry
-	144, // 167: gateway.v1.LogStreamControl.subscribe:type_name -> gateway.v1.LogSubscribe
-	145, // 168: gateway.v1.LogStreamControl.unsubscribe:type_name -> gateway.v1.LogUnsubscribe
-	153, // 169: gateway.v1.MigrationTransferMessage.hello:type_name -> gateway.v1.MigrationTransferHello
-	156, // 170: gateway.v1.MigrationTransferMessage.chunk:type_name -> gateway.v1.MigrationArtifactChunk
-	157, // 171: gateway.v1.MigrationTransferMessage.ack:type_name -> gateway.v1.MigrationArtifactAck
-	158, // 172: gateway.v1.MigrationTransferMessage.error:type_name -> gateway.v1.MigrationArtifactError
-	154, // 173: gateway.v1.MigrationTransferControl.read:type_name -> gateway.v1.MigrationArtifactRead
-	155, // 174: gateway.v1.MigrationTransferControl.write:type_name -> gateway.v1.MigrationArtifactWrite
-	156, // 175: gateway.v1.MigrationTransferControl.chunk:type_name -> gateway.v1.MigrationArtifactChunk
-	157, // 176: gateway.v1.MigrationTransferControl.ack:type_name -> gateway.v1.MigrationArtifactAck
-	158, // 177: gateway.v1.MigrationTransferControl.error:type_name -> gateway.v1.MigrationArtifactError
-	159, // 178: gateway.v1.MigrationTransferControl.heartbeat:type_name -> gateway.v1.MigrationHeartbeat
-	2,   // 179: gateway.v1.NodeEnrollment.Enroll:input_type -> gateway.v1.EnrollRequest
-	4,   // 180: gateway.v1.NodeEnrollment.RenewCertificate:input_type -> gateway.v1.RenewCertRequest
-	8,   // 181: gateway.v1.NodeControl.CommandStream:input_type -> gateway.v1.DaemonMessage
-	6,   // 182: gateway.v1.MaintenanceAccess.Redeem:input_type -> gateway.v1.MaintenanceAccessRedeemRequest
-	151, // 183: gateway.v1.MigrationTransfer.Transfer:input_type -> gateway.v1.MigrationTransferMessage
-	140, // 184: gateway.v1.LogStream.StreamLogs:input_type -> gateway.v1.LogStreamMessage
-	3,   // 185: gateway.v1.NodeEnrollment.Enroll:output_type -> gateway.v1.EnrollResponse
-	5,   // 186: gateway.v1.NodeEnrollment.RenewCertificate:output_type -> gateway.v1.RenewCertResponse
-	23,  // 187: gateway.v1.NodeControl.CommandStream:output_type -> gateway.v1.GatewayCommand
-	7,   // 188: gateway.v1.MaintenanceAccess.Redeem:output_type -> gateway.v1.MaintenanceAccessReply
-	152, // 189: gateway.v1.MigrationTransfer.Transfer:output_type -> gateway.v1.MigrationTransferControl
-	143, // 190: gateway.v1.LogStream.StreamLogs:output_type -> gateway.v1.LogStreamControl
-	185, // [185:191] is the sub-list for method output_type
-	179, // [179:185] is the sub-list for method input_type
-	179, // [179:179] is the sub-list for extension type_name
-	179, // [179:179] is the sub-list for extension extendee
-	0,   // [0:179] is the sub-list for field type_name
+	115, // 109: gateway.v1.AvailabilityPrimaryAssignment.policy_keys:type_name -> gateway.v1.AvailabilityLeasePolicyKey
+	163, // 110: gateway.v1.AvailabilityMemberReport.position:type_name -> gateway.v1.AvailabilityMemberReport.PositionEntry
+	37,  // 111: gateway.v1.AvailabilityMemberReport.events:type_name -> gateway.v1.AvailabilityMemberEvent
+	164, // 112: gateway.v1.AvailabilityMemberEvent.detail:type_name -> gateway.v1.AvailabilityMemberEvent.DetailEntry
+	44,  // 113: gateway.v1.RelayRuntimeStatus.assignment_tunnels:type_name -> gateway.v1.RelayAssignmentTunnelCount
+	118, // 114: gateway.v1.RelayRuntimeStatus.availability_lease:type_name -> gateway.v1.AvailabilityLeaseReport
+	28,  // 115: gateway.v1.RelayRuntimeStatus.witnesses:type_name -> gateway.v1.WitnessStatus
+	50,  // 116: gateway.v1.PagesMaterializePreviewCommand.access:type_name -> gateway.v1.PagesPreviewAccess
+	51,  // 117: gateway.v1.PagesPreviewAccess.ip_rules:type_name -> gateway.v1.PagesPreviewIpRule
+	0,   // 118: gateway.v1.PagesStageRuntimeConfigCommand.binding_kind:type_name -> gateway.v1.PagesRuntimeConfigBindingKind
+	0,   // 119: gateway.v1.PagesActivateRuntimeConfigCommand.binding_kind:type_name -> gateway.v1.PagesRuntimeConfigBindingKind
+	0,   // 120: gateway.v1.PagesRemoveRuntimeConfigCommand.binding_kind:type_name -> gateway.v1.PagesRuntimeConfigBindingKind
+	66,  // 121: gateway.v1.SyncRelayGrantsCommand.grants:type_name -> gateway.v1.RelayGrantAssignment
+	64,  // 122: gateway.v1.SyncRelayGrantsCommand.revocation_fences:type_name -> gateway.v1.RelayRevocationFence
+	63,  // 123: gateway.v1.SyncRelayGrantsCommand.relay_latency_targets:type_name -> gateway.v1.RelayLatencyTarget
+	65,  // 124: gateway.v1.RelayRevocationFence.routes:type_name -> gateway.v1.RelayRevokedRoute
+	73,  // 125: gateway.v1.RelayGrantAssignment.grant:type_name -> gateway.v1.RelaySignedGrant
+	74,  // 126: gateway.v1.RelayGrantAssignment.candidates:type_name -> gateway.v1.RelayDataCandidate
+	72,  // 127: gateway.v1.RelayGrantAssignment.managed_database_listener:type_name -> gateway.v1.ManagedDatabaseListener
+	71,  // 128: gateway.v1.RelayGrantAssignment.secure_link_egress:type_name -> gateway.v1.SecureLinkEgress
+	69,  // 129: gateway.v1.RelayGrantAssignment.stream_resume:type_name -> gateway.v1.RelayStreamResume
+	70,  // 130: gateway.v1.RelayGrantAssignment.resume_routes:type_name -> gateway.v1.RelayRouteResume
+	67,  // 131: gateway.v1.RelayGrantAssignment.lease_target:type_name -> gateway.v1.RelayLeaseTarget
+	68,  // 132: gateway.v1.RelayGrantAssignment.lease_group:type_name -> gateway.v1.RelayLeaseGroupRoute
+	73,  // 133: gateway.v1.RelayLeaseGroupRoute.grant:type_name -> gateway.v1.RelaySignedGrant
+	74,  // 134: gateway.v1.RelayLeaseGroupRoute.candidates:type_name -> gateway.v1.RelayDataCandidate
+	69,  // 135: gateway.v1.RelayLeaseGroupRoute.stream_resume:type_name -> gateway.v1.RelayStreamResume
+	67,  // 136: gateway.v1.RelayLeaseGroupRoute.target:type_name -> gateway.v1.RelayLeaseTarget
+	73,  // 137: gateway.v1.RelayDataCandidate.grant:type_name -> gateway.v1.RelaySignedGrant
+	75,  // 138: gateway.v1.RelayDataCandidate.topology:type_name -> gateway.v1.RelayCandidateTopology
+	74,  // 139: gateway.v1.ProbeRelayCandidateCommand.candidate:type_name -> gateway.v1.RelayDataCandidate
+	78,  // 140: gateway.v1.SyncProxySecureLinksCommand.bindings:type_name -> gateway.v1.ProxySecureLinkBinding
+	1,   // 141: gateway.v1.ApplyConfigCommand.maintenance:type_name -> gateway.v1.ProxyMaintenanceFlag
+	87,  // 142: gateway.v1.ApplyTlsBundleCommand.certificates:type_name -> gateway.v1.VersionedCertBundle
+	1,   // 143: gateway.v1.ApplyTlsBundleCommand.maintenance:type_name -> gateway.v1.ProxyMaintenanceFlag
+	93,  // 144: gateway.v1.FullSyncCommand.hosts:type_name -> gateway.v1.HostConfig
+	94,  // 145: gateway.v1.FullSyncCommand.certs:type_name -> gateway.v1.CertBundle
+	95,  // 146: gateway.v1.FullSyncCommand.htpasswd_files:type_name -> gateway.v1.HtpasswdFile
+	1,   // 147: gateway.v1.HostConfig.maintenance:type_name -> gateway.v1.ProxyMaintenanceFlag
+	165, // 148: gateway.v1.DockerVolumeCommand.labels:type_name -> gateway.v1.DockerVolumeCommand.LabelsEntry
+	166, // 149: gateway.v1.DockerComposeCommand.variables:type_name -> gateway.v1.DockerComposeCommand.VariablesEntry
+	167, // 150: gateway.v1.DockerComposeCommand.secrets:type_name -> gateway.v1.DockerComposeCommand.SecretsEntry
+	115, // 151: gateway.v1.SyncAvailabilityLeaseCommand.policy_keys:type_name -> gateway.v1.AvailabilityLeasePolicyKey
+	119, // 152: gateway.v1.AvailabilityLeaseReport.manifests:type_name -> gateway.v1.AvailabilityLeaseManifestAck
+	120, // 153: gateway.v1.AvailabilityLeaseReport.held:type_name -> gateway.v1.AvailabilityLeaseHeld
+	121, // 154: gateway.v1.AvailabilityLeaseReport.acceptor:type_name -> gateway.v1.AvailabilityLeaseKeyView
+	122, // 155: gateway.v1.AvailabilityLeaseReport.events:type_name -> gateway.v1.AvailabilityLeaseEvent
+	117, // 156: gateway.v1.AvailabilityLeaseHeld.ballot:type_name -> gateway.v1.AvailabilityLeaseBallot
+	117, // 157: gateway.v1.AvailabilityLeaseKeyView.promised:type_name -> gateway.v1.AvailabilityLeaseBallot
+	117, // 158: gateway.v1.AvailabilityLeaseKeyView.committed:type_name -> gateway.v1.AvailabilityLeaseBallot
+	117, // 159: gateway.v1.AvailabilityLeaseKeyView.gate_ballot:type_name -> gateway.v1.AvailabilityLeaseBallot
+	117, // 160: gateway.v1.AvailabilityLeaseKeyView.accepted:type_name -> gateway.v1.AvailabilityLeaseBallot
+	117, // 161: gateway.v1.AvailabilityLeaseEvent.ballot:type_name -> gateway.v1.AvailabilityLeaseBallot
+	168, // 162: gateway.v1.DockerBuildCommand.build_args:type_name -> gateway.v1.DockerBuildCommand.BuildArgsEntry
+	169, // 163: gateway.v1.DockerBuildCommand.build_secrets:type_name -> gateway.v1.DockerBuildCommand.BuildSecretsEntry
+	130, // 164: gateway.v1.SyncDockerRegistryBindingsCommand.bindings:type_name -> gateway.v1.DockerRegistryBinding
+	134, // 165: gateway.v1.DockerConfigPushCommand.registries:type_name -> gateway.v1.RegistryConfig
+	141, // 166: gateway.v1.LogStreamMessage.subscribe_ack:type_name -> gateway.v1.LogSubscribeAck
+	142, // 167: gateway.v1.LogStreamMessage.entry:type_name -> gateway.v1.LogEntry
+	144, // 168: gateway.v1.LogStreamControl.subscribe:type_name -> gateway.v1.LogSubscribe
+	145, // 169: gateway.v1.LogStreamControl.unsubscribe:type_name -> gateway.v1.LogUnsubscribe
+	153, // 170: gateway.v1.MigrationTransferMessage.hello:type_name -> gateway.v1.MigrationTransferHello
+	156, // 171: gateway.v1.MigrationTransferMessage.chunk:type_name -> gateway.v1.MigrationArtifactChunk
+	157, // 172: gateway.v1.MigrationTransferMessage.ack:type_name -> gateway.v1.MigrationArtifactAck
+	158, // 173: gateway.v1.MigrationTransferMessage.error:type_name -> gateway.v1.MigrationArtifactError
+	154, // 174: gateway.v1.MigrationTransferControl.read:type_name -> gateway.v1.MigrationArtifactRead
+	155, // 175: gateway.v1.MigrationTransferControl.write:type_name -> gateway.v1.MigrationArtifactWrite
+	156, // 176: gateway.v1.MigrationTransferControl.chunk:type_name -> gateway.v1.MigrationArtifactChunk
+	157, // 177: gateway.v1.MigrationTransferControl.ack:type_name -> gateway.v1.MigrationArtifactAck
+	158, // 178: gateway.v1.MigrationTransferControl.error:type_name -> gateway.v1.MigrationArtifactError
+	159, // 179: gateway.v1.MigrationTransferControl.heartbeat:type_name -> gateway.v1.MigrationHeartbeat
+	2,   // 180: gateway.v1.NodeEnrollment.Enroll:input_type -> gateway.v1.EnrollRequest
+	4,   // 181: gateway.v1.NodeEnrollment.RenewCertificate:input_type -> gateway.v1.RenewCertRequest
+	8,   // 182: gateway.v1.NodeControl.CommandStream:input_type -> gateway.v1.DaemonMessage
+	6,   // 183: gateway.v1.MaintenanceAccess.Redeem:input_type -> gateway.v1.MaintenanceAccessRedeemRequest
+	151, // 184: gateway.v1.MigrationTransfer.Transfer:input_type -> gateway.v1.MigrationTransferMessage
+	140, // 185: gateway.v1.LogStream.StreamLogs:input_type -> gateway.v1.LogStreamMessage
+	3,   // 186: gateway.v1.NodeEnrollment.Enroll:output_type -> gateway.v1.EnrollResponse
+	5,   // 187: gateway.v1.NodeEnrollment.RenewCertificate:output_type -> gateway.v1.RenewCertResponse
+	23,  // 188: gateway.v1.NodeControl.CommandStream:output_type -> gateway.v1.GatewayCommand
+	7,   // 189: gateway.v1.MaintenanceAccess.Redeem:output_type -> gateway.v1.MaintenanceAccessReply
+	152, // 190: gateway.v1.MigrationTransfer.Transfer:output_type -> gateway.v1.MigrationTransferControl
+	143, // 191: gateway.v1.LogStream.StreamLogs:output_type -> gateway.v1.LogStreamControl
+	186, // [186:192] is the sub-list for method output_type
+	180, // [180:186] is the sub-list for method input_type
+	180, // [180:180] is the sub-list for extension type_name
+	180, // [180:180] is the sub-list for extension extendee
+	0,   // [0:180] is the sub-list for field type_name
 }
 
 func init() { file_gateway_v1_nginx_daemon_proto_init() }

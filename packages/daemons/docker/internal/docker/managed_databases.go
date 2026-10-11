@@ -262,6 +262,14 @@ type managedDatabaseRecord struct {
 	// DiskRepair is the last repair of the image's filesystem after it went
 	// read-only (see managed_disk_repair.go).
 	DiskRepair *managedDiskRepair `json:"diskRepair,omitempty"`
+	// AvailabilitySetID and AvailabilityMemberID: this database is this node's
+	// member of an availability set. The member runtime starts, stops,
+	// promotes and fences it; lifecycle commands change it live only.
+	AvailabilitySetID    string `json:"availabilitySetId,omitempty"`
+	AvailabilityMemberID string `json:"availabilityMemberId,omitempty"`
+	// AvailabilityLiftedFrom is the member this single-node database was
+	// lifted from (close or detach), so a repeated lift answers ready.
+	AvailabilityLiftedFrom string `json:"availabilityLiftedFrom,omitempty"`
 }
 
 // managedDatabaseRuntimeStats is intentionally a narrow managed-database
@@ -302,6 +310,9 @@ type managedDatabaseManager struct {
 	// nobody asked for.
 	repairs   diskRepairs
 	incidents *engineIncidents
+	// pgSets connects Postgres availability set members to the member
+	// runtime (managed_database_pg_commands.go).
+	pgSets pgSetHooks
 }
 
 func newManagedDatabaseManager(cfg *config.Config, client *Client, logger *slog.Logger) (*managedDatabaseManager, error) {
@@ -414,6 +425,9 @@ func (m *managedDatabaseManager) handle(ctx context.Context, action, id, configJ
 	}
 	if !managedDatabaseIDPattern.MatchString(id) {
 		return "", errors.New("invalid managed database id")
+	}
+	if handled, detail, err := m.pgSetHandle(ctx, action, id, configJSON); handled {
+		return detail, err
 	}
 	// Certificate reloads wait for the engine without the manager lock, and so
 	// does a stats sample: Docker answers it after a second CPU reading, about

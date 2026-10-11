@@ -24,6 +24,7 @@ func (m *Manager) stepMemberLocked(mem *member, now time.Duration) {
 	manifest, hasManifest := m.deps.Lease.ManifestInfo(key.PolicyID)
 	leaseMode := hasManifest && !manifest.Closed
 	m.updateReadyLocked(mem, status, leaseMode, now)
+	m.switchoverGuardLocked(mem, status, now)
 	if mem.obs.at == 0 {
 		return
 	}
