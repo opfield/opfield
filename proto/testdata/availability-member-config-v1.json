@@ -1,0 +1,170 @@
+{
+  "comment": "Normative: which AvailabilityMemberConfig a node's member runtime accepts (memberha.Config.Validate after memberConfigFromProto). The Go test (packages/daemons/docker/internal/docker/availability_member_config_vectors_test.go) and the backend mirror (packages/backend/src/services/availability-member-config.rules.ts) both check every case; error is a substring of the refusal, null when the node takes the configuration.",
+  "cases": [
+    {
+      "name": "automatic member with its set's lease policy",
+      "config": {
+        "setId": "11111111-1111-4111-8111-111111111111",
+        "memberId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "engine": "postgres",
+        "ownerKind": "managed_database",
+        "ownerId": "33333333-3333-4333-8333-333333333333",
+        "mode": "automatic",
+        "leasePolicyId": "22222222-2222-4222-8222-222222222222",
+        "members": [
+          { "memberId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "nodeId": "node-a", "memberIndex": 0, "priority": 100 },
+          { "memberId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "nodeId": "node-b", "memberIndex": 1, "priority": 98 }
+        ],
+        "configRevision": "2"
+      },
+      "error": null
+    },
+    {
+      "name": "automatic member without a lease policy",
+      "config": {
+        "setId": "11111111-1111-4111-8111-111111111111",
+        "memberId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "engine": "valkey",
+        "ownerKind": "managed_database",
+        "ownerId": "33333333-3333-4333-8333-333333333333",
+        "mode": "automatic",
+        "members": [
+          { "memberId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "nodeId": "node-a", "memberIndex": 0, "priority": 100 }
+        ],
+        "configRevision": "1"
+      },
+      "error": "an automatic availability member needs its set's lease policy"
+    },
+    {
+      "name": "automatic member with a lease policy that is no UUID",
+      "config": {
+        "setId": "11111111-1111-4111-8111-111111111111",
+        "memberId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "engine": "seaweedfs",
+        "ownerKind": "managed_storage",
+        "ownerId": "33333333-3333-4333-8333-333333333333",
+        "mode": "automatic",
+        "leasePolicyId": "policy-1",
+        "members": [
+          { "memberId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "nodeId": "node-a", "memberIndex": 0, "priority": 100 }
+        ],
+        "configRevision": "1"
+      },
+      "error": "an automatic availability member needs its set's lease policy"
+    },
+    {
+      "name": "manual member without a lease policy",
+      "config": {
+        "setId": "11111111-1111-4111-8111-111111111111",
+        "memberId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "engine": "postgres",
+        "ownerKind": "managed_database",
+        "ownerId": "33333333-3333-4333-8333-333333333333",
+        "mode": "manual",
+        "members": [
+          { "memberId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "nodeId": "node-a", "memberIndex": 0, "priority": 100 },
+          { "memberId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "nodeId": "node-b", "memberIndex": 1, "priority": 98 }
+        ],
+        "configRevision": "3"
+      },
+      "error": null
+    },
+    {
+      "name": "manual member with a lease policy",
+      "config": {
+        "setId": "11111111-1111-4111-8111-111111111111",
+        "memberId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "engine": "postgres",
+        "ownerKind": "managed_database",
+        "ownerId": "33333333-3333-4333-8333-333333333333",
+        "mode": "manual",
+        "leasePolicyId": "22222222-2222-4222-8222-222222222222",
+        "members": [
+          { "memberId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "nodeId": "node-a", "memberIndex": 0, "priority": 100 }
+        ],
+        "configRevision": "1"
+      },
+      "error": "a manual availability member has no lease policy"
+    },
+    {
+      "name": "unknown mode",
+      "config": {
+        "setId": "11111111-1111-4111-8111-111111111111",
+        "memberId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "engine": "clickhouse",
+        "ownerKind": "managed_database",
+        "ownerId": "33333333-3333-4333-8333-333333333333",
+        "mode": "both",
+        "members": [
+          { "memberId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "nodeId": "node-a", "memberIndex": 0, "priority": 100 }
+        ],
+        "configRevision": "1"
+      },
+      "error": "unknown availability mode"
+    },
+    {
+      "name": "set id that is no UUID",
+      "config": {
+        "setId": "set-1",
+        "memberId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "engine": "postgres",
+        "ownerKind": "managed_database",
+        "ownerId": "33333333-3333-4333-8333-333333333333",
+        "mode": "manual",
+        "members": [
+          { "memberId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "nodeId": "node-a", "memberIndex": 0, "priority": 100 }
+        ],
+        "configRevision": "1"
+      },
+      "error": "availability member set and member ids must be UUIDs"
+    },
+    {
+      "name": "upper-case member id",
+      "config": {
+        "setId": "11111111-1111-4111-8111-111111111111",
+        "memberId": "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
+        "engine": "postgres",
+        "ownerKind": "managed_database",
+        "ownerId": "33333333-3333-4333-8333-333333333333",
+        "mode": "manual",
+        "members": [
+          { "memberId": "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA", "nodeId": "node-a", "memberIndex": 0, "priority": 100 }
+        ],
+        "configRevision": "1"
+      },
+      "error": "availability member set and member ids must be UUIDs"
+    },
+    {
+      "name": "member not listed among the set's members",
+      "config": {
+        "setId": "11111111-1111-4111-8111-111111111111",
+        "memberId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "engine": "postgres",
+        "ownerKind": "managed_database",
+        "ownerId": "33333333-3333-4333-8333-333333333333",
+        "mode": "manual",
+        "members": [
+          { "memberId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "nodeId": "node-b", "memberIndex": 1, "priority": 98 }
+        ],
+        "configRevision": "1"
+      },
+      "error": "availability member node and engine are required"
+    },
+    {
+      "name": "member listed without its node",
+      "config": {
+        "setId": "11111111-1111-4111-8111-111111111111",
+        "memberId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "engine": "postgres",
+        "ownerKind": "managed_database",
+        "ownerId": "33333333-3333-4333-8333-333333333333",
+        "mode": "manual",
+        "members": [
+          { "memberId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "nodeId": "", "memberIndex": 0, "priority": 100 }
+        ],
+        "configRevision": "1"
+      },
+      "error": "availability member node and engine are required"
+    }
+  ]
+}

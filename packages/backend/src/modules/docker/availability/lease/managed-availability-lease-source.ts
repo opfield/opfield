@@ -74,6 +74,14 @@ export function setWitnessFilter(input: {
 }
 
 /**
+ * Whether a set's lease policy stays out of lease mode: while the set converts (its policy exists from the start of
+ * the convert so the member configurations can name it) and while it is turned off.
+ */
+export function setHoldsLeaseEntry(state: string): boolean {
+  return state === 'converting' || state === 'closing';
+}
+
+/**
  * Database and storage availability sets in automatic mode as a lease policy source. Each set's lease policy has one
  * slot (the primary role), is stateful (lease v3: the engine certifies who may take over) and strict, and gets a fresh
  * id on every enable. The host never closes it by itself (AS9): only closeSetPolicy does. A lease policy of a set that
@@ -186,8 +194,9 @@ export class ManagedAvailabilityLeaseSource implements LeasePolicySource {
         requiredCapabilities: [...MANAGED_AVAILABILITY_LEASE_CAPABILITIES],
         specFingerprint: set.engine,
         servingMemberIds: primary ? [primary.nodeId] : [],
-        // Seeding a new member or converting a single node runs outside the lease; it starts once that is done.
-        entryHold: set.state === 'converting',
+        // Seeding a new member or converting a single node runs outside the lease; it starts once that is done. A set
+        // being turned off never enters lease mode (a convert that failed before its lease started is detached).
+        entryHold: setHoldsLeaseEntry(set.state),
       });
     }
     return descriptors;

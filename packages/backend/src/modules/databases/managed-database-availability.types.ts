@@ -92,6 +92,14 @@ export interface ManagedAvailabilityMembersPort {
   ): void;
   /** Sends the current configuration to every member (bump config_revision first); returns members not configured. */
   configureSet(setId: string, onlyMemberId?: string): Promise<string[]>;
+  /**
+   * configureSet with why each member was not configured: `refused` when its node refused the configuration (it does
+   * not clear on its own), otherwise the node was unreachable. Optional: hosts before it lack it.
+   */
+  configureSetResults?(
+    setId: string,
+    onlyMemberId?: string
+  ): Promise<Array<{ memberId: string; nodeId: string; error: string; refused: boolean }>>;
   removeMember(setId: string, memberId: string, nodeId: string): Promise<CommandResult | null>;
   assignPrimary(setId: string, assignment: AvailabilityPrimaryAssignment): Promise<string[]>;
   switchover(
