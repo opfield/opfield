@@ -2,7 +2,12 @@
  * Gateway settings: authentication/provisioning settings, the running version
  * and the license status. Seeds 64600–64699.
  */
-import type { AuthProvisioningSettings, LicenseStatusView, UpdateStatus } from "@/types";
+import type {
+  AuthProvisioningSettings,
+  CloudLinkStatusView,
+  LicenseStatusView,
+  UpdateStatus,
+} from "@/types";
 import { systemConfig, uiBootstrap, updateStatus } from "../shell";
 import { ago, ahead, uuid } from "../time";
 import { groupIds, groups } from "./admin";
@@ -134,4 +139,17 @@ export const licenseStatus: LicenseStatusView = {
   activeInstallationName: "Northwind production",
   errorMessage: null,
   serverUrl: "https://licensing.example.com",
+};
+
+/** Settings → General → Cloud: connected to a cloud account, remote management off. */
+export const cloudStatus: CloudLinkStatusView = {
+  state: "connected",
+  portalUrl: "https://account.opfield.dev",
+  accountEmail: "ops@example.com",
+  connectedSince: ago(12, "d"),
+  socket: { state: "online", since: ago(3, "h"), lastError: null },
+  disconnectedAt: null,
+  disconnectedReason: null,
+  remoteManagement: { managed: false, enabled: false },
+  recentRequests: [],
 };

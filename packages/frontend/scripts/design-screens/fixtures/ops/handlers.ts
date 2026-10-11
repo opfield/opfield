@@ -42,7 +42,7 @@ import {
   oauthAuthorizations,
   passkeys,
 } from "./profile";
-import { authSettings, licenseStatus, systemVersion } from "./settings";
+import { authSettings, cloudStatus, licenseStatus, systemVersion } from "./settings";
 import {
   aiConfig,
   aiSandboxArtifacts,
@@ -140,6 +140,7 @@ export function settingsHandlers() {
     http.get("*/api/admin/auth-settings", () => ok(authSettings)),
     http.get("*/api/system/version", () => wrapped(systemVersion)),
     http.get("*/api/system/license/status", () => wrapped(licenseStatus)),
+    http.get("*/api/system/cloud/status", () => wrapped(cloudStatus)),
     http.get("*/api/system/release-notes", () =>
       wrapped([
         { version: "2.14.0", notes: "Relay lanes, SIEM export retries and faster route reloads." },
