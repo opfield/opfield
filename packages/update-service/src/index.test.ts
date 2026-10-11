@@ -596,4 +596,45 @@ describe("gateway update facade", () => {
 		const headers = new Headers(fetcher.mock.calls[0]?.[1]?.headers);
 		expect(headers.get("Authorization")).toBe("Bearer private-core-token");
 	});
+
+	it("serves witness artifacts from the Gateway release", async () => {
+		const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+			Response.json({
+				...release("v2.12.0"),
+				assets: [
+					{
+						id: 901,
+						name: "witness-clickhouse-keeper-25.8.28.1-linux-arm64.update.json",
+						size: 512,
+						content_type: "application/json",
+					},
+				],
+			}),
+		);
+		const response = await handleRequest(
+			new Request(
+				"https://updates.thesqlabs.com/gateway/witness-clickhouse-keeper/v2.12.0/witness-clickhouse-keeper-25.8.28.1-linux-arm64.update.json",
+				{ method: "HEAD" },
+			),
+			env,
+			fetcher,
+		);
+		expect(response.status).toBe(200);
+		expect(fetcher.mock.calls[0]?.[0]).toBe(
+			"https://api.github.com/repos/the-square-labs/gateway/releases/tags/v2.12.0",
+		);
+		for (const path of [
+			"witness-clickhouse-keeper/v2.12.0-relay/witness-clickhouse-keeper-25.8.28.1-linux-arm64",
+			"witness-clickhouse-keeper/v2.12.0/witness-clickhouse-keeper-25.8.28.1-linux-riscv64",
+			"witness-clickhouse-keeper/v2.12.0/gateway-image.update.json",
+		]) {
+			const refused = await handleRequest(
+				new Request(`https://updates.thesqlabs.com/gateway/${path}`),
+				env,
+				fetcher,
+			);
+			expect(refused.status).toBe(404);
+		}
+		expect(fetcher).toHaveBeenCalledTimes(1);
+	});
 });

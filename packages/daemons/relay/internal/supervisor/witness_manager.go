@@ -808,12 +808,29 @@ func loopbackIPv4(host string) bool {
 	return ip != nil && ip.To4() != nil && ip.IsLoopback()
 }
 
+// witnessLoaders are the glibc program interpreters the published witness
+// binaries need (the ClickHouse Keeper build is dynamically linked against
+// glibc): a musl-only host (Alpine) cannot run them.
+var witnessLoaders = map[string]string{
+	"amd64": "/lib64/ld-linux-x86-64.so.2",
+	"arm64": "/lib/ld-linux-aarch64.so.1",
+}
+
+func witnessLoaderPresent() bool {
+	loader, ok := witnessLoaders[runtime.GOARCH]
+	if !ok {
+		return false
+	}
+	_, err := os.Stat(loader)
+	return err == nil
+}
+
 // witnessHosting is the local gate (decision 9). A protected relay hosts
 // witnesses only with its owner's opt-in (protected.allow_database_witness,
 // fixed for the process life); a host the supervisor cannot run witnesses on
 // reports disabled.
 func (p *Plugin) witnessHosting() string {
-	if runtime.GOOS != "linux" || (runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64") {
+	if runtime.GOOS != "linux" || !witnessLoaderPresent() {
 		return WitnessHostingDisabled
 	}
 	if p.cfg.Protected.Enabled && !p.cfg.Protected.AllowDatabaseWitness {

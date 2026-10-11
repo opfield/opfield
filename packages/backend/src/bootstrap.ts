@@ -172,6 +172,7 @@ import { LoggingSettingsService } from '@/modules/logging/logging-settings.servi
 import { LoggingTokenService } from '@/modules/logging/logging-token.service.js';
 import { LoggingValidationService } from '@/modules/logging/logging-validation.service.js';
 import { ManagedWorkloadLifecycle } from '@/modules/managed-workloads/managed-workload-lifecycle.js';
+import { WitnessCatalog } from '@/modules/managed-workloads/witness-catalog.js';
 import { McpSettingsService } from '@/modules/mcp/mcp-settings.service.js';
 import { DashboardReadModelService } from '@/modules/monitoring/dashboard-read-model.service.js';
 import { MonitoringService } from '@/modules/monitoring/monitoring.service.js';
@@ -1390,7 +1391,9 @@ export async function initializeContainer(): Promise<void> {
   );
   container.registerInstance(AvailabilityLeaseService, availabilityLeaseService);
   // Witness processes relays host for availability sets (decision 9): desired sets pushed, reports recorded.
-  container.registerInstance(RelayWitnessService, new RelayWitnessService(db, nodeDispatch));
+  const relayWitnessService = new RelayWitnessService(db, nodeDispatch);
+  relayWitnessService.setArtifactSource(new WitnessCatalog(env));
+  container.registerInstance(RelayWitnessService, relayWitnessService);
   if (relayPolicyService) {
     relayPolicyService.setAvailabilityLeaseSource(availabilityLeaseService);
     availabilityLeaseService.setRelayPublisher(relayPolicyService);
