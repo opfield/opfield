@@ -24,7 +24,7 @@ it("ingress-domain-dialog-update-dns", async () => {
       await settleDialog("Update Cloudflare DNS?");
     },
     notes: [
-      "Confirmation before Gateway rewrites the Cloudflare record to the Frankfurt edge and takes over the hostname.",
+      "Confirmation before Opfield rewrites the Cloudflare record to the Frankfurt edge and takes over the hostname.",
     ],
   });
 });

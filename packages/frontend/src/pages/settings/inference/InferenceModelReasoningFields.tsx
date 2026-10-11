@@ -123,7 +123,7 @@ export function ModelReasoningFields({
       <SettingsControlRow
         title="Default reasoning effort"
         description="Used when the client does not provide an effort"
-        help="The effort Gateway sends upstream when a client omits it. The selected value must be exposed by the client-to-provider mapping above."
+        help="The effort Opfield sends upstream when a client omits it. The selected value must be exposed by the client-to-provider mapping above."
       >
         <Select value={defaultEffort} onValueChange={setDefaultEffort} disabled={!exposed.length}>
           <SelectTrigger aria-label="Default reasoning effort" className="w-full">

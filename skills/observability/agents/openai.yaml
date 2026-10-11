@@ -1,4 +1,4 @@
 interface:
-  display_name: "Gateway Observability"
+  display_name: "Opfield Observability"
   short_description: "Logs, alerts, SIEM, status pages, and audit"
-  default_prompt: "Use $observability to find the Gateway logs, alerts, and audit events for this incident."
+  default_prompt: "Use $observability to find the Opfield logs, alerts, and audit events for this incident."

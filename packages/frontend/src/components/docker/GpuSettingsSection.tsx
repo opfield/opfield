@@ -175,7 +175,7 @@ export function GpuSettingsSection({
       >
         {attachment.mode === "external" ? (
           <p className="px-4 py-3 text-sm text-muted-foreground">
-            {attachment.reason || "This GPU mapping cannot be safely changed by Gateway."}
+            {attachment.reason || "This GPU mapping cannot be safely changed by Opfield."}
           </p>
         ) : !gpuInventoryLoaded ? null : deviceIds.length > 0 ? (
           <>

@@ -22,7 +22,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GATEWAY_IMAGE: ghcr.io/${{ github.repository_owner }}/gateway
+  # Fixed across a repository or organization move: releases promote these builds and installs pin the repository
+  # (see release.yml for GATEWAY_IMAGE_MIRROR and GHCR_PUSH_TOKEN).
+  GATEWAY_IMAGE: ${{ vars.GATEWAY_IMAGE || 'ghcr.io/the-square-labs/gateway' }}
 
 jobs:
   gateway:
@@ -44,7 +46,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ github.token }}
+          password: ${{ secrets.GHCR_PUSH_TOKEN || github.token }}
 
       - name: Set up builder
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
@@ -85,7 +87,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ github.token }}
+          password: ${{ secrets.GHCR_PUSH_TOKEN || github.token }}
 
       - name: Check for an existing build
         id: existing
@@ -142,7 +144,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ github.token }}
+          password: ${{ secrets.GHCR_PUSH_TOKEN || github.token }}
 
       - name: Check for an existing build
         id: existing
@@ -190,7 +192,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ github.token }}
+          password: ${{ secrets.GHCR_PUSH_TOKEN || github.token }}
 
       - name: Install crane
         run: |

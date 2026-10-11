@@ -3,7 +3,7 @@ export function UnreleasedInstallerNote({ installerRelease }: { installerRelease
   if (installerRelease) return null;
   return (
     <p className="text-xs text-muted-foreground">
-      This Gateway build is not a release, so the command runs the installer from the main branch
+      This Opfield build is not a release, so the command runs the installer from the main branch
       without a checksum check.
     </p>
   );

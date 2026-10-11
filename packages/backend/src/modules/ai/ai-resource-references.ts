@@ -74,7 +74,7 @@ export function appendAIResourceReferencesToModelResult(result: unknown, referen
     relation: reference.relation,
   }));
   const instruction =
-    'When mentioning one of these Gateway resources in a progress comment or final answer, copy its marker exactly. Do not write or guess an href.';
+    'When mentioning one of these Opfield resources in a progress comment or final answer, copy its marker exactly. Do not write or guess an href.';
 
   if (isRecord(result)) {
     return { ...result, gatewayResourceReferences: modelReferences, gatewayResourceReferenceInstruction: instruction };

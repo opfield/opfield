@@ -66,8 +66,8 @@ export function LicenseUpgradeDialog() {
             <div className="space-y-3 py-4">
               <p className="text-sm text-muted-foreground">
                 {renderedRequest.reason === "module-unavailable"
-                  ? `${renderedRequest.capability} is unavailable because this Gateway's paid features are not ready. Check license settings to restore access.`
-                  : `${renderedRequest.capability} requires the ${planLabel(renderedRequest.requiredPlan)} plan. This Gateway is currently on the ${PLAN_LABELS[renderedRequest.currentPlan]} plan.`}
+                  ? `${renderedRequest.capability} is unavailable because this installation's paid features are not ready. Check license settings to restore access.`
+                  : `${renderedRequest.capability} requires the ${planLabel(renderedRequest.requiredPlan)} plan. This Opfield installation is currently on the ${PLAN_LABELS[renderedRequest.currentPlan]} plan.`}
               </p>
               {renderedRequest.quota?.limit !== undefined ? (
                 <p className="text-sm text-muted-foreground">
@@ -79,7 +79,7 @@ export function LicenseUpgradeDialog() {
                 <p className="text-sm text-muted-foreground">
                   {renderedRequest.reason === "module-unavailable"
                     ? "Contact your administrator to restore access."
-                    : "Contact your administrator to upgrade the Gateway license."}
+                    : "Contact your administrator to upgrade the Opfield license."}
                 </p>
               ) : null}
             </div>

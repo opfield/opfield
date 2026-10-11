@@ -16,8 +16,8 @@ it("dashboard-notices", async () => {
       usePinnedNodesStore.setState({ dashboardNodeIds: [edgeNode.id, appsNode.id] });
     },
     ready: async () => {
-      await screen.findByText("Gateway license has expired");
-      await screen.findByText("Gateway relay recovery in progress");
+      await screen.findByText("Opfield license has expired");
+      await screen.findByText("Opfield relay recovery in progress");
       await screen.findByText("2 managed TLS certificates need attention");
     },
     notes: [

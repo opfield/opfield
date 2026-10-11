@@ -538,7 +538,7 @@ export abstract class IntegrationsGitRepositoryService extends IntegrationsGitHu
           return { repositoryUrl: context.repositoryUrl, path: relativePath, branch, changed: false, commitSha: null };
         }
         await writeFile(filePath, input.content, { mode: 0o600 });
-        await this.runGit(['config', 'user.name', 'Gateway AI'], context);
+        await this.runGit(['config', 'user.name', 'Opfield AI'], context);
         await this.runGit(['config', 'user.email', 'gateway-ai@localhost'], context);
         await this.runGit(['add', '--', relativePath], context);
         await this.runGit(['commit', '-m', input.message.trim()], context);

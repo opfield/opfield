@@ -29,7 +29,7 @@ func missingFiles(dir string, names []string) []string {
 }
 
 func runtimeFilesMissingError(kind string, missing []string) error {
-	return fmt.Errorf("%s runtime files are missing on the node (%s); Gateway restages them with a restart", kind, strings.Join(missing, ", "))
+	return fmt.Errorf("%s runtime files are missing on the node (%s); Opfield restages them with a restart", kind, strings.Join(missing, ", "))
 }
 
 // missingRuntimeFiles lists the runtime files of a storage member that are

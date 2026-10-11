@@ -3,7 +3,7 @@ import type { AIToolDefinition } from './ai.types.js';
 export const DATABASE_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_databases',
-    description: 'List saved database connections managed by Gateway.',
+    description: 'List saved database connections managed by Opfield.',
     parameters: {
       type: 'object',
       properties: {

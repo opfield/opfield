@@ -189,7 +189,7 @@ export function createCoreResponsesWSHandlers(
       const freshAuth = await revalidateAuth(auth);
       if (state.closed) return;
       if (!freshAuth) {
-        sendError(ws, 401, 'invalid_api_key', 'Invalid or revoked Gateway inference token');
+        sendError(ws, 401, 'invalid_api_key', 'Invalid or revoked Opfield inference token');
         state.stopHeartbeat();
         ws.close(1008, 'Unauthorized');
         return;
@@ -418,7 +418,7 @@ async function connectTurnAttempt(input: {
       'request_too_large',
       input.target.requestLimitsCapability === 'negotiated-v1'
         ? 'WebSocket message exceeds the configured inference limit'
-        : 'WebSocket message exceeds the legacy core limit; update the inference core to apply Gateway limits'
+        : 'WebSocket message exceeds the legacy core limit; update the inference core to apply Opfield limits'
     );
   }
   let upstream: WebSocket;

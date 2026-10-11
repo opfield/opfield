@@ -72,7 +72,7 @@ function stepUpFailuresKey(userId: string): string {
 
 function createTotp(secret?: string, label?: string) {
   return new OTPAuth.TOTP({
-    issuer: 'Gateway',
+    issuer: 'Opfield',
     label,
     algorithm: 'SHA1',
     digits: 6,

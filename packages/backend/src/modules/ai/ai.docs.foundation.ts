@@ -3,7 +3,7 @@ import { PERMISSIONS_DOC } from './ai.docs.permissions.js';
 export const FOUNDATION_DOCS: Record<string, string> = {
   discovery: `# Resource Discovery
 
-Gateway AI starts conversations with a small base tool surface. Domain-specific tools are discovered by category and then remembered on the backend conversation.
+Opfield AI starts conversations with a small base tool surface. Domain-specific tools are discovered by category and then remembered on the backend conversation.
 
 ## Base Tools
 - discover_tools: inspect callable tool categories and category-specific tools.
@@ -13,12 +13,12 @@ Gateway AI starts conversations with a small base tool surface. Domain-specific 
 - find_resource: globally search readable resources by name, ID, domain, image, etc.
 - internal_documentation: read workflow and argument docs before complex operations in AI Workspace. Remote MCP clients use read_gateway_documentation or the gateway://docs resource tree with the same subsystem scope filtering.
 - ask_question: ask concise clarifying questions.
-- fetch: read a direct HTTP/HTTPS URL through Gateway when sandbox runner is enabled and the user has sandbox access.
+- fetch: read a direct HTTP/HTTPS URL through Opfield when sandbox runner is enabled and the user has sandbox access.
 - web_search: available only when enabled by settings.
 
 ## Tool Discovery
 - If the needed operation is not available, call discover_tools first.
-- Use internal_documentation before Gateway-specific workflows, tool argument details, permission-sensitive operations, and recently added capabilities. Do not answer those from general intuition.
+- Use internal_documentation before Opfield-specific workflows, tool argument details, permission-sensitive operations, and recently added capabilities. Do not answer those from general intuition.
 - Use discover_tools({ categories: ["Logging"], includeTools: true }) before managing logging environments/schemas/logs.
 - Use discover_tools({ categories: ["Docker"], includeTools: true }) before managing Docker containers/images/volumes/networks or inspecting Compose projects.
 - Use discover_tools({ categories: ["Ingress"], includeTools: true }) before managing domains, routes, route folders, nginx templates, or access lists.
@@ -66,7 +66,7 @@ Use find_resource with an empty query and a concrete type when the user asks to 
 
 ## System PKI Audit
 - System CAs and their leaves are hidden from ordinary PKI tools.
-- Use \`audit_system_pki_leaves\` only when the user explicitly asks to inspect Gateway system PKI. It requires both PKI view permission and \`admin:details:certificates\`.
+- Use \`audit_system_pki_leaves\` only when the user explicitly asks to inspect Opfield system PKI. It requires both PKI view permission and \`admin:details:certificates\`.
 - The report is read-only: \`current\` and \`retired\` reflect persisted lifecycle ownership; \`unknown\` means ownership cannot be proven and must never be mutated automatically.
 - Never use generic revoke/delete operations for system certificates or CAs: server policy rejects them. This tool cannot revoke, delete, issue, export keys, or clean up certificates.
 
@@ -79,17 +79,17 @@ NEVER use a PKI certificate ID directly as sslCertificateId on a route.`,
 
   ssl: `# SSL Certificates
 
-SSL certificates in Gateway enable HTTPS on ingress routes. Three types exist:
+SSL certificates in Opfield enable HTTPS on ingress routes. Three types exist:
 
 ## Types
 1. **ACME** (Let's Encrypt): Automated free certificates via request_acme_cert. Requires domain verification. Auto-renewable.
 2. **Upload**: Manually uploaded PEM certificate + private key via manage_ssl_certificate({ operation: "upload", ... }). No auto-renewal — must be re-uploaded before expiry.
-3. **Internal**: Linked from PKI store via link_internal_cert(internalCertId); needs ssl:cert:issue on the destination and pki:cert:deploy (or pki:cert:export) on the PKI certificate or its CA. Uses the PKI cert's key material, which only nginx receives. When Gateway holds the key, it reissues the leaf from the same CA and template daily once two thirds of its lifetime have passed (unless the CA ends too soon for a longer replacement, or the certificate lives less than 3 days), and pushes it to every proxy host (auto-renew shows as "Reissue"; toggle with manage_ssl_certificate set_auto_renew). manage_ssl_certificate({ operation: "renew" }) reissues it now and needs pki:cert:issue on the CA. CSR-issued links (no key in Gateway) only alert: issue a new certificate and re-link it.
+3. **Internal**: Linked from PKI store via link_internal_cert(internalCertId); needs ssl:cert:issue on the destination and pki:cert:deploy (or pki:cert:export) on the PKI certificate or its CA. Uses the PKI cert's key material, which only nginx receives. When Opfield holds the key, it reissues the leaf from the same CA and template daily once two thirds of its lifetime have passed (unless the CA ends too soon for a longer replacement, or the certificate lives less than 3 days), and pushes it to every proxy host (auto-renew shows as "Reissue"; toggle with manage_ssl_certificate set_auto_renew). manage_ssl_certificate({ operation: "renew" }) reissues it now and needs pki:cert:issue on the CA. CSR-issued links (no key in Opfield) only alert: issue a new certificate and re-link it.
 
 ## ACME Certificates (Let's Encrypt)
 - request_acme_cert({ domains: ["example.com", "www.example.com"], challengeType: "http-01" })
-- **http-01**: Gateway deploys each challenge to the Nginx ingress assigned to that registered domain. The assigned node must be online and publicly reachable on port 80.
-- **dns-01 with Cloudflare**: For wildcard certs or when port 80 is blocked and a matching Cloudflare connector/zone is configured. Use request_acme_cert({ domains, challengeType: "dns-01", dnsProvider: "cloudflare" }). Gateway creates the TXT records, waits for propagation, verifies the ACME order, cleans up created TXT records, and returns the issued certificate.
+- **http-01**: Opfield deploys each challenge to the Nginx ingress assigned to that registered domain. The assigned node must be online and publicly reachable on port 80.
+- **dns-01 with Cloudflare**: For wildcard certs or when port 80 is blocked and a matching Cloudflare connector/zone is configured. Use request_acme_cert({ domains, challengeType: "dns-01", dnsProvider: "cloudflare" }). Opfield creates the TXT records, waits for propagation, verifies the ACME order, cleans up created TXT records, and returns the issued certificate.
 - **manual dns-01**: If no Cloudflare connector/zone is available, omit dnsProvider. The tool returns { domain, recordName, recordValue }; user must create a DNS TXT record manually, then confirm with manage_ssl_certificate({ operation: "verify_dns", sslCertificateId }).
 - Auto-renew: checked daily at 3 AM. Renews certificates 30 days before expiry.
 - DNS-01 auto-renew requires Cloudflare. Enable or disable it with manage_ssl_certificate({ operation: "set_auto_renew", sslCertificateId, enabled: true, provider: "cloudflare" }) or enabled: false.
@@ -114,8 +114,8 @@ IMPORTANT: Never use a PKI certificate ID directly as sslCertificateId — you m
 - http2Support: true enables HTTP/2 (recommended with SSL).
 
 ## Certificate Deployment
-When an enabled TLS route uses an SSL certificate, Gateway:
-1. Keeps the canonical encrypted certificate material in the Gateway control plane
+When an enabled TLS route uses an SSL certificate, Opfield:
+1. Keeps the canonical encrypted certificate material in the Opfield control plane
 2. Deploys a node-local replica only to the route's nginx ingress node (every member for a route on an ingress group)
 3. Applies the certificate and route config atomically, tests the config (nginx -t), and reloads nginx
 4. Tracks per-node deployment state and removes unused replicas after the cleanup grace period
@@ -134,7 +134,7 @@ The UI and AI/MCP tools call these resources Routes. Use list_routes, get_route,
 ## Key Fields
 - nodeId: the nginx ingress node this route is deployed on. Optional when creating: see Choosing the Ingress Node.
 - ingressGroupId: serve the route from every member of an ingress group instead of one node (topic ingress-groups).
-- domainNames: array of domains this route serves. Registered Gateway domains among them must all be assigned to the route's nginx node.
+- domainNames: array of domains this route serves. Registered Opfield domains among them must all be assigned to the route's nginx node.
 - forwardHost/forwardPort/forwardScheme: backend server details (for proxy type).
 - upstreamKind: manual, docker_container, docker_deployment, or pages. Docker upstreams store a standalone container name, a Compose project/service identity, or a deployment ID plus a TCP application port; Pages stores a Page Project and mutable Tag target.
 - sslEnabled: enable HTTPS. Requires sslCertificateId (SSL cert UUID, NOT PKI cert UUID).
@@ -153,7 +153,7 @@ The UI and AI/MCP tools call these resources Routes. Use list_routes, get_route,
 Ordinary list_routes and get_route responses omit rawConfig and rawConfigEnabled. Raw content is only available through explicit route raw-config tools with raw-read permission.
 
 ## Choosing the Ingress Node
-- A registered Gateway domain pins its ingress node. Omit nodeId on create_route and the route uses the node its registered domains are assigned to; registered domains on different nodes cannot share one route.
+- A registered Opfield domain pins its ingress node. Omit nodeId on create_route and the route uses the node its registered domains are assigned to; registered domains on different nodes cannot share one route.
 - With no registered domain, an omitted nodeId resolves to the only nginx node the caller may create routes on. When several qualify, create_route fails with ROUTE_INGRESS_NODE_REQUIRED and lists them (id, name, hostname, status); retry with one of them as nodeId.
 - A registered domain on an ingress group places the route on that group.
 - list_route_ingress_nodes (REST: GET /api/proxy-hosts/ingress-nodes) lists those nodes, and in groups the ingress groups the caller may view (ingress:groups:view) whose members are all such nodes, up front. It needs any proxy:create grant and no node permission, and returns only id, displayName, hostname, and availability status. Pass folderId to see the nodes allowed for a route in that folder. Nodes locked for new services are omitted.
@@ -184,7 +184,7 @@ Each route generates an nginx server block on its selected ingress node. Changes
 Config templates can customize the generated config (see templates topic).
 
 ## Raw Config Mode
-When rawConfigEnabled is true and rawConfig is saved, template rendering is bypassed and rawConfig is used directly as the nginx server block. With rawConfigEnabled but no rawConfig yet, Gateway keeps rendering the managed config. A Route to a Docker container or deployment keeps its Secure Link in raw mode: keep its upstream (\`gateway_secure_link_<route id with - replaced by _>\`, as get_route_rendered_config shows it) in the raw config, or the Route loses its target. Use get_route_rendered_config to view the current config, toggle_route_raw_mode to enable/disable (disabling also returns a Route of type raw to proxy), and update_route_raw_config to write raw config.`,
+When rawConfigEnabled is true and rawConfig is saved, template rendering is bypassed and rawConfig is used directly as the nginx server block. With rawConfigEnabled but no rawConfig yet, Opfield keeps rendering the managed config. A Route to a Docker container or deployment keeps its Secure Link in raw mode: keep its upstream (\`gateway_secure_link_<route id with - replaced by _>\`, as get_route_rendered_config shows it) in the raw config, or the Route loses its target. Use get_route_rendered_config to view the current config, toggle_route_raw_mode to enable/disable (disabling also returns a Route of type raw to proxy), and update_route_raw_config to write raw config.`,
 
   domains: `# Domains
 
@@ -200,9 +200,9 @@ Domains are registered public hostnames with an explicit nginx ingress assignmen
 
 ## Lifecycle
 1. Register a domain with an eligible nginx node: create_domain({ domain: "example.com", nginxNodeId: "..." }). manage_domain({ operation: "list_nginx_nodes" }) lists the eligible nodes with any domains:create grant and no node permission
-2. Gateway resolves the node's effective public ingress address
-3. Without Cloudflare, the operator points external DNS to that address and Gateway validates the resolved records
-4. With Cloudflare, Gateway resolves the matching zone; it creates missing records or adopts existing matching A/AAAA records as matched_existing
+2. Opfield resolves the node's effective public ingress address
+3. Without Cloudflare, the operator points external DNS to that address and Opfield validates the resolved records
+4. With Cloudflare, Opfield resolves the matching zone; it creates missing records or adopts existing matching A/AAAA records as matched_existing
 5. If Cloudflare has different A/AAAA records, create_domain returns conflict metadata; overwrite or adopt only after explicit user approval
 6. Use manage_domain({ operation: "check_dns", domainId }) to manually re-check resolved DNS and repair drift; pass repair: false for a read-only check that never rewrites a Cloudflare record
 7. Moving ingress is an explicit migration: the domain and its routes move together. Cloudflare-managed DNS is updated during cutover; external DNS must be changed by the operator before completion.
@@ -210,7 +210,7 @@ Domains are registered public hostnames with an explicit nginx ingress assignmen
 ## DNS Records Tracked
 - **A**: assigned Nginx node public IPv4 address
 - **AAAA**: assigned Nginx node public IPv6 address
-- Other record types are not created or overwritten by Gateway domain tools in v1
+- Other record types are not created or overwritten by Opfield domain tools in v1
 
 ## Rules
 - Domains used by routes cannot be deleted (remove them from routes first)
@@ -220,7 +220,7 @@ Domains are registered public hostnames with an explicit nginx ingress assignmen
 - Registered domains and their routes must use the same nginx node or ingress group. create_route may omit nodeId for a registered domain: the route uses the domain's ingress node or group
 - ingressGroupId on create_domain (or manage_domain update) serves the domain and its routes from every member of an ingress group; Cloudflare DNS then lists every active member address (topic ingress-groups)
 - create_domain requires domains:create, and delete_domain requires domains:delete. Those domain permissions include the managed DNS records for the domain
-- For matched_existing domains, pass deleteDns=false to keep DNS and remove only the Gateway mapping, or deleteDns=true to remove the adopted Cloudflare records`,
+- For matched_existing domains, pass deleteDns=false to keep DNS and remove only the Opfield mapping, or deleteDns=true to remove the adopted Cloudflare records`,
 
   'access-lists': `# Access Lists
 
@@ -293,14 +293,14 @@ Let's Encrypt integration for free, automated SSL certificates.
 
 ## Issuing an ACME Certificate
 1. request_acme_cert({ domains: ["example.com", "www.example.com"], challengeType: "http-01" })
-2. Gateway contacts Let's Encrypt, receives a challenge
-3. For http-01: Gateway deploys each challenge to the registered domain's assigned Nginx ingress, then Let's Encrypt verifies it
-4. For Cloudflare dns-01: use request_acme_cert({ domains, challengeType: "dns-01", dnsProvider: "cloudflare" }); Gateway creates TXT records, verifies, cleans up, and can enable Cloudflare auto-renew.
-5. For manual dns-01: Gateway returns { domain, recordName, recordValue } — user creates DNS TXT record, then confirms
+2. Opfield contacts Let's Encrypt, receives a challenge
+3. For http-01: Opfield deploys each challenge to the registered domain's assigned Nginx ingress, then Let's Encrypt verifies it
+4. For Cloudflare dns-01: use request_acme_cert({ domains, challengeType: "dns-01", dnsProvider: "cloudflare" }); Opfield creates TXT records, verifies, cleans up, and can enable Cloudflare auto-renew.
+5. For manual dns-01: Opfield returns { domain, recordName, recordValue } — user creates DNS TXT record, then confirms
 6. Certificate is issued and stored as an SSL certificate
 
 ## Challenge Types
-- **http-01**: Automatic for registered domains with an assigned, online Nginx ingress. Gateway deploys the challenge to that node at \`/.well-known/acme-challenge/\`; the domain must resolve to the node and port 80 must be publicly accessible.
+- **http-01**: Automatic for registered domains with an assigned, online Nginx ingress. Opfield deploys the challenge to that node at \`/.well-known/acme-challenge/\`; the domain must resolve to the node and port 80 must be publicly accessible.
 - **dns-01 with Cloudflare**: Automatic when a matching Cloudflare connector/zone is configured. Use dnsProvider: "cloudflare".
 - **manual dns-01**: For wildcard certificates (*.example.com) or when port 80 is blocked. Manual step: add a TXT record at \`_acme-challenge.example.com\`. Supports wildcard issuance.
 
@@ -326,10 +326,10 @@ Let's Encrypt integration for free, automated SSL certificates.
   users: `# User Management
 
 ## Authentication
-Gateway can enable OIDC, password, and email one-time-code sign-in independently. Email-based sign-in requires verified SMTP. Users can add passkeys after they sign in; passkeys are not a first-run primary method.
+Opfield can enable OIDC, password, and email one-time-code sign-in independently. Email-based sign-in requires verified SMTP. Users can add passkeys after they sign in; passkeys are not a first-run primary method.
 - The browser setup wizard creates exactly one deliberate first administrator in the built-in system-admin group. It does not promote an arbitrary first OIDC login.
 - OIDC is configured under Settings > Authentication with an issuer URL, client ID, client secret, auto-provisioning policy, default group, and optional verified-email requirement.
-- When OIDC auto-provisioning is enabled, later valid OIDC logins can create users in the configured default group. Existing OIDC users are bound to the provider subject; Gateway may refresh their name and avatar from the provider.
+- When OIDC auto-provisioning is enabled, later valid OIDC logins can create users in the configured default group. Existing OIDC users are bound to the provider subject; Opfield may refresh their name and avatar from the provider.
 - Password and email-code configuration, recovery flows, passkeys, and first-run choices are described in the authentication topic. Do not claim that OIDC is the only sign-in method.
 
 ## Permission Groups
@@ -364,23 +364,23 @@ All significant actions are logged.
   siem: `# SIEM Audit Export
 
 ## Purpose
-When enabled in Gateway general settings, Gateway can export privacy-reduced audit events to up to five active HTTPS SIEM collectors. This is an outbound push integration: Gateway sends batches to the collector; it does not expose a webhook for the collector to call.
+When enabled in Opfield general settings, Opfield can export privacy-reduced audit events to up to five active HTTPS SIEM collectors. This is an outbound push integration: Opfield sends batches to the collector; it does not expose a webhook for the collector to call.
 
 ## Safe Event Contract
-Each event contains an id, a stable Gateway installation source identifier, type \`com.wiolett.gateway.audit.v1\`, ISO timestamp, action, optional actor id/email, resource type/id, and source IP. Never claim that full audit \`details\`, resource display names, user agents, secrets, credentials, raw request payloads, or collector response bodies are exported.
+Each event contains an id, a stable Opfield installation source identifier, type \`com.wiolett.gateway.audit.v1\`, ISO timestamp, action, optional actor id/email, resource type/id, and source IP. Never claim that full audit \`details\`, resource display names, user agents, secrets, credentials, raw request payloads, or collector response bodies are exported.
 
 ## Destination Security
 - Endpoint URLs must be HTTPS and must not include userinfo, query parameters, or fragments.
 - The existing outbound-webhook network policy validates and pins DNS addresses to protect against SSRF and rebinding. Redirects are not followed.
 - Every destination uses a bearer token, HMAC-SHA256, or one validated custom HTTP header. The secret or custom header value is encrypted at rest and is never returned by API, UI, tools, logs, audit entries, or assistant responses.
-- Custom headers cannot replace Gateway transport headers such as \`Host\`, \`Content-Type\`, or the \`X-Gateway-*\` headers. A custom Authorization header is allowed when a collector requires a non-Bearer scheme.
+- Custom headers cannot replace Opfield transport headers such as \`Host\`, \`Content-Type\`, or the \`X-Gateway-*\` headers. A custom Authorization header is allowed when a collector requires a non-Bearer scheme.
 - HMAC sends \`X-Gateway-Timestamp\` and \`X-Gateway-Signature-256\` for \`timestamp + "." + rawBody\`; bearer uses the standard Authorization header.
 
 ## Delivery Lifecycle
 - Audit writes and queued SIEM records are created in one database transaction; the request path never sends HTTP.
 - The in-process scheduler claims rows with database leases and sends a JSON body \`{ schemaVersion: 1, events: [...] }\`.
 - 2xx completes delivery. Network errors, 408, 429, and 5xx retry at 30s, 2m, 8m, 30m, 2h, 6h, and 12h, for at most eight attempts. Other 4xx responses fail terminally.
-- Disabling SIEM in Gateway general settings prevents new outbox rows and pauses delivery; destinations, history, and queued records stay intact until SIEM is enabled again.
+- Disabling SIEM in Opfield general settings prevents new outbox rows and pauses delivery; destinations, history, and queued records stay intact until SIEM is enabled again.
 - Disabling a destination pauses outstanding work; enabling resumes it. Deleting a destination soft-deletes configuration and discards outstanding work. Only failed deliveries can be manually requeued.
 - A test sends a synthetic \`com.wiolett.gateway.audit.test.v1\` event only: it creates no audit row and no queued delivery.
 - Terminal delivery history follows Audit Log retention. Do not use notification-webhook delivery semantics for SIEM.
@@ -393,13 +393,13 @@ Each event contains an id, a stable Gateway installation source identifier, type
 
   nginx: `# Nginx Ingress Management
 
-Gateway manages public ingress through nginx daemon nodes running on remote servers. The Gateway relay on port 9443 is the daemon control-plane transport; it is not an HTTP/TLS ingress for published applications.
+Opfield manages public ingress through nginx daemon nodes running on remote servers. The Opfield relay on port 9443 is the daemon control-plane transport; it is not an HTTP/TLS ingress for published applications.
 
 ## Architecture
 - Each nginx node runs a Go daemon (\`nginx-daemon\`) alongside the host's native nginx installation
-- A dedicated Gateway relay communicates with daemons over gRPC (port 9443) with mutual TLS; the application uses an internal service-mTLS control-plane hop
+- A dedicated Opfield relay communicates with daemons over gRPC (port 9443) with mutual TLS; the application uses an internal service-mTLS control-plane hop
 - Domains and routes are assigned to specific nginx nodes. A registered domain and every route using it must share the same node.
-- Each route config is generated by Gateway and pushed to its selected ingress daemon
+- Each route config is generated by Opfield and pushed to its selected ingress daemon
 - The daemon writes the config files, tests with \`nginx -t\`, and reloads nginx gracefully
 
 ## Config Management
@@ -431,36 +431,36 @@ Gateway manages public ingress through nginx daemon nodes running on remote serv
 - **Nginx logs**: access and error logs streamed via daemon, viewable per route or per node
 
 ## SSL/TLS
-- SSL certificates are stored canonically by Gateway and deployed as node-local replicas only to ingress nodes with enabled TLS routes using them
+- SSL certificates are stored canonically by Opfield and deployed as node-local replicas only to ingress nodes with enabled TLS routes using them
 - Config includes ssl_certificate and ssl_certificate_key directives
 - HTTP/2 support togglable per route
 - OCSP stapling enabled by default when CA chain is available`,
 
   nodes: `# Nodes (Daemon Management)
 
-Nodes are remote servers running Gateway daemons. Each daemon type manages different infrastructure.
+Nodes are remote servers running Opfield daemons. Each daemon type manages different infrastructure.
 
 ## Node Types
 - **nginx**: Ingress node — runs nginx and manages route configs, TLS replicas, access lists, public traffic, logs, and stats. Requires nginx installed on the server.
 - **monitoring**: Lightweight system monitoring agent — reports CPU, memory, disk, load, network. No nginx required. Useful for any server you want to monitor.
 - **docker**: Container runtime node — manages Docker containers, deployments, images, volumes, and networks. Requires Docker Engine. Provides console, files, logs, environment, and secret management.
 - **builder**: Restricted Build Worker profile of the existing \`docker-daemon\`. It has no Docker Engine socket and accepts only Git build, cancellation, and registry-binding commands. It supervises dedicated BuildKit and containerd services on a separate worker host or outer unprivileged container and must advertise execution, dedicated-runtime, and enforced-resource-profile capabilities before Repository mode is admitted.
-- **storage**: Unified restricted docker-daemon profile for Gateway-managed Postgres, key-value stores, ClickHouse, SeaweedFS object storage (plus legacy MinIO clusters), and bounded backup jobs. It runs as root, validates ext4 image storage before enrollment, advertises both managed-database and managed-storage capabilities, and rejects generic Docker workloads.
-- **databases**: Legacy restricted docker-daemon profile for Gateway-managed Postgres, key-value stores, and ClickHouse. It remains database-only; new unified stateful capacity belongs on a Storage node.
+- **storage**: Unified restricted docker-daemon profile for Opfield-managed Postgres, key-value stores, ClickHouse, SeaweedFS object storage (plus legacy MinIO clusters), and bounded backup jobs. It runs as root, validates ext4 image storage before enrollment, advertises both managed-database and managed-storage capabilities, and rejects generic Docker workloads.
+- **databases**: Legacy restricted docker-daemon profile for Opfield-managed Postgres, key-value stores, and ClickHouse. It remains database-only; new unified stateful capacity belongs on a Storage node.
 - **relay**: Secure Link Relay Pool node — runs the signed relay supervisor and worker on a separate physical host. It uses the standard node enrollment lifecycle, requires an advertised address reachable by participating managed hosts on its service port (TCP 9443 unless created with another \`servicePort\`; daemons dial the port the relay worker reports), and appears in the Relay Pool only after enrollment succeeds.
 
 ## How to Enroll a New Node (Step by Step)
 
-### Step 1: Create the node in Gateway UI
-Go to **Nodes** page → click **Add Node** → select the node type (nginx, docker, builder, storage, databases, monitoring, or relay) → set a display name → click **Create Node**. Relay nodes also require the address advertised to participating hosts. This generates a **one-time enrollment token**, the Gateway gRPC certificate fingerprint, and setup commands. **Settings → Relay → Add relay node** opens the same flow with Relay preselected.
+### Step 1: Create the node in Opfield UI
+Go to **Nodes** page → click **Add Node** → select the node type (nginx, docker, builder, storage, databases, monitoring, or relay) → set a display name → click **Create Node**. Relay nodes also require the address advertised to participating hosts. This generates a **one-time enrollment token**, the Opfield gRPC certificate fingerprint, and setup commands. **Settings → Relay → Add relay node** opens the same flow with Relay preselected.
 
 ### Step 2: Run the setup script on the target server
-The UI shows ready-to-copy commands, one per enrollment target, with curl or wget; create_node and manage_node regenerate_enrollment_token return the same commands as installCommands. Give the user the command for the target the host can reach, unchanged, and run it on the target server. On a release build the command downloads the installer from that Gateway release on GitHub, runs it only when it matches the release's \`gateway-daemon-installers.sha256\`, and pins with \`--version\` the daemon release of the Gateway's own minor line (a relay gets the release its pool runs). An unreleased build (version \`dev\`) runs the installer from the main branch instead. For Gateway v2.11.0 the nginx command looks like this:
+The UI shows ready-to-copy commands, one per enrollment target, with curl or wget; create_node and manage_node regenerate_enrollment_token return the same commands as installCommands. Give the user the command for the target the host can reach, unchanged, and run it on the target server. On a release build the command downloads the installer of that Opfield release from get.opfield.dev, runs it only when it matches the release's \`gateway-daemon-installers.sha256\`, and pins with \`--version\` the daemon release of Opfield's own minor line (a relay gets the release its pool runs). An unreleased build (version \`dev\`) runs the installer from the main branch instead. For Opfield v2.11.0 the nginx command looks like this:
 
 \`\`\`bash
 cd "$(mktemp -d)" && \\
-curl -fsSL -o setup-node.sh https://github.com/the-square-labs/gateway/releases/download/v2.11.0/setup-node.sh && \\
-curl -fsSL -o gateway-daemon-installers.sha256 https://github.com/the-square-labs/gateway/releases/download/v2.11.0/gateway-daemon-installers.sha256 && \\
+curl -fsSL -o setup-node.sh https://get.opfield.dev/gateway/releases/download/v2.11.0/setup-node.sh && \\
+curl -fsSL -o gateway-daemon-installers.sha256 https://get.opfield.dev/gateway/releases/download/v2.11.0/gateway-daemon-installers.sha256 && \\
 grep ' setup-node.sh$' gateway-daemon-installers.sha256 | sha256sum -c - && \\
 sudo bash setup-node.sh \\
   --gateway <gateway-host>:9443 --token <enrollment-token> --gateway-cert-sha256 sha256:<gateway-cert-fingerprint> --version v2.11.0
@@ -470,14 +470,14 @@ The installers by node type: **nginx** setup-node.sh, **docker** and **builder**
 
 For **builder** nodes, use the same installer with \`--mode builder\`. The host must use systemd. The installer downloads pinned upstream releases of \`containerd\`, \`buildkitd\`, \`buildctl\`, \`runc\`, CNI plugins, \`syft\`, and \`grype\`, verifies their embedded SHA-256 checksums, and installs required system packages such as \`git\` and \`iptables\`. It fails closed when the runtime is incomplete; do not add a Docker socket or convert it to a generic Docker profile as a workaround.
 
-For **storage** nodes, run setup-storage-node.sh with the generated Gateway address, enrollment token, and certificate fingerprint. It uses the same fixed-size ext4 storage preflight as the database installer, but enrolls the unified Storage profile with managed-database and managed-storage capabilities. For legacy **database** nodes, run setup-database-node.sh; they remain database-only. In either case, the interactive installer selects an eligible local storage root before enrollment. For automation, pass --storage-root <path> and --yes; stateful nodes always run the restricted docker-daemon profile as root. Before enrollment, the installer verifies the local Docker Engine and the complete fixed-size ext4 image lifecycle, including loop attach, mount/write, growth, resize, unmount, and detach. An LXC host must receive loop-control, a loop-device pool, and mount permission from its outer host; there is no unbounded-volume fallback.
+For **storage** nodes, run setup-storage-node.sh with the generated Opfield address, enrollment token, and certificate fingerprint. It uses the same fixed-size ext4 storage preflight as the database installer, but enrolls the unified Storage profile with managed-database and managed-storage capabilities. For legacy **database** nodes, run setup-database-node.sh; they remain database-only. In either case, the interactive installer selects an eligible local storage root before enrollment. For automation, pass --storage-root <path> and --yes; stateful nodes always run the restricted docker-daemon profile as root. Before enrollment, the installer verifies the local Docker Engine and the complete fixed-size ext4 image lifecycle, including loop attach, mount/write, growth, resize, unmount, and detach. An LXC host must receive loop-control, a loop-device pool, and mount permission from its outer host; there is no unbounded-volume fallback.
 
 The setup script:
 1. Downloads the daemon binary to \`/usr/local/bin/<type>-daemon\`
 2. On a fresh generic Docker node, preflights and attempts to install the optional Secure Runtime before enrollment, and installs the lease watchdog (\`gateway-lease-watchdog\` service) that stops an Availability lease-mode copy past its lease deadline. Storage and legacy database nodes skip both. A Docker daemon running as root with systemd or OpenRC installs a missing watchdog itself; otherwise re-run the installer, or Availability lists the node under excludedNodes.
-3. Creates config at \`/etc/<type>-daemon/config.yaml\` with the gateway address, token, and certificate fingerprint
+3. Creates config at \`/etc/<type>-daemon/config.yaml\` with the Opfield address, token, and certificate fingerprint
 4. Creates a systemd service and enables it
-5. Starts the daemon — it connects to the gateway and completes mTLS enrollment automatically
+5. Starts the daemon — it connects to Opfield and completes mTLS enrollment automatically
 
 ### Step 3: Verify connection
 The node status changes from **pending** to **online** in the Nodes list once the daemon connects. The enrollment token is invalidated after first use.
@@ -498,11 +498,11 @@ If you cannot use the setup script, you can install manually. Storage and databa
 3. Enable and start: \`systemctl enable --now <type>-daemon\`
 
 ## Connection & Communication
-- Daemons connect to the gateway via **gRPC on port 9443** with mutual TLS (mTLS).
-- The gateway pushes commands to daemons: apply config, deploy certs, health check, log streaming, exec, etc.
+- Daemons connect to Opfield via **gRPC on port 9443** with mutual TLS (mTLS).
+- Opfield pushes commands to daemons: apply config, deploy certs, health check, log streaming, exec, etc.
 - The daemon sends back: health reports (every 30s), command results, log entries, exec output.
 - Daemons auto-reconnect on disconnect with exponential backoff (1s → 60s).
-- mTLS certificates auto-renew once a third of their lifetime remains (about four months for a one-year certificate); a failed renewal is retried with backoff up to hourly. Gateway alerts when a node certificate has less than 30 days left.
+- mTLS certificates auto-renew once a third of their lifetime remains (about four months for a one-year certificate); a failed renewal is retried with backoff up to hourly. Opfield alerts when a node certificate has less than 30 days left.
 
 ## Console (Interactive Shell)
 All node types support an interactive console — a PTY shell session on the host OS.
@@ -511,8 +511,8 @@ All node types support an interactive console — a PTY shell session on the hos
 - Supports popout window, reconnection with output replay, and terminal resize.
 - Shell auto-detected from \`/etc/shells\` (prefers bash > zsh > ash > sh).
 - Can be configured to run as a specific OS user via \`console.user\` in daemon config; that needs a daemon running as root. A non-root daemon with another \`console.user\` refuses every console session: the node shows \`capabilities.nodeConsoleUserUnavailable\` and console commands fail with NODE_CONSOLE_USER_UNAVAILABLE. Do not retry.
-- The node operator can turn the host console and host file access off in the daemon config file on the node (\`console.enabled: false\`, \`files.enabled: false\`). The node then shows \`capabilities.nodeConsoleDisabled\` / \`capabilities.nodeFilesDisabled\`, and console commands and node file operations fail with NODE_CONSOLE_DISABLED / NODE_FILES_DISABLED. Gateway cannot re-enable them; do not retry. Docker container consoles and files are not affected.
-- The assistant has a separate one-shot \`execute_node_console_command\` tool for command execution when regular Gateway read/manage tools cannot answer the request. Prefer argv commands such as \`["sh","-lc","systemctl status nginx"]\`.
+- The node operator can turn the host console and host file access off in the daemon config file on the node (\`console.enabled: false\`, \`files.enabled: false\`). The node then shows \`capabilities.nodeConsoleDisabled\` / \`capabilities.nodeFilesDisabled\`, and console commands and node file operations fail with NODE_CONSOLE_DISABLED / NODE_FILES_DISABLED. Opfield cannot re-enable them; do not retry. Docker container consoles and files are not affected.
+- The assistant has a separate one-shot \`execute_node_console_command\` tool for command execution when regular Opfield read/manage tools cannot answer the request. Prefer argv commands such as \`["sh","-lc","systemctl status nginx"]\`.
 - Treat every console command as destructive: risky commands require explicit approval and obviously host-breaking commands are blocked before reaching the daemon.
 - Use console tools for host-level inspection or repair only after identifying the exact node with get_current_context or find_resource. Do not guess node IDs from chat text.
 
@@ -526,7 +526,7 @@ Daemons report hardware/OS info on registration:
 
 ## Monitoring & Health
 - **Health reports** (every 30s): CPU%, memory, disk, load average, swap, network I/O, open FDs.
-- Daemons report localIpAddresses and publicIpAddresses. Docker nodes may set serviceAddress explicitly; otherwise Gateway uses the first reported local address and then a public address for cross-node/proxy-upstream traffic.
+- Daemons report localIpAddresses and publicIpAddresses. Docker nodes may set serviceAddress explicitly; otherwise Opfield uses the first reported local address and then a public address for cross-node/proxy-upstream traffic.
 - **Nginx nodes** additionally report: nginx status, uptime, worker count, error rates (4xx/5xx), stub status stats.
 - **Docker nodes** additionally report: container count (running/stopped/total), per-container CPU/memory/network stats, Docker version.
 - Generic Docker nodes report Secure Runtime state, version, setup progress, and compatibility. Existing nodes expose manual Setup in Node Details to users with \`nodes:manage\` for that node (broad \`admin:update\` is still accepted for one release); do not attempt remote installation through a console unless the user explicitly asks for host-level repair.
@@ -535,10 +535,10 @@ Daemons report hardware/OS info on registration:
 
 ## Node Management
 - **Rename**: change display name (does not affect hostname).
-- **Delete**: removes the node from Gateway. The daemon will fail to reconnect (mTLS cert becomes invalid).
+- **Delete**: removes the node from Opfield. The daemon will fail to reconnect (mTLS cert becomes invalid).
 - **Pin to sidebar**: quick-access link in the sidebar navigation.
 - **Service creation lock**: \`set_node_service_creation_lock\` (\`nodes:lock\`) stops new routes and containers from being placed on a node.
-- **Nginx service problem**: \`lastHealthReport.nginxServiceProblem\` on an nginx node names a problem of the host's nginx service that only root can fix (nginx stopped with its pid directory gone, a pid file left to root, an Alpine nginx service that leaves the pid file to root), ending with the command to run as root. Relay it as it is; Gateway cannot run it.
+- **Nginx service problem**: \`lastHealthReport.nginxServiceProblem\` on an nginx node names a problem of the host's nginx service that only root can fix (nginx stopped with its pid directory gone, a pid file left to root, an Alpine nginx service that leaves the pid file to root), ending with the command to run as root. Relay it as it is; Opfield cannot run it.
 
 ## Key Fields
 - id, hostname, displayName, type, status (pending/online/offline/error)
@@ -557,7 +557,7 @@ Automated cleanup tasks, configurable in Settings.
   - Dismissed Alerts: remove old dismissed alerts.
   - Delivery Log: delete old notification delivery attempts.
   - Structured Logs: cap ClickHouse application logs by total rows and approximate disk size while preserving the newest daily partition.
-  - ClickHouse Internals: monitor high-volume system logs and, when enabled, trim supported internal tables during manual Housekeeping runs and the five-minute health guard. Enable it only for a ClickHouse instance dedicated to Gateway.
+  - ClickHouse Internals: monitor high-volume system logs and, when enabled, trim supported internal tables during manual Housekeeping runs and the five-minute health guard. Enable it only for a ClickHouse instance dedicated to Opfield.
   - Orphaned AI Artifacts: delete files no longer attached to a chat.
   - Orphaned Certs: remove unreferenced certificate files.
   - ACME Challenges: clean up old validation tokens.

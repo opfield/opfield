@@ -175,10 +175,10 @@ export class CloudBlastFirewallAdapter implements HostingFirewallAdapter {
     const group = owned[0] ?? null;
     const disableBlockers = [...blockers];
     const ownershipBlockers: string[] = [];
-    if (owned.length > 1) ownershipBlockers.push('Several CloudBlast security groups have Gateway’s ownership name.');
+    if (owned.length > 1) ownershipBlockers.push('Several CloudBlast security groups have Opfield’s ownership name.');
     if (group?.servers.some((server) => server !== remoteId))
       ownershipBlockers.push(
-        'Gateway’s CloudBlast security group is attached to another server and will not be changed.'
+        'Opfield’s CloudBlast security group is attached to another server and will not be changed.'
       );
     const external = all.filter((item) => item.name !== expectedName && item.servers.includes(remoteId));
     if (external.length)
@@ -187,7 +187,7 @@ export class CloudBlastFirewallAdapter implements HostingFirewallAdapter {
       );
     if (group?.rules.some((rule) => !rule.supported))
       blockers.push(
-        'Gateway’s CloudBlast security group contains rules Gateway cannot represent; review them in CloudBlast before applying rules.'
+        'Opfield’s CloudBlast security group contains rules Opfield cannot represent; review them in CloudBlast before applying rules.'
       );
     blockers.push(...ownershipBlockers);
     disableBlockers.push(...ownershipBlockers);

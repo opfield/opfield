@@ -680,7 +680,7 @@ export class AppMembersService {
           ) {
             resolved.refusal = {
               code: 'ROUTE_NOT_PLACEABLE',
-              message: 'The route serving the Gateway public URL cannot join an app',
+              message: 'The route serving the Opfield public URL cannot join an app',
             };
           }
           out.push(resolved);

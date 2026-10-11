@@ -565,7 +565,7 @@ export function AvailabilitySection({
         <SettingsControlRow
           title="Eligible nodes"
           description="Use every compatible node or keep an explicit allowlist."
-          help="All compatible nodes lets Gateway place the workload on any online Docker node that passes eligibility checks. Selected nodes restricts placement to the explicit allowlist."
+          help="All compatible nodes lets Opfield place the workload on any online Docker node that passes eligibility checks. Selected nodes restricts placement to the explicit allowlist."
         >
           <Select
             value={selectionMode}
@@ -671,7 +671,7 @@ export function AvailabilitySection({
         <SettingsControlRow
           title="Replacement and drain"
           description="Seconds to wait before replacing a lost node and before removing a placement."
-          help="Replacement grace: after losing a node's control connection, Gateway waits this long before creating a replacement on another eligible node. Drain interval: before a planned removal, Gateway takes the placement out of routing and waits this long for existing connections to finish."
+          help="Replacement grace: after losing a node's control connection, Opfield waits this long before creating a replacement on another eligible node. Drain interval: before a planned removal, Opfield takes the placement out of routing and waits this long for existing connections to finish."
         >
           <div className="grid w-full gap-2 sm:grid-cols-2">
             <SettingsInlineControl label="Replacement grace">
@@ -702,7 +702,7 @@ export function AvailabilitySection({
           className={rightColumn}
           title="Rollout limits"
           description="Placements a planned rollout may take out or add at once."
-          help="Maximum unavailable: how many desired placements a planned update may leave unavailable at the same time; zero preserves the full serving count. Maximum surge: how many temporary placements Gateway may create above the desired count during the rollout."
+          help="Maximum unavailable: how many desired placements a planned update may leave unavailable at the same time; zero preserves the full serving count. Maximum surge: how many temporary placements Opfield may create above the desired count during the rollout."
         >
           <div className="grid w-full gap-2 sm:grid-cols-2">
             <SettingsInlineControl label="Maximum unavailable">

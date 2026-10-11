@@ -290,12 +290,12 @@ export class SetupWizardService {
     configuredVia?: 'direct' | 'gateway_inference';
   }): Promise<void> {
     if (!(await this.generalSettings.getPublicUrl())) {
-      throw configurationRequired('Gateway public URL has not been configured');
+      throw configurationRequired('Opfield public URL has not been configured');
     }
     if (!(await this.policy.isGatewayConfigured()))
       throw configurationRequired('Create the first administrator before completing setup');
     if ((await this.getPhase()) !== 'ai_workspace')
-      throw configurationRequired('Apply Gateway setup before configuring AI Workspace');
+      throw configurationRequired('Apply Opfield setup before configuring AI Workspace');
     const methods = (await this.authSettings.getConfig()).methods;
     if (!methods.oidc && !methods.password && !methods.emailOtp) {
       throw configurationRequired('Configure at least one authentication method before completing setup');
@@ -333,9 +333,9 @@ export class SetupWizardService {
   }
 
   private async validateApply(input: SetupApplyInput): Promise<boolean> {
-    if (!setupInput(() => normalizePublicUrl(input.publicUrl))) throw invalidSetup('Gateway public URL is required');
+    if (!setupInput(() => normalizePublicUrl(input.publicUrl))) throw invalidSetup('Opfield public URL is required');
     if (!setupInput(() => normalizeHostPortTarget(input.network.grpcPublicTarget))) {
-      throw invalidSetup('Gateway gRPC public target is required');
+      throw invalidSetup('Opfield gRPC public target is required');
     }
     setupInput(() => normalizeIpPortTarget(input.network.grpcLocalIp));
     if (!input.auth.methods.oidc && !input.auth.methods.password && !input.auth.methods.emailOtp) {

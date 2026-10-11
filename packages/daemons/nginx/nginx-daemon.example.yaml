@@ -25,11 +25,11 @@ nginx:
   pages_root: "/var/lib/nginx-daemon/pages"
 
 console:
-  enabled: true  # host console; false turns it off (Gateway cannot turn it back on)
+  enabled: true  # host console; false turns it off (Opfield cannot turn it back on)
   user: ""  # OS user for host console sessions; empty = daemon's user
 
 files:
-  enabled: true  # host file access; false turns it off (Gateway cannot turn it back on)
+  enabled: true  # host file access; false turns it off (Opfield cannot turn it back on)
 
 state_dir: "/var/lib/nginx-daemon"
 log_level: "info"   # debug, info, warn, error

@@ -27,7 +27,7 @@ function rateLimitUnavailable(error?: unknown): AppError {
   logger.warn('Rate limiter unavailable', {
     error: error instanceof Error ? error.message : error == null ? undefined : String(error),
   });
-  return new AppError(503, 'RATE_LIMIT_UNAVAILABLE', 'Gateway is temporarily unavailable');
+  return new AppError(503, 'RATE_LIMIT_UNAVAILABLE', 'Opfield is temporarily unavailable');
 }
 
 function getPipelineCount(results: unknown): number {

@@ -175,13 +175,13 @@ export function normalizePublicUrl(value: string | null | undefined): string | n
   try {
     url = new URL(trimmed);
   } catch {
-    throw new Error('Gateway public URL must be a valid absolute URL');
+    throw new Error('Opfield public URL must be a valid absolute URL');
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('Gateway public URL must use http or https');
+    throw new Error('Opfield public URL must use http or https');
   }
   if (url.username || url.password || url.search || url.hash || (url.pathname && url.pathname !== '/')) {
-    throw new Error('Gateway public URL must be an origin without credentials, path, query, or fragment');
+    throw new Error('Opfield public URL must be an origin without credentials, path, query, or fragment');
   }
   return url.origin;
 }
@@ -194,13 +194,13 @@ export function normalizeHostPortTarget(value: string | null | undefined): strin
   const trimmed = (value ?? '').trim();
   if (!trimmed) return null;
   if (/[/?#@\s]/.test(trimmed) || trimmed.includes('://')) {
-    throw new Error(`Gateway gRPC public target must be a hostname or IP address: ${trimmed}`);
+    throw new Error(`Opfield gRPC public target must be a hostname or IP address: ${trimmed}`);
   }
 
   const bracketedIpv6 = trimmed.match(/^\[([^\]]+)](?::(\d+))?$/);
   if (bracketedIpv6) {
     const [, ip, rawPort] = bracketedIpv6;
-    if (!isValidGatewayIp(ip)) throw new Error(`Gateway gRPC public target IPv6 address is invalid: ${ip}`);
+    if (!isValidGatewayIp(ip)) throw new Error(`Opfield gRPC public target IPv6 address is invalid: ${ip}`);
     const port = normalizePort(rawPort);
     return port ? `[${ip}]:${port}` : ip;
   }
@@ -211,7 +211,7 @@ export function normalizeHostPortTarget(value: string | null | undefined): strin
   const host = hostWithPort?.[1] ?? trimmed;
   const port = normalizePort(hostWithPort?.[2]);
   if (!isValidGatewayHostname(host)) {
-    throw new Error(`Gateway gRPC public target must be a hostname or IP address: ${trimmed}`);
+    throw new Error(`Opfield gRPC public target must be a hostname or IP address: ${trimmed}`);
   }
   return port ? `${host}:${port}` : host;
 }
@@ -228,10 +228,10 @@ export function isValidGatewayHostname(value: string): boolean {
 
 function normalizePort(value: string | undefined): string | null {
   if (value === undefined) return null;
-  if (!/^\d+$/.test(value)) throw new Error(`Gateway gRPC local IP port must be numeric: ${value}`);
+  if (!/^\d+$/.test(value)) throw new Error(`Opfield gRPC local IP port must be numeric: ${value}`);
   const port = Number(value);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error(`Gateway gRPC local IP port must be between 1 and 65535: ${value}`);
+    throw new Error(`Opfield gRPC local IP port must be between 1 and 65535: ${value}`);
   }
   return String(port);
 }
@@ -243,7 +243,7 @@ export function normalizeIpPortTarget(value: string | null | undefined): string 
   const bracketedIpv6 = trimmed.match(/^\[([^\]]+)](?::(\d+))?$/);
   if (bracketedIpv6) {
     const [, ip, rawPort] = bracketedIpv6;
-    if (!isValidGatewayIp(ip)) throw new Error(`Gateway gRPC local IP must be an IPv4 or IPv6 address: ${ip}`);
+    if (!isValidGatewayIp(ip)) throw new Error(`Opfield gRPC local IP must be an IPv4 or IPv6 address: ${ip}`);
     const port = normalizePort(rawPort);
     return port ? `[${ip}]:${port}` : ip;
   }
@@ -253,11 +253,11 @@ export function normalizeIpPortTarget(value: string | null | undefined): string 
   const ipv4WithPort = trimmed.match(/^([^:]+):(\d+)$/);
   if (ipv4WithPort) {
     const [, ip, rawPort] = ipv4WithPort;
-    if (!isValidGatewayIp(ip)) throw new Error(`Gateway gRPC local IP must be an IPv4 or IPv6 address: ${ip}`);
+    if (!isValidGatewayIp(ip)) throw new Error(`Opfield gRPC local IP must be an IPv4 or IPv6 address: ${ip}`);
     return `${ip}:${normalizePort(rawPort)}`;
   }
 
-  throw new Error(`Gateway gRPC local IP must be an IPv4 or IPv6 address: ${trimmed}`);
+  throw new Error(`Opfield gRPC local IP must be an IPv4 or IPv6 address: ${trimmed}`);
 }
 
 export function isValidGatewayIpPortTarget(value: string): boolean {
@@ -428,7 +428,7 @@ export class GeneralSettingsService {
 
   async requirePublicUrl(): Promise<string> {
     const publicUrl = await this.getPublicUrl();
-    if (!publicUrl) throw new Error('Gateway public URL has not been configured');
+    if (!publicUrl) throw new Error('Opfield public URL has not been configured');
     return publicUrl;
   }
 

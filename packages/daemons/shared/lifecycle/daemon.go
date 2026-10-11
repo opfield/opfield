@@ -179,7 +179,7 @@ func (d *DaemonBase) Run(ctx context.Context) error {
 			// seconds. Stay up and retry rarely: an operator may restore the
 			// node (or re-enroll this host) without touching the daemon.
 			delay = backoff.nextRejected()
-			d.logger.Error("gateway rejected registration; retrying later", "reason", rejected.Message, "retry_in", delay)
+			d.logger.Error("Opfield rejected registration; retrying later", "reason", rejected.Message, "retry_in", delay)
 		} else {
 			// The relay can remain reachable while its app upstream is
 			// restarting, and a gateway can refuse a registration outright.
@@ -442,7 +442,7 @@ func (d *DaemonBase) notifyTunnelIdentityChanged() {
 }
 
 func (d *DaemonBase) enroll() error {
-	d.logger.Info("enrolling with gateway", "address", d.cfg.Gateway.Address)
+	d.logger.Info("enrolling with Opfield", "address", d.cfg.Gateway.Address)
 	if d.cfg.Gateway.CertSHA256 == "" {
 		return fmt.Errorf("gateway.cert_sha256 is required for initial enrollment")
 	}
@@ -469,7 +469,7 @@ func (d *DaemonBase) enroll() error {
 		return err
 	}
 	if resp.HostIdentityId != "" && resp.HostIdentityId != hostIdentityID {
-		return fmt.Errorf("gateway returned a conflicting host identity")
+		return fmt.Errorf("Opfield returned a conflicting host identity")
 	}
 
 	// Save credentials

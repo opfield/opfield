@@ -102,7 +102,7 @@ export async function localRelayTakeoverBlocker(
     return `${legacy.size} workload(s) have a daemon without Relay Pool support on their path, which only the local relay serves`;
   }
   const hostOnly = endpointIds.filter((id) => pool.gatewayHostOnlyEndpointIds.has(id)).length;
-  if (hostOnly) return `${hostOnly} workload(s) reach no relay outside the Gateway host`;
+  if (hostOnly) return `${hostOnly} workload(s) reach no relay outside the Opfield host`;
   return null;
 }
 

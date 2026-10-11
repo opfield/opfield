@@ -1,4 +1,4 @@
-# Gateway diagnosis
+# Opfield diagnosis
 
 Use this reference for incidents, warnings, failed Tasks, offline Nodes, unhealthy workloads, or unexplained product state. Diagnosis requests are read-only unless the user separately asks for a fix.
 

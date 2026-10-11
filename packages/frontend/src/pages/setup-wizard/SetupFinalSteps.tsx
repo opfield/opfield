@@ -48,7 +48,7 @@ export function LicenseStep({
   return (
     <section className="mx-auto max-w-md space-y-3 text-center">
       <div>
-        <h2 className="text-lg font-semibold">Gateway edition</h2>
+        <h2 className="text-lg font-semibold">Opfield edition</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Community is available for internal and other noncompeting use under the{" "}
           <a
@@ -120,8 +120,8 @@ export function AIWorkspaceStep({
       <div>
         <h2 className="text-lg font-semibold">AI Workspace</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          AI Workspace is Gateway&apos;s recommended intent-driven interface, keeping guidance,
-          actions, and infrastructure context in one Work Session so Gateway is easier to understand
+          AI Workspace is Opfield&apos;s recommended intent-driven interface, keeping guidance,
+          actions, and infrastructure context in one Work Session so Opfield is easier to understand
           and operate. It is optional: Operations Console remains fully available without AI, and
           you can enable AI Workspace later.
         </p>
@@ -407,7 +407,7 @@ export function LoggingStep({
         )}
         {logging.mode === "local" && (
           <p className="text-center text-sm text-muted-foreground">
-            Gateway will attach a pinned ClickHouse container to its Docker network and preserve its
+            Opfield will attach a pinned ClickHouse container to its Docker network and preserve its
             volume if logging is disabled later.
           </p>
         )}
@@ -464,7 +464,7 @@ export function FinishStep({
     <section className="space-y-3">
       <PanelShell
         title="Review configuration"
-        description="No changes have been applied yet. Confirm to configure Gateway in one operation."
+        description="No changes have been applied yet. Confirm to configure Opfield in one operation."
       >
         <SettingsControlRow title="Public URL" controlsClassName="sm:min-w-0 sm:max-w-64">
           <span className="break-all text-right text-sm text-muted-foreground">{publicUrl}</span>

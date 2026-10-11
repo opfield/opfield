@@ -31,8 +31,8 @@ The list is defined by the server; never invent an ID.
 | `hosting` | Hosting provider connectors, VMs, power and resize, snapshots, firewalls |
 | `notifications` | Alert rules, webhooks, delivery logs, statistics |
 | `administration` | Users, permission groups, audit log, system alerts |
-| `maintenance` | Gateway settings, system updates, license, cloud account connection, housekeeping, and Gateway's own diagnostics (`manage_gateway_diagnostics`) |
-| `inference` | Gateway Inference core, provider connections, published models, limits, usage, personal keys |
+| `maintenance` | Opfield settings, system updates, license, cloud account connection, housekeeping, and Opfield's own diagnostics (`manage_gateway_diagnostics`) |
+| `inference` | Opfield Inference core, provider connections, published models, limits, usage, personal keys |
 | `ai_assistant` | AI assistant provider, limits, tool access, web search, sandbox runner configuration |
 
 ## What MCP never exposes
@@ -50,12 +50,12 @@ MCP uses `read_gateway_documentation` instead of `internal_documentation` and `f
 
 `read_gateway_documentation({ topic })` returns operator documentation for the connected release, filtered by the token's scopes. The tool's `topic` enum is authoritative. Useful topics include `discovery`, `overview`, `installation`, `authentication`, `permissions`, `users`, `audit`, `api`, `nodes`, `node-files`, `docker`, `availability`, `docker-registries`, `folders`, `proxy`, `domains`, `ingress-groups`, `access-lists`, `templates`, `nginx`, `ssl`, `acme`, `pki`, `pages`, `databases`, `postgres`, `redis`, `clickhouse`, `storage`, `storage-migration`, `logging`, `siem`, `notifications`, `status-page`, `gitlab`, `cloudflare`, `housekeeping`, `gateway-settings`, `licensing-updates`, `inference`, and `troubleshooting`.
 
-Public product documentation at [docs.goodgateway.dev](https://docs.goodgateway.dev/) (with `llms.txt`) explains concepts and decisions. Use `read_gateway_documentation` for the exact behavior of the running instance.
+Public product documentation at [docs.opfield.dev](https://docs.opfield.dev/) (with `llms.txt`) explains concepts and decisions. Use `read_gateway_documentation` for the exact behavior of the running instance.
 
 ## Resources and prompts
 
 - `gateway://docs` indexes the same topics, readable as `gateway://docs/<topic>`.
 - `gateway://access` is the caller's access summary (the same as `get_my_access`): granted folders, nodes, and resources, and where it may create.
 - Live read-only resources: `gateway://overview`, `gateway://nodes`, `gateway://proxy/hosts`, `gateway://docker/nodes`, `gateway://logging/environments`, `gateway://status-page/summary`, `gateway://certificates/expiring`.
-- Releases that ship these Agent Skills also serve them as `gateway://skills` (an index) and `gateway://skills/<name>/SKILL.md`, matching the connected Gateway version. Only Markdown files are served; bundled scripts are not.
+- Releases that ship these Agent Skills also serve them as `gateway://skills` (an index) and `gateway://skills/<name>/SKILL.md`, matching the connected Opfield version. Only Markdown files are served; bundled scripts are not.
 - Workflow prompts, when the client surfaces them: `investigate-service-outage`, `rollout-container-image`, `create-status-incident`, `review-node-health`, `provision-proxy-host`, `renew-or-debug-certificate`, `plan-managed-database-access`.

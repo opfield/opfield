@@ -32,20 +32,20 @@ export function normalizeGatewayOrigin(input: string): string {
   try {
     parsed = new URL(input);
   } catch (error) {
-    throw new CliError('INVALID_GATEWAY_ORIGIN', `Invalid Gateway URL: ${input}`, { cause: error });
+    throw new CliError('INVALID_GATEWAY_ORIGIN', `Invalid Opfield URL: ${input}`, { cause: error });
   }
   const isLoopback = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1' || parsed.hostname === '[::1]';
   if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && isLoopback)) {
-    throw new CliError('INVALID_GATEWAY_ORIGIN', 'Gateway URLs must use HTTPS (HTTP is allowed only for loopback).');
+    throw new CliError('INVALID_GATEWAY_ORIGIN', 'Opfield URLs must use HTTPS (HTTP is allowed only for loopback).');
   }
   if (parsed.username || parsed.password || parsed.search || parsed.hash) {
     throw new CliError(
       'INVALID_GATEWAY_ORIGIN',
-      'Gateway URLs cannot include credentials, query parameters, or fragments.'
+      'Opfield URLs cannot include credentials, query parameters, or fragments.'
     );
   }
   if (parsed.pathname !== '/' && parsed.pathname !== '') {
-    throw new CliError('INVALID_GATEWAY_ORIGIN', 'Gateway URL must be an origin without a path.');
+    throw new CliError('INVALID_GATEWAY_ORIGIN', 'Opfield URL must be an origin without a path.');
   }
   return parsed.origin;
 }
@@ -67,7 +67,7 @@ export class ProfileStore {
 
   async getRequired(name: string): Promise<GatewayProfile> {
     const profile = await this.get(name);
-    if (!profile) throw new CliError('PROFILE_NOT_FOUND', 'Gateway connection is not configured.');
+    if (!profile) throw new CliError('PROFILE_NOT_FOUND', 'Opfield connection is not configured.');
     return profile;
   }
 
@@ -115,7 +115,7 @@ export class ProfileStore {
       return parsed as ProfilesState;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return structuredClone(EMPTY_STATE);
-      throw new CliError('PROFILE_STATE_INVALID', 'Gateway connection state is unreadable.', {
+      throw new CliError('PROFILE_STATE_INVALID', 'Opfield connection state is unreadable.', {
         cause: error,
       });
     }

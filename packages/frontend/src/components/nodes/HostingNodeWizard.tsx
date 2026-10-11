@@ -525,7 +525,7 @@ export function HostingNodeWizard({
                 !catalog.images.some((item) => imageSupportsRole(item, role)) &&
                 !existingResource
                   ? "No supported OS images are available for this node role."
-                  : "Choose the Gateway service this node will provide."}
+                  : "Choose the Opfield service this node will provide."}
               </p>
             </div>
             <div className="space-y-1.5">
@@ -540,7 +540,7 @@ export function HostingNodeWizard({
                 maxLength={255}
                 placeholder="Build Worker"
               />
-              <p className="text-xs text-muted-foreground">Display name in Gateway.</p>
+              <p className="text-xs text-muted-foreground">Display name in Opfield.</p>
             </div>
             <div className="space-y-1.5">
               <label htmlFor="hosting-hostname" className="text-sm font-medium">
@@ -759,7 +759,7 @@ export function HostingNodeWizard({
                       <div className="space-y-1.5">
                         <label className="text-sm font-medium">IP Address</label>
                         <p className="text-xs text-muted-foreground">
-                          Gateway reserves an address from the connector pool when creating the VM.
+                          Opfield reserves an address from the connector pool when creating the VM.
                         </p>
                       </div>
                     )}
@@ -892,7 +892,7 @@ export function HostingNodeWizard({
             ? draft.current
               ? "Try again"
               : existingResource
-                ? "Install Gateway"
+                ? "Install Opfield"
                 : "Confirm and create VM"
             : "Continue"}
       </Button>

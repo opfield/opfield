@@ -28,7 +28,7 @@ it("ingress-pages-project-source-connect-step-2", async () => {
       await releaseAnimatedHeights(dialog);
     },
     notes: [
-      "Step 2 after Gateway read package.json from the branch: pnpm 9.12.0 detected, the build script, output folder and the Tag each build publishes.",
+      "Step 2 after Opfield read package.json from the branch: pnpm 9.12.0 detected, the build script, output folder and the Tag each build publishes.",
     ],
   });
 });

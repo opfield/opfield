@@ -95,7 +95,7 @@ export function PostgresExtensionsTab({
     if (!canManage || pendingExtension) return;
     const confirmed = await confirm({
       title: "Disable PostgreSQL Extension",
-      description: `Disable ${extension.name}? Gateway will not use CASCADE and will refuse if database objects depend on it.`,
+      description: `Disable ${extension.name}? Opfield will not use CASCADE and will refuse if database objects depend on it.`,
       confirmLabel: "Disable",
       variant: "destructive",
     });
@@ -120,7 +120,7 @@ export function PostgresExtensionsTab({
     <PanelShell
       className="flex min-h-0 flex-col"
       title="PostgreSQL Extensions"
-      description={`Extensions bundled with PostgreSQL ${database.managed?.version ?? ""} that Gateway can safely enable or disable. Enabling creates database objects; disabling never uses CASCADE. ${enabledCount} enabled.`}
+      description={`Extensions bundled with PostgreSQL ${database.managed?.version ?? ""} that Opfield can safely enable or disable. Enabling creates database objects; disabling never uses CASCADE. ${enabledCount} enabled.`}
       bodyClassName="flex min-h-0 flex-1 flex-col"
     >
       <div className="relative border-b border-border">

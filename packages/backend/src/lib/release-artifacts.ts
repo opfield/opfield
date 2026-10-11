@@ -1,3 +1,5 @@
+import { LEGACY_UPDATES_BASE_URLS, UPDATES_BASE_URL } from '@/config/vendor-urls.js';
+
 export interface ReleaseRecord {
   tag_name: string;
   description?: unknown;
@@ -10,6 +12,11 @@ export interface ReleaseArtifactSource {
   artifactUrl: string;
   manifestUrl: string;
   trustedPrefix: string;
+  /**
+   * The artifact's URL under every name of the update host (the configured base first). A signed manifest names the
+   * host that was current when it was signed, so an older release names an earlier one.
+   */
+  acceptedArtifactUrls: string[];
 }
 
 export interface ReleaseFileSource {
@@ -43,11 +50,18 @@ export function releaseArtifactSource(
 ): ReleaseArtifactSource {
   const artifact = releaseFileSource(artifactBaseUrl, packageName, tag, artifactName);
   const manifest = releaseFileSource(artifactBaseUrl, packageName, tag, `${artifactName}.update.json`);
+  const bases = [artifactBaseUrl, UPDATES_BASE_URL, ...LEGACY_UPDATES_BASE_URLS].map(trimTrailingSlashes);
   return {
     artifactUrl: artifact.url,
     manifestUrl: manifest.url,
     trustedPrefix: artifact.trustedPrefix,
+    acceptedArtifactUrls: [...new Set(bases)].map((base) => releaseArtifactUrl(base, packageName, tag, artifactName)),
   };
+}
+
+/** Whether a signed manifest's download URL is this artifact under one of the update host's names, over HTTPS. */
+export function isAcceptedArtifactUrl(source: ReleaseArtifactSource, downloadUrl: string): boolean {
+  return downloadUrl.startsWith('https://') && source.acceptedArtifactUrls.includes(downloadUrl);
 }
 
 export function releaseFileSource(

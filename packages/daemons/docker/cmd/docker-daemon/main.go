@@ -371,7 +371,7 @@ func dockerDaemonSystemdUnitForDockerUnit(unit string) string {
 		wants += " " + unit
 	}
 	return fmt.Sprintf(`[Unit]
-Description=Gateway Docker Daemon
+Description=Opfield Docker Daemon
 After=%s
 Wants=%s
 

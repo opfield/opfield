@@ -52,11 +52,11 @@ interface CliDependencies {
 
 const CONNECTION_NAME = 'default';
 
-const HELP = `Usage: npx @sqgateway/inference [--home <path>] [--url <gateway>] [command]
+const HELP = `Usage: npx @sqgateway/inference [--home <path>] [--url <url>] [command]
 
 Commands:
-  login [GATEWAY]                  Authorize through OAuth or an existing gwi_ token
-  logout                           Remove Gateway setup authorization
+  login [URL]                      Authorize through OAuth or an existing gwi_ token
+  logout                           Remove Opfield setup authorization
   setup [codex|claude-code]        Configure an inference harness
   startup install|uninstall|status Manage inference proxy startup
 
@@ -64,7 +64,7 @@ Running without a command opens the interactive manager.
 
 Options:
   --home <path>                    Store all companion data under this directory
-  --url <gateway>                  Use this Gateway URL without prompting
+  --url <url>                      Use this Opfield URL without prompting
   --token <gwi_token>              Authenticate with an existing inference token
   --startup                        Install startup after setup codex
   -h, --help                       Show help
@@ -102,7 +102,7 @@ export function parseArgs(args: string[]): ParsedArgs {
       if (url !== undefined) throw new CliError('INVALID_ARGUMENT', 'Option --url may be provided only once.');
       const candidate = value === '--url' ? args[++index] : value.slice('--url='.length);
       if (!candidate?.trim() || candidate.startsWith('-')) {
-        throw new CliError('INVALID_ARGUMENT', 'Option --url requires a Gateway URL.');
+        throw new CliError('INVALID_ARGUMENT', 'Option --url requires an Opfield URL.');
       }
       url = candidate.trim();
       continue;
@@ -122,7 +122,7 @@ export function parseArgs(args: string[]): ParsedArgs {
     throw new CliError('INVALID_ARGUMENT', 'Option --url is supported with login, setup, or interactive mode.');
   }
   if (url && command[0] === 'login' && command[1]) {
-    throw new CliError('INVALID_ARGUMENT', 'Provide the Gateway URL either positionally or with --url, not both.');
+    throw new CliError('INVALID_ARGUMENT', 'Provide the Opfield URL either positionally or with --url, not both.');
   }
   if (startup && (command[0] !== 'setup' || command[1] !== 'codex')) {
     throw new CliError('INVALID_ARGUMENT', 'Option --startup is supported only with setup codex.');
@@ -227,7 +227,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       if (parsed.command.length > 2) throw new CliError('INVALID_ARGUMENT', 'Usage: login [GATEWAY]');
       let gateway: string | undefined = parsed.url ?? parsed.command[1];
       if (!gateway && interactive) {
-        input.ui.intro('Good Gateway Inference · Login');
+        input.ui.intro('Opfield Inference · Login');
         gateway = (await input.ui.gatewayOrigin()) ?? undefined;
         if (!gateway) {
           input.ui.cancel('Login cancelled.');
@@ -235,7 +235,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
         }
       }
       if (!gateway) {
-        throw new CliError('GATEWAY_REQUIRED', 'Provide a Gateway URL or run login in an interactive terminal.');
+        throw new CliError('GATEWAY_REQUIRED', 'Provide an Opfield URL or run login in an interactive terminal.');
       }
       if (parsed.token) {
         await loginWithInferenceTokenCommand(
@@ -394,7 +394,7 @@ async function setupClaudeCodeCommand(
     [
       `Configured Claude Code ${result.claudeCodeVersion}.`,
       `Models: ${result.modelCount}; default: ${result.defaultModel}.`,
-      'Restart Claude Code to load Gateway models.',
+      'Restart Claude Code to load Opfield models.',
       `Config: ${result.configFile}`,
     ].join('\n')
   );
@@ -476,7 +476,7 @@ async function setupContext(
     let selectedGateway = gateway ?? profile?.origin;
     if (!selectedGateway && interactive) selectedGateway = (await input.ui.gatewayOrigin()) ?? undefined;
     if (!selectedGateway) {
-      throw new CliError('GATEWAY_REQUIRED', 'Log in first or run this command in a TTY to enter the Gateway URL.');
+      throw new CliError('GATEWAY_REQUIRED', 'Log in first or run this command in a TTY to enter the Opfield URL.');
     }
     await loginCommand(
       { gateway: selectedGateway, command: ['login'] },

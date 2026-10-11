@@ -21,4 +21,4 @@ Every source produces an **SSL certificate** entity whose ID is a Route's `sslCe
 - `list_access_lists`; `delete_access_list` detaches the list from every Route first.
 - One list can serve many Routes and Page Projects; an edit applies to all of them at once, so check who uses a list before changing it.
 
-Credentials: never generate, request, or relay basic-auth passwords in chat. Create lists with IP rules, reuse an existing list, or let the user add basic-auth users in the Gateway Console and then attach the list by ID. An agent cannot fetch a basic-auth-protected URL without credentials; a 401 response is the expected evidence that protection applies.
+Credentials: never generate, request, or relay basic-auth passwords in chat. Create lists with IP rules, reuse an existing list, or let the user add basic-auth users in the Opfield Console and then attach the list by ID. An agent cannot fetch a basic-auth-protected URL without credentials; a 401 response is the expected evidence that protection applies.

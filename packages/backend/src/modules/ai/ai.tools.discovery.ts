@@ -6,14 +6,14 @@ export const DISCOVERY_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'discover_tools',
     description:
-      'Discover Gateway tool groups without loading every tool schema. Call with no arguments for compact category summaries, with query for up to three category recommendations, or with one to three explicit categories plus includeTools:true to replace the current active tool working set. Never pre-open categories for future steps.',
+      'Discover Opfield tool groups without loading every tool schema. Call with no arguments for compact category summaries, with query for up to three category recommendations, or with one to three explicit categories plus includeTools:true to replace the current active tool working set. Never pre-open categories for future steps.',
     parameters: {
       type: 'object',
       properties: {
         category: {
           type: 'string',
           description:
-            'One explicit Gateway tool category to activate, for example Docker, Logging, SSL Certificates, Administration, or Ingress. Legacy shorthand for categories with one item.',
+            'One explicit Opfield tool category to activate, for example Docker, Logging, SSL Certificates, Administration, or Ingress. Legacy shorthand for categories with one item.',
         },
         categories: {
           type: 'array',
@@ -71,7 +71,7 @@ export const DISCOVERY_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'get_current_context',
     description:
-      'Return the current Gateway page context supplied by the UI: route, focused resource type, and focused resource ID. Use this when the user says "this page", "current resource", or refers to what they are viewing.',
+      'Return the current Opfield page context supplied by the UI: route, focused resource type, and focused resource ID. Use this when the user says "this page", "current resource", or refers to what they are viewing.',
     parameters: {
       type: 'object',
       properties: {},
@@ -85,7 +85,7 @@ export const DISCOVERY_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'read_tool_output',
     description:
-      'Read a bounded byte range from a large output previously offloaded by Gateway. Use the artifactId from the tool-result manifest and advance with nextOffset until eof. Do not retry the original producer just to recover offloaded content.',
+      'Read a bounded byte range from a large output previously offloaded by Opfield. Use the artifactId from the tool-result manifest and advance with nextOffset until eof. Do not retry the original producer just to recover offloaded content.',
     parameters: {
       type: 'object',
       properties: {
@@ -103,7 +103,7 @@ export const DISCOVERY_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'search_tool_output',
     description:
-      'Search literal text inside a large output previously offloaded by Gateway. The search is case-insensitive and returns bounded snippets; regex is not supported.',
+      'Search literal text inside a large output previously offloaded by Opfield. The search is case-insensitive and returns bounded snippets; regex is not supported.',
     parameters: {
       type: 'object',
       properties: {
@@ -183,7 +183,7 @@ export const DISCOVERY_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'get_my_access',
     description:
-      'Summarize what you can access in Gateway, grouped by area (Docker, routes, domains, certificates, databases, storage, Pages, logging, nodes, integrations, and more): whether access is broad, which folders (id, name, path), nodes and specific resources are granted with which actions, and where you may create (folders, nodes, or the root). Call it when a list comes back empty, when something is refused at the root, and before creating. Folder-limited access is normal: work inside the granted folders and pass folderId (and nodeId) when creating.',
+      'Summarize what you can access in Opfield, grouped by area (Docker, routes, domains, certificates, databases, storage, Pages, logging, nodes, integrations, and more): whether access is broad, which folders (id, name, path), nodes and specific resources are granted with which actions, and where you may create (folders, nodes, or the root). Call it when a list comes back empty, when something is refused at the root, and before creating. Folder-limited access is normal: work inside the granted folders and pass folderId (and nodeId) when creating.',
     parameters: {
       type: 'object',
       properties: {

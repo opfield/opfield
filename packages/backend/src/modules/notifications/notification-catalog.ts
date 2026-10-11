@@ -463,7 +463,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   },
   {
     id: 'gateway',
-    label: 'Gateway',
+    label: 'Opfield',
     // Gateway's own host, process and dependencies, sampled once a minute by Gateway diagnostics.
     metrics: [
       {
@@ -550,14 +550,14 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       { id: 'redis.unavailable', label: 'Redis Unavailable', defaultSeverity: 'critical', supportsThreshold: true },
       {
         id: 'container.unhealthy',
-        label: 'Gateway Container Down or Unhealthy',
+        label: 'Opfield Container Down or Unhealthy',
         defaultSeverity: 'critical',
         supportsThreshold: true,
       },
       { id: 'job.failing', label: 'Background Job Failing', defaultSeverity: 'warning', supportsThreshold: true },
       {
         id: 'outbound.unavailable',
-        label: 'Gateway Lost Outbound Connectivity',
+        label: 'Opfield Lost Outbound Connectivity',
         defaultSeverity: 'critical',
         supportsThreshold: true,
       },
@@ -589,20 +589,20 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       },
     ],
     variables: [
-      { name: '{{resource.name}}', description: 'Gateway component name' },
+      { name: '{{resource.name}}', description: 'Opfield component name' },
       { name: '{{state.current}}', description: 'Current relay state' },
       { name: '{{failure.code}}', description: 'Stable failure code' },
       { name: '{{details.attempt}}', description: 'Recovery attempt' },
       { name: '{{details.plan}}', description: 'Effective license plan' },
       { name: '{{details.expires_at}}', description: 'License expiration time' },
       { name: '{{details.grace_until}}', description: 'License grace deadline' },
-      { name: '{{metric.value}}', description: 'Measured value of a Gateway metric' },
+      { name: '{{metric.value}}', description: 'Measured value of an Opfield metric' },
       { name: '{{details.error}}', description: 'Why Postgres, Redis or a background job failed' },
-      { name: '{{details.service}}', description: 'Gateway container service (container.unhealthy)' },
+      { name: '{{details.service}}', description: 'Opfield container service (container.unhealthy)' },
       { name: '{{details.state}}', description: 'Container state or health (container.unhealthy)' },
       { name: '{{details.job}}', description: 'Background job name (job.failing)' },
       { name: '{{details.failures_in_a_row}}', description: 'Failed runs in a row (job.failing)' },
-      { name: '{{details.targets}}', description: 'Hosts Gateway could not reach (outbound.unavailable)' },
+      { name: '{{details.targets}}', description: 'Hosts Opfield could not reach (outbound.unavailable)' },
     ],
   },
   {

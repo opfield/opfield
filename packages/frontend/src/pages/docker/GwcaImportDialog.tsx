@@ -207,7 +207,7 @@ export function GwcaImportDialog({
     setNodeId(defaultNodeId);
     if (devPreview) {
       setFile(
-        new File(["Gateway container archive development preview"], "payments-api-full.gwca", {
+        new File(["Opfield container archive development preview"], "payments-api-full.gwca", {
           type: "application/vnd.wiolett.gwca",
         })
       );
@@ -536,7 +536,7 @@ export function GwcaImportDialog({
                   onChange={(event) => setName(event.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  If this name is occupied, Gateway selects the next available suffix automatically.
+                  If this name is occupied, Opfield selects the next available suffix automatically.
                 </p>
               </div>
 
@@ -603,7 +603,7 @@ export function GwcaImportDialog({
                   <motion.div key="volume-remapping" {...REMAP_BLOCK_ANIMATION}>
                     <PanelShell
                       title="Volume remapping"
-                      description="Volumes that cannot be recreated directly must use a new or existing Gateway-managed local volume."
+                      description="Volumes that cannot be recreated directly must use a new or existing Opfield-managed local volume."
                     >
                       <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] border-b border-border bg-header text-xs font-medium uppercase tracking-wider text-muted-foreground">
                         <div className="px-3 py-2">Archive volume</div>
@@ -703,12 +703,12 @@ export function GwcaImportDialog({
                   >
                     This archive contains {metadata.secretKeys.length} secret value
                     {metadata.secretKeys.length === 1 ? "" : "s"}. They will be encrypted with the
-                    target Gateway key after import.
+                    target Opfield key after import.
                   </motion.p>
                 ) : null}
               </AnimatePresence>
               <p className="text-xs text-muted-foreground">
-                The image and supported Gateway configuration will be restored. Local volumes are
+                The image and supported Opfield configuration will be restored. Local volumes are
                 recreated empty, endpoint addresses are reassigned, and the container remains
                 stopped.
               </p>

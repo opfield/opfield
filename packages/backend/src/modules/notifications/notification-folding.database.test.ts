@@ -47,7 +47,7 @@ describe.skipIf(!url)('Alert folding on disposable PostgreSQL', () => {
   const route = (state: 'health.offline' | 'health.online', context: Record<string, unknown> = {}) =>
     observe('proxy', state, { type: 'proxy', id: hostId, name: 'example.com' }, { health_status: state, ...context });
   const outbound = (state: 'outbound.unavailable' | 'ok') =>
-    observe('gateway', state, { type: 'gateway', id: GATEWAY_OUTBOUND_RESOURCE_ID, name: 'Gateway' });
+    observe('gateway', state, { type: 'gateway', id: GATEWAY_OUTBOUND_RESOURCE_ID, name: 'Opfield' });
   const routeState = async () =>
     (
       await q(`select status, context -> 'folded' as folded from notification_alert_states where resource_id = $1`, [
@@ -250,10 +250,10 @@ describe.skipIf(!url)('Alert folding on disposable PostgreSQL', () => {
     reachable = true;
     await dispatcher.resumePausedWebhooks();
     expect(sent).toHaveLength(1);
-    expect(sent[0]).toMatch(/^Gateway lost outbound connectivity: Gateway$/);
+    expect(sent[0]).toMatch(/^Gateway lost outbound connectivity: Opfield$/);
 
     await outbound('ok');
-    expect(sent).toEqual([sent[0], expect.stringMatching(/^Gateway has outbound connectivity again( after \d+s)?\.$/)]);
+    expect(sent).toEqual([sent[0], expect.stringMatching(/^Opfield has outbound connectivity again( after \d+s)?\.$/)]);
     expect((await routeState())[0].status).toBe('resolved');
     const statuses = (
       await q(
@@ -270,7 +270,7 @@ describe.skipIf(!url)('Alert folding on disposable PostgreSQL', () => {
     await route('health.offline');
     await route('health.online');
     expect(sent).toEqual([
-      'Gateway lost outbound connectivity: Gateway',
+      'Gateway lost outbound connectivity: Opfield',
       'Proxy host down: example.com',
       expect.stringMatching(/^Proxy host example.com is back online( after \d+s)?\.$/),
     ]);

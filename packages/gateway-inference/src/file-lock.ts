@@ -32,7 +32,7 @@ export async function withFileLock<T>(
         continue;
       }
       if (Date.now() >= deadline) {
-        throw new CliError(errorCode, 'Another Gateway process is updating this resource.');
+        throw new CliError(errorCode, 'Another Opfield Inference process is updating this resource.');
       }
       await new Promise((resolve) => setTimeout(resolve, 50));
     }

@@ -89,10 +89,10 @@ async function installStartup(
 ): Promise<StartupStatus> {
   const registration = requireRegistration(input, options.platform);
   if (!(await options.isCodexConfigured(input))) {
-    throw new CliError('CODEX_NOT_CONFIGURED', 'Gateway inference is not configured. Run setup codex first.');
+    throw new CliError('CODEX_NOT_CONFIGURED', 'Opfield inference is not configured. Run setup codex first.');
   }
   if (!(await exists(input.paths.runtimeFile))) {
-    throw new CliError('RUNTIME_NOT_INSTALLED', 'Gateway inference is not configured. Run setup codex first.');
+    throw new CliError('RUNTIME_NOT_INSTALLED', 'Opfield inference is not configured. Run setup codex first.');
   }
   await mkdir(registration.directory, { recursive: true });
   await mkdir(input.paths.runtimeDir, { recursive: true });
@@ -115,7 +115,7 @@ async function installStartup(
     );
     assertCommand(
       await options.commandRunner('systemctl', ['--user', 'enable', '--now', LINUX_UNIT], input.env),
-      'Could not enable the Gateway inference startup service.'
+      'Could not enable the Opfield inference startup service.'
     );
   }
   return startupStatus(input, options);
@@ -191,7 +191,7 @@ ${programArguments}
 
 function linuxUnit(nodePath: string, args: string[]): string {
   return `[Unit]
-Description=Wiolett Gateway inference proxy
+Description=Opfield Inference proxy
 After=network-online.target
 Wants=network-online.target
 

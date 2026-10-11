@@ -573,7 +573,7 @@ export function createApp(): GatewayAppRuntime {
     if (isBrowserDocumentRequest(c.req.method, path, c.req.header('accept'), c.req.header('sec-fetch-dest'))) {
       return c.html(GATEWAY_RESTARTING_HTML, 503);
     }
-    return c.json({ code: 'SERVICE_RESTARTING', message: 'Gateway is restarting' }, 503);
+    return c.json({ code: 'SERVICE_RESTARTING', message: 'Opfield is restarting' }, 503);
   });
 
   app.use('*', async (c, next) => {
@@ -599,7 +599,7 @@ export function createApp(): GatewayAppRuntime {
       path.startsWith('/docs') ||
       path === '/openapi.json'
     ) {
-      return c.json({ code: 'SETUP_REQUIRED', message: 'Gateway setup must be completed first' }, 423);
+      return c.json({ code: 'SETUP_REQUIRED', message: 'Opfield setup must be completed first' }, 423);
     }
     await next();
   });
@@ -1080,10 +1080,10 @@ export function createApp(): GatewayAppRuntime {
   const openApiDocument = {
     openapi: '3.1.0',
     info: {
-      title: 'Gateway API',
+      title: 'Opfield API',
       version: '1.0.0',
       description:
-        'Gateway is an infrastructure control plane for managing nodes, reverse proxies, Docker workloads, certificates, databases, logging, monitoring, status pages, notifications, and operational automation.\n\n## Authentication\n\nBrowser sessions authenticate through the HttpOnly `session_id` cookie set by OIDC login. Cookie-authenticated mutating requests must include `X-CSRF-Token` from `/auth/csrf`.\n\nAPI tokens use `Authorization: Bearer gw_...` for programmatic REST access. OAuth public clients use Authorization Code + PKCE and Gateway-issued `gwo_...` access tokens for the same programmatic API surface.\n\n## Remote MCP\n\n`POST /api/mcp` exposes Gateway through stateless Streamable HTTP MCP. It accepts only OAuth `gwo_...` access tokens issued for the Gateway MCP resource. Browser cookies, `gw_...` API tokens, and `gwl_...` logging ingest tokens are not accepted.\n\n## Public PKI Endpoints\n\nCRL and OCSP endpoints under `/pki/` are unauthenticated and publicly accessible.\n\n' +
+        'Opfield is an infrastructure control plane for managing nodes, reverse proxies, Docker workloads, certificates, databases, logging, monitoring, status pages, notifications, and operational automation.\n\n## Authentication\n\nBrowser sessions authenticate through the HttpOnly `session_id` cookie set by OIDC login. Cookie-authenticated mutating requests must include `X-CSRF-Token` from `/auth/csrf`.\n\nAPI tokens use `Authorization: Bearer gw_...` for programmatic REST access. OAuth public clients use Authorization Code + PKCE and Opfield-issued `gwo_...` access tokens for the same programmatic API surface.\n\n## Remote MCP\n\n`POST /api/mcp` exposes Opfield through stateless Streamable HTTP MCP. It accepts only OAuth `gwo_...` access tokens issued for the Opfield MCP resource. Browser cookies, `gw_...` API tokens, and `gwl_...` logging ingest tokens are not accepted.\n\n## Public PKI Endpoints\n\nCRL and OCSP endpoints under `/pki/` are unauthenticated and publicly accessible.\n\n' +
         IDEMPOTENCY_API_DESCRIPTION,
     },
     servers: [

@@ -703,14 +703,14 @@ export function AdminNodes() {
             label: "External VM",
             icon: Server,
             description:
-              "Connect a machine you already manage. Run the setup command on that host to install the daemon and enroll it with Gateway.",
+              "Connect a machine you already manage. Run the setup command on that host to install the daemon and enroll it with Opfield.",
             onSelect: chooseExternal,
           },
           {
             label: "Hosted VM",
             icon: Cloud,
             description:
-              "Create a VM using a connected hosting provider. Gateway provisions the machine, installs the daemon and enrolls the node automatically.",
+              "Create a VM using a connected hosting provider. Opfield provisions the machine, installs the daemon and enrolls the node automatically.",
             onSelect: () => void chooseHosted(),
           },
         ]}

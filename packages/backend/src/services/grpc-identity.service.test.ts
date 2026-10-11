@@ -153,7 +153,7 @@ describe('GrpcIdentityService', () => {
 
   it('rejects a custom gRPC TLS certificate not issued by the Gateway system CA', async () => {
     const { service } = customService(pair.certPem, pair.keyPem, foreignPair.caPem);
-    await expect(service.resolve()).rejects.toThrow('certificate is not signed by the Gateway system CA');
+    await expect(service.resolve()).rejects.toThrow('certificate is not signed by the Opfield system CA');
   });
 
   it('rejects a custom gRPC TLS certificate with a mismatched private key', async () => {

@@ -658,7 +658,15 @@ export async function initializeContainer(): Promise<void> {
     const { permissionGroups } = await import('@/db/schema/index.js');
     const { eq } = await import('drizzle-orm');
     const SYSTEM_OIDC = 'system:gateway-setup';
-    const existing = await db.select({ id: users.id }).from(users).where(eq(users.oidcSubject, SYSTEM_OIDC)).limit(1);
+    const existing = await db
+      .select({ id: users.id, name: users.name })
+      .from(users)
+      .where(eq(users.oidcSubject, SYSTEM_OIDC))
+      .limit(1);
+    const systemUser = existing[0];
+    if (systemUser?.name === 'Gateway System') {
+      await db.update(users).set({ name: 'Opfield System' }).where(eq(users.id, systemUser.id));
+    }
     if (existing.length === 0) {
       const adminGroup = await db.query.permissionGroups.findFirst({
         where: eq(permissionGroups.name, 'system-admin'),
@@ -668,12 +676,38 @@ export async function initializeContainer(): Promise<void> {
           id: '00000000-0000-0000-0000-000000000000',
           oidcSubject: SYSTEM_OIDC,
           email: 'system@gateway.local',
-          name: 'Gateway System',
+          name: 'Opfield System',
           groupId: adminGroup.id,
         });
         logger.info('Created system user');
       }
     }
+  }
+
+  // The built-in outbound-connectivity alert rule (migration 0235) carries the product name; rename it while it still
+  // has the seeded text, so an operator's own edits stay.
+  {
+    const { notificationAlertRules } = await import('@/db/schema/index.js');
+    const { and, eq } = await import('drizzle-orm');
+    await db
+      .update(notificationAlertRules)
+      .set({
+        name: 'Opfield lost outbound connectivity',
+        messageTemplate:
+          'Opfield cannot reach {{details.targets}}. Route alerts this explains are folded into this alert, and notifications wait until Opfield can send them.',
+      })
+      .where(
+        and(
+          eq(notificationAlertRules.isBuiltin, true),
+          eq(notificationAlertRules.category, 'gateway'),
+          eq(notificationAlertRules.eventPattern, 'outbound.unavailable'),
+          eq(notificationAlertRules.name, 'Gateway lost outbound connectivity'),
+          eq(
+            notificationAlertRules.messageTemplate,
+            'Gateway cannot reach {{details.targets}}. Route alerts this explains are folded into this alert, and notifications wait until Gateway can send them.'
+          )
+        )
+      );
   }
 
   // System CA for node mTLS

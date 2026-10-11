@@ -82,7 +82,7 @@ const operationalResources: ResourceDefinition[] = [
   {
     name: 'gateway-overview',
     uri: 'gateway://overview',
-    title: 'Gateway overview',
+    title: 'Opfield overview',
     description: 'Dashboard-level counts filtered to the token scopes.',
     requiredScopes: ['proxy:view', 'ssl:cert:view', 'pki:cert:view', 'pki:ca:view', 'nodes:details'],
     async read(_uri, scopes) {
@@ -99,8 +99,8 @@ const operationalResources: ResourceDefinition[] = [
   {
     name: 'gateway-nodes',
     uri: 'gateway://nodes',
-    title: 'Gateway nodes',
-    description: 'Bounded list of Gateway nodes and connection state.',
+    title: 'Opfield nodes',
+    description: 'Bounded list of Opfield nodes and connection state.',
     requiredScopes: ['nodes:details'],
     async read(_uri, scopes) {
       const result = await container
@@ -287,7 +287,7 @@ const docsResources: ResourceDefinition[] = [
   {
     name: 'gateway-internal-docs',
     uri: 'gateway://docs',
-    title: 'Gateway internal documentation',
+    title: 'Opfield internal documentation',
     description: 'Index of internal documentation topics available to this MCP token.',
     requiredScopes: [],
     async read(_uri, scopes) {
@@ -304,8 +304,8 @@ const docsResources: ResourceDefinition[] = [
       (topic): ResourceDefinition => ({
         name: `gateway-internal-docs-${topic}`,
         uri: docUri(topic),
-        title: `Gateway internal documentation: ${topic}`,
-        description: `Internal Gateway operator documentation for ${topic}.`,
+        title: `Opfield internal documentation: ${topic}`,
+        description: `Internal Opfield operator documentation for ${topic}.`,
         requiredScopes: docRequiredScopes(topic),
         async read() {
           return {

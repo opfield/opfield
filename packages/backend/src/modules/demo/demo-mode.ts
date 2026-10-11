@@ -5,7 +5,7 @@ import type { AppEnv, User } from '@/types.js';
 
 export const DEMO_ADMIN_GROUP_NAME = 'demo-admin';
 export const DEMO_MODE_RESTRICTED = 'DEMO_MODE_RESTRICTED';
-export const DEMO_MODE_CTA_URL = 'https://goodgateway.dev';
+export const DEMO_MODE_CTA_URL = 'https://opfield.dev';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const DEMO_READ_ONLY_POST_PATHS = [
@@ -70,7 +70,7 @@ export function isDemoRealtimeCapabilityAllowed(
 
 export function demoRestriction(capability?: string): AppError {
   return new AppError(403, DEMO_MODE_RESTRICTED, 'This action is unavailable in demo mode.', {
-    capability: capability?.trim() || 'Change Gateway configuration',
+    capability: capability?.trim() || 'Change Opfield configuration',
     ctaUrl: DEMO_MODE_CTA_URL,
   });
 }

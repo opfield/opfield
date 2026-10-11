@@ -644,7 +644,7 @@ describe("app environment lines", () => {
     expect(scopes.some((scope) => scope.includes("env/"))).toBe(false);
   });
 
-  it("grants the app-root folders for every environment where Gateway reports them", () => {
+  it("grants the app-root folders for every environment where Opfield reports them", () => {
     const roots = Object.fromEntries(FAMILIES.map((family) => [family, `root-shop-${family}`]));
     const rootCtx: AccessContext = { ...appCtx, apps: [{ ...shop, rootFolderIds: roots }] };
     const line = appLine("developer", everyEnvironment, true);

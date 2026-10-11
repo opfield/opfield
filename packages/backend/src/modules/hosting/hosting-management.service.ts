@@ -496,7 +496,7 @@ export class HostingManagementService {
             if (live.powerState !== 'running')
               throw new AppError(409, 'HOSTING_VM_STOPPED', 'Start the VM before restarting its daemon');
             if (!bound.length)
-              throw new AppError(409, 'HOSTING_NODE_BINDING_REQUIRED', 'No Gateway node is associated with this VM');
+              throw new AppError(409, 'HOSTING_NODE_BINDING_REQUIRED', 'No Opfield node is associated with this VM');
             row = await this.operations.update(row, {
               result: {
                 ...row.result,

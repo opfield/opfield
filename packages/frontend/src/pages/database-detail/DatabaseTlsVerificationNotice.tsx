@@ -65,7 +65,7 @@ export function DatabaseTlsVerificationNotice({
       }
     >
       <p>
-        The connection is encrypted, but Gateway does not check the server identity, so the database
+        The connection is encrypted, but Opfield does not check the server identity, so the database
         could be impersonated on the network path.
       </p>
     </Notice>

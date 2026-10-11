@@ -314,8 +314,8 @@ function StatusPage({ data }: { data: PublicStatusPageDto }) {
         <footer>
           <span>
             Powered by{" "}
-            <a href="https://goodgateway.dev" target="_blank" rel="noopener noreferrer">
-              Good Gateway
+            <a href="https://opfield.dev" target="_blank" rel="noopener noreferrer">
+              Opfield
             </a>
           </span>
         </footer>

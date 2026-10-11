@@ -110,13 +110,13 @@ export function checkOpenCodexGatewayCompatibility(
   if (artifact.minGatewayVersion && compareSemver(currentGatewayVersion, artifact.minGatewayVersion) < 0) {
     return {
       compatible: false,
-      reason: `Core ${artifact.version} requires Gateway ${artifact.minGatewayVersion} or newer`,
+      reason: `Core ${artifact.version} requires Opfield ${artifact.minGatewayVersion} or newer`,
     };
   }
   if (artifact.maxGatewayVersion && compareSemver(currentGatewayVersion, artifact.maxGatewayVersion) > 0) {
     return {
       compatible: false,
-      reason: `Core ${artifact.version} supports Gateway up to ${artifact.maxGatewayVersion}`,
+      reason: `Core ${artifact.version} supports Opfield up to ${artifact.maxGatewayVersion}`,
     };
   }
   return { compatible: true, reason: null };

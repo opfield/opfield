@@ -23,7 +23,7 @@ export function dockerDaemonUserError(message: string): AppError | null {
     return new AppError(
       409,
       'IMAGE_NOT_ON_NODE',
-      `${image ? `Image ${image}` : 'The image'} is not on this node (No such image). Pull it to the node first, or select its registry so Gateway pulls it when it creates the container.`
+      `${image ? `Image ${image}` : 'The image'} is not on this node (No such image). Pull it to the node first, or select its registry so Opfield pulls it when it creates the container.`
     );
   }
   if (/disk-image volumes are not supported on this node/i.test(message)) {

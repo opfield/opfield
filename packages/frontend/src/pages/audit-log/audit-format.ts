@@ -194,7 +194,7 @@ function formatHtmlAuditExport(entries: AuditLogEntry[]): string {
           .join("")}</tr>`
     )
     .join("");
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Gateway Audit Log</title><style>${auditExportStyle()}</style></head><body><h1>Gateway Audit Log</h1><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Opfield Audit Log</title><style>${auditExportStyle()}</style></head><body><h1>Opfield Audit Log</h1><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></body></html>`;
 }
 
 export function formatAuditExport(

@@ -27,7 +27,7 @@ Create and edit forms, confirmations and one-off tasks that keep the page behind
 function Demo() {
   return h(G.Dialog, { open: true },
     h(G.DialogContent, null,
-      h(G.DialogHeader, null, h(G.DialogTitle, null, "Add Node"), h(G.DialogDescription, null, "Enroll a server so Gateway can manage its services.")),
+      h(G.DialogHeader, null, h(G.DialogTitle, null, "Add Node"), h(G.DialogDescription, null, "Enroll a server so Opfield can manage its services.")),
       h("div", { className: "space-y-1.5" }, h("label", { className: "text-sm font-medium" }, "Name"), h(G.Input, { defaultValue: "edge-3" })),
       h("div", { className: "space-y-1.5" }, h("label", { className: "text-sm font-medium" }, "Type"), h(G.Select, { defaultValue: "nginx" }, h(G.SelectTrigger, null, h(G.SelectValue)), h(G.SelectContent, null, h(G.SelectItem, { value: "nginx" }, "Nginx"), h(G.SelectItem, { value: "docker" }, "Docker")))),
       h(G.DialogFooter, null, h(G.Button, { variant: "outline", disabled: true }, "Cancel"), h(G.Button, { pending: true }, "Create"))
@@ -214,7 +214,7 @@ mount(h(Demo));
     summary: "Shows a freshly created secret once: \"<Thing> Created\", a description that says it won't be shown again, the value in a copy field, and Done.",
     guide: `
 ## Use it for
-Every token, key or password Gateway shows once: API, deploy, inference and ingest tokens, storage access keys, node and relay enrollment tokens. The secret leaves state when the dialog finishes closing (\`onClosed\`).
+Every token, key or password Opfield shows once: API, deploy, inference and ingest tokens, storage access keys, node and relay enrollment tokens. The secret leaves state when the dialog finishes closing (\`onClosed\`).
 
 ## Rules
 - No warning tint: the description carries the notice ("Copy it now — it won't be shown again.").
@@ -324,7 +324,7 @@ Toaster props from sonner (\`position\`, \`expand\`, …); \`theme\` and \`close
     preview: () => `
 function Demo() {
   React.useEffect(function () {
-    G.toast("Gateway settings updated", { duration: Infinity });
+    G.toast("Opfield settings updated", { duration: Infinity });
     G.toast.error("Failed to load Docker nodes", { duration: Infinity, description: "edge-2 did not answer within 10 seconds." });
     G.toast.success("Folder created", { duration: Infinity });
   }, []);

@@ -34,7 +34,7 @@ export function describeCertificateRenewal(
     case "delivering":
       return {
         tone: "info",
-        text: `A renewed certificate was delivered; the service loads it on its own schedule and Gateway confirms it.${next}`,
+        text: `A renewed certificate was delivered; the service loads it on its own schedule and Opfield confirms it.${next}`,
       };
     default:
       if (renewal.due && renewal.skipReason)

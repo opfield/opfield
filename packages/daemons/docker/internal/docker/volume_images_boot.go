@@ -120,7 +120,7 @@ func systemVolumeImageBootHost() volumeImageBootHost {
 
 func systemdVolumeImageUnit(executable, stateDir string) string {
 	return `[Unit]
-Description=Gateway disk-image volumes: mount before Docker starts containers
+Description=Opfield disk-image volumes: mount before Docker starts containers
 After=local-fs.target
 Before=docker.service
 
@@ -137,7 +137,7 @@ WantedBy=multi-user.target docker.service
 
 func openrcVolumeImageService(executable, stateDir string) string {
 	return `#!/sbin/openrc-run
-description="Gateway disk-image volumes: mount before Docker starts containers"
+description="Opfield disk-image volumes: mount before Docker starts containers"
 
 depend() {
 	need localmount
@@ -145,7 +145,7 @@ depend() {
 }
 
 start() {
-	ebegin "Mounting Gateway disk-image volumes"
+	ebegin "Mounting Opfield disk-image volumes"
 	` + shellQuote(executable) + ` mount-volume-images --state-dir ` + shellQuote(stateDir) + `
 	eend $?
 }

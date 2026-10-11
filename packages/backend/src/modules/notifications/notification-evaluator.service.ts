@@ -455,9 +455,9 @@ export class NotificationEvaluatorService {
         GATEWAY_SAMPLING_MS
       );
       if (breached) {
-        await this.handleThresholdBreach(rule, GATEWAY_RESOURCE_ID, value, GATEWAY_RESOURCE_ID, 'Gateway');
+        await this.handleThresholdBreach(rule, GATEWAY_RESOURCE_ID, value, GATEWAY_RESOURCE_ID, 'Opfield');
       } else {
-        await this.handleThresholdClear(rule, GATEWAY_RESOURCE_ID, value, GATEWAY_RESOURCE_ID, 'Gateway');
+        await this.handleThresholdClear(rule, GATEWAY_RESOURCE_ID, value, GATEWAY_RESOURCE_ID, 'Opfield');
       }
     }
   }
@@ -1918,7 +1918,7 @@ export class NotificationEvaluatorService {
       return {
         stateId: firing.id,
         kind: outbound ? 'gateway_outbound' : 'node',
-        label: `${firing.ruleName} (${outbound ? 'Gateway' : await this.nodeNameOf(firing.resourceId)})`,
+        label: `${firing.ruleName} (${outbound ? 'Opfield' : await this.nodeNameOf(firing.resourceId)})`,
       };
     }
     return parents.length > 0 ? 'hold' : null;
@@ -1981,7 +1981,7 @@ export class NotificationEvaluatorService {
     const folded: FoldedUnder = {
       stateId: parentStateId,
       kind,
-      label: `${parentRule.name} (${kind === 'gateway_outbound' ? 'Gateway' : parentResourceName})`,
+      label: `${parentRule.name} (${kind === 'gateway_outbound' ? 'Opfield' : parentResourceName})`,
     };
     for (const { state } of candidates) {
       const context = (state.context ?? {}) as TemplateDetails;

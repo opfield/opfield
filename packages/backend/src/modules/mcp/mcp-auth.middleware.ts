@@ -61,6 +61,6 @@ export const mcpAuthMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     await next();
     return;
   }
-  challenge('invalid_token', 'MCP accepts only Gateway OAuth access tokens');
-  throw new HTTPException(401, { message: 'MCP accepts only Gateway OAuth access tokens' });
+  challenge('invalid_token', 'MCP accepts only Opfield OAuth access tokens');
+  throw new HTTPException(401, { message: 'MCP accepts only Opfield OAuth access tokens' });
 };

@@ -416,7 +416,7 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
           environmentSettings === undefined ? undefined : EnvironmentSettingsUpdateSchema.parse(environmentSettings);
         const settingsInput = UpdateAuthProvisioningSettingsSchema.parse(settingsArgs);
         if (!environmentInput && Object.keys(settingsInput).length === 0) {
-          throw new Error('No supported Gateway settings fields were provided');
+          throw new Error('No supported Opfield settings fields were provided');
         }
         const settings =
           Object.keys(settingsInput).length > 0

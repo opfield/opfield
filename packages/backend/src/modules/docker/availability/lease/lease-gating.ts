@@ -63,7 +63,7 @@ export type LeaseGatingResult =
 /** Availability reasons the source reports as `unavailable` (edition, legacy hold, disabled). */
 export const AVAILABILITY_CONTROLLER_UNSUPPORTED = {
   code: 'controller_unsupported',
-  message: 'This Gateway edition runs Availability failover from the backend only',
+  message: 'This Opfield edition runs Availability failover from the backend only',
   immediate: false,
 } as const;
 export const AVAILABILITY_LEGACY_REQUESTED = {

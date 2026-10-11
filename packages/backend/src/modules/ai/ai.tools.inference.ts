@@ -268,7 +268,7 @@ export const INFERENCE_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_inference_usage',
     description:
-      'Read inference usage. Operations: self and self_overview (the current user usage and remaining budget; feat:ai:use), system (Gateway-wide overview), users (per-user usage), activity_filters, activity (request log filtered by search, status, userId, model; paginated). system, users, and activity need inference:usage:view.',
+      'Read inference usage. Operations: self and self_overview (the current user usage and remaining budget; feat:ai:use), system (Opfield-wide overview), users (per-user usage), activity_filters, activity (request log filtered by search, status, userId, model; paginated). system, users, and activity need inference:usage:view.',
     parameters: {
       type: 'object',
       properties: {

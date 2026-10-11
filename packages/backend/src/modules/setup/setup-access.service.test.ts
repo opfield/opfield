@@ -76,7 +76,7 @@ describe('SetupAccessService', () => {
     const generated = await harness.service.generateCode();
     const first = await harness.service.createSession(generated.code);
 
-    await expect(harness.service.createSession(generated.code)).rejects.toThrow('Gateway setup is already in progress');
+    await expect(harness.service.createSession(generated.code)).rejects.toThrow('Opfield setup is already in progress');
     await expect(harness.service.getProgress(undefined)).resolves.toEqual({
       inProgress: true,
       currentSession: false,

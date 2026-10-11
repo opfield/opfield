@@ -242,7 +242,7 @@ export function PagesSettingsSection() {
             </SettingsControlRow>
             <SettingsControlRow
               title="Base wildcard Domain"
-              help="Pages uses this wildcard domain to create a unique hostname for every immutable deployment. The selected Domain must already be registered and managed by Gateway."
+              help="Pages uses this wildcard domain to create a unique hostname for every immutable deployment. The selected Domain must already be registered and managed by Opfield."
               description={
                 <span>
                   Choose a registered wildcard Domain.{" "}
@@ -336,7 +336,7 @@ export function PagesSettingsSection() {
                     . Re-evaluate it after changing the Domain.
                   </>
                 }
-                help="This acknowledgement allows Pages and Gateway to share a registrable parent domain even though deployed JavaScript may then affect parent-domain cookies."
+                help="This acknowledgement allows Pages and Opfield to share a registrable parent domain even though deployed JavaScript may then affect parent-domain cookies."
               >
                 <Badge variant="warning">Cookie isolation warning accepted</Badge>
               </SettingsControlRow>
@@ -345,7 +345,7 @@ export function PagesSettingsSection() {
 
           {sameRegistrableDomain && (
             <Notice tone="warning" title="Separate registrable domain recommended">
-              Deployed JavaScript can affect parent-domain cookies when Gateway and Pages share a
+              Deployed JavaScript can affect parent-domain cookies when Opfield and Pages share a
               registrable domain. Saving requires explicit acknowledgement.
             </Notice>
           )}
@@ -360,7 +360,7 @@ export function PagesSettingsSection() {
               </DialogHeader>
               <Notice tone="warning" title="Why confirmation is required">
                 Pages should use a separate registrable domain. Deployed JavaScript may affect
-                Gateway cookies on the shared parent domain.
+                Opfield cookies on the shared parent domain.
               </Notice>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setWarningOpen(false)}>

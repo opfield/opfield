@@ -159,17 +159,17 @@ export class AISettingsService {
           throw new AppError(
             400,
             'AI_GATEWAY_INFERENCE_DISABLED',
-            'Gateway Inference must be enabled before it can be used by AI Workspace'
+            'Opfield Inference must be enabled before it can be used by AI Workspace'
           );
         }
         if (!gatewayInferenceModel) {
-          throw new AppError(400, 'AI_GATEWAY_INFERENCE_MODEL_REQUIRED', 'Select a default Gateway Inference model');
+          throw new AppError(400, 'AI_GATEWAY_INFERENCE_MODEL_REQUIRED', 'Select a default Opfield Inference model');
         }
         if (!(await this.gatewayInferenceModelAvailable(gatewayInferenceModel))) {
           throw new AppError(
             400,
             'AI_GATEWAY_INFERENCE_MODEL_UNAVAILABLE',
-            'The selected Gateway Inference model is not available'
+            'The selected Opfield Inference model is not available'
           );
         }
         updates.gatewayInferenceModel = gatewayInferenceModel;

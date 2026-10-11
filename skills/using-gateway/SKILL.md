@@ -1,15 +1,15 @@
 ---
 name: using-gateway
-description: Entry point and router for deploying, publishing, configuring, diagnosing, or operating applications through a user-owned Good Gateway instance and its authenticated remote MCP. Use first in any Gateway task for setup, MCP connection, tool discovery, safety rules, asynchronous Tasks, and verification, and to choose the domain skill for Pages, Docker workloads, high availability, ingress and TLS, internal PKI, databases, object storage, Nodes, observability, or access control. Do not use for generic Docker or hosting work that is not targeting Gateway.
+description: Entry point and router for deploying, publishing, configuring, diagnosing, or operating applications through a user-owned Opfield instance and its authenticated remote MCP. Use first in any Opfield task for setup, MCP connection, tool discovery, safety rules, asynchronous Tasks, and verification, and to choose the domain skill for Pages, Docker workloads, high availability, ingress and TLS, internal PKI, databases, object storage, Nodes, observability, or access control. Do not use for generic Docker or hosting work that is not targeting Opfield.
 ---
 
-# Using Gateway
+# Using Opfield
 
-Turn the user's application intent into one native Gateway workflow. Gateway owns deployment state, builds, artifacts, Compose revisions, Domains, certificates, Routes, permissions, Tasks, and rollback-capable resources. Do not build a parallel orchestrator around shell access when Gateway MCP exposes the operation. MCP is not a back door: every call passes the same authorization, validation, and audit as a person in the Console.
+Turn the user's application intent into one native Opfield workflow. Opfield owns deployment state, builds, artifacts, Compose revisions, Domains, certificates, Routes, permissions, Tasks, and rollback-capable resources. Do not build a parallel orchestrator around shell access when Opfield MCP exposes the operation. MCP is not a back door: every call passes the same authorization, validation, and audit as a person in the Console.
 
 ## Connect and discover
 
-Use existing Gateway MCP tools when they are already available. If no usable Gateway instance exists, setup is incomplete, or the user wants a new installation, read [New instance setup](references/instance-setup.md). If the instance is ready but MCP is unavailable, unauthenticated, or points at the wrong instance, read [MCP connection](references/connection.md).
+Use existing Opfield MCP tools when they are already available. If no usable Opfield instance exists, setup is incomplete, or the user wants a new installation, read [New instance setup](references/instance-setup.md). If the instance is ready but MCP is unavailable, unauthenticated, or points at the wrong instance, read [MCP connection](references/connection.md).
 
 Never ask the user to paste an OAuth token, API token, setup code, Node enrollment token, deploy token, registry password, database credential, or other secret into chat.
 
@@ -20,7 +20,7 @@ Never ask the user to paste an OAuth token, API token, setup code, Node enrollme
 
 ## Route the request
 
-Each domain has its own skill in this package. If one is not installed, install the set with `npx skills add the-square-labs/gateway-skills`, or read it from the connected Gateway at `gateway://skills/<name>/SKILL.md` when that release serves skills.
+Each domain has its own skill in this package. If one is not installed, install the set with `npx skills add the-square-labs/gateway-skills`, or read it from the connected Opfield at `gateway://skills/<name>/SKILL.md` when that release serves skills.
 
 - New control plane, unfinished onboarding, or missing first Nodes: [New instance setup](references/instance-setup.md).
 - MCP connection, OAuth, or missing tools: [MCP connection](references/connection.md) and [MCP toolsets](references/mcp-toolsets.md).
@@ -36,13 +36,13 @@ Each domain has its own skill in this package. If one is not installed, install 
 - Users, groups, scopes, API tokens, or OAuth grants: `access-control`.
 - Incident, warning, failed Task, offline Node, or unexplained state: [Diagnosis](references/diagnosis.md), then the skill that owns the failing boundary.
 
-If an existing Gateway resource already represents the application, update or attach its source instead of creating a duplicate.
+If an existing Opfield resource already represents the application, update or attach its source instead of creating a duplicate.
 
 ## Choose the native resource model
 
 Prefer Pages for static output. Prefer a standalone Container for one ordinary service. Prefer a blue/green Deployment when health-checked cutover and rollback matter. Prefer a Compose Project when the application has multiple services or the repository already defines Compose. Prefer a private database binding over distributing owner credentials.
 
-Inspect whether the repository already has a healthy deployment pipeline. If Gateway Git-source builds are admitted and no deployment CI exists, use Gateway source bindings, Build Workers, `autoBuild`, and `autoDeploy` instead of authoring CI solely to deploy through Gateway. Preserve an existing release pipeline unless the user asks to replace it.
+Inspect whether the repository already has a healthy deployment pipeline. If Opfield Git-source builds are admitted and no deployment CI exists, use Opfield source bindings, Build Workers, `autoBuild`, and `autoDeploy` instead of authoring CI solely to deploy through Opfield. Preserve an existing release pipeline unless the user asks to replace it.
 
 ## Limited access is normal
 
@@ -68,7 +68,7 @@ Ask one focused question only when a missing value changes the resource model, t
 
 ## Execute, reconcile, and verify
 
-Use Gateway-native state transitions and read the resulting resource after each asynchronous boundary. An accepted (`202`) response means Gateway recorded the request, not that a daemon applied it. Do not treat a queued build, created Task, pending certificate, pending preview link, container start, Compose operation, database provisioning, migration, or rollout as completion.
+Use Opfield-native state transitions and read the resulting resource after each asynchronous boundary. An accepted (`202`) response means Opfield recorded the request, not that a daemon applied it. Do not treat a queued build, created Task, pending certificate, pending preview link, container start, Compose operation, database provisioning, migration, or rollout as completion.
 
 1. Run the preflight or dry run where one exists (Docker migration, Docker Availability, storage copy) before the real operation.
 2. Record returned resource, operation, request, build, and Task identifiers.
@@ -87,10 +87,10 @@ On success, report the environment, URL when applicable, resource identity, sour
 
 - Diagnosis, inventory, explanation, and review requests remain read-only.
 - Confirm before destructive or high-risk actions: deletion, credential reveal or rotation, restore, revocation, migration cutover, raw nginx config, and preview-link rotation. Read what a tool does not clean up; deleting a Container keeps its volume, and deleting a Route keeps its certificate and Access List.
-- Keep secrets write-only and out of ordinary tool arguments, shell history, logs, memory, and final responses. When a tool needs a secret value, let the user enter it in the Gateway Console, or pass it from a local source the user named directly into the dedicated secret field without echoing it. Values a tool shows once (tokens, keys, revealed credentials) are never repeated.
-- MCP cannot mint Gateway credentials (API tokens, OAuth grants) or impersonate users. Send the user to the Console for those.
-- A disconnected Node shows a stale snapshot, and Gateway blocks mutations that need current state. Do not force a workaround.
-- Use Gateway-managed volumes; do not introduce host bind mounts or Docker socket access.
+- Keep secrets write-only and out of ordinary tool arguments, shell history, logs, memory, and final responses. When a tool needs a secret value, let the user enter it in the Opfield Console, or pass it from a local source the user named directly into the dedicated secret field without echoing it. Values a tool shows once (tokens, keys, revealed credentials) are never repeated.
+- MCP cannot mint Opfield credentials (API tokens, OAuth grants) or impersonate users. Send the user to the Console for those.
+- A disconnected Node shows a stale snapshot, and Opfield blocks mutations that need current state. Do not force a workaround.
+- Use Opfield-managed volumes; do not introduce host bind mounts or Docker socket access.
 - Git deployment uses exact commits and approved immutable artifacts, never a mutable branch or tag as runtime identity.
 - Operate Compose Projects and Deployments through their owning resources, never their protected child containers or slots.
 - Routes target stable Container names, Deployment IDs, Compose project and service identities, or ready Pages Tags, never immutable Pages Deployments.

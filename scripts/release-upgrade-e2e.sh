@@ -68,8 +68,11 @@ EOF
 REPO="the-square-labs/gateway"
 RAW_BASE="https://raw.githubusercontent.com/${REPO}"
 RELEASE_DOWNLOAD="https://github.com/${REPO}/releases/download"
-REAL_FEED="https://updates.thesqlabs.com/gateway/releases"
-LICENSE_HOST="license.thesqlabs.com"
+REAL_FEED="https://get.opfield.dev/gateway/releases"
+# The license server answers on license.opfield.dev (2.12+) and on its earlier name, which releases up to 2.11 use and
+# 2.12+ fall back to; the DNS guard blocks both, the app-container lookup checks the current one.
+LICENSE_HOST="license.opfield.dev"
+LICENSE_HOSTS="license.opfield.dev,license.thesqlabs.com"
 MAILPIT_IMAGE="docker.io/axllent/mailpit:v1.31.3"
 WEB_IMAGE="nginx:1.27-alpine"
 INSTALL_DIR="/opt/gateway"
@@ -347,7 +350,8 @@ PY
 # DNS forwarder for Docker (daemon.json "dns"): answers NXDOMAIN for the license server while the
 # block file contains 1 and forwards everything else to the host's own resolvers.
 import socket, socketserver, struct, sys, threading, time
-ADDR, BLOCK_FILE, LOG, BLOCKED = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4].lower()
+ADDR, BLOCK_FILE, LOG = sys.argv[1], sys.argv[2], sys.argv[3]
+BLOCKED = [h.strip() for h in sys.argv[4].lower().split(',') if h.strip()]
 
 def upstreams():
     for path in ('/etc/resolv.conf', '/run/systemd/resolve/resolv.conf'):
@@ -379,7 +383,7 @@ def question(msg):
     return '.'.join(labels).lower(), i + 5
 
 def blocked(name):
-    if not name or not (name == BLOCKED or name.endswith('.' + BLOCKED)):
+    if not name or not any(name == b or name.endswith('.' + b) for b in BLOCKED):
         return False
     try:
         with open(BLOCK_FILE) as f:
@@ -1352,7 +1356,7 @@ BLOB_RATE=196608
 LOG_ALLOW=(
   # The DNS guard answers NXDOMAIN for the license server outside update windows (see --license-server).
   'license[^"]*(ENOTFOUND|EAI_AGAIN|getaddrinfo|fetch failed|unreachable)'
-  'ENOTFOUND license\.thesqlabs\.com'
+  'ENOTFOUND license\.(thesqlabs\.com|opfield\.dev)'
   # The seeded webhook points at example.com, which does not accept the POST.
   'gateway-e2e-webhook'
   # The run's own refusal probes: a folder-limited token at the top level, a daemon update to the version it runs.
@@ -2251,7 +2255,7 @@ phase5_fresh() {
 start_services() {
   mkdir -p "$WORK/pids" "$WORK/logs" "$WORK/json" "$WORK/smtp"
   if [[ "$LICENSE_MODE" == allow || -n "$LICENSE_KEY" ]]; then echo 0 >"$WORK/license-block"; else echo 1 >"$WORK/license-block"; fi
-  start_background dns-guard python3 "$WORK/py/dns_guard.py" "$HOST_ADDR" "$WORK/license-block" "$WORK/logs/dns-guard.log" "$LICENSE_HOST"
+  start_background dns-guard python3 "$WORK/py/dns_guard.py" "$HOST_ADDR" "$WORK/license-block" "$WORK/logs/dns-guard.log" "$LICENSE_HOSTS"
   feed_pin stable
   start_background feed python3 "$WORK/py/feed.py" "$HOST_ADDR" "$FEED_PORT" "$WORK/feed-state.json" "$WORK/logs/feed.log" "$REAL_FEED" "$REPO"
   sleep 2

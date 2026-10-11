@@ -1,4 +1,4 @@
 interface:
-  display_name: "Gateway High Availability"
-  short_description: "Run a Gateway workload on several Docker Nodes"
-  default_prompt: "Use $high-availability to preflight and enable availability for this Gateway workload."
+  display_name: "Opfield High Availability"
+  short_description: "Run an Opfield workload on several Docker Nodes"
+  default_prompt: "Use $high-availability to preflight and enable availability for this Opfield workload."

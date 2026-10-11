@@ -71,7 +71,7 @@ export const useUpdateStore = create<UpdateState>()((set) => ({
         // that; everyone else keeps working without a screen.
         if (appStatus.gatewayUpdatingActive) {
           appStatus.setGatewayUpdateError(
-            gatewayOperation.error ?? "The Gateway update did not complete.",
+            gatewayOperation.error ?? "The Opfield update did not complete.",
             gatewayOperation.targetVersion,
             { rolledBack: true }
           );
@@ -120,7 +120,7 @@ export const useUpdateStore = create<UpdateState>()((set) => ({
       useAppStatusStore
         .getState()
         .setGatewayUpdateError(
-          error instanceof Error ? error.message : "Gateway update could not be started",
+          error instanceof Error ? error.message : "Opfield update could not be started",
           version
         );
       set({ isUpdating: false, updatingComponent: null, updatingTargetVersion: null });

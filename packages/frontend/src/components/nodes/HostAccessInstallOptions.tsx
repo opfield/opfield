@@ -21,20 +21,20 @@ export function HostAccessInstallOptions({
         checked={value.disableConsole}
         onCheckedChange={(disableConsole) => onChange({ ...value, disableConsole })}
         label="Disable host console"
-        description="Adds --disable-console: no shell or console commands on this host from Gateway."
+        description="Adds --disable-console: no shell or console commands on this host from Opfield."
       />
       <CheckboxCard
         checked={value.disableFiles}
         onCheckedChange={(disableFiles) => onChange({ ...value, disableFiles })}
         label="Disable host files"
-        description="Adds --disable-files: no host file browsing or writes from Gateway. Disable both to remove host access."
+        description="Adds --disable-files: no host file browsing or writes from Opfield. Disable both to remove host access."
       />
       {relay && (
         <CheckboxCard
           checked={value.protectedMode === true}
           onCheckedChange={(protectedMode) => onChange({ ...value, protectedMode })}
           label="Protected relay"
-          description="Adds --protected: no console, files, commands or host diagnostics from Gateway, for a relay on someone else's machine. Only the machine owner can turn it off."
+          description="Adds --protected: no console, files, commands or host diagnostics from Opfield, for a relay on someone else's machine. Only the machine owner can turn it off."
         />
       )}
     </div>

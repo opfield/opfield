@@ -257,7 +257,7 @@ export function DockerVolumes({
       setPendingVolumeAction(`adopt:${nodeId}/${name}`);
       try {
         await api.adoptVolume(nodeId, name);
-        toast.success("Volume migrated to Gateway management");
+        toast.success("Volume migrated to Opfield management");
         await fetchVolumes(undefined, search);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Failed to migrate volume");
@@ -482,7 +482,7 @@ export function DockerVolumes({
                   {canAdopt && (
                     <DropdownMenuItem onClick={() => handleAdopt(v.name, nodeId)}>
                       <ArrowRightLeft className="h-4 w-4" />
-                      Migrate to Gateway management
+                      Migrate to Opfield management
                     </DropdownMenuItem>
                   )}
                   {canRemove && (

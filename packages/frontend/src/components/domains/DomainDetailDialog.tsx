@@ -255,7 +255,7 @@ export function DomainDetailDialog({
       description: `Change ${domain.domain} from ${
         [...(domain.dnsRecords?.a ?? []), ...(domain.dnsRecords?.aaaa ?? [])].join(", ") ||
         "no address record"
-      } to ${selectedNode.effectiveAddress} and migrate it to Gateway management?`,
+      } to ${selectedNode.effectiveAddress} and migrate it to Opfield management?`,
       confirmLabel: "Update DNS and migrate",
       variant: "default",
     });
@@ -268,7 +268,7 @@ export function DomainDetailDialog({
     if (!domain) return;
     const approved = await confirm({
       title: "Keep External DNS?",
-      description: `Stop trying to migrate ${domain.domain} to Cloudflare. Gateway will continue checking its external DNS health.`,
+      description: `Stop trying to migrate ${domain.domain} to Cloudflare. Opfield will continue checking its external DNS health.`,
       confirmLabel: "Keep external DNS",
       variant: "default",
     });

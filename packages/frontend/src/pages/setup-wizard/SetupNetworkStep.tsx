@@ -69,7 +69,7 @@ export function SetupNetworkStep({
         }}
       >
         <PanelShell
-          title="Gateway network"
+          title="Opfield network"
           description="Choose the public and optional local targets used for node enrollment. Detected values can be replaced."
         >
           <SettingsControlRow
@@ -82,7 +82,7 @@ export function SetupNetworkStep({
               ariaLabel="gRPC public target"
               value={network.grpcPublicTarget}
               options={grpcPublicOptions}
-              placeholder="gateway.example.com:9443"
+              placeholder="opfield.example.com:9443"
               searchPlaceholder="Enter or select a public target"
               emptyMessage="Enter a hostname or IP address."
               disabled={busy}

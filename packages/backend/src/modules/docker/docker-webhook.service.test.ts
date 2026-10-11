@@ -304,9 +304,9 @@ describe('DockerWebhookService', () => {
       [
         'no recorded account (saved before owners were recorded)',
         null,
-        'Gateway cannot tell whose permissions the webhook uses',
+        'Opfield cannot tell whose permissions the webhook uses',
       ],
-      ['a deleted account', 'deleted', 'Gateway cannot tell whose permissions the webhook uses'],
+      ['a deleted account', 'deleted', 'Opfield cannot tell whose permissions the webhook uses'],
       ['a blocked account', 'blocked', 'the account that last saved the webhook, b@example.com, is blocked'],
     ])('refuses with %s', async (_case, ownerId, reason) => {
       const { trigger } = hostBindService();

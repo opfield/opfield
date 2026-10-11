@@ -645,11 +645,11 @@ func superviseLauncherChild(ctx context.Context, spec LauncherSpec, initialState
 			// by the gateway. Committing it would strand the node, so restore
 			// the previous daemon now.
 			_ = terminateLauncherChild(child, done, launcherStopGrace)
-			if err := rollbackLauncherUpdate(spec.StateDir, state, "gateway control readiness timeout"); err != nil {
+			if err := rollbackLauncherUpdate(spec.StateDir, state, "Opfield control readiness timeout"); err != nil {
 				return launcherChildOutcome{stop: true, err: err}
 			}
-			logger.Error("candidate never reached the gateway; restored previous daemon", "target_version", state.TargetVersion)
-			return launcherChildOutcome{err: fmt.Errorf("candidate %s did not reach gateway control readiness within %s", state.TargetVersion, launcherControlReadyLimit)}
+			logger.Error("candidate never reached Opfield; restored previous daemon", "target_version", state.TargetVersion)
+			return launcherChildOutcome{err: fmt.Errorf("candidate %s did not reach Opfield control readiness within %s", state.TargetVersion, launcherControlReadyLimit)}
 		case <-onStableTimeout:
 			onStableTimeout = nil
 			hooks.onStable()
@@ -687,7 +687,7 @@ func superviseLauncherChild(ctx context.Context, spec LauncherSpec, initialState
 				}
 				controlTimer.Stop()
 				controlTimeout = nil
-				logger.Info("candidate reached gateway control readiness", "version", state.TargetVersion)
+				logger.Info("candidate reached Opfield control readiness", "version", state.TargetVersion)
 				startStability()
 				continue
 			}

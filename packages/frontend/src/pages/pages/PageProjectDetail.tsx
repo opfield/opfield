@@ -249,7 +249,7 @@ curl -X POST '${window.location.origin}/api/pages-deploy/uploads/<upload-id>/fin
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Upload and Finalize</label>
             <p className="text-xs text-muted-foreground">
-              Replace upload-id with the ID returned above. Gateway then publishes latest and the
+              Replace upload-id with the ID returned above. Opfield then publishes latest and the
               requested Tag.
             </p>
             <CopyCodeBlock

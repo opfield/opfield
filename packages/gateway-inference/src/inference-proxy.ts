@@ -238,7 +238,7 @@ function bridgeWebSocket(downstream: WebSocket, request: IncomingMessage, target
   downstream.on('close', (code, reason) => closeWebSocket(upstream, code, reason));
   upstream.on('close', (code, reason) => closeWebSocket(downstream, code, reason));
   downstream.on('error', () => upstream.terminate());
-  upstream.on('error', () => closeWebSocket(downstream, 1011, Buffer.from('Gateway WebSocket connection failed')));
+  upstream.on('error', () => closeWebSocket(downstream, 1011, Buffer.from('Opfield WebSocket connection failed')));
 }
 
 function closeWebSocket(socket: WebSocket, code: number, reason: Buffer): void {
@@ -272,7 +272,7 @@ function sanitizeRequestHeaders(headers: IncomingHttpHeaders, token: string): Re
 async function requireRuntimeToken(getToken: () => Promise<string>): Promise<string> {
   const token = await getToken();
   if (!token.startsWith('gwi_')) {
-    throw new CliError('RUNTIME_TOKEN_INVALID', 'Stored Gateway inference token is invalid. Run setup codex again.');
+    throw new CliError('RUNTIME_TOKEN_INVALID', 'Stored Opfield inference token is invalid. Run setup codex again.');
   }
   return token;
 }
@@ -280,7 +280,7 @@ async function requireRuntimeToken(getToken: () => Promise<string>): Promise<str
 function normalizeRemoteBaseUrl(value: string): string {
   const url = new URL(value);
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new CliError('INFERENCE_PROXY_URL_INVALID', `Unsupported Gateway inference URL: ${url.protocol}`);
+    throw new CliError('INFERENCE_PROXY_URL_INVALID', `Unsupported Opfield inference URL: ${url.protocol}`);
   }
   url.hash = '';
   url.search = '';

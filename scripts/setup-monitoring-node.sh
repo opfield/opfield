@@ -7,7 +7,7 @@ IFS=$'\n\t'
 # No nginx or Docker required — this agent reports system metrics only.
 #
 # Usage:
-#   curl -sSL https://github.com/the-square-labs/gateway/releases/latest/download/setup-monitoring-node.sh | \
+#   curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-monitoring-node.sh | \
 #     sudo bash -s -- --gateway gateway.example.com:9443 --token <ENROLLMENT_TOKEN> --gateway-cert-sha256 sha256:<HEX>
 # ───────────────────────────────────────────────────────────────────
 
@@ -36,8 +36,8 @@ GATEWAY_CERT_SHA256="${GATEWAY_NODE_CERT_SHA256:-}"
 DAEMON_VERSION="${GATEWAY_NODE_DAEMON_VERSION:-latest}"
 DISABLE_CONSOLE="${GATEWAY_NODE_DISABLE_CONSOLE:-0}"
 DISABLE_FILES="${GATEWAY_NODE_DISABLE_FILES:-0}"
-RELEASES_API_URL="${GATEWAY_RELEASES_API_URL:-https://updates.thesqlabs.com/gateway/releases}"
-ARTIFACT_BASE_URL="${GATEWAY_ARTIFACT_BASE_URL:-https://updates.thesqlabs.com/gateway}"
+RELEASES_API_URL="${GATEWAY_RELEASES_API_URL:-https://get.opfield.dev/gateway/releases}"
+ARTIFACT_BASE_URL="${GATEWAY_ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
 RUN_USER=""
 NON_INTERACTIVE=0
 NO_LOGO=0
@@ -107,7 +107,7 @@ complete_incomplete() {
 
 show_logo() {
     echo -e "${BRAND_MINT}╭───────────────────────────────────╮${NC}"
-    printf "${BRAND_MINT}│${NC} ${BOLD}${BRAND_MINT}%-33s${NC} ${BRAND_MINT}│${NC}\n" "Gateway Node Setup"
+    printf "${BRAND_MINT}│${NC} ${BOLD}${BRAND_MINT}%-33s${NC} ${BRAND_MINT}│${NC}\n" "Opfield Node Setup"
     printf "${BRAND_MINT}│${NC} ${GRAY}%-33s${NC} ${BRAND_MINT}│${NC}\n" "Monitoring daemon installer"
     echo -e "${BRAND_MINT}╰───────────────────────────────────╯${NC}"
     echo ""
@@ -479,21 +479,21 @@ await_gateway_connection() {
     while (( waited < limit )); do
         if daemon_records_gateway_session "$RESOLVED_DAEMON_VERSION"; then
             if gateway_session_is_current; then
-                ok "monitoring-daemon is connected to Gateway"
+                ok "monitoring-daemon is connected to Opfield"
                 return 0
             fi
             # Gateway answered and refused the token: waiting cannot change that.
             if grep -q '"enrollment_refused":true' "$GATEWAY_SESSION_FILE" 2>/dev/null; then
-                err "Gateway refused the enrollment token (already used, expired, or for another node): $(gateway_session_enrollment_error)"
-                err "Create a new setup command in Gateway and run it on this host."
+                err "Opfield refused the enrollment token (already used, expired, or for another node): $(gateway_session_enrollment_error)"
+                err "Create a new setup command in Opfield and run it on this host."
                 show_daemon_log
                 return 1
             fi
         elif [[ -f /etc/monitoring-daemon/certs/node.pem && -f /var/lib/monitoring-daemon/state.json ]] && daemon_service_running; then
             running=$((running + 1))
             if (( running >= 10 )); then
-                ok "monitoring-daemon enrolled with Gateway and is running"
-                warn "monitoring-daemon ${RESOLVED_DAEMON_VERSION} does not report its Gateway connection; check that the node is online in Gateway."
+                ok "monitoring-daemon enrolled with Opfield and is running"
+                warn "monitoring-daemon ${RESOLVED_DAEMON_VERSION} does not report its Opfield connection; check that the node is online in Opfield."
                 return 0
             fi
         else
@@ -504,11 +504,11 @@ await_gateway_connection() {
     done
     local enrollment_error
     if enrollment_error=$(gateway_session_enrollment_error); then
-        err "monitoring-daemon could not enroll with Gateway: ${enrollment_error}"
+        err "monitoring-daemon could not enroll with Opfield: ${enrollment_error}"
     elif ! daemon_service_running; then
         err "monitoring-daemon is not running; the service manager could not keep it up. The log below shows why."
     else
-        err "monitoring-daemon has not connected to Gateway within ${limit} s; check that Gateway at ${GATEWAY_ADDR} is reachable."
+        err "monitoring-daemon has not connected to Opfield within ${limit} s; check that Opfield at ${GATEWAY_ADDR} is reachable."
     fi
     show_daemon_log
     return 1
@@ -827,20 +827,20 @@ refuse_token_for_enrolled_node() {
     [[ -n "$ENROLL_TOKEN" && "$EXISTING_ENROLLED" -eq 1 ]] || return 0
     local node_id node
     node_id=$(sed -nE 's/.*"node_id"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' /var/lib/monitoring-daemon/state.json 2>/dev/null | head -n 1 || true)
-    node="monitoring node ${node_id:-(unknown id)}${EXISTING_GATEWAY_ADDR:+ of Gateway ${EXISTING_GATEWAY_ADDR}}"
+    node="monitoring node ${node_id:-(unknown id)}${EXISTING_GATEWAY_ADDR:+ of Opfield ${EXISTING_GATEWAY_ADDR}}"
     if [[ ! -f "$ENROLLMENT_TOKEN_DIGEST_FILE" ]]; then
         warn "This host is already enrolled as ${node}; the run keeps that enrollment and does not use the enrollment token."
         warn "If this is this node's own setup command (its token already used), nothing else is needed. If it is not, the"
         warn "new node was not enrolled: to enroll this host as that node, stop monitoring-daemon, move /etc/monitoring-daemon/certs and"
-        warn "/var/lib/monitoring-daemon/state.json out of the way, run its setup command again, and delete the old node in Gateway."
+        warn "/var/lib/monitoring-daemon/state.json out of the way, run its setup command again, and delete the old node in Opfield."
         ENROLL_TOKEN=""
         return 0
     fi
     err "This host is already enrolled as ${node}; the enrollment token was not used, and nothing was changed."
     err "To keep this node (update, repair, change its run user), run the installer again without --token."
     err "To enroll this host as the new node instead: stop monitoring-daemon, move /etc/monitoring-daemon/certs and /var/lib/monitoring-daemon/state.json"
-    err "out of the way, run this command again, and delete the old node in Gateway."
-    die "The host is already enrolled; the new node stays pending in Gateway."
+    err "out of the way, run this command again, and delete the old node in Opfield."
+    die "The host is already enrolled; the new node stays pending in Opfield."
 }
 
 detect_existing_install() {
@@ -1054,22 +1054,22 @@ prompt_choice() {
 # ── Parse Arguments ───────────────────────────────────────────────
 show_help() {
     cat <<'HELP'
-Gateway Monitoring Node Setup — installs monitoring-daemon and enrolls with Gateway
+Opfield Monitoring Node Setup — installs monitoring-daemon and enrolls with Opfield
 
 Usage:
   setup-monitoring-node.sh [options]
 
-  In interactive mode (default), the script prompts only for missing gateway host,
-  enrollment token, and Gateway certificate fingerprint. Port defaults to 9443 and
+  In interactive mode (default), the script prompts only for missing Opfield host,
+  enrollment token, and Opfield certificate fingerprint. Port defaults to 9443 and
   daemon version defaults to latest unless supplied.
 
 Options:
-  --gateway <addr>         Gateway gRPC address as host:port (e.g. gateway.example.com:9443)
-  --host <host>            Gateway hostname or IP (e.g. gateway.example.com)
-  --port <port>            Gateway gRPC port (default: 9443)
-  --token <token>          Enrollment token from Gateway UI (Nodes > Add Node)
+  --gateway <addr>         Opfield gRPC address as host:port (e.g. gateway.example.com:9443)
+  --host <host>            Opfield hostname or IP (e.g. gateway.example.com)
+  --port <port>            Opfield gRPC port (default: 9443)
+  --token <token>          Enrollment token from Opfield UI (Nodes > Add Node)
   --gateway-cert-sha256 <fp>
-                           Gateway gRPC TLS leaf fingerprint from the generated setup command
+                           Opfield gRPC TLS leaf fingerprint from the generated setup command
   --version <ver>          Daemon version to install (default: latest; never older than an installed one)
   --user <user>            Run daemon as this user (default: root)
   --disable-console        Turn the host console off (console.enabled: false in the daemon config)
@@ -1088,8 +1088,8 @@ Environment variables:
   GATEWAY_NODE_DAEMON_VERSION   Same as --version
   GATEWAY_NODE_DISABLE_CONSOLE  Set to 1 to disable the host console
   GATEWAY_NODE_DISABLE_FILES    Set to 1 to disable host file access
-  GATEWAY_RELEASES_API_URL      Override the Gateway release feed
-  GATEWAY_ARTIFACT_BASE_URL     Override the Gateway artifact base URL
+  GATEWAY_RELEASES_API_URL      Override the Opfield release feed
+  GATEWAY_ARTIFACT_BASE_URL     Override the Opfield artifact base URL
 
 Examples:
   # Interactive (prompts for everything):
@@ -1175,20 +1175,20 @@ fi
 if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
     guide_start "${GRAY}This script will:${NC}"
     guide "${GRAY}  1. Download and install the monitoring-daemon binary${NC}"
-    guide "${GRAY}  2. Enroll this node with your Gateway server${NC}"
+    guide "${GRAY}  2. Enroll this node with your Opfield server${NC}"
     guide "${GRAY}  3. Start the daemon as a systemd service${NC}"
     guide "${GRAY}  No nginx or other software is required.${NC}"
     guide_blank
 
     if [[ "$EXISTING_ENROLLED" -eq 1 && -n "$EXISTING_GATEWAY_ADDR" && -z "$ENROLL_TOKEN" ]]; then
-        log "Existing enrolled monitoring node detected — reusing current gateway configuration"
+        log "Existing enrolled monitoring node detected — reusing the current Opfield connection settings"
     else
         # Gateway host
         if [[ -z "$GATEWAY_HOST" ]]; then
-            GATEWAY_HOST=$(prompt_input "Gateway hostname or IP" "")
-            [[ -z "$GATEWAY_HOST" ]] && die "Gateway hostname is required"
+            GATEWAY_HOST=$(prompt_input "Opfield hostname or IP" "")
+            [[ -z "$GATEWAY_HOST" ]] && die "Opfield hostname is required"
         else
-            guide "${GRAY}Gateway host: ${BRAND_MINT}${GATEWAY_HOST}${NC}"
+            guide "${GRAY}Opfield host: ${BRAND_MINT}${GATEWAY_HOST}${NC}"
         fi
 
         GATEWAY_ADDR="${GATEWAY_HOST}:${GATEWAY_PORT}"
@@ -1204,10 +1204,10 @@ if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
         fi
 
         if [[ -z "$GATEWAY_CERT_SHA256" ]]; then
-            GATEWAY_CERT_SHA256=$(prompt_input "Gateway certificate SHA-256 fingerprint" "")
-            [[ -z "$GATEWAY_CERT_SHA256" ]] && die "Gateway certificate SHA-256 fingerprint is required"
+            GATEWAY_CERT_SHA256=$(prompt_input "Opfield certificate SHA-256 fingerprint" "")
+            [[ -z "$GATEWAY_CERT_SHA256" ]] && die "Opfield certificate SHA-256 fingerprint is required"
         else
-            guide "${GRAY}Gateway cert: ${GATEWAY_CERT_SHA256}${NC}"
+            guide "${GRAY}Opfield cert: ${GATEWAY_CERT_SHA256}${NC}"
         fi
 
         guide_blank
@@ -1267,7 +1267,7 @@ if [[ "$EXISTING_INSTALL" -eq 1 ]]; then
 fi
 
 summary_start
-summary_row "Gateway:     ${GATEWAY_ADDR}"
+summary_row "Opfield:     ${GATEWAY_ADDR}"
 if [[ -n "$ENROLL_TOKEN" ]]; then
     summary_row "Token:       ${ENROLL_TOKEN:0:12}..."
 else
@@ -1390,7 +1390,7 @@ preview_service_start() {
         manager="OpenRC service monitoring-daemon"
     fi
     log "Enabling and starting monitoring-daemon as ${RUN_USER} (${manager})..."
-    ok "monitoring-daemon is connected to Gateway (dry run)"
+    ok "monitoring-daemon is connected to Opfield (dry run)"
 }
 
 dry_run_preview() {
@@ -1401,7 +1401,7 @@ dry_run_preview() {
     if [[ "$EXISTING_ENROLLED" -eq 1 ]]; then
         ok "Node already enrolled — skipping enrollment (dry run)"
     else
-        log "Writing config and enrolling with Gateway..."
+        log "Writing config and enrolling with Opfield..."
         ok "Config written to /etc/monitoring-daemon/config.yaml (dry run)"
     fi
     preview_host_access_config /etc/monitoring-daemon/config.yaml
@@ -1517,7 +1517,7 @@ enroll_daemon() {
         return 0
     fi
 
-    log "Writing config and enrolling with Gateway..."
+    log "Writing config and enrolling with Opfield..."
     if ! run_as_run_user "$target" install --gateway "$GATEWAY_ADDR" --token "$ENROLL_TOKEN" --gateway-cert-sha256 "$GATEWAY_CERT_SHA256" >> "$LOG_FILE" 2>&1; then
         die "Failed to enroll monitoring-daemon. Check ${LOG_FILE} for details."
     fi
@@ -1549,7 +1549,7 @@ start_daemon() {
     if has_systemd; then
         cat > /etc/systemd/system/monitoring-daemon.service <<UNIT || die "Could not write the monitoring-daemon systemd unit."
 [Unit]
-Description=Gateway Monitoring Daemon
+Description=Opfield Monitoring Daemon
 After=network-online.target
 Wants=network-online.target
 
@@ -1572,8 +1572,8 @@ UNIT
     elif has_openrc; then
         cat > /etc/init.d/monitoring-daemon <<UNIT || die "Could not write the monitoring-daemon OpenRC service."
 #!/sbin/openrc-run
-name="Gateway Monitoring Daemon"
-description="Gateway Monitoring Daemon"
+name="Opfield Monitoring Daemon"
+description="Opfield Monitoring Daemon"
 command="/usr/local/bin/monitoring-daemon"
 command_args="run"
 command_user="${RUN_USER}:${RUN_GROUP}"
@@ -1624,14 +1624,14 @@ apply_host_access_config /etc/monitoring-daemon/config.yaml
 start_daemon
 # An install whose daemon does not run or did not connect to Gateway is not done.
 if ! await_gateway_connection; then
-    die "monitoring-daemon is installed, but it did not connect to Gateway."
+    die "monitoring-daemon is installed, but it did not connect to Opfield."
 fi
 # The daemon enrolls when it first runs, not at install: only now are its certificate and the token's use there.
 remember_enrollment_token
 
 echo ""
 echo ""
-echo -e "  The node should appear as ${GREEN}online${NC} in Gateway within a few seconds."
+echo -e "  The node should appear as ${GREEN}online${NC} in Opfield within a few seconds."
 if [[ "$MANUAL_FALLBACK_USED" -eq 1 ]]; then
     echo -e "  Manual mode is not persistent across reboot."
 elif has_systemd; then

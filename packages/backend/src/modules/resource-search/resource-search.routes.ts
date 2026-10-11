@@ -16,7 +16,7 @@ const searchResourcesRoute = appRoute({
   method: 'get',
   path: '/search',
   tags: ['Resources'],
-  summary: 'Search readable Gateway resources',
+  summary: 'Search readable Opfield resources',
   request: { query: ResourceSearchQuerySchema },
   responses: okJson(UnknownDataResponseSchema),
 });

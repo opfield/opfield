@@ -249,14 +249,14 @@ export function AIWorkspaceScenarioStart({
             {relayNeedsAttention ? (
               <Notice
                 tone="destructive"
-                title="Gateway needs attention"
+                title="Opfield needs attention"
                 actions={
                   <NoticeAction tone="destructive" onClick={onInvestigateOperationalIssue}>
                     Investigate
                   </NoticeAction>
                 }
               >
-                A Gateway relay issue may affect managed nodes or secure database connections.
+                An Opfield relay issue may affect managed nodes or secure database connections.
               </Notice>
             ) : setupPending ? (
               <Notice
@@ -268,7 +268,7 @@ export function AIWorkspaceScenarioStart({
                   </NoticeAction>
                 }
               >
-                Connect infrastructure, secure your account, and enable optional Gateway features.
+                Connect infrastructure, secure your account, and enable optional Opfield features.
               </Notice>
             ) : null}
 

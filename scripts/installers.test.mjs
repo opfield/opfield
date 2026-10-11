@@ -1097,22 +1097,22 @@ test('an enrolled relay re-runs without a token and keeps its identity', { skip:
     // Enrolled, no token: gateway, pin, advertised address and port come from the configuration.
     const kept = dryRun('setup-relay-node.sh', relayArgs);
     assert.equal(kept.status, 0, kept.output);
-    assert.match(kept.output, /for Gateway gw\.example\.com:9443, advertised at relay\.example\.com:853\./);
+    assert.match(kept.output, /for Opfield gw\.example\.com:9443, advertised at relay\.example\.com:853\./);
     assert.match(kept.output, /no token was given: it keeps its identity/);
     // What is given wins.
     const given = dryRun('setup-relay-node.sh', [...relayArgs, '--gateway', 'other.example.com:9443', '--service-port', '9444']);
-    assert.match(given.output, /for Gateway other\.example\.com:9443, advertised at relay\.example\.com:9444\./, given.output);
+    assert.match(given.output, /for Opfield other\.example\.com:9443, advertised at relay\.example\.com:9444\./, given.output);
     // With a token it re-enrolls.
     const reenroll = dryRun('setup-relay-node.sh', ['--token', 'gw_node_new', ...relayArgs]);
     assert.equal(reenroll.status, 2, 'a token alone is not a complete command for a new relay');
     const reenrollFull = dryRun('setup-relay-node.sh', ['--token', 'gw_node_new', ...relayArgs, ...full]);
     assert.equal(reenrollFull.status, 0, reenrollFull.output);
-    assert.match(reenrollFull.output, /a token was given: it re-enrolls, and keeps its previous identity if Gateway refuses the token/);
+    assert.match(reenrollFull.output, /a token was given: it re-enrolls, and keeps its previous identity if Opfield refuses the token/);
     // A configuration that lacks the values cannot be re-run without them.
     runShell(`printf 'gateway:\\n  token: x\\n' > '${config}'`);
     const incomplete = dryRun('setup-relay-node.sh', relayArgs);
     assert.equal(incomplete.status, 2, incomplete.output);
-    assert.match(incomplete.output, /does not name its Gateway, certificate pin and advertised address/);
+    assert.match(incomplete.output, /does not name its Opfield address, certificate pin and advertised address/);
   } finally {
     runShell(`rm -f '${config}' '${identity}' '${path.join(work, 'relay-config.yaml')}'`);
   }
@@ -1663,7 +1663,7 @@ test('the relay installer downloads its binaries from the mirror and checks them
       return runShell(
         [
           'set -euo pipefail',
-          `${env} ARTIFACT_BASE_URL="\${GATEWAY_ARTIFACT_BASE_URL:-https://updates.thesqlabs.com/gateway}"`,
+          `${env} ARTIFACT_BASE_URL="\${GATEWAY_ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"`,
           `TAG=${tag}; VERSION=v2.11.1; ARCH=amd64; LOG_FILE=/dev/null; TEMP_DIR='${dir}/tmp'`,
           'PACKAGE_BASE="${ARTIFACT_BASE_URL%/}/relay-supervisor/${TAG}"',
           // The signature check is the real openssl call in the installer; here every signature verifies.
@@ -1980,14 +1980,14 @@ test('a fresh monitoring install records its token, so a new token is refused af
     };
     const fresh = install('gw_node_fresh');
     assert.equal(fresh.status, 0, fresh.output);
-    assert.match(fresh.output, /monitoring-daemon is connected to Gateway/);
+    assert.match(fresh.output, /monitoring-daemon is connected to Opfield/);
     const recorded = readFileSync(path.join(lib, 'enrollment-token.sha256'), 'utf8').trim();
     assert.equal(recorded, spawnSync('sh', ['-c', "printf '%s' gw_node_fresh | sha256sum | cut -d' ' -f1"], { encoding: 'utf8' }).stdout.trim());
     const config = readFileSync(path.join(etc, 'config.yaml'), 'utf8');
     // A new node's token: refused, nothing changed.
     const refused = install('gw_node_other');
     assert.equal(refused.status, 1, refused.output);
-    assert.match(refused.output, /already enrolled as monitoring node fresh-node of Gateway gw\.example\.com:9443; the enrollment token was not used, and nothing was changed/);
+    assert.match(refused.output, /already enrolled as monitoring node fresh-node of Opfield gw\.example\.com:9443; the enrollment token was not used, and nothing was changed/);
     assert.equal(readFileSync(path.join(etc, 'config.yaml'), 'utf8'), config);
     // The node's own setup command again: it keeps its enrollment and the run completes.
     const same = install('gw_node_fresh');

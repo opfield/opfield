@@ -2,26 +2,26 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/brand/good-gateway-lockup-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/brand/good-gateway-lockup-light.png">
-    <img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/brand/good-gateway-lockup-light.png" width="720" alt="Good Gateway">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/opfield-lockup-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/brand/opfield-lockup-light.png">
+    <img src="docs/assets/brand/opfield-lockup-light.png" width="360" alt="Opfield">
   </picture>
 </p>
 
-# Gateway
+# Opfield
 
 AI-first, но не AI-dependent платформа управления инфраструктурой для nginx ingress, Docker-нагрузок, сертификатов, баз данных, логов, мониторинга, статус-страниц и автоматизации.
 
 > [!NOTE]
 > Основная разработка ведется на [GitHub](https://github.com/the-square-labs/gateway). Issues и запросы функций можно оставлять в [GitHub issue tracker](https://github.com/the-square-labs/gateway/issues).
 
-## Зачем нужен Gateway
+## Зачем нужен Opfield
 
-Gateway дает небольшим инфраструктурным командам один продукт для ежедневной работы, которая обычно разбросана между nginx-конфигами, shell-скриптами, Docker-хостами, папками с сертификатами, клиентами баз данных, дашбордами и alert-инструментами.
+Opfield дает небольшим инфраструктурным командам один продукт для ежедневной работы, которая обычно разбросана между nginx-конфигами, shell-скриптами, Docker-хостами, папками с сертификатами, клиентами баз данных, дашбордами и alert-инструментами.
 
-AI Workspace — рекомендуемый intent-driven интерфейс: начните с полноценного Scenario или опишите желаемый результат, просмотрите предложенный план и решите, выполнять ли его. Operations Console остаётся полноценным независимым интерфейсом для той же инфраструктуры, поэтому установка, эксплуатация, автоматизация и восстановление Gateway не зависят от AI.
+AI Workspace — рекомендуемый intent-driven интерфейс: начните с полноценного Scenario или опишите желаемый результат, просмотрите предложенный план и решите, выполнять ли его. Operations Console остаётся полноценным независимым интерфейсом для той же инфраструктуры, поэтому установка, эксплуатация, автоматизация и восстановление Opfield не зависят от AI.
 
-Используйте Gateway, если хотите:
+Используйте Opfield, если хотите:
 
 - Управлять несколькими proxy, Docker и monitoring узлами без открытия входящих management-портов на этих узлах.
 - Дать операторам сфокусированный UI и API для production-задач без выдачи root shell access.
@@ -32,36 +32,36 @@ AI Workspace — рекомендуемый intent-driven интерфейс: н
 
 ## Первые интеграторы
 
-Gateway уже интегрируют в продуктовую, enterprise-, trading- и fintech-инфраструктуру:
+Opfield уже интегрируют в продуктовую, enterprise-, trading- и fintech-инфраструктуру:
 
-- [Wiolett Industries](https://docs.goodgateway.dev/ru/success-stories/wiolett-industries/) — продуктовая разработка и инфраструктурная доставка.
-- [Remedy Trade](https://docs.goodgateway.dev/ru/success-stories/remedy-trade/) — эксплуатация системной торговли.
-- [Just Working](https://docs.goodgateway.dev/ru/success-stories/just-working/) — enterprise-платформы и cloud-интеграции.
-- [DFK Algotrade](https://docs.goodgateway.dev/ru/success-stories/dfk-algotrade/) — fintech-разработка и портфельная инфраструктура.
+- [Wiolett Industries](https://docs.opfield.dev/ru/success-stories/wiolett-industries/) — продуктовая разработка и инфраструктурная доставка.
+- [Remedy Trade](https://docs.opfield.dev/ru/success-stories/remedy-trade/) — эксплуатация системной торговли.
+- [Just Working](https://docs.opfield.dev/ru/success-stories/just-working/) — enterprise-платформы и cloud-интеграции.
+- [DFK Algotrade](https://docs.opfield.dev/ru/success-stories/dfk-algotrade/) — fintech-разработка и портфельная инфраструктура.
 
 ## Самая быстрая установка
 
-Установите Gateway на Linux-сервер с Docker:
+Установите Opfield на Linux-сервер с Docker:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/the-square-labs/gateway/main/scripts/install.sh | bash
+curl -fsSL https://get.opfield.dev | bash
 ```
 
 > [!IMPORTANT]
-> **Примечание для production-развертывания:** Gateway - привилегированная панель управления инфраструктурой. Для внутренних операций, таких как self-updates и локальное обслуживание, приложение Gateway монтирует Docker socket хоста. Запускайте Gateway в изолированной VM или на выделенном хосте и не размещайте на том же Docker-хосте посторонние workloads.
+> **Примечание для production-развертывания:** Opfield - привилегированная панель управления инфраструктурой. Для внутренних операций, таких как self-updates и локальное обслуживание, приложение Opfield монтирует Docker socket хоста. Запускайте Opfield в изолированной VM или на выделенном хосте и не размещайте на том же Docker-хосте посторонние workloads.
 
-Installer запускает Gateway и выводит одноразовый код настройки. В браузерном мастере затем задаются канонический URL, выбираемые публичные и локальные network endpoints для nodes, один или несколько способов входа (OIDC, пароль или email-код), первый системный администратор, опциональное structured logging и опциональный AI Workspace. Gateway Inference настраивается внутри AI Workspace, а не как отдельный onboarding-продукт.
+Installer запускает Opfield и выводит одноразовый код настройки. В браузерном мастере затем задаются канонический URL, выбираемые публичные и локальные network endpoints для nodes, один или несколько способов входа (OIDC, пароль или email-код), первый системный администратор, опциональное structured logging и опциональный AI Workspace. Opfield Inference настраивается внутри AI Workspace, а не как отдельный onboarding-продукт.
 
 Откройте порты, подходящие для вашей схемы развертывания:
 
 | Порт | Назначение |
 |------|------------|
-| `3000/tcp` | UI/API порт приложения Gateway. Для установок за NAT откройте его только в локальной сети и направьте внешний reverse proxy на него. |
-| `443/tcp` | Опциональный публичный HTTPS endpoint вашего reverse proxy. Сам Gateway слушает `3000/tcp`. |
+| `3000/tcp` | UI/API порт приложения Opfield. Для установок за NAT откройте его только в локальной сети и направьте внешний reverse proxy на него. |
+| `443/tcp` | Опциональный публичный HTTPS endpoint вашего reverse proxy. Сам Opfield слушает `3000/tcp`. |
 | `80/tcp` | HTTP и ACME HTTP-01 challenge, только если используется этот challenge mode. |
-| `9443/tcp` | Публичный relay-backed gRPC endpoint для control и tunnel connections managed daemons. gRPC listener приложения Gateway остаётся внутренним. |
+| `9443/tcp` | Публичный relay-backed gRPC endpoint для control и tunnel connections managed daemons. gRPC listener приложения Opfield остаётся внутренним. |
 
-За NAT или существующим внешним reverse proxy публикуйте `3000/tcp` только в локальной сети и настройте внешний proxy на передачу публичного домена Gateway к выбранному HTTP- или HTTPS-транспорту на `<gateway-lan-ip>:3000`. Managed nodes все равно подключаются исходяще к Gateway на `9443/tcp`; входящие management-порты им не нужны.
+За NAT или существующим внешним reverse proxy публикуйте `3000/tcp` только в локальной сети и настройте внешний proxy на передачу публичного домена Opfield к выбранному HTTP- или HTTPS-транспорту на `<gateway-lan-ip>:3000`. Managed nodes все равно подключаются исходяще к Opfield на `9443/tcp`; входящие management-порты им не нужны.
 
 При новой интерактивной установке единственный shell-вопрос — использовать ли native HTTPS или HTTP на порту `3000`. Вся настройка продукта выполняется в browser wizard; обновления неинтерактивны и сохраняют настройки.
 
@@ -71,8 +71,8 @@ Installer запускает Gateway и выводит одноразовый к
 
 | Цель | Читать |
 |------|--------|
-| Понять, чем может управлять Gateway | [Capabilities](docs/capabilities.md) |
-| Установить Gateway | [Installation guide](docs/installation.md) |
+| Понять, чем может управлять Opfield | [Capabilities](docs/capabilities.md) |
+| Установить Opfield | [Installation guide](docs/installation.md) |
 | Добавить Ingress, Docker, Build Worker, Storage, Monitoring или Relay узлы | [Nodes and daemons](docs/nodes.md) |
 | Запустить Storage-узлы, storage connections и бэкапы баз данных | [Storage and backups](docs/storage-and-backups.md) |
 | Экспортировать или импортировать Docker-контейнеры со встроенным image или без него | [GWCA container archives](docs/docker-container-archives.md) |
@@ -91,7 +91,7 @@ Installer запускает Gateway и выводит одноразовый к
 <td align="center"><strong>Планирование в AI Workspace</strong></td>
 </tr>
 <tr>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/dashboard-overview.png" width="100%" alt="Dashboard Gateway с маршрутами, базами данных, нодами, health status и использованием ресурсов"></td>
+<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/dashboard-overview.png" width="100%" alt="Dashboard Opfield с маршрутами, базами данных, нодами, health status и использованием ресурсов"></td>
 <td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/ai-workspace.png" width="100%" alt="AI Workspace с проверенным планом развертывания инфраструктуры"></td>
 </tr>
 <tr>
@@ -108,36 +108,36 @@ Installer запускает Gateway и выводит одноразовый к
 </tr>
 <tr>
 <td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/ingress-route.png" width="100%" alt="Работающий ingress route с Docker Secure Link"></td>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/nodes.png" width="100%" alt="Список нод Gateway с ingress, Docker, database, monitoring, build и relay ролями"></td>
+<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/nodes.png" width="100%" alt="Список нод Opfield с ingress, Docker, database, monitoring, build и relay ролями"></td>
 </tr>
 </table>
 
-## Что покрывает Gateway
+## Что покрывает Opfield
 
 | Область | Кратко |
 |---------|--------|
-| Ingress | Домен выбирает публичную nginx ingress-ноду или, в Business+, ingress group из нескольких nginx-нод, которые обслуживают одни и те же routes и продолжают работать, пока Gateway или другой участник группы недоступен; route направляет трафик на адрес, Docker container, deployment или Pages Tag. Managed Additional Routes добавляют path-prefix targets внутри одного route, а Additional Secure Link Bindings дают advanced nginx config доступ к Docker upstreams. Также доступны maintenance mode, redirects, WebSockets, access lists, health checks, folders, templates, logs и stats. REST API сохраняет идентификаторы `proxy-host` для совместимости. |
+| Ingress | Домен выбирает публичную nginx ingress-ноду или, в Business+, ingress group из нескольких nginx-нод, которые обслуживают одни и те же routes и продолжают работать, пока Opfield или другой участник группы недоступен; route направляет трафик на адрес, Docker container, deployment или Pages Tag. Managed Additional Routes добавляют path-prefix targets внутри одного route, а Additional Secure Link Bindings дают advanced nginx config доступ к Docker upstreams. Также доступны maintenance mode, redirects, WebSockets, access lists, health checks, folders, templates, logs и stats. REST API сохраняет идентификаторы `proxy-host` для совместимости. |
 | Pages | Проектный static-site hosting с неизменяемыми Deployments, изменяемыми Tags (включая управляемый системой `latest`), custom Routes, направленными на Tags, опциональными wildcard previews, runtime configuration без кэширования, per-project размещением и migration. Доступно в Personal и выше; Business+ добавляет Git source builds на изолированных Build Workers. Metadata источника/проекта, управление builds и publication доступны через AI Workspace и MCP, а remote MCP clients также могут загружать артефакты через authenticated resumable tool без передачи credentials в аргументах. |
-| Docker | Container lifecycle, first-class single-node Compose Projects, доступный в Business+ прямой Git repository/branch push-to-deploy для containers, blue/green deployments и Compose projects, изолированные Build Workers, private-by-default внутренний registry под управлением Gateway во всех планах с опциональным внешним доступом в Business+, профиль runtime Default (`runc`) во всех планах и Secure (`runsc`/gVisor) в Business и Enterprise, Gateway-managed volumes, rollout/rollback, shared физические NVIDIA/AMD/Intel GPU, допустимые cross-node migrations контейнеров и volumes, offline inventory snapshots, registries, images, networks, tasks, webhooks, logs, console, file browser, secrets, env vars, ports и cleanup. Multi-node Availability в Business+ переносит workload между Docker-нодами, в том числе пока Gateway недоступен. Secure workloads не поддерживают GPU, migration и export; GPU-attached workloads в v1 также нельзя мигрировать или экспортировать. |
+| Docker | Container lifecycle, first-class single-node Compose Projects, доступный в Business+ прямой Git repository/branch push-to-deploy для containers, blue/green deployments и Compose projects, изолированные Build Workers, private-by-default внутренний registry под управлением Opfield во всех планах с опциональным внешним доступом в Business+, профиль runtime Default (`runc`) во всех планах и Secure (`runsc`/gVisor) в Business и Enterprise, Opfield-managed volumes, rollout/rollback, shared физические NVIDIA/AMD/Intel GPU, допустимые cross-node migrations контейнеров и volumes, offline inventory snapshots, registries, images, networks, tasks, webhooks, logs, console, file browser, secrets, env vars, ports и cleanup. Multi-node Availability в Business+ переносит workload между Docker-нодами, в том числе пока Opfield недоступен. Secure workloads не поддерживают GPU, migration и export; GPU-attached workloads в v1 также нельзя мигрировать или экспортировать. |
 | Certificates | ACME SSL, uploaded certificates, internal root/intermediate CAs, certificate templates, CRLs, exports и привязка к routes. |
 | Domains | Единый реестр hostnames, выбор nginx ingress-ноды или ingress group, внешний или Cloudflare-managed DNS, validation, usage tracking и явная ingress migration. |
 | Databases | Saved PostgreSQL, key-value и ClickHouse connections с encrypted credentials, health history, browsing, scoped query consoles и capability-aware write operations; private-by-default managed Postgres, key-value store (работает с Redis clients) и ClickHouse instances могут безопасно подключаться к Docker workloads через Console, AI Workspace или MCP. Плановые native backups и restores выполняются на выбранном Storage-узле. Доступно в Personal и выше; с 2.11 это относится и к saved external connections. |
 | Storage | Storage connections к AWS S3, Cloudflare R2, MinIO и другим S3-compatible endpoints, FTP, FTPS и SFTP, а также private-by-default managed SeaweedFS object storage на Storage-узлах с bucket-scoped application bindings. Доступно в Personal и выше. |
 | Monitoring | Node CPU, memory, disk, network, service status, capability-aware telemetry физических GPU, daemon runtime details, log streaming и update checks. |
 | Logging | Опциональный ClickHouse-backed structured log ingestion со schemas, retention, ingest tokens, rate limits, search, storage caps и health safeguards. |
-| Automation | API tokens, OAuth 2.0 PKCE, remote MCP endpoint со scoped-операциями для Ingress, Pages, Databases, Docker/Compose, source builds и Build Workers, чтением internal Gateway documentation, CI/CD webhooks, webhook notifications и status pages. |
+| Automation | API tokens, OAuth 2.0 PKCE, remote MCP endpoint со scoped-операциями для Ingress, Pages, Databases, Docker/Compose, source builds и Build Workers, чтением internal Opfield documentation, CI/CD webhooks, webhook notifications и status pages. |
 | Integrations | GitLab workflows для projects, repositories, CI/CD, variables, webhooks, registry и sandbox; GitHub repositories и Actions; generic Git connectors; external SSH connectors; Cloudflare DNS/ACME automation. Credentials connectors шифруются, а доступ ограничен scopes. GitLab integration доступна в Personal и выше. |
-| Relay | Long-lived local relay владеет публичным `9443/tcp` для daemon control и managed tunnel traffic. Relay Pool добавляет remote supervisor/worker pairs, явное placement и rebalancing, drain и rolling signed updates, сохраняя один логический Secure Link. Сертификаты Gateway, local relay и remote relay обновляются без перезапуска. |
+| Relay | Long-lived local relay владеет публичным `9443/tcp` для daemon control и managed tunnel traffic. Relay Pool добавляет remote supervisor/worker pairs, явное placement и rebalancing, drain и rolling signed updates, сохраняя один логический Secure Link. Сертификаты Opfield, local relay и remote relay обновляются без перезапуска. |
 | AI Workspace | Опциональные intent-driven operations с готовыми Scenarios, Plan Mode, permission-aware tools, approvals, sandboxed execution, отслеживанием прогресса и финальной проверкой. До явного подтверждения планирование не выполняет изменений. Scenarios, Plan Mode и sandboxed execution доступны в Personal и выше. |
 | Inference | Опциональный multi-provider model gateway с отдельными tokens, usage controls, capability-compatible cross-provider fallback до начала output, OpenAI- и Anthropic-compatible API и управляемой настройкой Codex или Claude Code с опциональным user-session auto-start через `@sqgateway/inference`. |
 | Administration | OIDC, password, email-code и passkey login, group-based и дополнительные per-user permissions, scoped programmatic access, audit logs, setup state, updates и license controls. |
 
 ## Как это работает
 
-Gateway запускается как Docker stack на control-plane сервере. Managed hosts запускают небольшие Go daemons, которые подключаются к Gateway исходящим gRPC с mTLS.
+Opfield запускается как Docker stack на control-plane сервере. Managed hosts запускают небольшие Go daemons, которые подключаются к Opfield исходящим gRPC с mTLS.
 
 ```text
-                Gateway server
+                Opfield server
         +-----------------------------+
         | app + relay + registry      |
         | redis                       |
@@ -154,51 +154,51 @@ Gateway запускается как Docker stack на control-plane серве
  ingress route  container host    databases, S3 store  metrics-only host
 ```
 
-Relay — отдельный long-lived container и единственный публичный владелец `9443/tcp`. Обычные app-only обновления сохраняют relay container и установленные managed-database binding streams; обновление relay остается отдельным событием обслуживания data plane. Каждый релиз Relay указывает минимальную версию Gateway, и Gateway предлагает или применяет отдельное обновление relay только после того, как сам работает на этой версии.
+Relay — отдельный long-lived container и единственный публичный владелец `9443/tcp`. Обычные app-only обновления сохраняют relay container и установленные managed-database binding streams; обновление relay остается отдельным событием обслуживания data plane. Каждый релиз Relay указывает минимальную версию Opfield, и Opfield предлагает или применяет отдельное обновление relay только после того, как сам работает на этой версии.
 
-Gateway раз в час проверяет свои сертификаты gRPC, web и local relay и обновляет каждый за 30 дней до истечения без перезапуска: установленные соединения daemons и relay сохраняют текущий сертификат, а новые handshakes получают обновлённый. Пока есть неиспользованные enrollment tokens, gRPC-сертификат, закреплённый в их командах установки, обновляется только в последнюю неделю срока.
+Opfield раз в час проверяет свои сертификаты gRPC, web и local relay и обновляет каждый за 30 дней до истечения без перезапуска: установленные соединения daemons и relay сохраняют текущий сертификат, а новые handshakes получают обновлённый. Пока есть неиспользованные enrollment tokens, gRPC-сертификат, закреплённый в их командах установки, обновляется только в последнюю неделю срока.
 
-Локальный relay можно расширить до единого Relay Pool в **Settings > Relay**. Дополнительные relay-ноды подключаются через отдельный supervisor, исходяще соединяются с Gateway для управления и публикуют только настроенный data endpoint relay (по умолчанию TCP `9443`) для участвующих managed hosts. Gateway не меняет firewall, не выполняет NAT traversal и не создаёт overlay network. Gateway сам переносит placements на новый relay, когда pool стабилен (или когда администратор запускает **Rebalance**), и переключает workload только после того, как его хосты достучались до нового relay; новые соединения затем распределяются по заранее проверенному активному набору relay workload-а, а пользователь по-прежнему видит один логический Secure Link. Сертификаты remote relay обновляются автоматически до истечения; remote relay, который не может восстановиться, можно заново подключить на той же странице, а policy trust локального relay Gateway восстанавливает сам.
+Локальный relay можно расширить до единого Relay Pool в **Settings > Relay**. Дополнительные relay-ноды подключаются через отдельный supervisor, исходяще соединяются с Opfield для управления и публикуют только настроенный data endpoint relay (по умолчанию TCP `9443`) для участвующих managed hosts. Opfield не меняет firewall, не выполняет NAT traversal и не создаёт overlay network. Opfield сам переносит placements на новый relay, когда pool стабилен (или когда администратор запускает **Rebalance**), и переключает workload только после того, как его хосты достучались до нового relay; новые соединения затем распределяются по заранее проверенному активному набору relay workload-а, а пользователь по-прежнему видит один логический Secure Link. Сертификаты remote relay обновляются автоматически до истечения; remote relay, который не может восстановиться, можно заново подключить на той же странице, а policy trust локального relay Opfield восстанавливает сам.
 
 Узлам не нужны входящие management-порты. Public traffic ports, например `80` и `443` на nginx nodes, все еще нужны для сервисов, которые вы публикуете.
 
 ## Security Model
 
-Gateway по умолчанию ориентирован на безопасную работу как infrastructure control plane:
+Opfield по умолчанию ориентирован на безопасную работу как infrastructure control plane:
 
 - Вход поддерживает OIDC, пароль, email-коды и passkeys. Local authentication требует проверенной SMTP-доставки, а group MFA policy применяется после primary credential.
-- Managed nodes подключаются к Gateway исходяще по gRPC с mTLS. Первая регистрация требует одноразовый token и сгенерированный fingerprint gRPC-сертификата Gateway, а daemon проверяет TLS leaf Gateway перед отправкой token. После enrollment daemon-команды требуют client certificate, выпущенный внутренней node CA Gateway.
-- Каждый node certificate привязан к node identity. Gateway проверяет mTLS certificate identity перед приемом control streams, log streams и certificate renewal requests.
-- Узлам не нужны входящие management-порты. Потеря доступа к Gateway не останавливает существующие nginx configs или Docker containers; она только приостанавливает centralized control.
+- Managed nodes подключаются к Opfield исходяще по gRPC с mTLS. Первая регистрация требует одноразовый token и сгенерированный fingerprint gRPC-сертификата Opfield, а daemon проверяет TLS leaf Opfield перед отправкой token. После enrollment daemon-команды требуют client certificate, выпущенный внутренней node CA Opfield.
+- Каждый node certificate привязан к node identity. Opfield проверяет mTLS certificate identity перед приемом control streams, log streams и certificate renewal requests.
+- Узлам не нужны входящие management-порты. Потеря доступа к Opfield не останавливает существующие nginx configs или Docker containers; она только приостанавливает centralized control.
 - API tokens, OAuth grants, MCP access, database credentials, certificate exports и secret reveal operations ограничены scopes, не превышают текущие permissions владельца и аудируются.
 - Private key material и сохраненные infrastructure credentials шифруются at rest с настроенным `PKI_MASTER_KEY`.
 
-Итог - PKI-backed trust model: short-lived enrollment tokens вводят узел в систему только после того, как daemon подтвердит, что говорит с pinned Gateway certificate, а долгосрочное доверие основано на certificate identity вместо reusable shared secrets. Это дает Gateway сильную базовую защиту от token interception во время setup и node hijacking после enrollment. Полное объяснение и hardening checklist см. в [security model](docs/security.md).
+Итог - PKI-backed trust model: short-lived enrollment tokens вводят узел в систему только после того, как daemon подтвердит, что говорит с pinned Opfield certificate, а долгосрочное доверие основано на certificate identity вместо reusable shared secrets. Это дает Opfield сильную базовую защиту от token interception во время setup и node hijacking после enrollment. Полное объяснение и hardening checklist см. в [security model](docs/security.md).
 
 ## FAQ
 
 <details>
-<summary><strong>Gateway заменяет Kubernetes?</strong></summary>
+<summary><strong>Opfield заменяет Kubernetes?</strong></summary>
 
-Нет. Gateway предназначен для прямых инфраструктурных операций: nginx hosts, Docker hosts, certificates, domains, databases, logs, monitoring и automation. Он может использоваться рядом с Kubernetes, но не пытается быть Kubernetes control plane.
+Нет. Opfield предназначен для прямых инфраструктурных операций: nginx hosts, Docker hosts, certificates, domains, databases, logs, monitoring и automation. Он может использоваться рядом с Kubernetes, но не пытается быть Kubernetes control plane.
 </details>
 
 <details>
 <summary><strong>Узлам нужны входящие management-порты?</strong></summary>
 
-Нет. Daemons подключаются к Gateway исходящим gRPC с mTLS. Nginx nodes все еще нужны обычные public traffic ports, такие как `80` и `443`, если они обслуживают публичные сайты.
+Нет. Daemons подключаются к Opfield исходящим gRPC с mTLS. Nginx nodes все еще нужны обычные public traffic ports, такие как `80` и `443`, если они обслуживают публичные сайты.
 </details>
 
 <details>
-<summary><strong>Может ли Gateway управлять существующим nginx host?</strong></summary>
+<summary><strong>Может ли Opfield управлять существующим nginx host?</strong></summary>
 
-Да. Установите nginx daemon в режиме `integrate`. Gateway сохранит ваш существующий `nginx.conf` и добавит managed includes плюс локальный stats endpoint. См. [nginx node modes](docs/nodes.md#nginx-node-modes).
+Да. Установите nginx daemon в режиме `integrate`. Opfield сохранит ваш существующий `nginx.conf` и добавит managed includes плюс локальный stats endpoint. См. [nginx node modes](docs/nodes.md#nginx-node-modes).
 </details>
 
 <details>
-<summary><strong>Может ли Gateway работать без ClickHouse?</strong></summary>
+<summary><strong>Может ли Opfield работать без ClickHouse?</strong></summary>
 
-Да. Выберите **Disabled** для structured logging в first-run wizard или **Settings > Features**. Остальная часть Gateway продолжает работать; managed local ClickHouse можно отключить без удаления data volume.
+Да. Выберите **Disabled** для structured logging в first-run wizard или **Settings > Features**. Остальная часть Opfield продолжает работать; managed local ClickHouse можно отключить без удаления data volume.
 </details>
 
 <details>
@@ -208,37 +208,37 @@ Gateway по умолчанию ориентирован на безопасну
 </details>
 
 <details>
-<summary><strong>Как Gateway предотвращает hijacking managed nodes?</strong></summary>
+<summary><strong>Как Opfield предотвращает hijacking managed nodes?</strong></summary>
 
-Gateway использует собственную internal PKI для daemon identity. Команда setup узла содержит one-time enrollment token и fingerprint gRPC-сертификата Gateway. Daemon проверяет представленный Gateway TLS leaf certificate перед отправкой token, получает mTLS client certificate от node CA Gateway, удаляет token из локального config и переподключается с certificate. Gateway затем проверяет certificate identity на control streams, log streams и renewal requests. См. [security model](docs/security.md).
+Opfield использует собственную internal PKI для daemon identity. Команда setup узла содержит one-time enrollment token и fingerprint gRPC-сертификата Opfield. Daemon проверяет представленный Opfield TLS leaf certificate перед отправкой token, получает mTLS client certificate от node CA Opfield, удаляет token из локального config и переподключается с certificate. Opfield затем проверяет certificate identity на control streams, log streams и renewal requests. См. [security model](docs/security.md).
 </details>
 
 <details>
-<summary><strong>Что произойдет, если Gateway offline?</strong></summary>
+<summary><strong>Что произойдет, если Opfield offline?</strong></summary>
 
-Managed services продолжают работать. Existing nginx configs продолжают обслуживать traffic, Docker containers продолжают работать, а daemons переподключаются, когда Gateway возвращается. Centralized UI/API control недоступен до восстановления приложения. Relays работают по последней подписанной policy в течение relay policy lease, по умолчанию 72 часа (**Settings > Relay**), после этого не принимают новые соединения до возвращения Gateway. Политики Docker Availability в lease mode продолжают failover без Gateway: в режиме strict (по умолчанию) копия на ноде, отрезанной от большинства voters своей политики, останавливается штатно, и её место занимает следующий кандидат. Подробнее в [offline behavior](docs/nodes.md#offline-behavior).
+Managed services продолжают работать. Existing nginx configs продолжают обслуживать traffic, Docker containers продолжают работать, а daemons переподключаются, когда Opfield возвращается. Centralized UI/API control недоступен до восстановления приложения. Relays работают по последней подписанной policy в течение relay policy lease, по умолчанию 72 часа (**Settings > Relay**), после этого не принимают новые соединения до возвращения Opfield. Политики Docker Availability в lease mode продолжают failover без Opfield: в режиме strict (по умолчанию) копия на ноде, отрезанной от большинства voters своей политики, останавливается штатно, и её место занимает следующий кандидат. Подробнее в [offline behavior](docs/nodes.md#offline-behavior).
 </details>
 
 <details>
 <summary><strong>AI Workspace обязателен?</strong></summary>
 
-Нет. AI Workspace опционален. Operations Console, REST API, OAuth и MCP работают независимо, а Gateway не отправляет данные AI provider, пока администратор не включит AI Workspace и не настроит provider. Оператор может начать с готового Scenario или выбрать Plan Mode для подготовки проверенного и понятного плана; до явного подтверждения реализации никаких изменений не выполняется.
+Нет. AI Workspace опционален. Operations Console, REST API, OAuth и MCP работают независимо, а Opfield не отправляет данные AI provider, пока администратор не включит AI Workspace и не настроит provider. Оператор может начать с готового Scenario или выбрать Plan Mode для подготовки проверенного и понятного плана; до явного подтверждения реализации никаких изменений не выполняется.
 </details>
 
 ## Планы и лицензирование
 
-У Gateway четыре продуктовых плана. Платные планы применяются к одной установке Gateway без отдельной оплаты за managed nodes, пользователей или custom permission groups.
+У Opfield четыре продуктовых плана. Платные планы применяются к одной установке Opfield без отдельной оплаты за managed nodes, пользователей или custom permission groups.
 
-Исходный код Gateway публикуется Square Labs по [PolyForm Perimeter License 1.0.1](LICENSE.md). Код можно использовать, изменять и распространять, в том числе внутри коммерческой компании. Ограничение касается предложения другим людям или организациям продукта, который позиционируется как замена Gateway. Ключ Personal, Business или Enterprise открывает возможности и лимиты соответствующего тарифа по [Paid Key Terms](COMMERCIAL-LICENSE.md); обычный ключ не даёт права выпускать OEM- или white-label-версию, перепродавать Gateway либо предлагать конкурирующий hosted-сервис.
+Исходный код Opfield публикуется по [PolyForm Perimeter License 1.0.1](LICENSE.md). Код можно использовать, изменять и распространять, в том числе внутри коммерческой компании. Ограничение касается предложения другим людям или организациям продукта, который позиционируется как замена Opfield. Ключ Personal, Business или Enterprise открывает возможности и лимиты соответствующего тарифа по [Paid Key Terms](COMMERCIAL-LICENSE.md); обычный ключ не даёт права выпускать OEM- или white-label-версию, перепродавать Opfield либо предлагать конкурирующий hosted-сервис.
 
-Каждый официальный релиз также содержит [Product Continuity MIT Grant](CONTINUITY-MIT-GRANT.md) — механизм сохранения доступности исходного кода Square Labs в долгосрочной перспективе. Полная область действия, условия, исключения и правила возможного перехода под MIT определены только в самом grant.
+Каждый официальный релиз также содержит [Product Continuity MIT Grant](CONTINUITY-MIT-GRANT.md) — механизм сохранения доступности исходного кода Opfield в долгосрочной перспективе. Полная область действия, условия, исключения и правила возможного перехода под MIT определены только в самом grant.
 
 > [!NOTE]
 > Цены предварительные, не являются офертой и могут измениться. Перед покупкой уточните актуальные цены и условия.
 
 | План | Месяц | Год | Масштаб и назначение |
 |------|-------|-----|----------------------|
-| ![Community](docs/assets/license/wiolett-gw-community-24.png)<br>Community | $0 | $0 | Ядро платформы, AI Workspace и Gateway Inference для своей инфраструктуры и других сценариев, не конкурирующих с Gateway; до 25 managed nodes, 3 пользователей и 1 custom permission group; read-only discovery, inventory, monitoring и logs Compose-проектов. Pages, databases, storage, GitLab integration, а также Scenarios, Plan Mode и sandboxes AI Workspace недоступны. |
+| ![Community](docs/assets/license/wiolett-gw-community-24.png)<br>Community | $0 | $0 | Ядро платформы, AI Workspace и Opfield Inference для своей инфраструктуры и других сценариев, не конкурирующих с Opfield; до 25 managed nodes, 3 пользователей и 1 custom permission group; read-only discovery, inventory, monitoring и logs Compose-проектов. Pages, databases, storage, GitLab integration, а также Scenarios, Plan Mode и sandboxes AI Workspace недоступны. |
 | ![Personal](docs/assets/license/wiolett-gw-personal-24.png)<br>Personal | $29 | $290 | Неограниченные plan quotas для managed nodes/users/groups, deployment и lifecycle management Compose-проектов, import/export архивов контейнеров, blue/green deployments, cross-node migration, managed databases и external database connections с бэкапами, storage connections и managed SeaweedFS object storage, GitLab integration, Scenarios, Plan Mode и sandboxes AI Workspace, публичные status pages, Pages static-site hosting и registry discovery. Multi-node Workload Availability доступна с Business и выше. |
 | ![Business](docs/assets/license/wiolett-gw-business-24.png)<br>Business | $189 | $1,890 | Возможности Personal (включая Compose management и Pages), а также Git push-to-deploy для containers, blue/green deployments, Compose Projects и Pages с изолированными Build Workers и build vulnerability policy, опциональный внешний доступ к private internal registry, Docker Secure Runtime, structured logging, audit export, guided onboarding, доступную multi-node Workload Availability (HA), а также расширенное сканирование безопасности, автомасштабирование по метрикам и same-node multi-instance после выпуска. |
 | ![Enterprise](docs/assets/license/wiolett-gw-enterprise-24.png)<br>Enterprise | По запросу | По запросу | Возможности Business (включая Pages), а также Internal PKI, SIEM export, выделенный технический контакт и сопровождение развёртывания и миграции. |
@@ -247,6 +247,6 @@ Managed services продолжают работать. Existing nginx configs �
 
 Полная матрица возможностей, статусы доступности, проверка лицензии и граница source license приведены в [Планах и лицензировании](docs/licensing.md).
 
-После истечения платного ключа технические entitlements продолжают действовать 24 часа для Personal, 3 дня для Business или 7 дней для Enterprise. Затем Gateway блокирует создание новых платных ресурсов и другие новые платные операции, но не останавливает и не удаляет уже настроенную инфраструктуру. Отозванные, заменённые, недействительные и явно деактивированные ключи обрабатываются отдельно.
+После истечения платного ключа технические entitlements продолжают действовать 24 часа для Personal, 3 дня для Business или 7 дней для Enterprise. Затем Opfield блокирует создание новых платных ресурсов и другие новые платные операции, но не останавливает и не удаляет уже настроенную инфраструктуру. Отозванные, заменённые, недействительные и явно деактивированные ключи обрабатываются отдельно.
 
-Copyright (c) 2021-2026 [Square Labs](https://thesquarelabs.com)
+Copyright (c) 2021-2026 Alexandr Slavinschii, Republic of Moldova

@@ -282,7 +282,7 @@ export function AdminNodeDetail({
                 ? "Cancel hosted server rental"
                 : "Destroy hosted VM"
               : `${action === "recover" ? "Restart daemon on" : action} provider VM`,
-          description: `This affects every Gateway role and workload on ${hosting.kind.toUpperCase()} ${hosting.remoteId}. ${action === "delete" ? "The VM and its data will be deleted, followed by its associated Gateway nodes. Proxmox VMs are shut down first." : action === "recover" ? "Restart only the known Gateway daemon services, without rebooting or reinstalling the VM." : "Provider VM power operations may interrupt traffic and running workloads."}`,
+          description: `This affects every Opfield role and workload on ${hosting.kind.toUpperCase()} ${hosting.remoteId}. ${action === "delete" ? "The VM and its data will be deleted, followed by its associated Opfield nodes. Proxmox VMs are shut down first." : action === "recover" ? "Restart only the known Opfield daemon services, without rebooting or reinstalling the VM." : "Provider VM power operations may interrupt traffic and running workloads."}`,
           variant: action === "start" ? "default" : "destructive",
         }))
       )
@@ -1271,7 +1271,7 @@ export function AdminNodeDetail({
               tone="destructive"
               role="alert"
               className="mt-2"
-              title="This node's daemon version is incompatible with the gateway"
+              title="This node's daemon version is incompatible with Opfield"
             >
               Update the daemon to restore full functionality.
             </Notice>

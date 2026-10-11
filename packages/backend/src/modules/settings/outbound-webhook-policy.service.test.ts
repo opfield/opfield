@@ -63,7 +63,7 @@ describe('checkOutboundWebhookTarget', () => {
     } as Env);
 
     expect(result.allowed).toBe(false);
-    expect(result.reason).toContain('Gateway address');
+    expect(result.reason).toContain('Opfield address');
   });
 
   it('blocks configured local bind addresses', async () => {
@@ -73,6 +73,6 @@ describe('checkOutboundWebhookTarget', () => {
     } as Env);
 
     expect(result.allowed).toBe(false);
-    expect(result.reason).toContain('Gateway address');
+    expect(result.reason).toContain('Opfield address');
   });
 });

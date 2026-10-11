@@ -249,8 +249,8 @@ export function AgentSkillsPanel() {
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>
               {selectedSkill?.source === "system"
-                ? "System skills are maintained by Gateway and cannot be changed or disabled."
-                : "Skills are shared across AI Workspace and cannot override Gateway security or permissions."}
+                ? "System skills are maintained by Opfield and cannot be changed or disabled."
+                : "Skills are shared across AI Workspace and cannot override Opfield security or permissions."}
             </DialogDescription>
           </DialogHeader>
           <PanelShell>

@@ -29,7 +29,7 @@ export function LicenseFeatureBoundary({
       message={
         allowed === false || snapshot?.license.plan === "community"
           ? `${capability} requires the ${planName} plan.`
-          : `${capability} is unavailable while this Gateway's paid features are not ready.`
+          : `${capability} is unavailable while this installation's paid features are not ready.`
       }
       actionLabel="License options"
       onAction={() => requireLicenseFeature(feature, capability)}

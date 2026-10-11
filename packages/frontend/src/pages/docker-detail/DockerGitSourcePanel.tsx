@@ -895,7 +895,7 @@ export function DockerGitSourcePanel({
                 {pagesTarget
                   ? connectStep === 1
                     ? "Choose the repository and application root for this Pages Project."
-                    : "Configure how Gateway builds and publishes the Pages artifact."
+                    : "Configure how Opfield builds and publishes the Pages artifact."
                   : composeTarget
                     ? "Build every Compose service that declares build and apply the project only after all artifacts pass policy."
                     : "Build and deploy this Docker resource from an allowlisted repository."}
@@ -1072,7 +1072,7 @@ export function DockerGitSourcePanel({
           <SettingsControlRow
             title="Repository"
             description="Allowlisted project from the Git provider."
-            help="The repository Gateway checks out for every build of this resource. Access comes from the selected Git integration."
+            help="The repository Opfield checks out for every build of this resource. Access comes from the selected Git integration."
           >
             <span className="flex min-w-0 items-center gap-2 text-sm">
               <GitBranch className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -1082,14 +1082,14 @@ export function DockerGitSourcePanel({
           <SettingsControlRow
             title="Git integration"
             description="Credentials used for unattended checkout."
-            help="The saved Git provider connection Gateway uses to read the repository, resolve commits, receive webhooks, and download source code without an interactive login."
+            help="The saved Git provider connection Opfield uses to read the repository, resolve commits, receive webhooks, and download source code without an interactive login."
           >
             <Badge variant="secondary">{source.provider} integration</Badge>
           </SettingsControlRow>
           <SettingsControlRow
             title="Branch"
-            description="Gateway follows new commits on this branch."
-            help="Gateway watches this branch for new commits. Automatic builds use its latest accepted commit; manual builds also start from this branch."
+            description="Opfield follows new commits on this branch."
+            help="Opfield watches this branch for new commits. Automatic builds use its latest accepted commit; manual builds also start from this branch."
           >
             <Input
               value={settings.branch}
@@ -1117,7 +1117,7 @@ export function DockerGitSourcePanel({
           <SettingsControlRow
             title="Automatic builds"
             description="Build each new commit found on the branch."
-            help="When enabled, Gateway queues a build as soon as a webhook, the poll or Sync now finds a new commit on the branch. When disabled, the repository stays connected and builds start only from Build now."
+            help="When enabled, Opfield queues a build as soon as a webhook, the poll or Sync now finds a new commit on the branch. When disabled, the repository stays connected and builds start only from Build now."
           >
             <Switch
               checked={settings.autoBuild}
@@ -1162,7 +1162,7 @@ export function DockerGitSourcePanel({
             <SettingsControlRow
               title="Compose file"
               description="Compose file path from the repository root."
-              help="The Compose file Gateway reads to find every service that declares build. All of them are built before the project is applied."
+              help="The Compose file Opfield reads to find every service that declares build. All of them are built before the project is applied."
             >
               <Input
                 value={settings.composeFilePath}
@@ -1177,7 +1177,7 @@ export function DockerGitSourcePanel({
               <SettingsControlRow
                 title="Package manager"
                 description="Installs dependencies and runs the script."
-                help="Gateway uses this tool for dependency installation and to run the selected package.json build script inside the isolated builder."
+                help="Opfield uses this tool for dependency installation and to run the selected package.json build script inside the isolated builder."
               >
                 <Select
                   value={settings.packageManager}
@@ -1232,7 +1232,7 @@ export function DockerGitSourcePanel({
               <SettingsControlRow
                 title="Artifact directory"
                 description="Output folder to publish, from the app root."
-                help="The build output Gateway packages and serves as the Pages deployment, relative to the Application root. Typical values are dist, build, or out."
+                help="The build output Opfield packages and serves as the Pages deployment, relative to the Application root. Typical values are dist, build, or out."
               >
                 <Input
                   value={settings.artifactDirectory}
@@ -1245,7 +1245,7 @@ export function DockerGitSourcePanel({
               <SettingsControlRow
                 title="Publish Tag"
                 description="Pages Tag that each successful build moves."
-                help="After a successful build, Gateway publishes the new immutable deployment to this existing Tag. Routes and runtime configuration can target the Tag by name."
+                help="After a successful build, Opfield publishes the new immutable deployment to this existing Tag. Routes and runtime configuration can target the Tag by name."
               >
                 <Input
                   value={settings.publishTag}
@@ -1541,7 +1541,7 @@ export function DockerGitSourcePanel({
         </SettingsControlRow>
         <SettingsControlRow
           title="Update detection"
-          description="Gateway-managed trigger used to discover new commits."
+          description="Opfield-managed trigger used to discover new commits."
         >
           {/* Gateway polls only sources that build automatically; the rest wait for a webhook or Sync now. */}
           <Badge variant="secondary">

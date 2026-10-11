@@ -22,6 +22,6 @@ it("signin-login-email", async () => {
       await user.type(await screen.findByRole("textbox"), "lena.novak@example.com");
       await settle(600);
     },
-    notes: ["The email step: Gateway picks password or one-time code for the address."],
+    notes: ["The email step: Opfield picks password or one-time code for the address."],
   });
 });

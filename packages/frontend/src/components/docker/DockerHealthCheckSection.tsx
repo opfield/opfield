@@ -172,10 +172,10 @@ export function DockerHealthCheckSection({
       title={
         <SettingsHelpTitle
           label="Health Check"
-          help="Gateway periodically requests a published HTTP route and records availability, response time, status code, and optional body validation."
+          help="Opfield periodically requests a published HTTP route and records availability, response time, status code, and optional body validation."
         />
       }
-      description="Gateway HTTP health from a published route"
+      description="Opfield HTTP health from a published route"
       dirty={changed}
       wrapHeader
       actions={
@@ -203,8 +203,8 @@ export function DockerHealthCheckSection({
     >
       <SettingsControlRow
         title="Enabled"
-        description="Run gateway HTTP checks for this target"
-        help="Starts scheduled checks from Gateway. This is separate from a Dockerfile HEALTHCHECK executed inside the Docker runtime."
+        description="Run Opfield HTTP checks for this target"
+        help="Starts scheduled checks from Opfield. This is separate from a Dockerfile HEALTHCHECK executed inside the Docker runtime."
         controlsClassName="flex justify-end justify-self-end !w-auto !min-w-0 !max-w-none"
       >
         <Switch
@@ -217,7 +217,7 @@ export function DockerHealthCheckSection({
       <SettingsControlRow
         title="Route and Scheme"
         description="Published route used for checks"
-        help="Selects the published host/container port pair Gateway should call and whether the request uses HTTP or HTTPS."
+        help="Selects the published host/container port pair Opfield should call and whether the request uses HTTP or HTTPS."
       >
         <div className="grid w-full gap-2 sm:grid-cols-2">
           <div className="space-y-1">
@@ -314,7 +314,7 @@ export function DockerHealthCheckSection({
       <SettingsControlRow
         title="Timing"
         description="Check interval and request timeout"
-        help="Interval controls how often Gateway checks the route. Timeout is the maximum wait for one response and should remain shorter than the interval."
+        help="Interval controls how often Opfield checks the route. Timeout is the maximum wait for one response and should remain shorter than the interval."
       >
         <div className="grid w-full gap-2 sm:grid-cols-2">
           <Input

@@ -47,7 +47,7 @@ export const DEFAULT_SMTP_DRAFT: SmtpDraft = {
   tlsMode: SMTP_PRESETS.resend.tlsMode,
   username: SMTP_PRESETS.resend.username,
   password: "",
-  senderName: "Gateway",
+  senderName: "Opfield",
   senderEmail: "",
 };
 

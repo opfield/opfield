@@ -109,7 +109,7 @@ export async function assertProxyReferenceAccess(
       throw new AppError(
         400,
         'INTERNAL_CERTIFICATE_NOT_ALLOWED',
-        'Certificates issued by a Gateway system CA cannot be used for proxy routes'
+        'Certificates issued by an Opfield system CA cannot be used for proxy routes'
       );
     }
     if (certificate.type !== 'tls-server') {
@@ -122,7 +122,7 @@ export async function assertProxyReferenceAccess(
       throw new AppError(
         400,
         'INTERNAL_CERTIFICATE_NOT_ALLOWED',
-        'The PKI certificate has no Gateway-managed private key to deploy'
+        'The PKI certificate has no Opfield-managed private key to deploy'
       );
     }
   }

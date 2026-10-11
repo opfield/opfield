@@ -899,7 +899,7 @@ function GitLabIntegrationsContent() {
                         <SettingsControlRow
                           title="Clone Timeout"
                           description="Maximum time allowed for Git clone operations."
-                          help="Value is seconds. Gateway aborts the repository download when this duration is exceeded."
+                          help="Value is seconds. Opfield aborts the repository download when this duration is exceeded."
                         >
                           <Input
                             type="number"

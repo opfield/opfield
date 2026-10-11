@@ -1221,7 +1221,7 @@ export function AlertDialog({
                       placeholder={resolvePlaceholder}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Sent when the alert resolves. Leave empty to use Gateway's text for this
+                      Sent when the alert resolves. Leave empty to use Opfield's text for this
                       alert, such as "Proxy host example.com is back online after 13m 2s."
                     </p>
                   </div>

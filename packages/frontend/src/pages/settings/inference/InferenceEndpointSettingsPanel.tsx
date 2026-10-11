@@ -23,7 +23,7 @@ export function InferenceEndpointRow() {
     <SettingsControlRow
       title="Base URL"
       description="Root URL for the OpenAI-compatible inference API used by clients."
-      help="Use this address as the provider base URL in OpenAI-compatible clients. Authentication still uses a Gateway inference API token."
+      help="Use this address as the provider base URL in OpenAI-compatible clients. Authentication still uses an Opfield inference API token."
     >
       <CopyValueField label="Base URL" showLabel={false} value={baseUrl} className="w-full" />
     </SettingsControlRow>
@@ -98,7 +98,7 @@ export function InferenceHarnessDialog({
             <div>
               <p className="text-sm font-medium">Codex</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Configures Codex CLI and Desktop through a managed local proxy and Gateway model
+                Configures Codex CLI and Desktop through a managed local proxy and Opfield model
                 catalog.
               </p>
             </div>
@@ -112,7 +112,7 @@ export function InferenceHarnessDialog({
               <p className="text-sm font-medium">Codex Desktop requires extra setup</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 Sign in to an OpenAI account through Codex’s normal login flow first. Codex Desktop
-                does not show custom model catalogs without that account session. After Gateway
+                does not show custom model catalogs without that account session. After Opfield
                 setup or login changes, fully quit and reopen Codex so it reloads the catalog.
               </p>
             </div>

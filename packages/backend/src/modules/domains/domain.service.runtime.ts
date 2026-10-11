@@ -294,7 +294,7 @@ export abstract class DomainsServiceRuntime {
       throw new AppError(
         409,
         'CLOUDFLARE_DNS_RECORD_CONFLICT',
-        'Remove the existing CNAME before Gateway can update this domain'
+        'Remove the existing CNAME before Opfield can update this domain'
       );
     }
 

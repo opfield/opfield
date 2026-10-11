@@ -60,7 +60,7 @@ export interface HostingResourcesTabProps {
 }
 const LABELS: Record<HostingOperation["action"], string> = {
   create: "Create VM",
-  install: "Install Gateway",
+  install: "Install Opfield",
   topup: "Top-up",
   start: "Power on",
   shutdown: "Shutdown",
@@ -329,8 +329,8 @@ export function HostingResourcesTab({
   const confirmAction = async (resource: HostingResource, action: HostingAction) => {
     const description =
       action === "delete"
-        ? `${connector.provider === "hostkey" ? "Cancel rental of" : "Permanently destroy"} “${resource.name}” (${resource.remoteId}) and its associated Gateway nodes. Proxmox VMs are shut down first. All hosted roles and workloads are affected: ${resource.nodes.map((node) => node.name).join(", ") || "none"}.`
-        : `${LABELS[action]} on provider VM “${resource.name}” (${resource.remoteId})? All hosted roles and workloads are affected: ${resource.nodes.map((node) => node.name).join(", ") || "none"}.${action === "recover" ? " Only the Gateway daemon services will restart; the VM is not rebooted or reinstalled." : ""}`;
+        ? `${connector.provider === "hostkey" ? "Cancel rental of" : "Permanently destroy"} “${resource.name}” (${resource.remoteId}) and its associated Opfield nodes. Proxmox VMs are shut down first. All hosted roles and workloads are affected: ${resource.nodes.map((node) => node.name).join(", ") || "none"}.`
+        : `${LABELS[action]} on provider VM “${resource.name}” (${resource.remoteId})? All hosted roles and workloads are affected: ${resource.nodes.map((node) => node.name).join(", ") || "none"}.${action === "recover" ? " Only the Opfield daemon services will restart; the VM is not rebooted or reinstalled." : ""}`;
     if (
       await confirm({
         title:
@@ -365,7 +365,7 @@ export function HostingResourcesTab({
     },
     {
       id: "binding",
-      header: "Gateway nodes",
+      header: "Opfield nodes",
       render: (resource) => bindingCell(resource, operationFor(resource)),
     },
     {
@@ -432,7 +432,7 @@ export function HostingResourcesTab({
               {canInstall && !busy && (
                 <DropdownMenuItem onSelect={() => onInstall?.(resource)}>
                   <Server />
-                  Install Gateway
+                  Install Opfield
                 </DropdownMenuItem>
               )}
               {canRetry && !busy && (
@@ -508,7 +508,7 @@ export function HostingResourcesTab({
           <div className="min-w-0">
             <p className="truncate font-medium">{operation.node?.name ?? "New node"}</p>
             <p className="truncate text-xs text-muted-foreground">
-              {operation.node?.type ?? "Gateway node"}
+              {operation.node?.type ?? "Opfield node"}
             </p>
           </div>
         );
@@ -558,7 +558,7 @@ export function HostingResourcesTab({
       <PanelShell
         title="Virtual machines"
         icon={<Server className="h-4 w-4" />}
-        description="Provider inventory and VM actions. Power state does not indicate Gateway daemon availability."
+        description="Provider inventory and VM actions. Power state does not indicate Opfield daemon availability."
       >
         <SimpleTable
           columns={columns}

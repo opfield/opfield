@@ -213,7 +213,7 @@ export function AdminUserConfigDialog({
     const accepted = await confirm({
       title: "Reset MFA",
       description:
-        "This removes the user's Gateway TOTP, passkeys, recovery codes, and browser sessions.",
+        "This removes the user's Opfield TOTP, passkeys, recovery codes, and browser sessions.",
       confirmLabel: "Reset MFA",
       variant: "destructive",
     });
@@ -318,7 +318,7 @@ export function AdminUserConfigDialog({
                 <section className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                   <div>
                     <p className="text-sm font-medium">Name</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">Used throughout Gateway.</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Used throughout Opfield.</p>
                   </div>
                   <div className="flex w-full border border-input bg-background sm:w-72 sm:shrink-0">
                     <Input
@@ -420,7 +420,7 @@ export function AdminUserConfigDialog({
                   <div>
                     <p className="text-sm font-medium">Multi-factor authentication</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      Removes Gateway MFA factors and signs the user out everywhere.
+                      Removes Opfield MFA factors and signs the user out everywhere.
                     </p>
                   </div>
                   <Button

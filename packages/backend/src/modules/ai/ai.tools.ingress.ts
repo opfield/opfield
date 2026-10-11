@@ -43,7 +43,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'create_route',
     description:
-      'Create an ingress route on an nginx ingress node or an ingress group. nodeId is optional: omitted, the route uses the ingress node or group its registered Gateway domains are assigned to, or the only node you may create routes on; when several qualify the call fails and lists them (list_route_ingress_nodes shows nodes and groups up front, no node permission needed). Pass ingressGroupId instead of nodeId to serve the route from every member of an ingress group (config and certificates on each member; needs ingress:groups:view on the group and the multi-node availability license feature). Needs proxy:create broadly, on the route folder (pass folderId), or on the ingress node (on every member for a group). To create inside an app environment, pass folderId from get_app placementFolderIds.',
+      'Create an ingress route on an nginx ingress node or an ingress group. nodeId is optional: omitted, the route uses the ingress node or group its registered Opfield domains are assigned to, or the only node you may create routes on; when several qualify the call fails and lists them (list_route_ingress_nodes shows nodes and groups up front, no node permission needed). Pass ingressGroupId instead of nodeId to serve the route from every member of an ingress group (config and certificates on each member; needs ingress:groups:view on the group and the multi-node availability license feature). Needs proxy:create broadly, on the route folder (pass folderId), or on the ingress node (on every member for a group). To create inside an app environment, pass folderId from get_app placementFolderIds.',
     parameters: {
       type: 'object',
       properties: {
@@ -51,7 +51,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
         nodeId: {
           type: 'string',
           description:
-            'Nginx ingress node UUID. Omit it when a domain is a registered Gateway domain (its ingress node is used) or when list_route_ingress_nodes returns one node.',
+            'Nginx ingress node UUID. Omit it when a domain is a registered Opfield domain (its ingress node is used) or when list_route_ingress_nodes returns one node.',
         },
         ingressGroupId: {
           type: 'string',
@@ -62,7 +62,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
           type: 'array',
           items: { type: 'string' },
           description:
-            'Domain names for this route; all registered Gateway domains among them must share one ingress node or group',
+            'Domain names for this route; all registered Opfield domains among them must share one ingress node or group',
         },
         upstreamKind: {
           type: 'string',
@@ -448,7 +448,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
         status: { type: 'string', enum: ['active', 'expired', 'pending', 'error'] },
         showSystem: {
           type: 'boolean',
-          description: 'Include Gateway system certificates; needs admin:details:certificates',
+          description: 'Include Opfield system certificates; needs admin:details:certificates',
         },
         page: { type: 'number' },
         limit: { type: 'number' },
@@ -462,7 +462,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'request_acme_cert',
     description:
-      "Request a new SSL certificate via ACME (Let's Encrypt). HTTP-01 is fully automatic. For DNS-01, pass dnsProvider: 'cloudflare' when Gateway should create the TXT records through a configured Cloudflare connector and finish issuance automatically; omit dnsProvider for manual DNS-01.",
+      "Request a new SSL certificate via ACME (Let's Encrypt). HTTP-01 is fully automatic. For DNS-01, pass dnsProvider: 'cloudflare' when Opfield should create the TXT records through a configured Cloudflare connector and finish issuance automatically; omit dnsProvider for manual DNS-01.",
     parameters: {
       type: 'object',
       properties: {
@@ -572,7 +572,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'create_domain',
     description:
-      'Create a Gateway domain on an eligible Nginx ingress node or an ingress group. dnsProvider cloudflare (default) manages A/AAAA records through a synced Cloudflare zone; external only records the domain and expects DNS to be managed elsewhere. With ingressGroupId the domain and its routes are served by every member, and Cloudflare DNS lists every active member address (round robin: DNS failover mode none does not health-check, so an unreachable member keeps receiving its share of clients). If Cloudflare already has different A/AAAA records, the tool returns conflict metadata; retry with overwriteDns only after explicit user approval. Use manage_domain preview first to see the DNS plan.',
+      'Create an Opfield domain on an eligible Nginx ingress node or an ingress group. dnsProvider cloudflare (default) manages A/AAAA records through a synced Cloudflare zone; external only records the domain and expects DNS to be managed elsewhere. With ingressGroupId the domain and its routes are served by every member, and Cloudflare DNS lists every active member address (round robin: DNS failover mode none does not health-check, so an unreachable member keeps receiving its share of clients). If Cloudflare already has different A/AAAA records, the tool returns conflict metadata; retry with overwriteDns only after explicit user approval. Use manage_domain preview first to see the DNS plan.',
     parameters: {
       type: 'object',
       properties: {
@@ -607,7 +607,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'delete_domain',
     description:
-      'Remove a Gateway domain. Cloudflare-created/overwritten rows delete their DNS records. For matched-existing rows, pass deleteDns to choose whether to remove Cloudflare DNS or only the Gateway mapping.',
+      'Remove an Opfield domain. Cloudflare-created/overwritten rows delete their DNS records. For matched-existing rows, pass deleteDns to choose whether to remove Cloudflare DNS or only the Opfield mapping.',
     parameters: {
       type: 'object',
       properties: {

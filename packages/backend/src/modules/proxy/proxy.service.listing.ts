@@ -140,7 +140,7 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
       throw new AppError(
         409,
         'GATEWAY_PUBLIC_ROUTE_PROTECTED',
-        'The route serving the Gateway public URL cannot be disabled'
+        'The route serving the Opfield public URL cannot be disabled'
       );
     }
     if (existing.enabled === enabled) return (await attachDockerUpstreamDisplay(this.db, [existing]))[0]!;
@@ -303,7 +303,7 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
       throw new AppError(
         409,
         'GATEWAY_PUBLIC_ROUTE_PROTECTED',
-        'The route serving the Gateway public URL cannot enter maintenance mode'
+        'The route serving the Opfield public URL cannot enter maintenance mode'
       );
     }
     if (existing.maintenanceEnabled === enabled) {

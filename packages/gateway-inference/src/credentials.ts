@@ -142,7 +142,7 @@ export class SecureCredentialStore implements CredentialStore {
     try {
       return JSON.parse(encoded) as OAuthCredential;
     } catch (error) {
-      throw new CliError('CREDENTIAL_INVALID', 'Stored Gateway credentials are unreadable.', { cause: error });
+      throw new CliError('CREDENTIAL_INVALID', 'Stored Opfield credentials are unreadable.', { cause: error });
     }
   }
 
@@ -160,7 +160,7 @@ export class SecureCredentialStore implements CredentialStore {
     try {
       return JSON.parse(encoded) as RuntimeCredential;
     } catch (error) {
-      throw new CliError('RUNTIME_CREDENTIAL_INVALID', 'Stored Gateway runtime credential is unreadable.', {
+      throw new CliError('RUNTIME_CREDENTIAL_INVALID', 'Stored Opfield runtime credential is unreadable.', {
         cause: error,
       });
     }

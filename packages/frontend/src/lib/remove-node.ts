@@ -31,7 +31,7 @@ export async function confirmAndDeleteNode(id: string, hostname: string): Promis
         : `${proxyHostCount} assigned route${proxyHostCount === 1 ? "" : "s"}`;
     const cascadeConfirmed = await confirm({
       title: "Remove Offline Ingress Node",
-      description: `This node is offline and still owns ${proxyLabel}. Removing it will also permanently delete those routes from Gateway. The old server may continue serving its local Nginx config until it is wiped or reinstalled.`,
+      description: `This node is offline and still owns ${proxyLabel}. Removing it will also permanently delete those routes from Opfield. The old server may continue serving its local Nginx config until it is wiped or reinstalled.`,
       confirmLabel: "Remove Node and Routes",
     });
     if (!cascadeConfirmed) return false;

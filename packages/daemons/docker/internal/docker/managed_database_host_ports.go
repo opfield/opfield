@@ -51,7 +51,7 @@ func pickManagedDatabaseHostPorts(input managedDatabaseCommand) (managedDatabase
 				return port, nil
 			}
 		}
-		return 0, errors.New("every picked host port is reserved by another Gateway workload; publish a chosen port instead")
+		return 0, errors.New("every picked host port is reserved by another Opfield workload; publish a chosen port instead")
 	}
 	pinned := input
 	if pickPrimary {

@@ -26,14 +26,14 @@ export function validateGrpcServerCertificate(
   caPem: string | null | undefined
 ): void {
   if (!caPem) {
-    throw new Error('Gateway system CA certificate is unavailable');
+    throw new Error('Opfield system CA certificate is unavailable');
   }
 
   try {
     const cert = new X509Certificate(certificatePem);
     const ca = new X509Certificate(caPem);
     if (!cert.checkIssued(ca) || !cert.verify(ca.publicKey)) {
-      throw new Error('certificate is not signed by the Gateway system CA');
+      throw new Error('certificate is not signed by the Opfield system CA');
     }
     if (!cert.checkPrivateKey(createPrivateKey(privateKeyPem))) {
       throw new Error('private key does not match certificate');

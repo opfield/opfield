@@ -148,7 +148,7 @@ const RELAY_DRAIN_RELEASE_ATTEMPTS = 20;
 /** How often a worker update that left the previous worker running is dispatched again. */
 const RELAY_WORKER_STALE_VERSION_RETRIES = 2;
 const RELAY_UPDATE_BLOCKS_GATEWAY_MESSAGE =
-  'A Relay Pool update is in progress. Update Gateway after it finishes, or abandon the Relay Pool update first.';
+  'A Relay Pool update is in progress. Update Opfield after it finishes, or abandon the Relay Pool update first.';
 
 class RelayPoolUpdateAbandonedError extends Error {
   constructor() {
@@ -450,7 +450,7 @@ export class UpdateService {
   /** Refuses a Gateway update (or paid-feature activation) that would interrupt another update. */
   async assertGatewayUpdateAllowed(): Promise<void> {
     if (this.gatewayUpdateInProgress) {
-      throw new AppError(409, 'UPDATE_IN_PROGRESS', 'A Gateway update is already in progress');
+      throw new AppError(409, 'UPDATE_IN_PROGRESS', 'An Opfield update is already in progress');
     }
     if (await this.isRelayUpdateRunning()) {
       throw new AppError(409, 'RELAY_UPDATE_IN_PROGRESS', RELAY_UPDATE_BLOCKS_GATEWAY_MESSAGE);
@@ -495,7 +495,7 @@ export class UpdateService {
       throw new AppError(
         409,
         'GATEWAY_UPDATE_IN_PROGRESS',
-        'Gateway is updating. Update the Relay Pool after the Gateway update has finished.'
+        'Opfield is updating. Update the Relay Pool after the Opfield update has finished.'
       );
     }
     if (this.relayUpdateOperation?.status === 'updating' || this.relayPoolRun) {
@@ -694,7 +694,7 @@ export class UpdateService {
         currentImage,
         error: verificationError instanceof Error ? verificationError.message : String(verificationError),
       });
-      throw new AppError(502, 'UNTRUSTED_UPDATE_ARTIFACT', 'Gateway update artifact is not trusted');
+      throw new AppError(502, 'UNTRUSTED_UPDATE_ARTIFACT', 'Opfield update artifact is not trusted');
     }
 
     return artifact;
@@ -742,7 +742,7 @@ export class UpdateService {
       throw new AppError(
         409,
         'GATEWAY_UPDATE_REQUIRED',
-        `Relay ${version} requires Gateway ${artifact.minGatewayVersion} or newer`
+        `Relay ${version} requires Opfield ${artifact.minGatewayVersion} or newer`
       );
     }
     return artifact;
@@ -754,7 +754,7 @@ export class UpdateService {
     userId: string | null = null
   ): Promise<void> {
     if (this.gatewayUpdateInProgress)
-      throw new AppError(409, 'UPDATE_IN_PROGRESS', 'A Gateway update is already in progress');
+      throw new AppError(409, 'UPDATE_IN_PROGRESS', 'An Opfield update is already in progress');
     this.gatewayUpdateInProgress = true;
     this.setGatewayUpdateOperation({
       status: 'updating',
@@ -786,7 +786,7 @@ export class UpdateService {
       this.gatewayUpdateInProgress = false;
       this.orchestration?.setOrchestrationAdmissionHold(null);
       void this.reportFailedGatewayUpdate(
-        `The update to ${normalizeVersionTag(targetVersion)} did not replace Gateway ${this.getCurrentVersion()}, which keeps running. Check the update container logs on the Gateway host.`
+        `The update to ${normalizeVersionTag(targetVersion)} did not replace Opfield ${this.getCurrentVersion()}, which keeps running. Check the update container logs on the Opfield host.`
       ).catch((error) => logger.error('Could not report the failed Gateway update', { error: formatError(error) }));
     }, UPDATE_HANDOFF_SETTLE_MS);
     this.handoffSettleTimer.unref?.();
@@ -831,13 +831,13 @@ export class UpdateService {
           return;
         }
         await this.reportFailedGatewayUpdate(
-          `Gateway ${attempt.targetVersion} started but did not become healthy, so the update was rolled back and Gateway ${runningVersion} is running again. Check the update container logs on the Gateway host${container}.`,
+          `Opfield ${attempt.targetVersion} started but did not become healthy, so the update was rolled back and Opfield ${runningVersion} is running again. Check the update container logs on the Opfield host${container}.`,
           attempt
         );
         return;
       }
       await this.reportFailedGatewayUpdate(
-        `Gateway ${attempt.targetVersion} did not start, so the update was rolled back and Gateway ${runningVersion} is running again. Check the update container logs on the Gateway host${container}.`,
+        `Opfield ${attempt.targetVersion} did not start, so the update was rolled back and Opfield ${runningVersion} is running again. Check the update container logs on the Opfield host${container}.`,
         attempt
       );
       return;
@@ -984,7 +984,7 @@ export class UpdateService {
     const source = this.orchestration;
     if (!source) return;
     const held = source.setOrchestrationAdmissionHold(
-      `Gateway is updating to ${targetVersion}. Start this operation again once the update has finished.`
+      `Opfield is updating to ${targetVersion}. Start this operation again once the update has finished.`
     );
     const override = new AbortController();
     this.operationWaitOverride = override;
@@ -1059,7 +1059,7 @@ export class UpdateService {
 
     const tag = normalizeVersionTag(targetVersion);
     if (!this.gatewayImageRepositories(imageBase).includes(artifact.payload.image)) {
-      throw new Error(`Signed update image ${artifact.payload.image} is not an allowed Gateway image repository`);
+      throw new Error(`Signed update image ${artifact.payload.image} is not an allowed Opfield image repository`);
     }
     if (artifact.payload.version !== tag) {
       throw new Error(`Signed update version ${artifact.payload.version} does not match requested ${tag}`);
@@ -1242,7 +1242,7 @@ rollback() {
     elif [ "$db_restore_status" -eq 1 ]; then
       echo "The gateway database was NOT restored and keeps the changes of the failed update. The pre-update snapshot is kept at $GATEWAY_DB_DUMP" >&2
     else
-      echo "Restoring the gateway database failed after the migrated database was dropped, so Gateway is left stopped. The pre-update snapshot is kept at $GATEWAY_DB_DUMP. Restore it by hand (see Updates in the operations guide), then run docker compose up -d" >&2
+      echo "Restoring the gateway database failed after the migrated database was dropped, so Opfield is left stopped. The pre-update snapshot is kept at $GATEWAY_DB_DUMP. Restore it by hand (see Updates in the operations guide), then run docker compose up -d" >&2
       return 1
     fi
   fi
@@ -2189,7 +2189,7 @@ exit 1`,
   }
 
   private async recoverInterruptedRelayPoolUpdates(): Promise<void> {
-    await this.failUnfinishedRelayPoolRuns('Interrupted by a Gateway restart. Start the Relay Pool update again.');
+    await this.failUnfinishedRelayPoolRuns('Interrupted by an Opfield restart. Start the Relay Pool update again.');
   }
 
   /** Fails the active runs no update of this process runs, and releases the relays they drained. */
@@ -2480,32 +2480,32 @@ snapshot_database() {
   db_bytes="$(compose exec -T postgres psql -X -At -v ON_ERROR_STOP=1 -U gateway -d gateway -c "SELECT pg_database_size('gateway')")" || db_bytes=
   case "$db_bytes" in
     ''|*[!0-9]*)
-      echo "Gateway update stopped before replacing the app: could not read the size of the gateway database" >&2
+      echo "Opfield update stopped before replacing the app: could not read the size of the gateway database" >&2
       return 1
       ;;
   esac
   free_kb="$(df -Pk "$FOUNDATION_BACKUP_DIR" | awk 'NR == 2 { print $4 }')" || free_kb=
   case "$free_kb" in
     ''|*[!0-9]*)
-      echo "Gateway update stopped before replacing the app: could not read the free space in $FOUNDATION_BACKUP_DIR" >&2
+      echo "Opfield update stopped before replacing the app: could not read the free space in $FOUNDATION_BACKUP_DIR" >&2
       return 1
       ;;
   esac
   # The compressed dump stays below the database size; keep a margin for the rest of the host.
   need_kb=$((db_bytes / 1024 + db_bytes / 10240 + 262144))
   if [ "$free_kb" -lt "$need_kb" ]; then
-    echo "Gateway update stopped before replacing the app: the pre-update database snapshot needs $((need_kb / 1024)) MiB free in $FOUNDATION_BACKUP_DIR, but only $((free_kb / 1024)) MiB are free. Free up disk space and start the update again." >&2
+    echo "Opfield update stopped before replacing the app: the pre-update database snapshot needs $((need_kb / 1024)) MiB free in $FOUNDATION_BACKUP_DIR, but only $((free_kb / 1024)) MiB are free. Free up disk space and start the update again." >&2
     return 1
   fi
   rm -f "$GATEWAY_DB_DUMP"
   if ! (umask 077 && compose exec -T postgres pg_dump --format=custom --create --no-password -U gateway -d gateway > "$GATEWAY_DB_DUMP"); then
     rm -f "$GATEWAY_DB_DUMP"
-    echo "Gateway update stopped before replacing the app: the pre-update database snapshot failed" >&2
+    echo "Opfield update stopped before replacing the app: the pre-update database snapshot failed" >&2
     return 1
   fi
   if [ ! -s "$GATEWAY_DB_DUMP" ] || ! chmod 600 "$GATEWAY_DB_DUMP" || ! compose exec -T postgres pg_restore --list < "$GATEWAY_DB_DUMP" > /dev/null; then
     rm -f "$GATEWAY_DB_DUMP"
-    echo "Gateway update stopped before replacing the app: the pre-update database snapshot is empty or unreadable" >&2
+    echo "Opfield update stopped before replacing the app: the pre-update database snapshot is empty or unreadable" >&2
     return 1
   fi
   db_snapshot_ready=1

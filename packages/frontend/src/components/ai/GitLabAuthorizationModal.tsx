@@ -128,8 +128,8 @@ export function GitLabAuthorizationModal() {
           <DialogTitle>Authorize {providerLabel}</DialogTitle>
         </DialogHeader>
         <DialogDescription>
-          Gateway needs your personal repository credential for this connector. It is sent directly
-          to Gateway, stored encrypted, used only for this connector, and never added to the AI
+          Opfield needs your personal repository credential for this connector. It is sent directly
+          to Opfield, stored encrypted, used only for this connector, and never added to the AI
           conversation.
         </DialogDescription>
 

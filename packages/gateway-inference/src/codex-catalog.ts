@@ -90,14 +90,14 @@ export async function syncCodexCatalog(input: {
           status: 'stale',
           catalogVersion: metadata?.catalogVersion,
           modelCount: visibleModelCount(existing),
-          warning: 'Gateway is unavailable; retained the last-good Codex catalog.',
+          warning: 'Opfield is unavailable; retained the last-good Codex catalog.',
         };
       }
       throw new CliError('CATALOG_NETWORK_ERROR', 'Could not download the Codex model catalog.', { cause: error });
     }
 
     if (response.status === 304) {
-      if (!existing) throw new CliError('CATALOG_MISSING', 'Gateway returned 304 but no local catalog exists.');
+      if (!existing) throw new CliError('CATALOG_MISSING', 'Opfield returned 304 but no local catalog exists.');
       return {
         status: 'unchanged',
         catalogVersion: metadata?.catalogVersion,
@@ -117,17 +117,17 @@ export async function syncCodexCatalog(input: {
           status: 'stale',
           catalogVersion: metadata?.catalogVersion,
           modelCount: visibleModelCount(existing),
-          warning: `Gateway returned HTTP ${response.status}; retained the last-good Codex catalog.`,
+          warning: `Opfield returned HTTP ${response.status}; retained the last-good Codex catalog.`,
         };
       }
-      throw new CliError('CATALOG_REQUEST_FAILED', `Gateway catalog request failed with HTTP ${response.status}.`);
+      throw new CliError('CATALOG_REQUEST_FAILED', `Opfield catalog request failed with HTTP ${response.status}.`);
     }
 
     let payload: unknown;
     try {
       payload = await response.json();
     } catch (error) {
-      throw new CliError('CATALOG_INVALID', 'Gateway returned invalid Codex catalog JSON.', { cause: error });
+      throw new CliError('CATALOG_INVALID', 'Opfield returned invalid Codex catalog JSON.', { cause: error });
     }
     // A catalog written before model prompts existed still holds the pristine harness
     // instructions; afterwards only the metadata copy is trustworthy.
@@ -166,12 +166,12 @@ function parseGatewayModels(value: unknown): GatewayInferenceModel[] {
     (value as { object?: unknown }).object !== 'list' ||
     !Array.isArray((value as { data?: unknown }).data)
   ) {
-    throw new CliError('CATALOG_INVALID', 'Gateway model list must contain a data array.');
+    throw new CliError('CATALOG_INVALID', 'Opfield model list must contain a data array.');
   }
   const models = (value as { data: Array<Record<string, unknown>> }).data;
-  if (models.length === 0) throw new CliError('CATALOG_EMPTY', 'Gateway has no models available to this user.');
+  if (models.length === 0) throw new CliError('CATALOG_EMPTY', 'Opfield has no models available to this user.');
   for (const model of models) {
-    if (!model || typeof model !== 'object') throw new CliError('CATALOG_INVALID', 'Gateway model entry is invalid.');
+    if (!model || typeof model !== 'object') throw new CliError('CATALOG_INVALID', 'Opfield model entry is invalid.');
     for (const key of [
       'id',
       'display_name',
@@ -183,10 +183,10 @@ function parseGatewayModels(value: unknown): GatewayInferenceModel[] {
       'supported_reasoning_efforts',
       'default_reasoning_effort',
     ]) {
-      if (!(key in model)) throw new CliError('CATALOG_INVALID', `Gateway model entry is missing ${key}.`);
+      if (!(key in model)) throw new CliError('CATALOG_INVALID', `Opfield model entry is missing ${key}.`);
     }
     if (typeof model.id !== 'string' || !model.id.trim()) {
-      throw new CliError('CATALOG_INVALID', 'Gateway model id is invalid.');
+      throw new CliError('CATALOG_INVALID', 'Opfield model id is invalid.');
     }
   }
   return models as unknown as GatewayInferenceModel[];
@@ -214,7 +214,7 @@ export function codexCatalogFromModels(
       return {
         slug: model.id,
         display_name: model.display_name,
-        description: `Gateway inference model ${model.display_name}`,
+        description: `Opfield inference model ${model.display_name}`,
         default_reasoning_level: reasoning ? defaultEffort : null,
         supported_reasoning_levels: reasoning
           ? supported.map((effort) => ({ effort, description: EFFORT_DESCRIPTIONS[effort] ?? effort }))
@@ -225,7 +225,7 @@ export function codexCatalogFromModels(
         priority: index,
         additional_speed_tiers: fast ? ['fast'] : [],
         service_tiers: fast
-          ? [{ id: 'priority', name: 'Fast', description: '1.5x speed, 2x Gateway credit usage' }]
+          ? [{ id: 'priority', name: 'Fast', description: '1.5x speed, 2x Opfield credit usage' }]
           : [],
         default_service_tier: null,
         availability_nux: null,
@@ -316,7 +316,7 @@ export function assertCodexCatalog(value: unknown): asserts value is CodexCatalo
     throw new CliError('CATALOG_INVALID', 'Codex catalog must contain a models array.');
   }
   const models = (value as CodexCatalog).models;
-  if (models.length === 0) throw new CliError('CATALOG_EMPTY', 'Gateway has no models available to this user.');
+  if (models.length === 0) throw new CliError('CATALOG_EMPTY', 'Opfield has no models available to this user.');
   for (const model of models) {
     if (!model || typeof model !== 'object') throw new CliError('CATALOG_INVALID', 'Codex catalog model is invalid.');
     for (const key of [
@@ -350,7 +350,7 @@ export function assertCodexCatalog(value: unknown): asserts value is CodexCatalo
     }
   }
   if (visibleModelCount(value as CodexCatalog) === 0) {
-    throw new CliError('CATALOG_EMPTY', 'Gateway catalog has no visible API models.');
+    throw new CliError('CATALOG_EMPTY', 'Opfield catalog has no visible API models.');
   }
 }
 

@@ -64,7 +64,7 @@ dockerRegistryAuthRoutes.get('/token', async (c) => {
   if (!authenticated) {
     c.header('WWW-Authenticate', 'Basic realm="Gateway Internal Registry"');
     c.header('Cache-Control', 'no-store');
-    return c.json({ code: 'REGISTRY_AUTH_REQUIRED', message: 'Valid Gateway API token required' }, 401);
+    return c.json({ code: 'REGISTRY_AUTH_REQUIRED', message: 'Valid Opfield API token required' }, 401);
   }
 
   const requested = requestedRegistryGrants(new URL(c.req.url));

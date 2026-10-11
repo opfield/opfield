@@ -151,7 +151,7 @@ func (m *managedStorageManager) removeLeftover(ctx context.Context, id string) e
 	if err := os.Remove(m.recordPath(id)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("remove managed storage record: %w", err)
 	}
-	m.logger.Info("removed what was left of a managed storage Gateway has no instance of", "id", id)
+	m.logger.Info("removed what was left of a managed storage Opfield has no instance of", "id", id)
 	return nil
 }
 
@@ -191,6 +191,6 @@ func (m *managedDatabaseManager) removeLeftover(ctx context.Context, id string) 
 	if err := os.Remove(m.recordPath(id)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("remove managed database record: %w", err)
 	}
-	m.logger.Info("removed what was left of a managed database Gateway has no instance of", "id", id)
+	m.logger.Info("removed what was left of a managed database Opfield has no instance of", "id", id)
 	return nil
 }

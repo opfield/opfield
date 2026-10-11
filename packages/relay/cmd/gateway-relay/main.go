@@ -59,7 +59,7 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	slog.Info("generic Gateway relay listening", "port", cfg.Port, "mode", cfg.Mode, "pool_id", cfg.PoolID, "relay_instance_id", cfg.InstanceID, "build_version", version, "protocol_major", 1)
+	slog.Info("generic Opfield relay listening", "port", cfg.Port, "mode", cfg.Mode, "pool_id", cfg.PoolID, "relay_instance_id", cfg.InstanceID, "build_version", version, "protocol_major", 1)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	<-ctx.Done()
@@ -85,7 +85,7 @@ func retryIdentityStart[T any](
 			return zero, err
 		}
 		if attempt == 1 {
-			slog.Info("waiting for Gateway to provision relay identity", "timeout_seconds", int(interval.Seconds())*attempts)
+			slog.Info("waiting for Opfield to provision relay identity", "timeout_seconds", int(interval.Seconds())*attempts)
 		}
 		sleep(interval)
 	}

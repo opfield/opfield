@@ -408,7 +408,7 @@ export async function resumeQueuedDaemonUpdates(
       const message = error instanceof Error ? error.message : String(error);
       logger.error('Queued daemon update could not be taken up again', { nodeId, error: message });
       await deps.daemonUpdateService
-        .recordNodeUpdateError(nodeId, `The queued update could not resume after a Gateway restart: ${message}`)
+        .recordNodeUpdateError(nodeId, `The queued update could not resume after an Opfield restart: ${message}`)
         .catch(() => undefined);
     }
   }

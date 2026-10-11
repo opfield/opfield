@@ -35,7 +35,7 @@ const REPO = path.resolve(FRONTEND, "../..");
 const DOCS_REPO = path.resolve(REPO, "../gateway-docs");
 const DESIGN = path.join(REPO, ".design");
 const SYSTEM = path.join(DESIGN, "system");
-const TITLE = "Good Gateway";
+const TITLE = "Opfield";
 
 const CATALOG = [...actionsAndForms, ...statusAndLoading, ...overlays, ...layoutAndData];
 
@@ -65,7 +65,7 @@ const EXPECTED_TIMINGS = {
 
 const ASSETS = [
   { group: "Logos", files: [
-    [path.join(DOCS_REPO, "public/brand/good-gateway-lockup-light.png"), "good-gateway-lockup-light.png", "Lockup for light grounds: the mark and the ink wordmark \"Good Gateway\". 1968 × 584."],
+    [path.join(DOCS_REPO, "public/brand/good-gateway-lockup-light.png"), "good-gateway-lockup-light.png", "Lockup for light grounds: the mark and the ink wordmark \"opfield\". 1968 × 584."],
     [path.join(DOCS_REPO, "public/brand/good-gateway-lockup-dark.png"), "good-gateway-lockup-dark.png", "Lockup for dark grounds: white wordmark on a rounded black plate. 1932 × 512."],
     [path.join(FRONTEND, "public/android-chrome-512x512.png"), "good-gateway-mark-512.png", "The mark on its tile, 512px (the product's android-chrome-512, og-image and the docs logo are this same file)."],
     [path.join(FRONTEND, "public/android-chrome-192x192.png"), "good-gateway-mark-192.png", "The mark, 192px: what the sidebar shows at 20px."],
@@ -402,7 +402,7 @@ function main() {
   const sha = git("rev-parse", "--short", "HEAD");
   const branch = git("rev-parse", "--abbrev-ref", "HEAD");
   const dirty = git("status", "--porcelain", "--", "packages/frontend/src", "packages/frontend/public", "packages/frontend/index.html").length > 0;
-  console.log(`Good Gateway design system → ${SYSTEM}`);
+  console.log(`Opfield design system → ${SYSTEM}`);
   console.log(`  source ${branch}@${sha}${dirty ? " (+ uncommitted frontend changes)" : ""}`);
 
   // Sources ---------------------------------------------------------------------
@@ -508,7 +508,7 @@ function main() {
   // system.json ---------------------------------------------------------------------------
   const systemJson = {
     name: TITLE,
-    description: brand.tagline || "The Good Gateway console: flat, square, neutral and calm.",
+    description: brand.tagline || "The Opfield console: flat, square, neutral and calm.",
     stylesheet: path.relative(SYSTEM, path.join(FRONTEND, "src/index.css")),
   };
   writeFile("system.json", `${JSON.stringify(systemJson, null, 2)}\n`);

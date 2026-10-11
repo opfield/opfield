@@ -39,15 +39,15 @@ export function createInteractiveCliUi(): InteractiveCliUi {
     },
     async gatewayOrigin() {
       const value = await prompts.text({
-        message: 'Gateway URL',
+        message: 'Opfield URL',
         placeholder: 'https://gateway.example.com',
         validate(input) {
           const value = input?.trim() ?? '';
-          if (!value) return 'Enter the URL of your Gateway instance.';
+          if (!value) return 'Enter the URL of your Opfield instance.';
           try {
             normalizeGatewayOrigin(value);
           } catch (error) {
-            return error instanceof Error ? error.message : 'Enter a valid Gateway URL.';
+            return error instanceof Error ? error.message : 'Enter a valid Opfield URL.';
           }
         },
       });
@@ -56,13 +56,13 @@ export function createInteractiveCliUi(): InteractiveCliUi {
     },
     async inferenceToken() {
       const value = await prompts.password({
-        message: 'Gateway inference token',
+        message: 'Opfield inference token',
         mask: '*',
         clearOnError: true,
         validate(input) {
           const token = input?.trim() ?? '';
-          if (!token) return 'Enter an existing Gateway inference token.';
-          if (!token.startsWith('gwi_')) return 'Gateway inference tokens must start with gwi_.';
+          if (!token) return 'Enter an existing Opfield inference token.';
+          if (!token.startsWith('gwi_')) return 'Opfield inference tokens must start with gwi_.';
         },
       });
       if (prompts.isCancel(value)) return null;

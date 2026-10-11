@@ -28,9 +28,9 @@ const prompts: PromptDefinition[] = [
   {
     name: 'investigate-service-outage',
     title: 'Investigate service outage',
-    description: 'Triage a service outage using Gateway health, node, Docker, logging, and status data.',
+    description: 'Triage a service outage using Opfield health, node, Docker, logging, and status data.',
     requiredScopes: ['proxy:view', 'nodes:details', 'docker:containers:view', 'logs:read', 'status-page:view'],
-    text: 'Investigate the reported service outage. Start by reading the Gateway overview, then inspect relevant ingress routes, their nginx node placement, Docker targets, logs, and status page incidents allowed by this token. Summarize likely impact, evidence, and the next safest operator action without assuming permissions you do not have.',
+    text: 'Investigate the reported service outage. Start by reading the Opfield overview, then inspect relevant ingress routes, their nginx node placement, Docker targets, logs, and status page incidents allowed by this token. Summarize likely impact, evidence, and the next safest operator action without assuming permissions you do not have.',
   },
   {
     name: 'rollout-container-image',
@@ -38,21 +38,21 @@ const prompts: PromptDefinition[] = [
     description: 'Plan a Docker image rollout through existing container or blue/green deployment tools.',
     // A new image is authorized by the workload's own edit; the pull scope keeps the prompt for its holders.
     requiredScopes: ['docker:containers:manage', 'docker:containers:edit', 'docker:images:pull'],
-    text: 'Plan a controlled Docker image rollout. First identify whether the target is a regular container or a Gateway blue/green deployment. For regular containers use container image update tools; for managed blue/green deployments use deployment tools such as list_docker_deployments, get_docker_deployment, deploy_docker_deployment, switch_docker_deployment_slot, and rollback_docker_deployment. Never operate on an underlying managed deployment slot container directly. Confirm the target node, current image, desired tag, dependency risk, and rollback path, and treat recreate/update/deploy/switch operations as operationally risky actions requiring explicit operator intent.',
+    text: 'Plan a controlled Docker image rollout. First identify whether the target is a regular container or an Opfield blue/green deployment. For regular containers use container image update tools; for managed blue/green deployments use deployment tools such as list_docker_deployments, get_docker_deployment, deploy_docker_deployment, switch_docker_deployment_slot, and rollback_docker_deployment. Never operate on an underlying managed deployment slot container directly. Confirm the target node, current image, desired tag, dependency risk, and rollback path, and treat recreate/update/deploy/switch operations as operationally risky actions requiring explicit operator intent.',
   },
   {
     name: 'create-status-incident',
     title: 'Create status incident',
     description: 'Draft a status page incident workflow and operator checklist.',
     requiredScopes: ['status-page:incidents:create', 'status-page:view'],
-    text: 'Prepare a status page incident workflow. Identify affected services, customer-facing summary, severity, timestamps, and update cadence. Prompts do not create incidents directly; use only available Gateway tools or instruct the operator which REST action is needed.',
+    text: 'Prepare a status page incident workflow. Identify affected services, customer-facing summary, severity, timestamps, and update cadence. Prompts do not create incidents directly; use only available Opfield tools or instruct the operator which REST action is needed.',
   },
   {
     name: 'review-node-health',
     title: 'Review node health',
     description: 'Review node fleet health and identify risky nodes.',
     requiredScopes: ['nodes:details', 'nodes:details'],
-    text: 'Review Gateway node health. Read node resources and available details, group nodes by status and type, call out disconnected or stale nodes, and recommend the least invasive checks before using console or configuration-changing tools.',
+    text: 'Review Opfield node health. Read node resources and available details, group nodes by status and type, call out disconnected or stale nodes, and recommend the least invasive checks before using console or configuration-changing tools.',
   },
   {
     name: 'provision-proxy-host',
@@ -73,7 +73,7 @@ const prompts: PromptDefinition[] = [
     title: 'Plan managed database access',
     description: 'Plan or provision safe access to a managed database.',
     requiredScopes: ['databases:view'],
-    text: 'Plan or provision access to a Gateway managed database. Discover the Databases toolset and read the databases documentation first. Use manage_managed_database: catalog before create, keep the instance private unless explicit publication is requested, poll get until ready, then create a binding for the selected container or deployment. Do not include credentials, connection URIs, binding environment variables, connector aliases, or daemon error text in the response.',
+    text: 'Plan or provision access to an Opfield managed database. Discover the Databases toolset and read the databases documentation first. Use manage_managed_database: catalog before create, keep the instance private unless explicit publication is requested, poll get until ready, then create a binding for the selected container or deployment. Do not include credentials, connection URIs, binding environment variables, connector aliases, or daemon error text in the response.',
   },
 ];
 

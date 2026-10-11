@@ -489,7 +489,7 @@ export function HostingConnectorDialog({
                     </SettingsControlRow>
                     <SettingsControlRow
                       title="Connector name"
-                      description="Display name used throughout Gateway."
+                      description="Display name used throughout Opfield."
                     >
                       <Input
                         aria-label="Connector name"
@@ -527,7 +527,7 @@ export function HostingConnectorDialog({
                       >
                         <Input
                           aria-label="Token ID"
-                          placeholder="gateway@pve!hosting"
+                          placeholder="opfield@pve!hosting"
                           value={settings.tokenId ?? ""}
                           disabled={locked}
                           onChange={(e) => {
@@ -549,7 +549,7 @@ export function HostingConnectorDialog({
                       }
                       description={
                         provider === "hostkey"
-                          ? "Original HOSTKEY API key, not its displayed hash or a session token. Gateway manages session authorization automatically."
+                          ? "Original HOSTKEY API key, not its displayed hash or a session token. Opfield manages session authorization automatically."
                           : connector?.provider === "hetzner"
                             ? "Create a new connector to change the Hetzner project token."
                             : connector
@@ -560,7 +560,7 @@ export function HostingConnectorDialog({
                         provider === "hostkey"
                           ? "Create a dedicated key in Invapi → API keys. For an existing connector, leave blank to retain its saved key. Credentials are encrypted and never displayed."
                           : provider === "cloudblast"
-                            ? "Create a token in CloudBlast Account Settings → API. New servers get Gateway over SSH with a one-time key that is deleted after installation. Saved credentials are encrypted and never displayed."
+                            ? "Create a token in CloudBlast Account Settings → API. New servers get Opfield over SSH with a one-time key that is deleted after installation. Saved credentials are encrypted and never displayed."
                             : "Use a dedicated scoped token. Saved credentials are encrypted and never displayed."
                       }
                     >
@@ -588,7 +588,7 @@ export function HostingConnectorDialog({
                     {connector && (
                       <SettingsControlRow
                         title="Enabled"
-                        description="Allow Gateway to use this connector."
+                        description="Allow Opfield to use this connector."
                         help="Disabling it does not stop or delete provider VMs."
                       >
                         <Switch
@@ -605,11 +605,11 @@ export function HostingConnectorDialog({
                   <PanelShell
                     title="Proxmox host and trust"
                     icon={<KeyRound className="h-4 w-4" />}
-                    description="One physical host per connector; cluster identity is detected by Gateway."
+                    description="One physical host per connector; cluster identity is detected by Opfield."
                   >
                     <SettingsControlRow
                       title="Certificate verification"
-                      description="How Gateway verifies the Proxmox HTTPS certificate."
+                      description="How Opfield verifies the Proxmox HTTPS certificate."
                       help="Use system trust, your private CA, or an independently verified fingerprint. TLS verification cannot be disabled."
                     >
                       <Combobox
@@ -751,7 +751,7 @@ export function HostingConnectorDialog({
                         vmidError ??
                         `Comma-separated IDs and ranges, combined as needed. ${vmids.length} allowed · ${vmids.filter((id) => discovery?.usedVmids?.includes(id)).length} occupied · ${vmids.filter((id) => !discovery?.usedVmids?.includes(id)).length} available at last check.`
                       }
-                      help="Gateway creates only inside this pool and skips occupied IDs across the cluster. Maximum 1000 unique IDs."
+                      help="Opfield creates only inside this pool and skips occupied IDs across the cluster. Maximum 1000 unique IDs."
                     >
                       <Input
                         aria-label="Allowed VMIDs"
@@ -767,21 +767,21 @@ export function HostingConnectorDialog({
                           "maxCpu",
                           "Maximum CPU budget (cores)",
                           "Unlimited",
-                          "vCPU budget for Gateway-created or adopted resources, including pending operations.",
+                          "vCPU budget for Opfield-created or adopted resources, including pending operations.",
                           "Leave blank for unrestricted total CPU.",
                         ],
                         [
                           "maxMemoryMb",
                           "Maximum memory budget (MiB)",
                           "Unlimited",
-                          "Memory budget for Gateway-created or adopted resources, including pending operations.",
+                          "Memory budget for Opfield-created or adopted resources, including pending operations.",
                           "Leave blank for unrestricted total memory.",
                         ],
                         [
                           "maxDiskGb",
                           "Maximum disk budget (GiB)",
                           "Unlimited",
-                          "Disk budget for Gateway-created or adopted resources, including pending operations.",
+                          "Disk budget for Opfield-created or adopted resources, including pending operations.",
                           "Leave blank for unrestricted total disk.",
                         ],
                       ] as const
@@ -813,7 +813,7 @@ export function HostingConnectorDialog({
                     >
                       <Input
                         aria-label="Resource pool"
-                        placeholder="gateway-nodes"
+                        placeholder="opfield-nodes"
                         value={placement.pool ?? ""}
                         disabled={locked}
                         onChange={(e) => updatePlacement({ pool: e.target.value })}
@@ -845,7 +845,7 @@ export function HostingConnectorDialog({
                     <SettingsControlRow
                       title="VLAN"
                       description="VLAN tag, or leave blank for untagged networking."
-                      help="The bridge and upstream network must already support this VLAN. Gateway does not reconfigure them."
+                      help="The bridge and upstream network must already support this VLAN. Opfield does not reconfigure them."
                     >
                       <Input
                         aria-label="VLAN"
@@ -881,8 +881,8 @@ export function HostingConnectorDialog({
                       <>
                         <SettingsControlRow
                           title="IP pool"
-                          description="IPv4 addresses and full ranges reserved exclusively for Gateway."
-                          help="Exclude these addresses from DHCP and manual assignment. Gateway rejects addresses outside the subnet, the gateway, network and broadcast addresses; silence on ping is not proof an IP is free."
+                          description="IPv4 addresses and full ranges reserved exclusively for Opfield."
+                          help="Exclude these addresses from DHCP and manual assignment. Opfield rejects addresses outside the subnet, the gateway, network and broadcast addresses; silence on ping is not proof an IP is free."
                         >
                           <Input
                             aria-label="IP pool"
@@ -1072,7 +1072,7 @@ export function HostingConnectorDialog({
                         )}
                         <SettingsControlRow
                           title="Guest connectivity"
-                          description="New VMs must reach Gateway or a relay, DNS and installation sources."
+                          description="New VMs must reach Opfield or a relay, DNS and installation sources."
                           help="Connectivity can only be verified after a guest starts; saving a connector does not provision a VM."
                         >
                           <span className="text-sm text-muted-foreground">
@@ -1084,12 +1084,12 @@ export function HostingConnectorDialog({
                     <PanelShell
                       title="Synchronization and scope"
                       icon={<RefreshCw className="h-4 w-4" />}
-                      description="Inventory refresh and automatic matching of existing Gateway nodes."
+                      description="Inventory refresh and automatic matching of existing Opfield nodes."
                     >
                       <SettingsControlRow
                         title="Automatic sync"
                         description="Refresh provider inventory on a schedule."
-                        help="Existing Gateway monitoring remains unchanged."
+                        help="Existing Opfield monitoring remains unchanged."
                       >
                         <Switch
                           ariaLabel="Automatic sync"
@@ -1117,7 +1117,7 @@ export function HostingConnectorDialog({
                       <SettingsControlRow
                         title="Automatic adoption"
                         description="Link existing nodes automatically when identity evidence is unambiguous."
-                        help="Gateway preserves node identity and workloads; ambiguous matches remain unlinked without a manual picker."
+                        help="Opfield preserves node identity and workloads; ambiguous matches remain unlinked without a manual picker."
                       >
                         <Switch
                           ariaLabel="Automatic adoption"
@@ -1129,12 +1129,12 @@ export function HostingConnectorDialog({
                       {!pve && (
                         <SettingsControlRow
                           title="Node scope"
-                          description="Optional comma-separated Gateway node UUIDs."
-                          help="Limits which existing Gateway nodes can be automatically linked. Empty means all authorized nodes, not provider VMIDs."
+                          description="Optional comma-separated Opfield node UUIDs."
+                          help="Limits which existing Opfield nodes can be automatically linked. Empty means all authorized nodes, not provider VMIDs."
                         >
                           <Input
                             aria-label="Node scope"
-                            placeholder="Gateway node UUIDs"
+                            placeholder="Opfield node UUIDs"
                             value={nodeScope}
                             disabled={locked}
                             onChange={(e) => {
@@ -1147,7 +1147,7 @@ export function HostingConnectorDialog({
                       {pve && settings.adoptionNodeIds.length > 0 && (
                         <SettingsControlRow
                           title="Existing adoption restriction"
-                          description="The saved restriction to these Gateway nodes remains unchanged."
+                          description="The saved restriction to these Opfield nodes remains unchanged."
                         >
                           <span className="text-sm text-muted-foreground">
                             {settings.adoptionNodeIds.join(", ")}

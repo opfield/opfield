@@ -106,7 +106,7 @@ export async function* streamGatewayInferenceResponse(
       }
       if (event.type === 'completed') {
         if (event.status && event.status !== 'completed') {
-          throw new Error(event.incompleteReason || `Gateway Inference ended with status ${event.status}`);
+          throw new Error(event.incompleteReason || `Opfield Inference ended with status ${event.status}`);
         }
         completed = true;
       }
@@ -119,7 +119,7 @@ export async function* streamGatewayInferenceResponse(
     throw new InferenceProtocolError(
       502,
       'upstream_stream_incomplete',
-      'Gateway Inference stream ended without a successful terminal event'
+      'Opfield Inference stream ended without a successful terminal event'
     );
   }
   yield {

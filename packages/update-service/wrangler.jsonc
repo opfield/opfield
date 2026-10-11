@@ -9,7 +9,11 @@
 		{
 			"pattern": "updates.thesqlabs.com",
 			"custom_domain": true
-		}
+		},
+		// Same Worker on the Opfield host: the feed and artifacts under /gateway/*, the server installer at the root.
+		{ "pattern": "get.opfield.dev/gateway/*", "zone_name": "opfield.dev" },
+		{ "pattern": "get.opfield.dev/", "zone_name": "opfield.dev" },
+		{ "pattern": "get.opfield.dev/install.sh", "zone_name": "opfield.dev" }
 	],
 	"vars": {
 		"GITHUB_OWNER": "the-square-labs",

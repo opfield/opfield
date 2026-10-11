@@ -1,4 +1,4 @@
 interface:
-  display_name: "Gateway Databases"
-  short_description: "Provision and bind Gateway managed databases"
-  default_prompt: "Use $databases to give this application private database access through Gateway."
+  display_name: "Opfield Databases"
+  short_description: "Provision and bind Opfield managed databases"
+  default_prompt: "Use $databases to give this application private database access through Opfield."

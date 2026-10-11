@@ -8,11 +8,11 @@ const HOUSEKEEPING_HELP: Record<string, string> = {
   "Nginx Logs":
     "Rotates active Nginx log files, compresses older files, and deletes files beyond the configured retention period.",
   "Structured Logs":
-    "Removes old structured Gateway logs from ClickHouse when configured row or storage limits are exceeded.",
+    "Removes old structured Opfield logs from ClickHouse when configured row or storage limits are exceeded.",
   "ClickHouse Internals":
-    "Trims supported ClickHouse system-log tables. It does not remove Gateway structured logs, which use the separate policy above.",
+    "Trims supported ClickHouse system-log tables. It does not remove Opfield structured logs, which use the separate policy above.",
   "Audit Log":
-    "Deletes Gateway audit-trail records older than the configured retention period. Removed audit events cannot be restored from Gateway.",
+    "Deletes Opfield audit-trail records older than the configured retention period. Removed audit events cannot be restored from Opfield.",
   "Dismissed Alerts":
     "Removes alerts that were already dismissed and have exceeded their retention period. Active alerts are not affected.",
   "Delivery Log":
@@ -20,7 +20,7 @@ const HOUSEKEEPING_HELP: Record<string, string> = {
   "Orphaned AI Artifacts":
     "Deletes sandbox files that are no longer referenced by an AI conversation or retained artifact record.",
   "Internal Registry":
-    "Garbage-collects unreferenced image layers and build artifacts from Gateway's internal Docker registry after the retention window.",
+    "Garbage-collects unreferenced image layers and build artifacts from Opfield's internal Docker registry after the retention window.",
   "Orphaned Volumes":
     "Removes anonymous Docker volumes that are no longer attached to a container and have exceeded the configured age.",
   "Retired System PKI Keys":
@@ -28,7 +28,7 @@ const HOUSEKEEPING_HELP: Record<string, string> = {
   "ACME Challenges":
     "Removes expired certificate-validation tokens and temporary challenge files left after ACME issuance attempts.",
   "Docker Images":
-    "Prunes old Gateway-managed images while preserving images still used by containers or required by the active release.",
+    "Prunes old Opfield-managed images while preserving images still used by containers or required by the active release.",
   "Operation History":
     "Deletes finished Docker container tasks after a day, and finished builds (with their logs), compose, availability and hosting operations and source webhook deliveries after the retention period, in batches. Each resource keeps its 10 latest runs (a Compose build batch counts once) and its latest operation of each kind, and anything still referenced (a build artifact, a hosted node's origin, a snapshot) is kept.",
   "Expired OAuth Grants":

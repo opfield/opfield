@@ -96,7 +96,7 @@ export class DockerTaskReconciler {
   private async reconcile(ctx: DockerTaskReconcileContext, task: DockerTaskRow): Promise<void> {
     const tracking = task.tracking;
     if (!tracking) {
-      await ctx.taskService.settle(task.id, { status: 'failed', error: 'Gateway lost track of the task' });
+      await ctx.taskService.settle(task.id, { status: 'failed', error: 'Opfield lost track of the task' });
       return;
     }
     let outcome: Outcome;
@@ -351,7 +351,7 @@ export class DockerTaskReconciler {
       }
       throw error;
     }
-    return { status: 'failed', error: 'Gateway restarted before it removed the container; remove it again' };
+    return { status: 'failed', error: 'Opfield restarted before it removed the container; remove it again' };
   }
 
   private async runFollowUps(

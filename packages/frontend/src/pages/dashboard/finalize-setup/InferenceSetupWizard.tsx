@@ -122,7 +122,7 @@ export function InferenceSetupWizard({
       setConnections(nextConnections);
       setModels(nextModels);
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Failed to load Gateway Inference");
+      toast.error(cause instanceof Error ? cause.message : "Failed to load Opfield Inference");
     } finally {
       setLoading(false);
     }
@@ -269,7 +269,7 @@ export function InferenceSetupWizard({
       // catalog explicitly instead of waiting for the store-driven rerender.
       await loadInferenceData();
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Failed to enable Gateway Inference");
+      toast.error(cause instanceof Error ? cause.message : "Failed to enable Opfield Inference");
     } finally {
       setSaving(false);
     }
@@ -280,7 +280,7 @@ export function InferenceSetupWizard({
     if (!source) return;
     if (selectedSourceNeedsPricing && !source.model.pricing) {
       toast.error(
-        "Gateway could not discover pricing for this API model. Add it from Settings → Inference."
+        "Opfield could not discover pricing for this API model. Add it from Settings → Inference."
       );
       return;
     }
@@ -358,18 +358,18 @@ export function InferenceSetupWizard({
     <>
       <FinalizeSetupWizardDialog
         open={open && !providerOpen}
-        title="Configure Gateway Inference"
+        title="Configure Opfield Inference"
         description={
           <>
             <p>
-              Gateway Inference is the managed routing layer for AI models. It connects model
-              providers once, discovers their available models, and gives Gateway a controlled
+              Opfield Inference is the managed routing layer for AI models. It connects model
+              providers once, discovers their available models, and gives Opfield a controlled
               catalog instead of putting separate provider credentials into every feature.
             </p>
             <p>
-              After enabling it, you connect a provider, choose the models Gateway may expose, and
+              After enabling it, you connect a provider, choose the models Opfield may expose, and
               define who can use them. AI Workspace can then use one of those centrally managed
-              models, and future Gateway features can use the same approved catalog.
+              models, and future Opfield features can use the same approved catalog.
             </p>
             <p>
               Enabling Inference does not contact a provider or make a model available by itself.
@@ -435,10 +435,10 @@ export function InferenceSetupWizard({
             title="AI Workspace is ready"
             continueIn="Continue from Settings → Inference to connect more providers, configure models, and refine access rules."
           >
-            Gateway Inference is configured, and AI Workspace will use the selected managed model.
+            Opfield Inference is configured, and AI Workspace will use the selected managed model.
           </FinalizeSetupCompletion>
         ) : loading || coreLoading ? (
-          <div aria-busy="true" aria-label="Loading Gateway Inference">
+          <div aria-busy="true" aria-label="Loading Opfield Inference">
             <ContentLoading loading />
           </div>
         ) : coreStepActive ? (
@@ -452,12 +452,12 @@ export function InferenceSetupWizard({
           />
         ) : !inferenceEnabled ? (
           <Notice tone="info" title="Inference is disabled">
-            Enable it to connect providers centrally and make selected models available to Gateway
+            Enable it to connect providers centrally and make selected models available to Opfield
             users.
           </Notice>
         ) : ready ? (
           <div className="border border-border p-4 text-sm text-muted-foreground">
-            Gateway has{" "}
+            Opfield has{" "}
             {models.filter((model) => model.enabled && model.defaultAccessAllowed).length}{" "}
             selectable model
             {models.filter((model) => model.enabled && model.defaultAccessAllowed).length === 1
@@ -468,7 +468,7 @@ export function InferenceSetupWizard({
         ) : sources.length === 0 ? (
           <PanelShell
             title="Inference providers"
-            description="Connected providers are the source for models Gateway can manage."
+            description="Connected providers are the source for models Opfield can manage."
             actions={
               <Button onClick={() => setProviderOpen(true)}>
                 <Plus /> Connect provider
@@ -484,12 +484,12 @@ export function InferenceSetupWizard({
           </PanelShell>
         ) : (
           <PanelShell
-            title="Gateway model"
-            description="Choose the first model Gateway will make available through its managed catalog."
+            title="Opfield model"
+            description="Choose the first model Opfield will make available through its managed catalog."
           >
             <SettingsControlRow
               title="Default model"
-              description="Enabled for all Gateway users until you refine access in Settings."
+              description="Enabled for all Opfield users until you refine access in Settings."
               controlsClassName="sm:w-full sm:min-w-0 sm:max-w-[20rem]"
             >
               <Select value={selectedSource} onValueChange={setSelectedSource}>
@@ -508,8 +508,8 @@ export function InferenceSetupWizard({
             {selectedSourceNeedsPricing && !selectedSourceHasPricing && (
               <div className="px-4 py-3">
                 <p className="text-xs text-warning-text">
-                  Gateway could not discover pricing for this API model. Add its pricing in Settings
-                  → Gateway Inference, or select another model.
+                  Opfield could not discover pricing for this API model. Add its pricing in Settings
+                  → Opfield Inference, or select another model.
                 </p>
               </div>
             )}

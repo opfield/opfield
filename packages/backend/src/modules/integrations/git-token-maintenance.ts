@@ -204,7 +204,7 @@ export async function runGitTokenMaintenance(
             resourceId: holder.id,
             reason: 'git:shared-token',
             expiresAt,
-            message: `The GitLab token of ${holder.label} is also stored in ${others.join(', ')}. Gateway does not rotate a token that is stored in more than one place, because rotating it revokes the copy the others still use. Give each of them its own token.`,
+            message: `The GitLab token of ${holder.label} is also stored in ${others.join(', ')}. Opfield does not rotate a token that is stored in more than one place, because rotating it revokes the copy the others still use. Give each of them its own token.`,
           });
         }
       }
@@ -254,7 +254,7 @@ export async function runGitTokenMaintenance(
         resourceId: holder.id,
         reason: 'git:rotation-lost',
         expiresAt,
-        message: `Automatic rotation of the GitLab token of ${holder.label} did not complete (${errorMessage(rotation.error)}), and the stored token no longer works. GitLab may have issued a new token that Gateway could not keep. ${holder.kind === 'integration_connector' ? 'Rotate the connector token' : 'Authorize a new personal token'} now.`,
+        message: `Automatic rotation of the GitLab token of ${holder.label} did not complete (${errorMessage(rotation.error)}), and the stored token no longer works. GitLab may have issued a new token that Opfield could not keep. ${holder.kind === 'integration_connector' ? 'Rotate the connector token' : 'Authorize a new personal token'} now.`,
       });
     } else {
       logger.warn('GitLab token rotation failed; the stored token still works and the expiry alerts remain', {

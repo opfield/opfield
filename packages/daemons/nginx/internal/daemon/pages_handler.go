@@ -14,7 +14,7 @@ func (h *Handler) pagesUnavailable(result *pb.CommandResult) bool {
 		return false
 	}
 	result.Success = false
-	result.Error = "Gateway Pages v1 runtime is unavailable on this node"
+	result.Error = "Opfield Pages v1 runtime is unavailable on this node"
 	return true
 }
 
@@ -23,7 +23,7 @@ func (h *Handler) pagesRuntimeConfigUnavailable(result *pb.CommandResult) bool {
 		return false
 	}
 	result.Success = false
-	result.Error = "Gateway Pages runtime configuration is unavailable on this node"
+	result.Error = "Opfield Pages runtime configuration is unavailable on this node"
 	return true
 }
 
@@ -41,7 +41,7 @@ func (h *Handler) pagesCommandError(result *pb.CommandResult, operation string, 
 	result.Success = false
 	// Commands never return paths, archive contents, or raw nginx output in the
 	// public envelope. The daemon log has full operator diagnostics.
-	h.logger.Error("Gateway Pages command failed", "operation", operation, "error", err)
+	h.logger.Error("Opfield Pages command failed", "operation", operation, "error", err)
 	result.Error = fmt.Sprintf("Pages %s failed", operation)
 }
 

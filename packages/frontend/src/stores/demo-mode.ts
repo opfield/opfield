@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 export const DEMO_MODE_RESTRICTED = "DEMO_MODE_RESTRICTED";
-export const DEMO_CTA_URL = "https://goodgateway.dev" as const;
+export const DEMO_CTA_URL = "https://opfield.dev" as const;
 
 interface DemoModeState {
   enabled: boolean;

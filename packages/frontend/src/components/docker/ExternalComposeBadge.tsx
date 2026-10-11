@@ -10,7 +10,7 @@ export function ExternalComposeBadge() {
         </Badge>
       </TooltipTrigger>
       <TooltipContent side="top">
-        Discovered on the Docker node but not managed by Gateway. Adopt it to manage revisions and
+        Discovered on the Docker node but not managed by Opfield. Adopt it to manage revisions and
         lifecycle actions.
       </TooltipContent>
     </Tooltip>

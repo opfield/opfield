@@ -53,7 +53,7 @@ export function createDrizzleClient(connectionString: string): DrizzleClient {
 /** Thrown to work a stopping Gateway left to durable recovery when it reaches the database. */
 export class AbandonedOperationError extends Error {
   constructor() {
-    super('Gateway is stopping; this operation is resumed by recovery after the restart');
+    super('Opfield is stopping; this operation is resumed by recovery after the restart');
     this.name = 'AbandonedOperationError';
   }
 }

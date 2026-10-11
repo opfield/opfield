@@ -65,7 +65,7 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'create_node',
     description:
-      'Create (enroll) a new daemon node, including Relay Pool relays, and generate an enrollment token. Relay nodes require serviceAddresses (addresses daemons use to reach the relay) and optionally servicePort; other types reject them. IMPORTANT: The response contains enrollmentToken, gatewayCertSha256 and installCommands — display the token and fingerprint, and give the user the installCommands entry (curl or wget) for the target the host can reach, unchanged: it downloads the installer of this Gateway release, checks its checksum and pins the matching daemon release. The token is one-time-use and cannot be retrieved again; use manage_node regenerate_enrollment_token for a node that has not enrolled yet.',
+      'Create (enroll) a new daemon node, including Relay Pool relays, and generate an enrollment token. Relay nodes require serviceAddresses (addresses daemons use to reach the relay) and optionally servicePort; other types reject them. IMPORTANT: The response contains enrollmentToken, gatewayCertSha256 and installCommands — display the token and fingerprint, and give the user the installCommands entry (curl or wget) for the target the host can reach, unchanged: it downloads the installer of this Opfield release, checks its checksum and pins the matching daemon release. The token is one-time-use and cannot be retrieved again; use manage_node regenerate_enrollment_token for a node that has not enrolled yet.',
     parameters: {
       type: 'object',
       properties: {
@@ -237,7 +237,7 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'create_user',
     description:
-      'Create (invite) a user before first login and assign permission groups. authMethod password or email_otp emails the onboarding link or code and requires verified SMTP. With the Gateway setting generalSettings.sendInvitationOnUserCreate on, the account invitation email is also sent (a send failure does not fail the creation; the returned invitationSentAt stays null and manage_user send_invitation can retry). You can only assign groups within your own effective scopes.',
+      'Create (invite) a user before first login and assign permission groups. authMethod password or email_otp emails the onboarding link or code and requires verified SMTP. With the Opfield setting generalSettings.sendInvitationOnUserCreate on, the account invitation email is also sent (a send failure does not fail the creation; the returned invitationSentAt stays null and manage_user send_invitation can retry). You can only assign groups within your own effective scopes.',
     parameters: {
       type: 'object',
       properties: {
@@ -376,11 +376,11 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
         model: { type: 'string', description: 'Model name.' },
         gatewayInferenceModel: {
           type: 'string',
-          description: 'Default published Gateway Inference model ID.',
+          description: 'Default published Opfield Inference model ID.',
         },
         gatewayInferenceAllowUserModelSelection: {
           type: 'boolean',
-          description: 'Allow users to select another accessible Gateway Inference model.',
+          description: 'Allow users to select another accessible Opfield Inference model.',
         },
         allowUserReasoningEffortSelection: {
           type: 'boolean',
@@ -499,7 +499,7 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_api_token',
     description:
-      'Manage Gateway API tokens for the current browser user. Operations: list, create, update, revoke. Token secrets are returned only on create.',
+      'Manage Opfield API tokens for the current browser user. Operations: list, create, update, revoke. Token secrets are returned only on create.',
     parameters: {
       type: 'object',
       properties: {

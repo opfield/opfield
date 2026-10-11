@@ -79,7 +79,7 @@ async function deliverAccountInvitation(user: Pick<User, 'id' | 'email' | 'authM
   await assertSmtpVerified('SMTP must be verified before sending an invitation email');
   const publicUrl = await container.resolve(GeneralSettingsService).getPublicUrl();
   if (!publicUrl) {
-    throw new AppError(409, 'PUBLIC_URL_NOT_CONFIGURED', 'Set the Gateway public URL before sending invitation emails');
+    throw new AppError(409, 'PUBLIC_URL_NOT_CONFIGURED', 'Set the Opfield public URL before sending invitation emails');
   }
   const db = database();
   const sentAt = new Date();

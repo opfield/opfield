@@ -1,7 +1,8 @@
-# Gateway update service
+# Opfield update service
 
-Cloudflare Worker for the stable public Gateway update namespace at
-`updates.thesqlabs.com/gateway`.
+Cloudflare Worker for the stable public Opfield update namespace at
+`get.opfield.dev/gateway`. The same Worker keeps serving the earlier name `updates.thesqlabs.com/gateway`, which
+releases up to 2.11 use; both answer identically.
 
 It exposes:
 
@@ -9,7 +10,11 @@ It exposes:
 - `GET /gateway/releases` (stable by default)
 - `GET /gateway/releases?channel=stable|preview`
 - `GET /gateway/releases?component=<package>&current=<version>&channel=stable|preview`
-- `GET|HEAD /gateway/<package>/<tag>/<artifact>` for allow-listed signed Gateway artifacts
+- `GET|HEAD /gateway/<package>/<tag>/<artifact>` for allow-listed signed Opfield artifacts
+- `GET|HEAD /gateway/releases/download/<tag>/<installer>` and `/gateway/releases/latest/download/<installer>`: the
+  installers an Opfield release carries (`install.sh`, `setup-*.sh`, `gateway-daemon-installers.sha256`), in GitHub's
+  release download layout
+- `GET|HEAD /` and `/install.sh`: `install.sh` of the latest stable release (cached for 5 minutes)
 
 `stable` is the default and excludes GitHub prereleases. `preview` additionally accepts release-candidate tags such as `v2.10.0-rc.1`, `v2.10.0-rc.1-relay`, and matching daemon component tags. Component-aware requests return the newest patch on the current minor first, otherwise the baseline release of the next minor; no update returns `204` with `Cache-Control: no-store`. Inference Core ignores the requested channel and remains stable-only.
 
@@ -29,7 +34,7 @@ pnpm --filter @sqgateway/update-service typecheck
 pnpm --filter @sqgateway/update-service build
 ```
 
-Deployment uses the custom domain declared in `wrangler.jsonc`:
+Deployment uses the custom domain and the `get.opfield.dev` routes declared in `wrangler.jsonc`:
 
 ```bash
 pnpm --filter @sqgateway/update-service deploy

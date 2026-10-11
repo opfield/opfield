@@ -1,4 +1,4 @@
 interface:
-  display_name: "Gateway Storage"
-  short_description: "Manage Gateway object storage and copy jobs"
-  default_prompt: "Use $storage to inspect this Gateway object storage and plan the requested change."
+  display_name: "Opfield Storage"
+  short_description: "Manage Opfield object storage and copy jobs"
+  default_prompt: "Use $storage to inspect this Opfield object storage and plan the requested change."

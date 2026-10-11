@@ -143,7 +143,7 @@ export function ExternalSshIntegrationsSection() {
       <PanelShell
         icon={<KeyRound className="h-4 w-4" />}
         title="External SSH Integrations"
-        description="Encrypted credentials for external servers only. Gateway and managed nodes use their dedicated tools."
+        description="Encrypted credentials for external servers only. Opfield and managed nodes use their dedicated tools."
         actions={
           canManage ? (
             <Button onClick={() => setOpen(true)}>
@@ -208,7 +208,7 @@ export function ExternalSshIntegrationsSection() {
           {displayedEditingConnector ? (
             <PanelShell
               title="Connector"
-              description="Display name used across Gateway."
+              description="Display name used across Opfield."
               icon={<KeyRound className="h-4 w-4" />}
             >
               <SettingsControlRow title="Connector name">

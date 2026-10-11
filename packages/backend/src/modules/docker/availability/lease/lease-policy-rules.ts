@@ -37,7 +37,7 @@ export const STATEFUL_STRICT_ONLY = {
 
 export const STATEFUL_UNSUPPORTED = {
   code: 'stateful_protocol_unavailable',
-  message: 'This Gateway build cannot publish lease policies with certified holder state (availability_lease_v3)',
+  message: 'This Opfield build cannot publish lease policies with certified holder state (availability_lease_v3)',
   immediate: false,
 };
 

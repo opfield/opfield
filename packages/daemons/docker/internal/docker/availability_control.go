@@ -147,7 +147,7 @@ func (p *DockerPlugin) availabilityControl(request AvailabilityControlRequest) A
 		if err != nil {
 			message := err.Error()
 			if strings.Contains(message, "majority") {
-				message += "; a forced promotion still needs a strict majority of the set's voters. Quorum loss is repaired only by a signed voter change from Gateway."
+				message += "; a forced promotion still needs a strict majority of the set's voters. Quorum loss is repaired only by a signed voter change from Opfield."
 			}
 			return AvailabilityControlResponse{Error: message}
 		}

@@ -38,14 +38,14 @@ export function InterfaceChoiceDialog(props: InterfaceChoiceDialogProps) {
       icon: Bot,
       onSelect: props.onAIWorkspace!,
       description:
-        "Start from an outcome, keep guidance and infrastructure context in one Work Session, and move into Gateway resources without losing the conversation.",
+        "Start from an outcome, keep guidance and infrastructure context in one Work Session, and move into Opfield resources without losing the conversation.",
     },
     {
       label: "Operations Console",
       icon: LayoutDashboard,
       onSelect: props.onOperationsConsole!,
       description:
-        "Use the complete Gateway interface directly. Every capability remains available without AI, and AI Workspace stays one click away when configured.",
+        "Use the complete Opfield interface directly. Every capability remains available without AI, and AI Workspace stays one click away when configured.",
     },
   ];
   return (
@@ -58,11 +58,11 @@ export function InterfaceChoiceDialog(props: InterfaceChoiceDialogProps) {
         onInteractOutside={onOpenChange ? undefined : (event) => event.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>{props.title ?? "Choose Your Gateway Interface"}</DialogTitle>
+          <DialogTitle>{props.title ?? "Choose Your Opfield Interface"}</DialogTitle>
         </DialogHeader>
         <DialogDescription>
           {props.description ??
-            "AI Workspace is the recommended intent-driven interface for understanding and operating Gateway. Operations Console remains a complete interface and does not depend on AI."}
+            "AI Workspace is the recommended intent-driven interface for understanding and operating Opfield. Operations Console remains a complete interface and does not depend on AI."}
         </DialogDescription>
         <div className="grid gap-3">
           {choices.map(({ label, description, icon, onSelect }) => (

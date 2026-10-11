@@ -2,15 +2,15 @@
 
 [Back to README](../README.md)
 
-Gateway Container Archive (`.gwca`) is a streaming format for moving or copying a standalone Docker container between Gateway-managed nodes. It is a portable container configuration, not a backup format: named-volume contents and external application data are never included.
+Opfield Container Archive (`.gwca`) is a streaming format for moving or copying a standalone Docker container between Opfield-managed nodes. It is a portable container configuration, not a backup format: named-volume contents and external application data are never included.
 
 ## Archive contents
 
-GWCA v1 contains a Gateway-owned, versioned manifest with only settings that Gateway can safely create again:
+GWCA v1 contains an Opfield-owned, versioned manifest with only settings that Opfield can safely create again:
 
 - image identity and the original registry reference when available;
 - entrypoint, command, working directory, user, hostname, and supported labels;
-- optional Gateway-managed container environment values;
+- optional Opfield-managed container environment values;
 - optional secret values;
 - published ports;
 - named-volume declarations;
@@ -20,38 +20,38 @@ GWCA v1 contains a Gateway-owned, versioned manifest with only settings that Gat
 
 The manifest is deliberately not a serialized Docker inspect response. Containers using unsupported or host-sensitive settings, such as privileged mode, devices or GPUs, host bind mounts, host namespaces, capabilities, custom runtimes, custom log drivers, health checks, or unsupported resource controls, are rejected during export with an explicit reason instead of producing an incomplete archive. This includes containers using the Secure (`runsc`) runtime profile.
 
-A Gateway-managed GPU attachment is therefore not portable in GWCA v1: the UI disables export and the API rejects it. GPU-attached standalone containers and blue/green deployments also cannot use cross-node migration in this version. Detach the GPU through the normal recreate flow before using either portability workflow.
+An Opfield-managed GPU attachment is therefore not portable in GWCA v1: the UI disables export and the API rejects it. GPU-attached standalone containers and blue/green deployments also cannot use cross-node migration in this version. Detach the GPU through the normal recreate flow before using either portability workflow.
 
-**Include environment** controls whether Gateway-managed runtime environment values are included. It is available only to users with environment access. **Include secrets** is available only when environment inclusion is enabled by a user with secret access. Secret values inside a `.gwca` file are plaintext archive data; the downloaded file must be handled as sensitive. On import, Gateway encrypts them again with the destination Gateway key. Image-defined `ENV` values can still be part of a portable image; excluding the option omits the container-specific runtime overrides.
+**Include environment** controls whether Opfield-managed runtime environment values are included. It is available only to users with environment access. **Include secrets** is available only when environment inclusion is enabled by a user with secret access. Secret values inside a `.gwca` file are plaintext archive data; the downloaded file must be handled as sensitive. On import, Opfield encrypts them again with the destination Opfield key. Image-defined `ENV` values can still be part of a portable image; excluding the option omits the container-specific runtime overrides.
 
 ## Image modes
 
 Open a standalone container and choose **Export archive**:
 
-- **Portable** embeds the exact Docker image. The archive can be imported without registry access and streams from Docker through the daemon and Gateway directly to the browser.
-- **Registry-backed** stores the exact image ID and an immutable repository digest without embedding the image. The target node must already have that image or be able to pull it through a public registry or registry credentials configured in Gateway. Registry credentials are never written into the archive.
+- **Portable** embeds the exact Docker image. The archive can be imported without registry access and streams from Docker through the daemon and Opfield directly to the browser.
+- **Registry-backed** stores the exact image ID and an immutable repository digest without embedding the image. The target node must already have that image or be able to pull it through a public registry or registry credentials configured in Opfield. Registry credentials are never written into the archive.
 
 Portable mode can optionally capture the current writable layer with a non-pausing Docker commit. This does not interrupt the container, but concurrent writes are not transactionally consistent. Database data belongs in volumes and needs database-native backup tooling; writable-layer capture is not a live database backup.
 
-When a portable archive is imported, Gateway removes Docker repository-tag metadata before loading its image and creates the container from the loaded immutable image ID. The original registry reference is retained only as Gateway update metadata, so a later authorized container update can pull it normally without allowing an archive to change a local Docker tag.
+When a portable archive is imported, Opfield removes Docker repository-tag metadata before loading its image and creates the container from the loaded immutable image ID. The original registry reference is retained only as Opfield update metadata, so a later authorized container update can pull it normally without allowing an archive to change a local Docker tag.
 
 ## Import planning and remapping
 
-Open **Docker > Containers**, choose **Import .gwca**, select the archive and target node, and confirm the container name. Gateway reads only the local manifest before upload and builds a best-effort import plan:
+Open **Docker > Containers**, choose **Import .gwca**, select the archive and target node, and confirm the container name. Opfield reads only the local manifest before upload and builds a best-effort import plan:
 
 - an occupied container name receives the next available suffix automatically;
 - compatible existing networks are reused;
 - portable missing networks are created when the user has network-create access;
 - networks that cannot be reproduced fall back to the target node's default `bridge` network;
 - source IP and MAC addresses are discarded so Docker allocates destination-local endpoint addresses;
-- named volumes are recreated empty as uniquely named Gateway-managed local volumes, so old same-named data is never attached accidentally;
-- a source volume that cannot be recreated directly may be replaced with a new managed local volume; an existing destination can be selected only when it is already Gateway-managed and has the safe local driver, local scope, and no driver options;
+- named volumes are recreated empty as uniquely named Opfield-managed local volumes, so old same-named data is never attached accidentally;
+- a source volume that cannot be recreated directly may be replaced with a new managed local volume; an existing destination can be selected only when it is already Opfield-managed and has the safe local driver, local scope, and no driver options;
 - archives containing host bind mounts are rejected rather than importing destination-node host paths;
 - occupied host ports are shown for remapping; port `0` asks Docker to allocate a free host port.
 
-The imported container remains stopped. Gateway restores ordinary environment values and encrypts imported secrets before publishing the created container to the rest of Gateway. If persistence fails after Docker creation, Gateway removes the partial container and archive-created resources.
+The imported container remains stopped. Opfield restores ordinary environment values and encrypts imported secrets before publishing the created container to the rest of Opfield. If persistence fails after Docker creation, Opfield removes the partial container and archive-created resources.
 
-The export/import UI is available only for standalone containers. Gateway deployment members continue to be managed through their deployment.
+The export/import UI is available only for standalone containers. Opfield deployment members continue to be managed through their deployment.
 
 ## API
 

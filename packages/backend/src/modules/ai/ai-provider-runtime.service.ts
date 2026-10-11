@@ -213,10 +213,10 @@ export class AIProviderRuntimeService {
     }
 
     if (!(await this.generalSettings.isFeatureEnabled('inferenceEnabled'))) {
-      throw new AppError(503, 'AI_GATEWAY_INFERENCE_DISABLED', 'Gateway Inference is disabled');
+      throw new AppError(503, 'AI_GATEWAY_INFERENCE_DISABLED', 'Opfield Inference is disabled');
     }
     if (!this.inferenceRuntime.isConfigured()) {
-      throw new AppError(503, 'INFERENCE_NOT_CONFIGURED', 'Gateway Inference is not configured');
+      throw new AppError(503, 'INFERENCE_NOT_CONFIGURED', 'Opfield Inference is not configured');
     }
 
     const models = (await this.inferenceModels.listForUser(user)).data;
@@ -232,7 +232,7 @@ export class AIProviderRuntimeService {
     let selected = models.find((model) => model.id === (requestedModel || config.gatewayInferenceModel));
     if (!selected && !requestedModel && config.gatewayInferenceAllowUserModelSelection) selected = models[0];
     if (!selected) {
-      throw new AppError(404, 'AI_MODEL_UNAVAILABLE', 'The selected Gateway Inference model is unavailable');
+      throw new AppError(404, 'AI_MODEL_UNAVAILABLE', 'The selected Opfield Inference model is unavailable');
     }
     const requestedReasoningEffort = options.requestedReasoningEffort?.trim();
     if (requestedReasoningEffort && !selected.supported_reasoning_efforts.includes(requestedReasoningEffort)) {
@@ -375,7 +375,7 @@ async function* streamGatewayInferenceWithRetry(input: {
       }
       const delayMs =
         GATEWAY_INFERENCE_RETRY_MIN_DELAY_MS + Math.floor(Math.random() * (GATEWAY_INFERENCE_RETRY_JITTER_MS + 1));
-      logger.warn('Retrying Gateway Inference before first model output', {
+      logger.warn('Retrying Opfield Inference before first model output', {
         requestId: input.requestId,
         conversationId: input.conversationId,
         model: input.model,

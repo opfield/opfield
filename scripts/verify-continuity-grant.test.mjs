@@ -57,7 +57,7 @@ test('rejects removal of the pre-company-assignment boundary', async () => {
 test('rejects removal of key continuity during succession', async () => {
   const result = await verifyGrant(
     canonicalGrant.replace(
-      'That succession does not reduce rights already granted to users, change the conditions of this grant, terminate applicable paid-key terms, or revoke, invalidate, or deactivate any valid commercial key solely because of the assignment.\n',
+      'A succession does not reduce rights already granted to users, change the conditions of this grant, terminate applicable paid-key terms, or revoke, invalidate, or deactivate any valid commercial key.\n',
       ''
     )
   );

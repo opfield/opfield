@@ -242,7 +242,7 @@ export const users: User[] = [
       id: "00000000-0000-0000-0000-000000000000",
       oidcSubject: "system:gateway-setup",
       email: "system@gateway.local",
-      name: "Gateway System",
+      name: "Opfield System",
       sortOrder: 0,
     },
     [groupIds.systemAdmin]

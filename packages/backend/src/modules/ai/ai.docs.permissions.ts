@@ -1,6 +1,6 @@
 export const PERMISSIONS_DOC = `# Permissions & Scopes
 
-Gateway uses a scope-based permission system with nested group inheritance. Each user belongs to a permission group and may also have additional user-specific scopes. Effective permissions are the union of inherited group scopes and these additive user scopes. Groups can inherit from parent groups, forming a hierarchy.
+Opfield uses a scope-based permission system with nested group inheritance. Each user belongs to a permission group and may also have additional user-specific scopes. Effective permissions are the union of inherited group scopes and these additive user scopes. Groups can inherit from parent groups, forming a hierarchy.
 
 ## All Scopes
 
@@ -140,15 +140,15 @@ Every resource-qualified Pages scope uses the Page Project ID, including Deploym
 | admin:audit | View audit log |
 | audit:siem:view | View SIEM destinations and the audit delivery history |
 | audit:siem:manage | Create, edit, test, and delete SIEM destinations and requeue failed deliveries |
-| admin:details:certificates | View Gateway's internal system PKI and SSL certificates read-only; audit_system_pki_leaves also needs it |
+| admin:details:certificates | View Opfield's internal system PKI and SSL certificates read-only; audit_system_pki_leaves also needs it |
 | admin:system | System-level administration (protected) |
 | admin:update | Apply system updates |
 | admin:alerts | View and manage alerts |
 
-### Gateway Settings
+### Opfield Settings
 | Scope | Description |
 |-------|-------------|
-| settings:gateway:view | View Gateway settings: public URL, sign-in, SMTP, OAuth and MCP, network, environment, and relay settings |
+| settings:gateway:view | View Opfield settings: public URL, sign-in, SMTP, OAuth and MCP, network, environment, and relay settings |
 | settings:gateway:edit | Edit those settings; SMTP, the OIDC provider, the public URL, and relaxing OIDC verified-email enforcement also need admin:system |
 
 ### Housekeeping
@@ -158,11 +158,11 @@ Every resource-qualified Pages scope uses the Page Project ID, including Deploym
 | housekeeping:run | Run housekeeping manually |
 | housekeeping:configure | Edit housekeeping config and schedule |
 
-### Gateway diagnostics
+### Opfield diagnostics
 | Scope | Description |
 |-------|-------------|
-| diagnostics:view | Gateway's own state and 48-hour history: host, process, Postgres, Redis, stack containers, background jobs, API latency |
-| diagnostics:logs | Read the logs of Gateway's own containers; implies diagnostics:view |
+| diagnostics:view | Opfield's own state and 48-hour history: host, process, Postgres, Redis, stack containers, background jobs, API latency |
+| diagnostics:logs | Read the logs of Opfield's own containers; implies diagnostics:view |
 
 ### Licensing
 | Scope | Description |
@@ -174,7 +174,7 @@ Every resource-qualified Pages scope uses the Page Project ID, including Deploym
 | Scope | Description |
 |-------|-------------|
 | ai:workspace:use | Access AI Workspace |
-| feat:ai:use | Access Gateway Inference, personal usage, and personal inference token management |
+| feat:ai:use | Access Opfield Inference, personal usage, and personal inference token management |
 | feat:ai:configure | Configure AI Workspace settings |
 | ai:skills:manage | Create, edit, enable, disable, and delete shared AI Workspace skills |
 | ai:sandbox:use | Use AI sandbox runner tools |
@@ -183,11 +183,11 @@ Every resource-qualified Pages scope uses the Page Project ID, including Deploym
 | ai:sandbox:manage | View/manage sandbox jobs beyond the current user |
 | mcp:use | Allow a user account to access the remote MCP server with OAuth |
 
-### Inference Gateway
+### Opfield Inference
 | Scope | Description |
 |-------|-------------|
-| inference:setup | OAuth-only authorization for the Gateway companion CLI setup resource; do not assign it to users or groups |
-| feat:ai:use | Use Gateway Inference, view personal usage, and create or revoke dedicated gwi_ inference tokens for the current user |
+| inference:setup | OAuth-only authorization for the Opfield companion CLI setup resource; do not assign it to users or groups |
+| feat:ai:use | Use Opfield Inference, view personal usage, and create or revoke dedicated gwi_ inference tokens for the current user |
 | inference:providers:view | View provider templates, connections, masked credentials, discovery, and quota |
 | inference:providers:manage | Connect, update, synchronize, route, and disconnect inference providers |
 | inference:models:manage | Atomically create, replace, publish, or delete logical inference models |

@@ -486,7 +486,7 @@ func validateUserWorkloadNetworkMode(mode string) error {
 	case strings.Contains(mode, ":"):
 		return fmt.Errorf("network mode %q is not allowed for user workloads", mode)
 	case mode == secureLinkManagementNetwork:
-		return fmt.Errorf("Gateway-managed network %q cannot be attached to user workloads", mode)
+		return fmt.Errorf("Opfield-managed network %q cannot be attached to user workloads", mode)
 	}
 	return nil
 }

@@ -6,7 +6,7 @@ IFS=$'\n\t'
 # Installs nginx + nginx-daemon on a host and enrolls it with the Gateway.
 #
 # Usage:
-#   curl -sSL https://github.com/the-square-labs/gateway/releases/latest/download/setup-node.sh | \
+#   curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-node.sh | \
 #     bash -s -- --gateway gateway.example.com:9443 --token <ENROLLMENT_TOKEN> --gateway-cert-sha256 sha256:<HEX>
 #
 # Or download and run:
@@ -39,8 +39,8 @@ DAEMON_VERSION="${GATEWAY_NODE_DAEMON_VERSION:-latest}"
 SKIP_NGINX="${GATEWAY_NODE_SKIP_NGINX:-0}"
 DISABLE_CONSOLE="${GATEWAY_NODE_DISABLE_CONSOLE:-0}"
 DISABLE_FILES="${GATEWAY_NODE_DISABLE_FILES:-0}"
-RELEASES_API_URL="${GATEWAY_RELEASES_API_URL:-https://updates.thesqlabs.com/gateway/releases}"
-ARTIFACT_BASE_URL="${GATEWAY_ARTIFACT_BASE_URL:-https://updates.thesqlabs.com/gateway}"
+RELEASES_API_URL="${GATEWAY_RELEASES_API_URL:-https://get.opfield.dev/gateway/releases}"
+ARTIFACT_BASE_URL="${GATEWAY_ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
 RUN_USER=""
 NGINX_MODE="${GATEWAY_NODE_NGINX_MODE:-}"
 NON_INTERACTIVE=0
@@ -921,21 +921,21 @@ await_gateway_connection() {
     while (( waited < limit )); do
         if daemon_records_gateway_session "$RESOLVED_DAEMON_VERSION"; then
             if gateway_session_is_current; then
-                ok "nginx-daemon is connected to Gateway"
+                ok "nginx-daemon is connected to Opfield"
                 return 0
             fi
             # Gateway answered and refused the token: waiting cannot change that.
             if grep -q '"enrollment_refused":true' "$GATEWAY_SESSION_FILE" 2>/dev/null; then
-                err "Gateway refused the enrollment token (already used, expired, or for another node): $(gateway_session_enrollment_error)"
-                err "Create a new setup command in Gateway and run it on this host."
+                err "Opfield refused the enrollment token (already used, expired, or for another node): $(gateway_session_enrollment_error)"
+                err "Create a new setup command in Opfield and run it on this host."
                 show_daemon_log
                 return 1
             fi
         elif [[ -f /etc/nginx-daemon/certs/node.pem && -f /var/lib/nginx-daemon/state.json ]] && daemon_service_running; then
             running=$((running + 1))
             if (( running >= 10 )); then
-                ok "nginx-daemon enrolled with Gateway and is running"
-                warn "nginx-daemon ${RESOLVED_DAEMON_VERSION} does not report its Gateway connection; check that the node is online in Gateway."
+                ok "nginx-daemon enrolled with Opfield and is running"
+                warn "nginx-daemon ${RESOLVED_DAEMON_VERSION} does not report its Opfield connection; check that the node is online in Opfield."
                 return 0
             fi
         else
@@ -946,11 +946,11 @@ await_gateway_connection() {
     done
     local enrollment_error
     if enrollment_error=$(gateway_session_enrollment_error); then
-        err "nginx-daemon could not enroll with Gateway: ${enrollment_error}"
+        err "nginx-daemon could not enroll with Opfield: ${enrollment_error}"
     elif ! daemon_service_running; then
         err "nginx-daemon is not running; the service manager could not keep it up. The log below shows why."
     else
-        err "nginx-daemon has not connected to Gateway within ${limit} s; check that Gateway at ${GATEWAY_ADDR} is reachable."
+        err "nginx-daemon has not connected to Opfield within ${limit} s; check that Opfield at ${GATEWAY_ADDR} is reachable."
     fi
     show_daemon_log
     return 1
@@ -1334,22 +1334,22 @@ resolve_download_url() {
 # ── Parse Arguments ──────────────────────────────────────────────────
 show_help() {
     cat <<'HELP'
-Gateway Node Setup — installs nginx + nginx-daemon and enrolls with Gateway
+Opfield Node Setup — installs nginx + nginx-daemon and enrolls with Opfield
 
 Usage:
   setup-node.sh [options]
 
-  In interactive mode (default), the script prompts only for missing gateway host,
-  enrollment token, and Gateway certificate fingerprint. Port defaults to 9443 and
+  In interactive mode (default), the script prompts only for missing Opfield host,
+  enrollment token, and Opfield certificate fingerprint. Port defaults to 9443 and
   daemon version defaults to latest unless supplied.
 
 Options:
-  --gateway <addr>         Gateway gRPC address as host:port (e.g. gateway.example.com:9443)
-  --host <host>            Gateway hostname or IP (e.g. gateway.example.com)
-  --port <port>            Gateway gRPC port (default: 9443)
-  --token <token>          Enrollment token from Gateway UI (Nodes > Add Node)
+  --gateway <addr>         Opfield gRPC address as host:port (e.g. gateway.example.com:9443)
+  --host <host>            Opfield hostname or IP (e.g. gateway.example.com)
+  --port <port>            Opfield gRPC port (default: 9443)
+  --token <token>          Enrollment token from Opfield UI (Nodes > Add Node)
   --gateway-cert-sha256 <fp>
-                           Gateway gRPC TLS leaf fingerprint from the generated setup command
+                           Opfield gRPC TLS leaf fingerprint from the generated setup command
   --version <ver>          Daemon version to install (default: latest; never older than an installed one)
   --user <user>            Run daemon as this user (default: root)
   --skip-nginx             Reuse installed nginx (must be 1.25.1 or newer)
@@ -1372,8 +1372,8 @@ Environment variables:
   GATEWAY_NODE_NGINX_MODE       Same as --nginx-mode
   GATEWAY_NODE_DISABLE_CONSOLE  Set to 1 to disable the host console
   GATEWAY_NODE_DISABLE_FILES    Set to 1 to disable host file access
-  GATEWAY_RELEASES_API_URL      Override the Gateway release feed
-  GATEWAY_ARTIFACT_BASE_URL     Override the Gateway artifact base URL
+  GATEWAY_RELEASES_API_URL      Override the Opfield release feed
+  GATEWAY_ARTIFACT_BASE_URL     Override the Opfield artifact base URL
 
 Examples:
   # Interactive (prompts for everything):
@@ -1466,7 +1466,7 @@ if [[ "$NO_LOGO" -eq 0 ]]; then
     if [ -t 1 ] && command -v clear &>/dev/null; then
         clear
     fi
-    show_header "Gateway Node Setup" "Nginx daemon installer"
+    show_header "Opfield Node Setup" "Nginx daemon installer"
 fi
 
 # ── Interactive configuration ────────────────────────────────────────
@@ -1474,19 +1474,19 @@ if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
     guide_start "${GRAY}This script will:${NC}"
     guide "${GRAY}  1. Install nginx (if not present)${NC}"
     guide "${GRAY}  2. Download and install the nginx-daemon binary${NC}"
-    guide "${GRAY}  3. Enroll this node with your Gateway server${NC}"
+    guide "${GRAY}  3. Enroll this node with your Opfield server${NC}"
     guide "${GRAY}  4. Start the daemon as a systemd service${NC}"
     guide_blank
 
     if [[ "$EXISTING_ENROLLED" -eq 1 && -n "$EXISTING_GATEWAY_ADDR" && -z "$ENROLL_TOKEN" ]]; then
-        log "Existing enrolled nginx node detected — reusing current gateway configuration"
+        log "Existing enrolled nginx node detected — reusing the current Opfield connection settings"
     else
         # Gateway host
         if [[ -z "$GATEWAY_HOST" ]]; then
-            GATEWAY_HOST=$(prompt_input "Gateway hostname or IP" "")
-            [[ -z "$GATEWAY_HOST" ]] && die "Gateway hostname is required"
+            GATEWAY_HOST=$(prompt_input "Opfield hostname or IP" "")
+            [[ -z "$GATEWAY_HOST" ]] && die "Opfield hostname is required"
         else
-            guide "${GRAY}Gateway host: ${BRAND_MINT}${GATEWAY_HOST}${NC}"
+            guide "${GRAY}Opfield host: ${BRAND_MINT}${GATEWAY_HOST}${NC}"
         fi
 
         GATEWAY_ADDR="${GATEWAY_HOST}:${GATEWAY_PORT}"
@@ -1502,10 +1502,10 @@ if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
         fi
 
         if [[ -z "$GATEWAY_CERT_SHA256" ]]; then
-            GATEWAY_CERT_SHA256=$(prompt_input "Gateway certificate SHA-256 fingerprint" "")
-            [[ -z "$GATEWAY_CERT_SHA256" ]] && die "Gateway certificate SHA-256 fingerprint is required"
+            GATEWAY_CERT_SHA256=$(prompt_input "Opfield certificate SHA-256 fingerprint" "")
+            [[ -z "$GATEWAY_CERT_SHA256" ]] && die "Opfield certificate SHA-256 fingerprint is required"
         else
-            guide "${GRAY}Gateway cert: ${GATEWAY_CERT_SHA256}${NC}"
+            guide "${GRAY}Opfield cert: ${GATEWAY_CERT_SHA256}${NC}"
         fi
 
         guide_blank
@@ -1529,7 +1529,7 @@ if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
 
     if [[ -z "$NGINX_MODE" ]] && has_existing_nginx_config; then
         selector_title "Nginx configuration mode:"
-        nginx_mode_choice=$(prompt_choice "Choose" "2" "Managed    — installer owns the base nginx config" "Integrate  — keep existing nginx.conf and add Gateway includes")
+        nginx_mode_choice=$(prompt_choice "Choose" "2" "Managed    — installer owns the base nginx config" "Integrate  — keep existing nginx.conf and add Opfield includes")
         case "$nginx_mode_choice" in
             1|managed)   NGINX_MODE="managed" ;;
             2|integrate) NGINX_MODE="integrate" ;;
@@ -1593,7 +1593,7 @@ if [[ "$EXISTING_INSTALL" -eq 1 ]]; then
 fi
 
 summary_start
-summary_row "Gateway:     ${GATEWAY_ADDR}"
+summary_row "Opfield:     ${GATEWAY_ADDR}"
 if [[ -n "$ENROLL_TOKEN" ]]; then
     summary_row "Token:       ${ENROLL_TOKEN:0:12}..."
 else
@@ -1724,7 +1724,7 @@ preview_service_start() {
         manager="OpenRC service nginx-daemon"
     fi
     log "Enabling and starting nginx-daemon as ${RUN_USER} (${manager})..."
-    ok "nginx-daemon is connected to Gateway (dry run)"
+    ok "nginx-daemon is connected to Opfield (dry run)"
 }
 
 preview_nginx_install() {
@@ -1762,7 +1762,7 @@ dry_run_preview() {
     if [[ -z "$ENROLL_TOKEN" && "$EXISTING_ENROLLED" -eq 1 ]]; then
         ok "Node already enrolled — skipping enrollment (dry run)"
     else
-        log "Writing config and enrolling with Gateway..."
+        log "Writing config and enrolling with Opfield..."
         ok "Config written to /etc/nginx-daemon/config.yaml (dry run)"
     fi
     preview_host_access_config /etc/nginx-daemon/config.yaml
@@ -1923,11 +1923,11 @@ install_nginx() {
         [[ "$SKIP_NGINX" -eq 0 ]] ||
             die "--skip-nginx requires nginx ${NGINX_MIN_VERSION}+; found ${ver}."
 
-        warn "nginx ${ver} is below the required ${NGINX_MIN_VERSION} for Gateway HTTP/2 support."
+        warn "nginx ${ver} is below the required ${NGINX_MIN_VERSION} for Opfield HTTP/2 support."
         if [[ "$NON_INTERACTIVE" -eq 1 ]]; then
             die "nginx ${NGINX_MIN_VERSION}+ is required. Re-run interactively to approve the stable nginx upgrade."
         elif ! prompt_yes_no "Upgrade nginx to the official stable repository now?" "Y"; then
-            die "Gateway node setup aborted. nginx ${NGINX_MIN_VERSION}+ is required."
+            die "Opfield node setup aborted. nginx ${NGINX_MIN_VERSION}+ is required."
         fi
 
         install_nginx_stable_repo
@@ -1944,11 +1944,11 @@ install_nginx() {
     installed_ver=$(nginx_version)
     installed_ver="${installed_ver:-unknown}"
     if ! nginx_version_at_least "$installed_ver" "$NGINX_MIN_VERSION"; then
-        warn "nginx ${installed_ver} is below the required ${NGINX_MIN_VERSION} for Gateway HTTP/2 support."
+        warn "nginx ${installed_ver} is below the required ${NGINX_MIN_VERSION} for Opfield HTTP/2 support."
         if [[ "$NON_INTERACTIVE" -eq 1 ]]; then
             die "nginx ${NGINX_MIN_VERSION}+ is required; found ${installed_ver}."
         elif ! prompt_yes_no "Upgrade nginx to the official stable repository now?" "Y"; then
-            die "Gateway node setup aborted. nginx ${NGINX_MIN_VERSION}+ is required."
+            die "Opfield node setup aborted. nginx ${NGINX_MIN_VERSION}+ is required."
         fi
         install_nginx_stable_repo
         install_nginx_package 1
@@ -2005,7 +2005,7 @@ remove_legacy_gateway_sites_include() {
 
     backup_nginx_config "$legacy_file"
     rm -f "$legacy_file"
-    log "Removed legacy duplicate Gateway sites include"
+    log "Removed legacy duplicate Opfield sites include"
 }
 
 # A host switched from managed to integrate mode still has the managed direct
@@ -2025,10 +2025,10 @@ remove_direct_gateway_sites_include() {
         { print }
     ' "$global_conf" > "$tmp_file"; then
         rm -f "$tmp_file"
-        die "Failed to remove the direct Gateway sites include from $global_conf"
+        die "Failed to remove the direct Opfield sites include from $global_conf"
     fi
     mv "$tmp_file" "$global_conf"
-    log "Replaced the direct Gateway sites include with the integrate include"
+    log "Replaced the direct Opfield sites include with the integrate include"
 }
 
 ensure_nginx_worker_limits() {
@@ -2330,7 +2330,7 @@ server {
 
     location / {
         default_type text/html;
-        return 404 '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="color-scheme" content="light dark"><title>Page not found</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#fff;color:#09090b;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{width:100%;max-width:560px;text-align:center}.status{color:#71717a;font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}h1{margin:16px 0 0;font-size:clamp(40px,8vw,64px);line-height:1.05;font-weight:700;letter-spacing:-.04em}p.message{margin:20px auto 0;max-width:440px;color:#71717a;font-size:15px;line-height:1.6}.footer{margin-top:48px;color:#71717a;font-size:12px}.footer a{color:inherit;text-decoration:none}.footer a:hover{text-decoration:underline}@media(prefers-color-scheme:dark){body{background:#09090b;color:#fafafa}.status,p.message,.footer{color:#a1a1aa}.footer a{color:#fafafa}}</style></head><body><main><section><div class="status">Error 404</div><h1>Page not found</h1><p class="message">The requested host or page is not available.</p></section><div class="footer">Powered by <a href="https://goodgateway.dev" rel="noopener noreferrer">Good Gateway</a></div></main></body></html>';
+        return 404 '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="color-scheme" content="light dark"><title>Page not found</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#fff;color:#09090b;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{width:100%;max-width:560px;text-align:center}.status{color:#71717a;font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}h1{margin:16px 0 0;font-size:clamp(40px,8vw,64px);line-height:1.05;font-weight:700;letter-spacing:-.04em}p.message{margin:20px auto 0;max-width:440px;color:#71717a;font-size:15px;line-height:1.6}.footer{margin-top:48px;color:#71717a;font-size:12px}.footer a{color:inherit;text-decoration:none}.footer a:hover{text-decoration:underline}@media(prefers-color-scheme:dark){body{background:#09090b;color:#fafafa}.status,p.message,.footer{color:#a1a1aa}.footer a{color:#fafafa}}</style></head><body><main><section><div class="status">Error 404</div><h1>Page not found</h1><p class="message">The requested host or page is not available.</p></section><div class="footer">Powered by <a href="https://opfield.dev" rel="noopener noreferrer">Opfield</a></div></main></body></html>';
     }
 }
 EOF
@@ -2386,9 +2386,9 @@ server {
 EOF
 
     ensure_http_include "include /etc/nginx/gateway/sites.include.conf;" || \
-        die "Failed to inject Gateway sites include into /etc/nginx/nginx.conf"
+        die "Failed to inject Opfield sites include into /etc/nginx/nginx.conf"
     ensure_http_include "include /etc/nginx/gateway/stub_status.conf;" || \
-        die "Failed to inject Gateway stub_status include into /etc/nginx/nginx.conf"
+        die "Failed to inject Opfield stub_status include into /etc/nginx/nginx.conf"
 
     STUB_STATUS_URL="http://127.0.0.1:${INTEGRATED_STUB_STATUS_PORT}/nginx_status"
 }
@@ -2696,7 +2696,7 @@ enroll_daemon() {
         return 0
     fi
 
-    log "Writing config and enrolling with Gateway..."
+    log "Writing config and enrolling with Opfield..."
     if ! run_as_run_user "$target" install --gateway "$GATEWAY_ADDR" --token "$ENROLL_TOKEN" --gateway-cert-sha256 "$GATEWAY_CERT_SHA256" >> "$LOG_FILE" 2>&1; then
         die "Failed to enroll nginx-daemon. Check ${LOG_FILE} for details."
     fi
@@ -2734,7 +2734,7 @@ start_daemon() {
         # Write systemd unit with user/group support
         cat > /etc/systemd/system/nginx-daemon.service <<UNIT || die "Could not write the nginx-daemon systemd unit."
 [Unit]
-Description=Gateway Nginx Daemon
+Description=Opfield Nginx Daemon
 After=network-online.target nginx.service
 Wants=network-online.target
 
@@ -2761,8 +2761,8 @@ UNIT
     elif has_openrc; then
         cat > /etc/init.d/nginx-daemon <<UNIT || die "Could not write the nginx-daemon OpenRC service."
 #!/sbin/openrc-run
-name="Gateway Nginx Daemon"
-description="Gateway Nginx Daemon"
+name="Opfield Nginx Daemon"
+description="Opfield Nginx Daemon"
 command="/usr/local/bin/nginx-daemon"
 command_args="run"
 command_user="${RUN_USER}:${RUN_GROUP}"
@@ -2813,13 +2813,13 @@ start_daemon
 if ! await_gateway_connection; then
     restore_previous_enrollment
     [[ "$ENROLLMENT_RESTORED" -eq 0 ]] || die "The node keeps its previous enrollment; the enrollment token was not used."
-    die "nginx-daemon is installed, but it did not connect to Gateway."
+    die "nginx-daemon is installed, but it did not connect to Opfield."
 fi
 remember_enrollment_token
 
 echo ""
 echo ""
-echo -e "  The node should appear as ${GREEN}online${NC} in Gateway within a few seconds."
+echo -e "  The node should appear as ${GREEN}online${NC} in Opfield within a few seconds."
 if [[ "$MANUAL_FALLBACK_USED" -eq 1 ]]; then
     echo -e "  Manual mode is not persistent across reboot."
 elif has_systemd; then

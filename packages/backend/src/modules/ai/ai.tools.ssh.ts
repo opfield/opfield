@@ -3,7 +3,7 @@ import type { AIToolDefinition } from './ai.types.js';
 export const SSH_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'ssh_list_connectors',
-    description: 'List available external SSH connectors. Gateway-managed nodes are intentionally excluded.',
+    description: 'List available external SSH connectors. Opfield-managed nodes are intentionally excluded.',
     parameters: { type: 'object', properties: {} },
     destructive: false,
     category: 'External SSH',
@@ -14,7 +14,7 @@ export const SSH_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'ssh_execute_command',
     description:
-      'Execute one command on an external SSH connector. Use only after identifying the host and command; Gateway will apply its standard approval policy.',
+      'Execute one command on an external SSH connector. Use only after identifying the host and command; Opfield will apply its standard approval policy.',
     parameters: {
       type: 'object',
       properties: {

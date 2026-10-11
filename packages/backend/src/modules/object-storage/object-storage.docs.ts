@@ -86,7 +86,7 @@ export const deleteObjectStorageConnectionRoute = appRoute({
   tags: [TAG],
   summary: 'Delete an object storage connection',
   description:
-    'Refused while backup policies or active backup runs use the storage. Finished backup history also blocks deletion (409 STORAGE_BACKUP_HISTORY_EXISTS with historyRecords and backupsWithFiles) unless backupHistory=forget confirms removing it; forgotten backups can no longer be restored or deleted through Gateway, and their files are not deleted.',
+    'Refused while backup policies or active backup runs use the storage. Finished backup history also blocks deletion (409 STORAGE_BACKUP_HISTORY_EXISTS with historyRecords and backupsWithFiles) unless backupHistory=forget confirms removing it; forgotten backups can no longer be restored or deleted through Opfield, and their files are not deleted.',
   request: { params: IdParamSchema, query: DeleteStorageQuerySchema },
   responses: okJson(z.object({ success: z.boolean() })),
 });
@@ -253,7 +253,7 @@ export const presignObjectRoute = appRoute({
   tags: [TAG],
   summary: 'Generate a presigned URL',
   description:
-    'A URL for an S3 connection. For managed storage reachable only through Gateway (private relay) the request is refused with 409 STORAGE_PRESIGN_UNSUPPORTED; once its S3 endpoint is published, the URL points at the published endpoint (the node address and published port). SFTP and FTP(S) connections have no presigned URLs.',
+    'A URL for an S3 connection. For managed storage reachable only through Opfield (private relay) the request is refused with 409 STORAGE_PRESIGN_UNSUPPORTED; once its S3 endpoint is published, the URL points at the published endpoint (the node address and published port). SFTP and FTP(S) connections have no presigned URLs.',
   request: { params: IdParamSchema, ...jsonBody(PresignObjectSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });

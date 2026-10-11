@@ -53,7 +53,7 @@ func TestRecordEnrollmentFailureNamesARefusedToken(t *testing.T) {
 	}{
 		{fmt.Errorf("enrollment failed: %w", status.Error(codes.Unauthenticated, "Invalid enrollment token")), true},
 		{fmt.Errorf("enrollment failed: %w", status.Error(codes.Unavailable, "connection refused")), false},
-		{errors.New("gateway certificate fingerprint mismatch"), false},
+		{errors.New("Opfield certificate fingerprint mismatch"), false},
 	} {
 		stateDir := t.TempDir()
 		if err := recordEnrollmentFailure(stateDir, test.err); err != nil {

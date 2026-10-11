@@ -67,7 +67,7 @@ export class HostingFirewallService {
       .from(hostingNodeBindings)
       .innerJoin(nodes, eq(nodes.id, hostingNodeBindings.nodeId))
       .where(eq(hostingNodeBindings.resourceId, resourceId));
-    if (!bound.length) fail('The VM is no longer bound to a Gateway node');
+    if (!bound.length) fail('The VM is no longer bound to an Opfield node');
     for (const node of bound) {
       assertHostingScope(user.scopes, 'nodes:details', node.id);
       assertHostingScope(user.scopes, edit ? 'nodes:manage' : 'nodes:config:view', node.id);

@@ -367,7 +367,7 @@ export const EVENT_BUS_MAPPINGS: Record<string, EventMapping[]> = {
       category: 'gateway',
       eventId: 'license.unavailable',
       match: () => true,
-      extractResource: () => ({ type: 'gateway', id: 'gateway-license', name: 'Gateway license' }),
+      extractResource: () => ({ type: 'gateway', id: 'gateway-license', name: 'Opfield license' }),
       extractData: (p) => ({
         plan: p.plan ?? null,
         expires_at: p.expiresAt ?? null,
@@ -396,7 +396,7 @@ export const EVENT_BUS_MAPPINGS: Record<string, EventMapping[]> = {
       // pool and relay runtime events say nothing of the Gateway relay: read as healthy, they resolved its alert
       // during a local relay outage.
       match: (p) => p.action !== 'revocation_fence' && typeof p.state === 'string',
-      extractResource: () => ({ type: 'gateway', id: 'gateway-relay', name: 'Gateway relay' }),
+      extractResource: () => ({ type: 'gateway', id: 'gateway-relay', name: 'Opfield relay' }),
       extractData: (p) => ({
         failure_code: p.reason ?? null,
         attempt: p.attempt ?? 0,

@@ -259,7 +259,7 @@ export abstract class AIRunServiceRuntime {
           if (effectUnknown) {
             await this.pausePlanAfterFailedRun(
               run,
-              'Gateway restarted while a plan tool was running. Verify the real resource state before resuming.'
+              'Opfield restarted while a plan tool was running. Verify the real resource state before resuming.'
             );
           }
         } else {
@@ -281,7 +281,7 @@ export abstract class AIRunServiceRuntime {
         if (effectUnknown) {
           await this.pausePlanAfterFailedRun(
             run,
-            'Gateway restarted while a plan tool was running. Verify the real resource state before resuming.'
+            'Opfield restarted while a plan tool was running. Verify the real resource state before resuming.'
           );
         }
       }
@@ -449,7 +449,7 @@ export abstract class AIRunServiceRuntime {
     const now = new Date();
     if (runningCalls.length > 0) {
       const error =
-        'AI_TOOL_EFFECT_UNKNOWN: Gateway restarted while a tool was running. Verify the real resource state before retrying.';
+        'AI_TOOL_EFFECT_UNKNOWN: Opfield restarted while a tool was running. Verify the real resource state before retrying.';
       await this.db
         .update(aiRunToolCalls)
         .set({ status: 'effect_unknown', error, completedAt: now, updatedAt: now })

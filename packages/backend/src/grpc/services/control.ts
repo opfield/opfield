@@ -538,7 +538,7 @@ export function createControlHandlers(deps: GrpcServerDeps) {
               registering = false;
               messagesDuringRegistration.length = 0;
               clearPendingCommandRegistration(claimedNodeId, registrationToken);
-              rejectRegistration('node is not registered with this Gateway (it may have been removed)');
+              rejectRegistration('node is not registered with this Opfield installation (it may have been removed)');
               return;
             }
 

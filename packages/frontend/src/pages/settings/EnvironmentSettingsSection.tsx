@@ -328,7 +328,7 @@ export function EnvironmentSettingsSection({ canEdit }: { canEdit: boolean }) {
       <div className="grid gap-4 lg:grid-cols-2">
         <EnvironmentPanel
           title="Rate limits: core and authentication"
-          description="Gateway, setup, and sign-in admission limits."
+          description="Opfield, setup, and sign-in admission limits."
           icon={<Gauge className="h-4 w-4" />}
           dirty={isSubsetDirty("rateLimits", RATE_CORE_KEYS)}
           isDefault={isSubsetDefault("rateLimits", RATE_CORE_KEYS)}
@@ -345,7 +345,7 @@ export function EnvironmentSettingsSection({ canEdit }: { canEdit: boolean }) {
             unit="seconds"
             min={1}
             max={3600}
-            help="The window is the period in which Gateway counts requests. Because it slides with traffic, capacity returns gradually instead of resetting at a fixed clock time."
+            help="The window is the period in which Opfield counts requests. Because it slides with traffic, capacity returns gradually instead of resetting at a fixed clock time."
             disabled={disabled}
             onChange={(value) => setValue("rateLimits", "windowMs", value)}
           />
@@ -354,7 +354,7 @@ export function EnvironmentSettingsSection({ canEdit }: { canEdit: boolean }) {
             description="Authenticated API requests per client in each window."
             value={draft.rateLimits.maxRequests}
             unit="requests"
-            help="Applies to ordinary Gateway API calls from one client IP: API tokens, scripts, and requests without a session. Signed-in browser sessions, login, public, streaming, and inference routes have their own limits."
+            help="Applies to ordinary Opfield API calls from one client IP: API tokens, scripts, and requests without a session. Signed-in browser sessions, login, public, streaming, and inference routes have their own limits."
             disabled={disabled}
             onChange={(value) => setValue("rateLimits", "maxRequests", value)}
           />
@@ -390,7 +390,7 @@ export function EnvironmentSettingsSection({ canEdit }: { canEdit: boolean }) {
             description="OIDC callback requests per client in each window."
             value={draft.rateLimits.authCallbackMaxRequests}
             unit="requests"
-            help="An OIDC callback is the request sent back to Gateway after a user signs in with an external identity provider. This limit protects that return endpoint."
+            help="An OIDC callback is the request sent back to Opfield after a user signs in with an external identity provider. This limit protects that return endpoint."
             disabled={disabled}
             onChange={(value) => setValue("rateLimits", "authCallbackMaxRequests", value)}
           />
@@ -427,7 +427,7 @@ export function EnvironmentSettingsSection({ canEdit }: { canEdit: boolean }) {
           <NumberSetting
             title="Public webhooks"
             description="Inbound webhook requests per client in each window."
-            help="Webhooks are requests sent to Gateway automatically by external services. This limit prevents one sender or retry loop from overwhelming the receiver."
+            help="Webhooks are requests sent to Opfield automatically by external services. This limit prevents one sender or retry loop from overwhelming the receiver."
             value={draft.rateLimits.publicWebhookMaxRequests}
             unit="requests"
             disabled={disabled}
@@ -591,7 +591,7 @@ export function EnvironmentSettingsSection({ canEdit }: { canEdit: boolean }) {
           />
           <NumberSetting
             title="Global requests"
-            description="Gateway-wide logging requests in each window."
+            description="Opfield-wide logging requests in each window."
             help="Counts logging HTTP requests from every ingest token combined. One request may contain many events, which are also counted by the separate global event limit."
             value={draft.loggingIngest.globalRequestsPerWindow}
             unit="requests"
@@ -600,7 +600,7 @@ export function EnvironmentSettingsSection({ canEdit }: { canEdit: boolean }) {
           />
           <NumberSetting
             title="Global events"
-            description="Gateway-wide ingested events in each window."
+            description="Opfield-wide ingested events in each window."
             help="Counts individual log events across all requests and tokens. A batch containing 100 events consumes 100 units from this limit."
             value={draft.loggingIngest.globalEventsPerWindow}
             unit="events"
@@ -704,7 +704,7 @@ export function EnvironmentSettingsSection({ canEdit }: { canEdit: boolean }) {
         <NumberSetting
           title="Concurrency lease"
           description="Concurrency lease duration in seconds."
-          help="An inference slot remains reserved for this long without renewal, allowing Gateway to recover capacity after a worker or connection disappears."
+          help="An inference slot remains reserved for this long without renewal, allowing Opfield to recover capacity after a worker or connection disappears."
           value={draft.requestLimits.inferenceConcurrencyLeaseSeconds}
           unit="seconds"
           min={30}

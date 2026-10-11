@@ -76,12 +76,12 @@ export class AIServiceLifecycleTools extends AIServiceAdministrationTools {
           case 'perform_gateway_update': {
             const version = releaseVersionArg(a.version);
             if (updateService.isGatewayUpdateInProgress()) {
-              throw new AppError(409, 'UPDATE_IN_PROGRESS', 'A Gateway update is already in progress');
+              throw new AppError(409, 'UPDATE_IN_PROGRESS', 'An Opfield update is already in progress');
             }
             // A running Relay Pool update refuses the Gateway update.
             await updateService.assertGatewayUpdateAllowed();
             const status = await updateService.getCachedStatus();
-            if (!status.updateAvailable) throw new Error('No gateway update is available');
+            if (!status.updateAvailable) throw new Error('No Opfield update is available');
             if (version !== status.latestVersion) throw new Error('Requested version does not match available update');
             const artifact = await updateService.prepareGatewayUpdate(version);
             // A new attempt supersedes the report of a previous rolled-back one.
@@ -98,7 +98,7 @@ export class AIServiceLifecycleTools extends AIServiceAdministrationTools {
                   targetVersion: version,
                   ...(error instanceof AppError ? { error: error.message } : {}),
                 });
-                logger.error('Gateway update failed from AI tool', {
+                logger.error('Opfield update failed from AI tool', {
                   error: error instanceof Error ? error.message : String(error),
                   stack: error instanceof Error ? error.stack : undefined,
                 });
@@ -108,9 +108,9 @@ export class AIServiceLifecycleTools extends AIServiceAdministrationTools {
           }
           case 'proceed_gateway_update': {
             if (!updateService.proceedWithoutWaiting()) {
-              throw new AppError(409, 'UPDATE_NOT_WAITING', 'No Gateway update is waiting for running operations');
+              throw new AppError(409, 'UPDATE_NOT_WAITING', 'No Opfield update is waiting for running operations');
             }
-            logger.warn('Gateway update proceeds without waiting for running operations', { userId: user.id });
+            logger.warn('Opfield update proceeds without waiting for running operations', { userId: user.id });
             return { status: 'updating' };
           }
           case 'acknowledge_gateway_update_failure':
@@ -121,7 +121,7 @@ export class AIServiceLifecycleTools extends AIServiceAdministrationTools {
               throw new AppError(
                 409,
                 'GATEWAY_UPDATE_IN_PROGRESS',
-                'Gateway is updating. Update the Relay Pool after the Gateway update has finished.'
+                'Opfield is updating. Update the Relay Pool after the Opfield update has finished.'
               );
             }
             const status = await updateService.getCachedStatus();

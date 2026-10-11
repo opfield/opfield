@@ -32,7 +32,7 @@ export function normalizeAdditionalRoutePath(value: string): string {
   }
   const lower = normalized.toLowerCase();
   if (RESERVED_CANONICAL_PREFIXES.some((reserved) => lower === reserved || lower.startsWith(`${reserved}/`))) {
-    throw new Error('Additional Route path is reserved by Gateway');
+    throw new Error('Additional Route path is reserved by Opfield');
   }
   return normalized;
 }

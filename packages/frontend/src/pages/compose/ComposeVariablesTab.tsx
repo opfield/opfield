@@ -149,7 +149,7 @@ export function ComposeVariablesTab({
           description="Adopt the project before managing variables and secrets."
           bodyClassName="p-6 text-sm text-muted-foreground"
         >
-          External projects do not have a Gateway-owned revision yet.
+          External projects do not have an Opfield-owned revision yet.
         </PanelShell>
       )}
     </div>

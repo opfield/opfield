@@ -701,7 +701,7 @@ export function LoginPage({
                 </pre>
                 <div className="flex justify-center">
                   <Button className="w-max flex-none" onClick={complete}>
-                    Continue to Gateway
+                    Continue to Opfield
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </div>

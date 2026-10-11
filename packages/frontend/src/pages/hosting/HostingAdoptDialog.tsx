@@ -105,7 +105,7 @@ export function HostingAdoptDialog({
         <DialogHeader>
           <DialogTitle>Adopt Nodes</DialogTitle>
           <DialogDescription>
-            Associate an existing VM or container with a Gateway node. Gateway verifies that both
+            Associate an existing VM or container with an Opfield node. Opfield verifies that both
             are the same host before linking them.
           </DialogDescription>
         </DialogHeader>
@@ -113,7 +113,7 @@ export function HostingAdoptDialog({
           <ContentLoading loading={open && !candidatesSettled} />
           <SettingsControlRow
             title="VM or container"
-            description="Discovered resources without a Gateway association."
+            description="Discovered resources without an Opfield association."
           >
             <Combobox
               ariaLabel="VM or container"
@@ -128,11 +128,11 @@ export function HostingAdoptDialog({
             />
           </SettingsControlRow>
           <SettingsControlRow
-            title="Gateway node"
+            title="Opfield node"
             description="Nodes without a hosting association."
           >
             <Combobox
-              ariaLabel="Gateway node"
+              ariaLabel="Opfield node"
               value={nodeId}
               onValueChange={setNodeId}
               disabled={loading || busy || !candidates?.nodes.length}
@@ -148,7 +148,7 @@ export function HostingAdoptDialog({
           <p className="text-sm text-muted-foreground">
             {!candidates.resources.length
               ? "No unbound resources are available. Synchronize the provider to refresh discovery."
-              : "No unbound Gateway nodes are available."}
+              : "No unbound Opfield nodes are available."}
           </p>
         )}
         {error && (

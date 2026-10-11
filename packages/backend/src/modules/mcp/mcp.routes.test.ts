@@ -285,7 +285,7 @@ describe('MCP route authentication', () => {
     });
 
     expect(response.status).toBe(401);
-    expect(await response.json()).toEqual({ message: 'MCP accepts only Gateway OAuth access tokens' });
+    expect(await response.json()).toEqual({ message: 'MCP accepts only Opfield OAuth access tokens' });
   });
 
   it('returns JSON-RPC method-not-allowed for GET in stateless mode', async () => {
@@ -1067,7 +1067,7 @@ describe('MCP resources and prompts', () => {
 
     const data = JSON.parse(body.result.contents[0].text);
     expect(data.topic).toBe('api');
-    expect(data.content).toContain('# Gateway REST API');
+    expect(data.content).toContain('# Opfield REST API');
   });
 
   it('lists prompts filtered by token scopes', async () => {

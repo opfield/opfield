@@ -139,6 +139,8 @@ export interface DaemonUpdateManifestExpectation {
   artifactName: string;
   downloadUrl: string;
   trustedPackagePrefix: string;
+  /** The same artifact under the update host's other names (manifests signed before a host move name those). */
+  acceptedDownloadUrls?: readonly string[];
 }
 
 export interface GatewayImageManifestExpectation {
@@ -163,9 +165,10 @@ export interface OpenCodexImageManifestExpectation {
 
 export function verifyDaemonUpdateManifest(
   signedManifest: string,
-  expected: DaemonUpdateManifestExpectation
+  expected: DaemonUpdateManifestExpectation,
+  publicKey: string | Buffer = UPDATE_SIGNING_PUBLIC_KEY_PEM
 ): TrustedDaemonUpdateArtifact {
-  const payload = verifySignedPayload<DaemonUpdateManifestPayload>(signedManifest);
+  const payload = verifySignedPayload<DaemonUpdateManifestPayload>(signedManifest, publicKey);
   if (payload.kind !== 'daemon-binary') throw new UpdateArtifactTrustError('Update manifest kind is not daemon-binary');
   if (payload.daemonType !== expected.daemonType) throw new UpdateArtifactTrustError('Update daemon type mismatch');
   if (payload.version !== expected.version) throw new UpdateArtifactTrustError('Update version mismatch');
@@ -173,8 +176,13 @@ export function verifyDaemonUpdateManifest(
   if (payload.arch !== expected.arch) throw new UpdateArtifactTrustError('Update architecture mismatch');
   if (payload.artifactName !== expected.artifactName)
     throw new UpdateArtifactTrustError('Update artifact name mismatch');
-  if (payload.downloadUrl !== expected.downloadUrl) throw new UpdateArtifactTrustError('Update download URL mismatch');
-  if (!isTrustedHttpsUrl(payload.downloadUrl, expected.trustedPackagePrefix)) {
+  if (payload.downloadUrl === expected.downloadUrl) {
+    if (!isTrustedHttpsUrl(payload.downloadUrl, expected.trustedPackagePrefix)) {
+      throw new UpdateArtifactTrustError('Update download URL is not trusted');
+    }
+  } else if (!expected.acceptedDownloadUrls?.includes(payload.downloadUrl)) {
+    throw new UpdateArtifactTrustError('Update download URL mismatch');
+  } else if (!payload.downloadUrl.startsWith('https://')) {
     throw new UpdateArtifactTrustError('Update download URL is not trusted');
   }
   if (!SHA256_RE.test(payload.sha256)) throw new UpdateArtifactTrustError('Update checksum is invalid');
@@ -194,26 +202,26 @@ export function verifyGatewayImageManifest(
 ): TrustedGatewayUpdateArtifact {
   const payload = verifySignedPayload<GatewayImageManifestPayload>(signedManifest, publicKey);
   if (payload.kind !== 'gateway-image') throw new UpdateArtifactTrustError('Update manifest kind is not gateway-image');
-  if (payload.version !== expected.version) throw new UpdateArtifactTrustError('Gateway update version mismatch');
-  if (payload.tag !== expected.tag) throw new UpdateArtifactTrustError('Gateway update tag mismatch');
-  if (payload.image !== expected.image) throw new UpdateArtifactTrustError('Gateway update image mismatch');
-  if (!DIGEST_RE.test(payload.digest)) throw new UpdateArtifactTrustError('Gateway update digest is invalid');
+  if (payload.version !== expected.version) throw new UpdateArtifactTrustError('Opfield update version mismatch');
+  if (payload.tag !== expected.tag) throw new UpdateArtifactTrustError('Opfield update tag mismatch');
+  if (payload.image !== expected.image) throw new UpdateArtifactTrustError('Opfield update image mismatch');
+  if (!DIGEST_RE.test(payload.digest)) throw new UpdateArtifactTrustError('Opfield update digest is invalid');
   if (payload.imageRef !== `${payload.image}@${payload.digest}`) {
-    throw new UpdateArtifactTrustError('Gateway update image reference is not digest pinned');
+    throw new UpdateArtifactTrustError('Opfield update image reference is not digest pinned');
   }
   if (
     payload.databaseConnectorImage !== undefined &&
     (typeof payload.databaseConnectorImage !== 'string' ||
       !isDigestPinnedImageRef(payload.databaseConnectorImage, `${payload.image}/database-connector`))
   ) {
-    throw new UpdateArtifactTrustError('Gateway update database connector image reference is not digest pinned');
+    throw new UpdateArtifactTrustError('Opfield update database connector image reference is not digest pinned');
   }
   if (
     payload.secureLinkConnectorImage !== undefined &&
     (typeof payload.secureLinkConnectorImage !== 'string' ||
       !isDigestPinnedImageRef(payload.secureLinkConnectorImage, `${payload.image}/secure-link-connector`))
   ) {
-    throw new UpdateArtifactTrustError('Gateway update secure-link connector image reference is not digest pinned');
+    throw new UpdateArtifactTrustError('Opfield update secure-link connector image reference is not digest pinned');
   }
 
   return {
@@ -246,7 +254,7 @@ export function verifyRelayImageManifest(
     throw new UpdateArtifactTrustError('Relay update protocol major is incompatible');
   }
   if (payload.minGatewayVersion !== undefined && !GATEWAY_COMPONENT_VERSION_RE.test(payload.minGatewayVersion)) {
-    throw new UpdateArtifactTrustError('Relay update minimum Gateway version is invalid');
+    throw new UpdateArtifactTrustError('Relay update minimum Opfield version is invalid');
   }
   const gatewayRepository = payload.image.endsWith('/relay') ? payload.image.slice(0, -'/relay'.length) : '';
   if (
@@ -293,7 +301,7 @@ export function verifyOpenCodexImageManifest(
   }
   if (payload.image !== expected.image) throw new UpdateArtifactTrustError('OpenCodex update image mismatch');
   if (!/^\d+\.\d+\.\d+-(?:wiolett|thesqlabs)\.\d+$/.test(payload.version)) {
-    throw new UpdateArtifactTrustError('OpenCodex update version is not a Good Gateway release');
+    throw new UpdateArtifactTrustError('OpenCodex update version is not an Opfield release');
   }
   if (!DIGEST_RE.test(payload.digest)) throw new UpdateArtifactTrustError('OpenCodex update digest is invalid');
   if (payload.imageRef !== `${payload.image}@${payload.digest}`) {
@@ -309,10 +317,10 @@ export function verifyOpenCodexImageManifest(
     throw new UpdateArtifactTrustError('OpenCodex state schema version is invalid');
   }
   if (payload.minGatewayVersion !== undefined && !/^v?\d+\.\d+\.\d+$/.test(payload.minGatewayVersion)) {
-    throw new UpdateArtifactTrustError('OpenCodex minimum Gateway version is invalid');
+    throw new UpdateArtifactTrustError('OpenCodex minimum Opfield version is invalid');
   }
   if (payload.maxGatewayVersion !== undefined && !/^v?\d+\.\d+\.\d+$/.test(payload.maxGatewayVersion)) {
-    throw new UpdateArtifactTrustError('OpenCodex maximum Gateway version is invalid');
+    throw new UpdateArtifactTrustError('OpenCodex maximum Opfield version is invalid');
   }
   if (
     payload.releaseNotesUrl !== undefined &&

@@ -286,14 +286,14 @@ export class DigitalOceanFirewallAdapter implements HostingFirewallAdapter {
     const external = attached.filter((item) => item.name !== expectedName);
     const ownershipBlockers = [];
     if (owned.length > 1)
-      ownershipBlockers.push('Several DigitalOcean firewalls have Gateway’s deterministic ownership name.');
+      ownershipBlockers.push('Several DigitalOcean firewalls have Opfield’s deterministic ownership name.');
     if (external.length)
       blockers.push(
         `The droplet is affected by other DigitalOcean firewall policies: ${external.map((item) => item.name).join(', ')}.`
       );
     if (firewall && (firewall.tags.length || firewall.dropletIds.some((idValue) => idValue !== resource.remoteId)))
       ownershipBlockers.push(
-        'Gateway’s DigitalOcean firewall is shared by tags or another droplet and will not be changed.'
+        'Opfield’s DigitalOcean firewall is shared by tags or another droplet and will not be changed.'
       );
     blockers.push(...ownershipBlockers);
     disableBlockers.push(...ownershipBlockers);
@@ -302,7 +302,7 @@ export class DigitalOceanFirewallAdapter implements HostingFirewallAdapter {
       [...firewall.inbound, ...firewall.outbound].some((rule) => Object.keys(rule.unsupportedSelectors).length)
     )
       blockers.push(
-        'Gateway’s DigitalOcean firewall contains unsupported source or destination selectors; review them in DigitalOcean before applying rules.'
+        'Opfield’s DigitalOcean firewall contains unsupported source or destination selectors; review them in DigitalOcean before applying rules.'
       );
 
     const attachedOwned = !!firewall && attachedIds.has(firewall.id) && firewall.dropletIds.includes(resource.remoteId);

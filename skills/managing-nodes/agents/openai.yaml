@@ -1,4 +1,4 @@
 interface:
-  display_name: "Gateway Nodes"
-  short_description: "Enroll, inspect, and repair Gateway Nodes"
-  default_prompt: "Use $managing-nodes to check the health of my Gateway Nodes without changing them."
+  display_name: "Opfield Nodes"
+  short_description: "Enroll, inspect, and repair Opfield Nodes"
+  default_prompt: "Use $managing-nodes to check the health of my Opfield Nodes without changing them."

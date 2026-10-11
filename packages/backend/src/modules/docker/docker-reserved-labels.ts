@@ -29,7 +29,7 @@ export function changedReservedDockerLabels(
 }
 
 export function reservedDockerLabelsMessage(keys: readonly string[]): string {
-  return `Labels ${keys.join(', ')} are reserved for Gateway and Docker Compose`;
+  return `Labels ${keys.join(', ')} are reserved for Opfield and Docker Compose`;
 }
 
 export function assertNoReservedDockerLabelChanges(
@@ -75,7 +75,7 @@ export function assertDuplicateDropsReservedLabels(
   throw new AppError(
     409,
     'UNSUPPORTED_DAEMON',
-    `This container carries labels reserved for Gateway and Docker Compose (${reserved.join(', ')}) that this ` +
+    `This container carries labels reserved for Opfield and Docker Compose (${reserved.join(', ')}) that this ` +
       'Docker daemon would copy into the duplicate. Update the Docker daemon before duplicating it.'
   );
 }

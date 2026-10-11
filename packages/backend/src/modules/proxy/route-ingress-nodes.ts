@@ -137,7 +137,7 @@ export function resolveRouteIngressNode(input: ResolveRouteIngressNodeInput): {
   throw new AppError(
     409,
     'ROUTE_INGRESS_NODE_REQUIRED',
-    `nodeId is required: no registered Gateway domain of this route pins an ingress node, and ${eligible.length === 1 ? 'the only Nginx ingress node that accepts new routes here is not connected' : `${eligible.length} Nginx ingress nodes accept new routes here`}. Pass nodeId with one of: ${listed}${more}`,
+    `nodeId is required: no registered Opfield domain of this route pins an ingress node, and ${eligible.length === 1 ? 'the only Nginx ingress node that accepts new routes here is not connected' : `${eligible.length} Nginx ingress nodes accept new routes here`}. Pass nodeId with one of: ${listed}${more}`,
     { eligibleNodes: eligible }
   );
 }

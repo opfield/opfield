@@ -17,7 +17,7 @@ const edge = nodeBySlug("edge-fra-1")!;
 /** Every node of the installation, the Build worker included. */
 export const allNodes: Node[] = [...nodes, buildWorker];
 
-export const edgeNginxMainConf = `# Managed by Wiolett Gateway. Route files live in sites/ and are rendered per route.
+export const edgeNginxMainConf = `# Managed by Opfield. Route files live in sites/ and are rendered per route.
 user www-data;
 worker_processes auto;
 worker_rlimit_nofile 65535;

@@ -93,6 +93,13 @@ const ARTIFACT_PATTERNS: Readonly<Record<string, RegExp>> = {
 		/^witness-clickhouse-keeper-\d+(?:\.\d+){2,3}-linux-(amd64|arm64)(\.update\.json)?$/,
 };
 
+// Installers an Opfield release carries (scripts/stage-installers.sh), served in GitHub's release download layout:
+// /gateway/releases/download/<tag>/<file> and /gateway/releases/latest/download/<file>. "/" and "/install.sh" are the
+// server installer of the latest stable release.
+const INSTALLER_ASSET_PATTERN =
+	/^(install\.sh|setup-(daemon|node|docker-node|database-node|storage-node|monitoring-node|relay-node)\.sh|gateway-daemon-installers\.sha256)$/;
+const LATEST_INSTALLER_CACHE_CONTROL = "public, max-age=300";
+
 interface GitHubRepository {
 	name: string;
 	token?: string;
@@ -618,6 +625,77 @@ async function fetchAssetBinary(
 	});
 }
 
+function parseInstallerPath(
+	pathname: string,
+): { tag: string | null; assetName: string } | null {
+	if (pathname === "/" || pathname === "/install.sh")
+		return { tag: null, assetName: "install.sh" };
+	const segments = pathname.split("/").filter(Boolean);
+	if (
+		segments.length !== 5 ||
+		segments[0] !== PRODUCT_NAMESPACE ||
+		segments[1] !== "releases"
+	)
+		return null;
+	const [, , first, second, file] = segments.map((segment) =>
+		decodeURIComponent(segment),
+	);
+	let tag: string | null;
+	if (first === "latest" && second === "download") tag = null;
+	else if (first === "download" && TAG_PATTERNS.gateway?.test(second ?? ""))
+		tag = second ?? null;
+	else return null;
+	if (!file || !INSTALLER_ASSET_PATTERN.test(file)) return null;
+	return { tag, assetName: file };
+}
+
+async function handleInstaller(
+	request: Request,
+	env: Env,
+	fetcher: Fetcher,
+	path: { tag: string | null; assetName: string },
+): Promise<Response> {
+	const repository = gatewayRepository(env);
+	const releaseResponse = await fetcher(
+		githubApiUrl(
+			env,
+			repository,
+			path.tag
+				? `/releases/tags/${encodeURIComponent(path.tag)}`
+				: "/releases/latest",
+		),
+		{ headers: githubHeaders(repository) },
+	);
+	if (releaseResponse.status === 404)
+		return jsonResponse({ error: "release_not_found" }, 404);
+	if (!releaseResponse.ok) {
+		console.error(
+			JSON.stringify({
+				event: "github_release_failed",
+				status: releaseResponse.status,
+				tag: path.tag ?? "latest",
+			}),
+		);
+		return jsonResponse({ error: "release_source_unavailable" }, 502);
+	}
+	const release = await readBoundedJson<GitHubRelease>(releaseResponse);
+	const asset = release.assets.find(
+		(candidate) => candidate.name === path.assetName,
+	);
+	if (!asset) return jsonResponse({ error: "artifact_not_found" }, 404);
+	const response = await fetchAssetBinary(
+		request,
+		env,
+		repository,
+		asset,
+		fetcher,
+	);
+	// The latest release moves; a tagged one does not.
+	if (!path.tag && (response.ok || response.status === 206))
+		response.headers.set("Cache-Control", LATEST_INSTALLER_CACHE_CONTROL);
+	return response;
+}
+
 async function handleArtifact(
 	request: Request,
 	env: Env,
@@ -679,6 +757,13 @@ export async function handleRequest(
 		);
 	if (pathname === "/gateway/releases")
 		return handleReleaseList(request, env, fetcher);
+	let installer: ReturnType<typeof parseInstallerPath>;
+	try {
+		installer = parseInstallerPath(pathname);
+	} catch {
+		return jsonResponse({ error: "invalid_artifact_path" }, 400);
+	}
+	if (installer) return handleInstaller(request, env, fetcher, installer);
 	return handleArtifact(request, env, fetcher);
 }
 

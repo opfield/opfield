@@ -219,14 +219,14 @@ export async function checkProxyHealthTarget(
   const hostname = urlHostname(url);
   const internal = await gatewayInternalServices(env);
   if (hostname && internal.names.has(hostname)) {
-    return { ...result, allowed: false, reason: `Health check target ${hostname} is a Gateway internal service` };
+    return { ...result, allowed: false, reason: `Health check target ${hostname} is an Opfield internal service` };
   }
   const internalAddress = result.resolvedAddresses.find((ip) => internal.addresses.has(ip));
   if (internalAddress) {
     return {
       ...result,
       allowed: false,
-      reason: `Health check target address ${internalAddress} belongs to a Gateway internal service`,
+      reason: `Health check target address ${internalAddress} belongs to an Opfield internal service`,
     };
   }
   return result;

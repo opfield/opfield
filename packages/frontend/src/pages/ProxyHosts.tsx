@@ -546,7 +546,7 @@ export function ProxyHosts({
               <span
                 className="inline-flex"
                 title={
-                  publicRouteLocked ? "The Gateway public route must remain enabled" : undefined
+                  publicRouteLocked ? "The Opfield public route must remain enabled" : undefined
                 }
               >
                 <Switch checked onChange={() => undefined} disabled />

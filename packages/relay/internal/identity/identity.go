@@ -232,7 +232,7 @@ func (s *Store) AuthorizeAppClient(fingerprint string) bool {
 func (s *Store) CommitAppClientRotation(operationID, fingerprint string) error {
 	current := s.Current().Trust.AppRelayClientFingerprint
 	if subtle.ConstantTimeCompare([]byte(fingerprint), []byte(current)) != 1 {
-		return fmt.Errorf("identity rotation must be committed by the current Gateway client")
+		return fmt.Errorf("identity rotation must be committed by the current Opfield client")
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

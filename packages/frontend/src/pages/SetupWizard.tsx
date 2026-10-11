@@ -432,11 +432,11 @@ export function SetupWizardPage() {
         <AnimatedHeight>
           <div className="space-y-2 text-center">
             <h2 className="flex items-center justify-center gap-2 text-lg font-semibold">
-              <Loader2 className="h-5 w-5 animate-spin" /> Gateway setup is in progress
+              <Loader2 className="h-5 w-5 animate-spin" /> Opfield setup is in progress
             </h2>
             <p className="text-sm text-muted-foreground">
-              Another administrator is configuring this Gateway. Setup access will become available
-              again if their session expires.
+              Another administrator is configuring this Opfield installation. Setup access will
+              become available again if their session expires.
             </p>
           </div>
         </AnimatedHeight>

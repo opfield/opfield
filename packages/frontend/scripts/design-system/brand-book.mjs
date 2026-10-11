@@ -48,7 +48,7 @@ export function renderBrandBook({ tokens, contrast, timings, cva, components, re
     .join("\n");
   const pageTitle = styleOf(tokens, "page-title");
 
-  return `Good Gateway is an infrastructure control plane: nodes, routes, containers, certificates, databases, logs. Its interface is a working tool that stays open all day, so it is **flat, square, neutral and calm**: ink on light grey, or light grey on near-black; 1px borders instead of shadows; no rounded corners; colour only where it means a status. Nothing moves after it appears.
+  return `Opfield is an infrastructure control plane: nodes, routes, containers, certificates, databases, logs. Its interface is a working tool that stays open all day, so it is **flat, square, neutral and calm**: ink on light grey, or light grey on near-black; 1px borders instead of shadows; no rounded corners; colour only where it means a status. Nothing moves after it appears.
 
 Build with the real components (the kit in \`src/components/ui\`, the shared pieces in \`src/components/common\`) and the tokens in these pages. Every rule here comes from the product code.
 
@@ -152,7 +152,7 @@ The interface never shows half-loaded content and nothing jumps after it appears
 
 The voice is plain, technical and brief: name the object and what happened. No exclamation marks, no emoji, no "please", no apologies.
 
-- **Page titles** are the object in the plural or the resource's own name: "Routes", "Dashboard", "api.example.com". **Descriptions** are one line without a period: "Route incoming domain traffic to services", "Gateway and PKI infrastructure overview".
+- **Page titles** are the object in the plural or the resource's own name: "Routes", "Dashboard", "api.example.com". **Descriptions** are one line without a period: "Route incoming domain traffic to services", "Opfield and PKI infrastructure overview".
 - **Dialog titles** name the action and the object; resource actions are in Title Case, the majority form: "Add Node", "Remove Volume", "Revoke CA". Descriptions are sentences.
 - **Buttons** are verbs: "Save", "Create", "Remove", "Add Route". Confirm buttons repeat the verb of the title ("Revoke CA"), never "OK" or "Yes".
 - **Confirmations** state the consequence: \`Remove volume "pgdata"? Any data stored in this volume will be permanently lost.\` Add "This action cannot be undone." only when it is true.
@@ -197,9 +197,9 @@ useContentLoading(loading);
 ## Brand assets
 
 - **Mark:** a shield split in two indigo halves with a four-point star cut out, on a light rounded tile. It is the product icon: the sidebar shows it at 20px (\`good-gateway-mark-192.png\`, served as \`android-chrome-192x192.png\`), browsers and devices use the favicons and touch icons.
-- **Lockups:** the mark beside the wordmark "Good Gateway" set in a bold sans, for light grounds (ink wordmark) and dark grounds (white wordmark on a rounded black plate).
+- **Lockups:** the mark beside the lowercase wordmark "opfield" set in a bold sans, for light grounds (ink wordmark) and dark grounds (white wordmark on a rounded black plate).
 - Use the files as they are: never redraw, recolour, stretch or crop the mark, and never set the wordmark in the interface font. There is no vector version; use the 512px PNG where a large mark is needed.
-- The name is "Good Gateway" in titles and the lockup, "Gateway" in running product copy ("Gateway renews it automatically before it expires").
+- The name is "Opfield" in titles and running product copy ("Opfield renews it automatically before it expires"); only the logo wordmark is lowercase "opfield".
 - **Editions:** four licence badges (personal, community, business, enterprise), 128px tiles shown in the licence settings.
 
 ## Components

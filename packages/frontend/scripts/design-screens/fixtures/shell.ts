@@ -56,7 +56,7 @@ export const aiStatus = {
   models: [
     {
       id: "gateway-large",
-      displayName: "Gateway Large",
+      displayName: "Opfield Large",
       supportsImages: true,
       maxContextTokens: 200_000,
       maxOutputTokens: 32_000,

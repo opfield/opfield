@@ -76,8 +76,8 @@ export function registerMcpSkills(server: McpServer, skills: GatewaySkill[] = ga
     'gateway-skills',
     'gateway://skills',
     {
-      title: 'Gateway agent skills',
-      description: 'Index of the Agent Skills for operating Gateway. Start with using-gateway.',
+      title: 'Opfield agent skills',
+      description: 'Index of the Agent Skills for operating Opfield. Start with using-gateway.',
       mimeType: 'application/json',
     },
     async (uri) => ({

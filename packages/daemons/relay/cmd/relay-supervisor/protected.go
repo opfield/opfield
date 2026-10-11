@@ -10,7 +10,7 @@ import (
 
 const protectedUsage = `Usage: relay-supervisor protected <status|on|off> [--allow-database-witness]
   status                    Show whether protected mode is on in the relay configuration
-  on                        Turn protected mode on: Gateway can no longer open a console, run commands,
+  on                        Turn protected mode on: Opfield can no longer open a console, run commands,
                             read or write files or collect host diagnostics on this machine; it can
                             only update the relay with official signed releases and route traffic
   on --allow-database-witness

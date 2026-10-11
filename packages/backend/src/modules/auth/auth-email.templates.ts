@@ -1,7 +1,5 @@
 import { GRAPHITE } from '@/lib/brand-palette.js';
 
-export const GATEWAY_EMAIL_LOGO_URL = 'https://s3.wiolett.net/static/net/wiolett/gateway/wiolett-gateway-256c.png';
-
 export type AuthEmailKind =
   | 'smtp_configuration'
   | 'password_setup'
@@ -51,40 +49,40 @@ function getEmailContent(input: AuthEmailInput): EmailContent {
   switch (input.kind) {
     case 'password_setup':
       return {
-        subject: 'Gateway: set your password',
-        title: 'Create a password for your Gateway account',
-        body: 'An administrator enabled password sign-in for your account. Set a password to use this account directly in Gateway.',
-        text: `Set your Gateway password: ${input.actionUrl}\n\nThis link expires in 30 minutes and can be used once.`,
+        subject: 'Opfield: set your password',
+        title: 'Create a password for your Opfield account',
+        body: 'An administrator enabled password sign-in for your account. Set a password to use this account directly in Opfield.',
+        text: `Set your Opfield password: ${input.actionUrl}\n\nThis link expires in 30 minutes and can be used once.`,
         securityNote:
           'This link is valid for 30 minutes and can be used once. If you were not expecting this email, you can safely ignore it.',
         action: { label: 'Set password', url: input.actionUrl },
       };
     case 'password_reset':
       return {
-        subject: 'Gateway: reset your password',
-        title: 'Reset your Gateway password',
-        body: 'We received a request to reset the password for your Gateway account.',
-        text: `Reset your Gateway password: ${input.actionUrl}\n\nThis link expires in 30 minutes and can be used once.`,
+        subject: 'Opfield: reset your password',
+        title: 'Reset your Opfield password',
+        body: 'We received a request to reset the password for your Opfield account.',
+        text: `Reset your Opfield password: ${input.actionUrl}\n\nThis link expires in 30 minutes and can be used once.`,
         securityNote:
           'This link is valid for 30 minutes and can be used once. If you did not request a password reset, no action is required.',
         action: { label: 'Reset password', url: input.actionUrl },
       };
     case 'email_otp_enabled':
       return {
-        subject: 'Gateway: email-code sign-in enabled',
+        subject: 'Opfield: email-code sign-in enabled',
         title: 'Email-code sign-in is enabled',
-        body: 'An administrator enabled email-code sign-in for your Gateway account. Enter your email address at sign-in to receive a one-time code.',
-        text: `An administrator enabled email-code sign-in for your Gateway account. Open Gateway: ${input.actionUrl}`,
+        body: 'An administrator enabled email-code sign-in for your Opfield account. Enter your email address at sign-in to receive a one-time code.',
+        text: `An administrator enabled email-code sign-in for your Opfield account. Open Opfield: ${input.actionUrl}`,
         securityNote:
           'A new one-time code is sent for each sign-in and expires after 10 minutes. We will never ask for a code by phone, chat, or email.',
-        action: { label: 'Open Gateway', url: input.actionUrl },
+        action: { label: 'Open Opfield', url: input.actionUrl },
       };
     case 'email_otp':
       return {
-        subject: 'Your Gateway sign-in code',
-        title: 'Your Gateway sign-in code',
-        body: 'Enter this code to continue signing in to Gateway.',
-        text: `Your Gateway sign-in code is ${input.code}. It expires in 10 minutes.`,
+        subject: 'Your Opfield sign-in code',
+        title: 'Your Opfield sign-in code',
+        body: 'Enter this code to continue signing in to Opfield.',
+        text: `Your Opfield sign-in code is ${input.code}. It expires in 10 minutes.`,
         securityNote:
           'This code expires in 10 minutes. We will never ask for it by phone, chat, or email. If you did not start this sign-in, no action is required.',
         code: input.code,
@@ -92,21 +90,21 @@ function getEmailContent(input: AuthEmailInput): EmailContent {
     case 'account_invitation': {
       const signInHint = ACCOUNT_INVITATION_SIGN_IN_HINTS[input.signIn];
       return {
-        subject: 'Gateway: an account was created for you',
-        title: 'Your Gateway account is ready',
-        body: `An administrator created a Gateway account for ${input.email}. ${signInHint}`,
-        text: `An administrator created a Gateway account for ${input.email}. ${signInHint}\n\nSign in to Gateway: ${input.actionUrl}`,
+        subject: 'Opfield: an account was created for you',
+        title: 'Your Opfield account is ready',
+        body: `An administrator created an Opfield account for ${input.email}. ${signInHint}`,
+        text: `An administrator created an Opfield account for ${input.email}. ${signInHint}\n\nSign in to Opfield: ${input.actionUrl}`,
         securityNote:
-          'Gateway will never ask for your password or a sign-in code by phone, chat, or email. If you were not expecting this account, contact your administrator.',
-        action: { label: 'Sign in to Gateway', url: input.actionUrl },
+          'Opfield will never ask for your password or a sign-in code by phone, chat, or email. If you were not expecting this account, contact your administrator.',
+        action: { label: 'Sign in to Opfield', url: input.actionUrl },
       };
     }
     case 'smtp_configuration':
       return {
-        subject: 'Gateway SMTP test',
-        title: 'Your Gateway email delivery is working',
-        body: 'This test message confirms that Gateway can deliver authentication email through the SMTP configuration you just saved.',
-        text: 'Gateway SMTP configuration is working. No action is required.',
+        subject: 'Opfield SMTP test',
+        title: 'Your Opfield email delivery is working',
+        body: 'This test message confirms that Opfield can deliver authentication email through the SMTP configuration you just saved.',
+        text: 'Opfield SMTP configuration is working. No action is required.',
         securityNote: 'No action is required. This message does not grant access or change any account settings.',
         badge: 'SMTP test',
       };
@@ -117,7 +115,7 @@ const ACCOUNT_INVITATION_SIGN_IN_HINTS: Record<AccountInvitationSignIn, string> 
   oidc: "Sign in with your organization's single sign-on (SSO) provider using this email address.",
   password:
     'A separate email contains a link to set your password (if it has expired, ask your administrator for a new one); then sign in with this email address and your password.',
-  email_otp: 'Enter this email address at sign-in and Gateway will email you a one-time code.',
+  email_otp: 'Enter this email address at sign-in and Opfield will email you a one-time code.',
 };
 
 function renderAuthEmail(content: EmailContent): string {
@@ -141,8 +139,8 @@ function renderAuthEmail(content: EmailContent): string {
           <tr><td style="height:1px;background:${GRAPHITE.amber};font-size:1px;line-height:1px">&nbsp;</td></tr>
           <tr><td style="padding:40px 42px 38px">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-              <td style="padding-right:9px"><img src="${GATEWAY_EMAIL_LOGO_URL}" width="27" height="27" alt="Good Gateway" style="display:block;border:0;outline:none;text-decoration:none"></td>
-              <td style="color:${GRAPHITE.ink};font-family:Arial,sans-serif;font-size:16px;font-weight:600;letter-spacing:-0.3px">Good Gateway</td>
+              <td style="padding-right:9px"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="4 4 40 40" style="display:block"><g fill="${GRAPHITE.ink}"><rect x="19.5" y="4.5" width="9" height="9" rx="2.4"/><rect x="30.1" y="8.9" width="9" height="9" rx="2.4"/><rect x="34.5" y="19.5" width="9" height="9" rx="2.4"/><rect x="30.1" y="30.1" width="9" height="9" rx="2.4"/><rect x="19.5" y="34.5" width="9" height="9" rx="2.4"/><rect x="8.9" y="30.1" width="9" height="9" rx="2.4"/><rect x="4.5" y="19.5" width="9" height="9" rx="2.4"/><rect x="8.9" y="8.9" width="9" height="9" rx="2.4"/></g></svg></td>
+              <td style="color:${GRAPHITE.ink};font-family:Arial,sans-serif;font-size:16px;font-weight:600;letter-spacing:-0.3px">opfield</td>
             </tr></table>
             <div style="height:1px;margin:29px 0;background:${GRAPHITE.hair};font-size:1px;line-height:1px">&nbsp;</div>
             ${badge}
@@ -152,7 +150,7 @@ function renderAuthEmail(content: EmailContent): string {
             ${action}
             <p style="margin:28px 0 0;border-left:2px solid ${GRAPHITE.amber};background:${GRAPHITE.raised};color:${GRAPHITE.soft};padding:12px 14px;font-family:Arial,sans-serif;font-size:13px;line-height:1.5">${escapeHtml(content.securityNote)}</p>
           </td></tr>
-          <tr><td style="border-top:1px solid ${GRAPHITE.hair};padding:23px 42px 28px;color:${GRAPHITE.stone};font-family:Arial,sans-serif;font-size:12px;line-height:1.55">Gateway — Infrastructure control plane.<br><a href="https://goodgateway.dev" style="color:${GRAPHITE.ink};font-weight:400;opacity:0.65;text-decoration:underline">Powered by Good Gateway</a></td></tr>
+          <tr><td style="border-top:1px solid ${GRAPHITE.hair};padding:23px 42px 28px;color:${GRAPHITE.stone};font-family:Arial,sans-serif;font-size:12px;line-height:1.55">Opfield — Infrastructure control plane.<br><a href="https://opfield.dev" style="color:${GRAPHITE.ink};font-weight:400;opacity:0.65;text-decoration:underline">Powered by Opfield</a></td></tr>
         </table>
       </td></tr>
     </table>

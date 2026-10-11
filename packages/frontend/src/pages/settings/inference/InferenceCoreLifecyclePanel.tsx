@@ -155,10 +155,10 @@ function requestLimitsStatus(capability: InferenceCoreStatus["health"]["requestL
       return <Badge variant="success">Supported</Badge>;
     case "legacy":
       return (
-        <span className="text-warning-text">Gateway request limits require a core update</span>
+        <span className="text-warning-text">Opfield request limits require a core update</span>
       );
     default:
-      return <span className="text-warning-text">Gateway request limits are unverified</span>;
+      return <span className="text-warning-text">Opfield request limits are unverified</span>;
   }
 }
 
@@ -399,7 +399,7 @@ export function InferenceCoreLifecyclePanel({
     const target = version;
     const confirmed = await confirm({
       title: "Update Inference Core",
-      description: `Update the inference core from ${status.installed?.version ?? "the current version"} to ${target}? Inference is briefly interrupted during the update. If the update fails, Gateway automatically restores the previous version.`,
+      description: `Update the inference core from ${status.installed?.version ?? "the current version"} to ${target}? Inference is briefly interrupted during the update. If the update fails, Opfield automatically restores the previous version.`,
       confirmLabel: "Update",
     });
     if (!confirmed) return;
@@ -498,8 +498,8 @@ export function InferenceCoreLifecyclePanel({
         }
         description={
           status.state === "not_installed"
-            ? "The inference core is downloaded and run privately on this Gateway host. Gateway Inference routes provider traffic through it once installed."
-            : "The managed runtime that runs Gateway Inference privately on this Gateway host."
+            ? "The inference core is downloaded and run privately on this Opfield host. Opfield Inference routes provider traffic through it once installed."
+            : "The managed runtime that runs Opfield Inference privately on this Opfield host."
         }
         actions={actions}
         wrapHeader

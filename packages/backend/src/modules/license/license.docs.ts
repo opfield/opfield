@@ -34,7 +34,7 @@ export const activateLicenseModuleRoute = appRoute({
   method: 'post',
   path: '/module/activate',
   tags: ['License'],
-  summary: 'Prepare and activate paid features for the current Gateway version',
+  summary: 'Prepare and activate paid features for the current Opfield version',
   responses: okJson(UnknownDataResponseSchema),
 });
 

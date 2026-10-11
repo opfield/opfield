@@ -497,7 +497,7 @@ export function Profile() {
                         <p className="text-sm font-medium">
                           <SettingsHelpTitle
                             label="Show system certificates"
-                            help="Includes Gateway-managed internal PKI and SSL certificates in certificate lists and dashboard totals. Hiding them does not disable or delete any certificate."
+                            help="Includes Opfield-managed internal PKI and SSL certificates in certificate lists and dashboard totals. Hiding them does not disable or delete any certificate."
                           />
                         </p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
@@ -992,7 +992,7 @@ function LocalAccountSecurityPanel() {
   return (
     <PanelShell
       title="Account security"
-      description="Configure Gateway MFA and local sign-in credentials"
+      description="Configure Opfield MFA and local sign-in credentials"
       icon={<ShieldCheck className="h-4 w-4" />}
     >
       <div className="divide-y divide-border">
@@ -1039,7 +1039,7 @@ function LocalAccountSecurityPanel() {
             <DialogTitle>Manage Passkeys</DialogTitle>
           </DialogHeader>
           <DialogDescription>
-            Passkeys can sign you in and satisfy Gateway multi-factor authentication.
+            Passkeys can sign you in and satisfy Opfield multi-factor authentication.
           </DialogDescription>
           <div className="border border-border">
             <Input
@@ -1339,7 +1339,7 @@ function printRecoveryCodes(recoveryCodes: string[]) {
 
   const codes = recoveryCodes.map(escapeHtml).join("<br>");
   printWindow.document.write(
-    `<!doctype html><html><head><title>Gateway recovery codes</title><style>body{font-family:ui-monospace,monospace;padding:32px}h1{font-family:system-ui,sans-serif;font-size:20px}.codes{columns:2;line-height:1.8}</style></head><body><h1>Gateway recovery codes</h1><p>Store these codes safely. Each code can be used once.</p><div class="codes">${codes}</div></body></html>`
+    `<!doctype html><html><head><title>Opfield recovery codes</title><style>body{font-family:ui-monospace,monospace;padding:32px}h1{font-family:system-ui,sans-serif;font-size:20px}.codes{columns:2;line-height:1.8}</style></head><body><h1>Opfield recovery codes</h1><p>Store these codes safely. Each code can be used once.</p><div class="codes">${codes}</div></body></html>`
   );
   printWindow.document.close();
   printWindow.focus();

@@ -332,7 +332,7 @@ func (m *dockerSecureLinkManager) apply(
 
 	image := bindings[0].ConnectorImage
 	if !allowedSecureLinkConnectorImage(image) {
-		return nil, errors.New("secure-link connector image must use an immutable sha256 digest or an official Gateway Relay release tag")
+		return nil, errors.New("secure-link connector image must use an immutable sha256 digest or an official Opfield Relay release tag")
 	}
 	seen := map[string]struct{}{}
 	for _, binding := range bindings {

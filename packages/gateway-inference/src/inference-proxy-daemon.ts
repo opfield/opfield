@@ -40,7 +40,7 @@ export async function runInferenceProxyDaemon(input: {
   const integrationPaths = resolveCodexPaths(input.paths, input.profileName);
   const configured = await inspectCodexConfiguration({ paths: integrationPaths, profile: input.profileName });
   if (!configured.configured || !configured.baseUrl) {
-    throw new CliError('CODEX_NOT_CONFIGURED', 'Gateway inference is not configured. Run setup codex again.');
+    throw new CliError('CODEX_NOT_CONFIGURED', 'Opfield inference is not configured. Run setup codex again.');
   }
   const proxy = await startInferenceProxy({
     paths: input.paths,
@@ -49,7 +49,7 @@ export async function runInferenceProxyDaemon(input: {
     getToken: async () => {
       const credential = await input.credentials.getRuntime(input.profileName);
       if (!credential) {
-        throw new CliError('RUNTIME_TOKEN_MISSING', 'Gateway inference token is missing. Run setup codex again.');
+        throw new CliError('RUNTIME_TOKEN_MISSING', 'Opfield inference token is missing. Run setup codex again.');
       }
       return credential.token;
     },
@@ -76,7 +76,7 @@ export async function runInferenceProxyDaemon(input: {
   };
   const reportRefreshError = (error: unknown) =>
     process.stderr.write(
-      `Gateway catalog daemon refresh failed: ${redactText(error instanceof Error ? error.message : String(error))}\n`
+      `Opfield catalog daemon refresh failed: ${redactText(error instanceof Error ? error.message : String(error))}\n`
     );
   void refreshCatalog().catch(reportRefreshError);
   const refreshTimer = setInterval(() => void refreshCatalog().catch(reportRefreshError), CATALOG_REFRESH_INTERVAL_MS);

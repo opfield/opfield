@@ -390,7 +390,7 @@ export function writeCanvas() {
     pages.push({
       id: page.id,
       title: page.title,
-      description: `Good Gateway console: ${page.subject}. ${source}`,
+      description: `Opfield console: ${page.subject}. ${source}`,
       sections: layoutPage(page, pageScreens, warnings).map((section, index) => ({
         id: `${page.id}-${index + 1}`,
         title: section.title,
@@ -413,7 +413,7 @@ export function writeCanvas() {
   for (const screen of unplaced) warnings.push(`${screen.id}: group "${screen.group}" has no canvas page`);
 
   const canvas = {
-    title: "Good Gateway screens",
+    title: "Opfield screens",
     description: "Every console screen, rendered from the product code with fixture data.",
     system: false,
     pages,

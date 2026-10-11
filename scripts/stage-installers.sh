@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Stages the node installers a Gateway release publishes into a directory: every installer Gateway's setup
-# commands reference, the wrappers stamped with the release tag so they fetch their sibling installers from
-# the same release, and gateway-daemon-installers.sha256 over the staged files.
+# Stages the installers an Opfield release publishes into a directory: the server installer (install.sh, which
+# get.opfield.dev serves for the latest stable release), every installer Opfield's setup commands reference, the
+# wrappers stamped with the release tag so they fetch their sibling installers from the same release, and
+# gateway-daemon-installers.sha256 over the staged files.
 #
 # Usage: scripts/stage-installers.sh <vX.Y.Z[-rc.N]> <directory>
 
@@ -15,6 +16,7 @@ out=${2:?output directory is required}
 }
 
 installers=(
+  install.sh
   setup-daemon.sh
   setup-node.sh
   setup-docker-node.sh

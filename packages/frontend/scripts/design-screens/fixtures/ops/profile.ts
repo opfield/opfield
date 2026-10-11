@@ -172,7 +172,7 @@ export const apiTokens: ApiToken[] = [
 export const oauthAuthorizations: OAuthAuthorization[] = [
   {
     clientId: "gateway-cli",
-    clientName: "Gateway CLI",
+    clientName: "Opfield CLI",
     clientUri: "https://gateway.example.com/docs/cli",
     logoUri: null,
     scopes: ["nodes:details", "proxy:view", "docker:containers:view"],

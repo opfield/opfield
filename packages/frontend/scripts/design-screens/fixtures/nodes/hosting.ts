@@ -230,7 +230,7 @@ export const hostingResources: HostingResource[] = [
     memoryMb: 8_192,
     diskGb: 80,
     ip: "10.20.0.120",
-    adoptionReason: "No Gateway daemon answers on this guest yet.",
+    adoptionReason: "No Opfield daemon answers on this guest yet.",
   }),
   resource({
     seed: 1514,

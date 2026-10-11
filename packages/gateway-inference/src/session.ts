@@ -24,7 +24,7 @@ export async function authenticatedSetupClient(
     };
   }
   if (!profile.clientId) {
-    throw new CliError('NOT_LOGGED_IN', 'Gateway connection is not logged in.', { exitCode: 2 });
+    throw new CliError('NOT_LOGGED_IN', 'Opfield connection is not logged in.', { exitCode: 2 });
   }
   const metadata = await fetchSetupOAuthMetadata(discovery, fetcher);
   const credential = await refreshCredential({

@@ -1,4 +1,4 @@
 interface:
-  display_name: "Gateway Ingress and Domains"
-  short_description: "Expose services on Gateway Domains with TLS"
-  default_prompt: "Use $ingress-and-domains to publish this service on a verified HTTPS hostname through Gateway."
+  display_name: "Opfield Ingress and Domains"
+  short_description: "Expose services on Opfield Domains with TLS"
+  default_prompt: "Use $ingress-and-domains to publish this service on a verified HTTPS hostname through Opfield."

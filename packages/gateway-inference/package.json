@@ -1,7 +1,7 @@
 {
   "name": "@sqgateway/inference",
   "version": "0.3.13",
-  "description": "Interactive inference companion for Good Gateway",
+  "description": "Interactive inference companion for Opfield",
   "type": "module",
   "bin": {
     "gateway-inference": "dist/cli.js"

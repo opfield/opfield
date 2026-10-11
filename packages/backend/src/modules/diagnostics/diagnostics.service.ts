@@ -811,7 +811,7 @@ export class DiagnosticsService {
     } catch (error) {
       return {
         available: false,
-        reason: `Gateway's containers cannot be inspected here (${errorMessage(error)}); it may not run in Docker`,
+        reason: `Opfield's containers cannot be inspected here (${errorMessage(error)}); it may not run in Docker`,
         project: null,
         containers: [],
       };
@@ -875,7 +875,7 @@ export class DiagnosticsService {
       throw new AppError(
         409,
         'LOGS_NOT_READABLE',
-        `Gateway's container logs cannot be read here (${errorMessage(error)}); it may not run in Docker`
+        `Opfield's container logs cannot be read here (${errorMessage(error)}); it may not run in Docker`
       );
     }
     if (source === 'app') return { id: discovered.selfId, name: 'app' };
@@ -890,7 +890,7 @@ export class DiagnosticsService {
         throw new AppError(
           404,
           'LOG_SOURCE_NOT_FOUND',
-          'No Gateway update run is on record, so there are no update logs to read'
+          'No Opfield update run is on record, so there are no update logs to read'
         );
       }
       return { id: sidecarId, name: 'update' };
@@ -903,7 +903,7 @@ export class DiagnosticsService {
       throw new AppError(
         404,
         'LOG_SOURCE_NOT_FOUND',
-        `No Gateway container is called ${source}; sources: ${[...new Set(known)].join(', ')}`
+        `No Opfield container is called ${source}; sources: ${[...new Set(known)].join(', ')}`
       );
     }
     return { id: match.Id, name: serviceOf(match) };

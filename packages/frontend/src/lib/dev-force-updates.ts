@@ -54,7 +54,7 @@ export function applyForcedGatewayUpdateStatus(status: UpdateStatus): UpdateStat
     latestVersion: gatewayUpdateAvailable ? FORCED_GATEWAY_VERSION : null,
     updateAvailable: gatewayUpdateAvailable,
     releaseNotes: gatewayUpdateAvailable
-      ? (status.releaseNotes ?? "Local Gateway update preview.")
+      ? (status.releaseNotes ?? "Local Opfield update preview.")
       : null,
     lastCheckedAt: status.lastCheckedAt ?? new Date().toISOString(),
     relay: {

@@ -209,7 +209,7 @@ export class InferenceCoreAccountingService {
     const request = await this.db.query.inferenceRequests.findFirst({
       where: eq(inferenceRequests.id, input.rootRequestId),
     });
-    if (!request) throw new AppError(404, 'core_request_not_found', 'The root request is unknown to Gateway');
+    if (!request) throw new AppError(404, 'core_request_not_found', 'The root request is unknown to Opfield');
     if (!request.userId) throw new AppError(409, 'core_request_incomplete', 'The request has no owning tenant');
     const userId = request.userId;
     return this.locks.withUserLock(userId, async (database) => {
@@ -495,14 +495,14 @@ export class InferenceCoreAccountingService {
     const request = await this.db.query.inferenceRequests.findFirst({
       where: eq(inferenceRequests.id, input.rootRequestId),
     });
-    if (!request) throw new AppError(404, 'core_request_not_found', 'The root request is unknown to Gateway');
+    if (!request) throw new AppError(404, 'core_request_not_found', 'The root request is unknown to Opfield');
     if (!request.userId) throw new AppError(409, 'core_request_incomplete', 'The request has no owning tenant');
     const userId = request.userId;
     const settled = await this.locks.withUserLock(userId, async (database) => {
       const attempt = await database.query.inferenceRequestAttempts.findFirst({
         where: eq(inferenceRequestAttempts.coreAttemptId, input.attemptId),
       });
-      if (!attempt) throw new AppError(404, 'core_attempt_not_found', 'The attempt is unknown to Gateway');
+      if (!attempt) throw new AppError(404, 'core_attempt_not_found', 'The attempt is unknown to Opfield');
       if (attempt.requestId !== request.id) {
         throw new AppError(
           409,
@@ -786,6 +786,6 @@ function assertPinnedRoute(
   // owns accounting classification; the core only has to preserve the exact
   // Gateway-selected account and model route.
   if (!expectedAccountId || input.coreAccountId !== expectedAccountId || input.coreModelId !== source.coreModelId) {
-    throw new AppError(409, 'core_route_mismatch', 'The core attempted a route not selected by Gateway');
+    throw new AppError(409, 'core_route_mismatch', 'The core attempted a route not selected by Opfield');
   }
 }

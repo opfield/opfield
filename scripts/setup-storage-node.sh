@@ -13,7 +13,7 @@ command -v curl >/dev/null || { echo 'curl is required to fetch the node install
 # A release publishes this file with its own tag here, so the sibling installer comes from the same release.
 INSTALLER_RELEASE=latest
 version="${GATEWAY_SETUP_VERSION:-$INSTALLER_RELEASE}"
-base="${GATEWAY_RELEASE_DOWNLOAD_BASE:-https://github.com/the-square-labs/gateway/releases}"
+base="${GATEWAY_RELEASE_DOWNLOAD_BASE:-https://get.opfield.dev/gateway/releases}"
 if [[ "$version" == latest ]]; then
     release_url="${base%/}/latest/download"
 else

@@ -29,7 +29,7 @@ export const authSettings: AuthProvisioningSettings = {
     tlsMode: "starttls",
     username: "gateway@example.com",
     passwordLast4: "k7Qe",
-    senderName: "Northwind Gateway",
+    senderName: "Northwind Opfield",
     senderEmail: "gateway@example.com",
     verifiedAt: ago(62, "d"),
   },

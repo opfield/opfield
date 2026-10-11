@@ -111,7 +111,7 @@ func (p *DockerPlugin) createLinkNetwork(ctx context.Context, name string) (link
 func linkNetworkResultOf(inspected network.Inspect) (linkNetworkResult, error) {
 	reserved, static := linkNetworkReservedAddress(inspected)
 	if !static || inspected.Driver != "bridge" || !inspected.Internal {
-		return linkNetworkResult{}, fmt.Errorf("network %s exists and is not a Gateway link network", inspected.Name)
+		return linkNetworkResult{}, fmt.Errorf("network %s exists and is not an Opfield link network", inspected.Name)
 	}
 	for _, config := range inspected.IPAM.Config {
 		if config.Subnet.IsValid() && config.Subnet.Addr().Is4() {

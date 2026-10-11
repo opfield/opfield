@@ -1,4 +1,5 @@
 import { getEnv } from '@/config/env.js';
+import { INSTALLER_RELEASES_URL } from '@/config/vendor-urls.js';
 import { container } from '@/container.js';
 import { RELEASE_VERSION_PATTERN } from '@/lib/semver.js';
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
@@ -6,7 +7,8 @@ import { DaemonUpdateService, daemonTypeForNodeType } from '@/services/daemon-up
 import { RelayPoolService } from '@/services/relay-pool.service.js';
 import { DEFAULT_RELAY_SERVICE_PORT, requestedRelayServicePort } from '@/services/relay-service-endpoint.js';
 
-const RELEASE_DOWNLOADS = 'https://github.com/the-square-labs/gateway/releases/download';
+// The update Worker serves a release's installers in GitHub's release download layout.
+const RELEASE_DOWNLOADS = `${INSTALLER_RELEASES_URL}/download`;
 // An unreleased build has no release assets of its own, so its commands run the installers from main.
 const MAIN_INSTALLERS = 'https://raw.githubusercontent.com/the-square-labs/gateway/main/scripts';
 const INSTALLER_CHECKSUMS = 'gateway-daemon-installers.sha256';

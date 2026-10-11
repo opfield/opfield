@@ -166,7 +166,7 @@ export class RelayTunnelHost {
     const rpc = new RpcPort(port, reviveError);
     rpc.listen('accept', ({ key, slotId }: { key: string; slotId: string }) => {
       if (this.acceptHandler) this.acceptHandler(key, slotId);
-      else void rpc.call('slot.fail', { slotId, message: 'Gateway relay is unavailable' }).catch(() => undefined);
+      else void rpc.call('slot.fail', { slotId, message: 'Opfield relay is unavailable' }).catch(() => undefined);
     });
     rpc.listen('released', ({ dialId }: { dialId: number }) => this.dials.delete(dialId));
     rpc.listen('stats', (stats: RelayResumeStatsSnapshot) => {

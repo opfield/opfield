@@ -192,7 +192,7 @@ function smtpDraftFrom(settings: AuthProvisioningSettings, current: SmtpDraft): 
     port: String(settings.smtp?.port ?? DEFAULT_SMTP_DRAFT.port),
     tlsMode: settings.smtp?.tlsMode ?? DEFAULT_SMTP_DRAFT.tlsMode,
     username: settings.smtp?.username ?? DEFAULT_SMTP_DRAFT.username,
-    senderName: settings.smtp?.senderName ?? "Gateway",
+    senderName: settings.smtp?.senderName ?? "Opfield",
     senderEmail: settings.smtp?.senderEmail ?? "",
   };
 }
@@ -366,7 +366,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       setSiemEnabled(settingsData.generalSettings.features?.siemEnabled ?? true);
       setInferenceEnabled(settingsData.generalSettings.features?.inferenceEnabled ?? false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load Gateway settings");
+      toast.error(err instanceof Error ? err.message : "Failed to load Opfield settings");
     } finally {
       setInitialLoadComplete(true);
     }
@@ -400,9 +400,9 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
     try {
       const updated = await api.updateAuthProvisioningSettings({ oidcAutoCreateUsers: checked });
       applySettings(updated);
-      toast.success("Gateway settings updated");
+      toast.success("Opfield settings updated");
       if (updated.webTransport?.restartRequired) {
-        toast.success("Gateway is restarting with the refreshed web certificate");
+        toast.success("Opfield is restarting with the refreshed web certificate");
         useAppStatusStore
           .getState()
           .setGatewayRestartingActive(
@@ -412,7 +412,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       }
     } catch (err) {
       setSettings(previous);
-      toast.error(err instanceof Error ? err.message : "Failed to update Gateway settings");
+      toast.error(err instanceof Error ? err.message : "Failed to update Opfield settings");
     } finally {
       setIsSavingAutoCreate(false);
     }
@@ -463,7 +463,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       const updated = await api.updateAuthProvisioningSettings({ webTlsEnabled: checked });
       applySettings(withDefaultGeneralSettings(updated)!);
       if (updated.webTransport?.restartRequired) {
-        toast.success("Gateway is restarting with the new internal protocol");
+        toast.success("Opfield is restarting with the new internal protocol");
         useAppStatusStore
           .getState()
           .setGatewayRestartingActive(
@@ -581,7 +581,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
           },
         })
       );
-      toast.success("Gateway settings updated");
+      toast.success("Opfield settings updated");
     } catch (err) {
       setSettings(previous);
       setFileUploadLimitMb(String(bytesToMegabytes(previous.generalSettings.fileUploadMaxBytes)));
@@ -599,9 +599,9 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
         ? "Internal PKI"
         : patch.features?.siemEnabled
           ? "SIEM audit export"
-          : "Gateway settings";
+          : "Opfield settings";
       if (!handleLicenseApiError(err, capability)) {
-        toast.error(err instanceof Error ? err.message : "Failed to update Gateway settings");
+        toast.error(err instanceof Error ? err.message : "Failed to update Opfield settings");
       }
     } finally {
       setIsSavingGeneral(false);
@@ -694,7 +694,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       const ok = await confirm({
         title: "Use a long relay grant lifetime?",
         description:
-          "If Gateway is unavailable, new relay connections may remain authorized for this many hours. Existing tunnels are still controlled by explicit policy revocation.",
+          "If Opfield is unavailable, new relay connections may remain authorized for this many hours. Existing tunnels are still controlled by explicit policy revocation.",
         confirmLabel: "Save",
         variant: "default",
       });

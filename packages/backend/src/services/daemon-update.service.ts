@@ -1263,6 +1263,7 @@ export class DaemonUpdateService {
         artifactName,
         downloadUrl: source.artifactUrl,
         trustedPackagePrefix: source.trustedPrefix,
+        acceptedDownloadUrls: source.acceptedArtifactUrls,
       });
     } catch (error) {
       logger.warn('Daemon update manifest verification failed', {

@@ -558,7 +558,7 @@ function DatabaseDetailContent({
     const ok = await confirm({
       title: "Rotate TLS Certificate",
       description:
-        "Gateway will issue a replacement certificate for this database node's current IP addresses. The running database reloads it without a restart (older node daemons recreate the database). Direct clients must continue trusting the same Gateway Database CA.",
+        "Opfield will issue a replacement certificate for this database node's current IP addresses. The running database reloads it without a restart (older node daemons recreate the database). Direct clients must continue trusting the same Opfield Database CA.",
       confirmLabel: "Rotate certificate",
     });
     if (!ok) return false;

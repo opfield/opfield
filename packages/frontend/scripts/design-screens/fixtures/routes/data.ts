@@ -187,7 +187,7 @@ const PROXY_TEMPLATE_VARIABLES: NginxTemplate["variables"] = [
     name: "rateLimitMode",
     type: "string",
     default: "inherit",
-    description: "Use the gateway default, a custom policy, or disable protection",
+    description: "Use the Opfield default, a custom policy, or disable protection",
   },
   {
     name: "rateLimitRPS",

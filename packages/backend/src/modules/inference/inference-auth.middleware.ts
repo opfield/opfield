@@ -22,12 +22,12 @@ export const inferenceAuthMiddleware: MiddlewareHandler<AppEnv> = async (c, next
 
   const rawToken = extractInferenceToken(c.req.header('Authorization'), c.req.header('x-api-key'));
   if (!rawToken) {
-    return inferenceErrorResponse(c, 401, 'invalid_api_key', 'A valid Gateway inference token is required');
+    return inferenceErrorResponse(c, 401, 'invalid_api_key', 'A valid Opfield inference token is required');
   }
 
   const result = await container.resolve(InferenceTokenService).validateToken(rawToken);
   if (!result) {
-    return inferenceErrorResponse(c, 401, 'invalid_api_key', 'Invalid or revoked Gateway inference token');
+    return inferenceErrorResponse(c, 401, 'invalid_api_key', 'Invalid or revoked Opfield inference token');
   }
 
   c.set('user', result.user);

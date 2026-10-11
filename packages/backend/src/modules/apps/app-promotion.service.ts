@@ -1035,7 +1035,7 @@ export class AppPromotionService {
       sizeBytes: Number.isSafeInteger(detail.sizeBytes) ? Number(detail.sizeBytes) : 0,
       status: 'ready',
       policyDecision: 'approved',
-      policyReason: `Copied for an app promotion by ${userId ?? 'Gateway'}`,
+      policyReason: `Copied for an app promotion by ${userId ?? 'Opfield'}`,
       verifiedAt: new Date(),
     });
     return {

@@ -63,7 +63,7 @@ func (m *managedStorageManager) ensureEngineImage(ctx context.Context, engine st
 	case managedStorageEngineSeaweedFS:
 		reference, err := m.ensureSeaweedFSImage(ctx, seaweedfsImage)
 		if err != nil {
-			return "", &managedStorageImageError{Code: managedStorageImagePullFailedCode, Message: "the SeaweedFS runtime image could not be pulled from the Gateway mirror or Docker Hub", Cause: err}
+			return "", &managedStorageImageError{Code: managedStorageImagePullFailedCode, Message: "the SeaweedFS runtime image could not be pulled from the Opfield mirror or Docker Hub", Cause: err}
 		}
 		return reference, nil
 	case managedStorageEngineMinIO:
@@ -115,7 +115,7 @@ func (m *managedStorageManager) ensureSeaweedFSImage(ctx context.Context, pinned
 		return "", ctx.Err()
 	}
 	if m.logger != nil {
-		m.logger.Warn("Gateway's SeaweedFS image could not be pulled; using the upstream image", "image", pinned, "error", pullErr)
+		m.logger.Warn("Opfield's SeaweedFS image could not be pulled; using the upstream image", "image", pinned, "error", pullErr)
 	}
 	return m.client.EnsureThirdPartyImage(ctx, seaweedfsUpstreamImage)
 }

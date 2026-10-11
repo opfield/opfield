@@ -54,7 +54,7 @@ export const SiemCustomHeaderNameSchema = z
   .regex(/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/, 'Custom header name must be a valid HTTP field name')
   .refine(
     (value) => !RESERVED_SIEM_HEADER_NAMES.has(value.toLowerCase()),
-    'Custom header name cannot override a Gateway transport header'
+    'Custom header name cannot override an Opfield transport header'
   );
 
 const SiemSecretSchema = z

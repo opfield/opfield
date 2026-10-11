@@ -232,7 +232,7 @@ export const rotateManagedDatabaseCertificateRoute = appRoute({
   tags: ['Databases'],
   summary: 'Rotate a managed database direct-TLS certificate',
   description:
-    'Issues a new certificate from the Database CA and has the running engine reload it in place (PostgreSQL, key-value stores and ClickHouse keep serving). A restart is used only with allowRestart or when the node daemon cannot reload certificates yet. Gateway also renews these certificates automatically before they expire.',
+    'Issues a new certificate from the Database CA and has the running engine reload it in place (PostgreSQL, key-value stores and ClickHouse keep serving). A restart is used only with allowRestart or when the node daemon cannot reload certificates yet. Opfield also renews these certificates automatically before they expire.',
   request: { params: IdParamSchema, ...optionalJsonBody(RenewManagedCertificateSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -243,7 +243,7 @@ export const getManagedDatabaseCertificateRoute = appRoute({
   tags: ['Databases'],
   summary: 'Get the TLS certificate of a managed database and its automatic renewal status',
   description:
-    'Shows expiry, the renewal state and the last renewal error. Gateway renews the certificate while the database runs (two thirds into its lifetime or 30 days before expiry) without a restart.',
+    'Shows expiry, the renewal state and the last renewal error. Opfield renews the certificate while the database runs (two thirds into its lifetime or 30 days before expiry) without a restart.',
   request: { params: IdParamSchema },
   responses: okJson(dataResponseSchema(ManagedCertificateStatusSchema)),
 });

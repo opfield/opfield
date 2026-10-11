@@ -58,7 +58,7 @@ type InferenceAction =
   | 'logout';
 
 export async function runInteractiveRootCommand(input: InteractiveCommandInput): Promise<number> {
-  input.ui.intro('Good Gateway Inference');
+  input.ui.intro('Opfield Inference');
   return runInteractiveInferenceCommand(input, false);
 }
 
@@ -66,7 +66,7 @@ export async function runInteractiveInferenceCommand(
   input: InteractiveCommandInput,
   showIntro = true
 ): Promise<number> {
-  if (showIntro) input.ui.intro('Good Gateway Inference');
+  if (showIntro) input.ui.intro('Opfield Inference');
   const codexIntegration = createIntegration(input);
   const claudeCodeIntegration = createClaudeCodeIntegration(input);
   const state = await loadInferenceMenuState(input);
@@ -130,7 +130,7 @@ export async function runInteractiveInferenceCommand(
 }
 
 export async function runInteractiveHarnessSetupCommand(input: InteractiveCommandInput): Promise<number> {
-  input.ui.intro('Good Gateway Inference · Setup');
+  input.ui.intro('Opfield Inference · Setup');
   return setupHarness(input, createIntegration(input), createClaudeCodeIntegration(input));
 }
 
@@ -169,7 +169,7 @@ async function loadInferenceMenuState(input: InteractiveCommandInput): Promise<I
 
 async function showState(input: InteractiveCommandInput, state: InteractiveState): Promise<void> {
   const profile = await input.profiles.get(input.profileName);
-  if (profile) input.ui.info(`Gateway: ${profile.origin}`);
+  if (profile) input.ui.info(`Opfield: ${profile.origin}`);
   if (state.identity) showAccount(input.ui, state.identity);
   input.ui.info(state.codexConfigured ? `Codex: configured · ${state.models.length} models` : 'Codex: not configured');
   input.ui.info(state.claudeCodeConfigured ? 'Claude Code: configured' : 'Claude Code: not configured');
@@ -186,7 +186,7 @@ function inferenceActions(state: InteractiveState): InteractiveOption[] {
     options.push({
       value: 'authenticate',
       label: 'Login',
-      hint: 'Authorize this device through Gateway OAuth',
+      hint: 'Authorize this device through Opfield OAuth',
     });
   }
   options.push({
@@ -283,7 +283,7 @@ async function authenticate(input: InteractiveCommandInput): Promise<SetupIdenti
   if (!completed) return null;
   const context = await authenticatedSetupClient(input.profileName, input.profiles, input.credentials, input.fetch);
   const identity = await context.client.me();
-  input.ui.info('Gateway authorization complete');
+  input.ui.info('Opfield authorization complete');
   return identity;
 }
 
@@ -293,7 +293,7 @@ function showAccount(ui: InteractiveCliUi, identity: SetupIdentity): void {
 }
 
 async function syncModels(input: InteractiveCommandInput, integration: CodexIntegrationService): Promise<string[]> {
-  const spinner = input.ui.spinner('Refreshing Gateway models...');
+  const spinner = input.ui.spinner('Refreshing Opfield models...');
   try {
     const context = await authenticatedSetupClient(input.profileName, input.profiles, input.credentials, input.fetch);
     const result = await integration.sync({ profileName: input.profileName, discovery: context.discovery });
@@ -314,7 +314,7 @@ async function diagnose(input: InteractiveCommandInput, integration: CodexIntegr
     const context = await authenticatedSetupClient(input.profileName, input.profiles, input.credentials, input.fetch);
     await context.client.me();
     discovery = context.discovery;
-    setupCheck = { status: 'ok', message: 'Gateway accepted the setup authorization' };
+    setupCheck = { status: 'ok', message: 'Opfield accepted the setup authorization' };
   } catch (error) {
     const offline = error instanceof CliError && ['NETWORK_ERROR', 'NETWORK_TIMEOUT'].includes(error.code);
     setupCheck = {
@@ -494,9 +494,9 @@ async function setupHarness(
         return {
           progress: `Configured Claude Code ${result.claudeCodeVersion}`,
           summary: [
-            `${result.modelCount} Gateway models are ready.`,
+            `${result.modelCount} Opfield models are ready.`,
             `Default model: ${result.defaultModel}.`,
-            'Restart Claude Code to load Gateway models.',
+            'Restart Claude Code to load Opfield models.',
           ].join('\n'),
         };
       }
@@ -518,7 +518,7 @@ async function setupHarness(
       return {
         progress: `Configured Codex ${result.codexVersion}`,
         summary: [
-          `${result.catalog.modelCount} Gateway models are ready.`,
+          `${result.catalog.modelCount} Opfield models are ready.`,
           `Default model: ${result.defaultModel}.`,
           ...(result.warning ? [`Warning: ${result.warning}`] : []),
           'Fully quit and reopen Codex to load the current model catalog.',
@@ -563,14 +563,14 @@ async function uninstallStartup(input: InteractiveCommandInput): Promise<Startup
 }
 
 async function logout(input: InteractiveCommandInput): Promise<number> {
-  const spinner = input.ui.spinner('Removing Gateway authorization...');
+  const spinner = input.ui.spinner('Removing Opfield authorization...');
   try {
     await logoutCommand(input.profileName, input.profiles, input.credentials, SILENT_OUTPUT, input.fetch);
-    spinner.stop('Gateway authorization removed');
+    spinner.stop('Opfield authorization removed');
     input.ui.outro('Logged out. Harness configuration and runtime tokens were left unchanged.');
     return 0;
   } catch (error) {
-    spinner.error('Could not remove Gateway authorization');
+    spinner.error('Could not remove Opfield authorization');
     throw error;
   }
 }

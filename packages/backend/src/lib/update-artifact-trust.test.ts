@@ -107,6 +107,26 @@ describe('update artifact trust', () => {
     expect(artifact.downloadUrl).toBe(daemonUrl);
   });
 
+  it('accepts a daemon manifest that names the artifact under an earlier name of the update host', () => {
+    const expected = {
+      daemonType: 'nginx' as const,
+      version: 'v9.9.9',
+      tag: 'v9.9.9-nginx',
+      arch: 'amd64',
+      artifactName: 'nginx-daemon-linux-amd64',
+      downloadUrl: 'https://get.opfield.dev/gateway/nginx-daemon/v9.9.9-nginx/nginx-daemon-linux-amd64',
+      trustedPackagePrefix: 'https://get.opfield.dev/gateway/',
+    };
+
+    expect(() => verifyDaemonUpdateManifest(daemonManifest, expected)).toThrow('Update download URL mismatch');
+    expect(
+      verifyDaemonUpdateManifest(daemonManifest, {
+        ...expected,
+        acceptedDownloadUrls: [expected.downloadUrl, daemonUrl],
+      }).downloadUrl
+    ).toBe(daemonUrl);
+  });
+
   it('rejects daemon manifests for the wrong architecture', () => {
     expect(() =>
       verifyDaemonUpdateManifest(daemonManifest, {
@@ -385,7 +405,7 @@ describe('update artifact trust', () => {
         },
         gatewayPublicKey
       )
-    ).toThrow('Gateway update secure-link connector image reference is not digest pinned');
+    ).toThrow('Opfield update secure-link connector image reference is not digest pinned');
   });
 
   it('rejects an invalid relay version even when the manifest signature is valid', () => {
@@ -478,7 +498,7 @@ describe('update artifact trust', () => {
     ).toThrow('OpenCodex update image mismatch');
   });
 
-  it('rejects an OpenCodex manifest whose version is not a Good Gateway release', () => {
+  it('rejects an OpenCodex manifest whose version is not an Opfield release', () => {
     const payload = Buffer.from(
       JSON.stringify({
         kind: 'opencodex-image',
@@ -510,6 +530,6 @@ describe('update artifact trust', () => {
         },
         gatewayPublicKey
       )
-    ).toThrow('OpenCodex update version is not a Good Gateway release');
+    ).toThrow('OpenCodex update version is not an Opfield release');
   });
 });

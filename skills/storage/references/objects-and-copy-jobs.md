@@ -14,7 +14,7 @@ Deleting objects or buckets is destructive; confirm the exact bucket and keys wi
 
 ## Downloading objects through MCP
 
-`download_storage_object` is MCP-only: it takes `storageId`, `bucket` and `key` and needs `storage:objects:read`. It returns a one-time download URL (15 minutes, single use) and a ready `curl -fsS -o <file> <url>` command that streams the object through Gateway, so it works for any size and for private managed storage. A missing bucket or object is refused with `STORAGE_NOT_FOUND` before a link is made. If curl exits non-zero, the file is incomplete: delete it and create a new link.
+`download_storage_object` is MCP-only: it takes `storageId`, `bucket` and `key` and needs `storage:objects:read`. It returns a one-time download URL (15 minutes, single use) and a ready `curl -fsS -o <file> <url>` command that streams the object through Opfield, so it works for any size and for private managed storage. A missing bucket or object is refused with `STORAGE_NOT_FOUND` before a link is made. If curl exits non-zero, the file is incomplete: delete it and create a new link.
 
 ## Uploading objects through MCP
 
@@ -22,7 +22,7 @@ Deleting objects or buckets is destructive; confirm the exact bucket and keys wi
 
 - `begin` takes `storageId`, `bucket`, `key`, the exact `declaredSizeBytes`, and the lowercase `sha256` of the whole object.
 - Chunks are base64, at most 1 MiB decoded each.
-- Sessions expire after one hour; do not assume a stalled upload survives a Gateway restart. Check `status` before resuming.
+- Sessions expire after one hour; do not assume a stalled upload survives an Opfield restart. Check `status` before resuming.
 - Every byte passes through your context; for large data, prefer a presigned PUT used by a local client or a copy job.
 
 ## Copy and sync jobs

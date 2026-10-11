@@ -184,24 +184,25 @@ export function AssistantSetupWizard({
       description={
         <>
           <p>
-            AI Workspace is Gateway's intent-driven operations interface. Describe the outcome you
+            AI Workspace is Opfield's intent-driven operations interface. Describe the outcome you
             want, keep the operational context in one Work Session, and move between guidance and
-            Gateway resources without losing your place.
+            Opfield resources without losing your place.
           </p>
           <p>
             Choose an OAI-compatible provider when you already have an OpenAI-compatible endpoint,
-            API key, and model that should serve this Gateway. Gateway stores that connection for AI
-            Workspace only; it does not expose the provider as a shared model catalog.
+            API key, and model that should serve this Opfield installation. Opfield stores that
+            connection for AI Workspace only; it does not expose the provider as a shared model
+            catalog.
           </p>
           {allowGatewayInference && (
             <p>
-              Choose Gateway Inference when providers and models should be managed centrally for
+              Choose Opfield Inference when providers and models should be managed centrally for
               multiple users or features. It requires Inference to have a connected provider and at
               least one enabled model first. You can revise either choice later in Settings.
             </p>
           )}
           <p>
-            AI Workspace is recommended, not required. Operations Console keeps every Gateway
+            AI Workspace is recommended, not required. Operations Console keeps every Opfield
             capability available without a model connection.
           </p>
         </>
@@ -235,7 +236,7 @@ export function AssistantSetupWizard({
           title="AI Workspace configured"
           continueIn="Continue from Settings → AI Workspace to change its model connection whenever your requirements change."
         >
-          Gateway can now use the selected Workspace model while preserving each operator's
+          Opfield can now use the selected Workspace model while preserving each operator's
           permissions.
         </FinalizeSetupCompletion>
       ) : draft.source === null ? (
@@ -249,8 +250,8 @@ export function AssistantSetupWizard({
           {allowGatewayInference && (
             <ChoiceCard
               icon={Cpu}
-              title="Gateway Inference"
-              description="Use centrally managed providers and models that Gateway makes available."
+              title="Opfield Inference"
+              description="Use centrally managed providers and models that Opfield makes available."
               onClick={() => setSource("inference")}
             />
           )}
@@ -298,24 +299,24 @@ export function AssistantSetupWizard({
         </PanelShell>
       ) : loadingModels ? (
         <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
-          <Loader2 className="mr-2 animate-spin" /> Checking Gateway Inference…
+          <Loader2 className="mr-2 animate-spin" /> Checking Opfield Inference…
         </div>
       ) : inferenceModels.length === 0 ? (
         <Notice
           tone="warning"
-          title="Gateway Inference needs setup"
+          title="Opfield Inference needs setup"
           actions={
             <NoticeAction tone="warning" onClick={onNeedInference}>
-              Configure Gateway Inference
+              Configure Opfield Inference
             </NoticeAction>
           }
         >
           Connect a provider and make at least one model available before AI Workspace can use
-          Gateway Inference.
+          Opfield Inference.
         </Notice>
       ) : (
         <PanelShell
-          title="Gateway Inference"
+          title="Opfield Inference"
           description="Centrally managed models available to AI Workspace."
         >
           <SettingsControlRow

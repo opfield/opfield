@@ -796,7 +796,7 @@ function AdminGroupsContent({
             />
             <SwitchCard
               label="Require two-factor authentication"
-              description="Applies only to Gateway email-based sign-in. OIDC MFA stays managed by the identity provider."
+              description="Applies only to Opfield email-based sign-in. OIDC MFA stays managed by the identity provider."
               checked={formRequireGateway2fa}
               disabled={groupDialogReadOnly}
               onCheckedChange={setFormRequireGateway2fa}

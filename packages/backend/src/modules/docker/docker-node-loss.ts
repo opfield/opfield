@@ -44,7 +44,7 @@ export async function nodeLossHttpError(
     return new AppError(
       504,
       'NODE_ANSWER_LOST',
-      `The node did not answer the ${operation}; it may still run there. Gateway settles task ${loss.taskId} with the node once it is connected again.`,
+      `The node did not answer the ${operation}; it may still run there. Opfield settles task ${loss.taskId} with the node once it is connected again.`,
       { taskId: loss.taskId }
     );
   }

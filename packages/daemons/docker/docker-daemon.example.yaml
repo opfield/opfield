@@ -10,11 +10,11 @@ state_dir: "/var/lib/docker-daemon"
 log_level: "info"
 
 console:
-  enabled: true  # host console; false turns it off (Gateway cannot turn it back on)
+  enabled: true  # host console; false turns it off (Opfield cannot turn it back on)
   user: ""  # OS user for host console sessions; empty = daemon's user
 
 files:
-  enabled: true  # host file access; false turns it off (Gateway cannot turn it back on)
+  enabled: true  # host file access; false turns it off (Opfield cannot turn it back on)
 
 docker:
   socket: "unix:///var/run/docker.sock"

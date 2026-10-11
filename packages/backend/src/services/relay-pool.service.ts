@@ -662,7 +662,7 @@ export class RelayPoolService {
         ownerKind: endpoint.ownerKind,
         ownerId: endpoint.ownerId,
         nodeId: endpoint.subjectKind === 'daemon' ? endpoint.subjectId : null,
-        message: `No relay off the Gateway host is reachable from ${where}: traffic of this link depends on the Gateway host.`,
+        message: `No relay off the Opfield host is reachable from ${where}: traffic of this link depends on the Opfield host.`,
       };
     });
   }
@@ -996,7 +996,7 @@ export class RelayPoolService {
       throw new AppError(
         409,
         'RELAY_REENROLLMENT_UNSUPPORTED',
-        'Only an enrolled remote relay can be re-enrolled; Gateway recovers the local relay automatically'
+        'Only an enrolled remote relay can be re-enrolled; Opfield recovers the local relay automatically'
       );
     }
     const token = createNodeEnrollmentToken();

@@ -39,7 +39,7 @@ var secureLinkAnchorCommand = []string{"pause"}
 const (
 	secureLinkAnchorImageLabel   = "wiolett.gateway.secure-link-connector.anchor"
 	secureLinkAnchorImageVersion = "v1"
-	connectorImageTooOld         = "the secure-link connector image is too old for links from this node; update Gateway"
+	connectorImageTooOld         = "the secure-link connector image is too old for links from this node; update Opfield"
 )
 
 // tcpMigrateReqSysctl moves the connections queued on a closing SO_REUSEPORT listener to another listener of the

@@ -459,7 +459,7 @@ async function resolveCreateNetworks(
     }
     const network = await resolveNetworkIdentity(networkContext, nodeId, name);
     if (isGatewayManagedDockerNetwork(network.name)) {
-      throw new AppError(409, 'MANAGED_NETWORK', 'Gateway-managed networks cannot be connected manually');
+      throw new AppError(409, 'MANAGED_NETWORK', 'Opfield-managed networks cannot be connected manually');
     }
     if (network.name === 'host') {
       throw new AppError(400, 'NETWORK_MODE_NOT_ALLOWED', 'Host networking is not allowed for containers');
@@ -833,7 +833,7 @@ async function removeStoppedContainer(
     throw new AppError(
       409,
       'CONTAINER_RUNNING',
-      'Stop the container before removing it. Active containers cannot be removed from Gateway.'
+      'Stop the container before removing it. Active containers cannot be removed from Opfield.'
     );
   }
   const result = await ctx.nodeDispatch.sendDockerContainerCommand(nodeId, 'remove', { containerId, force });
@@ -1415,7 +1415,7 @@ export async function recreateWithConfig(
     throw new AppError(
       409,
       'GPU_ATTACHMENT_UNMANAGED',
-      'This container has an unsupported GPU mapping. Gateway will preserve it but cannot replace it.'
+      'This container has an unsupported GPU mapping. Opfield will preserve it but cannot replace it.'
     );
   }
   const recreateStopTimeout = ctx.resolveStopTimeoutFromInspect(inspect as Record<string, any>, config);

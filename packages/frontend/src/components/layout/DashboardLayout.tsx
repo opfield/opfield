@@ -654,8 +654,8 @@ export function DashboardLayout() {
                 <Menu className="h-5 w-5" />
               </Button>
               <span className="ml-2 flex items-center gap-1.5 text-sm font-semibold">
-                <img src="/android-chrome-192x192.png" alt="Gateway" className="h-5 w-5" />
-                Gateway
+                <img src="/android-chrome-192x192.png" alt="Opfield" className="h-5 w-5" />
+                Opfield
               </span>
               <div className="ml-2">
                 <AIButton />

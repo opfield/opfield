@@ -1421,7 +1421,7 @@ export function DockerContainerDetail({
     : composeManaged
       ? "Docker Compose resources cannot be migrated"
       : deploymentManaged
-        ? "Migrate this container through its Gateway deployment"
+        ? "Migrate this container through its Opfield deployment"
         : (buildRolloutReason ??
           (actionDisabled ? "Container is unavailable or changing state" : undefined));
   const currentTransition = runtimeReplacing ? "replacing" : effectiveTransition;
@@ -2172,7 +2172,7 @@ export function DockerContainerDetail({
               {(archiveCapabilities.canIncludeEnvironment || archiveDevPreview) && (
                 <SettingsControlRow
                   title="Include environment"
-                  description="Includes Gateway-managed container environment overrides. Environment values baked into the image may still be present in a portable archive."
+                  description="Includes Opfield-managed container environment overrides. Environment values baked into the image may still be present in a portable archive."
                   controlsClassName="sm:min-w-0"
                 >
                   <Switch

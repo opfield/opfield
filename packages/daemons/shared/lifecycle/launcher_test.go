@@ -511,7 +511,7 @@ func TestLauncherRollsBackCandidateThatNeverReachesGatewayControl(t *testing.T) 
 	waitForLauncherPath(t, launcherStatePath(stateDir), false)
 	outcome, err := os.ReadFile(launcherOutcomePath(stateDir))
 	cancel()
-	if err != nil || !strings.Contains(string(outcome), "gateway control readiness timeout") {
+	if err != nil || !strings.Contains(string(outcome), "Opfield control readiness timeout") {
 		<-done
 		t.Fatalf("rollback outcome = %s, %v", outcome, err)
 	}

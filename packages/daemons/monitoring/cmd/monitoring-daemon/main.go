@@ -184,7 +184,7 @@ log_format: "json"
 
 	// Create systemd service unit
 	serviceContent := `[Unit]
-Description=Gateway Monitoring Daemon
+Description=Opfield Monitoring Daemon
 After=network-online.target
 Wants=network-online.target
 

@@ -470,7 +470,7 @@ export function buildTokens({ frontendDir, tailwindTheme, product, sources, bran
 
   return {
     tokens: {
-      name: "Good Gateway",
+      name: "Opfield",
       version: 1,
       meta,
       color: { themes: [{ id: "light", name: "Light" }, { id: "dark", name: "Dark" }], tokens: colorTokens },
