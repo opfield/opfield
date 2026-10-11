@@ -101,7 +101,55 @@ function familyOf(member: AppMember): string {
   }
 }
 
-type Alert = { tone: 'danger' | 'warning'; title: string; detail: string; href?: string; actionLabel?: string };
+/** Alert tones, the same words the console's Notice uses. */
+export const APP_OVERVIEW_ALERT_TONES = ['destructive', 'warning'] as const;
+export type AppOverviewAlertTone = (typeof APP_OVERVIEW_ALERT_TONES)[number];
+export type AppOverviewAlert = {
+  tone: AppOverviewAlertTone;
+  title: string;
+  detail: string;
+  href?: string;
+  actionLabel?: string;
+};
+
+/**
+ * Alerts of one environment: a destructive alert per failing member, a warning per database or storage whose disk
+ * is at least DISK_ALERT_PERCENT full, and a warning when at least ERROR_ALERT_PERCENT of route requests fail.
+ */
+export function environmentAlerts(input: {
+  envName: string;
+  failing: ReadonlyArray<{ name: string; family: string }>;
+  disks: ReadonlyArray<{ name: string; diskPercent: number | null }>;
+  routeRps: number | null;
+  routeErrors: number | null;
+}): AppOverviewAlert[] {
+  const alerts: AppOverviewAlert[] = [];
+  for (const member of input.failing) {
+    alerts.push({
+      tone: 'destructive',
+      title: `${member.name} is failing`,
+      detail: `${member.family} member of ${input.envName}`,
+    });
+  }
+  for (const entry of input.disks) {
+    if (entry.diskPercent !== null && entry.diskPercent >= DISK_ALERT_PERCENT) {
+      alerts.push({
+        tone: 'warning',
+        title: `${entry.name} disk is ${Math.round(entry.diskPercent)}% full`,
+        detail: 'Free space or grow the volume',
+      });
+    }
+  }
+  const { routeRps, routeErrors } = input;
+  if (routeRps && routeErrors !== null && (routeErrors / routeRps) * 100 >= ERROR_ALERT_PERCENT) {
+    alerts.push({
+      tone: 'warning',
+      title: `${Math.round((routeErrors / routeRps) * 1000) / 10}% of requests fail with 5xx`,
+      detail: `Routes of ${input.envName}`,
+    });
+  }
+  return alerts;
+}
 
 /**
  * Monitoring overview of an app: per visible environment, the health of its members, issues and alerts, and
@@ -172,30 +220,15 @@ export class AppOverviewService {
         const envPages = pages.filter((entry) => entry.environmentId === env.id);
         const routeRps = sum(envRoutes.map((entry) => entry.requestsPerSecond));
         const routeErrors = sum(envRoutes.map((entry) => entry.errorsPerSecond));
-        const alerts: Alert[] = [];
-        for (const status of counted.filter((item) => item.health === 'failing')) {
-          alerts.push({
-            tone: 'danger',
-            title: `${status.member.name} is failing`,
-            detail: `${familyOf(status.member)} member of ${env.name}`,
-          });
-        }
-        for (const entry of [...envDatabases, ...envStorage]) {
-          if (entry.diskPercent !== null && entry.diskPercent >= DISK_ALERT_PERCENT) {
-            alerts.push({
-              tone: 'warning',
-              title: `${entry.name} disk is ${Math.round(entry.diskPercent)}% full`,
-              detail: 'Free space or grow the volume',
-            });
-          }
-        }
-        if (routeRps && routeErrors !== null && (routeErrors / routeRps) * 100 >= ERROR_ALERT_PERCENT) {
-          alerts.push({
-            tone: 'warning',
-            title: `${Math.round((routeErrors / routeRps) * 1000) / 10}% of requests fail with 5xx`,
-            detail: `Routes of ${env.name}`,
-          });
-        }
+        const alerts = environmentAlerts({
+          envName: env.name,
+          failing: counted
+            .filter((item) => item.health === 'failing')
+            .map((item) => ({ name: item.member.name, family: familyOf(item.member) })),
+          disks: [...envDatabases, ...envStorage],
+          routeRps,
+          routeErrors,
+        });
         return {
           environmentId: env.id,
           health: combineHealth(counted.map((status) => status.health)),

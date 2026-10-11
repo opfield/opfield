@@ -100,7 +100,9 @@ describe.skipIf(!url)('app overview on disposable PostgreSQL', () => {
       diskPercent: 90,
     });
     expect(production.databases[0].diskHistory).toHaveLength(24);
-    expect(production.alerts.map((alert: any) => alert.title)).toEqual(['shop-db disk is 90% full']);
+    expect(production.alerts).toEqual([
+      { tone: 'warning', title: 'shop-db disk is 90% full', detail: 'Free space or grow the volume' },
+    ]);
     expect(production.containers).toMatchObject({ total: 0, unhealthy: [] });
     expect(production.routes).toMatchObject({ total: 0, requestsPerSecond: null });
 

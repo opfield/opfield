@@ -20,6 +20,16 @@ const TONE_ICONS: Record<NoticeTone, ElementType> = {
 };
 
 /**
+ * The tone to draw for a value that may come from the API: a known tone as is, "danger" or
+ * "error" as destructive, anything else as warning, so an unexpected word never breaks the page.
+ */
+export function noticeTone(tone: string | null | undefined): NoticeTone {
+  if (tone && Object.hasOwn(TONE_CLASSES, tone)) return tone as NoticeTone;
+  if (tone === "danger" || tone === "error") return "destructive";
+  return "warning";
+}
+
+/**
  * A notice that asks for attention, on the dashboard or inside a page or dialog:
  * an icon centred against a title in the tone colour and a muted summary, and
  * text actions on the right (`NoticeAction`). Show it only while something
@@ -43,8 +53,9 @@ export function Notice({
   /** Usually one or more `NoticeAction`. */
   actions?: ReactNode;
 }) {
-  const toneClasses = TONE_CLASSES[tone];
-  const Icon = icon ?? TONE_ICONS[tone];
+  const safeTone = noticeTone(tone);
+  const toneClasses = TONE_CLASSES[safeTone];
+  const Icon = icon ?? TONE_ICONS[safeTone];
   return (
     <div className={cn("border bg-card", toneClasses.border, className)} {...props}>
       <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -98,7 +109,7 @@ export function NoticeAction({
 }) {
   const className = cn(
     actionClassName,
-    muted ? "text-muted-foreground hover:text-foreground" : TONE_CLASSES[tone].text,
+    muted ? "text-muted-foreground hover:text-foreground" : TONE_CLASSES[noticeTone(tone)].text,
     "disabled:pointer-events-none disabled:opacity-50"
   );
   const content = (
