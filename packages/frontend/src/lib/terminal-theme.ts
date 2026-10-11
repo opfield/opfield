@@ -1,3 +1,5 @@
+import type { ITheme } from "@xterm/xterm";
+
 // The xterm palette from the theme tokens in index.css: surface, text, cursor, selection and the
 // 16 ANSI colours (--color-ansi-*), read from the document so terminals follow light and dark.
 
@@ -30,4 +32,23 @@ export function terminalAnsiPalette(style: CSSStyleDeclaration): TerminalAnsiPal
     if (value) palette[key] = value;
   }
   return palette;
+}
+
+/**
+ * The full xterm theme of the current theme: card surface and text, primary cursor, selection
+ * (--color-terminal-selection*) and the ANSI colours. Missing tokens are left out, so xterm keeps
+ * its own default for them.
+ */
+export function terminalTheme(style: CSSStyleDeclaration): ITheme {
+  const read = (token: string) => style.getPropertyValue(token).trim();
+  const theme: Record<string, string> = {
+    background: read("--color-card"),
+    foreground: read("--color-card-foreground"),
+    cursor: read("--color-primary"),
+    cursorAccent: read("--color-primary-foreground"),
+    selectionBackground: read("--color-terminal-selection"),
+    selectionInactiveBackground: read("--color-terminal-selection-inactive"),
+  };
+  for (const key of Object.keys(theme)) if (!theme[key]) delete theme[key];
+  return { ...theme, ...terminalAnsiPalette(style) };
 }

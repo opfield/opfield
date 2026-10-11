@@ -160,14 +160,14 @@ function displayIncidentUpdateStatus(
 function incidentSeverityBorderClass(severity: StatusPageIncidentSeverity) {
   if (severity === "critical") return "border-l-destructive";
   if (severity === "warning") return "border-l-warning";
-  return "border-l-blue-400";
+  return "border-l-info";
 }
 
 function incidentUpdateMarkerClass(status: StatusPageIncidentUpdateStatus) {
   return {
     update: "bg-muted-foreground",
     investigating: "rotate-45 bg-warning",
-    identified: "rotate-45 bg-blue-500",
+    identified: "rotate-45 bg-info",
     monitoring: "bg-success",
     resolved: "rounded-full bg-success",
   }[status];

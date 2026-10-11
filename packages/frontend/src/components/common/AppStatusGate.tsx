@@ -42,19 +42,19 @@ export function clearMaintenanceAutoReloadGuard(): void {
  * current theme: the swap then does not flash between themes.
  */
 const RESTART_PAGE_PALETTE = {
-  "--restart-page-bg": "#090909",
-  "--restart-page-fg": "#f4f4f5",
-  "--restart-page-muted": "#a1a1aa",
-  "--restart-page-subtle": "#71717a",
-  "--restart-page-line": "#27272a",
-  "--restart-page-row": "#d4d4d8",
-  "--restart-page-error": "#ef4444",
+  "--restart-page-bg": "var(--color-static-page)",
+  "--restart-page-fg": "var(--color-static-page-foreground)",
+  "--restart-page-muted": "var(--color-static-page-muted)",
+  "--restart-page-subtle": "var(--color-static-page-subtle)",
+  "--restart-page-line": "var(--color-static-page-line)",
+  "--restart-page-row": "var(--color-static-page-row)",
+  "--restart-page-error": "var(--color-static-page-error)",
 } as CSSProperties;
 
 const STATUS_SCREEN_ICON_TONES = {
   "restart-page": {
-    error: "border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.06)] text-[#ef4444]",
-    warning: "border-[rgba(234,179,8,0.35)] bg-[rgba(234,179,8,0.06)] text-[#facc15]",
+    error: "border-static-page-error/35 bg-static-page-error/5 text-static-page-error",
+    warning: "border-static-page-warning/35 bg-static-page-warning/5 text-static-page-warning",
   },
   app: {
     error: "border-destructive/30 bg-destructive/5 text-destructive",

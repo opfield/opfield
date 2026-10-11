@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { terminalAnsiPalette } from "@/lib/terminal-theme";
+import { terminalTheme } from "@/lib/terminal-theme";
 import { useAuthStore } from "@/stores/auth";
 
 const SERVICE_COLORS = [
@@ -42,13 +42,7 @@ export function ComposeLogsView({
   const serviceColorMap = useRef(new Map<string, string>());
   const getTerminalTheme = useCallback(() => {
     const style = getComputedStyle(document.documentElement);
-    return {
-      background: style.getPropertyValue("--color-card").trim() || "#1a1a19",
-      foreground: style.getPropertyValue("--color-card-foreground").trim() || "#f3f2ef",
-      cursor: style.getPropertyValue("--color-primary").trim() || "#f3f2ef",
-      cursorAccent: style.getPropertyValue("--color-primary-foreground").trim() || "#141414",
-      ...terminalAnsiPalette(style),
-    };
+    return terminalTheme(style);
   }, []);
   const getServiceColor = useCallback((service: string) => {
     if (!serviceColorMap.current.has(service)) {

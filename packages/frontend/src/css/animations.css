@@ -37,18 +37,18 @@
 @keyframes navigation-target-ripple {
   0% {
     box-shadow:
-      0 0 0 0 color-mix(in srgb, var(--navigation-target-ripple-color, #fff) 70%, transparent),
+      0 0 0 0 color-mix(in srgb, var(--navigation-target-ripple-color, var(--color-foreground)) 70%, transparent),
       0 0 0 0 transparent;
   }
   20% {
     box-shadow:
-      0 0 0 8px color-mix(in srgb, var(--navigation-target-ripple-color, #fff) 32%, transparent),
-      0 0 0 0 color-mix(in srgb, var(--navigation-target-ripple-color, #fff) 55%, transparent);
+      0 0 0 8px color-mix(in srgb, var(--navigation-target-ripple-color, var(--color-foreground)) 32%, transparent),
+      0 0 0 0 color-mix(in srgb, var(--navigation-target-ripple-color, var(--color-foreground)) 55%, transparent);
   }
   45% {
     box-shadow:
       0 0 0 16px transparent,
-      0 0 0 8px color-mix(in srgb, var(--navigation-target-ripple-color, #fff) 24%, transparent);
+      0 0 0 8px color-mix(in srgb, var(--navigation-target-ripple-color, var(--color-foreground)) 24%, transparent);
   }
   60%,
   100% {
@@ -67,7 +67,7 @@
   .ai-chat-content-fade-in { animation: none; }
   .navigation-target-ripple {
     animation: none;
-    box-shadow: 0 0 0 2px var(--navigation-target-ripple-color, #fff);
+    box-shadow: 0 0 0 2px var(--navigation-target-ripple-color, var(--color-foreground));
   }
 }
 
@@ -198,22 +198,22 @@
 [data-sonner-toaster][data-sonner-theme='dark'] {
   z-index: 1000 !important;
   pointer-events: auto !important;
-  --normal-bg: #232322 !important;
-  --normal-border: #3d3d3a !important;
-  --normal-text: #f3f2ef !important;
+  --normal-bg: var(--color-toast) !important;
+  --normal-border: var(--color-toast-border) !important;
+  --normal-text: var(--color-toast-foreground) !important;
   --border-radius: var(--radius-lg) !important;
-  --success-bg: #232322 !important;
-  --success-border: #3d3d3a !important;
-  --success-text: #f3f2ef !important;
-  --error-bg: #232322 !important;
-  --error-border: #3d3d3a !important;
-  --error-text: #f3f2ef !important;
-  --info-bg: #232322 !important;
-  --info-border: #3d3d3a !important;
-  --info-text: #f3f2ef !important;
-  --warning-bg: #232322 !important;
-  --warning-border: #3d3d3a !important;
-  --warning-text: #f3f2ef !important;
+  --success-bg: var(--color-toast) !important;
+  --success-border: var(--color-toast-border) !important;
+  --success-text: var(--color-toast-foreground) !important;
+  --error-bg: var(--color-toast) !important;
+  --error-border: var(--color-toast-border) !important;
+  --error-text: var(--color-toast-foreground) !important;
+  --info-bg: var(--color-toast) !important;
+  --info-border: var(--color-toast-border) !important;
+  --info-text: var(--color-toast-foreground) !important;
+  --warning-bg: var(--color-toast) !important;
+  --warning-border: var(--color-toast-border) !important;
+  --warning-text: var(--color-toast-foreground) !important;
 }
 [data-sonner-toast] { border-radius: var(--radius-lg) !important; box-shadow: var(--pop-shadow) !important; pointer-events: auto !important; }
 [data-sonner-toast] [data-content] { min-width: 0; }
@@ -229,12 +229,12 @@
   -webkit-line-clamp: 3;
   line-clamp: 3;
 }
-[data-sonner-toast] [data-description] { color: #a9a8a3; }
+[data-sonner-toast] [data-description] { color: var(--color-toast-muted); }
 [data-sonner-toast] [data-close-button] {
-  background: #232322 !important; border-color: #3d3d3a !important; color: #a9a8a3 !important; border-radius: 9999px !important;
+  background: var(--color-toast) !important; border-color: var(--color-toast-border) !important; color: var(--color-toast-muted) !important; border-radius: 9999px !important;
 }
 [data-sonner-toast] [data-close-button]:hover {
-  background: #2b2b29 !important; border-color: #4a4945 !important; color: #f3f2ef !important;
+  background: var(--color-toast-hover) !important; border-color: var(--color-toast-hover-border) !important; color: var(--color-toast-foreground) !important;
 }
 
 /* The button that opened a dialog whose data is still loading: a spinner takes

@@ -404,7 +404,7 @@ export function Profile() {
                       </Avatar>
                       <span
                         className={cn(
-                          "absolute inset-0 flex items-center justify-center bg-black/60 text-white opacity-0 transition-opacity",
+                          "absolute inset-0 flex items-center justify-center bg-scrim/60 text-on-scrim opacity-0 transition-opacity",
                           "group-hover:opacity-100 group-focus-visible:opacity-100",
                           avatarUploading && "opacity-100"
                         )}
@@ -1111,7 +1111,7 @@ function LocalAccountSecurityPanel() {
           </DialogDescription>
           {totpSetup ? (
             <>
-              <div className="flex justify-center bg-white p-4">
+              <div className="flex justify-center bg-qr p-4">
                 <QRCodeSVG
                   value={totpSetup.uri}
                   size={176}

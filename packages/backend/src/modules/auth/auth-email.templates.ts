@@ -1,3 +1,5 @@
+import { GRAPHITE } from '@/lib/brand-palette.js';
+
 export const GATEWAY_EMAIL_LOGO_URL = 'https://s3.wiolett.net/static/net/wiolett/gateway/wiolett-gateway-256c.png';
 
 export type AuthEmailKind =
@@ -120,37 +122,37 @@ const ACCOUNT_INVITATION_SIGN_IN_HINTS: Record<AccountInvitationSignIn, string> 
 
 function renderAuthEmail(content: EmailContent): string {
   const action = content.action
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:28px"><tr><td style="border:1px solid #f4f4f5;background:#f4f4f5"><a href="${escapeHtml(content.action.url)}" style="display:inline-block;padding:13px 19px;color:#111113;font-family:Arial,sans-serif;font-size:14px;font-weight:600;line-height:1;text-decoration:none">${escapeHtml(content.action.label)}</a></td></tr></table><p style="margin:24px 0 0;overflow-wrap:anywhere;color:#aea4d1;font-family:Arial,sans-serif;font-size:13px;line-height:1.5"><a href="${escapeHtml(content.action.url)}" style="color:#aea4d1;text-decoration:underline">${escapeHtml(content.action.url)}</a></p>`
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:28px"><tr><td style="border:1px solid ${GRAPHITE.ink};background:${GRAPHITE.ink}"><a href="${escapeHtml(content.action.url)}" style="display:inline-block;padding:13px 19px;color:${GRAPHITE.page};font-family:Arial,sans-serif;font-size:14px;font-weight:600;line-height:1;text-decoration:none">${escapeHtml(content.action.label)}</a></td></tr></table><p style="margin:24px 0 0;overflow-wrap:anywhere;color:${GRAPHITE.amber};font-family:Arial,sans-serif;font-size:13px;line-height:1.5"><a href="${escapeHtml(content.action.url)}" style="color:${GRAPHITE.amber};text-decoration:underline">${escapeHtml(content.action.url)}</a></p>`
     : '';
   const code = content.code
-    ? `<div style="margin-top:26px;border:1px solid #4b4b51;background:#0e0e10;color:#f4f4f5;padding:18px;font-family:Consolas,'Liberation Mono',monospace;font-size:32px;font-weight:700;letter-spacing:0.22em;line-height:1;text-align:center">${escapeHtml(content.code)}</div>`
+    ? `<div style="margin-top:26px;border:1px solid ${GRAPHITE.hairStrong};background:${GRAPHITE.recess};color:${GRAPHITE.ink};padding:18px;font-family:Consolas,'Liberation Mono',monospace;font-size:32px;font-weight:700;letter-spacing:0.22em;line-height:1;text-align:center">${escapeHtml(content.code)}</div>`
     : '';
   const badge = content.badge
-    ? `<span style="display:inline-block;margin-bottom:19px;border:1px solid #4f4f56;background:#202024;color:#ceced3;padding:5px 9px;font-family:Arial,sans-serif;font-size:10px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase">${escapeHtml(content.badge)}</span>`
+    ? `<span style="display:inline-block;margin-bottom:19px;border:1px solid ${GRAPHITE.hairStrong};background:${GRAPHITE.raised};color:${GRAPHITE.soft};padding:5px 9px;font-family:Arial,sans-serif;font-size:10px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase">${escapeHtml(content.badge)}</span>`
     : '';
 
   return `<!doctype html>
 <html lang="en">
   <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-  <body style="margin:0;padding:0;background:#111113;color:#f4f4f5">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#111113">
+  <body style="margin:0;padding:0;background:${GRAPHITE.page};color:${GRAPHITE.ink}">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:${GRAPHITE.page}">
       <tr><td align="center" style="padding:20px">
-        <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;border:1px solid #313136;background:#171719">
-          <tr><td style="height:1px;background:#7161a8;font-size:1px;line-height:1px">&nbsp;</td></tr>
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;border:1px solid ${GRAPHITE.hair};background:${GRAPHITE.surface}">
+          <tr><td style="height:1px;background:${GRAPHITE.amber};font-size:1px;line-height:1px">&nbsp;</td></tr>
           <tr><td style="padding:40px 42px 38px">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
               <td style="padding-right:9px"><img src="${GATEWAY_EMAIL_LOGO_URL}" width="27" height="27" alt="Good Gateway" style="display:block;border:0;outline:none;text-decoration:none"></td>
-              <td style="color:#f4f4f5;font-family:Arial,sans-serif;font-size:16px;font-weight:600;letter-spacing:-0.3px">Good Gateway</td>
+              <td style="color:${GRAPHITE.ink};font-family:Arial,sans-serif;font-size:16px;font-weight:600;letter-spacing:-0.3px">Good Gateway</td>
             </tr></table>
-            <div style="height:1px;margin:29px 0;background:#303034;font-size:1px;line-height:1px">&nbsp;</div>
+            <div style="height:1px;margin:29px 0;background:${GRAPHITE.hair};font-size:1px;line-height:1px">&nbsp;</div>
             ${badge}
-            <h1 style="margin:0;color:#f4f4f5;font-family:Arial,sans-serif;font-size:27px;font-weight:600;letter-spacing:-1px;line-height:1.16">${escapeHtml(content.title)}</h1>
-            <p style="margin:18px 0 0;color:#afafb5;font-family:Arial,sans-serif;font-size:15px;line-height:1.6">${escapeHtml(content.body)}</p>
+            <h1 style="margin:0;color:${GRAPHITE.ink};font-family:Arial,sans-serif;font-size:27px;font-weight:600;letter-spacing:-1px;line-height:1.16">${escapeHtml(content.title)}</h1>
+            <p style="margin:18px 0 0;color:${GRAPHITE.soft};font-family:Arial,sans-serif;font-size:15px;line-height:1.6">${escapeHtml(content.body)}</p>
             ${code}
             ${action}
-            <p style="margin:28px 0 0;border-left:2px solid #7161a8;background:#1d1d21;color:#b6b4be;padding:12px 14px;font-family:Arial,sans-serif;font-size:13px;line-height:1.5">${escapeHtml(content.securityNote)}</p>
+            <p style="margin:28px 0 0;border-left:2px solid ${GRAPHITE.amber};background:${GRAPHITE.raised};color:${GRAPHITE.soft};padding:12px 14px;font-family:Arial,sans-serif;font-size:13px;line-height:1.5">${escapeHtml(content.securityNote)}</p>
           </td></tr>
-          <tr><td style="border-top:1px solid #303034;padding:23px 42px 28px;color:#85858c;font-family:Arial,sans-serif;font-size:12px;line-height:1.55">Gateway — Infrastructure control plane.<br><a href="https://goodgateway.dev" style="color:#f4f4f5;font-weight:400;opacity:0.65;text-decoration:underline">Powered by Good Gateway</a></td></tr>
+          <tr><td style="border-top:1px solid ${GRAPHITE.hair};padding:23px 42px 28px;color:${GRAPHITE.stone};font-family:Arial,sans-serif;font-size:12px;line-height:1.55">Gateway — Infrastructure control plane.<br><a href="https://goodgateway.dev" style="color:${GRAPHITE.ink};font-weight:400;opacity:0.65;text-decoration:underline">Powered by Good Gateway</a></td></tr>
         </table>
       </td></tr>
     </table>

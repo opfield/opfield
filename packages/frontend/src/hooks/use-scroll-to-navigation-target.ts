@@ -26,13 +26,18 @@ function consumeScrollTargetState(state: ScrollNavigationState | null) {
   }
 }
 
+/** A computed colour with zero alpha (`rgba(r, g, b, 0)`). */
+function isTransparentColor(color: string) {
+  return /^rgba\(.*,\s*0\)$/.test(color);
+}
+
 function hasVisibleBorder(style: CSSStyleDeclaration) {
   const color = style.borderTopColor;
   return (
     style.borderTopStyle !== "none" &&
     Number.parseFloat(style.borderTopWidth) > 0 &&
     color !== "transparent" &&
-    color !== "rgba(0, 0, 0, 0)" &&
+    !isTransparentColor(color) &&
     color !== ""
   );
 }

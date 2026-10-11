@@ -1406,9 +1406,9 @@ function TreeRow({
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 )}
                 {node.expanded ? (
-                  <FolderOpen className="h-4 w-4 text-blue-400 shrink-0" />
+                  <FolderOpen className="h-4 w-4 text-tone-blue shrink-0" />
                 ) : (
-                  <Folder className="h-4 w-4 text-blue-400 shrink-0" />
+                  <Folder className="h-4 w-4 text-tone-blue shrink-0" />
                 )}
               </>
             ) : (

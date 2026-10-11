@@ -208,31 +208,48 @@
   --color-ansi-bright-cyan: #4a8a90;
   --color-ansi-bright-white: #3a3936;
 
-  /* Predefined resource colours (node and container appearance, folder and tag colours): the
-     Tailwind shades the console uses, muted to sit with the graphite. 400 is the text tone on dark,
-     500 the swatch and the 15% wash, 600/700 the text tone on paper. Same in both themes. */
-  --color-blue-400: #a3b6c9;
-  --color-blue-500: #6f8aa6;
-  --color-blue-600: #4f6a84;
-  --color-red-400: #e0a294;
-  --color-red-500: #c7705f;
-  --color-red-600: #a8473a;
-  --color-emerald-400: #9cc2a6;
-  --color-emerald-500: #6f9a7b;
-  --color-emerald-600: #3f7a52;
-  --color-amber-400: #d9b56f;
-  --color-amber-500: #c8a35f;
-  --color-amber-600: #a0731f;
-  --color-amber-700: #8a6418;
-  --color-violet-400: #bba6d6;
-  --color-violet-500: #8f78b5;
-  --color-violet-600: #6c5394;
-  --color-pink-400: #d9a3b8;
-  --color-pink-500: #b9748f;
-  --color-pink-600: #96506b;
-  --color-orange-400: #dfa57a;
-  --color-orange-500: #c7834f;
-  --color-orange-600: #9c5a2a;
+  /* Appearance colours (node, folder and tag colours chosen by users): the swatch and its 15% wash
+     are the same in both themes; the text tone is deeper on paper and lighter on graphite. */
+  --color-swatch-blue: #6f8aa6;
+  --color-swatch-red: #c7705f;
+  --color-swatch-green: #6f9a7b;
+  --color-swatch-yellow: #c8a35f;
+  --color-swatch-purple: #8f78b5;
+  --color-swatch-pink: #b9748f;
+  --color-swatch-orange: #c7834f;
+  --color-tone-blue: #4f6a84;
+  --color-tone-red: #a8473a;
+  --color-tone-green: #3f7a52;
+  --color-tone-yellow: #8a6418;
+  --color-tone-purple: #6c5394;
+  --color-tone-pink: #96506b;
+  --color-tone-orange: #9c5a2a;
+
+  /* Fixed colours that ignore the theme: the scrim under dialogs and the text over it or over
+     photos, the white ground a QR code needs, and dark text on the solid amber. */
+  --color-scrim: #0a0a0a;
+  --color-on-scrim: #f3f2ef;
+  --color-qr: #ffffff;
+  --color-on-warning: #141414;
+
+  /* The restart and update screens mirror the static restart page (backend gateway-error-pages),
+     which is always graphite. */
+  --color-static-page: #141414;
+  --color-static-page-foreground: #f3f2ef;
+  --color-static-page-muted: #c9c8c3;
+  --color-static-page-subtle: #8f8e89;
+  --color-static-page-line: #2b2b29;
+  --color-static-page-row: #dddcd7;
+  --color-static-page-error: #d98b7c;
+  --color-static-page-warning: #c8a35f;
+
+  /* Toasts are a graphite panel in both themes. */
+  --color-toast: #232322;
+  --color-toast-border: #3d3d3a;
+  --color-toast-foreground: #f3f2ef;
+  --color-toast-muted: #a9a8a3;
+  --color-toast-hover: #2b2b29;
+  --color-toast-hover-border: #4a4945;
 
   /* A step below text-xs for dense labels (badges, chart axes, stat captions). */
   --text-2xs: 0.6875rem;
@@ -345,6 +362,16 @@
     --color-ansi-bright-magenta: #ccb6df;
     --color-ansi-bright-cyan: #9ccacd;
     --color-ansi-bright-white: #f3f2ef;
+    --color-tone-blue: #a3b6c9;
+    --color-tone-red: #e0a294;
+    --color-tone-green: #9cc2a6;
+    --color-tone-yellow: #d9b56f;
+    --color-tone-purple: #bba6d6;
+    --color-tone-pink: #d9a3b8;
+    --color-tone-orange: #dfa57a;
+    --color-terminal-selection: rgba(243, 242, 239, 0.22);
+    --color-terminal-selection-inactive: rgba(243, 242, 239, 0.14);
+    --checkbox-tick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23141414' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E");
   }
 }
 
@@ -414,6 +441,16 @@
   --color-ansi-bright-magenta: #7a5a99;
   --color-ansi-bright-cyan: #4a8a90;
   --color-ansi-bright-white: #3a3936;
+  --color-tone-blue: #4f6a84;
+  --color-tone-red: #a8473a;
+  --color-tone-green: #3f7a52;
+  --color-tone-yellow: #8a6418;
+  --color-tone-purple: #6c5394;
+  --color-tone-pink: #96506b;
+  --color-tone-orange: #9c5a2a;
+  --color-terminal-selection: rgba(20, 20, 20, 0.18);
+  --color-terminal-selection-inactive: rgba(20, 20, 20, 0.12);
+  --checkbox-tick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f3f2ef' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E");
 }
 
 .dark {
@@ -481,6 +518,23 @@
   --color-ansi-bright-magenta: #ccb6df;
   --color-ansi-bright-cyan: #9ccacd;
   --color-ansi-bright-white: #f3f2ef;
+  --color-tone-blue: #a3b6c9;
+  --color-tone-red: #e0a294;
+  --color-tone-green: #9cc2a6;
+  --color-tone-yellow: #d9b56f;
+  --color-tone-purple: #bba6d6;
+  --color-tone-pink: #d9a3b8;
+  --color-tone-orange: #dfa57a;
+  --color-terminal-selection: rgba(243, 242, 239, 0.22);
+  --color-terminal-selection-inactive: rgba(243, 242, 239, 0.14);
+  --checkbox-tick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23141414' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E");
+}
+
+:root {
+  --color-terminal-selection: rgba(20, 20, 20, 0.18);
+  --color-terminal-selection-inactive: rgba(20, 20, 20, 0.12);
+  --checkbox-tick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f3f2ef' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E");
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8984' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
 }
 
 /* Popovers, menus and dialogs float on one soft drop (the landing's); everything else is flat.

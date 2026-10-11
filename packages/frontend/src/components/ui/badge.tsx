@@ -14,7 +14,7 @@ const badgeVariants = cva(
         outline: "border border-border text-muted-foreground",
         success: "bg-success/15 text-success-text",
         warning: "bg-warning/15 text-warning-foreground",
-        "warning-solid": "bg-warning text-black",
+        "warning-solid": "bg-warning text-on-warning",
         info: "bg-info/15 text-info-text",
       },
       // AI: Use `inline` ONLY when the badge shares a row with regular text. Never use it for standalone badges.
