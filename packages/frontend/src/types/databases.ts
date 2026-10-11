@@ -1,4 +1,5 @@
 import type { AppMembershipRef } from "./apps";
+import type { AvailabilityEnableInput } from "./availability-sets";
 // Databases
 export type DatabaseType = "postgres" | "redis" | "clickhouse";
 export type ManagedDatabaseEngine = "postgres" | "redis" | "valkey" | "clickhouse";
@@ -32,6 +33,8 @@ export interface ManagedDatabase {
   lastError: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Create with availability: the database exists but availability could not be turned on. */
+  availabilityError?: string | null;
 }
 
 /** What moving a key-value store from Redis to Valkey involves, checked on the node. */
@@ -124,6 +127,8 @@ export interface ManagedDatabaseCreateInput {
   clickhouseConfigXml?: string;
   redisConfig?: ManagedRedisConfig;
   postgresConfig?: ManagedPostgresConfig;
+  /** Create the database on several servers: every member node (nodeId first), witness and durability. */
+  availability?: AvailabilityEnableInput;
 }
 
 export type ManagedDatabaseBindingTargetType = "container" | "deployment" | "compose_service";

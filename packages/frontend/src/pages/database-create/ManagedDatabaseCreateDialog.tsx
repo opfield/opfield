@@ -16,6 +16,17 @@ import {
   rememberAppCreation,
   useAppEnvironmentChoice,
 } from "@/components/apps/app-create-context";
+import {
+  AvailabilityCreateSection,
+  type AvailabilityDraft,
+  type AvailabilityPreflightState,
+  availabilityInputOf,
+  EMPTY_AVAILABILITY_DRAFT,
+} from "@/components/availability-sets/AvailabilityCreateSection";
+import {
+  type AvailabilityServers,
+  AvailabilityServersSelect,
+} from "@/components/availability-sets/AvailabilityServersSelect";
 import { AnimatedHeight } from "@/components/common/AnimatedHeight";
 import {
   type CreateFolderChoices,
@@ -59,6 +70,7 @@ import { useAuthStore } from "@/stores/auth";
 import { handleLicenseApiError } from "@/stores/license-paywall";
 import { useResourceFolderStore } from "@/stores/resource-folders";
 import type {
+  AvailabilityPreflightInput,
   DatabaseType,
   ManagedDatabase,
   ManagedDatabaseCatalogEntry,
@@ -164,12 +176,14 @@ export function ManagedDatabaseCreateForm({
   beforeFields,
   nodeLocked = false,
   nodeHint,
+  serversField,
 }: {
   draft: ManagedDatabaseCreateInput;
   nodes: Node[];
   catalog: ManagedDatabaseCatalogEntry[];
   capacity: ManagedDatabaseCapacity;
-  step: 1 | 2 | 3;
+  /** 1 database, 2 resources & network, 3 ClickHouse configuration; any other value shows none. */
+  step: number;
   onChange: (draft: ManagedDatabaseCreateInput) => void;
   folderId?: string;
   /** Destinations the caller may create in (see `getCreateFolderChoices`). */
@@ -182,6 +196,8 @@ export function ManagedDatabaseCreateForm({
   nodeLocked?: boolean;
   /** Shown under the node field (which nodes the app environment allows). */
   nodeHint?: string | null;
+  /** Shown after the node field: one server or several (availability). */
+  serversField?: ReactNode;
 }) {
   const set = <K extends keyof ManagedDatabaseCreateInput>(
     key: K,
@@ -297,6 +313,7 @@ export function ManagedDatabaseCreateForm({
               </Select>
               {nodeHint && <p className="text-xs text-muted-foreground">{nodeHint}</p>}
             </div>
+            {serversField}
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Curated version</label>
               <Select value={draft.version} onValueChange={(value) => set("version", value)}>
@@ -479,6 +496,8 @@ export function ManagedDatabaseCreateForm({
 
 const isDeployableNode = (node: Node) => node.status === "online" && node.isConnected;
 
+type CreateStep = "database" | "resources" | "config" | "availability";
+
 /**
  * Deploy Managed Database, with the provisioning wait and its failure dialog. Stays mounted;
  * `open` drives it and each opening starts a new draft. With `appContext` (opened from an app):
@@ -515,9 +534,16 @@ export function ManagedDatabaseCreateDialog({
   const [loadedNodes, setLoadedNodes] = useState<Node[] | null>(null);
   const [loadedCatalog, setLoadedCatalog] = useState<ManagedDatabaseCatalogEntry[]>([]);
   const catalog = catalogProp ?? loadedCatalog;
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState(1);
   const [session, setSession] = useState(0);
   const [draft, setDraft] = useState<ManagedDatabaseCreateInput>(defaultManagedDraft);
+  const [servers, setServers] = useState<AvailabilityServers>("single");
+  const [availabilityDraft, setAvailabilityDraft] =
+    useState<AvailabilityDraft>(EMPTY_AVAILABILITY_DRAFT);
+  const [availabilityCheck, setAvailabilityCheck] = useState<AvailabilityPreflightState>({
+    result: null,
+    pending: false,
+  });
   const [folderId, setFolderId] = useState("");
   const [saving, setSaving] = useState(false);
   const [provisioning, setProvisioning] = useState<{ phase: "waiting" } | null>(null);
@@ -536,6 +562,8 @@ export function ManagedDatabaseCreateDialog({
   useEffect(() => {
     if (open && !wasOpen.current) {
       setDraft(defaultManagedDraft(catalogRef.current));
+      setServers("single");
+      setAvailabilityDraft(EMPTY_AVAILABILITY_DRAFT);
       setStep(1);
       setSession((current) => current + 1);
       setProvisioning(null);
@@ -636,16 +664,51 @@ export function ManagedDatabaseCreateDialog({
     : isCreateFolderAllowed(folderChoices, folderId);
   const canDeploy =
     !!selectedNode && !noAllowedNode && canDeployManagedDatabase(draft, versions, capacity);
-  const stepCount = draft.type === "clickhouse" ? 3 : 2;
-  const stepLabel = step === 1 ? "Database" : step === 2 ? "Resources & network" : "Configuration";
+  const several = servers === "several";
+  const steps: CreateStep[] = [
+    "database",
+    "resources",
+    ...(draft.type === "clickhouse" ? (["config"] as const) : []),
+    ...(several ? (["availability"] as const) : []),
+  ];
+  const stepCount = steps.length;
+  const stepKind: CreateStep = steps[Math.min(step, stepCount) - 1] ?? "database";
+  const formStep =
+    stepKind === "database" ? 1 : stepKind === "resources" ? 2 : stepKind === "config" ? 3 : 0;
+  const stepLabel = {
+    database: "Database",
+    resources: "Resources & network",
+    config: "Configuration",
+    availability: "Availability",
+  }[stepKind];
+  const availabilityReady =
+    !!availabilityCheck.result &&
+    !availabilityCheck.pending &&
+    availabilityCheck.result.blockers.length === 0;
+  const manualPair = several && availabilityCheck.result?.mode === "manual";
   const canContinue =
-    step === 1
+    stepKind === "database"
       ? draft.name.trim().length > 0 &&
         !noAllowedNode &&
         destinationAllowed &&
         nodes.some((node) => node.id === draft.nodeId) &&
         versions.includes(draft.version)
-      : canDeploy;
+      : stepKind === "availability"
+        ? canDeploy && availabilityReady
+        : canDeploy;
+  const createFolderId = (appContext ? placementFolderId : folderId) || null;
+  const runAvailabilityPreflight = useCallback(
+    (input: AvailabilityPreflightInput) =>
+      api.preflightAvailabilityForCreate("database", {
+        ...input,
+        type: draft.type,
+        version: draft.version,
+        tlsEnabled: draft.tlsEnabled,
+        storageSizeGb: draft.storageSizeGb,
+        folderId: createFolderId,
+      }),
+    [createFolderId, draft.storageSizeGb, draft.tlsEnabled, draft.type, draft.version]
+  );
 
   const close = useCallback(() => {
     if (provisioning?.phase === "waiting") return;
@@ -697,11 +760,17 @@ export function ManagedDatabaseCreateDialog({
     try {
       created = await api.createManagedDatabase({
         ...draft,
-        folderId: (appContext ? placementFolderId : folderId) || null,
+        folderId: createFolderId,
         publishNativeTcp: draft.publishTcp ? draft.publishNativeTcp : false,
         publishedNativePort: draft.publishTcp ? draft.publishedNativePort : undefined,
+        ...(several
+          ? { availability: availabilityInputOf(draft.nodeId, availabilityDraft, draft.type) }
+          : {}),
       });
       rememberAppCreation(appContext, environment);
+      if (created.availabilityError) {
+        toast.warning(`Created on one server: ${created.availabilityError}`);
+      }
       const provisioned = await waitForManagedDatabaseReady(created.id);
       if (provisioned.status !== "ready") {
         onCreated?.(provisioned.databaseConnectionId);
@@ -798,7 +867,7 @@ export function ManagedDatabaseCreateDialog({
                 nodes={nodes}
                 catalog={catalog}
                 capacity={capacity}
-                step={step}
+                step={formStep}
                 onChange={setDraft}
                 folderId={appContext ? "" : folderId}
                 folderChoices={folderChoices}
@@ -811,8 +880,27 @@ export function ManagedDatabaseCreateDialog({
                     ? allowedNodesHint(environment, nodes.length, "storage")
                     : null
                 }
+                serversField={
+                  <AvailabilityServersSelect
+                    value={servers}
+                    onChange={setServers}
+                    disabled={saving}
+                  />
+                }
               />
             )}
+            {stepKind === "availability" && draft.nodeId ? (
+              <AvailabilityCreateSection
+                engine={draft.type}
+                originNodeId={draft.nodeId}
+                nodes={nodes}
+                value={availabilityDraft}
+                onChange={setAvailabilityDraft}
+                runPreflight={runAvailabilityPreflight}
+                onPreflight={setAvailabilityCheck}
+                disabled={saving}
+              />
+            ) : null}
           </AnimatedHeight>
           <DialogFooter>
             {step === 1 ? (
@@ -828,18 +916,25 @@ export function ManagedDatabaseCreateDialog({
               <>
                 <Button
                   variant="outline"
-                  onClick={() => setStep((current) => (current - 1) as 1 | 2 | 3)}
+                  onClick={() => setStep((current) => Math.max(1, current - 1))}
                   disabled={saving}
                 >
                   <ArrowLeft className="h-4 w-4" /> Back
                 </Button>
                 {step < stepCount ? (
-                  <Button onClick={() => setStep(3)} disabled={saving || !canContinue}>
+                  <Button
+                    onClick={() => setStep((current) => current + 1)}
+                    disabled={saving || !canContinue}
+                  >
                     Next <ArrowRight className="h-4 w-4" />
                   </Button>
                 ) : (
-                  <Button onClick={() => void save()} pending={saving} disabled={!canDeploy}>
-                    Deploy database
+                  <Button
+                    onClick={() => void save()}
+                    pending={saving}
+                    disabled={!canDeploy || (several && !availabilityReady)}
+                  >
+                    {manualPair ? "Create replicated pair (manual failover)" : "Deploy database"}
                   </Button>
                 )}
               </>

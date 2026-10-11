@@ -27,6 +27,7 @@ import { HostAccessInstallOptions } from "@/components/nodes/HostAccessInstallOp
 import { NodeEnrollmentDialog } from "@/components/nodes/NodeEnrollmentDialog";
 import { ProtectedNodeBadge } from "@/components/nodes/ProtectedNodeBadge";
 import { UnreleasedInstallerNote } from "@/components/nodes/UnreleasedInstallerNote";
+import { WitnessHostingToggle } from "@/components/relays/WitnessHostingToggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NumericInput } from "@/components/ui/numeric-input";
@@ -666,6 +667,22 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
       header: "Load",
       render: (row) =>
         `${metric(row.health?.activeTunnels)} tunnels · ${metric(row.health?.pressurePercent)}%`,
+    },
+    {
+      id: "witnesses",
+      header: "Witnesses",
+      render: (row) => (
+        <WitnessHostingToggle
+          instance={row}
+          canEdit={canEdit}
+          onChanged={() => {
+            void api
+              .getRelayStatus()
+              .then(recordStatus)
+              .catch(() => undefined);
+          }}
+        />
+      ),
     },
     {
       id: "version",
