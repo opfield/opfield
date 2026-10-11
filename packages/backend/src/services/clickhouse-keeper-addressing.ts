@@ -11,7 +11,9 @@ import type { KeeperPeerResolver } from './relay-witness.service.js';
  * Keeper replicates one endpoint string per server in its cluster configuration, so every node of the set (member
  * containers and the witness relays) must reach every server under the same host:port. A set uses one loopback host
  * 127.a.b.1 (from its id) and a port per server:
- * - member Keeper raft port: 39500 + server id (server id = member index + 1);
+ * - member Keeper raft port: 39500 + server id (server id = member index + 1; a learner Keeper, the 4th/5th member of
+ *   an automatic set, has member index + 201 so its promotion to a voter is a fresh server id: re-adding a removed id
+ *   crashed Keeper 25.8);
  * - witness Keeper raft port: the witness's relay-local port (39400-39499, stored on the witness row when placed);
  * - member interserver (replication fetch) port: 39000 + member index.
  * Relays bind forwarders for the members' endpoints (WitnessPeer), member daemons bind forwarders inside each member's
@@ -21,8 +23,10 @@ export const KEEPER_MEMBER_PORT_BASE = 39500;
 export const KEEPER_INTERSERVER_PORT_BASE = 39000;
 /** Witness Keeper server ids start here (member server ids are member index + 1, at most 499). */
 export const KEEPER_WITNESS_SERVER_ID_BASE = 1001;
-/** Member indexes a ClickHouse set can address (ports stay inside their ranges). */
-export const KEEPER_MAX_MEMBER_INDEX = 398;
+/** Member indexes a ClickHouse set can address (voter and learner ids and ports stay inside their ranges). */
+export const KEEPER_MAX_MEMBER_INDEX = 198;
+/** Learner Keeper server ids start here (member index + this). */
+export const KEEPER_LEARNER_SERVER_ID_BASE = 201;
 
 export function keeperLoopbackHost(setId: string): string {
   const digest = createHash('sha256').update(setId).digest();
@@ -32,12 +36,12 @@ export function keeperLoopbackHost(setId: string): string {
   return `127.${a}.${b}.1`;
 }
 
-export function memberKeeperServerId(memberIndex: number): number {
-  return memberIndex + 1;
+export function memberKeeperServerId(memberIndex: number, learner = false): number {
+  return learner ? KEEPER_LEARNER_SERVER_ID_BASE + memberIndex : memberIndex + 1;
 }
 
-export function memberKeeperPort(memberIndex: number): number {
-  return KEEPER_MEMBER_PORT_BASE + memberKeeperServerId(memberIndex);
+export function memberKeeperPort(memberIndex: number, learner = false): number {
+  return KEEPER_MEMBER_PORT_BASE + memberKeeperServerId(memberIndex, learner);
 }
 
 export function memberInterserverPort(memberIndex: number): number {

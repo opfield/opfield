@@ -543,9 +543,11 @@ async function reconcileOneSet(
 }
 
 /**
- * Keeper witnesses on relays: a relay-local endpoint per witness (placed on its relay only), a route from every member
- * to it, and a relay-originated route from it to every member's Keeper port, whose peer endpoint is also placed on the
- * witness's relay (DialRoute needs both ends in that relay's policy).
+ * ClickHouse Keeper witnesses. On a relay: a relay-local endpoint per witness (placed on its relay only), a route from
+ * every member to it, and a relay-originated route from it to every member's Keeper port, whose peer endpoint is also
+ * placed on the witness's relay (DialRoute needs both ends in that relay's policy). On a docker node (decision 8, a
+ * non-member node witness): the witness endpoint's subject is that node's daemon (it serves the Keeper container),
+ * placed like any member endpoint, and the routes from it to the members start at that daemon.
  */
 async function reconcileWitnessPaths(
   tx: DrizzleExecutor,
@@ -560,7 +562,9 @@ async function reconcileWitnessPaths(
           await tx
             .select({
               id: managedAvailabilityWitnesses.id,
+              hostKind: managedAvailabilityWitnesses.hostKind,
               relayInstanceId: managedAvailabilityWitnesses.relayInstanceId,
+              nodeId: managedAvailabilityWitnesses.nodeId,
               relayLocalPort: managedAvailabilityWitnesses.relayLocalPort,
               desiredState: managedAvailabilityWitnesses.desiredState,
             })
@@ -568,11 +572,16 @@ async function reconcileWitnessPaths(
             .where(
               and(
                 eq(managedAvailabilityWitnesses.setId, view.setId),
-                eq(managedAvailabilityWitnesses.purpose, 'keeper'),
-                eq(managedAvailabilityWitnesses.hostKind, 'relay')
+                eq(managedAvailabilityWitnesses.purpose, 'keeper')
               )
             )
-        ).filter((witness) => witness.desiredState !== 'removed' && witness.relayInstanceId && witness.relayLocalPort)
+        ).filter(
+          (witness) =>
+            witness.desiredState !== 'removed' &&
+            witness.relayLocalPort &&
+            ((witness.hostKind === 'relay' && witness.relayInstanceId) ||
+              (witness.hostKind === 'node' && witness.nodeId && fingerprints.has(witness.nodeId)))
+        )
       : [];
   const witnessIds = witnesses.map((witness) => witness.id);
   const existingEndpoints = await tx
@@ -586,8 +595,27 @@ async function reconcileWitnessPaths(
     );
   const endpointOf = new Map<string, string>();
   for (const witness of witnesses) {
-    const existing = existingEndpoints.find((endpoint) => endpoint.ownerId === witness.id);
-    const desired = { subjectId: witness.relayInstanceId!, relayLocalPort: witness.relayLocalPort! };
+    const onNode = witness.hostKind === 'node';
+    const desired = onNode
+      ? {
+          subjectKind: 'daemon',
+          subjectId: witness.nodeId!,
+          certificateSha256: fingerprints.get(witness.nodeId!)!,
+          relayLocalPort: null,
+        }
+      : {
+          subjectKind: 'relay_instance',
+          subjectId: witness.relayInstanceId!,
+          certificateSha256: RELAY_LOCAL_CERTIFICATE_MARKER,
+          relayLocalPort: witness.relayLocalPort!,
+        };
+    let existing = existingEndpoints.find((endpoint) => endpoint.ownerId === witness.id);
+    if (existing && existing.subjectKind !== desired.subjectKind) {
+      // A witness never changes host kind in place; a stale row of another kind is replaced.
+      await tx.delete(relayEndpoints).where(eq(relayEndpoints.id, existing.id));
+      existing = undefined;
+      changed = true;
+    }
     let endpointId: string;
     if (!existing) {
       const [created] = await tx
@@ -595,9 +623,9 @@ async function reconcileWitnessPaths(
         .values({
           ownerKind: SET_WITNESS_ENDPOINT_KIND,
           ownerId: witness.id,
-          subjectKind: 'relay_instance',
+          subjectKind: desired.subjectKind,
           subjectId: desired.subjectId,
-          certificateSha256: RELAY_LOCAL_CERTIFICATE_MARKER,
+          certificateSha256: desired.certificateSha256,
           relayLocalPort: desired.relayLocalPort,
           status: 'active',
         })
@@ -606,12 +634,17 @@ async function reconcileWitnessPaths(
       changed = true;
     } else {
       endpointId = existing.id;
-      if (existing.subjectId !== desired.subjectId || existing.relayLocalPort !== desired.relayLocalPort) {
+      if (
+        existing.subjectId !== desired.subjectId ||
+        existing.relayLocalPort !== desired.relayLocalPort ||
+        existing.certificateSha256 !== desired.certificateSha256
+      ) {
         await tx
           .update(relayEndpoints)
           .set({
             subjectId: desired.subjectId,
             relayLocalPort: desired.relayLocalPort,
+            certificateSha256: desired.certificateSha256,
             generation: sql`${relayEndpoints.generation} + 1`,
             updatedAt: new Date(),
           })
@@ -620,6 +653,7 @@ async function reconcileWitnessPaths(
       }
     }
     endpointOf.set(witness.id, endpointId);
+    if (onNode) continue;
     // The witness endpoint lives on its relay only; the members' Keeper ports must be there too.
     changed = (await placeOnRelay(tx, endpointId, desired.subjectId, true)) || changed;
     for (const member of view.members) {
@@ -657,9 +691,17 @@ async function reconcileWitnessPaths(
         desiredRoutes.set(fromWitness, {
           ownerKind: SET_WITNESS_ROUTE_KIND,
           ownerId: fromWitness,
-          sourceKind: 'relay_instance',
-          sourceId: witness.relayInstanceId!,
-          sourceCertificateSha256: RELAY_LOCAL_CERTIFICATE_MARKER,
+          ...(witness.hostKind === 'node'
+            ? {
+                sourceKind: 'daemon',
+                sourceId: witness.nodeId!,
+                sourceCertificateSha256: fingerprints.get(witness.nodeId!)!,
+              }
+            : {
+                sourceKind: 'relay_instance',
+                sourceId: witness.relayInstanceId!,
+                sourceCertificateSha256: RELAY_LOCAL_CERTIFICATE_MARKER,
+              }),
           targetEndpointId: keeper,
           parentRouteId: null,
           maxConcurrentSessions: 16,
@@ -1015,12 +1057,18 @@ export async function setEndpointIds(db: DrizzleExecutor, setIds?: string[]): Pr
   if (views.length === 0) return [];
   const memberIds = views.flatMap((view) => view.members.map((member) => member.id));
   const rows = await db
-    .select({ id: relayEndpoints.id, ownerKind: relayEndpoints.ownerKind, ownerId: relayEndpoints.ownerId })
+    .select({
+      id: relayEndpoints.id,
+      ownerKind: relayEndpoints.ownerKind,
+      ownerId: relayEndpoints.ownerId,
+      subjectKind: relayEndpoints.subjectKind,
+    })
     .from(relayEndpoints)
     .where(
       inArray(relayEndpoints.ownerKind, [
         SET_CLIENT_ENDPOINT_KIND,
         SET_PEER_ENDPOINT_KIND,
+        SET_WITNESS_ENDPOINT_KIND,
         'managed_database',
         'managed_storage',
       ])
@@ -1030,6 +1078,8 @@ export async function setEndpointIds(db: DrizzleExecutor, setIds?: string[]): Pr
   return rows
     .filter((row) => {
       if (row.ownerKind === SET_CLIENT_ENDPOINT_KIND) return members.has(row.ownerId);
+      // A Keeper witness on a docker node is placed like a member endpoint (a relay witness lives on its relay).
+      if (row.ownerKind === SET_WITNESS_ENDPOINT_KIND) return row.subjectKind === 'daemon';
       if (row.ownerKind === SET_PEER_ENDPOINT_KIND) {
         const parsed = parsePeerEndpointOwnerId(row.ownerId);
         return Boolean(parsed && members.has(parsed.memberId));
