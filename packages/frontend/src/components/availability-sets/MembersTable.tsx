@@ -99,6 +99,8 @@ export function MembersTable({
       align: "right",
       render: (member) => {
         const primary = member.id === view.primaryMemberId || member.role === "primary";
+        // Nobody holds the primary role: any server may be made primary (with the loss confirmation).
+        const noHolder = view.mode === "automatic" && !!view.lease && !view.lease.holderNodeId;
         if (!canManage || member.desiredState === "removing") return null;
         return (
           <DropdownMenu>
@@ -114,7 +116,7 @@ export function MembersTable({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
-                disabled={primary || busy}
+                disabled={(primary && !noHolder) || busy}
                 onClick={() => actions.onMakePrimary(member)}
               >
                 <ArrowUpCircle />

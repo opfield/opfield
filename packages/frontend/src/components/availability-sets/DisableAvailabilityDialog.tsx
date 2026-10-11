@@ -10,6 +10,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { api } from "@/services/api";
 import { handleLicenseApiError } from "@/stores/license-paywall";
 import type { AvailabilityOwner, AvailabilityView } from "@/types";
@@ -34,15 +41,25 @@ export function DisableAvailabilityDialog({
   const [confirmation, setConfirmation] = useState("");
   const [saving, setSaving] = useState(false);
   const primary = primaryOf(view);
+  // No member holds the primary role (members that cannot take over): the admin picks the server whose data stays.
+  const noHolder = view.mode === "automatic" && !!view.lease && !view.lease.holderNodeId;
+  const members = view.members.filter((member) => member.desiredState === "member");
+  const [keepMemberId, setKeepMemberId] = useState("");
 
   useEffect(() => {
-    if (open) setConfirmation("");
-  }, [open]);
+    if (open) {
+      setConfirmation("");
+      setKeepMemberId(primary?.id ?? members[0]?.id ?? "");
+    }
+  }, [open, primary?.id, members[0]?.id]);
 
   const submit = async () => {
     setSaving(true);
     try {
-      await api.disableAvailability(owner);
+      await api.disableAvailability(
+        owner,
+        noHolder && keepMemberId ? { force: true, keepMemberId } : undefined
+      );
       toast.success("Turning off availability");
       onDone();
       onOpenChange(false);
@@ -63,11 +80,36 @@ export function DisableAvailabilityDialog({
           <DialogDescription>The {ownerNoun(owner)} goes back to one server.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            {primary ? memberName(primary) : "The primary"} keeps the data and keeps serving. The
-            copies on the other servers are removed with their data, and there is no failover until
-            you turn availability on again.
-          </p>
+          {noHolder ? (
+            <div className="space-y-1.5">
+              <p className="text-sm text-muted-foreground">
+                No server holds the primary role, so there is no primary to keep. Choose the server
+                whose data stays; it serves alone. The other servers are removed with their data.
+              </p>
+              <label className="text-sm font-medium" htmlFor="availability-disable-keep">
+                Keep
+              </label>
+              <Select value={keepMemberId} onValueChange={setKeepMemberId}>
+                <SelectTrigger id="availability-disable-keep">
+                  <SelectValue placeholder="Select server" />
+                </SelectTrigger>
+                <SelectContent>
+                  {members.map((member) => (
+                    <SelectItem key={member.id} value={member.id}>
+                      {memberName(member)}
+                      {member.id === view.primaryMemberId ? " (last primary)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {primary ? memberName(primary) : "The primary"} keeps the data and keeps serving. The
+              copies on the other servers are removed with their data, and there is no failover
+              until you turn availability on again.
+            </p>
+          )}
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="availability-disable-confirm">
               Type {resourceName} to confirm
@@ -87,7 +129,7 @@ export function DisableAvailabilityDialog({
           <Button
             variant="destructive"
             pending={saving}
-            disabled={confirmation !== resourceName}
+            disabled={confirmation !== resourceName || (noHolder && !keepMemberId)}
             onClick={() => void submit()}
           >
             Turn off availability

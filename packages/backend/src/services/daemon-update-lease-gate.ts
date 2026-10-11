@@ -58,6 +58,11 @@ export interface LeaseUpdatePeerState {
    * that is not eligible to take over yet: the other members of that set wait (database and storage availability).
    */
   catchingUpIn?: Set<string>;
+  /**
+   * Policies of database and storage sets this node holds a data member of. Only those members wait for a catching-up
+   * copy: a witness (a relay or a docker node) has no data the copy protects, so it never waits for one.
+   */
+  dataMemberIn?: Set<string>;
 }
 
 /**
@@ -134,8 +139,13 @@ export function leaseUpdateBlockers(
         blockers.push({ memberId: peerId, policyId, reason });
         continue;
       }
-      // A connected copy of a database or storage set that is not eligible again yet holds its set's other members.
-      if (state.since !== null && state.catchingUpIn?.has(policyId)) {
+      // A connected copy of a database or storage set that is not eligible again yet holds its set's other data
+      // members (never its witnesses).
+      if (
+        state.since !== null &&
+        state.catchingUpIn?.has(policyId) &&
+        view.states.get(memberId)?.dataMemberIn?.has(policyId)
+      ) {
         const blocker: LeaseUpdateBlocker = { memberId: peerId, policyId, reason: 'availability_catching_up' };
         if (now - state.since >= AVAILABILITY_CATCH_UP_TIMEOUT_MS) settleTimedOut.push(blocker);
         else blockers.push(blocker);
@@ -204,7 +214,7 @@ export async function loadLeaseUpdateView(
       policyMembers.get(observation.policyId)?.add(observation.holderId);
     }
   }
-  const catchingUp = await addAvailabilitySets(db, registry, policyMembers, holders);
+  const { catchingUp, dataMembers } = await addAvailabilitySets(db, registry, policyMembers, holders);
   const memberIds = new Set([...policyMembers.values()].flatMap((members) => [...members]));
   const peerStates = new Map<string, LeaseUpdatePeerState>();
   if (memberIds.size === 0) return { topology: { policyMembers, holders }, states: peerStates };
@@ -257,25 +267,39 @@ export async function loadLeaseUpdateView(
       reportedAt,
       abstaining,
       ...(catchingUp.has(id) ? { catchingUpIn: catchingUp.get(id) } : {}),
+      ...(dataMembers.has(id) ? { dataMemberIn: dataMembers.get(id) } : {}),
     });
   }
   return { topology: { policyMembers, holders }, states: peerStates };
 }
 
 /**
+ * Eligibility reasons a copy does not get over by catching up (it needs a rebuild, or there is nothing to catch up
+ * with): such a copy holds no update back.
+ */
+const NOT_CATCHING_UP_REASONS = new Set([
+  'other_history',
+  'no_certified_state',
+  'certified_state_unreadable',
+  'removing',
+  'stopped',
+  'volume_not_registered',
+]);
+
+/**
  * Database and storage availability sets in the update topology: a manual pair (no lease policy) becomes a pseudo
  * policy of its two member nodes with its primary as holder, so its members update one at a time, the copy first.
  * Every set marks its copies that are not eligible to take over yet (catching up after a restart): the set's other
- * members wait for them. A paused set's stopped copies do not count.
+ * data members wait for them. A paused set's stopped copies do not count, nor do the copies of a set without a
+ * primary that serves (no lease holder; a manual pair's primary not reporting): there is nothing they catch up with.
  */
 async function addAvailabilitySets(
   db: Pick<DrizzleClient, 'select'>,
   registry: Pick<NodeRegistryService, 'getNode'>,
   policyMembers: Map<string, Set<string>>,
   holders: Set<string>
-): Promise<Map<string, Set<string>>> {
-  const catchingUp = new Map<string, Set<string>>();
-  const [sets, members] = await Promise.all([
+): Promise<{ catchingUp: Map<string, Set<string>>; dataMembers: Map<string, Set<string>> }> {
+  const [sets, members, observations] = await Promise.all([
     db
       .select({
         id: managedAvailabilitySets.id,
@@ -293,12 +317,70 @@ async function addAvailabilitySets(
         nodeId: managedAvailabilityMembers.nodeId,
         desiredState: managedAvailabilityMembers.desiredState,
         eligible: managedAvailabilityMembers.eligible,
+        eligibilityReason: managedAvailabilityMembers.eligibilityReason,
         lastReportedAt: managedAvailabilityMembers.lastReportedAt,
         enginePosition: managedAvailabilityMembers.enginePosition,
       })
       .from(managedAvailabilityMembers),
+    db
+      .select({
+        policyId: dockerAvailabilityLeaseObservations.policyId,
+        slot: dockerAvailabilityLeaseObservations.slot,
+        holderId: dockerAvailabilityLeaseObservations.holderId,
+      })
+      .from(dockerAvailabilityLeaseObservations)
+      .where(isNotNull(dockerAvailabilityLeaseObservations.holderId)),
   ]);
-  const now = Date.now();
+  const leaseHolder = new Map<string, string>();
+  for (const observation of observations) {
+    if (observation.slot === 0 && observation.holderId) leaseHolder.set(observation.policyId, observation.holderId);
+  }
+  return planAvailabilitySetGate({
+    sets,
+    members,
+    leaseHolder,
+    policyMembers,
+    holders,
+    now: Date.now(),
+    connectedAt: (nodeId) => registry.getNode(nodeId)?.connectedAt?.getTime() ?? null,
+  });
+}
+
+export interface AvailabilitySetGateInput {
+  sets: Array<{
+    id: string;
+    leasePolicyId: string | null;
+    primaryMemberId: string | null;
+    state: string;
+    operation: { kind: string } | null;
+  }>;
+  members: Array<{
+    id: string;
+    setId: string;
+    nodeId: string;
+    desiredState: string;
+    eligible: boolean;
+    eligibilityReason: string | null;
+    lastReportedAt: Date | null;
+    enginePosition: unknown;
+  }>;
+  /** Lease policy id -> node holding its slot 0. */
+  leaseHolder: Map<string, string>;
+  policyMembers: Map<string, Set<string>>;
+  holders: Set<string>;
+  now: number;
+  /** When a node's current control session started (null: not connected). */
+  connectedAt(nodeId: string): number | null;
+}
+
+/** See addAvailabilitySets: the sets' pseudo policies, catching-up copies and data members. */
+export function planAvailabilitySetGate(input: AvailabilitySetGateInput): {
+  catchingUp: Map<string, Set<string>>;
+  dataMembers: Map<string, Set<string>>;
+} {
+  const { sets, members, leaseHolder, policyMembers, holders, now } = input;
+  const catchingUp = new Map<string, Set<string>>();
+  const dataMembers = new Map<string, Set<string>>();
   for (const set of sets) {
     // A set that has not converged yet (create or convert running, or failed and being turned off) or is being turned
     // off holds no update: there is no replication to protect, and its copies may never become eligible.
@@ -306,21 +388,32 @@ async function addAvailabilitySets(
     const active = members.filter((member) => member.setId === set.id && member.desiredState === 'member');
     if (active.length === 0) continue;
     let policyId = set.leasePolicyId && policyMembers.has(set.leasePolicyId) ? set.leasePolicyId : null;
+    const primary = active.find((member) => member.id === set.primaryMemberId);
+    // Whether a member serves: the set's lease holder; a manual pair's primary while it reports.
+    const serving = policyId
+      ? active.some((member) => member.nodeId === leaseHolder.get(policyId!))
+      : !!primary?.lastReportedAt && now - primary.lastReportedAt.getTime() <= SET_MEMBER_REPORT_FRESH_MS;
     if (!policyId) {
       policyId = `${AVAILABILITY_SET_POLICY_PREFIX}${set.id}`;
       policyMembers.set(policyId, new Set(active.map((member) => member.nodeId)));
-      const primary = active.find((member) => member.id === set.primaryMemberId);
       if (primary) holders.add(primary.nodeId);
     }
     for (const member of active) {
+      const policies = dataMembers.get(member.nodeId) ?? new Set<string>();
+      policies.add(policyId);
+      dataMembers.set(member.nodeId, policies);
+    }
+    if (!serving) continue;
+    for (const member of active) {
       if (member.id === set.primaryMemberId) continue;
+      if (member.eligibilityReason && NOT_CATCHING_UP_REASONS.has(member.eligibilityReason)) continue;
       const position = (member.enginePosition ?? {}) as Record<string, unknown>;
       if (position['runtime.stopped'] === 'true') continue;
       // A member that never reported never ran (its configuration never arrived): it is not catching up.
       if (!member.lastReportedAt) continue;
       const fresh = !!member.lastReportedAt && now - member.lastReportedAt.getTime() <= SET_MEMBER_REPORT_FRESH_MS;
       // A report from before the node's current session describes the member before its restart.
-      const connectedAt = registry.getNode(member.nodeId)?.connectedAt?.getTime() ?? null;
+      const connectedAt = input.connectedAt(member.nodeId);
       const sinceRestart =
         connectedAt === null || (!!member.lastReportedAt && member.lastReportedAt.getTime() >= connectedAt);
       if (fresh && sinceRestart && member.eligible) continue;
@@ -329,7 +422,7 @@ async function addAvailabilitySets(
       catchingUp.set(member.nodeId, policies);
     }
   }
-  return catchingUp;
+  return { catchingUp, dataMembers };
 }
 
 /** Operations during which a set has not converged (its copies are being seeded, or it is being turned off). */

@@ -115,6 +115,13 @@ type kvMemberRef struct {
 
 // kvLiftCommand turns the kept member back into the single-node store; it
 // carries the store's settings (the node keeps no credentials).
+// kvForceCommand is a forced promotion of this node's Valkey member (AS10).
+type kvForceCommand struct {
+	kvMemberRef
+	OverBallot     pgBallot `json:"overBallot"`
+	AcceptDataLoss bool     `json:"acceptDataLoss"`
+}
+
 type kvLiftCommand struct {
 	kvMemberRef
 	Database managedDatabaseCommand `json:"database"`
@@ -124,7 +131,7 @@ type kvLiftCommand struct {
 // gates the other actions of a Valkey member. handled is false for actions
 // that are not about a Valkey member.
 func (m *managedDatabaseManager) kvSetHandle(ctx context.Context, action, id, configJSON string) (bool, string, error) {
-	if strings.HasPrefix(action, "availability_member_") {
+	if strings.HasPrefix(action, "availability_member_") || action == "availability_force_promote" {
 		if !m.kvAction(action, id, configJSON) {
 			return false, "", nil
 		}
@@ -191,6 +198,26 @@ func (m *managedDatabaseManager) kvSetAction(ctx context.Context, action, id, co
 			return "", err
 		}
 		return m.kvRemove(ctx, members, id, input)
+	case "availability_force_promote":
+		// AS10: no member can take over (another history, ACLs not
+		// mirrored); the operator accepted the loss and names this one.
+		var input kvForceCommand
+		if err := decodePGSet(configJSON, &input); err != nil {
+			return "", err
+		}
+		if !input.AcceptDataLoss {
+			return "", errors.New("a forced promotion needs acceptDataLoss")
+		}
+		if config, ok := members.Config(input.SetID); !ok || config.MemberID != input.MemberID || config.OwnerID != id {
+			return "", errors.New("the set has another member on this node")
+		}
+		result, err := members.ForcePromote(input.SetID, input.OperationID,
+			memberha.Ballot{Round: input.OverBallot.Round, Incarnation: input.OverBallot.Incarnation, Proposer: input.OverBallot.Proposer})
+		if err != nil {
+			return "", err
+		}
+		data, err := json.Marshal(result)
+		return string(data), err
 	}
 	return "", fmt.Errorf("%s is not available for Valkey members", action)
 }

@@ -236,7 +236,7 @@ export function availabilityRouteDocs(input: AvailabilityDocsInput) {
       path: `${base}/availability`,
       tags: [tag],
       summary: `Run a ${noun} on one server again`,
-      description: `Turns availability off: the primary stays and serves as the single server; the copies are removed (202). \`keepMemberId\` must name the primary. Needs ${editScope}. ${license('existing')}`,
+      description: `Turns availability off: the primary stays and serves as the single server; the copies are removed (202). \`keepMemberId\` must name the primary. When no member holds the primary role (members that cannot take over), a disable fails after 3 minutes; \`force: true\` keeps \`keepMemberId\` (any member) or the member with the most recent data at once, and replaces a disable still waiting for a primary. Needs ${editScope}. ${license('existing')}`,
       request: { params, ...optionalJsonBody(ManagedAvailabilityDisableSchema) },
       responses: {
         202: {

@@ -99,9 +99,15 @@ export function withAvailabilitySetsApi<TBase extends ApiClientBaseConstructor>(
     }
 
     /** Back to one server: the primary stays, the copies go. */
-    async disableAvailability(owner: AvailabilityOwner): Promise<unknown> {
+    async disableAvailability(
+      owner: AvailabilityOwner,
+      input?: { keepMemberId?: string; force?: boolean }
+    ): Promise<unknown> {
       return this.unwrapData(
-        this.request<{ data: unknown }>(availabilityPath(owner), { method: "DELETE" })
+        this.request<{ data: unknown }>(availabilityPath(owner), {
+          method: "DELETE",
+          ...(input ? { body: JSON.stringify(input) } : {}),
+        })
       );
     }
 

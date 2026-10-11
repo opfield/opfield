@@ -1580,6 +1580,7 @@ export async function initializeContainer(): Promise<void> {
         await nodeKeeperWitnessService.syncSet(setId);
       },
     },
+    principals: { reapply: (nodeId: string) => managedDatabaseBindingService.reconcileBindingPrincipals(nodeId) },
     ...(relayPolicyService ? { relay: relayPolicyService } : {}),
   };
   if (relayPolicyService) {

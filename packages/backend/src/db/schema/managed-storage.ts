@@ -85,6 +85,8 @@ export interface ManagedStoragePendingOperation {
    * back, so a serving cluster stays ready and keeps its links.
    */
   previousStatus?: string;
+  /** When it was claimed (ISO): storage on several servers clears one no live operation owns after a while. */
+  claimedAt?: string;
 }
 
 export interface ManagedStorageErasureConfig {
