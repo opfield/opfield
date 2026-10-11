@@ -16,8 +16,9 @@ A paid Opfield key may unlock server-side Opfield
 Inference features and limits. It does not waive the source
 license's competition restriction. See COMMERCIAL-LICENSE.md.
 
-The package includes a Product Continuity MIT Grant with no
-release-age, inactivity, support, sales, website, or licensing-service
-trigger. See CONTINUITY-MIT-GRANT.md.
+The package includes the Product Continuity Grant: if Opfield stops
+being provided or the Licensor can no longer act, holders of a valid
+key keep a perpetual license to use the last release for their own
+use. See CONTINUITY-GRANT.md.
 
 Third-party components remain governed by their own licenses.

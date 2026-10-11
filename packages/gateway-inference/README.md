@@ -95,4 +95,4 @@ Run `npx -y @sqgateway/inference@latest --help` for the complete public command 
 
 ## License
 
-Source in this package is published by Opfield under the [PolyForm Perimeter License 1.0.1](LICENSE.md). A Personal, Business, or Enterprise Opfield key may unlock server-side Opfield Inference features and limits under the [paid access notice](COMMERCIAL-LICENSE.md), but an ordinary key does not waive Perimeter's restriction on providing a substitute product. The package also includes the [Product Continuity MIT Grant](CONTINUITY-MIT-GRANT.md).
+Source in this package is available under the [PolyForm Perimeter License 1.0.1](LICENSE.md). A Personal, Business, or Enterprise Opfield key may unlock server-side Opfield Inference features and limits under the [paid access notice](COMMERCIAL-LICENSE.md), but an ordinary key does not waive Perimeter's restriction on providing a substitute product. The package also includes the [Product Continuity Grant](CONTINUITY-GRANT.md).

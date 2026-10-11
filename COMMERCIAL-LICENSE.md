@@ -6,7 +6,7 @@ The **Licensor** is Alexandr Slavinschii, Republic of Moldova (alexandr.s@wiolet
 
 PolyForm Perimeter permits use, modification, and redistribution for permitted purposes, including internal business use. It does not permit providing to others a product marketed as a substitute for Opfield. An ordinary paid key unlocks plan features and limits; it does not waive that competition restriction or grant OEM, white-label, resale, or competing hosted-service rights. Those uses require a separate written agreement signed by the Licensor.
 
-The release may also include the [Product Continuity MIT Grant](CONTINUITY-MIT-GRANT.md). That conditional grant is not based on release age, inactivity, support status, sales, or service availability.
+Every release includes the [Product Continuity Grant](CONTINUITY-GRANT.md): if Opfield stops being provided (12 months with no release and no license server, or an end-of-life notice) or the Licensor can no longer act, holders of a valid key keep a perpetual, royalty-free right to use, self-host and modify for their own use the last release, including the commercial core, and to run it without the license server.
 
 ## Acceptance
 
@@ -16,7 +16,7 @@ These terms are automatically offered with every Personal, Business, or Enterpri
 
 Subject to these terms, the Licensor grants the person or organization identified in the paid license record access to the features and limits of the key's plan for one active, official Opfield installation at a time.
 
-The key does not restrict rights already granted independently by PolyForm Perimeter, an active Product Continuity MIT Grant, a third-party license, or another written agreement. Paid-plan access and support apply only to official, unmodified Opfield releases unless the Licensor agrees otherwise in writing.
+The key does not restrict rights already granted independently by PolyForm Perimeter, the Product Continuity Grant, a third-party license, or another written agreement. Paid-plan access and support apply only to official, unmodified Opfield releases unless the Licensor agrees otherwise in writing.
 
 ## Term, grace period, and continuity
 
@@ -55,7 +55,7 @@ The key holder may not assign or transfer a key or these paid-plan rights except
 
 ## Termination
 
-These paid-key terms end automatically if you violate them and do not cure the violation where applicable. Termination ends rights and access granted solely by the key, but does not terminate independent rights granted by PolyForm Perimeter, an active Product Continuity MIT Grant, a third-party license, or another written agreement.
+These paid-key terms end automatically if you violate them and do not cure the violation where applicable. Termination ends rights and access granted solely by the key, but does not terminate independent rights granted by PolyForm Perimeter, the Product Continuity Grant, a third-party license, or another written agreement.
 
 ## No warranty and limitation of liability
 

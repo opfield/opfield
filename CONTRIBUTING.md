@@ -6,7 +6,7 @@ Thank you for your interest in Opfield. Bug reports, reproducible issue descript
 
 Opfield is source-available under the [PolyForm Perimeter License 1.0.1](LICENSE.md). It permits use, modification, derivative works, and distribution for permitted purposes. It does not permit providing to others a product marketed as a substitute for Opfield.
 
-You may fork the repository and prepare or distribute changes within the scope of PolyForm Perimeter. Contributing changes back to the official Opfield project is separate: the Licensor may require written contribution terms that allow accepted work to be distributed under Opfield's current license, paid agreements, and the Product Continuity MIT Grant.
+You may fork the repository and prepare or distribute changes within the scope of PolyForm Perimeter. Contributing changes back to the official Opfield project is separate: the Licensor may require written contribution terms that allow accepted work to be distributed under Opfield's current license, paid agreements, and the Product Continuity Grant.
 
 To propose a code contribution, first email [support@opfield.dev](mailto:support@opfield.dev) with a short description of the intended change. An issue or pull request by itself does not grant permission to modify Opfield or require Opfield to accept the contribution.
 
