@@ -53,6 +53,8 @@ type miniRelay struct {
 	force    chan struct{}
 	// hold, when set, keeps every source open waiting until it is released (a target that is slow or restarting).
 	hold atomic.Pointer[openHold]
+	// opens counts the source opens that reached the relay, refused or not.
+	opens atomic.Int64
 }
 
 // openHold keeps source opens waiting until release closes; err, when set, is the answer they get then.
@@ -136,6 +138,7 @@ func (r *miniRelay) OpenTunnel(stream relayv1.TunnelBroker_OpenTunnelServer) err
 		return status.Error(codes.InvalidArgument, "open first")
 	}
 	routeID := strings.TrimPrefix(first.GetOpen().GetGrant().GetKeyId(), "route:")
+	r.opens.Add(1)
 	if hold := r.hold.Load(); hold != nil {
 		select {
 		case <-hold.release:

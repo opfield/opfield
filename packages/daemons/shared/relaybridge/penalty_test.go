@@ -150,3 +150,117 @@ func TestSessionCapRefusalDoesNotDemoteTheRelay(t *testing.T) {
 		t.Fatal("a wrapped admission refusal was not recognized")
 	}
 }
+
+// A demoted relay that is the last candidate of retrying opens is probed at a
+// bounded rate for what it refused (stand 2.12 R-3: right after a policy
+// snapshot the only other relay did not serve the endpoints yet, and every
+// new connection's retries and every moving stream's attempts went back to
+// the demoted relay, 905 refusals in 20 s). The opens held back count as its
+// refusal without reaching it and change nothing; the database tunnels it
+// still admits always go and do not end the demotion.
+func TestDemotedRelayIsProbedAtABoundedRate(t *testing.T) {
+	now := time.Unix(1000, 0)
+	penalties := &RelayPenalties{now: func() time.Time { return now }}
+	refusal := status.Error(codes.ResourceExhausted, "relay adaptive admission rejected proxy tunnel: database_reserve")
+	penalties.Opened(nil, "relay-local", "proxy_host_secure_link/link-1", refusal)
+
+	// 20 s of opens every 20 ms over eight proxy routes, the relay refusing each that reaches it.
+	reached := 0
+	for step := range 1000 {
+		route := fmt.Sprintf("proxy_host_secure_link/link-%d", step%8+1)
+		if err := penalties.HoldDemoted("relay-local", route); err != nil {
+			if _, ok := admissionPressureState(err); !ok || status.Code(err) != codes.ResourceExhausted {
+				t.Fatalf("held open answered %v, not the relay's admission refusal", err)
+			}
+			penalties.Opened(nil, "relay-local", route, err)
+		} else {
+			reached++
+			penalties.Opened(nil, "relay-local", route, refusal)
+		}
+		now = now.Add(20 * time.Millisecond)
+	}
+	// Each route reaches it once before its class is known, then one probe a second.
+	if reached > 7+21 {
+		t.Fatalf("the demoted relay took %d of 1000 opens", reached)
+	}
+	if reached < 20 {
+		t.Fatalf("the demoted relay was probed only %d times in 20 s", reached)
+	}
+	if !penalties.Demoted("relay-local") {
+		t.Fatal("the demotion ran out early")
+	}
+
+	// A database tunnel, which the relay still admits, always goes and keeps the demotion.
+	for range 50 {
+		if err := penalties.HoldDemoted("relay-local", "container_link/db-1"); err != nil {
+			t.Fatalf("a database open was held back: %v", err)
+		}
+		penalties.Opened(nil, "relay-local", "container_link/db-1", nil)
+	}
+	if !penalties.Demoted("relay-local") {
+		t.Fatal("a database tunnel ended the demotion for proxy tunnels")
+	}
+	// A route the relay refused, once a probe gets through, ends it.
+	now = now.Add(demotedProbeInterval)
+	if err := penalties.HoldDemoted("relay-local", "proxy_host_secure_link/link-3"); err != nil {
+		t.Fatalf("no probe after %s: %v", demotedProbeInterval, err)
+	}
+	penalties.Opened(nil, "relay-local", "proxy_host_secure_link/link-3", nil)
+	if penalties.Demoted("relay-local") {
+		t.Fatal("an admitted probe did not end the demotion")
+	}
+	if err := penalties.HoldDemoted("relay-local", "proxy_host_secure_link/link-4"); err != nil {
+		t.Fatalf("a relay that admits again still holds opens back: %v", err)
+	}
+}
+
+// A fair-share refusal refuses some routes and admits others: only the routes
+// it refused are paced, each on its own.
+func TestFairShareDemotionPacesOnlyTheRefusedRoutes(t *testing.T) {
+	now := time.Unix(1000, 0)
+	penalties := &RelayPenalties{now: func() time.Time { return now }}
+	penalties.Opened(nil, "relay-a", "route-1", pressureRefusal("fair_share"))
+	if err := penalties.HoldDemoted("relay-a", "route-1"); err == nil {
+		t.Fatal("a route refused for its fair share was sent again at once")
+	}
+	if err := penalties.HoldDemoted("relay-a", "route-2"); err != nil {
+		t.Fatalf("a route the relay did not refuse was held back: %v", err)
+	}
+	penalties.Opened(nil, "relay-a", "route-2", pressureRefusal("fair_share"))
+	now = now.Add(demotedProbeInterval)
+	if err := penalties.HoldDemoted("relay-a", "route-1"); err != nil {
+		t.Fatalf("route-1 got no probe after %s: %v", demotedProbeInterval, err)
+	}
+	if err := penalties.HoldDemoted("relay-a", "route-1"); err == nil {
+		t.Fatal("two probes of one route in one interval")
+	}
+	if err := penalties.HoldDemoted("relay-a", "route-2"); err != nil {
+		t.Fatalf("route-2 shared route-1's probe: %v", err)
+	}
+	// Once the demotion ran out nothing is held back.
+	now = now.Add(demotionInitial)
+	if err := penalties.HoldDemoted("relay-a", "route-1"); err != nil {
+		t.Fatalf("held back after the demotion ran out: %v", err)
+	}
+}
+
+// An open HoldDemoted held back, passed to Opened like the relay's answer,
+// neither lengthens the demotion nor ends it.
+func TestHeldOpensDoNotLengthenOrEndTheDemotion(t *testing.T) {
+	now := time.Unix(1000, 0)
+	penalties := &RelayPenalties{now: func() time.Time { return now }}
+	penalties.Opened(nil, "relay-a", "route-1", pressureRefusal("hard_pressure"))
+	held := penalties.HoldDemoted("relay-a", "route-1")
+	if held == nil {
+		t.Fatal("no open held back right after the refusal")
+	}
+	now = now.Add(demotionInitial - time.Second)
+	penalties.Opened(nil, "relay-a", "route-1", held)
+	now = now.Add(2 * time.Second)
+	if penalties.Demoted("relay-a") {
+		t.Fatal("a held-back open lengthened the demotion")
+	}
+	if err := penalties.HoldDemoted("relay-a", "route-1"); err != nil {
+		t.Fatalf("held back after the demotion ran out: %v", err)
+	}
+}

@@ -74,6 +74,14 @@ func (p *DockerPlugin) openRelaySourceOnce(assignment *pb.RelayGrantAssignment, 
 		if timeout <= 0 {
 			break
 		}
+		// A relay demoted for its admission pressure takes what it refused only at a paced rate: the connection's
+		// retries (relaySourceTransientRetry) would otherwise reach it on every pass while another relay is not ready.
+		if held := p.relayPenalties.HoldDemoted(candidate.GetRelayInstanceId(), route); held != nil {
+			if relayRefusalReason(refusal) != linkRejectedRelayCapacity {
+				refusal = held
+			}
+			continue
+		}
 		tunnel, err := router.openSourceWithin(candidate.GetGrant(), timeout)
 		p.recordRelayOpen(candidate.GetRelayInstanceId(), route, err)
 		if err == nil {
