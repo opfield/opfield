@@ -47,6 +47,7 @@ import {
   type RelayStreamCounters,
   type RelayStreamReports,
   relayDrainGraceMs,
+  relayDrainOutcome,
   relaySessionSplit,
   relayStreamCounters,
   relayStreamOutcome,
@@ -1445,8 +1446,9 @@ chmod 700 "$backup"
           .where(eq(relayInstances.id, step.relayInstanceId))
           .limit(1);
         if (!instance) throw new Error(`Relay instance ${step.relayInstanceId} is unavailable`);
-        // What the daemons' streams did while this relay drained, for the step note.
+        // What the daemons' streams did while this relay drained, for the step note: only the streams through it count.
         const streamCounters = this.streamCounters(runtime);
+        const carriedStreams = relaySessionSplit(runtime.relayStreamReports?.() ?? [], instance.id).resumable;
         let legacyCut = 0;
         let drainGraceMs = RELAY_UPDATE_DRAIN_GRACE_MS;
         if (instance.kind === 'local') {
@@ -1507,7 +1509,7 @@ chmod 700 "$backup"
           }
           // Recorded on the step: no other relay could carry the local relay's sessions, so they dropped once (or, all
           // of them resumable, paused). Otherwise what moved and what was cut.
-          const outcome = this.streamOutcomeSince(runtime, streamCounters);
+          const outcome = this.streamOutcomeSince(runtime, streamCounters, carriedStreams);
           const note = interruption
             ? pausesStreams
               ? localRelayPauseNote(pausedMs, outcome ?? { moved: 0, cut: 0 }, interruption)
@@ -1582,7 +1584,7 @@ chmod 700 "$backup"
         await runtime.awaitLeaseSettled?.(instance.id, restartedAt, signal);
         await runtime.drainInstance(instance.id, userId, false);
         drainedInstanceId = null;
-        const outcome = this.streamOutcomeSince(runtime, streamCounters);
+        const outcome = this.streamOutcomeSince(runtime, streamCounters, carriedStreams);
         const note = outcome ? drainOutcomeNote(outcome, legacyCut) : null;
         if (note) await this.updatePoolStep(step.id, 'ready', true, undefined, note);
         else await this.updatePoolStep(step.id, 'ready', true);
@@ -1684,12 +1686,17 @@ chmod 700 "$backup"
     return reports.length ? relayStreamCounters(reports) : null;
   }
 
+  /** What the streams through a relay (`carried` resumable ones when its drain began) did since `before`. */
   private streamOutcomeSince(
     runtime: RelayPoolUpdateRuntime,
-    before: RelayStreamCounters | null
+    before: RelayStreamCounters | null,
+    carried: number
   ): { moved: number; cut: number } | null {
     if (!before) return null;
-    return relayStreamOutcome(before, relayStreamCounters(runtime.relayStreamReports?.() ?? []));
+    return relayDrainOutcome(
+      relayStreamOutcome(before, relayStreamCounters(runtime.relayStreamReports?.() ?? [])),
+      carried
+    );
   }
 
   private async localRelayTakeoverBlocker(runtime: RelayPoolUpdateRuntime, instanceId: string): Promise<string | null> {

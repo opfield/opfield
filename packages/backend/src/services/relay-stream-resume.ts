@@ -396,6 +396,19 @@ export function relayStreamOutcome(
   return { moved, cut };
 }
 
+/**
+ * A drained relay's outcome, bounded by the resumable streams through it when its drain began. The daemons' counters
+ * are pool-wide: a stream that moved between other relays meanwhile (a placement change) is not this relay's, and a
+ * relay without streams reported every such move as its own (stand 2.12 N-3: "91 streams moved" for an empty relay).
+ */
+export function relayDrainOutcome(
+  outcome: { moved: number; cut: number },
+  carried: number
+): { moved: number; cut: number } {
+  const cut = Math.min(outcome.cut, carried);
+  return { moved: Math.min(outcome.moved, Math.max(0, carried - cut)), cut };
+}
+
 function streams(count: number): string {
   return count === 1 ? '1 stream' : `${count} streams`;
 }
