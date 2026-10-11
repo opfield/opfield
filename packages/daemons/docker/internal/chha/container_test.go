@@ -57,9 +57,11 @@ type ctHarness struct {
 	host        string
 	image       string
 	keeperImage string
-	engines     map[string]*engine
-	work        string
-	logger      *slog.Logger
+	// memory is the member containers' memory limit (default 2g).
+	memory  string
+	engines map[string]*engine
+	work    string
+	logger  *slog.Logger
 
 	mu      sync.Mutex
 	configs map[string]memberha.Config
@@ -103,7 +105,7 @@ type ctRuntime struct {
 func (r *ctRuntime) Container(context.Context) (memberha.ContainerState, int, error) {
 	out, err := r.h.run("inspect", "-f", "{{.Id}} {{.State.Running}} {{.State.Pid}}", r.name)
 	if err != nil {
-		if strings.Contains(out, "No such") {
+		if strings.Contains(strings.ToLower(out), "no such") {
 			return memberha.ContainerState{}, 0, nil
 		}
 		return memberha.ContainerState{}, 0, fmt.Errorf("%v: %s", err, out)
@@ -334,7 +336,11 @@ func (h *ctHarness) createMember(name string) *ctRuntime {
 
 func (h *ctHarness) createContainer(rt *ctRuntime) {
 	h.t.Helper()
-	h.must("create", "--name", rt.name, "--network", ctNetwork, "--ip", ctIPs[rt.name], "--memory", "2g",
+	memory := h.memory
+	if memory == "" {
+		memory = "2g"
+	}
+	h.must("create", "--name", rt.name, "--network", ctNetwork, "--ip", ctIPs[rt.name], "--memory", memory,
 		"--ulimit", "nofile=262144:262144", "-v", rt.mount+":/var/lib/clickhouse",
 		"-v", filepath.Join(rt.mount, ServerConfigFile)+":"+ServerConfigTarget+":ro",
 		"-v", filepath.Join(rt.mount, UsersConfigFile)+":"+UsersConfigTarget+":ro",
