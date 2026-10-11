@@ -8,6 +8,11 @@ import { disposableDatabase, migrateDatabase } from '@/db/migration-database.tes
 import * as schema from '@/db/schema/index.js';
 import { expandFolderScopes } from '@/lib/folder-scopes.js';
 import { executeAppTool } from '@/modules/ai/ai.app-tools.js';
+import { executeProxyTool } from '@/modules/ai/ai.proxy-tools.js';
+import { GroupedHostsQuerySchema } from '@/modules/proxy/folder.schemas.js';
+import { FolderService } from '@/modules/proxy/folder.service.js';
+import { ProxyHostListQuerySchema } from '@/modules/proxy/proxy.schemas.js';
+import { ProxyService } from '@/modules/proxy/proxy.service.js';
 import { AppFolderService } from './app-folders.service.js';
 import { AppMembersReader, AppMembersService } from './app-members.service.js';
 import { AppMembershipService, appMemberFolderCondition, withAppMembers } from './app-membership.js';
@@ -246,5 +251,63 @@ describe.skipIf(!url)('app membership on disposable PostgreSQL', () => {
     const visible = await db.select({ id: schema.proxyHosts.id }).from(schema.proxyHosts).where(condition);
     expect(visible.map((row) => row.id)).toContain(outside);
     expect(visible.map((row) => row.id)).not.toContain(member);
+  });
+
+  it('filters the route list, the grouped route list and MCP list_routes by app', async () => {
+    const app = await apps.create(actor(), { name: 'Routes' });
+    const env = app.environments[0];
+    const nginx = await node('nginx');
+    const route = async (folderId: string | null) =>
+      (
+        await one(
+          `insert into proxy_hosts (slug, node_id, created_by_id, folder_id) values ($1, $2, $3, $4) returning id`,
+          [`f-${randomUUID().slice(0, 6)}`, nginx, userId, folderId]
+        )
+      ).id as string;
+    const member = await route(env.placementFolderIds.routes);
+    const outside = await route(null);
+    const userFolder = (
+      await one(`insert into proxy_host_folders (name, created_by_id) values ('Mine', $1) returning id`, [userId])
+    ).id as string;
+    const inFolder = await route(userFolder);
+
+    // The list endpoint reads through the relational query builder, which aliases the outer table.
+    const proxy = new ProxyService(db, {} as never, {} as never, {} as never, {} as never, {} as never);
+    const list = async (filter: Record<string, unknown>) => {
+      const result = await proxy.listProxyHosts(ProxyHostListQuerySchema.parse({ limit: 100, ...filter }));
+      return result.data.map((host: any) => host.id);
+    };
+    const withoutMembers = await list({ excludeAppMembers: 'true' });
+    expect(withoutMembers).toEqual(expect.arrayContaining([outside, inFolder]));
+    expect(withoutMembers).not.toContain(member);
+    expect(await list({ appId: app.id })).toEqual([member]);
+    const page = await proxy.listProxyHosts(ProxyHostListQuerySchema.parse({ appId: app.id }));
+    expect(page.pagination.total).toBe(1);
+    expect((page.data[0] as any).app).toMatchObject({ id: app.id, environmentId: env.id });
+
+    const folders = new FolderService(db, { log: vi.fn() } as never);
+    const grouped = await folders.getGroupedHosts(GroupedHostsQuerySchema.parse({}));
+    const groupedIds = [
+      ...grouped.ungroupedHosts.map((host: any) => host.id),
+      ...grouped.folders.flatMap((folder: any) => folder.hosts.map((host: any) => host.id)),
+    ];
+    expect(groupedIds).toEqual(expect.arrayContaining([outside, inFolder]));
+    expect(groupedIds).not.toContain(member);
+    const ofApp = await folders.getGroupedHosts(GroupedHostsQuerySchema.parse({ appId: app.id }));
+    expect(ofApp.folders).toEqual([]);
+    expect(ofApp.totalHosts).toBe(1);
+    expect(ofApp.ungroupedHosts.map((host: any) => host.id)).toEqual([member]);
+    expect((ofApp.ungroupedHosts[0] as any).app).toMatchObject({ id: app.id, environmentId: env.id });
+
+    const user = { id: userId, scopes: ['proxy:view'] } as never;
+    const context = { proxyService: proxy, folderService: folders };
+    const tool = async (args: Record<string, unknown>) => {
+      const result = (await executeProxyTool(context, user, 'list_routes', args)) as any;
+      return result.data.map((host: any) => host.id);
+    };
+    expect(await tool({ appId: app.id })).toEqual([member]);
+    const toolWithout = await tool({ excludeAppMembers: true, limit: 100 });
+    expect(toolWithout).toContain(outside);
+    expect(toolWithout).not.toContain(member);
   });
 });
