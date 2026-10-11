@@ -223,8 +223,8 @@ func waitPlacement(t *testing.T, sessions []*relayresume.Session, want map[strin
 
 // The incident: a rebalance stages a new generation on the same three relays. Every stream on the local relay, which
 // stays the nearest primary, stays on it and on its path (the old generation drains, its tunnels go on); none goes to
-// the empty far relay, and bundles sent again move nothing (stand 2.12 N-2). Once the old generation is gone, the
-// streams re-path onto the local relay under the new grant, once.
+// the empty far relay, and bundles sent again move nothing (stand 2.12 N-2). A path opened again later (a lane
+// rotation) goes to the local relay under the new grant, and the idle old generation retires without a move.
 func TestGenerationChangeKeepsStreamsOnTheNearestRelay(t *testing.T) {
 	pair := newPoolPair(t)
 	apps, sessions := pair.openStreams(4)
@@ -245,18 +245,23 @@ func TestGenerationChangeKeepsStreamsOnTheNearestRelay(t *testing.T) {
 		t.Fatalf("tunnels on the remote relays: UK %d, NL %d", pair.relays[poolUK].activeTunnels(), pair.relays[poolNL].activeTunnels())
 	}
 
-	// Generation 1 retired.
-	pair.apply(5, generation(2, "active", poolLocal, poolUK, poolNL))
+	// Gateway retires generation 1 only once no tunnel uses it. The streams leave it when their path is opened again
+	// for another reason, here a lane rotation: the new path goes to the nearest relay under the current grant.
+	for _, session := range sessions {
+		pair.source.relayStreams().sources.MoveOffLane(session)
+	}
 	waitPlacement(t, sessions, map[string]int{poolLocal + "/2": 4})
 	waitFor(t, "the old generation's tunnels to end", func() bool { return pair.relays[poolLocal].activeTunnels() == 4 })
-	moves := pair.source.relayStreamStats().GetMigrationsOkTotal()
-	if moves != 4 {
-		t.Fatalf("%d moves, want one re-path per stream", moves)
+	if moves := pair.source.relayStreamStats().GetLaneMovesTotal(); moves != 4 {
+		t.Fatalf("%d lane moves, want one per stream", moves)
 	}
+	// Generation 1 retired, idle: nothing moves.
+	pair.apply(5, generation(2, "active", poolLocal, poolUK, poolNL))
 	pair.apply(6, generation(2, "active", poolLocal, poolUK, poolNL))
 	time.Sleep(time.Second)
-	if got := pair.source.relayStreamStats().GetMigrationsOkTotal(); got != moves {
-		t.Fatalf("a bundle sent again moved streams: %d moves after %d", got, moves)
+	waitPlacement(t, sessions, map[string]int{poolLocal + "/2": 4})
+	if got := pair.source.relayStreamStats().GetMigrationsOkTotal(); got != 0 {
+		t.Fatalf("%d moves after the idle generation retired", got)
 	}
 	for _, app := range apps {
 		echoOnce(t, app)
