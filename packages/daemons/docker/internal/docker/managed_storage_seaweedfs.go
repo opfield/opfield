@@ -39,8 +39,9 @@ const (
 	seaweedfsUpstreamImage = seaweedfsUpstreamRepo + "@" + seaweedfsImageDigest
 	// seaweedfsImage is the image storage containers run: Gateway's patched
 	// build of 4.47 (packages/daemons/seaweedfs-image), which the Image
-	// workflow publishes as ghcr.io/the-square-labs/gateway/seaweedfs-gateway,
-	// pinned here by digest. While it equals seaweedfsUpstreamImage the
+	// workflow publishes as <image repository>/seaweedfs-gateway (both
+	// ghcr.io/opfield/opfield and ghcr.io/the-square-labs/gateway once the
+	// opfield one is the primary), pinned here by digest. While it equals seaweedfsUpstreamImage the
 	// upstream image runs as before (mirror first, Docker Hub second).
 	seaweedfsImage = "ghcr.io/the-square-labs/gateway/seaweedfs-gateway@sha256:5fe846bd9dd3355698bbc908daaa633b49239b350cb31c11ff8f6828cca91b44"
 

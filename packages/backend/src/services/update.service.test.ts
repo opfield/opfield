@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, uti
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { OFFICIAL_IMAGE_REPOSITORIES } from '@/config/vendor-urls.js';
 import { relayInstances, relayPoolUpdateRuns, relayPoolUpdateSteps } from '@/db/schema/index.js';
 import type { TrustedGatewayUpdateArtifact, TrustedRelayUpdateArtifact } from '@/lib/update-artifact-trust.js';
 import {
@@ -663,6 +664,24 @@ describe('UpdateService foundation migration', () => {
     await service.performRelayUpdate('v2.4.3', relay);
 
     expect(dockerService.pullImageRef).toHaveBeenNthCalledWith(1, relay.imageRef);
+  });
+
+  it('accepts signed images from both official repositories by default', async () => {
+    for (const repository of OFFICIAL_IMAGE_REPOSITORIES) {
+      const dockerService = makeDockerService();
+      const service = makeUpdateService(dockerService, undefined, {
+        GATEWAY_UPDATE_IMAGE_REPOSITORIES: OFFICIAL_IMAGE_REPOSITORIES.join(','),
+      });
+      const relay = makeRelayArtifact();
+      relay.imageRef = `${repository}/relay@${relay.digest}`;
+      relay.payload.image = `${repository}/relay`;
+      relay.payload.imageRef = relay.imageRef;
+
+      await service.performRelayUpdate('v2.4.3', relay);
+
+      expect(dockerService.pullImageRef).toHaveBeenNthCalledWith(1, relay.imageRef);
+    }
+    expect(OFFICIAL_IMAGE_REPOSITORIES).toEqual(['ghcr.io/opfield/opfield', 'ghcr.io/the-square-labs/gateway']);
   });
 
   it('rejects a signed Relay artifact outside the configured repository allowlist', async () => {

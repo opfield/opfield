@@ -15,7 +15,7 @@ const INSTALLERS: Record<HostingRole, string> = {
 // Published revision containing the Storage wrapper and self-sufficient Relay installation.
 // Update revision and hashes together after publishing installer changes.
 export const HOSTING_INSTALLER_REVISION = '58d708bef30110bcc70a48ece0d32785b21001f4';
-export const HOSTING_INSTALLER_BASE = `https://raw.githubusercontent.com/the-square-labs/gateway/${HOSTING_INSTALLER_REVISION}/scripts`;
+export const HOSTING_INSTALLER_BASE = `https://raw.githubusercontent.com/opfield/opfield/${HOSTING_INSTALLER_REVISION}/scripts`;
 const INSTALLER_SHA256: Record<string, string> = {
   'setup-node.sh': 'c5afa65657389f9d3aa0a0b8c8e4e8410c598b6c6af4416e37c5db558450e560',
   'setup-docker-node.sh': '31368ab6e92df1f284eac18fc9abe85214893ab0940854c9b68e99dd4ce57b1c',

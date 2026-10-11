@@ -105,7 +105,7 @@ describe('node setup commands', () => {
 
     const [command] = storageCommands(null);
     expect(command?.curl).toMatch(
-      /^curl -sSL https:\/\/raw\.githubusercontent\.com\/the-square-labs\/gateway\/main\/scripts\/setup-storage-node\.sh \| sudo bash -s -- \\\n {2}--gateway /
+      /^curl -sSL https:\/\/raw\.githubusercontent\.com\/opfield\/opfield\/main\/scripts\/setup-storage-node\.sh \| sudo bash -s -- \\\n {2}--gateway /
     );
     expect(command?.wget).toMatch(
       /^wget -qO- https:\/\/raw\.githubusercontent\.com\/.*\/main\/scripts\/setup-storage-node\.sh \|/

@@ -38,7 +38,7 @@ Manual update:
 
 ```bash
 # Edit .env first, for example:
-# GATEWAY_IMAGE_REF=ghcr.io/the-square-labs/gateway:v2.0.0
+# GATEWAY_IMAGE_REF=ghcr.io/the-square-labs/gateway:v2.12.0  (releases are published under ghcr.io/opfield/opfield too)
 docker compose pull
 docker compose up -d
 ```

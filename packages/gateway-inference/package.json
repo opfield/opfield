@@ -8,13 +8,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/the-square-labs/gateway.git",
+    "url": "https://github.com/opfield/opfield.git",
     "directory": "packages/gateway-inference"
   },
   "bugs": {
-    "url": "https://github.com/the-square-labs/gateway/issues"
+    "url": "https://github.com/opfield/opfield/issues"
   },
-  "homepage": "https://github.com/the-square-labs/gateway/tree/main/packages/gateway-inference#readme",
+  "homepage": "https://github.com/opfield/opfield/tree/main/packages/gateway-inference#readme",
   "license": "PolyForm-Perimeter-1.0.1",
   "engines": {
     "node": ">=22.0.0"

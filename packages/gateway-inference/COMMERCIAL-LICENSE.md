@@ -4,7 +4,7 @@ Source in this package is licensed by Alexandr Slavinschii, Republic of Moldova 
 
 The source is available under the [PolyForm Perimeter License 1.0.1](LICENSE.md). PolyForm Perimeter permits use, modification, and redistribution for permitted purposes, including internal business use. It does not permit providing to others a product marketed as a substitute for Opfield or this package.
 
-Using or modifying this package for a permitted purpose does not itself require a paid Opfield key. A Personal, Business, or Enterprise key may unlock server-side Opfield Inference features and limits according to the [Opfield Paid Key Terms 1.2](https://github.com/the-square-labs/gateway/blob/main/COMMERCIAL-LICENSE.md). An ordinary key does not waive PolyForm Perimeter's competition restriction or grant OEM, white-label, resale, or competing hosted-service rights.
+Using or modifying this package for a permitted purpose does not itself require a paid Opfield key. A Personal, Business, or Enterprise key may unlock server-side Opfield Inference features and limits according to the [Opfield Paid Key Terms 1.2](https://github.com/opfield/opfield/blob/main/COMMERCIAL-LICENSE.md). An ordinary key does not waive PolyForm Perimeter's competition restriction or grant OEM, white-label, resale, or competing hosted-service rights.
 
 This package also includes the [Product Continuity Grant](CONTINUITY-GRANT.md): if Opfield stops being provided (12 months with no release and no license server, or an end-of-life notice) or the Licensor can no longer act, holders of a valid key keep a perpetual, royalty-free right to use, self-host and modify for their own use the last release, including the commercial core, and to run it without the license server.
 

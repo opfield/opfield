@@ -2,11 +2,16 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-DEFAULT_IMAGE="ghcr.io/the-square-labs/gateway"
+DEFAULT_IMAGE="ghcr.io/opfield/opfield"
+# Official image repositories: the opfield organization and the earlier one every release is still published to.
+# A release's signed manifest names one of them (2.12 releases the earlier one, which installs up to 2.11 accept);
+# unless --image or GATEWAY_IMAGE names another repository, the installer installs the one the manifest names.
+OFFICIAL_IMAGES=("ghcr.io/opfield/opfield" "ghcr.io/the-square-labs/gateway")
 DOCKER_COMPOSE_CLI_IMAGE_REF="docker.io/library/docker:27-cli@sha256:851f91d241214e7c6db86513b270d58776379aacc5eb9c4a87e5b47115e3065c"
 # Third-party service images, pinned by digest and mirrored to GHCR by the release pipeline
 # (config/third-party-images.json). The GHCR mirror is pulled first; Docker Hub serves the same
-# digest when the mirror cannot be pulled.
+# digest when the mirror cannot be pulled. Releases mirror them under both official repositories; the
+# earlier one stays the pull source, like on Docker nodes (packages/daemons/docker third_party_images.go).
 THIRD_PARTY_MIRROR_REPOSITORY="ghcr.io/the-square-labs/gateway"
 REGISTRY_UPSTREAM_IMAGE_REF="docker.io/library/registry@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8" # 3.1.2
 POSTGRES_UPSTREAM_IMAGE_REF="docker.io/library/postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea" # 16.15-alpine
@@ -164,6 +169,14 @@ run_quiet() {
     return
   fi
   die "${label} failed. Check ${LOG_FILE} for details."
+}
+
+official_image() {
+  local candidate
+  for candidate in "${OFFICIAL_IMAGES[@]}"; do
+    [[ "$1" == "$candidate" ]] && return 0
+  done
+  return 1
 }
 
 # Pulls a pinned third-party image and prints the reference to run it from: the GHCR mirror, or
@@ -467,6 +480,9 @@ verify_signed_release() {
   digest="$(json_string_field "$payload_file" digest)"
   image_ref="$(json_string_field "$payload_file" imageRef)"
   secure_connector_image_ref="$(json_string_field "$payload_file" secureLinkConnectorImage)"
+  if [[ "$image" != "$IMAGE" ]] && official_image "$IMAGE" && official_image "$image"; then
+    IMAGE="$image"
+  fi
   if [[ "$kind" != "gateway-image" || "$manifest_version" != "$version" || "$tag" != "$version" ||
     "$image" != "$IMAGE" || ! "$digest" =~ ^sha256:[a-f0-9]{64}$ || "$image_ref" != "${IMAGE}@${digest}" ]]; then
     rm -rf "$tmp_dir"

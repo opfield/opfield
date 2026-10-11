@@ -62,10 +62,12 @@ Options:
 
 Environment:
   GATEWAY_E2E_LICENSE_KEY  Paid license key for step 6 (optional)
+  GATEWAY_GITHUB_REPOSITORY  GitHub repository releases come from (default opfield/opfield; the-square-labs/gateway
+                           before the repository moved)
 EOF
 }
 
-REPO="the-square-labs/gateway"
+REPO="${GATEWAY_GITHUB_REPOSITORY:-opfield/opfield}"
 RAW_BASE="https://raw.githubusercontent.com/${REPO}"
 RELEASE_DOWNLOAD="https://github.com/${REPO}/releases/download"
 REAL_FEED="https://get.opfield.dev/gateway/releases"

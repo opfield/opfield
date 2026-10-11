@@ -1,5 +1,5 @@
 {
-  "$comment": "Digest-pinned third-party runtime images mirrored to GHCR by scripts/mirror-third-party-images.mjs in the Gateway release workflow. Mirrors keep the upstream manifest (index) digest byte-for-byte. The mirror name is the last path segment of the upstream repository; mirror tags are immutable, so add a new tag instead of re-pointing one.",
+  "$comment": "Digest-pinned third-party runtime images mirrored to GHCR by scripts/mirror-third-party-images.mjs in the Image workflow, under both the primary and the mirror repository (docs/development.md); mirrorRepository is the one nodes and the installer pull from. Mirrors keep the upstream manifest (index) digest byte-for-byte. The mirror name is the last path segment of the upstream repository; mirror tags are immutable, so add a new tag instead of re-pointing one.",
   "schemaVersion": 1,
   "mirrorRepository": "ghcr.io/the-square-labs/gateway",
   "images": [

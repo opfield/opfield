@@ -183,7 +183,7 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ secrets.COMMERCIAL_CI_TOKEN }}
-      COMMERCIAL_REPOSITORY: ${{ github.repository_owner }}/gateway-commercial
+      COMMERCIAL_REPOSITORY: ${{ vars.COMMERCIAL_REPOSITORY || (github.repository_owner == 'opfield' && 'opfield/opfield-commercial' || format('{0}/gateway-commercial', github.repository_owner)) }}
     steps:
       - name: Verify the commercial core against this commit
         run: |
