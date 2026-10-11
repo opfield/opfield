@@ -267,6 +267,21 @@ export function candidateDrainDeadline(drainDeadlineAt: Date | null | undefined)
   return String(Math.max(1, drainDeadlineAt.getTime() - DRAIN_DEADLINE_MARGIN_MS));
 }
 
+/**
+ * The drain deadline a relay candidate carries: only a relay's own drain has one. A generation that placement drained
+ * has none, and daemons keep the streams on its relays that stay in the new generation where they are: a deadline
+ * would re-path every one of them onto the same relay (stand 2.12 N-2).
+ */
+export function relayCandidateDrainDeadline(
+  assignmentState: 'active' | 'staging' | 'draining',
+  instanceState: string,
+  drainDeadlineAt: Date | null | undefined
+): string | undefined {
+  return assignmentState === 'draining' && instanceState === 'draining'
+    ? candidateDrainDeadline(drainDeadlineAt)
+    : undefined;
+}
+
 export type RelayStreamReports = ReadonlyArray<{ nodeId: string; report: NodeRelayStreamReport }>;
 
 /**
@@ -379,6 +394,19 @@ export function relayStreamOutcome(
     cut += current.cut >= previous.cut ? current.cut - previous.cut : current.cut;
   }
   return { moved, cut };
+}
+
+/**
+ * A drained relay's outcome, bounded by the resumable streams through it when its drain began. The daemons' counters
+ * are pool-wide: a stream that moved between other relays meanwhile (a placement change) is not this relay's, and a
+ * relay without streams reported every such move as its own (stand 2.12 N-3: "91 streams moved" for an empty relay).
+ */
+export function relayDrainOutcome(
+  outcome: { moved: number; cut: number },
+  carried: number
+): { moved: number; cut: number } {
+  const cut = Math.min(outcome.cut, carried);
+  return { moved: Math.min(outcome.moved, Math.max(0, carried - cut)), cut };
 }
 
 function streams(count: number): string {

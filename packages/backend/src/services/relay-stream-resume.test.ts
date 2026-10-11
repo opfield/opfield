@@ -21,6 +21,8 @@ import {
   RELAY_UPDATE_DRAIN_GRACE_MS,
   RESUMABLE_DRAIN_GRACE_MS,
   RESUME_KEY_ROTATION_MS,
+  relayCandidateDrainDeadline,
+  relayDrainOutcome,
   relaySessionSplit,
   relayStreamCounters,
   relayStreamOutcome,
@@ -183,6 +185,14 @@ describe('drain timing', () => {
     expect(candidateDrainDeadline(null)).toBeUndefined();
     expect(candidateDrainDeadline(new Date(100_000))).toBe(String(100_000 - DRAIN_DEADLINE_MARGIN_MS));
   });
+
+  it('gives only a relay drain a deadline, never a generation placement drained (stand 2.12 N-2)', () => {
+    const at = new Date(100_000);
+    expect(relayCandidateDrainDeadline('draining', 'draining', at)).toBe(String(100_000 - DRAIN_DEADLINE_MARGIN_MS));
+    // Daemons keep their streams on a relay that stays when its old generation drains without a deadline.
+    expect(relayCandidateDrainDeadline('draining', 'ready', at)).toBeUndefined();
+    expect(relayCandidateDrainDeadline('active', 'draining', at)).toBeUndefined();
+  });
 });
 
 describe('relay stream reports', () => {
@@ -235,6 +245,11 @@ describe('relay stream reports', () => {
   it('writes plain step notes', () => {
     expect(drainOutcomeNote({ moved: 0, cut: 0 })).toBeNull();
     expect(drainOutcomeNote({ moved: 12, cut: 0 })).toBe('12 streams moved to other relays, none cut.');
+    // Stand 2.12 N-3: pool-wide moves are bounded by the streams the drained relay carried.
+    expect(relayDrainOutcome({ moved: 91, cut: 0 }, 0)).toEqual({ moved: 0, cut: 0 });
+    expect(drainOutcomeNote(relayDrainOutcome({ moved: 91, cut: 0 }, 0))).toBeNull();
+    expect(relayDrainOutcome({ moved: 91, cut: 2 }, 5)).toEqual({ moved: 3, cut: 2 });
+    expect(relayDrainOutcome({ moved: 4, cut: 0 }, 10)).toEqual({ moved: 4, cut: 0 });
     expect(drainOutcomeNote({ moved: 1, cut: 1 }, 2)).toBe('1 stream moved to other relays, 3 streams cut.');
     expect(localRelayPauseNote(8_400, { moved: 4, cut: 0 }, 'no other relay was ready')).toBe(
       'Streams through the local relay paused for 8 s while it was recreated (no other relay was ready); 4 streams resumed.'

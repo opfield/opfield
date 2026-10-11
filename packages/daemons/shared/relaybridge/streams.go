@@ -21,9 +21,10 @@ const (
 	// StreamStays: the stream's path is still assigned.
 	StreamStays StreamAction = iota
 	// StreamRegrants: the stream's relay stays in the assignment, but the
-	// generation its grant belongs to drains or is gone. The stream re-paths
-	// onto the same relay under the new grant (or a better relay, if one is),
-	// before the old generation retires and its relay ends the tunnel.
+	// generation its grant belongs to is gone (or drains with a deadline: the
+	// relay keeps serving only its built-in local services through a drain).
+	// The stream re-paths onto the same relay under the new grant (or a better
+	// relay, if one is).
 	StreamRegrants
 	// StreamLeaves: the relay leaves the assignment, or drains as a whole.
 	StreamLeaves
@@ -67,6 +68,14 @@ func PlaceStream(assignment *pb.RelayGrantAssignment, relayID string, generation
 		return StreamStays, time.Time{}
 	case stays && generation == 0:
 		// The path's generation is unknown: a relay that stays keeps it.
+		return StreamStays, time.Time{}
+	case stays && own != nil && own.GetDrainDeadlineUnixMs() == 0:
+		// Placement drained the generation and the relay serves the new one:
+		// the stream stays on its path. The relay keeps a draining
+		// generation's tunnels, and Gateway retires a generation only once no
+		// tunnel uses it. Re-pathing every stream onto the same relay under the
+		// new grant moved all of them whenever a relay joined or left the
+		// assignment, also one that carried none of them (stand 2.12 R-5, N-2).
 		return StreamStays, time.Time{}
 	case stays:
 		if own != nil && own.GetDrainDeadlineUnixMs() > 0 {

@@ -347,6 +347,36 @@ describe('The local relay step of a Relay Pool update', () => {
     expect(state.stepError).toBe('3 streams moved to other relays, none cut.');
   });
 
+  it('counts only the streams through the drained relay, not moves between other relays (stand 2.12 N-3)', async () => {
+    let moved = 10;
+    const reports = () => [
+      {
+        nodeId: 'node-1',
+        report: {
+          migrationsOkTotal: moved,
+          cutTotal: 0,
+          byRelay: [
+            { relayInstanceId: 'local', resumable: 1, legacy: 0 },
+            { relayInstanceId: 'relay-uk', resumable: 90, legacy: 0 },
+          ],
+        },
+      },
+    ];
+    const { service, runtime, state } = localStepPool(null, {
+      resumable: true,
+      relayDrainDeadlineAt: new Date(Date.now() + 2 * 60_000),
+      reports,
+    });
+    // A placement change re-paths 90 streams between the other relays while the local relay drains.
+    runtime.drainInstance.mockImplementation(async (_id: string, _user: string, enabled: boolean) => {
+      if (!enabled) moved = 101;
+    });
+
+    await service.performRelayUpdate('v2.4.3', relayArtifact(), 'admin-1');
+
+    expect(state.stepError).toBe('1 stream moved to other relays, none cut.');
+  });
+
   it('notes that resumable streams paused when the local relay is recreated without another relay', async () => {
     const reports = () => [
       {
