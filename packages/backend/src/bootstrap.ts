@@ -1412,6 +1412,7 @@ export async function initializeContainer(): Promise<void> {
   const availabilityMembers = new AvailabilityMembersService(db, nodeDispatch);
   availabilityMembers.setAssignmentSigner(container.resolve(AvailabilityAssignmentSigner));
   container.registerInstance(AvailabilityMembersService, availabilityMembers);
+  managedDatabaseService.setAvailabilityHost({ members: availabilityMembers });
   if (relayPolicyService) {
     relayPolicyService.setAvailabilityLeaseSource(availabilityLeaseService);
     availabilityLeaseService.setRelayPublisher(relayPolicyService);
