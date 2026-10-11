@@ -1,11 +1,14 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
+import { container } from '@/container.js';
 import { appEnvironmentVariables } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
+import { DockerTaskService } from '@/modules/docker/docker-task.service.js';
 import type { CryptoService } from '@/services/crypto.service.js';
 import { APP_ENV_MANAGE_SCOPE, assertAppScope } from './app-access.js';
 import type { AppEnvLayerService } from './app-env-layer.js';
+import { appForMember } from './app-membership.js';
 import type { AppActor, AppsService } from './apps.service.js';
 
 export const APP_VARIABLE_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -189,6 +192,32 @@ export class AppVariablesService {
       this.apps.publish(app.id, 'variables_changed');
     }
     return this.view(env.id);
+  }
+
+  /**
+   * A Docker task of a container of this environment (the recreate "Save and recreate" started), so a manager follows
+   * it to its end without docker:tasks: { id, status (pending, running, succeeded, failed), progress, error,
+   * completedAt }. 404 for a task of anything else.
+   */
+  async workloadTask(actor: AppActor, appId: string, environmentId: string, taskId: string) {
+    const { env } = await this.authorize(actor, appId, environmentId);
+    const notFound = () => new AppError(404, 'APP_WORKLOAD_TASK_NOT_FOUND', 'No such task of this environment');
+    if (!container.isRegistered(DockerTaskService)) throw notFound();
+    const task = await container
+      .resolve(DockerTaskService)
+      .get(taskId)
+      .catch(() => null);
+    if (!task?.containerName) throw notFound();
+    const ref = await appForMember({ type: 'container', id: task.containerName, nodeId: task.nodeId });
+    if (ref?.environmentId !== env.id) throw notFound();
+    return {
+      id: task.id,
+      type: task.type,
+      status: task.status,
+      progress: task.progress ?? null,
+      error: task.error ?? null,
+      completedAt: task.completedAt ?? null,
+    };
   }
 
   private async authorize(actor: AppActor, appId: string, environmentId: string) {

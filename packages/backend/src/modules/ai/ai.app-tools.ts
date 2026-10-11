@@ -185,6 +185,8 @@ async function manageVariables(actor: AppActor, args: Record<string, unknown>) {
         environmentId,
         PatchAppSecretsSchema.parse({ delete: args.keys ?? [] })
       );
+    case 'workload_task':
+      return variables.workloadTask(actor, appId, environmentId, requiredString(args.taskId, 'taskId', operation));
     default:
       throw new AppError(400, 'VALIDATION_ERROR', `Unsupported variables operation: ${operation}`);
   }

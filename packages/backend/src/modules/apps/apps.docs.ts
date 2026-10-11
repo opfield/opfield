@@ -188,7 +188,7 @@ export const removeAppEnvironmentNodeByBodyRoute = appRoute({
 });
 
 const VARIABLES_DESCRIPTION =
-  'Environment variables and secrets every container, deployment and Compose project of the environment receives on its next create, recreate, deploy or apply (nothing restarts on save). Precedence, lowest first: image ENV, environment variables, environment secrets, the workload own environment, the workload own secrets. Keys match ^[A-Za-z_][A-Za-z0-9_]*$, at most 200 per environment, values up to 32 KiB; a key is either a variable or a secret. Secrets are write-only: only keys and update times are returned. pendingWorkloads lists the workloads that still run older values ({kind: container|deployment|compose, id, nodeId, name}; containers by name) so a client can recreate or redeploy them one at a time. Needs apps:env:manage on the environment.';
+  'Environment variables and secrets every container, deployment and Compose project of the environment receives on its next create, recreate, deploy or apply (nothing restarts on save). Precedence, lowest first: image ENV, environment variables, environment secrets, the workload own environment, the workload own secrets. Keys match ^[A-Za-z_][A-Za-z0-9_]*$, at most 200 per environment, values up to 32 KiB; a key is either a variable or a secret. Secrets are write-only: only keys and update times are returned. pendingWorkloads lists the workloads that still run older values ({kind: container|deployment|compose, id, nodeId, name}; containers by name) so a client can recreate or redeploy them one at a time; a container recreate is queued on its node, follow its taskId with GET .../workload-tasks/{taskId}. Needs apps:env:manage on the environment.';
 
 export const getAppVariablesRoute = appRoute({
   method: 'get',
@@ -217,6 +217,17 @@ export const patchAppSecretsRoute = appRoute({
   summary: 'Set or delete environment secrets',
   description: `${VARIABLES_DESCRIPTION} set adds or replaces secrets, delete removes them by key.`,
   request: { params: EnvParams, ...jsonBody(PatchAppSecretsSchema) },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const getAppWorkloadTaskRoute = appRoute({
+  method: 'get',
+  path: '/{id}/environments/{envId}/workload-tasks/{taskId}',
+  tags: TAGS,
+  summary: 'Follow the recreate of an environment workload',
+  description:
+    'A Docker task of a container of the environment, such as the recreate a client starts to apply pendingWorkloads (the container recreate answers its taskId): {id, type, status: pending|running|succeeded|failed, progress, error, completedAt}. The recreate has finished only when status is succeeded; failed carries the error. Needs apps:env:manage on the environment, not docker:tasks. 404 for a task of anything else.',
+  request: { params: pathParamSchema('id', 'envId', 'taskId') },
   responses: okJson(UnknownDataResponseSchema),
 });
 
