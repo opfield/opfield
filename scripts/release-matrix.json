@@ -1892,6 +1892,36 @@
       ]
     },
     {
+      "id": "INS-RLY-04",
+      "area": "installer",
+      "title": "A relay installed in protected mode",
+      "where": "stand",
+      "os": [
+        "debian"
+      ],
+      "covers": [
+        "setup-relay-node.sh --protected",
+        "setup-relay-node.sh $GATEWAY_RELAY_PROTECTED",
+        "config protected.enabled",
+        "config protected.allow_database_witness"
+      ],
+      "preconditions": [
+        "A remote relay host with no relay installed, and a database on several servers that can use a relay witness."
+      ],
+      "steps": [
+        "Install the relay with <setup command> --protected; on a second host, install with GATEWAY_RELAY_PROTECTED=1 and the plain <setup command>.",
+        "Re-run the installer without --protected; then run relay-supervisor protected status.",
+        "Turn witness hosting on for the relay in Settings > Relay; then run relay-supervisor protected on --allow-database-witness on the relay host, restart gateway-relay-supervisor and wait for its next report.",
+        "From Gateway, send the relay a command outside its own operation (for example a console or file request)."
+      ],
+      "expect": [
+        "Both relays are connected and /etc/gateway-relay-supervisor/config.yaml has protected.enabled: true.",
+        "The re-run keeps protected mode on; status reports it on.",
+        "Before the local opt-in Settings > Relay shows the relay as needing the local opt-in and hosts no witness; after it, protected.allow_database_witness is true and the relay hosts the witness.",
+        "The relay refuses the command with an error that says the relay is protected; routing, drain, certificate renewal, logs and updates keep working."
+      ]
+    },
+    {
       "id": "INS-BLD-01",
       "area": "installer",
       "title": "Build Worker: fresh install, egress profiles, re-run, restart, reboot",
