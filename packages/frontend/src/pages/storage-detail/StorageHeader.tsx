@@ -30,6 +30,8 @@ interface StorageHeaderProps {
   canRetry: boolean;
   canReveal: boolean;
   canDelete: boolean;
+  /** Why Remove is disabled (the storage's app environment is isolated or shut down); null enables it. */
+  removeDisabledReason?: string | null;
   onOpenPin: () => void;
   onBack: () => void;
   onTest: () => void;
@@ -48,6 +50,7 @@ export function StorageHeader({
   canRetry,
   canReveal,
   canDelete,
+  removeDisabledReason = null,
   onOpenPin,
   onBack,
   onTest,
@@ -86,7 +89,12 @@ export function StorageHeader({
       )}
       {canReveal && canDelete && <DropdownMenuSeparator />}
       {canDelete && (
-        <DropdownMenuItem onClick={onRemove} className="text-destructive">
+        <DropdownMenuItem
+          onClick={onRemove}
+          disabled={removeDisabledReason !== null}
+          title={removeDisabledReason ?? undefined}
+          className="text-destructive"
+        >
           <Trash2 className="h-3.5 w-3.5 mr-2" />
           Remove
         </DropdownMenuItem>

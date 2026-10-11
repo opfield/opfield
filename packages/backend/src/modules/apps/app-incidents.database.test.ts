@@ -14,6 +14,7 @@ import { AppIncidentService } from './app-isolation.service.js';
 import { AppMaintenanceService } from './app-maintenance.service.js';
 import { AppMemberFreeze } from './app-member-freeze.js';
 import { AppMembersReader, AppMembersService } from './app-members.service.js';
+import { appPlacementForFolder, assertAppPlacement, assertPlacementNotIsolated } from './app-placement-guard.js';
 import { AppsService } from './apps.service.js';
 
 vi.mock('@/lib/created-resource-permissions.js', () => ({ grantCreatedResourcePermissions: vi.fn() }));
@@ -98,6 +99,10 @@ describe.skipIf(!url)('app incidents on disposable PostgreSQL', () => {
       apply: async (item) => {
         applied.push(item.itemKey);
         if (item.itemKind === 'route_overlay') await maintenance.applyModes([String(item.ref.routeId)]);
+        if (item.itemKind === 'container_network') {
+          // What the daemon reports it removed: the networks the release reconnects.
+          return { status: 'applied', priorState: { endpoints: [{ networkId: 'net-app-1', networkName: 'app-net' }] } };
+        }
         return { status: 'applied', priorState: { recorded: item.itemKey } };
       },
       restore: async (item) => {
@@ -183,6 +188,26 @@ describe.skipIf(!url)('app incidents on disposable PostgreSQL', () => {
       code: 'APP_ISOLATED',
     });
     await expect(freeze.assertNoOpenIncident({ kind: 'route', id: unrelated })).resolves.toBeUndefined();
+    // Deleting or unbinding a member (the delete paths call assertNoOpenIncident) is refused while isolated.
+    const web = { kind: 'container', nodeId: dockerNode, name: 'web' } as const;
+    await expect(freeze.assertNoOpenIncident(web)).rejects.toMatchObject({ code: 'APP_ISOLATED' });
+    // A network the release reconnects the member to stays; others do not matter.
+    await expect(freeze.assertNetworkNotHeld(dockerNode, { id: 'net-app-1', name: 'app-net' })).rejects.toMatchObject({
+      code: 'APP_ISOLATED',
+      message: expect.stringContaining('app-net'),
+    });
+    await expect(freeze.assertNetworkNotHeld(dockerNode, { id: 'other', name: 'other' })).resolves.toBeUndefined();
+    // Nothing new is placed in the isolated environment.
+    await expect(assertAppPlacement(db, 'routes', env.placementFolderIds.routes, [nginxNode])).rejects.toMatchObject({
+      code: 'APP_ISOLATED',
+    });
+    // No shutdown on top of the kill switch, for the whole app or the environment.
+    await expect(service.shutdown(actor(), app.id, null)).rejects.toMatchObject({
+      code: 'APP_ISOLATED',
+      message: expect.stringContaining('turn the kill switch off before shutting it down'),
+    });
+    await expect(service.shutdown(actor(), app.id, [env.id])).rejects.toMatchObject({ code: 'APP_ISOLATED' });
+    expect(await repo.openFor(env.id, 'shutdown')).toBeNull();
 
     const moved = await members.place(actor(), { target: null, members: [{ type: 'route', id: member }] } as never);
     expect(moved.refused).toEqual([expect.objectContaining({ code: 'APP_INCIDENT_ACTIVE' })]);
@@ -200,7 +225,14 @@ describe.skipIf(!url)('app incidents on disposable PostgreSQL', () => {
     expect(restored).toEqual(expect.arrayContaining([`route:${member}`, `container:${dockerNode}:web`]));
     freeze.invalidate();
     await expect(freeze.assertNotFrozen({ kind: 'route', id: member })).resolves.toBeUndefined();
+    const appNet = { id: 'net-app-1', name: 'app-net' };
+    await expect(freeze.assertNetworkNotHeld(dockerNode, appNet)).resolves.toBeUndefined();
     expect((await apps.list(ALL)).find((item) => item.id === app.id)?.incident).toBe('none');
+    // After the release a shutdown runs again and Start restores it.
+    const shutdown = await service.shutdown(actor(), app.id, null);
+    await settle(shutdown);
+    await settle(await service.start(actor(), app.id, null));
+    expect((await repo.get(shutdown[0]!.id))?.state).toBe('released');
   });
 
   it('shuts down with the maintenance page and starts back to each route own state', async () => {
@@ -212,8 +244,19 @@ describe.skipIf(!url)('app incidents on disposable PostgreSQL', () => {
     await settle(incidents);
     expect(await mode(own)).toMatchObject({ maintenance_enabled: true, app_maintenance_mode: 'maintenance' });
     expect(await mode(plain)).toMatchObject({ maintenance_enabled: false, app_maintenance_mode: 'maintenance' });
-    // Members are not frozen by a shutdown.
+    // Edits of members are not frozen by a shutdown (Start picks them up).
     await expect(freeze.assertNotFrozen({ kind: 'route', id: plain })).resolves.toBeUndefined();
+    // Deleting or unbinding a member is: Start would no longer find what it restores.
+    await q(
+      `insert into docker_container_folder_assignments (node_id, resource_type, resource_key, container_name, folder_id)
+       values ($1, 'container', 'blog-web', 'blog-web', $2)`,
+      [dockerNode, env.placementFolderIds.containers]
+    );
+    const kept = { kind: 'container', nodeId: dockerNode, name: 'blog-web' } as const;
+    await expect(freeze.assertNoOpenIncident(kept)).rejects.toMatchObject({ code: 'APP_INCIDENT_ACTIVE' });
+    // Placing new resources in a shut-down environment stays allowed.
+    const placement = await appPlacementForFolder(db, 'routes', env.placementFolderIds.routes);
+    await expect(assertPlacementNotIsolated(db, placement)).resolves.toBeUndefined();
     // Changes that need a running environment (moving a key-value store to Valkey) are refused while it is shut down.
     await expect(freeze.assertNoOpenIncident({ kind: 'route', id: plain })).rejects.toMatchObject({
       code: 'APP_INCIDENT_ACTIVE',

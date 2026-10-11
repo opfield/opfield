@@ -188,8 +188,9 @@ export const appsHostRuntime = {
   layerOwnerKey,
   mergeLayerEnv,
   /**
-   * Kill switch freeze for core mutation paths: deploy/switch, Compose apply/up/start, migration, link and binding
-   * create, Pages activation on members of an isolated environment answer 409 APP_ISOLATED.
+   * Kill switch freeze for core mutation paths: deploy/switch, Compose apply/up/start, link and binding create,
+   * database/storage/Pages settings, Pages activation and Availability changes on members of an isolated environment
+   * answer 409 APP_ISOLATED (rules: AppMemberFreeze).
    */
   assertNotFrozen(target: FreezeTarget) {
     if (!container.isRegistered(AppMemberFreeze)) return Promise.resolve();
@@ -197,7 +198,8 @@ export const appsHostRuntime = {
   },
   /**
    * The freeze plus a shut-down environment: 409 APP_ISOLATED when isolated, APP_INCIDENT_ACTIVE when shut down
-   * (moving a key-value store to Valkey).
+   * (deletes of members, links and bindings, binding moves, migration, Compose down, Availability enable/disable,
+   * moving a key-value store to Valkey).
    */
   assertNoOpenIncident(target: FreezeTarget) {
     if (!container.isRegistered(AppMemberFreeze)) return Promise.resolve();

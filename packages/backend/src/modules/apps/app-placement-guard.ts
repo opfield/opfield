@@ -1,8 +1,9 @@
 import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import type { DrizzleExecutor } from '@/db/client.js';
-import { appEnvironmentNodes, appEnvironments, nodes, proxyHosts } from '@/db/schema/index.js';
+import { appEnvironmentNodes, appEnvironments, appIncidents, apps, nodes, proxyHosts } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { APP_FAMILY_TABLES, type AppFamily } from './app-families.js';
+import { FROZEN_INCIDENT_STATES } from './app-incidents.repo.js';
 
 /** Node types each family places workloads on. */
 export const APP_FAMILY_NODE_TYPES: Readonly<Record<AppFamily, readonly string[]>> = {
@@ -117,8 +118,39 @@ export function assertPlacementNodesAllowed(
 }
 
 /**
+ * Refuse placing resources in an environment isolated by the app kill switch (409 APP_ISOLATED): a new member would
+ * come up outside the isolation. No-op for null (outside apps).
+ */
+export async function assertPlacementNotIsolated(
+  db: DrizzleExecutor,
+  placement: Pick<AppEnvironmentPlacement, 'appId' | 'environmentId' | 'environmentName'> | null
+): Promise<void> {
+  if (!placement) return;
+  const [isolated] = await db
+    .select({ appName: apps.name })
+    .from(appIncidents)
+    .innerJoin(apps, eq(apps.id, appIncidents.appId))
+    .where(
+      and(
+        eq(appIncidents.environmentId, placement.environmentId),
+        eq(appIncidents.kind, 'isolation'),
+        inArray(appIncidents.state, [...FROZEN_INCIDENT_STATES])
+      )
+    )
+    .limit(1);
+  if (!isolated) return;
+  throw new AppError(
+    409,
+    'APP_ISOLATED',
+    `${isolated.appName} · ${placement.environmentName} is isolated by the app kill switch; turn it off before placing resources in it`,
+    { appId: placement.appId, environmentId: placement.environmentId }
+  );
+}
+
+/**
  * The guard every create and placement path calls (REST, MCP and AI share the services): a destination folder of
- * an app environment accepts only nodes that environment allows, of the node types the family runs on.
+ * an app environment accepts only nodes that environment allows, of the node types the family runs on, and nothing
+ * while the environment is isolated by the kill switch.
  */
 export async function assertAppPlacement(
   db: DrizzleExecutor,
@@ -127,7 +159,9 @@ export async function assertAppPlacement(
   nodeIds: readonly string[],
   nodeTypes: readonly string[] = APP_FAMILY_NODE_TYPES[family]
 ): Promise<void> {
-  assertPlacementNodesAllowed(await appPlacementForFolder(db, family, folderId, nodeTypes), nodeIds, nodeTypes);
+  const placement = await appPlacementForFolder(db, family, folderId, nodeTypes);
+  await assertPlacementNotIsolated(db, placement);
+  assertPlacementNodesAllowed(placement, nodeIds, nodeTypes);
 }
 
 /** Node candidates narrowed to what an app environment folder allows (unchanged outside apps). */

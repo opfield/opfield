@@ -68,6 +68,8 @@ export const ManagedStorageLinksSection = forwardRef<
     canManage: boolean;
     canManageCluster?: (connectionId: string | null) => boolean;
     disabled?: boolean;
+    /** Why unlinking a saved link is disabled (the app environment is isolated or shut down). */
+    removeDisabledReason?: string | null;
     existingVariableNames?: string[];
     onInitialLoadingChange?: (loading: boolean) => void;
     onDraftChange?: (draft: ManagedStorageLinkDraft) => void;
@@ -86,6 +88,7 @@ export const ManagedStorageLinksSection = forwardRef<
     canManage,
     canManageCluster,
     disabled,
+    removeDisabledReason = null,
     existingVariableNames = [],
     onInitialLoadingChange,
     onDraftChange,
@@ -471,8 +474,18 @@ export const ManagedStorageLinksSection = forwardRef<
                         type="button"
                         variant="ghost"
                         size="icon"
-                        title={entry.pending === "remove" ? "Keep link" : "Unlink storage"}
-                        disabled={disabled || saving}
+                        title={
+                          entry.pending === "remove"
+                            ? "Keep link"
+                            : entry.pending === null && removeDisabledReason
+                              ? removeDisabledReason
+                              : "Unlink storage"
+                        }
+                        disabled={
+                          disabled ||
+                          saving ||
+                          (entry.pending === null && removeDisabledReason !== null)
+                        }
                         onClick={() => stageUnlink(entry)}
                       >
                         {entry.pending === "remove" ? (

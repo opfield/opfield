@@ -16,7 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { AppMembershipLink } from "@/components/apps/AppMembership";
-import { MemberIsolatedNotice } from "@/components/apps/IsolatedNotice";
+import { MemberIsolatedNotice, useMemberIncidentHold } from "@/components/apps/IsolatedNotice";
 import { confirm, confirmAction } from "@/components/common/ConfirmDialog";
 import { CopyButton } from "@/components/common/CopyButton";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
@@ -125,6 +125,12 @@ export function ProxyHostDetail({
   const canEditProxyHost = !!id && (hasScope("proxy:edit") || hasScope(`proxy:edit:${id}`));
   const canDeleteProxyHost = !!id && (hasScope("proxy:delete") || hasScope(`proxy:delete:${id}`));
   const [host, setHost] = useState<ProxyHost | null>(null);
+  // The open incident of the route's app environment refuses deleting it and its Secure Link bindings.
+  const {
+    app: memberApp,
+    reload: reloadMemberApp,
+    hold: incidentHold,
+  } = useMemberIncidentHold(host?.app);
   const [maintenanceAccessCode, setMaintenanceAccessCode] = useState<string | null>(null);
   const displayedMaintenanceAccessCode = useRetainedDialogValue(
     maintenanceAccessCode,
@@ -1107,6 +1113,8 @@ export function ProxyHostDetail({
                         label: "Delete",
                         icon: <Trash2 className="h-4 w-4" />,
                         onClick: handleDelete,
+                        disabled: incidentHold.kept !== null,
+                        disabledReason: incidentHold.kept ?? undefined,
                         destructive: true,
                         separatorBefore: true,
                       },
@@ -1156,7 +1164,12 @@ export function ProxyHostDetail({
                 </Button>
               )}
               {!isSystemHost && canDeleteProxyHost && (
-                <Button variant="destructive" onClick={handleDelete}>
+                <Button
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={incidentHold.kept !== null}
+                  title={incidentHold.kept ?? undefined}
+                >
                   <Trash2 className="h-4 w-4" />
                   Delete
                 </Button>
@@ -1165,7 +1178,7 @@ export function ProxyHostDetail({
           }
         />
 
-        <MemberIsolatedNotice app={host.app} />
+        <MemberIsolatedNotice app={host.app} memberApp={memberApp} onChanged={reloadMemberApp} />
 
         {/* ── Health bars (only when healthCheckEnabled) ──────── */}
         {host.healthCheckEnabled && (
@@ -1243,6 +1256,7 @@ export function ProxyHostDetail({
             <TabsContent value="settings" className="pb-6">
               <SettingsTab
                 host={host}
+                secureLinkRemovalDisabledReason={incidentHold.kept}
                 onHostUpdated={syncHostState}
                 onToggle={handleToggle}
                 customHeaders={customHeaders}

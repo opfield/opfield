@@ -177,6 +177,8 @@ export const ManagedDatabaseLinksSection = forwardRef<
     targetResourceId: string;
     containerName: string;
     disabled?: boolean;
+    /** Why unlinking a saved link is disabled (the app environment is isolated or shut down). */
+    removeDisabledReason?: string | null;
     existingVariableNames?: string[];
     onInitialLoadingChange?: (loading: boolean) => void;
     onDraftChange?: (draft: ManagedDatabaseLinkDraft) => void;
@@ -199,6 +201,7 @@ export const ManagedDatabaseLinksSection = forwardRef<
     targetResourceId,
     containerName,
     disabled = false,
+    removeDisabledReason = null,
     existingVariableNames = [],
     onInitialLoadingChange,
     onDraftChange,
@@ -952,14 +955,25 @@ export const ManagedDatabaseLinksSection = forwardRef<
                     variant="ghost"
                     size="icon-sm"
                     className="shrink-0 text-muted-foreground hover:text-destructive"
-                    disabled={disabled || saving || !canChangeLink}
+                    disabled={
+                      disabled ||
+                      saving ||
+                      !canChangeLink ||
+                      (entry.pending === null && removeDisabledReason !== null)
+                    }
                     onClick={() => void stageUnlink(entry)}
                     aria-label={
                       entry.pending === "remove"
                         ? `Keep ${databaseName(entry.binding)} linked`
                         : `Unlink ${databaseName(entry.binding)}`
                     }
-                    title={entry.pending === "remove" ? "Keep link" : "Unlink database"}
+                    title={
+                      entry.pending === "remove"
+                        ? "Keep link"
+                        : entry.pending === null && removeDisabledReason
+                          ? removeDisabledReason
+                          : "Unlink database"
+                    }
                   >
                     {entry.pending === "remove" ? (
                       <Undo2 className="h-4 w-4" />

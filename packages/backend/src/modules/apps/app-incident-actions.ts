@@ -329,7 +329,9 @@ export class DefaultAppIncidentActions implements AppIncidentActions {
               project.id,
               'start',
               { idempotencyKey: `app-incident:${item.id}:start:${item.attempts}`, volumeNames: [] },
-              userId ?? SYSTEM_ACTOR
+              userId ?? SYSTEM_ACTOR,
+              false,
+              { appIncident: true }
             );
             await this.waitForCompose(project.id, (operation as { id?: string })?.id);
           }

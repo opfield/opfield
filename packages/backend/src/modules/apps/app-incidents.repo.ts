@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, like, sql } from 'drizzle-orm';
 import type { DrizzleClient, DrizzleExecutor } from '@/db/client.js';
 import {
   type AppIncident,
@@ -272,5 +272,26 @@ export class AppIncidentsRepo {
       )
       .limit(1);
     return row?.item ?? null;
+  }
+
+  /** Items of a kind still in effect under an incident in `states` whose key starts with `keyPrefix`. */
+  async openItemsWithKeyPrefix(
+    itemKind: AppIncidentItemKind,
+    keyPrefix: string,
+    states: readonly AppIncidentRowState[] = OPEN_INCIDENT_STATES
+  ): Promise<AppIncidentItem[]> {
+    const rows = await this.db
+      .select({ item: appIncidentItems })
+      .from(appIncidentItems)
+      .innerJoin(appIncidents, eq(appIncidents.id, appIncidentItems.incidentId))
+      .where(
+        and(
+          eq(appIncidentItems.itemKind, itemKind),
+          like(appIncidentItems.itemKey, `${keyPrefix.replace(/[\\%_]/g, (char) => `\\${char}`)}%`),
+          inArray(appIncidentItems.status, [...ITEM_IN_EFFECT_STATUSES]),
+          inArray(appIncidents.state, [...states])
+        )
+      );
+    return rows.map((row) => row.item);
   }
 }

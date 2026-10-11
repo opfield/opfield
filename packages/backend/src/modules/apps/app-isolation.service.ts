@@ -9,7 +9,12 @@ import { ProxyService } from '@/modules/proxy/proxy.service.js';
 import { APP_OPERATE_SCOPE, assertAppScope, assertAppWideScope, visibleEnvironmentIds } from './app-access.js';
 import type { AppIncidentRunner } from './app-incident-runner.js';
 import type { AppIncidentTargetsReader, IncidentTargets } from './app-incident-targets.js';
-import type { AppIncidentsRepo, IncidentWithItems, NewIncidentItem } from './app-incidents.repo.js';
+import {
+  type AppIncidentsRepo,
+  FROZEN_INCIDENT_STATES,
+  type IncidentWithItems,
+  type NewIncidentItem,
+} from './app-incidents.repo.js';
 import { routeTakesMaintenance } from './app-maintenance.service.js';
 import type { AppMemberFreeze } from './app-member-freeze.js';
 import { buildShutdownItems, summarizeShutdown } from './app-shutdown.service.js';
@@ -260,6 +265,7 @@ export class AppIncidentService {
     kind: AppIncidentKind
   ): Promise<IncidentView[]> {
     const { app, envs } = await this.scope(actor, appIdOrSlug, environmentIds);
+    if (kind === 'shutdown') await this.assertNotIsolated(app.name, envs, environmentIds === null);
     const batchId = randomUUID();
     const created: AppIncident[] = [];
     let skipped = 0;
@@ -306,6 +312,28 @@ export class AppIncidentService {
     this.apps.publish(app.id, kind === 'isolation' ? 'isolated' : 'shut_down');
     for (const incident of created) void this.runner.run(incident.id);
     return this.views(await this.repo.withItems(created));
+  }
+
+  /**
+   * A shutdown is refused while the kill switch holds the app or one of the environments (409 APP_ISOLATED): stopping
+   * and pausing members under the isolation would leave the release restoring a state the shutdown changed.
+   */
+  private async assertNotIsolated(appName: string, envs: readonly AppEnvironmentRow[], wholeApp: boolean) {
+    const isolated: AppEnvironmentRow[] = [];
+    for (const env of envs) {
+      if (await this.repo.openFor(env.id, 'isolation', FROZEN_INCIDENT_STATES)) isolated.push(env);
+    }
+    if (isolated.length === 0) return;
+    const subject =
+      wholeApp && isolated.length === envs.length
+        ? appName
+        : `${appName} · ${isolated.map((env) => env.name).join(', ')}`;
+    throw new AppError(
+      409,
+      'APP_ISOLATED',
+      `${subject} is isolated by the app kill switch; turn the kill switch off before shutting it down`,
+      { environmentIds: isolated.map((env) => env.id) }
+    );
   }
 
   private async end(

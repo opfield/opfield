@@ -44,6 +44,8 @@ interface DatabaseHeaderProps {
   canRotateDirectCredentials: boolean;
   canRotateCertificate: boolean;
   canDelete: boolean;
+  /** Why Remove is disabled (the store's app environment is isolated or shut down); null enables it. */
+  removeDisabledReason?: string | null;
   onOpenPin: () => void;
   onBack: () => void;
   onTest: () => void;
@@ -79,6 +81,7 @@ export function DatabaseHeader({
   canRotateDirectCredentials,
   canRotateCertificate,
   canDelete,
+  removeDisabledReason = null,
   onOpenPin,
   onBack,
   onTest,
@@ -247,6 +250,8 @@ export function DatabaseHeader({
             buttonLabel: "Remove",
             icon: <Trash2 className="h-4 w-4" />,
             onClick: onRemove,
+            disabled: removeDisabledReason !== null,
+            disabledReason: removeDisabledReason ?? undefined,
             destructive: true,
             separatorBefore: true,
           },

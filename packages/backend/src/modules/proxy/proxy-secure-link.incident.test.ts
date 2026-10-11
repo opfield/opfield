@@ -78,4 +78,10 @@ describe('Secure Links held closed by an app kill switch', () => {
     const gone = service(null as never);
     await expect(gone.secureLinks.setIncidentSuspended(LINK_ID, INCIDENT_ID)).resolves.toBeUndefined();
   });
+
+  it('refuses deleting a link while held, so the release finds it to open again', async () => {
+    const { secureLinks, set } = service(link({ incidentSuspendedBy: INCIDENT_ID }));
+    await expect(secureLinks.deleteAdditional(HOST, LINK_ID)).rejects.toMatchObject({ code: 'APP_ISOLATED' });
+    expect(set).not.toHaveBeenCalled();
+  });
 });

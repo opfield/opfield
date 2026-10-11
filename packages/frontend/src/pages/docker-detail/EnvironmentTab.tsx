@@ -50,6 +50,7 @@ export function EnvironmentTab({
   containerState,
   disabled,
   managedLinksDisabled,
+  linkRemovalDisabledReason = null,
   onMutationStart,
   onMutationEnd,
   onRecreating,
@@ -74,6 +75,8 @@ export function EnvironmentTab({
   disabled?: boolean;
   /** Managed links may stay editable while the rest is locked (a build rollout picks them up). */
   managedLinksDisabled?: boolean;
+  /** Why removing links and bindings is disabled (the app environment is isolated or shut down). */
+  linkRemovalDisabledReason?: string | null;
   onMutationStart?: (transition: "updating" | "recreating") => void;
   onMutationEnd?: () => void;
   onRecreating?: () => void | Promise<void>;
@@ -904,6 +907,7 @@ export function EnvironmentTab({
             targetResourceId={resolvedDatabaseTargetResourceId}
             containerName={containerName}
             disabled={linksDisabled || isSaving || hasErrors || !canChangeManagedLinks}
+            removeDisabledReason={linkRemovalDisabledReason}
             existingVariableNames={[...existingVariableNames, ...managedStorageVariableNames]}
             onInitialLoadingChange={setDatabaseLinksLoading}
             onDraftChange={handleDatabaseLinkDraftChange}
@@ -922,6 +926,7 @@ export function EnvironmentTab({
           canManage={canManageManagedStorage}
           canManageCluster={canManageStorageCluster}
           disabled={linksDisabled || isSaving || hasErrors || !canChangeManagedLinks}
+          removeDisabledReason={linkRemovalDisabledReason}
           existingVariableNames={[...existingVariableNames, ...managedDatabaseVariableNames]}
           onInitialLoadingChange={setStorageLinksLoading}
           onDraftChange={handleStorageLinkDraftChange}
@@ -939,6 +944,7 @@ export function EnvironmentTab({
           canManage={canManageContainerLinks}
           canSetEnvironment={canEdit}
           disabled={linksDisabled || isSaving}
+          removeDisabledReason={linkRemovalDisabledReason}
           onMutationStart={onMutationStart}
           onMutationEnd={onMutationEnd}
           onRecreating={onRecreating}

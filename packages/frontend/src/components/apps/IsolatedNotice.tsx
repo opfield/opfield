@@ -148,11 +148,72 @@ export function memberIncidentBlock(
   return null;
 }
 
+/** Why an action the open incident of a member's environment refuses is disabled, or null. */
+export function memberIncidentReason(block: "isolation" | "shutdown" | null): string | null {
+  if (block === "isolation") {
+    return "Unavailable while the app kill switch isolates this environment.";
+  }
+  if (block === "shutdown") return "Unavailable while this app environment is shut down.";
+  return null;
+}
+
+/**
+ * What a member's page disables while its environment has an open incident (the server refuses the
+ * same, see AppMemberFreeze): `frozen` for changes refused while the kill switch isolates it, `kept`
+ * for deleting the member, removing its links and bindings, and renaming it, refused while it is
+ * isolated or shut down. Null when the action is allowed.
+ */
+export interface MemberIncidentHold {
+  frozen: string | null;
+  kept: string | null;
+}
+
+export function memberIncidentHold(
+  app: AppDetail | null,
+  ref: AppMembershipRef | null | undefined
+): MemberIncidentHold {
+  const block = memberIncidentBlock(app, ref);
+  const reason = memberIncidentReason(block);
+  return { frozen: block === "isolation" ? reason : null, kept: reason };
+}
+
+/**
+ * The member's app and what its open incident disables on the member's page, for pages that render
+ * the kill switch banner themselves (MemberIsolatedNotice with `app`).
+ */
+export function useMemberIncidentHold(ref: AppMembershipRef | null | undefined): {
+  app: AppDetail | null;
+  reload: () => void;
+  hold: MemberIncidentHold;
+} {
+  const { app, reload } = useMemberApp(ref);
+  return { app, reload, hold: memberIncidentHold(app, ref) };
+}
+
 /**
  * The banner on a member's own page: loads the member's app (when the caller may view it) and shows
- * the kill switch of the member's environment.
+ * the kill switch of the member's environment. A page that already loaded the app (useMemberApp or
+ * useMemberIncidentHold) passes it as `memberApp` with its `onChanged` reload.
  */
-export function MemberIsolatedNotice({ app: ref }: { app: AppMembershipRef | null | undefined }) {
+export function MemberIsolatedNotice({
+  app: ref,
+  memberApp,
+  onChanged,
+}: {
+  app: AppMembershipRef | null | undefined;
+  memberApp?: AppDetail | null;
+  onChanged?: () => void;
+}) {
+  if (memberApp !== undefined) {
+    if (!ref || !memberApp) return null;
+    return (
+      <IsolatedNotice app={memberApp} environmentIds={[ref.environmentId]} onChanged={onChanged} />
+    );
+  }
+  return <LoadedMemberIsolatedNotice app={ref} />;
+}
+
+function LoadedMemberIsolatedNotice({ app: ref }: { app: AppMembershipRef | null | undefined }) {
   const { app, reload } = useMemberApp(ref);
   if (!ref || !app) return null;
   return <IsolatedNotice app={app} environmentIds={[ref.environmentId]} onChanged={reload} />;

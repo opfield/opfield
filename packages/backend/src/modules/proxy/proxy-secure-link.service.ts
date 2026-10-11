@@ -140,7 +140,7 @@ function releasedNetworkBinding<T extends { targetNetwork: string; allowNetworkR
 }
 
 /** True when `after` differs from `before` only by the target network the daemon picked during target sync. */
-/** A Secure Link an app kill switch holds closed refuses changes until the incident is released (delete still works). */
+/** A Secure Link an app kill switch holds closed refuses changes and deletion until the incident is released. */
 function assertNotIncidentSuspended(binding: Pick<ProxyAdditionalSecureLinkRow, 'incidentSuspendedBy'>): void {
   if (binding.incidentSuspendedBy) {
     throw new AppError(
@@ -1191,6 +1191,7 @@ export class ProxySecureLinkService {
 
   async deleteAdditional(host: ProxyHostRow, bindingId: string): Promise<void> {
     const binding = await this.requireAdditional(host.id, bindingId, 'user_managed');
+    assertNotIncidentSuspended(binding);
     const reference = await this.findAdditionalReference(host, binding);
     if (reference) {
       const routeLabel = host.domainNames?.[0] ?? host.id;

@@ -46,13 +46,30 @@ export interface FrozenEnvironment {
 const ANY_OPEN_TTL_MS = 2_000;
 
 /**
- * Members of an isolated environment are frozen: recreate, update, env changes, network attach, deploy, Compose apply,
- * migration, link/binding create, route edits, membership and allowlist changes are refused with 409 APP_ISOLATED until
- * the kill switch is turned off (the freeze ends when release starts: the restore itself reconnects and reapplies). Stop, start, restart, logs, console and delete stay allowed. Reads go to the database
- * (never the 10 s membership caches); a 2 s "any isolation open" flag keeps mutations outside incidents free.
+ * The app kill switch freeze and the shutdown hold on app members (REST, MCP and AI share the services that call it;
+ * the incident's own apply and restore never go through these checks).
+ *
+ * Isolated environment (kill switch on, incident applying or active) → 409 APP_ISOLATED for every change of a member:
+ * recreate, update, env changes, rename, network attach/detach, deploy/switch/rollback, Compose apply/start/down,
+ * migration, Availability changes, link/binding create and delete, binding moves, route create/edit/delete (and Secure
+ * Links on it), Pages deploy/activation/settings, database and storage settings, publication changes, deleting the
+ * member itself, removing a Docker network a member is to be reconnected to, placing new resources in the environment,
+ * and membership and allowlist changes. The freeze ends when release starts (the restore itself reconnects and
+ * reapplies). Still allowed: reads, logs, console, files, data browsing/queries, stop, kill, restart, start (except
+ * a host-network container the kill switch stopped, see assertMayStart), pause/unpause, credential and certificate
+ * rotation, and app variables and container secrets (stored until the next recreate, which is frozen).
+ *
+ * Shut-down environment (incident applying or active) → 409 APP_INCIDENT_ACTIVE only for changes that would make Start
+ * restore something else or leave a member unbound: deleting a member (container, deployment, Compose project or its
+ * containers via down/delete volumes, database, storage, route, Pages project, connection), deleting or moving links
+ * and bindings, renaming or migrating a workload, enabling or disabling Availability, moving a key-value store to
+ * Valkey, and membership changes. Everything else stays allowed while shut down (config edits are picked up by Start).
+ *
+ * Reads go to the database (never the 10 s membership caches); a 2 s "which incidents are open" flag keeps mutations
+ * outside incidents free.
  */
 export class AppMemberFreeze {
-  private anyOpen: { at: number; value: boolean } | null = null;
+  private openKinds: { at: number; isolation: boolean; any: boolean } | null = null;
 
   constructor(
     private readonly db: DrizzleClient,
@@ -61,18 +78,31 @@ export class AppMemberFreeze {
 
   /** Drop the cached flag (an incident opened or closed in this process). */
   invalidate(): void {
-    this.anyOpen = null;
+    this.openKinds = null;
+  }
+
+  private async openIncidentKinds(): Promise<{ isolation: boolean; any: boolean }> {
+    if (this.openKinds && Date.now() - this.openKinds.at < ANY_OPEN_TTL_MS) return this.openKinds;
+    const rows = await this.db
+      .select({ kind: appIncidents.kind })
+      .from(appIncidents)
+      .where(inArray(appIncidents.state, [...FROZEN_INCIDENT_STATES]))
+      .groupBy(appIncidents.kind);
+    this.openKinds = {
+      at: Date.now(),
+      isolation: rows.some((row) => row.kind === 'isolation'),
+      any: rows.length > 0,
+    };
+    return this.openKinds;
   }
 
   async anyIsolationOpen(): Promise<boolean> {
-    if (this.anyOpen && Date.now() - this.anyOpen.at < ANY_OPEN_TTL_MS) return this.anyOpen.value;
-    const [row] = await this.db
-      .select({ id: appIncidents.id })
-      .from(appIncidents)
-      .where(and(eq(appIncidents.kind, 'isolation'), inArray(appIncidents.state, [...FROZEN_INCIDENT_STATES])))
-      .limit(1);
-    this.anyOpen = { at: Date.now(), value: !!row };
-    return !!row;
+    return (await this.openIncidentKinds()).isolation;
+  }
+
+  /** Whether any kill switch or shutdown is applying or active (fast path of assertNoOpenIncident). */
+  async anyIncidentOpen(): Promise<boolean> {
+    return (await this.openIncidentKinds()).any;
   }
 
   /** The environment a resource belongs to (from where it sits), or null outside apps. */
@@ -217,10 +247,11 @@ export class AppMemberFreeze {
 
   /**
    * Refuse a change that must not run while the resource's environment has an open incident: isolated → 409
-   * APP_ISOLATED (the freeze above), shut down → 409 APP_INCIDENT_ACTIVE. Used by changes that restart a member in a
-   * way the incident's restore does not expect (moving a key-value store to Valkey).
+   * APP_ISOLATED (the freeze above), shut down → 409 APP_INCIDENT_ACTIVE. Used by deletes, unbinds, renames, migrations
+   * and other changes the incident's restore does not expect (see the class comment).
    */
   async assertNoOpenIncident(target: FreezeTarget): Promise<void> {
+    if (!(await this.anyIncidentOpen())) return;
     await this.assertNotFrozen(target);
     const environmentId = await this.environmentOf(target);
     if (!environmentId) return;
@@ -233,6 +264,34 @@ export class AppMemberFreeze {
       `${shutDown ? `${shutDown.appName} · ${shutDown.environmentName}` : 'Its app environment'} is shut down; start it before changing this resource`,
       shutDown ? { appId: shutDown.appId, environmentId } : undefined
     );
+  }
+
+  /**
+   * Refuse removing a Docker network that a container isolated by the kill switch is to be reconnected to on release
+   * (409 APP_ISOLATED): the restore needs it.
+   */
+  async assertNetworkNotHeld(nodeId: string, network: { id: string; name: string }): Promise<void> {
+    if (!(await this.anyIsolationOpen())) return;
+    const items = await this.incidents.openItemsWithKeyPrefix(
+      'container_network',
+      `container:${nodeId}:`,
+      FROZEN_INCIDENT_STATES
+    );
+    for (const item of items) {
+      const endpoints = (item.priorState as { endpoints?: Array<{ networkId?: string; networkName?: string }> } | null)
+        ?.endpoints;
+      if (!endpoints?.some((endpoint) => endpoint.networkId === network.id || endpoint.networkName === network.name)) {
+        continue;
+      }
+      const incident = await this.incidents.get(item.incidentId);
+      const frozen = incident ? await this.describe(incident.environmentId, incident.id) : null;
+      throw new AppError(
+        409,
+        'APP_ISOLATED',
+        `${frozen ? `${frozen.appName} · ${frozen.environmentName}` : 'An app environment'} is isolated by the app kill switch and reconnects its containers to ${network.name} when it is turned off; turn it off before removing this network`,
+        frozen ? { appId: frozen.appId, environmentId: frozen.environmentId } : undefined
+      );
+    }
   }
 
   /**

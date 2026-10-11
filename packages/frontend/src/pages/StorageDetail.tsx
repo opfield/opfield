@@ -2,7 +2,7 @@ import { Activity, FolderOpen, Key } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { MemberIsolatedNotice } from "@/components/apps/IsolatedNotice";
+import { MemberIsolatedNotice, useMemberIncidentHold } from "@/components/apps/IsolatedNotice";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
 import {
@@ -66,6 +66,12 @@ function StorageDetailContent({
   const navigate = useStableNavigate();
   const { hasScope } = useAuthStore();
   const [storage, setStorage] = useState<ObjectStorageConnection | null>(null);
+  // The open incident of the storage's app environment refuses removing it.
+  const {
+    app: memberApp,
+    reload: reloadMemberApp,
+    hold: incidentHold,
+  } = useMemberIncidentHold(storage?.app);
   const loadGeneration = useRef(0);
   const loadedStorageId = storage && storage.id === id ? storage.id : null;
   const [loading, setLoading] = useState(true);
@@ -380,6 +386,7 @@ function StorageDetailContent({
           canRetry={canRetry}
           canReveal={canReveal}
           canDelete={canDelete}
+          removeDisabledReason={incidentHold.kept}
           onOpenPin={() => setPinOpen(true)}
           onBack={() => navigate("/storage")}
           onTest={() => void testConnection()}
@@ -389,7 +396,7 @@ function StorageDetailContent({
           onRevealCredentials={() => void revealCredentials()}
           onRemove={() => void remove()}
         />
-        <MemberIsolatedNotice app={storage.app} />
+        <MemberIsolatedNotice app={storage.app} memberApp={memberApp} onChanged={reloadMemberApp} />
 
         <HealthBars history={liveHealthHistory} currentStatus={liveHealthStatus} />
 

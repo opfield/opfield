@@ -28,6 +28,8 @@ export interface DockerVolumeNetworkOperationContext {
   eventBus?: EventBusService;
   parseResult(result: DockerDispatchResult): any;
   assertContainerMutationAllowed?(nodeId: string, containerId: string): Promise<void>;
+  /** Refuses removing a network the app kill switch reconnects isolated containers to on release. */
+  assertNetworkRemovable?(nodeId: string, network: { id: string; name: string }): Promise<void>;
   onNetworkCreated?(
     nodeId: string,
     networkId: string,
@@ -829,6 +831,7 @@ export async function removeNetwork(
   if (isBuiltInDockerNetwork(network.name)) {
     throw new AppError(400, 'BUILTIN_NETWORK', 'Built-in Docker networks cannot be removed');
   }
+  await context.assertNetworkRemovable?.(nodeId, network);
   const result = await context.nodeDispatch.sendDockerNetworkCommand(nodeId, 'remove', { networkId: network.id });
   context.parseResult(result);
   await context.onNetworkRemoved?.(nodeId, network.id);

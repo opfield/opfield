@@ -40,6 +40,42 @@ export function scopeEnvironmentIds(scope: IncidentScope): string[] | null {
   return scope === ALL_ENVIRONMENTS ? null : [scope];
 }
 
+/** Environments the kill switch holds (applying or active): a shutdown of them is refused. */
+export function isolatedEnvironments(app: AppDetail): AppEnvironmentDetail[] {
+  return orderedEnvironments(app.environments).filter((env) =>
+    (env.incidents ?? []).some(
+      (incident) =>
+        incident.kind === "isolation" &&
+        (incident.state === "applying" || incident.state === "active")
+    )
+  );
+}
+
+/**
+ * Why Shut down is unavailable for a scope (the server answers 409 APP_ISOLATED): the scope holds an
+ * environment the kill switch isolates. Null when the shutdown can run.
+ */
+export function shutdownBlockedReason(app: AppDetail, scope: IncidentScope): string | null {
+  const isolated = isolatedEnvironments(app).filter(
+    (env) => scope === ALL_ENVIRONMENTS || env.id === scope
+  );
+  if (isolated.length === 0) return null;
+  const names = isolated.map((env) => env.name).join(", ");
+  return `${names} ${isolated.length === 1 ? "is" : "are"} isolated by the app kill switch. Turn the kill switch off before shutting it down.`;
+}
+
+/** Why the Shut down button is unavailable: every scope the caller may shut down is isolated. */
+export function shutdownUnavailableReason(app: AppDetail): string | null {
+  const scopes = [
+    ...(app.permissions.operate ? [ALL_ENVIRONMENTS] : []),
+    ...operableEnvironments(app).map((env) => env.id),
+  ];
+  if (scopes.length === 0) return null;
+  const reasons = scopes.map((scope) => shutdownBlockedReason(app, scope));
+  if (reasons.some((reason) => reason === null)) return null;
+  return shutdownBlockedReason(app, scopes[0]!);
+}
+
 export function defaultScope(app: AppDetail): IncidentScope {
   return app.permissions.operate ? ALL_ENVIRONMENTS : (operableEnvironments(app)[0]?.id ?? "");
 }

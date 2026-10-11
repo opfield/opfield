@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { AppMembershipLink } from "@/components/apps/AppMembership";
-import { MemberIsolatedNotice } from "@/components/apps/IsolatedNotice";
+import { MemberIsolatedNotice, useMemberIncidentHold } from "@/components/apps/IsolatedNotice";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
@@ -196,6 +196,12 @@ export function DockerDeploymentDetail({
   const canEditMounts = canChangeHostBinds || (canEdit && hasScopedAccess("docker:volumes:view"));
 
   const [deployment, setDeployment] = useState<DockerDeployment | null>(null);
+  // The open incident of the deployment's app environment refuses removing it (and its links).
+  const {
+    app: memberApp,
+    reload: reloadMemberApp,
+    hold: incidentHold,
+  } = useMemberIncidentHold(deployment?.app);
   const [sourceIdentity, setSourceIdentity] = useState<Pick<
     DockerSourceBinding,
     "id" | "repositoryFullPath" | "deployedCommitSha"
@@ -1164,7 +1170,8 @@ export function DockerDeploymentDetail({
             actionKey: "remove",
             icon: <Trash2 className="h-4 w-4" />,
             onClick: removeDeployment,
-            disabled: actionDisabled,
+            disabled: actionDisabled || incidentHold.kept !== null,
+            disabledReason: incidentHold.kept ?? undefined,
             destructive: true,
             separatorBefore: isStopped || !canManage,
           },
@@ -1261,7 +1268,11 @@ export function DockerDeploymentDetail({
           }
         />
 
-        <MemberIsolatedNotice app={deployment.app} />
+        <MemberIsolatedNotice
+          app={deployment.app}
+          memberApp={memberApp}
+          onChanged={reloadMemberApp}
+        />
 
         {deployment.healthCheck?.enabled && (
           <HealthBars
@@ -1456,6 +1467,7 @@ export function DockerDeploymentDetail({
                 }
                 databaseTargetType="deployment"
                 databaseTargetResourceId={deploymentId}
+                linkRemovalDisabledReason={incidentHold.kept}
               />
             </TabsContent>
           )}
