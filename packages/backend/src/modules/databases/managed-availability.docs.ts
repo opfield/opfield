@@ -142,7 +142,7 @@ const AvailabilityEventsResponseSchema = z.object({
 });
 
 const LOSS_RULES =
-  'A planned switch (the primary serves and the copy is eligible) loses nothing. When the primary is gone or no copy is eligible, the switch can lose recent writes: it is refused with 409 `AVAILABILITY_LOSSY_PROMOTION` and the estimate (`details.lossBytes`) unless the body has `acceptDataLoss: true`. A replicated pair without automatic failover waits until its primary was last seen 45 s ago (409 `AVAILABILITY_PRIMARY_RECENTLY_SEEN`).';
+  'A planned switch (the primary serves and the copy is eligible) loses nothing. When the primary is gone or no copy is eligible, the switch can lose recent writes: it is refused with 409 `AVAILABILITY_LOSSY_PROMOTION` and the estimate (`details.lossBytes`) unless the body has `acceptDataLoss: true`. A replicated pair without automatic failover switches as planned only while its primary reports: the primary steps down and confirms it before the copy is promoted (the operation fails and promotes nothing without that confirmation), and the copy must stream within the lag bound (409 `AVAILABILITY_COPY_NOT_STREAMING` unless `acceptDataLoss`). A primary that does not report is waited for until it was last seen 45 s ago (409 `AVAILABILITY_PRIMARY_RECENTLY_SEEN` with the seconds left). A member running another database cluster than the primary is never made primary (409 `AVAILABILITY_OTHER_CLUSTER`). A second switch while one runs is refused (409 `AVAILABILITY_OPERATION_PENDING`).';
 
 interface AvailabilityDocsInput {
   /** Path of one resource, e.g. `/managed/{id}` or `/{id}`. */

@@ -1530,6 +1530,8 @@ export async function initializeContainer(): Promise<void> {
   // Members of database and storage availability sets: node configuration and health-stream reports.
   const availabilityMembers = new AvailabilityMembersService(db, nodeDispatch);
   availabilityMembers.setAssignmentSigner(container.resolve(AvailabilityAssignmentSigner));
+  // Manual pairs' primaries keep serving only while they hear from Gateway (or their copy): asked every 5 s.
+  availabilityMembers.startManualPairContact((nodeId) => nodeRegistry.requestHealthReport(nodeId, 4_000));
   container.registerInstance(AvailabilityMembersService, availabilityMembers);
   // Database and storage availability sets run on one shared orchestration; both get the same host parts.
   const availabilityHost = {

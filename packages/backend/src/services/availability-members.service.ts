@@ -83,6 +83,10 @@ export type NodeUpdateHandoff = (nodeId: string) => Promise<void>;
  */
 export const MEMBER_RUNTIME_STOPPED_KEY = 'runtime.stopped';
 export const MEMBER_RUNTIME_PENDING_RESTART_KEY = 'runtime.pendingRestart';
+/** A manual pair's assigned primary that does not serve gets the current assignment again at most this often. */
+const ASSIGNMENT_CONFIRM_RETRY_MS = 10_000;
+/** How often Gateway asks the nodes of manual pairs for a report (their primaries' contact with Gateway). */
+export const MANUAL_CONTACT_INTERVAL_MS = 5_000;
 /** A node update waits at most this long for the set primaries on the node to hand over. */
 const NODE_UPDATE_HANDOFF_TIMEOUT_MS = 5 * 60_000;
 
@@ -107,6 +111,7 @@ export class AvailabilityMembersService {
   private readonly runStateProviders: MemberRunStateProvider[] = [];
   private readonly nodeUpdateHandoffs: NodeUpdateHandoff[] = [];
   private readonly lastConfigured = new Map<string, { revision: number; at: number }>();
+  private readonly assignmentConfirmSent = new Map<string, number>();
   private readonly ingesting = new Set<string>();
   private signer: PrimaryAssignmentSigner | null = null;
 
@@ -321,13 +326,19 @@ export class AvailabilityMembersService {
    * Sends a manual pair's primary assignment to every member: the given one (already signed), or the set's current
    * one signed now. Returns the members whose node did not take it.
    */
-  async assignPrimary(setId: string, assignment?: AvailabilityPrimaryAssignment): Promise<string[]> {
+  async assignPrimary(
+    setId: string,
+    assignment?: AvailabilityPrimaryAssignment,
+    onlyMemberId?: string
+  ): Promise<string[]> {
     const loaded = await this.loadSet(setId);
     if (!loaded) return [];
     const signed = assignment ?? (await this.signedAssignment(loaded.set));
     if (!signed) throw new Error('The availability set has no signed primary assignment to send');
     const failed: string[] = [];
     for (const member of loaded.members) {
+      // A planned manual switch tells the old primary alone first (it steps down before the copy is promoted).
+      if (onlyMemberId && member.id !== onlyMemberId) continue;
       const result = await this.send(member.nodeId, { assignPrimary: signed }).catch(() => null);
       if (!result?.success) failed.push(member.id);
     }
@@ -404,6 +415,60 @@ export class AvailabilityMembersService {
     await this.configureSet(set.id, member.id);
   }
 
+  /**
+   * A manual pair's assigned primary that does not serve (it self-fenced, or its daemon restarted) promotes only once
+   * it confirmed the current assignment from Gateway or its peer: Gateway sends it again (at most every
+   * ASSIGNMENT_CONFIRM_RETRY_MS per member).
+   */
+  private async maybeConfirmAssignment(
+    set: AvailabilitySetRow,
+    member: AvailabilityMemberRow,
+    report: AvailabilityMemberReport
+  ): Promise<void> {
+    if (set.mode !== 'manual' || set.primaryMemberId !== member.id || report.role === 'primary') return;
+    if (member.desiredState !== 'member' || !this.signer) return;
+    const last = this.assignmentConfirmSent.get(member.id) ?? 0;
+    if (this.now() - last < ASSIGNMENT_CONFIRM_RETRY_MS) return;
+    this.assignmentConfirmSent.set(member.id, this.now());
+    try {
+      await this.assignPrimary(set.id, undefined, member.id);
+    } catch (error) {
+      logger.warn('The primary assignment was not sent again to the assigned primary', {
+        setId: set.id,
+        memberId: member.id,
+        error: (error as Error).message,
+      });
+    }
+  }
+
+  /**
+   * Asks the nodes of manual pairs for a health report every MANUAL_CONTACT_INTERVAL_MS: each request is the contact
+   * a manual primary needs to keep serving (it self-fences 30 s after the last one), and the reports keep Gateway's
+   * view of it fresh (the 45 s rule of a lossy switch counts from the last report). Returns a stop function.
+   */
+  startManualPairContact(requestHealth: (nodeId: string) => void): () => void {
+    const timer = setInterval(() => {
+      void this.manualPairNodes()
+        .then((nodeIds) => {
+          for (const nodeId of nodeIds) requestHealth(nodeId);
+        })
+        .catch((error: unknown) =>
+          logger.debug('Manual pair nodes could not be listed', { error: (error as Error).message })
+        );
+    }, MANUAL_CONTACT_INTERVAL_MS);
+    timer.unref?.();
+    return () => clearInterval(timer);
+  }
+
+  private async manualPairNodes(): Promise<string[]> {
+    const rows = await this.db
+      .selectDistinct({ nodeId: managedAvailabilityMembers.nodeId })
+      .from(managedAvailabilityMembers)
+      .innerJoin(managedAvailabilitySets, eq(managedAvailabilitySets.id, managedAvailabilityMembers.setId))
+      .where(eq(managedAvailabilitySets.mode, 'manual'));
+    return rows.map((row) => row.nodeId);
+  }
+
   private async applyReport(set: AvailabilitySetRow, member: AvailabilityMemberRow, report: AvailabilityMemberReport) {
     const reportedAt = new Date(this.now());
     const position: Record<string, string> = { ...(report.position ?? {}) };
@@ -422,13 +487,14 @@ export class AvailabilityMembersService {
         lagSeconds: report.lagSeconds ?? null,
         syncState: normalizeSyncState(report.syncState),
         enginePosition: position,
-        lastError: report.lastError || null,
-        status: member.desiredState === 'removing' ? 'removing' : 'ready',
+        lastError: report.lastError || (copyNotStreaming(report) ? COPY_NOT_STREAMING : null),
+        status: reportedStatus(member, report),
         lastReportedAt: reportedAt,
         updatedAt: reportedAt,
       })
       .where(eq(managedAvailabilityMembers.id, member.id));
     await this.maybeReconfigure(set, member, Number(report.configRevision ?? 0));
+    await this.maybeConfirmAssignment(set, member, report);
     if (report.role === 'primary' && report.serving && set.primaryMemberId !== member.id) {
       await this.followPrimary(set, member, reportedAt);
     }
@@ -537,6 +603,29 @@ function normalizeRole(role: string | undefined): ManagedAvailabilityMemberRole 
     default:
       return 'unknown';
   }
+}
+
+/** What a member whose engine runs as a copy but does not stream shows (it holds none of the primary's new data). */
+export const COPY_NOT_STREAMING = 'The copy does not stream from the primary';
+
+/** A member reporting as a copy whose engine replicates from no primary (sync state none). */
+function copyNotStreaming(report: Pick<AvailabilityMemberReport, 'role' | 'syncState'>): boolean {
+  return report.role === 'copy' && normalizeSyncState(report.syncState) === 'none';
+}
+
+/**
+ * A member is ready when it serves as the primary or streams from it as a copy: a copy that does not stream (a cluster
+ * that is not a copy of the primary's, a mesh that cannot reach it) is an error, a member being seeded or rebuilt is
+ * creating. Nothing that does not hold the primary's data shows ready.
+ */
+export function reportedStatus(
+  member: Pick<AvailabilityMemberRow, 'desiredState'>,
+  report: Pick<AvailabilityMemberReport, 'role' | 'syncState'>
+): AvailabilityMemberRow['status'] {
+  if (member.desiredState === 'removing') return 'removing';
+  if (report.role === 'rebuilding') return 'creating';
+  if (copyNotStreaming(report)) return 'error';
+  return 'ready';
 }
 
 function normalizeSyncState(state: string | undefined): ManagedAvailabilityMemberSyncState {

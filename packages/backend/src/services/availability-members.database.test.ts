@@ -6,7 +6,11 @@ import type { DrizzleClient } from '@/db/client.js';
 import { disposableDatabase, migrateDatabase } from '@/db/migration-database.test-helpers.js';
 import * as schema from '@/db/schema/index.js';
 import type { AvailabilityMemberCommand } from '@/grpc/generated/types.js';
-import { type AvailabilityMemberEventRecord, AvailabilityMembersService } from './availability-members.service.js';
+import {
+  type AvailabilityMemberEventRecord,
+  AvailabilityMembersService,
+  COPY_NOT_STREAMING,
+} from './availability-members.service.js';
 
 const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
 
@@ -205,6 +209,52 @@ describe.skipIf(!url)('availability members on disposable PostgreSQL', () => {
     const [member] = (await q('select engine_position from managed_availability_members where id = $1', [memberB]))
       .rows;
     expect(member.engine_position).toEqual({ lsn: '0/2', 'runtime.stopped': 'true', 'runtime.pendingRestart': 'op-2' });
+  });
+
+  it('shows a copy that does not stream as an error and asks a manual primary that does not serve to confirm its assignment', async () => {
+    service.setAssignmentSigner({
+      signPrimaryAssignment: async (input) => ({
+        setId: input.setId,
+        primaryMemberId: input.primaryMemberId,
+        generation: String(input.generation),
+        signingKeyId: 'k1',
+        signature: Buffer.from('sig'),
+      }),
+    });
+    await q('update managed_availability_sets set primary_member_id = $2, primary_generation = 4 where id = $1', [
+      setId,
+      memberA,
+    ]);
+    sent.length = 0;
+    now += 60_000;
+    // The assigned primary came back read-only (it self-fenced, or its daemon restarted).
+    const fenced = {
+      setId,
+      memberId: memberA,
+      role: 'copy' as const,
+      serving: false,
+      eligible: false,
+      syncState: 'none' as const,
+      configRevision: '99',
+    };
+    await service.ingestReports(nodeA, [fenced]);
+    const assigned = sent.filter((entry) => entry.command.assignPrimary);
+    expect(assigned).toHaveLength(1);
+    expect(assigned[0]).toMatchObject({
+      nodeId: nodeA,
+      command: { assignPrimary: { primaryMemberId: memberA, generation: '4' } },
+    });
+    const [row] = (await q('select status, last_error from managed_availability_members where id = $1', [memberA]))
+      .rows;
+    expect(row).toEqual({ status: 'error', last_error: COPY_NOT_STREAMING });
+    // At most every 10 s.
+    sent.length = 0;
+    await service.ingestReports(nodeA, [fenced]);
+    expect(sent.some((entry) => entry.command.assignPrimary)).toBe(false);
+    // A planned switch tells one member (the old primary) first.
+    sent.length = 0;
+    expect(await service.assignPrimary(setId, undefined, memberB)).toEqual([]);
+    expect(sent.map((entry) => entry.nodeId)).toEqual([nodeB]);
   });
 
   it('runs the handoffs before a node with a set member updates, bounded and never failing the update', async () => {
