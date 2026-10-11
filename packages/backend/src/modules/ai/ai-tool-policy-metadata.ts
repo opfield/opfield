@@ -96,6 +96,7 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
   manage_oauth_authorization: operationPolicies({ read: ['list'], update: ['update_scopes'], delete: ['revoke'] }),
   manage_api_token: operationPolicies({ read: ['list'], create: ['create'], update: ['update'], delete: ['revoke'] }),
   manage_license: operationPolicies({ external: ['activate', 'activate_module', 'check'], delete: ['clear'] }),
+  manage_cloud: operationPolicies({ external: ['connect'], delete: ['disconnect'] }),
   manage_gateway_diagnostics: operationPolicies({ read: ['snapshot', 'history', 'requests', 'jobs', 'logs'] }),
   manage_housekeeping: operationPolicies({
     read: ['get_config', 'get_stats', 'get_history'],
@@ -573,6 +574,7 @@ const PLANNING_SAFE_TOOL_NAMES = new Set([
   'get_docker_container_stats',
   'get_docker_deployment',
   'get_gateway_settings',
+  'get_cloud_status',
   'get_license_status',
   'get_my_access',
   'get_node',

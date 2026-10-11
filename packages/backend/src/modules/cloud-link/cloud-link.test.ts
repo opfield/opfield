@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { redactArgsForAudit } from '@/modules/ai/ai.service.tool-helpers.js';
+import { AI_TOOLS } from '@/modules/ai/ai.tools.js';
+import { classifyAIToolForApproval } from '@/modules/ai/ai-approval-policy.js';
 import { normalizeCloudCode } from './cloud-link.service.js';
 import type { CloudLinkProbe } from './cloud-link.types.js';
 import { cloudAgentSocketUrl, cloudBackoffDelay } from './cloud-link-agent.js';
@@ -66,5 +69,18 @@ describe('cloud link', () => {
     });
     expect(parseCloudRequest('not json')).toBeNull();
     expect(parseCloudRequest(JSON.stringify({ type: 'state' }))).toBeNull();
+  });
+
+  it('exposes the cloud connection to agents with the license scopes', () => {
+    const status = AI_TOOLS.find((tool) => tool.name === 'get_cloud_status');
+    const manage = AI_TOOLS.find((tool) => tool.name === 'manage_cloud');
+    expect(status).toMatchObject({ requiredScope: 'license:view', category: 'Maintenance', destructive: false });
+    expect(manage).toMatchObject({ requiredScope: 'license:manage', category: 'Maintenance', destructive: true });
+    expect(classifyAIToolForApproval('manage_cloud', { operation: 'connect' })).toBe('destructive');
+    expect(classifyAIToolForApproval('manage_cloud', { operation: 'disconnect' })).toBe('delete');
+    expect(redactArgsForAudit('manage_cloud', { operation: 'connect', code: 'CLD-7K3M-Q9TX' })).toEqual({
+      operation: 'connect',
+      code: '[REDACTED]',
+    });
   });
 });

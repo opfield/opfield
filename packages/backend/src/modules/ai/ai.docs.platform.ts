@@ -43,6 +43,12 @@ Never weaken callback, network, or webhook restrictions without explaining the r
 - \`manage_license({ operation: "clear" })\` removes the active key and is destructive.
 - Read the live license status instead of inferring access from visible UI. Disk-image volume creation requires Personal or higher; other protected capabilities are governed by their advertised entitlements and quotas.
 
+## Cloud Account Connection
+- \`get_cloud_status\` reads whether this Gateway is connected to a cloud account: the account email, portal URL, connected since and the socket state (online, connecting, reconnecting with its last error), or when and why the account disconnected it.
+- \`manage_cloud({ operation: "connect", code })\` connects with the single-use \`CLD-XXXX-XXXX\` code from the installation's page in the cloud account (valid 10 minutes). Connecting again replaces the previous connection. Treat the code as a secret and never repeat it in chat.
+- \`manage_cloud({ operation: "disconnect" })\` revokes the connection at the account and forgets it here. If the account cannot be reached the connection is still forgotten here and the result carries a \`warning\`: tell the user to disconnect the installation in the cloud account too.
+- A connected Gateway keeps one outbound socket to the account, which reads this Gateway's host state, its own containers and their logs through it. Uses the license scopes: license:view to read, license:manage to change.
+
 ## Gateway And Daemon Updates
 - Read \`generalSettings.updateChannel\` before interpreting update results. \`stable\` excludes release candidates; \`preview\` also accepts GitHub prereleases tagged as \`vX.Y.Z-rc.N\` for Gateway and component-suffixed tags such as \`vX.Y.Z-rc.N-relay\` or \`vX.Y.Z-rc.N-docker\` for Relay and managed node daemons. Inference Core remains on its independent stable signed channel.
 - Use \`manage_system_updates({ operation: "get_gateway_status" })\` or \`manage_system_updates({ operation: "check_gateway" })\` before proposing an update.

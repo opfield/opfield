@@ -248,7 +248,7 @@ const MCP_TOOLSET_DEFINITIONS: McpToolsetDefinition[] = [
     id: 'maintenance',
     title: 'Maintenance',
     description:
-      "Gateway settings, system updates, license, housekeeping, and Gateway's own diagnostics (host, process, Postgres, Redis, stack containers, jobs, API latency, logs).",
+      "Gateway settings, system updates, license, cloud account connection, housekeeping, and Gateway's own diagnostics (host, process, Postgres, Redis, stack containers, jobs, API latency, logs).",
     toolNames: toolNamesForCategories(['Maintenance']),
   },
   {

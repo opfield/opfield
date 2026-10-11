@@ -34,6 +34,37 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
     invalidateStores: ['settings'],
   },
   {
+    name: 'get_cloud_status',
+    description:
+      'Read whether this Gateway is connected to a cloud account: not_connected, connected (account email, portal URL, connected since, socket online/connecting/reconnecting with the last error) or disconnected_by_account (when and why).',
+    parameters: { type: 'object', properties: {} },
+    destructive: false,
+    category: 'Maintenance',
+    requiredScope: 'license:view',
+    invalidateStores: [],
+  },
+  {
+    name: 'manage_cloud',
+    description:
+      "Connect this Gateway to a cloud account or disconnect it. operation must be connect or disconnect. connect requires code, the single-use CLD-XXXX-XXXX code from the installation's page in the cloud account (valid 10 minutes); connecting again replaces the previous connection. disconnect revokes the connection at the account and forgets it here; when the account cannot be reached it is forgotten here anyway and the result carries a warning.",
+    parameters: {
+      type: 'object',
+      properties: {
+        operation: {
+          type: 'string',
+          enum: ['connect', 'disconnect'],
+          description: 'Cloud operation to perform.',
+        },
+        code: { type: 'string', description: 'Connection code for connect, for example CLD-7K3M-Q9TX.' },
+      },
+      required: ['operation'],
+    },
+    destructive: true,
+    category: 'Maintenance',
+    requiredScope: 'license:manage',
+    invalidateStores: ['settings'],
+  },
+  {
     name: 'manage_housekeeping',
     description:
       'Read or manage housekeeping. operation: get_config, get_stats, get_history, update_config, or run. update_config requires config.',
