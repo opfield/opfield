@@ -145,4 +145,48 @@ describe.skipIf(!url)('apps migration on disposable PostgreSQL', () => {
     expect(rows[0]?.column_default).toContain("'off'");
     await q("insert into audit_log (action, resource_type) values ('test', 'test')");
   });
+
+  it('keeps one open incident of each kind per environment and frees it once released', async () => {
+    const app = await insertApp('Incidents');
+    const env = await insertEnv(app, 'production', true);
+    const open = (kind: string, state = 'active') =>
+      q(
+        'insert into app_incidents (id, batch_id, app_id, environment_id, kind, state) values ($1, $2, $3, $4, $5, $6) returning id',
+        [randomUUID(), randomUUID(), app, env, kind, state]
+      );
+    const first = await open('isolation');
+    await open('shutdown');
+    expect(await rejection(open('isolation', 'applying'))).toMatchObject({
+      code: '23505',
+      constraint: 'app_incidents_env_kind_open_unique',
+    });
+    await q("update app_incidents set state = 'released' where id = $1", [first.rows[0].id]);
+    await open('isolation');
+    await q(
+      "insert into app_incident_items (incident_id, item_kind, item_key, ref) values ($1, 'route_overlay', 'route:a', '{}')",
+      [first.rows[0].id]
+    );
+    expect(
+      await rejection(
+        q(
+          "insert into app_incident_items (incident_id, item_kind, item_key, ref) values ($1, 'route_overlay', 'route:a', '{}')",
+          [first.rows[0].id]
+        )
+      )
+    ).toMatchObject({ code: '23505', constraint: 'app_incident_items_incident_key_unique' });
+  });
+
+  it('accepts a managed storage paused status and app incident port holds', async () => {
+    const { rows } = await q('select unnest(enum_range(null::managed_storage_status))::text as value');
+    expect(rows.map((row) => row.value)).toContain('paused');
+    const node = randomUUID();
+    await q(
+      "insert into nodes (id, type, hostname, slug) values ($1, 'docker', gen_random_uuid()::text, gen_random_uuid()::text)",
+      [node]
+    );
+    await q(
+      "insert into node_host_port_reservations (node_id, host_port, owner_kind, owner_id, pending_until) values ($1, 45432, 'app_incident', $2, null)",
+      [node, randomUUID()]
+    );
+  });
 });

@@ -40,6 +40,9 @@ export const proxyAdditionalSecureLinks = pgTable(
     // Availability members of standby placements (D7): provisioned end to end, but the nginx daemon keeps the
     // socket closed until the member's candidate holds the lease, and it is never probed.
     dormant: boolean('dormant').notNull().default(false),
+    // The app kill switch incident that holds this link closed (Apps): sources and the target leave it out of their
+    // sync sets until the incident is released. Independent of Availability's dormant flag.
+    incidentSuspendedBy: uuid('incident_suspended_by'),
     upstreamKind: proxyUpstreamKindEnum('upstream_kind').notNull(),
     forwardScheme: forwardSchemeEnum('forward_scheme').notNull().default('http'),
     sourceNodeId: uuid('source_node_id')

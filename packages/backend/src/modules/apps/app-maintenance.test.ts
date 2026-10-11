@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { effectiveMaintenance } from '@/modules/proxy/effective-maintenance.js';
-import { overlayMode, routeTakesMaintenance } from './app-maintenance.service.js';
+import { overlayMode, routeTakesMaintenance, withIncidentOverlay } from './app-maintenance.service.js';
 
 const proxy = { type: 'proxy', rawConfigEnabled: false, isSystem: false };
 
@@ -34,5 +34,18 @@ describe('app maintenance overlay', () => {
     expect(effectiveMaintenance({ maintenanceEnabled: false, appMaintenanceMode: 'maintenance' })).toBe(true);
     expect(effectiveMaintenance({ maintenanceEnabled: false, appMaintenanceMode: 'lockdown' })).toBe(true);
     expect(effectiveMaintenance({ maintenanceEnabled: false })).toBe(false);
+  });
+
+  it.each([
+    // route, base overlay, incident overlay -> mode
+    [proxy, 'off', undefined, 'off'],
+    [proxy, 'maintenance', undefined, 'maintenance'],
+    [proxy, 'off', 'maintenance', 'maintenance'],
+    [proxy, 'maintenance', 'lockdown', 'lockdown'],
+    [proxy, 'off', 'lockdown', 'lockdown'],
+    [{ ...proxy, type: 'redirect' }, 'off', 'lockdown', 'off'],
+    [{ ...proxy, rawConfigEnabled: true }, 'off', 'maintenance', 'off'],
+  ] as const)('incident overlay: %o with base %s and incident %s -> %s', (route, base, incident, mode) => {
+    expect(withIncidentOverlay(route, base, incident)).toBe(mode);
   });
 });

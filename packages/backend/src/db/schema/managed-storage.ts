@@ -47,7 +47,8 @@ export const managedStorageStatusEnum = pgEnum('managed_storage_status', [
   'creating',
   'updating',
   'ready',
-  // No 'paused' — pause is out of scope for managed object storage.
+  // Paused by an app shutdown (docker pause); restart and update are refused while paused.
+  'paused',
   'stopped',
   'error',
   'deleting',

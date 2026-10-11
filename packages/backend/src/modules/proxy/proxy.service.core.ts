@@ -804,8 +804,11 @@ export abstract class ProxyServiceCore {
     // On a node that keeps maintenance flags the guard is part of the config in and out of maintenance, so a toggle
     // reloads nothing (nginx-maintenance-flag-guard.ts). Otherwise, and for a config that cannot carry it, the guard
     // is rendered only during maintenance and each toggle reloads nginx.
+    // An app kill switch locks the route down: the plain maintenance page without team access, in the config itself
+    // (a reload), so no flag, access code or earlier bypass cookie opens it.
+    const lockdown = (host.appMaintenanceMode ?? 'off') === 'lockdown';
     const flagGuard =
-      this.maintenanceAccess && (await this.nodeKeepsMaintenanceFlag(host))
+      !lockdown && this.maintenanceAccess && (await this.nodeKeepsMaintenanceFlag(host))
         ? this.nginxTemplateService.applyMaintenanceFlagGuard(
             rendered,
             { hostId: host.id, secret: this.maintenanceAccess.secretForHost(host.id) },
@@ -815,7 +818,7 @@ export abstract class ProxyServiceCore {
     let result = flagGuard ?? rendered;
     if (!flagGuard && effectiveMaintenance(host)) {
       const access =
-        this.maintenanceAccess && (await this.maintenanceAccess.isNodeSupported(host.nodeId))
+        !lockdown && this.maintenanceAccess && (await this.maintenanceAccess.isNodeSupported(host.nodeId))
           ? { hostId: host.id, secret: this.maintenanceAccess.secretForHost(host.id) }
           : undefined;
       result = this.nginxTemplateService.applyMaintenanceGuard(rendered, access, hideExternalBranding);

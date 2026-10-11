@@ -255,7 +255,10 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
         .where(eq(proxyHosts.id, id))
         .returning();
       const effectiveChanged = effectiveMaintenance(existing) !== effectiveMaintenance(updated);
-      if (updated.enabled && effectiveChanged) {
+      // Entering or leaving lockdown changes the rendered guard (team access in or out) even when the route stays in
+      // maintenance: it is delivered as a config change.
+      const lockdownChanged = (existing.appMaintenanceMode === 'lockdown') !== (mode === 'lockdown');
+      if (updated.enabled && (effectiveChanged || lockdownChanged)) {
         try {
           await this.deliverHost(updated, {
             certOptions: { preserveLegacyOnUnsupported: true },

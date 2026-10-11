@@ -45,6 +45,7 @@ import { AppAuditTagger } from '@/modules/apps/app-audit-tagger.js';
 import { AppEnvLayerService } from '@/modules/apps/app-env-layer.js';
 import { AppFolderService } from '@/modules/apps/app-folders.service.js';
 import { AppHealthService } from '@/modules/apps/app-health.service.js';
+import { AppIncidentsRepo } from '@/modules/apps/app-incidents.repo.js';
 import { AppMaintenanceService } from '@/modules/apps/app-maintenance.service.js';
 import { AppMaintenanceAccessService } from '@/modules/apps/app-maintenance-access.js';
 import { AppMembersReader, AppMembersService } from '@/modules/apps/app-members.service.js';
@@ -1421,7 +1422,10 @@ export async function initializeContainer(): Promise<void> {
   proxyService.setWebTransportSettings(webTransportSettingsService);
   proxyMaintenanceAccessService.setRouteAccessCheck((hostId) => proxyService.maintenanceAccessOffered(hostId));
   container.registerInstance(ProxyService, proxyService);
+  const appIncidentsRepo = new AppIncidentsRepo(db);
+  container.registerInstance(AppIncidentsRepo, appIncidentsRepo);
   const appMaintenanceService = new AppMaintenanceService(db);
+  appMaintenanceService.setIncidentsRepo(appIncidentsRepo);
   container.registerInstance(AppMaintenanceService, appMaintenanceService);
   container.registerInstance(AppMaintenanceAccessService, new AppMaintenanceAccessService(appsService));
   proxyService.setAppOverlayHook((routeIds) => appMaintenanceService.applyModes(routeIds));

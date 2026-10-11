@@ -5,6 +5,7 @@ import { appEnvironments, apps, proxyHostFolders, proxyHosts } from '@/db/schema
 import { createChildLogger } from '@/lib/logger.js';
 import type { AppMaintenanceMode } from '@/modules/proxy/effective-maintenance.js';
 import { ProxyService } from '@/modules/proxy/proxy.service.js';
+import type { AppIncidentsRepo } from './app-incidents.repo.js';
 import type { AppEnvironmentRow, AppMaintenanceHooks, AppRow } from './apps.service.js';
 
 const logger = createChildLogger('AppMaintenance');
@@ -47,13 +48,33 @@ export function overlayMode(
 }
 
 /**
+ * The overlay with incidents: an open kill switch locks a route down (maintenance page without team access), an open
+ * shutdown puts it in maintenance; both only for routes that can show the page (others are withdrawn by the incident).
+ */
+export function withIncidentOverlay(
+  route: Pick<RouteRow, 'type' | 'rawConfigEnabled' | 'isSystem'>,
+  base: AppMaintenanceMode,
+  incident: 'maintenance' | 'lockdown' | undefined
+): AppMaintenanceMode {
+  if (!incident || !routeTakesMaintenance(route)) return base;
+  if (incident === 'lockdown') return 'lockdown';
+  return base === 'off' ? 'maintenance' : base;
+}
+
+/**
  * The app maintenance overlay: environment switches and the app override never rewrite a route's own maintenance
  * switch. Each route gets a computed app_maintenance_mode; the proxy renders effective maintenance (own switch or
  * overlay), so turning an overlay off restores exactly what each route had. Recomputed on every switch, override,
  * membership change and route create in an environment.
  */
 export class AppMaintenanceService implements AppMaintenanceHooks {
+  private incidents?: AppIncidentsRepo;
+
   constructor(private readonly db: DrizzleClient) {}
+
+  setIncidentsRepo(repo: AppIncidentsRepo) {
+    this.incidents = repo;
+  }
 
   private proxy(): ProxyService | null {
     return container.isRegistered(ProxyService) ? container.resolve(ProxyService) : null;
@@ -124,13 +145,18 @@ export class AppMaintenanceService implements AppMaintenanceHooks {
       : [];
     const appById = new Map(appRows.map((row) => [row.id, row]));
     const envById = new Map(envRows.map((row) => [row.id, row]));
+    const incidentModes = (await this.incidents?.routeOverlays(routes.map((route) => route.id))) ?? new Map();
     const proxy = this.proxy();
     for (const route of routes) {
       const folder = route.folderId ? folderById.get(route.folderId) : undefined;
-      let mode = overlayMode(
+      let mode = withIncidentOverlay(
         route,
-        folder ? (appById.get(folder.appId!) ?? null) : null,
-        folder ? (envById.get(folder.environmentId!) ?? null) : null
+        overlayMode(
+          route,
+          folder ? (appById.get(folder.appId!) ?? null) : null,
+          folder ? (envById.get(folder.environmentId!) ?? null) : null
+        ),
+        incidentModes.get(route.id)
       );
       // The route serving the Gateway public URL never enters maintenance.
       if (mode !== 'off' && proxy && (await proxy.servesGatewayPublicUrl(route))) mode = 'off';
@@ -148,13 +174,17 @@ export class AppMaintenanceService implements AppMaintenanceHooks {
     }
   }
 
-  /** Every route whose overlay is set but which no longer belongs to an app with maintenance (startup repair). */
+  /**
+   * Startup repair: every route whose overlay is set (it may no longer belong to an app with maintenance) and every
+   * route an incident holds an overlay on.
+   */
   async repairStaleOverlays(): Promise<void> {
     const rows = await this.db
       .select({ id: proxyHosts.id })
       .from(proxyHosts)
       .where(ne(proxyHosts.appMaintenanceMode, 'off'));
-    await this.applyModes(rows.map((row) => row.id));
+    const held = (await this.incidents?.overlayRouteIds()) ?? [];
+    await this.applyModes([...new Set([...rows.map((row) => row.id), ...held])]);
   }
 
   async environmentMaintenance(
