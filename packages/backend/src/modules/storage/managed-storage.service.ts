@@ -111,7 +111,7 @@ export class ManagedStorageService {
       ftpPort: number | null;
       ftpPassivePortStart: number | null;
       ftpPassivePortCount: number | null;
-      status: 'stopped' | 'error' | 'ready' | 'creating' | 'updating' | 'deleting';
+      status: 'stopped' | 'error' | 'ready' | 'paused' | 'creating' | 'updating' | 'deleting';
       pendingOperation: ManagedStoragePendingOperation | null;
       lastError: string | null;
       objectStorageConnectionId: string | null;
@@ -143,7 +143,7 @@ export class ManagedStorageService {
     ftpPort: number | null;
     ftpPassivePortStart: number | null;
     ftpPassivePortCount: number | null;
-    status: 'stopped' | 'error' | 'ready' | 'creating' | 'updating' | 'deleting';
+    status: 'stopped' | 'error' | 'ready' | 'paused' | 'creating' | 'updating' | 'deleting';
     pendingOperation: ManagedStoragePendingOperation | null;
     lastError: string | null;
     objectStorageConnectionId: string | null;
@@ -174,7 +174,7 @@ export class ManagedStorageService {
     ftpPort: number | null;
     ftpPassivePortStart: number | null;
     ftpPassivePortCount: number | null;
-    status: 'stopped' | 'error' | 'ready' | 'creating' | 'updating' | 'deleting';
+    status: 'stopped' | 'error' | 'ready' | 'paused' | 'creating' | 'updating' | 'deleting';
     pendingOperation: ManagedStoragePendingOperation | null;
     lastError: string | null;
     objectStorageConnectionId: string | null;
