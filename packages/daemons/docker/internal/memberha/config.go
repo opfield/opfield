@@ -56,6 +56,12 @@ type Config struct {
 	EngineConfig []byte `json:"engineConfig,omitempty"`
 	// PublishedPort is the member proxy's port (direct publication); 0: none.
 	PublishedPort uint32 `json:"publishedPort,omitempty"`
+	// Stopped: Gateway asks this member's engine to be stopped (the set is
+	// paused, e.g. its app is shut down). A copy stops and is never started
+	// while it is set; the primary closes serving, stops its engine cleanly
+	// and keeps its role (lease or assignment). It is persisted, so it holds
+	// while Gateway is down.
+	Stopped bool `json:"stopped,omitempty"`
 }
 
 // Key is the lease key of the set's primary role (slot 0).

@@ -615,14 +615,23 @@ func (m *managedDatabaseManager) isPGMemberContainer(ctx context.Context, record
 }
 
 // attachPGMemberProxy serves a member's published port (AS3): admitted only
-// while the member serves with a fresh gate view.
+// while the member serves with a fresh gate view. The member's configuration
+// names the port (AvailabilityMemberConfig.published_port, 0 suspends the
+// publication: the app kill switch); the database command's port is used only
+// for a member the runtime does not know.
 func (m *managedDatabaseManager) attachPGMemberProxy(members *memberha.Manager, record managedDatabaseRecord, input managedDatabaseCommand) error {
-	if !input.PublishTCP || record.PublishedPort == 0 {
+	port := 0
+	if config, ok := members.Config(record.AvailabilitySetID); ok && config.MemberID == record.AvailabilityMemberID {
+		port = int(config.PublishedPort)
+	} else if input.PublishTCP {
+		port = int(record.PublishedPort)
+	}
+	if port == 0 {
 		members.DetachProxy(record.AvailabilitySetID)
 		return nil
 	}
 	id := record.ID
-	return members.AttachProxy(record.AvailabilitySetID, net.JoinHostPort("0.0.0.0", strconv.Itoa(int(record.PublishedPort))),
+	return members.AttachProxy(record.AvailabilitySetID, net.JoinHostPort("0.0.0.0", strconv.Itoa(port)),
 		func(ctx context.Context) (net.Conn, error) {
 			connection, _, err := m.dialRecord(ctx, id)
 			return connection, err
@@ -637,7 +646,7 @@ func (m *managedDatabaseManager) restorePGMemberProxies(members *memberha.Manage
 		return
 	}
 	for _, record := range records {
-		if record.Type != "postgres" || record.PublishedPort == 0 {
+		if record.Type != "postgres" || (record.PublishedPort == 0 && record.AvailabilityMemberID == "") {
 			continue
 		}
 		switch {
@@ -650,6 +659,19 @@ func (m *managedDatabaseManager) restorePGMemberProxies(members *memberha.Manage
 				m.logger.Warn("could not serve the published port of a lifted member", "id", record.ID, "error", err)
 			}
 		}
+	}
+}
+
+// syncPGMemberProxy applies a member configuration's published port to the
+// member proxy (a configure that moves it, e.g. to 0 and back).
+func (m *managedDatabaseManager) syncPGMemberProxy(members *memberha.Manager, config memberha.Config) {
+	record, err := m.loadRecord(config.OwnerID)
+	if err != nil || record.Type != "postgres" || record.AvailabilitySetID != config.SetID || record.AvailabilityMemberID != config.MemberID {
+		// Not prepared yet: availability_member_ensure attaches it.
+		return
+	}
+	if err := m.attachPGMemberProxy(members, record, managedDatabaseCommand{PublishTCP: true}); err != nil {
+		m.logger.Warn("could not serve the published port of a set member", "id", record.ID, "error", err)
 	}
 }
 
@@ -869,14 +891,33 @@ func (m *managedDatabaseManager) pgRemove(ctx context.Context, members *memberha
 	return `{"status":"deleted"}`, nil
 }
 
-// pgMemberUpdate is update for a set member (H1): live changes only. Limits
-// are applied to the running container, the data image grows, a renewed
-// certificate is reloaded in place. The container is never recreated or
-// restarted here and its member pg_hba never rewritten.
+// pgMemberUpdate is update for a set member (H1): live changes on any
+// member: limits are applied to the running container, the data image grows,
+// a renewed certificate is reloaded in place, the published port is the
+// member proxy's. A change that needs the container recreated (a new image of
+// the same major, a setting fixed at creation) recreates a copy's container
+// (pgMemberRecreate) and is refused on the primary
+// (AVAILABILITY_SWITCHOVER_REQUIRED). The member pg_hba is never rewritten.
 func (m *managedDatabaseManager) pgMemberUpdate(ctx context.Context, id, configJSON string) (string, error) {
 	var input managedDatabaseCommand
 	if err := json.Unmarshal([]byte(configJSON), &input); err != nil {
 		return "", fmt.Errorf("parse managed database config: %w", err)
+	}
+	current, err := m.loadRecord(id)
+	if err != nil {
+		return "", err
+	}
+	if err := pgMemberUpdateAllowed(current, input); err != nil {
+		return "", err
+	}
+	if current.OperationID != input.OperationID || input.PreserveLifecycleOperationID {
+		recreate, imageChanged, err := m.memberRecreateNeeded(ctx, current, input)
+		if err != nil {
+			return "", err
+		}
+		if recreate {
+			return m.pgMemberRecreate(ctx, id, input, imageChanged)
+		}
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -909,6 +950,12 @@ func (m *managedDatabaseManager) pgMemberUpdate(ctx context.Context, id, configJ
 			return "", fmt.Errorf("apply renewed managed database certificate: %w", err)
 		}
 	}
+	// The published port is the member proxy's (its member configuration
+	// names it); the record keeps what the command says.
+	record.PublishedPort = input.PublishedPort
+	if !input.PublishTCP {
+		record.PublishedPort = 0
+	}
 	applyManagedDatabaseOperationID(&record, input)
 	if err := m.saveRecord(record); err != nil {
 		return "", err
@@ -916,9 +963,8 @@ func (m *managedDatabaseManager) pgMemberUpdate(ctx context.Context, id, configJ
 	return marshalManagedDatabaseDetail(record, "ready")
 }
 
-// pgMemberUpdateAllowed refuses an update of a member that needs anything but
-// live changes. The published port is served by the member proxy, so it is
-// compared with the record, never with Docker bindings.
+// pgMemberUpdateAllowed refuses an update no member takes: another engine,
+// a smaller disk, a member without TLS.
 func pgMemberUpdateAllowed(record managedDatabaseRecord, input managedDatabaseCommand) error {
 	if err := validateManagedDatabaseInput(input); err != nil {
 		return err
@@ -929,8 +975,8 @@ func pgMemberUpdateAllowed(record managedDatabaseRecord, input managedDatabaseCo
 	if input.StorageSizeBytes < record.StorageSize {
 		return errors.New("managed database storage cannot be reduced")
 	}
-	if managedDatabaseRequiresRecreate(record, input) {
-		return errors.New("recreating a member of an availability set goes through availability_member_ensure (switch over first when it is the primary)")
+	if !input.TLSEnabled {
+		return errors.New("a member of an availability set keeps TLS")
 	}
 	return nil
 }

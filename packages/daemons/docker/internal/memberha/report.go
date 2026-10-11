@@ -31,7 +31,12 @@ type Report struct {
 	LastError         string
 	ConfigRevision    uint64
 	PrimaryGeneration uint64
-	Events            []Event
+	// Stopped: the set is paused (Config.Stopped) and this member's engine is
+	// confirmed down.
+	Stopped bool
+	// PendingRestartOperationID is a requested restart that has not finished.
+	PendingRestartOperationID string
+	Events                    []Event
 }
 
 // Reports describes every member of the node.
@@ -53,6 +58,13 @@ func (m *Manager) Reports() []Report {
 		mem.eligMu.Lock()
 		report.Eligible, report.EligibilityReason = mem.eligible, mem.eligibleReason
 		mem.eligMu.Unlock()
+		if mem.cfg.Stopped {
+			report.Eligible, report.EligibilityReason = false, "stopped"
+			report.Stopped = !mem.busy && mem.obs.at > 0 && mem.obs.at > mem.lastOpDone && !mem.obs.container.Running
+		}
+		if r := mem.state.Restart; r != nil {
+			report.PendingRestartOperationID = r.OperationID
+		}
 		if mem.cfg.Mode == ModeAutomatic {
 			report.LeaseRole = m.deps.Lease.HolderStatus(mem.cfg.Key()).Role.String()
 		}
