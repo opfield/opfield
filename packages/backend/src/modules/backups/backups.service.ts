@@ -24,7 +24,8 @@ export interface NodeBackupDispatch {
   }>;
 }
 export interface BackupAuthorization {
-  assertSource(userId: string, databaseId: string, purpose: 'backup' | 'restore'): Promise<void>;
+  /** `databaseId` is null for a backup of a deleted database: only an unscoped grant reaches it. */
+  assertSource(userId: string, databaseId: string | null, purpose: 'backup' | 'restore'): Promise<void>;
   assertDestination(userId: string, destinationId: string, purpose: 'read' | 'write' | 'delete'): Promise<void>;
   assertExecutor(userId: string, nodeId: string): Promise<void>;
   assertRestoreTarget?(userId: string, connectionId: string): Promise<void>;
@@ -167,6 +168,10 @@ export class BackupService {
   async listRuns(_databaseId: string): Promise<BackupRunView[]> {
     return commercialModuleUnavailable();
   }
+  /** Runs of deleted databases: their history and backup files are kept. */
+  async listOrphanedRuns(): Promise<BackupRunView[]> {
+    return commercialModuleUnavailable();
+  }
   async listPolicies(_databaseId: string): Promise<
     {
       id: string;
@@ -208,6 +213,13 @@ export class BackupService {
   ): Promise<BackupRunView> {
     return commercialModuleUnavailable();
   }
+  async startOrphanedRestore(
+    _sourceRunId: string,
+    _input: BackupRestoreInput,
+    _userId: string
+  ): Promise<BackupRunView> {
+    return commercialModuleUnavailable();
+  }
   async deleteHistory(
     _databaseId: string,
     _runId: string,
@@ -216,7 +228,17 @@ export class BackupService {
   ): Promise<BackupHistoryDeleteResult> {
     return commercialModuleUnavailable();
   }
+  async deleteOrphanedHistory(
+    _runId: string,
+    _userId: string,
+    _options?: { artifacts?: BackupHistoryArtifactsAction }
+  ): Promise<BackupHistoryDeleteResult> {
+    return commercialModuleUnavailable();
+  }
   async cancel(_databaseId: string, _runId: string, _userId: string, _options?: { force?: boolean }): Promise<void> {
+    return commercialModuleUnavailable();
+  }
+  async cancelOrphaned(_runId: string, _userId: string, _options?: { force?: boolean }): Promise<void> {
     return commercialModuleUnavailable();
   }
   async reconcileActiveRuns(): Promise<void> {

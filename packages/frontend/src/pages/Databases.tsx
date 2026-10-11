@@ -58,6 +58,7 @@ import { requireLicenseFeature } from "@/stores/license-paywall";
 import type { DatabaseConnection, ManagedDatabaseCatalogEntry, Node } from "@/types";
 import { DatabaseConnectionCreateDialog } from "./database-create/DatabaseConnectionCreateDialog";
 import { ManagedDatabaseCreateDialog } from "./database-create/ManagedDatabaseCreateDialog";
+import { DeletedDatabaseBackupsPanel } from "./database-detail/DeletedDatabaseBackupsPanel";
 
 const HEALTH_BADGE: Record<string, "success" | "secondary" | "warning" | "destructive"> = {
   online: "success",
@@ -652,6 +653,8 @@ function DatabasesContent({
           onRefresh={() => load()}
           onCreateFolderRef={(fn) => setCreateFolderAction(() => fn)}
         />
+
+        {!embedded && <DeletedDatabaseBackupsPanel />}
       </div>
 
       {canMoveToApps && (

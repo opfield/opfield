@@ -83,5 +83,35 @@ export function withBackupApi<TBase extends ApiClientBaseConstructor>(Base: TBas
         { method: "POST" }
       );
     }
+    /** Backup and restore runs of deleted databases; their files are kept. */
+    listOrphanedBackupRuns() {
+      return this.unwrapData(
+        this.request<{ data: BackupRun[] }>("/databases/backups/orphaned/runs")
+      );
+    }
+    restoreOrphanedBackup(runId: string, input: BackupRestoreInput) {
+      return this.unwrapData(
+        this.request<{ data: BackupRun }>(
+          `/databases/backups/orphaned/runs/${encodeURIComponent(runId)}/restore`,
+          { method: "POST", body: JSON.stringify(input) }
+        )
+      );
+    }
+    deleteOrphanedBackupHistory(
+      runId: string,
+      options: { artifacts?: BackupHistoryArtifactsAction } = {}
+    ) {
+      const query = options.artifacts ? `?artifacts=${options.artifacts}` : "";
+      return this.request<BackupHistoryDeleteResult>(
+        `/databases/backups/orphaned/runs/${encodeURIComponent(runId)}${query}`,
+        { method: "DELETE" }
+      );
+    }
+    async cancelOrphanedBackup(runId: string, options: { force?: boolean } = {}) {
+      await this.request(
+        `/databases/backups/orphaned/runs/${encodeURIComponent(runId)}/cancel${options.force ? "?force=true" : ""}`,
+        { method: "POST" }
+      );
+    }
   };
 }

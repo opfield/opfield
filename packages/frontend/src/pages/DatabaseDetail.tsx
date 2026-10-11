@@ -23,10 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
-import {
-  isDatabaseBackupCandidateNode,
-  listManagedDatabaseCandidateNodes,
-} from "@/lib/managed-database-nodes";
+import { listManagedDatabaseCandidateNodes } from "@/lib/managed-database-nodes";
 import { nodeChangesFor } from "@/lib/node-changed";
 import { databaseRoute } from "@/lib/resource-routes";
 import { cn } from "@/lib/utils";
@@ -36,6 +33,7 @@ import { usePinnedDatabasesStore } from "@/stores/pinned-databases";
 import type { DatabaseConnection, DatabaseMetricSnapshot } from "@/types";
 import { ClickHouseConfigDialog } from "./database-detail/ClickHouseConfigDialog";
 import {
+  backupExecutorOptions,
   type BackupSelectionOption,
   DatabaseBackupsTab,
 } from "./database-detail/DatabaseBackupsTab";
@@ -182,19 +180,7 @@ function DatabaseDetailContent({
             .filter((item) => hasScope(`storage:credentials:use:${item.id}`))
             .map((item) => ({ id: item.id, label: item.name, provider: item.provider }))
         );
-        setBackupExecutors(
-          nodes
-            .filter(
-              (node) =>
-                isDatabaseBackupCandidateNode(node) &&
-                (hasScope("nodes:backups:execute") || hasScope(`nodes:backups:execute:${node.id}`))
-            )
-            .map((node) => ({
-              id: node.id,
-              label: node.hostname,
-              disabledReason: node.status === "online" ? undefined : "Node is offline",
-            }))
-        );
+        setBackupExecutors(backupExecutorOptions(nodes, hasScope));
       })
       .catch((error) =>
         toast.error(error instanceof Error ? error.message : "Failed to load backup destinations")
