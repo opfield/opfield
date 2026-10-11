@@ -154,7 +154,7 @@ export function WebhooksTab({
       render: (webhook) => (
         <span
           title={webhook.url}
-          className="block min-w-0 truncate font-mono text-sm text-muted-foreground"
+          className="block min-w-0 truncate text-sm text-muted-foreground"
         >
           {webhook.url}
         </span>
@@ -163,11 +163,13 @@ export function WebhooksTab({
     {
       id: "method",
       header: "Method",
+      align: "right",
       render: (webhook) => <Badge variant="secondary">{webhook.method}</Badge>,
     },
     {
       id: "preset",
       header: "Preset",
+      align: "right",
       render: (webhook) =>
         webhook.templatePreset ? (
           <Badge variant="secondary">{webhook.templatePreset}</Badge>
@@ -178,8 +180,9 @@ export function WebhooksTab({
     {
       id: "active",
       header: "Active",
-      className: "w-16",
-      cellClassName: "w-16",
+      align: "right",
+      className: "w-20",
+      cellClassName: "w-20",
       render: (webhook) => (
         <div onClick={(event) => event.stopPropagation()}>
           <Switch
@@ -194,10 +197,10 @@ export function WebhooksTab({
     },
     {
       id: "actions",
-      header: "",
+      header: "Actions",
       align: "right",
-      className: "w-12",
-      cellClassName: "w-12",
+      className: "w-24",
+      cellClassName: "w-24",
       render: (webhook) =>
         canManage ? (
           <div onClick={(event) => event.stopPropagation()}>
