@@ -63,6 +63,23 @@ type Options struct {
 	// Async runs background operations; default is a goroutine. Operations
 	// never run on the loop, so a hung dockerd cannot stall renewals.
 	Async func(func())
+	// Controller owns the container side of some policies (the member runtime
+	// of database and storage availability sets); optional, set with
+	// SetController before the loop runs.
+	Controller Controller
+}
+
+// Controller runs the container side of lease policies that are not Docker
+// Availability workloads. The runtime drives the protocol node for them as for
+// every policy but leaves their containers, deadline records, candidacy and
+// startup recovery to the controller, and calls Step every loop iteration after
+// its own work, outside its lock.
+type Controller interface {
+	Owns(policyID string) bool
+	Step()
+	// ObserveFreeze reports a freeze of this host detected from peer clocks (D4)
+	// at local time at.
+	ObserveFreeze(at time.Duration)
 }
 
 type bootClock struct{}
@@ -231,9 +248,32 @@ func (r *Runtime) kick() {
 	}
 }
 
-// Step runs one loop iteration: protocol timers, completed operations,
-// then the container side of every policy.
+// SetController installs the controller of non-Availability policies; call it
+// before Run.
+func (r *Runtime) SetController(controller Controller) {
+	r.mu.Lock()
+	r.opts.Controller = controller
+	r.mu.Unlock()
+}
+
+// Step runs one loop iteration: protocol timers, completed operations, the
+// container side of every Availability policy, then the controller.
 func (r *Runtime) Step() {
+	r.step()
+	r.mu.Lock()
+	controller := r.opts.Controller
+	r.mu.Unlock()
+	if controller != nil {
+		controller.Step()
+	}
+}
+
+// owned reports a policy the controller runs.
+func (r *Runtime) owned(policyID string) bool {
+	return r.opts.Controller != nil && r.opts.Controller.Owns(policyID)
+}
+
+func (r *Runtime) step() {
 	if suspended := r.opts.Suspends.Check(); suspended > 0 {
 		// BOOTTIME counted the suspend, so the lease timers already did:
 		// a holder whose budget ran out fences on its timer below.
@@ -257,10 +297,21 @@ func (r *Runtime) Step() {
 		}
 		r.logger.Warn("host was frozen: a peer's clock moved on while this host's clocks stood still; fencing every lease held across it",
 			"peer", freeze.Peer, "frozen_for", freeze.Frozen, "fenced", keys)
+		if r.opts.Controller != nil {
+			r.opts.Controller.ObserveFreeze(freeze.At)
+		}
 	}
-	manifests := r.node.Manifests()
+	var manifests []availabilitylease.ManifestInfo
+	for _, manifest := range r.node.Manifests() {
+		if !r.owned(manifest.PolicyID) {
+			manifests = append(manifests, manifest)
+		}
+	}
 	holders := map[string]availabilitylease.HolderStatus{}
 	for _, status := range r.node.Holders() {
+		if r.owned(status.Key.PolicyID) {
+			continue
+		}
 		if current, ok := holders[status.Key.PolicyID]; !ok || rolePriority(status.Role) > rolePriority(current.Role) {
 			holders[status.Key.PolicyID] = status
 		}
@@ -433,6 +484,10 @@ func (r *Runtime) applySnapshotLocked(at time.Duration, containers []Container, 
 func (r *Runtime) recordGCCandidatesLocked(leasePolicies map[string]bool, holders map[string]availabilitylease.HolderStatus) []leasefence.Record {
 	var out []leasefence.Record
 	for _, record := range r.records {
+		if r.owned(record.PolicyID) {
+			// The controller writes and removes its own records.
+			continue
+		}
 		if leasePolicies[record.PolicyID] {
 			if r.snapshot == nil || r.snapshot.byID[record.ContainerID].ID != "" {
 				continue

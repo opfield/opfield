@@ -6,15 +6,37 @@ import type {
   DockerAvailabilityLeaseReason,
   DockerAvailabilityPartitionMode,
 } from '@/db/schema/index.js';
-import type { LeaseModeChange } from './lease-policies.js';
-import type { LeaseHolderChangeNotice } from './lease-reports.js';
+import type {
+  LeaseCertifiedStateDetail,
+  LeaseHolderChangeNotice,
+  LeasePolicyHolderView,
+  LeasePolicyKind,
+  LeasePolicyMode,
+  LeasePolicyReason,
+} from './lease-policy-source.js';
 import type { LeaseVoterMargin, LeaseWitnessWarning } from './lease-voters.js';
 
 /** A lease mode transition of one policy, delivered to the Availability controller. */
-export type DockerAvailabilityLeaseModeChange = LeaseModeChange;
+export interface DockerAvailabilityLeaseModeChange {
+  policyId: string;
+  from: DockerAvailabilityLeaseMode;
+  to: DockerAvailabilityLeaseMode;
+  reason: DockerAvailabilityLeaseReason | null;
+  /** Legacy adopts these as its serving placements (A5): the last observed holder per slot. */
+  lastHolders: Array<{ slot: number; holderId: string }>;
+  /**
+   * Graceful close (closing -> legacy): the slots whose holder reported itself retained under the closed manifest. Its
+   * copy never stopped and runs on; legacy adopts it as RUNNING and never restarts it. Every other slot of lastHolders
+   * expired (its holder fenced, or may have) and the legacy path starts it again. Empty for any other transition.
+   */
+  retainedHolders: Array<{ slot: number; holderId: string }>;
+}
 
 /** A change of lease holder of one key, delivered to the Availability controller after it was persisted. */
-export type DockerAvailabilityLeaseHolderChange = LeaseHolderChangeNotice;
+export type DockerAvailabilityLeaseHolderChange = Omit<
+  LeaseHolderChangeNotice,
+  'leaseKind' | 'resourceId' | 'stateHash'
+>;
 
 /**
  * The paid Availability controller (edition contract). Until it reports lease support every policy stays on the
@@ -117,4 +139,60 @@ export interface DockerAvailabilityLeaseHandoffInput {
   successorGeneration: number;
   operationId?: string | null;
   timeoutMs?: number;
+}
+
+/**
+ * Why a candidate of a lease policy cannot hold right now: the Docker reasons (D3), and capability_missing when the
+ * policy requires a capability the daemon does not advertise (a stateful policy needs availability_lease_v3 and its
+ * application capability).
+ */
+export type LeasePolicyExclusionReason = DockerAvailabilityLeaseExclusionReason | 'capability_missing';
+
+export interface LeasePolicyExcludedMember {
+  memberId: string;
+  reason: LeasePolicyExclusionReason;
+  /** capability_missing: the required capabilities the member lacks. */
+  missingCapabilities?: string[];
+}
+
+/** The certified holder state of one stateful key as the lease view shows it. */
+export interface LeasePolicyCertifiedStateView {
+  slot: number;
+  /** Current holder observed for the key. */
+  holderMemberId: string | null;
+  /** "sha256:<hex>" of the certified state of the observed commit (relays report it, v3). */
+  stateHash: string | null;
+  observedAt: Date | null;
+  /** The source's decoded summary (durability, sync set, floors, forced marker), when it provides one. */
+  detail: LeaseCertifiedStateDetail | null;
+}
+
+/** Read-only lease state of any lease policy (API, MCP, UI). */
+export interface LeasePolicyView {
+  leasePolicyId: string;
+  kind: LeasePolicyKind;
+  resourceId: string;
+  stateful: boolean;
+  mode: LeasePolicyMode;
+  /** Why lease mode is impossible (with since), or for a stateful policy why it runs degraded. */
+  reason: LeasePolicyReason | null;
+  /** A stateful policy that cannot run as it should: the host keeps it (AS9) and reports the reason instead. */
+  degraded: boolean;
+  manifestVersion: number;
+  epoch: number;
+  /** A voter change is in its joint phase (two quorum sets, A4); stateful: until a live holder renewed under it. */
+  joint: boolean;
+  publishedPartitionMode: 'strict' | 'available' | null;
+  holders: LeasePolicyHolderView[];
+  bootstrap: Array<{ slot: number; holderMemberId: string }>;
+  /** Candidates of the source's last descriptor in rank order. */
+  candidates: string[];
+  excludedMembers: LeasePolicyExcludedMember[];
+  voterMargin: LeaseVoterMargin | null;
+  voters: string[];
+  quorumSets: string[][];
+  witness: DockerAvailabilityLeaseWitnessView | null;
+  witnesses: AvailabilityLeaseWitness[];
+  /** Stateful policies: per slot, the certified state; null for stateless policies. */
+  certifiedState: LeasePolicyCertifiedStateView[] | null;
 }

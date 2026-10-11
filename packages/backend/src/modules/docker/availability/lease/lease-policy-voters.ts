@@ -40,6 +40,12 @@ export function planPolicyVoters(input: {
   ackedEpoch(memberId: string): number;
   /** Voter epochs under which the policy's currently held leases last renewed. */
   activeLeaseEpochs: number[];
+  /**
+   * Stateful policies (AS1): the epoch of the last renewal of a live holder, per slot. A stateful voter change settles
+   * only once every slot's live holder renewed under the joint epoch (a stateful commit is a KNOWN quorum over both
+   * sets); a slot without a live holder keeps the change joint.
+   */
+  liveHolderEpochs?: { slots: number; bySlot: ReadonlyMap<number, number> };
   now: Date;
 }): PolicyVoterPlan {
   const { state, now } = input;
@@ -72,7 +78,13 @@ export function planPolicyVoters(input: {
     );
     const ackedAt =
       state.jointAckedAt ?? (holdsEveryMajority([previous], acked) && holdsEveryMajority([next], acked) ? now : null);
-    const renewed = input.activeLeaseEpochs.every((epoch) => epoch >= state.voterEpoch);
+    const live = input.liveHolderEpochs;
+    const renewed =
+      input.activeLeaseEpochs.every((epoch) => epoch >= state.voterEpoch) &&
+      (!live ||
+        Array.from({ length: live.slots }, (_, slot) => live.bySlot.get(slot) ?? 0).every(
+          (epoch) => epoch >= state.voterEpoch
+        ));
     if (ackedAt && renewed && now.getTime() - ackedAt.getTime() >= EPOCH_SETTLE_MS) {
       return {
         next: {

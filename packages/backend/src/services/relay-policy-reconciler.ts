@@ -8,6 +8,9 @@ import {
   containerLinks,
   dockerAvailabilityPolicies,
   dockerRegistryNodeBindings,
+  managedAvailabilityMembers,
+  managedAvailabilitySets,
+  managedAvailabilityWitnesses,
   managedDatabaseBindingPlacements,
   managedDatabaseBindings,
   managedDatabaseInstances,
@@ -22,6 +25,11 @@ import {
   storageCopyJobs,
 } from '@/db/schema/index.js';
 import { RELAY_MAX_FRAME_BYTES } from '@/grpc/relay-control.client.js';
+import {
+  reconcileSetRelayPaths,
+  SET_CLIENT_ENDPOINT_KIND,
+  SET_WITNESS_ENDPOINT_KIND,
+} from './relay-managed-availability.js';
 
 const POLICY_ID = 'current';
 
@@ -64,6 +72,17 @@ export async function updateManagedDatabaseRelayStatus(
 ): Promise<boolean> {
   const status = databaseStatus === 'ready' || databaseStatus === 'updating' ? 'active' : 'inactive';
   return db.transaction(async (tx) => {
+    // A database served by an availability set: its endpoints follow the set (reconcileSetRelayPaths).
+    const [set] = await tx
+      .select({ id: managedAvailabilitySets.id })
+      .from(managedAvailabilitySets)
+      .where(eq(managedAvailabilitySets.managedDatabaseId, managedDatabaseId))
+      .limit(1);
+    if (set) {
+      const changed = await reconcileSetRelayPaths(tx, [set.id]);
+      if (changed) await bumpRelayPolicyRevision(tx);
+      return changed;
+    }
     const [endpoint] = await tx
       .select()
       .from(relayEndpoints)
@@ -93,7 +112,7 @@ export async function reconcileManagedDatabaseRelayPolicy(db: DrizzleClient): Pr
       .select()
       .from(relayRoutes)
       .where(eq(relayRoutes.ownerKind, 'managed_database_binding'));
-    const [databases, bindings, bindingPlacements, availabilityPolicies, identities] = await Promise.all([
+    const [databases, bindings, bindingPlacements, availabilityPolicies, identities, setOwners] = await Promise.all([
       tx
         .select({
           id: managedDatabaseInstances.id,
@@ -134,7 +153,13 @@ export async function reconcileManagedDatabaseRelayPolicy(db: DrizzleClient): Pr
         })
         .from(dockerAvailabilityPolicies),
       tx.select({ id: nodes.id, certificateFingerprint: nodes.certificateFingerprint }).from(nodes),
+      tx
+        .select({ id: managedAvailabilitySets.managedDatabaseId })
+        .from(managedAvailabilitySets)
+        .where(isNotNull(managedAvailabilitySets.managedDatabaseId)),
     ]);
+    // Databases an availability set serves: their endpoint is the origin member's and follows the set (below).
+    const setDatabaseIds = new Set(setOwners.flatMap(({ id }) => (id ? [id] : [])));
     const fingerprints = new Map(
       identities
         .filter(({ certificateFingerprint }) => Boolean(certificateFingerprint))
@@ -185,13 +210,16 @@ export async function reconcileManagedDatabaseRelayPolicy(db: DrizzleClient): Pr
     ];
 
     let changed = false;
-    const databaseIds = new Set(databases.filter(({ nodeId }) => fingerprints.has(nodeId)).map(({ id }) => id));
+    const databaseIds = new Set(
+      databases.filter(({ id, nodeId }) => setDatabaseIds.has(id) || fingerprints.has(nodeId)).map(({ id }) => id)
+    );
     for (const endpoint of existingEndpoints) {
       if (databaseIds.has(endpoint.ownerId)) continue;
       await tx.delete(relayEndpoints).where(eq(relayEndpoints.id, endpoint.id));
       changed = true;
     }
     for (const database of databases) {
+      if (setDatabaseIds.has(database.id)) continue;
       const certificateSha256 = fingerprints.get(database.nodeId);
       if (!certificateSha256) continue;
       const status = database.status === 'ready' || database.status === 'updating' ? 'active' : 'inactive';
@@ -276,6 +304,8 @@ export async function reconcileManagedDatabaseRelayPolicy(db: DrizzleClient): Pr
         changed = true;
       }
     }
+    // Availability sets: member endpoints, member routes of every route above and the member mesh.
+    changed = (await reconcileSetRelayPaths(tx)) || changed;
     if (changed) await bumpRelayPolicyRevision(tx);
   });
 }
@@ -326,6 +356,8 @@ const CONTAINER_LINK_OWNERS: OwnerTable[] = [{ table: containerLinks, id: contai
  */
 const ENDPOINT_OWNERS: Record<string, OwnerTable[]> = {
   proxy_host_secure_link: PROXY_SECURE_LINK_OWNERS,
+  [SET_CLIENT_ENDPOINT_KIND]: [{ table: managedAvailabilityMembers, id: managedAvailabilityMembers.id }],
+  [SET_WITNESS_ENDPOINT_KIND]: [{ table: managedAvailabilityWitnesses, id: managedAvailabilityWitnesses.id }],
   managed_storage: MANAGED_STORAGE_OWNERS,
   // A container link's own endpoint, or the endpoint of one target placement of it.
   container_link: [...CONTAINER_LINK_OWNERS, { table: containerLinkPlacements, id: containerLinkPlacements.id }],

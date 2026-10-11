@@ -80,6 +80,8 @@ export interface LeaseObservationState {
   holderSince: Date | null;
   lastHolderId: string | null;
   claimants: Record<string, { role: string; observedAt: string }>;
+  /** Stateful keys: "sha256:<hex>" of the state certified by the stored ballot, when a relay reported it. */
+  stateHash?: string | null;
 }
 
 export interface LeaseObservationCandidate {
@@ -101,6 +103,8 @@ export interface LeaseObservationCandidate {
    * a recovered key's time as unknown): a later one than recorded is a new holding of the same node (M-5).
    */
   holdingStart?: boolean;
+  /** Stateful keys (v3 relay views): the certified state hash of this ballot's commit. */
+  stateHash?: string | null;
 }
 
 /** Where a takeover time came from: the holder itself, the earliest voter sighting, or when Gateway noticed it. */
@@ -197,6 +201,14 @@ export function mergeLeaseObservation(
   }
 ): { next: LeaseObservationState; change: LeaseHolderChange | null } {
   const now = input.now;
+  // Any report of the winning ballot that carries its certified state hash (relays report it, daemons do not).
+  const stateHashOf = (winner: LeaseObservationCandidate): string | null =>
+    input.candidates.find(
+      (candidate) =>
+        candidate.stateHash &&
+        candidate.holderId === winner.holderId &&
+        compareLeaseBallots(candidate.ballot, winner.ballot) === 0
+    )?.stateHash ?? null;
   const next: LeaseObservationState = stored
     ? { ...stored, claimants: { ...stored.claimants } }
     : {
@@ -274,10 +286,12 @@ export function mergeLeaseObservation(
       next.source = best.source;
       next.sourceId = best.sourceId;
       next.observedAt = now;
+      if (next.stateHash !== undefined || stateHashOf(best)) next.stateHash = stateHashOf(best);
     } else if (order === 0 && next.holderId === best.holderId && next.holderId !== null) {
       next.epoch = Math.max(next.epoch, best.epoch);
       next.manifestVersion = Math.max(next.manifestVersion, best.manifestVersion);
       next.observedAt = now;
+      next.stateHash = stateHashOf(best) ?? next.stateHash;
     }
   }
   // B-14: the same holder's own acquisition time corrects a takeover time first taken from a voter that saw it late

@@ -252,6 +252,8 @@ export interface HealthReport {
   nginxServiceProblem?: string;
   /** Present when the daemon advertises ingress_group_v1 (field 195). */
   ingressHealth?: IngressHealthReport | null;
+  /** Storage-profile docker daemons: their availability set members. */
+  availabilityMembers?: AvailabilityMemberReport[];
 }
 
 /**
@@ -410,6 +412,8 @@ export interface GatewayCommand {
   getRelayRouteRuntime?: GetRelayRouteRuntimeCommand;
   /** Relay supervisor only (relay_witness_v1): the full desired set of witness processes. */
   applyWitnesses?: ApplyWitnessesCommand;
+  /** Storage-profile docker daemons (managed_availability_member_v1): this node's member of an availability set. */
+  availabilityMember?: AvailabilityMemberCommand;
   syncAvailabilityLease?: SyncAvailabilityLeaseCommand;
   availabilityLeaseHandoff?: AvailabilityLeaseHandoffCommand;
   syncDockerRegistryBindings?: SyncDockerRegistryBindingsCommand;
@@ -1202,6 +1206,39 @@ export interface RelayGrantAssignment {
   streamResume?: RelayStreamResume;
   /** Endpoint assignments only: routes to this endpoint whose streams may be resumable, with their keys. */
   resumeRoutes?: RelayRouteResume[];
+  /** Availability sets: the member (and port) an endpoint serves, or the member a peer route reaches. */
+  leaseTarget?: RelayLeaseTarget;
+  /** Availability sets: one route per member of the resource's set; the daemon opens the holder's route first. */
+  leaseGroup?: RelayLeaseGroupRoute[];
+}
+
+/** One member of a database or storage availability set as a relay path sees it. */
+export interface RelayLeaseTarget {
+  setId: string;
+  memberId: string;
+  /** The member's lease identity (its node id). */
+  candidateId: string;
+  /** Empty for a manual pair. */
+  leasePolicyId: string;
+  rank: number;
+  ownerKind: string;
+  ownerId: string;
+  /** Peer endpoints and routes: the engine port name; empty for client paths. */
+  portName?: string;
+  primaryPort?: boolean;
+  /** Routes to a ClickHouse Keeper witness on a relay: the witness id (memberId is empty). */
+  witnessId?: string;
+}
+
+/** One route of a lease group. */
+export interface RelayLeaseGroupRoute {
+  routeId: string;
+  targetEndpointId: string;
+  grant: RelaySignedGrant;
+  candidates?: RelayDataCandidate[];
+  streamResume?: RelayStreamResume;
+  target: RelayLeaseTarget;
+  schemaVersion?: number;
 }
 
 /** The source side of a resumable route (RSv1). The key never travels through a relay. */
@@ -1391,4 +1428,75 @@ export interface UpdateDaemonCommand {
   targetVersion: string;
   checksum: string;
   signedManifest: string;
+}
+
+// ─── Availability set members (storage-profile docker daemons) ─────
+
+export interface AvailabilityMemberPeer {
+  memberId: string;
+  nodeId: string;
+  memberIndex: number;
+  priority: number;
+  removing?: boolean;
+}
+
+export interface AvailabilityPrimaryAssignment {
+  setId: string;
+  primaryMemberId: string;
+  generation: string;
+}
+
+export interface AvailabilityMemberConfig {
+  setId: string;
+  memberId: string;
+  engine: 'postgres' | 'valkey' | 'seaweedfs' | 'clickhouse';
+  ownerKind: 'managed_database' | 'managed_storage';
+  ownerId: string;
+  mode: 'automatic' | 'manual';
+  leasePolicyId?: string;
+  durability?: 'synchronous' | 'asynchronous';
+  syncDegradeAfterSeconds?: number;
+  maxLagBytes?: string;
+  members: AvailabilityMemberPeer[];
+  primary?: AvailabilityPrimaryAssignment;
+  configRevision: string;
+  /** The engine's own configuration (JSON), opaque to the member runtime. */
+  engineConfig?: Buffer;
+  publishedPort?: number;
+}
+
+export interface AvailabilityMemberCommand {
+  configure?: AvailabilityMemberConfig;
+  remove?: { setId: string; memberId: string };
+  ackEvents?: { setId: string; memberId: string; throughSequence: string };
+  assignPrimary?: AvailabilityPrimaryAssignment;
+  switchover?: { setId: string; successorMemberId: string; operationId: string };
+}
+
+export interface AvailabilityMemberEvent {
+  sequence: string;
+  kind: string;
+  atUnixMs: string;
+  reason?: string;
+  operationId?: string;
+  detail?: Record<string, string>;
+}
+
+export interface AvailabilityMemberReport {
+  setId: string;
+  memberId: string;
+  role: 'primary' | 'copy' | 'rebuilding' | 'fenced' | 'unknown';
+  serving: boolean;
+  leaseRole?: string;
+  eligible: boolean;
+  eligibilityReason?: string;
+  lagBytes?: string;
+  lagSeconds?: number;
+  syncState: 'sync' | 'async' | 'none';
+  position?: Record<string, string>;
+  diskFreeBytes?: string;
+  lastError?: string;
+  configRevision?: string;
+  primaryGeneration?: string;
+  events?: AvailabilityMemberEvent[];
 }

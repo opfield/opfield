@@ -1,4 +1,4 @@
-import { randomInt } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import {
@@ -6,9 +6,9 @@ import {
   type DockerAvailabilityPartitionMode,
   dockerAvailabilityLeaseObservations,
   dockerAvailabilityLeaseState,
-  dockerAvailabilityPlacements,
-  dockerAvailabilityPolicies,
-  relayInstances,
+  type LeasePolicyKind,
+  managedAvailabilityMembers,
+  managedAvailabilitySets,
 } from '@/db/schema/index.js';
 import type { AvailabilityLeaseReport, CommandResult } from '@/grpc/generated/types.js';
 import { createChildLogger } from '@/lib/logger.js';
@@ -17,31 +17,44 @@ import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { NodeRegistryService } from '@/services/node-registry.service.js';
 import type { RelayPolicySigningKeyService } from '@/services/relay-policy-signing-key.service.js';
+import { AvailabilityLeaseSource } from './availability-lease-source.js';
 import { AvailabilityLeaseCluster } from './lease-cluster.js';
-import { type LeaseSigner, leaseManifestClosure } from './lease-codec.js';
+import type { LeaseSigner } from './lease-codec.js';
+import { AVAILABILITY_LEASE_PROTOCOL_CAPABILITIES, isStorageProfileNodeType } from './lease-constants.js';
 import {
-  AVAILABILITY_LEASE_PROTOCOL_CAPABILITIES,
-  MEMBER_REPORT_FRESH_MS,
-  PLANNED_HANDOFF_TTL_MS,
-  RELAY_CONNECTIONS_FRESH_MS,
-} from './lease-constants.js';
+  registerPlannedLeaseHandoff,
+  reissueLeaseBootstrap,
+  setAvailabilityLegacyRequested,
+  setAvailabilityPartitionMode,
+  setAvailabilitySurgeSlots,
+  setAvailabilityWitness,
+} from './lease-controls.js';
 import { AvailabilityLeaseDistribution, type RelayLeasePolicyFields } from './lease-distribution.js';
 import { availabilityStandbyCount } from './lease-gating.js';
-import { LeaseCapabilityTracker, type LeaseParticipants, loadLeaseParticipants } from './lease-participants.js';
-import { leaseCandidatePlacements } from './lease-planning.js';
-import { AvailabilityLeasePolicies, keepsRunningThroughClose, type LeaseModeChange } from './lease-policies.js';
-import { type RelayLeaseOwner, type RelayLeasePolicyIds, relayLeasePolicyIds } from './lease-relay-gate.js';
 import {
-  AvailabilityLeaseReports,
-  type LeaseHolderChangeNotice,
-  type LeaseReporterClock,
-  type LeaseReportSender,
-} from './lease-reports.js';
+  type LeaseSetOwner,
+  leaseAuditSubject,
+  leaseEvent,
+  leaseHolderAuditEntry,
+  leaseModeEvent,
+  loadLeaseSetOwner,
+  noticeKind,
+} from './lease-kind-presentation.js';
+import { LeaseCapabilityTracker, loadLeaseParticipants } from './lease-participants.js';
+import { LeasePolicies } from './lease-policies.js';
+import { registerLeasePolicies } from './lease-policy-registry.js';
+import type {
+  LeaseDegradedChange,
+  LeaseHolderChangeNotice,
+  LeaseModeChange,
+  LeasePolicyDescriptor,
+  LeasePolicySource,
+} from './lease-policy-source.js';
+import { type RelayLeaseOwner, type RelayLeasePolicyIds, relayLeasePolicyIds } from './lease-relay-gate.js';
+import { AvailabilityLeaseReports, type LeaseReporterClock, type LeaseReportSender } from './lease-reports.js';
 import {
   bumpLeaseRevision,
   ensureLeaseState,
-  type LeaseStateRow,
-  leaseReachableMemberIds,
   loadLeaseCluster,
   loadLeaseMembers,
   type RelayConnectedMembers,
@@ -49,51 +62,45 @@ import {
 import { LeaseTakeoverAudit, type SettledLeaseTakeover } from './lease-takeover-audit.js';
 import type {
   DockerAvailabilityLeaseController,
-  DockerAvailabilityLeaseExcludedNode,
   DockerAvailabilityLeaseHandoffInput,
   DockerAvailabilityLeaseView,
-  DockerAvailabilityLeaseWitnessView,
+  LeasePolicyView,
 } from './lease-types.js';
-import { type LeaseWitnessWarning, leaseVoterMargin } from './lease-voters.js';
+import { availabilityLeaseView, type LeaseViewContext, leasePolicyView } from './lease-views.js';
 import { validateLeaseWitness } from './lease-witness.js';
+import {
+  ManagedAvailabilityLeaseSource,
+  type ManagedAvailabilitySetController,
+} from './managed-availability-lease-source.js';
+
+export { leaseExcludedNodes } from './lease-views.js';
 
 const logger = createChildLogger('AvailabilityLeaseService');
 
-/** D3: the policy's candidate nodes that cannot hold or receive a standby now, with the reason. */
-export function leaseExcludedNodes(
-  participants: Pick<LeaseParticipants, 'byId'>,
-  candidateNodeIds: Iterable<string>
-): DockerAvailabilityLeaseExcludedNode[] {
-  return [...new Set(candidateNodeIds)].sort().flatMap((nodeId) => {
-    const participant = participants.byId.get(nodeId);
-    // A candidate without a docker node row cannot be reached at all.
-    const reason = participant ? participant.exclusion : 'offline';
-    return reason ? [{ nodeId, reason }] : [];
-  });
-}
-
-function leaseWitnessView(state: LeaseStateRow | null): DockerAvailabilityLeaseWitnessView | null {
-  if (!state) return null;
-  const first = state.witnesses[0];
-  return {
-    memberId: first?.memberId ?? null,
-    kind: first?.kind ?? null,
-    auto: first?.auto ?? true,
-    minRttMs: first?.minRttMs ?? null,
-    warning: (state.witnessWarning as LeaseWitnessWarning | null) ?? null,
-  };
+/** The lease of an availability set as the control plane reads it (observeSet). */
+export interface ManagedAvailabilitySetLease {
+  setId: string;
+  /** The lease policy of the current period; null before createSetPolicy or in manual mode. */
+  leasePolicyId: string | null;
+  view: LeasePolicyView | null;
+  /** The member whose node holds the primary slot now, and that node; null while nobody holds it. */
+  holderMemberId: string | null;
+  holderNodeId: string | null;
 }
 
 /**
- * Host side of the Availability data-plane lease (OSS). It chooses voters and epochs, signs voter configs and
- * manifests with the relay policy key, delivers them, gates policies by capability, ingests lease reports and
- * audits autonomous transitions. The paid controller decides placements; it attaches here as the lease controller.
+ * The lease host (OSS). It chooses voters and epochs, signs manifests with the relay policy key, delivers them, gates
+ * policies by capability, ingests lease reports, audits autonomous transitions and keeps the relay gates, for every
+ * kind of lease policy: Docker Availability (whose paid controller attaches here) and database and storage
+ * availability sets (whose control plane attaches through attachSetController).
  */
 export class AvailabilityLeaseService {
-  private controller: DockerAvailabilityLeaseController | null = null;
   private relayPublisher: { publishAvailabilityLeaseChange(): Promise<void> } | null = null;
+  private readonly sources = new Map<LeasePolicyKind, LeasePolicySource>();
+  private readonly availability: AvailabilityLeaseSource;
+  private readonly sets: ManagedAvailabilityLeaseSource;
   private readonly cluster: AvailabilityLeaseCluster;
-  private readonly policies: AvailabilityLeasePolicies;
+  private readonly policies: LeasePolicies;
   private readonly reports: AvailabilityLeaseReports;
   private readonly distribution: AvailabilityLeaseDistribution;
   private reconciling: Promise<void> | null = null;
@@ -114,9 +121,13 @@ export class AvailabilityLeaseService {
   ) {
     const sign: LeaseSigner = (message, keyId) => policyKeys.signPayload(message, keyId);
     this.cluster = new AvailabilityLeaseCluster(db, sign);
-    this.policies = new AvailabilityLeasePolicies(db, sign);
+    this.policies = new LeasePolicies(db, sign);
     this.reports = new AvailabilityLeaseReports(db);
     this.distribution = new AvailabilityLeaseDistribution(db, registry);
+    this.availability = new AvailabilityLeaseSource(db);
+    this.sets = new ManagedAvailabilityLeaseSource(db);
+    this.sources.set(this.availability.kind, this.availability);
+    this.sources.set(this.sets.kind, this.sets);
     this.takeovers = new LeaseTakeoverAudit(db, {
       write: (settled) => this.auditTakeover(settled),
       written: (settled) => this.takeoverAudited(settled),
@@ -124,9 +135,14 @@ export class AvailabilityLeaseService {
     });
   }
 
-  /** The paid Availability controller; without one every policy stays legacy. */
+  /** The paid Availability controller; without one every Availability policy stays legacy. */
   attachController(controller: DockerAvailabilityLeaseController): void {
-    this.controller = controller;
+    this.availability.attachController(controller);
+  }
+
+  /** The control plane of database and storage availability sets follows its sets' leases through these callbacks. */
+  attachSetController(controller: ManagedAvailabilitySetController): void {
+    this.sets.attachController(controller);
   }
 
   setRelayPublisher(publisher: { publishAvailabilityLeaseChange(): Promise<void> }): void {
@@ -158,8 +174,8 @@ export class AvailabilityLeaseService {
     return this.reconciling;
   }
 
-  /** Re-evaluates the lease after the controller changed placements, candidates or the partition mode. */
-  async republishPolicy(_policyId: string): Promise<void> {
+  /** Re-evaluates the lease after a source changed placements, candidates, members or the partition mode. */
+  async republishPolicy(_leasePolicyId: string): Promise<void> {
     await this.reconcile();
   }
 
@@ -180,21 +196,38 @@ export class AvailabilityLeaseService {
     });
   }
 
+  private async listDescriptors(): Promise<{ descriptors: LeasePolicyDescriptor[]; kinds: Set<LeasePolicyKind> }> {
+    const descriptors: LeasePolicyDescriptor[] = [];
+    const kinds = new Set<LeasePolicyKind>();
+    for (const source of this.sources.values()) {
+      try {
+        const listed = await source.listDesired();
+        descriptors.push(...listed.filter((descriptor) => descriptor.kind === source.kind));
+        kinds.add(source.kind);
+      } catch (error) {
+        // A source that cannot answer leaves its policies exactly as published until it answers again.
+        logger.warn('A lease policy source did not list its policies; they stay as published', {
+          kind: source.kind,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    return { descriptors, kinds };
+  }
+
   private async reconcileOnce(): Promise<void> {
     const now = new Date();
     await this.settleTakeoverAudits(now);
     const members = new Map((await loadLeaseMembers(this.db)).map((member) => [member.memberId, member]));
     const participants = await loadLeaseParticipants(this.db, this.registry, members, now.getTime());
     this.capabilities.observe(participants, now.getTime());
-    const controllerSupportsLease = this.controller?.leaseModeSupported() === true;
+    const { descriptors, kinds } = await this.listDescriptors();
     const cluster = await this.cluster.reconcile({ members });
-    const outcome = await this.policies.reconcile({
-      participants,
-      members,
-      cluster: cluster.cluster,
-      controllerSupportsLease,
-      now,
-    });
+    const outcome = await this.policies.reconcile(
+      { participants, members, cluster: cluster.cluster, now },
+      descriptors,
+      kinds
+    );
     if (cluster.changed || outcome.changed) await bumpLeaseRevision(this.db);
     if (cluster.changed || outcome.changed) {
       void this.relayPublisher?.publishAvailabilityLeaseChange().catch((error) => {
@@ -205,19 +238,29 @@ export class AvailabilityLeaseService {
     }
     await this.distribution.syncDaemons(members, now.getTime());
     for (const change of outcome.modeChanges) await this.notifyModeChange(change);
+    for (const change of outcome.degradedChanges) await this.notifyDegraded(change);
+  }
+
+  private async setOwner(kind: LeasePolicyKind | undefined, resourceId: string | undefined) {
+    if (kind !== 'managed_availability_set' || !resourceId) return null;
+    return loadLeaseSetOwner(this.db, resourceId).catch(() => null);
   }
 
   private async notifyModeChange(change: LeaseModeChange): Promise<void> {
-    this.events.publish('docker.availability.changed', { policyId: change.policyId, action: `lease_${change.to}` });
-    try {
-      await this.controller?.leaseModeChanged(change);
-    } catch (error) {
-      logger.warn('The Availability controller did not take a lease mode change', {
-        policyId: change.policyId,
-        to: change.to,
-        error: error instanceof Error ? error.message : String(error),
+    const event = leaseModeEvent(change, await this.setOwner(change.leaseKind, change.resourceId));
+    this.events.publish(event.channel, event.payload);
+    await this.sources.get(change.leaseKind)?.modeChanged(change);
+  }
+
+  private async notifyDegraded(change: LeaseDegradedChange): Promise<void> {
+    if (change.reason) {
+      logger.warn('A stateful lease policy runs degraded; the host keeps it running (AS9)', {
+        leasePolicyId: change.leasePolicyId,
+        kind: change.leaseKind,
+        reason: change.reason.code,
       });
     }
+    await this.sources.get(change.leaseKind)?.degradedChanged?.(change);
   }
 
   /** Lease fields of every relay policy envelope (relay.v1 PolicyEnvelopePayload 40, 41). */
@@ -236,15 +279,19 @@ export class AvailabilityLeaseService {
     return cluster?.signingKeyId ? [cluster.signingKeyId] : [];
   }
 
-  /** A docker or nginx daemon's heartbeat lease section, with the daemon's clock as measured on arrival (N-15). */
+  /**
+   * A docker, storage-profile or nginx daemon's heartbeat lease section, with the daemon's clock as measured on
+   * arrival (N-15). A storage-profile daemon is a docker daemon that hosts availability set members.
+   */
   async ingestDaemonReport(
     nodeId: string,
     nodeType: string,
     report: AvailabilityLeaseReport,
     clock?: LeaseReporterClock
   ): Promise<void> {
-    if (nodeType !== 'docker' && nodeType !== 'nginx') return;
-    await this.ingest({ memberId: nodeId, kind: nodeType, nodeId, relayInstanceId: null }, report, clock);
+    if (nodeType !== 'docker' && nodeType !== 'nginx' && !isStorageProfileNodeType(nodeType)) return;
+    const kind = nodeType === 'nginx' ? 'nginx' : 'docker';
+    await this.ingest({ memberId: nodeId, kind, nodeId, relayInstanceId: null }, report, clock);
   }
 
   /** A relay's acceptor and gate view, from its runtime status or local health. */
@@ -281,59 +328,55 @@ export class AvailabilityLeaseService {
   }
 
   private async recordHolderChange(notice: LeaseHolderChangeNotice): Promise<void> {
+    const kind = noticeKind(notice);
     if (notice.kind) {
       await this.takeovers.record(notice);
-      this.events.publish('docker.availability.changed', { policyId: notice.policyId, action: `lease_${notice.kind}` });
+      const event = leaseEvent(
+        kind,
+        notice.policyId,
+        notice.resourceId ?? notice.policyId,
+        `lease_${notice.kind}`,
+        await this.setOwner(kind, notice.resourceId)
+      );
+      this.events.publish(event.channel, event.payload);
     }
-    try {
-      await this.controller?.leaseHolderChanged(notice);
-    } catch (error) {
-      logger.warn('The Availability controller did not take a lease holder change', {
-        policyId: notice.policyId,
-        slot: notice.slot,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    await this.sources.get(kind)?.holderChanged(notice);
   }
 
-  private auditTakeover({ takeoverId, notice, takeoverAt, source, noticedAt }: SettledLeaseTakeover): Promise<boolean> {
-    return this.audit.log({
-      userId: null,
-      action: `docker.availability.lease_${notice.kind}`,
-      resourceType: 'docker_availability_policy',
-      resourceId: notice.policyId,
-      // N-5 / B-14: the transition happened when the new holder took over, which after an autonomous failover while
-      // Gateway was down is well before Gateway learns about it.
-      occurredAt: takeoverAt,
-      details: {
-        slot: notice.slot,
-        fromNodeId: notice.from,
-        toNodeId: notice.to,
-        placementId: notice.placementId,
-        ballot: notice.ballot,
-        observedBy: notice.sourceId,
-        source: notice.source,
-        takeoverAt: takeoverAt.toISOString(),
-        // holder: the new holder's own acquisition time; voters: the earliest voter sighting; noticed: nobody reported
-        // a time, this is when Gateway noticed the change.
-        takeoverSource: source,
-        noticedAt: noticedAt.toISOString(),
-        takeoverId,
-      },
-    });
+  private async auditSubject(notice: LeaseHolderChangeNotice) {
+    const owner: LeaseSetOwner | null = await this.setOwner(noticeKind(notice), notice.resourceId);
+    return leaseAuditSubject({ ...notice, kind: notice.kind === 'handoff' ? 'handoff' : 'failover' }, owner);
+  }
+
+  private async auditTakeover(settled: SettledLeaseTakeover): Promise<boolean> {
+    const subject = await this.auditSubject(settled.notice);
+    // The set (and with it its owner) was deleted meanwhile: nothing to audit on.
+    if (!subject) return true;
+    return this.audit.log(
+      leaseHolderAuditEntry({
+        subject,
+        notice: settled.notice,
+        takeoverId: settled.takeoverId,
+        takeoverAt: settled.takeoverAt,
+        source: settled.source,
+        noticedAt: settled.noticedAt,
+      })
+    );
   }
 
   /** A crash between writing a takeover's audit row and clearing its waiting entry must not audit it twice. */
-  private async takeoverAudited({ takeoverId, notice }: SettledLeaseTakeover): Promise<boolean> {
+  private async takeoverAudited(settled: SettledLeaseTakeover): Promise<boolean> {
+    const subject = await this.auditSubject(settled.notice);
+    if (!subject) return true;
     const [row] = await this.db
       .select({ id: auditLog.id })
       .from(auditLog)
       .where(
         and(
-          eq(auditLog.resourceType, 'docker_availability_policy'),
-          eq(auditLog.resourceId, notice.policyId),
-          eq(auditLog.action, `docker.availability.lease_${notice.kind}`),
-          sql`${auditLog.details}->>'takeoverId' = ${takeoverId}`
+          eq(auditLog.resourceType, subject.resourceType),
+          eq(auditLog.resourceId, subject.resourceId),
+          eq(auditLog.action, subject.action),
+          sql`${auditLog.details}->>'takeoverId' = ${settled.takeoverId}`
         )
       )
       .limit(1);
@@ -341,136 +384,147 @@ export class AvailabilityLeaseService {
   }
 
   /** Legacy policies are driven by the backend; every other lease mode is not (D9, A5). */
-  async isReactive(policyId: string): Promise<boolean> {
+  async isReactive(leasePolicyId: string): Promise<boolean> {
     const [state] = await this.db
       .select({ mode: dockerAvailabilityLeaseState.mode })
       .from(dockerAvailabilityLeaseState)
-      .where(eq(dockerAvailabilityLeaseState.policyId, policyId))
+      .where(eq(dockerAvailabilityLeaseState.policyId, leasePolicyId))
       .limit(1);
     return (state?.mode ?? 'legacy') === 'legacy';
   }
 
-  async getPolicyLease(policyId: string, now = new Date()): Promise<DockerAvailabilityLeaseView> {
-    const [[state], observations, members, localRelays, placements, [policy]] = await Promise.all([
-      this.db
-        .select()
-        .from(dockerAvailabilityLeaseState)
-        .where(eq(dockerAvailabilityLeaseState.policyId, policyId))
-        .limit(1),
-      this.db
-        .select()
-        .from(dockerAvailabilityLeaseObservations)
-        .where(eq(dockerAvailabilityLeaseObservations.policyId, policyId)),
-      loadLeaseMembers(this.db),
-      this.db.select({ id: relayInstances.id }).from(relayInstances).where(eq(relayInstances.kind, 'local')),
-      this.db
-        .select({
-          id: dockerAvailabilityPlacements.id,
-          nodeId: dockerAvailabilityPlacements.nodeId,
-          desiredState: dockerAvailabilityPlacements.desiredState,
-          serving: dockerAvailabilityPlacements.serving,
-          createdAt: dockerAvailabilityPlacements.createdAt,
-        })
-        .from(dockerAvailabilityPlacements)
-        .where(eq(dockerAvailabilityPlacements.policyId, policyId)),
-      this.db
-        .select({
-          mode: dockerAvailabilityPolicies.mode,
-          desiredReplicaCount: dockerAvailabilityPolicies.desiredReplicaCount,
-        })
-        .from(dockerAvailabilityPolicies)
-        .where(eq(dockerAvailabilityPolicies.id, policyId))
-        .limit(1),
-    ]);
-    // A slot that left the manifest (fewer replicas, surge lowered) keeps its observation row; once nobody holds it, it
-    // is no slot of the policy any more and is not listed (stand run x4: Failover 1 showed an empty slot 1).
-    const slots = policy
-      ? policy.mode === 'replicated'
-        ? Math.min(32, policy.desiredReplicaCount + (state?.surgeSlots ?? 0))
-        : 1
-      : Number.POSITIVE_INFINITY;
-    const candidateNodeIds = leaseCandidatePlacements(placements).map((placement) => placement.nodeId);
-    const excludedNodes =
-      state && state.mode !== 'legacy' && candidateNodeIds.length > 0
-        ? leaseExcludedNodes(
-            await loadLeaseParticipants(
-              this.db,
-              this.registry,
-              new Map(members.map((member) => [member.memberId, member])),
-              now.getTime()
-            ),
-            candidateNodeIds
-          )
-        : [];
-    const reachable = leaseReachableMemberIds({
-      members,
-      connections: this.relayConnections.values(),
-      localRelayIds: new Set(localRelays.map(({ id }) => id)),
-      now: now.getTime(),
-      memberFreshMs: MEMBER_REPORT_FRESH_MS,
-      connectionFreshMs: RELAY_CONNECTIONS_FRESH_MS,
+  private viewContext(): LeaseViewContext {
+    return { db: this.db, registry: this.registry, relayConnections: this.relayConnections.values() };
+  }
+
+  /** Read-only lease state of an Availability policy (its API shape). */
+  getPolicyLease(policyId: string, now = new Date()): Promise<DockerAvailabilityLeaseView> {
+    return availabilityLeaseView(this.viewContext(), policyId, now);
+  }
+
+  /** Read-only lease state of any lease policy; null when not registered. */
+  getLeasePolicyView(leasePolicyId: string, now = new Date()): Promise<LeasePolicyView | null> {
+    return leasePolicyView(this.viewContext(), leasePolicyId, now, async (id, kind) => {
+      const source = this.sources.get(kind);
+      return source?.certifiedStateDetails ? source.certifiedStateDetails(id) : [];
     });
-    return {
-      mode: state?.mode ?? 'legacy',
-      reason: state?.reason ?? null,
-      manifestVersion: state?.manifestVersion ?? 0,
-      epoch: state?.voterEpoch ?? 0,
-      publishedPartitionMode: state?.publishedPartitionMode ?? null,
-      holders: observations
-        .filter((observation) => observation.slot < slots || observation.holderId !== null)
-        .sort((left, right) => left.slot - right.slot)
-        .map((observation) => ({
-          slot: observation.slot,
-          holderNodeId: observation.holderId,
-          placementId: observation.placementId,
-          ballot: observation.ballot,
-          observedAt: observation.observedAt,
-          holderSince: observation.holderSince,
-          source: observation.source,
-        })),
-      bootstrap: (state?.bootstrap ?? []).map((entry) => ({ slot: entry.slot, holderNodeId: entry.holderId })),
-      strictPending: state?.mode === 'bootstrapping' && state.strictRequestedAt !== null,
-      surgeSlots: state?.surgeSlots ?? 0,
-      copiesStoppedAt: state?.copiesStoppedAt ?? null,
-      modeChangedAt: state?.modeChangedAt ?? null,
-      excludedNodes,
-      retainedHolders:
-        state?.mode === 'closing'
-          ? (leaseManifestClosure(state.manifestBlock)?.retained ?? []).map((entry) => ({
-              slot: entry.slot,
-              holderNodeId: entry.holderId,
-              confirmed: keepsRunningThroughClose(
-                entry,
-                observations.find((observation) => observation.slot === entry.slot),
-                new Set(
-                  members
-                    .filter((member) => {
-                      const ack = member.manifestAcks[policyId];
-                      return ack?.closed === true && ack.version >= state.manifestVersion;
-                    })
-                    .map((member) => member.memberId)
-                )
-              ),
-            }))
-          : [],
-      voterMargin: state ? leaseVoterMargin(state.voterEpoch, state.quorumSets, reachable) : null,
-      voters: state?.quorumSets.at(-1) ?? [],
-      witness: leaseWitnessView(state ?? null),
-      witnesses: state?.witnesses ?? [],
-    };
+  }
+
+  // --- Database and storage availability sets (host contract of the control plane) ---
+
+  /**
+   * Starts the lease policy of a set's new availability period: a fresh lease policy id (M10, never reused, so state
+   * an acceptor accepted in an earlier period is never adopted), registered as stateful and written to the set. The
+   * set must be in automatic mode with its members written; the bootstrap reserves the slot for the set's primary
+   * member. Refused while the set's previous lease policy has not returned to legacy (close it first).
+   */
+  async createSetPolicy(setId: string): Promise<{ leasePolicyId: string }> {
+    const leasePolicyId = await this.db.transaction(async (tx) => {
+      const [set] = await tx
+        .select({ mode: managedAvailabilitySets.mode, leasePolicyId: managedAvailabilitySets.leasePolicyId })
+        .from(managedAvailabilitySets)
+        .where(eq(managedAvailabilitySets.id, setId))
+        .for('update');
+      if (!set) throw new AppError(404, 'AVAILABILITY_SET_NOT_FOUND', 'Availability set not found');
+      if (set.mode !== 'automatic') {
+        throw new AppError(409, 'AVAILABILITY_SET_MANUAL', 'A manual pair has no lease policy');
+      }
+      if (set.leasePolicyId) {
+        const [previous] = await tx
+          .select({ mode: dockerAvailabilityLeaseState.mode })
+          .from(dockerAvailabilityLeaseState)
+          .where(eq(dockerAvailabilityLeaseState.policyId, set.leasePolicyId))
+          .limit(1);
+        if (previous && previous.mode !== 'legacy') {
+          throw new AppError(
+            409,
+            'AVAILABILITY_SET_LEASE_OPEN',
+            'The previous lease of this availability set is still open; close it first'
+          );
+        }
+      }
+      const id = randomUUID();
+      const registered = await registerLeasePolicies(tx, [
+        { leasePolicyId: id, kind: 'managed_availability_set', resourceId: setId, stateful: true },
+      ]);
+      if (!registered.has(id)) throw new Error('The lease policy of the availability set could not be registered');
+      await ensureLeaseState(tx, id);
+      await tx
+        .update(managedAvailabilitySets)
+        .set({ leasePolicyId: id, updatedAt: new Date() })
+        .where(eq(managedAvailabilitySets.id, setId));
+      return id;
+    });
+    await this.reconcile();
+    return { leasePolicyId };
   }
 
   /**
-   * Writes the partition mode (D11, A7) and republishes the manifest. The caller has already authorized the policy
-   * mutation.
+   * Republishes a set's lease after its members, priorities, primary or witness picks changed: the host chooses the
+   * voters again and moves to them through a joint epoch that settles only once a live holder renewed under it (AS1).
    */
+  async updateSetVoters(_setId: string): Promise<void> {
+    await this.reconcile();
+  }
+
+  /**
+   * Closes the lease of a set's current period (AS9: the only way a set's lease closes; capability, voter or license
+   * loss never does). The holder is retained (it keeps serving as the single primary) once a majority of the voters
+   * confirmed the close; the control plane follows modeChanged to legacy.
+   */
+  async closeSetPolicy(setId: string): Promise<void> {
+    const [set] = await this.db
+      .select({ leasePolicyId: managedAvailabilitySets.leasePolicyId })
+      .from(managedAvailabilitySets)
+      .where(eq(managedAvailabilitySets.id, setId))
+      .limit(1);
+    if (!set) throw new AppError(404, 'AVAILABILITY_SET_NOT_FOUND', 'Availability set not found');
+    if (!set.leasePolicyId) return;
+    await this.db
+      .update(dockerAvailabilityLeaseState)
+      .set({ legacyRequested: true, updatedAt: new Date() })
+      .where(eq(dockerAvailabilityLeaseState.policyId, set.leasePolicyId));
+    await this.reconcile();
+  }
+
+  /** The lease of a set as the host sees it: the view of its current lease policy and the member holding it. */
+  async observeSet(setId: string, now = new Date()): Promise<ManagedAvailabilitySetLease> {
+    const [set] = await this.db
+      .select({ leasePolicyId: managedAvailabilitySets.leasePolicyId })
+      .from(managedAvailabilitySets)
+      .where(eq(managedAvailabilitySets.id, setId))
+      .limit(1);
+    if (!set) throw new AppError(404, 'AVAILABILITY_SET_NOT_FOUND', 'Availability set not found');
+    if (!set.leasePolicyId) return { setId, leasePolicyId: null, view: null, holderMemberId: null, holderNodeId: null };
+    const [view, [observation]] = await Promise.all([
+      this.getLeasePolicyView(set.leasePolicyId, now),
+      this.db
+        .select({ holderId: dockerAvailabilityLeaseObservations.holderId })
+        .from(dockerAvailabilityLeaseObservations)
+        .where(
+          and(
+            eq(dockerAvailabilityLeaseObservations.policyId, set.leasePolicyId),
+            eq(dockerAvailabilityLeaseObservations.slot, 0)
+          )
+        )
+        .limit(1),
+    ]);
+    const holderNodeId = observation?.holderId ?? null;
+    const [member] = holderNodeId
+      ? await this.db
+          .select({ id: managedAvailabilityMembers.id })
+          .from(managedAvailabilityMembers)
+          .where(and(eq(managedAvailabilityMembers.setId, setId), eq(managedAvailabilityMembers.nodeId, holderNodeId)))
+          .limit(1)
+      : [];
+    return { setId, leasePolicyId: set.leasePolicyId, view, holderMemberId: member?.id ?? null, holderNodeId };
+  }
+
+  // --- Docker Availability controls ---
+
+  /** Writes the partition mode (D11, A7) and republishes the manifest. The caller authorized the policy mutation. */
   async setPartitionMode(policyId: string, partitionMode: DockerAvailabilityPartitionMode): Promise<void> {
-    const updated = await this.db
-      .update(dockerAvailabilityPolicies)
-      .set({ partitionMode, updatedAt: new Date() })
-      .where(eq(dockerAvailabilityPolicies.id, policyId))
-      .returning({ id: dockerAvailabilityPolicies.id });
-    if (updated.length === 0) throw new AppError(404, 'AVAILABILITY_NOT_FOUND', 'Availability policy not found');
+    await setAvailabilityPartitionMode(this.db, policyId, partitionMode);
     await this.republishPolicy(policyId);
   }
 
@@ -484,13 +538,7 @@ export class AvailabilityLeaseService {
    * republishes the manifest; a voter change runs through a joint epoch (A4). The caller authorized the mutation.
    */
   async setWitness(policyId: string, witness: string | null): Promise<void> {
-    if (witness) await validateLeaseWitness(this.db, witness, { policyId });
-    const updated = await this.db
-      .update(dockerAvailabilityPolicies)
-      .set({ witness, updatedAt: new Date() })
-      .where(eq(dockerAvailabilityPolicies.id, policyId))
-      .returning({ id: dockerAvailabilityPolicies.id });
-    if (updated.length === 0) throw new AppError(404, 'AVAILABILITY_NOT_FOUND', 'Availability policy not found');
+    await setAvailabilityWitness(this.db, policyId, witness);
     await this.republishPolicy(policyId);
   }
 
@@ -499,39 +547,20 @@ export class AvailabilityLeaseService {
    * running lease first (A5): use it before operations that need the backend path, such as disabling Availability.
    */
   async setLegacyRequested(policyId: string, requested: boolean): Promise<void> {
-    await ensureLeaseState(this.db, policyId);
-    await this.db
-      .update(dockerAvailabilityLeaseState)
-      .set({ legacyRequested: requested, updatedAt: new Date() })
-      .where(eq(dockerAvailabilityLeaseState.policyId, policyId));
+    await setAvailabilityLegacyRequested(this.db, policyId, requested);
     await this.republishPolicy(policyId);
   }
 
   /**
-   * Replaces the bootstrap reservation of a policy that is still bootstrapping, with a new bootstrap_id (A5). Only for
-   * the stuck state where a reserved holder died before it acquired and no holder was observed since.
+   * Replaces the bootstrap reservation of a lease policy that is still bootstrapping, with a new bootstrap_id (A5).
+   * Only for the stuck state where a reserved holder died before it acquired and no holder was observed since.
    */
-  async reissueBootstrap(policyId: string, bootstrap: Array<{ slot: number; holderNodeId: string }>): Promise<void> {
-    const updated = await this.db
-      .update(dockerAvailabilityLeaseState)
-      .set({
-        bootstrapId: randomInt(1, 2 ** 47),
-        bootstrap: bootstrap.map((entry) => ({ slot: entry.slot, holderId: entry.holderNodeId })),
-        copiesStoppedAt: null,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(eq(dockerAvailabilityLeaseState.policyId, policyId), eq(dockerAvailabilityLeaseState.mode, 'bootstrapping'))
-      )
-      .returning({ policyId: dockerAvailabilityLeaseState.policyId });
-    if (updated.length === 0) {
-      throw new AppError(
-        409,
-        'AVAILABILITY_LEASE_NOT_BOOTSTRAPPING',
-        'The policy is not waiting for a bootstrap holder'
-      );
-    }
-    await this.republishPolicy(policyId);
+  async reissueBootstrap(
+    leasePolicyId: string,
+    bootstrap: Array<{ slot: number; holderNodeId: string }>
+  ): Promise<void> {
+    await reissueLeaseBootstrap(this.db, leasePolicyId, bootstrap);
+    await this.republishPolicy(leasePolicyId);
   }
 
   /**
@@ -540,40 +569,13 @@ export class AvailabilityLeaseService {
    * holders stop and release. Failover policies have exactly one slot and reject any surge.
    */
   async setSurgeSlots(policyId: string, count: number): Promise<void> {
-    const [policy] = await this.db
-      .select({
-        mode: dockerAvailabilityPolicies.mode,
-        desiredReplicaCount: dockerAvailabilityPolicies.desiredReplicaCount,
-        rolloutPolicy: dockerAvailabilityPolicies.rolloutPolicy,
-      })
-      .from(dockerAvailabilityPolicies)
-      .where(eq(dockerAvailabilityPolicies.id, policyId))
-      .limit(1);
-    if (!policy) throw new AppError(404, 'AVAILABILITY_NOT_FOUND', 'Availability policy not found');
-    if (!Number.isInteger(count) || count < 0) {
-      throw new AppError(400, 'AVAILABILITY_LEASE_SURGE_INVALID', 'Surge slots must be a non-negative integer');
-    }
-    if (count > 0 && policy.mode !== 'replicated') {
-      throw new AppError(409, 'AVAILABILITY_LEASE_SURGE_UNSUPPORTED', 'Only replicated policies can surge lease slots');
-    }
-    if (count > policy.rolloutPolicy.maxSurge || policy.desiredReplicaCount + count > 32) {
-      throw new AppError(
-        400,
-        'AVAILABILITY_LEASE_SURGE_INVALID',
-        'Surge slots exceed the rollout policy maxSurge or the 32 slot limit'
-      );
-    }
-    await ensureLeaseState(this.db, policyId);
-    await this.db
-      .update(dockerAvailabilityLeaseState)
-      .set({ surgeSlots: count, updatedAt: new Date() })
-      .where(eq(dockerAvailabilityLeaseState.policyId, policyId));
+    await setAvailabilitySurgeSlots(this.db, policyId, count);
     await this.republishPolicy(policyId);
   }
 
   /** Marks the next holder change of a key as planned, so it is audited as a handoff (D9). */
-  async registerPlannedHandoff(
-    policyId: string,
+  registerPlannedHandoff(
+    leasePolicyId: string,
     input: {
       slot: number;
       fromHolderId: string | null;
@@ -582,37 +584,16 @@ export class AvailabilityLeaseService {
       ttlMs?: number;
     }
   ): Promise<void> {
-    await this.db.transaction(async (tx) => {
-      await ensureLeaseState(tx, policyId);
-      const [state] = await tx
-        .select({ plannedHandoffs: dockerAvailabilityLeaseState.plannedHandoffs })
-        .from(dockerAvailabilityLeaseState)
-        .where(eq(dockerAvailabilityLeaseState.policyId, policyId))
-        .for('update');
-      const now = Date.now();
-      const kept = (state?.plannedHandoffs ?? []).filter(
-        (handoff) => Date.parse(handoff.expiresAt) > now && handoff.slot !== input.slot
-      );
-      kept.push({
-        slot: input.slot,
-        fromHolderId: input.fromHolderId,
-        toHolderId: input.toHolderId,
-        operationId: input.operationId ?? null,
-        expiresAt: new Date(now + (input.ttlMs ?? PLANNED_HANDOFF_TTL_MS)).toISOString(),
-      });
-      await tx
-        .update(dockerAvailabilityLeaseState)
-        .set({ plannedHandoffs: kept, updatedAt: new Date() })
-        .where(eq(dockerAvailabilityLeaseState.policyId, policyId));
-    });
+    return registerPlannedLeaseHandoff(this.db, leasePolicyId, input);
   }
 
   /**
-   * Planned handoff (D9, A6): asks the current holder of a key to release it to the successor. The holder checks the
-   * successor is ready, stops its workload, deregisters and only then releases.
+   * Planned handoff (D9, A6) of a key of any lease policy (a set's switchover is one): asks the current holder to
+   * release it to the successor. The holder checks the successor is ready, stops its workload, deregisters and only
+   * then releases.
    */
-  async requestHandoff(policyId: string, input: DockerAvailabilityLeaseHandoffInput): Promise<CommandResult> {
-    const view = await this.getPolicyLease(policyId);
+  async requestHandoff(leasePolicyId: string, input: DockerAvailabilityLeaseHandoffInput): Promise<CommandResult> {
+    const view = await this.getPolicyLease(leasePolicyId);
     if (view.mode !== 'lease') {
       throw new AppError(409, 'AVAILABILITY_LEASE_NOT_ACTIVE', 'Handoff needs the policy to run in lease mode');
     }
@@ -626,7 +607,7 @@ export class AvailabilityLeaseService {
         retryable: true,
       });
     }
-    await this.registerPlannedHandoff(policyId, {
+    await this.registerPlannedHandoff(leasePolicyId, {
       slot: input.slot,
       fromHolderId: holder,
       toHolderId: input.successorNodeId,
@@ -636,7 +617,7 @@ export class AvailabilityLeaseService {
       holder,
       {
         availabilityLeaseHandoff: {
-          policyId,
+          policyId: leasePolicyId,
           slot: input.slot,
           successorId: input.successorNodeId,
           operationId: input.operationId ?? '',

@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   check,
@@ -246,6 +247,11 @@ export const relayEndpoints = pgTable(
     certificateSha256: varchar('certificate_sha256', { length: 71 }).notNull(),
     status: varchar('status', { length: 32 }).notNull().default('active'),
     maxConcurrentSessions: integer('max_concurrent_sessions').notNull().default(256),
+    /**
+     * Relay-local endpoints (subject_kind relay_instance): the port on the relay's loopback its tunnels are served on,
+     * in the witness range 39400-39499 (an availability set's ClickHouse Keeper witness). Null for every other endpoint.
+     */
+    relayLocalPort: integer('relay_local_port'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -268,6 +274,11 @@ export const relayRoutes = pgTable(
     targetEndpointId: uuid('target_endpoint_id')
       .notNull()
       .references(() => relayEndpoints.id, { onDelete: 'cascade' }),
+    /**
+     * Availability set member routes (owner kind `set_member:<parent kind>`): the route whose path this one repeats
+     * toward another member's endpoint. Deleting the parent deletes its member routes.
+     */
+    parentRouteId: uuid('parent_route_id').references((): AnyPgColumn => relayRoutes.id, { onDelete: 'cascade' }),
     maxConcurrentSessions: integer('max_concurrent_sessions').notNull().default(16),
     maxFrameBytes: integer('max_frame_bytes')
       .notNull()
@@ -303,6 +314,7 @@ export const relayRoutes = pgTable(
       .where(sql`${table.ownerKind} = 'container_link'`),
     sourceIdx: index('relay_routes_source_idx').on(table.sourceKind, table.sourceId),
     targetIdx: index('relay_routes_target_idx').on(table.targetEndpointId),
+    parentIdx: index('relay_routes_parent_idx').on(table.parentRouteId),
   })
 );
 

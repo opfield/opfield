@@ -7,33 +7,32 @@ import {
   dockerAvailabilityLeaseObservations,
   dockerAvailabilityLeaseState,
   dockerAvailabilityPlacements,
+  leasePolicies,
 } from '@/db/schema/index.js';
-import type { AvailabilityLeaseReport } from '@/grpc/generated/types.js';
+import type { AvailabilityLeaseKeyView, AvailabilityLeaseReport } from '@/grpc/generated/types.js';
 import { createChildLogger } from '@/lib/logger.js';
-import { normalizeLeaseBallot } from './lease-codec.js';
+import { compareLeaseBallots, normalizeLeaseBallot } from './lease-codec.js';
 import { HOLDING_LEASE_ROLES, RETAINED_LEASE_ROLE } from './lease-constants.js';
 import {
   classifyLeaseHolderChange,
-  type LeaseHolderChange,
-  type LeaseHolderChangeKind,
   type LeaseObservationCandidate,
   type LeaseObservationState,
   mergeLeaseObservation,
 } from './lease-planning.js';
+import type { LeaseHolderChangeNotice } from './lease-policy-source.js';
 import { pendingLeaseTakeover, persistPendingLeaseTakeover } from './lease-takeover-audit.js';
 
 const logger = createChildLogger('AvailabilityLeaseReports');
 
-export interface LeaseHolderChangeNotice extends LeaseHolderChange {
-  policyId: string;
-  slot: number;
-  /** failover or handoff; null for the first holder of a key. */
-  kind: LeaseHolderChangeKind | null;
-  placementId: string | null;
-  source: DockerAvailabilityLeaseObservationSource;
-  sourceId: string;
-  /** When Gateway noticed the change: the report that carried it arrived. */
-  noticedAt?: Date;
+export type { LeaseHolderChangeNotice };
+
+/**
+ * "sha256:<hex>" of the certified state a v3 relay reports for a stateful key's commit (AvailabilityLeaseKeyView
+ * committed_state_hash); null for stateless keys and older relays.
+ */
+function committedStateHash(view: AvailabilityLeaseKeyView): string | null {
+  const value = (view as { committedStateHash?: unknown }).committedStateHash;
+  return typeof value === 'string' && /^sha256:[0-9a-f]{64}$/.test(value) ? value : null;
 }
 
 /** Every holder report of a key in one lease report, for settling a takeover time noticed earlier (B-14). */
@@ -217,6 +216,8 @@ export class AvailabilityLeaseReports {
       const sighted = voterSighting(reportedTime(view.holderSinceUnixMs), startedAt);
       const commitSince = sighted ? daemonTime(sighted.getTime()) : null;
       const sinceFor = (holderId: string) => (commitSince && ballot?.proposerId === holderId ? commitSince : null);
+      // Stateful keys: the certified state hash belongs to the committed ballot.
+      const stateHash = committedStateHash(view);
       if (view.state === 'held' && view.holderId && ballot) {
         addCandidate(view.policyId, view.slot, {
           holderId: view.holderId,
@@ -226,6 +227,7 @@ export class AvailabilityLeaseReports {
           source: source === 'relay' ? 'relay' : 'acceptor',
           sourceId: sender.memberId,
           since: sinceFor(view.holderId),
+          stateHash,
         });
         continue;
       }
@@ -242,6 +244,7 @@ export class AvailabilityLeaseReports {
           source: 'relay',
           sourceId: sender.memberId,
           since: sinceFor(view.gateHolderId),
+          stateHash: ballot && compareLeaseBallots(ballot, gateBallot) === 0 ? stateHash : null,
         });
       }
     }
@@ -377,8 +380,13 @@ export class AvailabilityLeaseReports {
     if (!Number.isInteger(slot) || slot < 0 || slot > 31) return null;
     return this.db.transaction(async (tx) => {
       const [state] = await tx
-        .select({ plannedHandoffs: dockerAvailabilityLeaseState.plannedHandoffs })
+        .select({
+          plannedHandoffs: dockerAvailabilityLeaseState.plannedHandoffs,
+          kind: leasePolicies.kind,
+          resourceId: leasePolicies.resourceId,
+        })
         .from(dockerAvailabilityLeaseState)
+        .innerJoin(leasePolicies, eq(leasePolicies.id, dockerAvailabilityLeaseState.policyId))
         .where(eq(dockerAvailabilityLeaseState.policyId, policyId))
         .limit(1);
       // Reports about a policy the Gateway never put in lease mode are not recorded.
@@ -406,10 +414,14 @@ export class AvailabilityLeaseReports {
             holderSince: stored.holderSince,
             lastHolderId: stored.lastHolderId,
             claimants: stored.claimants,
+            stateHash: stored.stateHash,
           }
         : null;
       const { next, change } = mergeLeaseObservation(previous, input);
-      const placementId = next.holderId ? await this.placementOf(tx, policyId, next.holderId) : null;
+      const placementId =
+        next.holderId && state.kind === 'docker_availability'
+          ? await this.placementOf(tx, policyId, next.holderId)
+          : null;
       const row = { ...next, placementId, updatedAt: input.now };
       if (stored) {
         await tx
@@ -428,12 +440,15 @@ export class AvailabilityLeaseReports {
       const notice: LeaseHolderChangeNotice = {
         ...change,
         policyId,
+        leaseKind: state.kind,
+        resourceId: state.resourceId,
         slot,
         kind: classifyLeaseHolderChange(change, slot, state.plannedHandoffs, input.handoffSuccessors, input.now),
         placementId,
         source: next.source,
         sourceId: next.sourceId,
         noticedAt: input.now,
+        stateHash: next.stateHash ?? null,
       };
       // B-14: its audit is stored with the change itself, so a crash before the audit row is written loses nothing.
       if (notice.kind) await persistPendingLeaseTakeover(tx, pendingLeaseTakeover(notice));

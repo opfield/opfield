@@ -1,4 +1,4 @@
-import { and, eq, inArray, ne } from 'drizzle-orm';
+import { and, inArray, ne } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import {
   dockerAvailabilityLeaseState,
@@ -6,7 +6,7 @@ import {
   nodes,
   relayInstances,
 } from '@/db/schema/index.js';
-import { advertisesLeaseProtocol } from './lease-constants.js';
+import { advertisesLeaseProtocol, STORAGE_PROFILE_NODE_TYPES } from './lease-constants.js';
 import { isOperatorOwnedRelayPool } from './lease-participants.js';
 
 /** Relay transport of a lease lane, in the shape of a relay grant candidate's transport fields. */
@@ -32,7 +32,11 @@ function features(value: unknown): string[] {
  */
 export async function leaseLaneNodeIds(db: DrizzleClient): Promise<string[]> {
   const states = await db
-    .select({ policyId: dockerAvailabilityLeaseState.policyId, quorumSets: dockerAvailabilityLeaseState.quorumSets })
+    .select({
+      policyId: dockerAvailabilityLeaseState.policyId,
+      quorumSets: dockerAvailabilityLeaseState.quorumSets,
+      candidateMemberIds: dockerAvailabilityLeaseState.candidateMemberIds,
+    })
     .from(dockerAvailabilityLeaseState)
     .where(ne(dockerAvailabilityLeaseState.mode, 'legacy'));
   if (states.length === 0) return [];
@@ -48,15 +52,19 @@ export async function leaseLaneNodeIds(db: DrizzleClient): Promise<string[]> {
         ne(dockerAvailabilityPlacements.desiredState, 'removed')
       )
     );
+  // Candidates of every kind (a managed database's members); for Availability they are a subset of the placements.
   const ids = [
-    ...new Set([...states.flatMap((state) => state.quorumSets.flat()), ...placements.map(({ nodeId }) => nodeId)]),
+    ...new Set([
+      ...states.flatMap((state) => [...state.quorumSets.flat(), ...state.candidateMemberIds]),
+      ...placements.map(({ nodeId }) => nodeId),
+    ]),
   ];
   if (ids.length === 0) return [];
-  // Quorum sets also name relays (witnesses): only docker nodes get relay grant bundles.
+  // Quorum sets also name relays (witnesses): only docker and storage-profile nodes get relay grant bundles.
   const dockerNodes = await db
     .select({ id: nodes.id })
     .from(nodes)
-    .where(and(inArray(nodes.id, ids), eq(nodes.type, 'docker')));
+    .where(and(inArray(nodes.id, ids), inArray(nodes.type, ['docker', ...STORAGE_PROFILE_NODE_TYPES])));
   return dockerNodes.map(({ id }) => id).sort();
 }
 

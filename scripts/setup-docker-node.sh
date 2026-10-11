@@ -151,6 +151,12 @@ guide_blank() {
 }
 selector_title() { echo -e "${BRAND_MINT}◆${NC} ${GRAY}$*${NC}"; }
 
+# Profiles that run the lease watchdog: Docker nodes (Availability) and storage nodes, also the legacy databases
+# profile (availability sets of managed databases and storage).
+lease_watchdog_profile() {
+    [[ "$DOCKER_MODE" == "docker" || "$DOCKER_MODE" == "databases" || "$DOCKER_MODE" == "storage" ]]
+}
+
 guide_start() {
     if [[ "${NO_LOGO:-0}" -eq 1 ]]; then
         echo -e "$*"
@@ -2222,7 +2228,7 @@ dry_run_preview() {
     log "Creating required directories..."
     ok "Directories created (dry run)"
     preview_daemon_binary
-    if [[ "$DOCKER_MODE" == "docker" ]]; then
+    if lease_watchdog_profile; then
         ok "Lease watchdog installed as its own service (dry run)"
     fi
     if [[ "$DOCKER_MODE" == "builder" ]]; then
@@ -2739,11 +2745,13 @@ write_builder_profile_config() {
 }
 
 # ── Lease watchdog (own component, own unit) ─────────────────────────
-# Docker Availability lease mode needs an independent fence (A2, A12): the
-# watchdog kills a lease-mode container past its deadline without docker-daemon
-# or dockerd. It has its own release line (vX.Y.Z-watchdog), its own binary and
-# its own service unit, so a docker-daemon upgrade, downgrade or removal never
-# disarms it. Without it the node simply stays out of lease mode.
+# Docker Availability lease mode and availability sets of managed databases and
+# storage need an independent fence (A2, A12): the watchdog kills a lease-mode
+# container (or a set's primary) past its deadline without docker-daemon or
+# dockerd. It has its own release line (vX.Y.Z-watchdog), its own binary and its
+# own service unit, so a docker-daemon upgrade, downgrade or removal never
+# disarms it. Without it the node simply stays out of lease mode and never
+# holds a set's primary role. Docker nodes and storage nodes get it.
 LEASE_WATCHDOG_BIN="/usr/local/bin/gateway-lease-watchdog"
 LEASE_WATCHDOG_UNIT="gateway-lease-watchdog"
 LEASE_WATCHDOG_VERSION="${GATEWAY_LEASE_WATCHDOG_VERSION:-latest}"
@@ -2756,7 +2764,7 @@ lease_watchdog_channel() {
 }
 
 install_lease_watchdog() {
-    [[ "$DOCKER_MODE" == "docker" ]] || return 0
+    lease_watchdog_profile || return 0
     local artifact="lease-watchdog-linux-${ARCH}"
     local tag base checksums expected actual current
     if [[ "$LEASE_WATCHDOG_VERSION" == "latest" ]]; then
@@ -2767,7 +2775,7 @@ install_lease_watchdog() {
         tag="$(normalize_daemon_version "$LEASE_WATCHDOG_VERSION")-watchdog"
     fi
     if [[ -z "$tag" ]]; then
-        warn "No lease watchdog release found; Availability lease mode stays unavailable on this node."
+        warn "No lease watchdog release found; lease mode (Availability, availability sets) stays unavailable on this node."
         return 0
     fi
     if [[ -x "$LEASE_WATCHDOG_BIN" ]]; then
@@ -2782,7 +2790,7 @@ install_lease_watchdog() {
     log "Downloading lease watchdog ${tag}..."
     if ! download_with_progress "${base}/${artifact}" "${LEASE_WATCHDOG_BIN}.tmp"; then
         rm -f "${LEASE_WATCHDOG_BIN}.tmp"
-        warn "Could not download the lease watchdog; Availability lease mode stays unavailable on this node."
+        warn "Could not download the lease watchdog; lease mode (Availability, availability sets) stays unavailable on this node."
         return 0
     fi
     checksums=$(curl -fsSL "${base}/checksums.txt" 2>>"$LOG_FILE" || true)
@@ -2801,7 +2809,7 @@ install_lease_watchdog() {
 start_lease_watchdog() {
     # Also on a re-run that could not resolve or download a watchdog release: an installed watchdog is restarted with
     # the current run user as its records owner (a run-user switch hands the records over).
-    [[ "$DOCKER_MODE" == "docker" ]] || return 0
+    lease_watchdog_profile || return 0
     [[ "$LEASE_WATCHDOG_INSTALLED" -eq 1 || -x "$LEASE_WATCHDOG_BIN" ]] || return 0
     # Runs as root: it must kill container processes of any user. The records
     # directory is owned by the docker-daemon user, which writes the deadlines.
@@ -2829,7 +2837,7 @@ UNIT
         if systemctl restart "$LEASE_WATCHDOG_UNIT" >>"$LOG_FILE" 2>&1; then
             ok "Lease watchdog is running"
         else
-            warn "Lease watchdog did not start; Availability lease mode stays unavailable on this node."
+            warn "Lease watchdog did not start; lease mode (Availability, availability sets) stays unavailable on this node."
         fi
     elif has_openrc; then
         cat > "/etc/init.d/${LEASE_WATCHDOG_UNIT}" <<UNIT
@@ -2852,10 +2860,10 @@ UNIT
         if rc-service "$LEASE_WATCHDOG_UNIT" restart >>"$LOG_FILE" 2>&1 || rc-service "$LEASE_WATCHDOG_UNIT" start >>"$LOG_FILE" 2>&1; then
             ok "Lease watchdog is running"
         else
-            warn "Lease watchdog did not start; Availability lease mode stays unavailable on this node."
+            warn "Lease watchdog did not start; lease mode (Availability, availability sets) stays unavailable on this node."
         fi
     else
-        warn "No service manager for the lease watchdog; Availability lease mode stays unavailable on this node."
+        warn "No service manager for the lease watchdog; lease mode (Availability, availability sets) stays unavailable on this node."
     fi
 }
 

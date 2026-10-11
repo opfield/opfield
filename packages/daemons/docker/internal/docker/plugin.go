@@ -24,6 +24,7 @@ import (
 	"github.com/wiolett-industries/gateway/daemon-shared/sysmetrics"
 	builderruntime "github.com/wiolett-industries/gateway/docker-daemon/internal/builder"
 	"github.com/wiolett-industries/gateway/docker-daemon/internal/config"
+	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
 	runtimemanager "github.com/wiolett-industries/gateway/docker-daemon/internal/runtime"
 )
 
@@ -60,6 +61,11 @@ type DockerPlugin struct {
 	relayGrants     *relayGrantStore
 	relayTunnelMu   sync.Mutex
 	relayTunnels    map[string]*relayTunnelRouter
+	// setGates: relay lease gate views and the member runtime of availability
+	// sets (relay_lease_groups.go); setMembers runs the members on a
+	// storage-profile daemon (set_member_runtime.go).
+	setGates   setLeaseGates
+	setMembers *memberha.Manager
 	// restartAnnounced freezes relay registrations once the daemon told its
 	// relays it restarts (B-13); proxyTunnels are the Secure Link tunnels it
 	// serves, drained before it exits.
@@ -146,8 +152,10 @@ type DockerPlugin struct {
 	buildEventMu     sync.RWMutex
 	buildEventWriter *stream.Writer
 	sessionCtx       context.Context
-	logStreamMu      sync.Mutex
-	logStreamCancel  map[string]context.CancelFunc // containerId -> cancel
+	// sessionLive: a Gateway control session is up (a manual pair's primary self-fences without it and its peer).
+	sessionLive     atomic.Bool
+	logStreamMu     sync.Mutex
+	logStreamCancel map[string]context.CancelFunc // containerId -> cancel
 }
 
 var _ lifecycle.ProxySecureLinkPlugin = (*DockerPlugin)(nil)
@@ -404,7 +412,8 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 	p.startRuntimeVerification(preflightCtx, p.runtimeManager)
 	cancelPreflight()
 	p.availability = availability
-	if availability != nil && p.lease == nil {
+	if (availability != nil || p.cfg.Docker.IsStorageProfile()) && p.lease == nil {
+		// Storage-profile daemons run the lease for their availability set members.
 		p.initAvailabilityLease()
 	}
 	if availability != nil && p.availabilityHealth == nil {
@@ -541,7 +550,11 @@ func (p *DockerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 				"relay_pool_v1",
 				relayresume.Capability,
 				handover.Capability,
+				managedAvailabilityRoutesCapability,
 			}
+			// The lease runtime runs on storage-profile daemons for their availability set members.
+			values = append(values, p.leaseCapabilities()...)
+			values = append(values, p.setMemberCapabilities()...)
 			if p.backupHandler != nil {
 				values = append(values, "database_backups_v1", "database_backups_deadline_v1", "database_backups_tls_verification_v1", storageCopyCapability)
 			}
@@ -558,7 +571,7 @@ func (p *DockerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 		// watchdog_ready carries later changes within the session.
 		values = append(values, p.leaseCapabilities()...)
 		values = append(values, "managed_database_binding_listener_v1", managedStorageLinkCapability, managedLinkRuntimeCapability,
-			managedLinkCompletedCapability)
+			managedLinkCompletedCapability, managedAvailabilityRoutesCapability)
 		if p.secureLinks != nil {
 			// The shared connector serves egress, container links and create_link_network (C7).
 			values = append(values, secureLinkEgressCapability)

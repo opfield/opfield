@@ -9,6 +9,7 @@ import (
 	"time"
 
 	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	"github.com/wiolett-industries/gateway/daemon-shared/leasegate"
 )
 
 // availabilityLeaseCapability is advertised once this daemon can derive
@@ -52,7 +53,7 @@ type availabilityLeaseCoordinator struct {
 	logger  *slog.Logger
 	sockets *sourceLinkManager
 
-	gates *leaseGateTracker
+	gates *leasegate.Tracker
 
 	mu       sync.Mutex
 	watched  map[string]bool // relay member id -> a WatchLeaseGates stream is already running
@@ -67,7 +68,7 @@ func newAvailabilityLeaseCoordinator(stateDir string, sockets *sourceLinkManager
 	return &availabilityLeaseCoordinator{
 		logger:  logger,
 		sockets: sockets,
-		gates:   newLeaseGateTracker(),
+		gates:   leasegate.NewTracker(),
 		watched: map[string]bool{},
 		stop:    make(chan struct{}),
 	}
@@ -126,15 +127,15 @@ func (c *availabilityLeaseCoordinator) runSocketSweep() {
 // reconcileSockets opens or closes every availability member's Secure Link
 // socket according to the relay gate views currently held (D8, A8). Every
 // view is aged out at at most the lease term T, regardless of what a relay
-// reports (leaseGateTracker.apply).
+// reports (leasegate.Tracker.Apply).
 func (c *availabilityLeaseCoordinator) reconcileSockets() {
 	if c.sockets == nil {
 		return
 	}
 	now := time.Now()
 	for _, binding := range c.sockets.leaseGatedBindings() {
-		open := c.gates.openFor(binding.PolicyID, binding.CandidateID, now)
-		if !open && !c.gates.reported(binding.PolicyID, now) &&
+		open := c.gates.OpenFor(binding.PolicyID, binding.CandidateID, now)
+		if !open && !c.gates.Reported(binding.PolicyID, now) &&
 			c.sockets.adoptedWithin(binding.LinkID, now, availabilityLeaseAdoptionGrace) {
 			// Taken over open from the previous process: no relay reported on
 			// this policy yet since the restart.

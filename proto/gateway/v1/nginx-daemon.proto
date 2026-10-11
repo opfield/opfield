@@ -205,6 +205,8 @@ message HealthReport {
   // Nginx daemons advertising ingress_group_v1: what the reserved endpoint
   // /.well-known/gateway-ingress-health answers (sf-ingress range 195-199).
   IngressHealthReport ingress_health = 195;
+  // Storage-profile docker daemons: their availability set members.
+  repeated AvailabilityMemberReport availability_members = 196;
 }
 
 // Connections across an update of the daemon. A daemon advertising
@@ -498,6 +500,9 @@ message GatewayCommand {
     // Relay supervisor only (relay_witness_v1): the witness processes this
     // relay hosts for availability sets, as the full desired set.
     ApplyWitnessesCommand apply_witnesses = 80;
+    // Storage-profile docker daemons (managed_availability_member_v1): this
+    // node's member of a database or storage availability set.
+    AvailabilityMemberCommand availability_member = 81;
   }
 }
 
@@ -577,6 +582,110 @@ message WitnessStatus {
   uint32 restarts = 10;
   // Unix seconds of the last state change.
   int64 since_unix = 11;
+}
+
+// This node's member of a database or storage availability set.
+message AvailabilityMemberCommand {
+  oneof action {
+    AvailabilityMemberConfig configure = 1;
+    AvailabilityMemberRemove remove = 2;
+    AvailabilityMemberEventsAck ack_events = 3;
+    // Manual pairs: the primary assignment (Gateway names the primary under a
+    // generation that grows with every switch).
+    AvailabilityPrimaryAssignment assign_primary = 4;
+    // Automatic sets: a planned switchover the holder runs (writes stop, the
+    // successor catches up, then the holder releases to it).
+    AvailabilityMemberSwitchover switchover = 5;
+  }
+}
+
+message AvailabilityMemberConfig {
+  string set_id = 1;
+  string member_id = 2;
+  // "postgres", "valkey", "seaweedfs" or "clickhouse".
+  string engine = 3;
+  // "managed_database" or "managed_storage", and the resource id.
+  string owner_kind = 4;
+  string owner_id = 5;
+  // "automatic" (lease) or "manual" (replicated pair without witness).
+  string mode = 6;
+  string lease_policy_id = 7;
+  // "synchronous" or "asynchronous".
+  string durability = 8;
+  uint32 sync_degrade_after_seconds = 9;
+  uint64 max_lag_bytes = 10;
+  repeated AvailabilityMemberPeer members = 11;
+  AvailabilityPrimaryAssignment primary = 12;
+  // A configuration older than the one applied is ignored.
+  uint64 config_revision = 13;
+  // The engine's own configuration (JSON), opaque to the member runtime.
+  bytes engine_config = 14;
+  // The member proxy's published port (direct publication); 0: none.
+  uint32 published_port = 15;
+}
+
+message AvailabilityMemberPeer {
+  string member_id = 1;
+  string node_id = 2;
+  uint32 member_index = 3;
+  int32 priority = 4;
+  bool removing = 5;
+}
+
+message AvailabilityPrimaryAssignment {
+  string set_id = 1;
+  string primary_member_id = 2;
+  uint64 generation = 3;
+}
+
+message AvailabilityMemberRemove {
+  string set_id = 1;
+  string member_id = 2;
+}
+
+message AvailabilityMemberEventsAck {
+  string set_id = 1;
+  string member_id = 2;
+  uint64 through_sequence = 3;
+}
+
+message AvailabilityMemberSwitchover {
+  string set_id = 1;
+  string successor_member_id = 2;
+  string operation_id = 3;
+}
+
+// One member as its node reports it, with the events Gateway has not
+// acknowledged yet (kept on disk with the time they happened).
+message AvailabilityMemberReport {
+  string set_id = 1;
+  string member_id = 2;
+  // "primary", "copy", "rebuilding", "fenced" or "unknown".
+  string role = 3;
+  bool serving = 4;
+  // The lease proposer role of the set's key on this node (automatic sets).
+  string lease_role = 5;
+  bool eligible = 6;
+  string eligibility_reason = 7;
+  uint64 lag_bytes = 8;
+  double lag_seconds = 9;
+  // "sync", "async" or "none".
+  string sync_state = 10;
+  map<string, string> position = 11;
+  uint64 disk_free_bytes = 12;
+  string last_error = 13;
+  uint64 config_revision = 14;
+  uint64 primary_generation = 15;
+  repeated AvailabilityMemberEvent events = 16;
+}
+
+message AvailabilityMemberEvent {
+  uint64 sequence = 1;
+  string kind = 2;
+  int64 at_unix_ms = 3;
+  string reason = 4;
+  string operation_id = 5;
+  map<string, string> detail = 6;
 }
 
 // A serialized relay.v1.ApplySnapshotRequest. Keeping the policy as opaque
@@ -858,6 +967,55 @@ message RelayGrantAssignment {
   // Endpoint assignments only: the routes to this endpoint whose streams may
   // be resumable, with their current and previous resume keys.
   repeated RelayRouteResume resume_routes = 13;
+  // Database and storage availability sets (fields 213-219). Endpoint
+  // assignments: the member and port the endpoint serves. Peer route
+  // assignments: the member the route reaches.
+  RelayLeaseTarget lease_target = 213;
+  // Connect assignments of a set's resource: one route per member, each to
+  // that member's endpoint. The daemon opens the route of the member that the
+  // relay lease gate views name the holder first, then the others by rank
+  // (the relay admits only the holder while the set's lease runs). This
+  // assignment's own route fields are the group's first member, for daemons
+  // that do not know groups.
+  repeated RelayLeaseGroupRoute lease_group = 214;
+}
+
+// One member of a database or storage availability set as a relay path sees
+// it.
+message RelayLeaseTarget {
+  string set_id = 1;
+  string member_id = 2;
+  // The member's lease identity (its node id): the holder id in gate views.
+  string candidate_id = 3;
+  // The set's current lease policy id (the relay gate key); empty for a
+  // manual pair, whose primary is the only serving member.
+  string lease_policy_id = 4;
+  // Member order for the fallback when no gate view names a holder (0 first).
+  uint32 rank = 5;
+  // "managed_database" or "managed_storage", and the resource id.
+  string owner_kind = 6;
+  string owner_id = 7;
+  // Member peer endpoints and routes: the engine port name ("pg-repl",
+  // "kv-repl", "sw-master", "sw-volume", "sw-filer", "ch-interserver",
+  // "ch-keeper"). Empty for client paths.
+  string port_name = 8;
+  // A port that reaches the primary only ("primary-<port>"); otherwise each
+  // member is reached by its own alias ("member-<id>-<port>").
+  bool primary_port = 9;
+  // A route to a ClickHouse Keeper witness on a relay (relay-local endpoint):
+  // the witness id; reached as "witness-<id>-<port>". member_id is empty.
+  string witness_id = 10;
+}
+
+// One route of a lease group.
+message RelayLeaseGroupRoute {
+  string route_id = 1;
+  string target_endpoint_id = 2;
+  RelaySignedGrant grant = 3;
+  repeated RelayDataCandidate candidates = 4;
+  RelayStreamResume stream_resume = 5;
+  RelayLeaseTarget target = 6;
+  uint32 schema_version = 7;
 }
 
 // The source side of a resumable route (RSv1). The key never travels through

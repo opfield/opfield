@@ -10,6 +10,7 @@ import (
 	"time"
 
 	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	"github.com/wiolett-industries/gateway/daemon-shared/leasegate"
 	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
 )
 
@@ -65,7 +66,7 @@ func TestAvailabilityLeaseCoordinatorOpensAndClosesSocketOnGateViewChanges(t *te
 	coordinator := newAvailabilityLeaseCoordinator(t.TempDir(), manager, nil)
 	defer coordinator.close()
 
-	coordinator.gates.apply("relay-1", &relayv1.LeaseGateSnapshot{Gates: []*relayv1.LeaseGateView{{
+	coordinator.gates.Apply("relay-1", &relayv1.LeaseGateSnapshot{Gates: []*relayv1.LeaseGateView{{
 		PolicyId: "policy-1", Slot: 0, LeaseMode: true, Open: true, HolderId: "node-a", RemainingMs: 30000,
 	}}}, time.Now())
 	coordinator.reconcileSockets()
@@ -77,7 +78,7 @@ func TestAvailabilityLeaseCoordinatorOpensAndClosesSocketOnGateViewChanges(t *te
 	_ = connection.Close()
 
 	// The lease moves to a different holder: node-a's socket must close.
-	coordinator.gates.apply("relay-1", &relayv1.LeaseGateSnapshot{Gates: []*relayv1.LeaseGateView{{
+	coordinator.gates.Apply("relay-1", &relayv1.LeaseGateSnapshot{Gates: []*relayv1.LeaseGateView{{
 		PolicyId: "policy-1", Slot: 0, LeaseMode: true, Open: true, HolderId: "node-b", RemainingMs: 30000,
 	}}}, time.Now())
 	coordinator.reconcileSockets()
@@ -87,7 +88,7 @@ func TestAvailabilityLeaseCoordinatorOpensAndClosesSocketOnGateViewChanges(t *te
 	}
 
 	// The lease returns to node-a: the socket reopens.
-	coordinator.gates.apply("relay-1", &relayv1.LeaseGateSnapshot{Gates: []*relayv1.LeaseGateView{{
+	coordinator.gates.Apply("relay-1", &relayv1.LeaseGateSnapshot{Gates: []*relayv1.LeaseGateView{{
 		PolicyId: "policy-1", Slot: 0, LeaseMode: true, Open: true, HolderId: "node-a", RemainingMs: 30000,
 	}}}, time.Now())
 	coordinator.reconcileSockets()
@@ -121,7 +122,7 @@ func TestResyncWithLeaseFieldsGatesAnExistingMemberAndLegacyReopensIt(t *testing
 	_ = connection.Close()
 
 	// The policy reached lease mode and another candidate holds the lease.
-	coordinator.gates.apply("relay-1", &relayv1.LeaseGateSnapshot{Gates: []*relayv1.LeaseGateView{{
+	coordinator.gates.Apply("relay-1", &relayv1.LeaseGateSnapshot{Gates: []*relayv1.LeaseGateView{{
 		PolicyId: "policy-1", Slot: 0, LeaseMode: true, Open: true, HolderId: "node-b", RemainingMs: 30000,
 	}}}, time.Now())
 	leased := availabilityMemberCommand("policy-1", "node-a")
@@ -163,7 +164,7 @@ func TestAvailabilityLeaseCoordinatorClosesSocketOnStaleView(t *testing.T) {
 	coordinator := newAvailabilityLeaseCoordinator(t.TempDir(), manager, nil)
 	defer coordinator.close()
 
-	coordinator.gates.apply("relay-1", &relayv1.LeaseGateSnapshot{Gates: []*relayv1.LeaseGateView{{
+	coordinator.gates.Apply("relay-1", &relayv1.LeaseGateSnapshot{Gates: []*relayv1.LeaseGateView{{
 		PolicyId: "policy-1", Slot: 0, LeaseMode: true, Open: true, HolderId: "node-a", RemainingMs: 50,
 	}}}, time.Now())
 	coordinator.reconcileSockets()
@@ -206,7 +207,7 @@ func TestAvailabilityLeaseCoordinatorOpensSocketOnLeaseModeFalseView(t *testing.
 	// The relay reports the policy is not lease-bound (legacy admission, or
 	// its lease just closed): the socket must open even though no view ever
 	// named node-a as holder.
-	coordinator.gates.apply("relay-1", &relayv1.LeaseGateSnapshot{Gates: []*relayv1.LeaseGateView{{
+	coordinator.gates.Apply("relay-1", &relayv1.LeaseGateSnapshot{Gates: []*relayv1.LeaseGateView{{
 		PolicyId: "policy-1", Slot: 0, LeaseMode: false, Open: false,
 	}}}, time.Now())
 	coordinator.reconcileSockets()
@@ -233,7 +234,7 @@ func TestAvailabilityLeaseCoordinatorSocketSweepClosesStaleViewOnItsOwn(t *testi
 	coordinator.start()
 	defer coordinator.close()
 
-	coordinator.gates.apply("relay-1", &relayv1.LeaseGateSnapshot{Gates: []*relayv1.LeaseGateView{{
+	coordinator.gates.Apply("relay-1", &relayv1.LeaseGateSnapshot{Gates: []*relayv1.LeaseGateView{{
 		PolicyId: "policy-1", Slot: 0, LeaseMode: true, Open: true, HolderId: "node-a", RemainingMs: 700,
 	}}}, time.Now())
 
@@ -311,8 +312,8 @@ func TestHolderSocketSurvivesItsPolicyEnteringLeaseMode(t *testing.T) {
 		"relay carries the endpoint lease-bound": relayv1.LeaseHolderEndpoint_LEASE_HOLDER_ENDPOINT_READY,
 		"relay not yet updated":                  relayv1.LeaseHolderEndpoint_LEASE_HOLDER_ENDPOINT_UNKNOWN,
 	} {
-		coordinator.gates = newLeaseGateTracker()
-		coordinator.gates.apply("relay-1", &relayv1.LeaseGateSnapshot{Gates: []*relayv1.LeaseGateView{{
+		coordinator.gates = leasegate.NewTracker()
+		coordinator.gates.Apply("relay-1", &relayv1.LeaseGateSnapshot{Gates: []*relayv1.LeaseGateView{{
 			PolicyId: "policy-1", Slot: 0, LeaseMode: true, Open: true, HolderId: "node-a", RemainingMs: 20000, HolderEndpoint: readiness,
 		}}}, time.Now())
 		if _, err := manager.sync(availabilityMemberCommand("policy-1", "node-a")); err != nil {

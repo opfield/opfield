@@ -10,6 +10,22 @@
  */
 export const AVAILABILITY_LEASE_CAPABILITY = 'availability_lease_v2';
 
+/**
+ * v3 (S10): certified holder state. Every participant of a stateful lease policy (candidates, voters, relay members,
+ * carrying relays) must advertise it; stateless policies keep running on v2 participants.
+ */
+export const AVAILABILITY_LEASE_V3_CAPABILITY = 'availability_lease_v3';
+
+/** Storage-profile docker daemons that run the member runtime of database and storage availability sets. */
+export const MANAGED_AVAILABILITY_MEMBER_CAPABILITY = 'managed_availability_member_v1';
+
+/** Node types whose docker daemon runs the storage profile (managed databases and storage, availability members). */
+export const STORAGE_PROFILE_NODE_TYPES = ['storage', 'databases'] as const;
+
+export function isStorageProfileNodeType(type: string): boolean {
+  return (STORAGE_PROFILE_NODE_TYPES as readonly string[]).includes(type);
+}
+
 /** The first lease protocol capability (rc.18/rc.19). Same wire protocol; counted as outdated. */
 export const AVAILABILITY_LEASE_V1_CAPABILITY = 'availability_lease_v1';
 

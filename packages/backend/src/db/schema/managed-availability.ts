@@ -257,6 +257,11 @@ export const managedAvailabilityWitnesses = pgTable(
     nodeId: uuid('node_id').references(() => nodes.id, { onDelete: 'restrict' }),
     role: varchar('role', { length: 16 }).$type<ManagedAvailabilityWitnessRole>().notNull().default('active'),
     keeperServerId: integer('keeper_server_id'),
+    /**
+     * Keeper witnesses on a relay: the loopback port (39400-39499, unique per relay) the witness's Raft port listens on;
+     * the relay serves the witness's relay-local endpoint there. Allocated with the witness's desired state.
+     */
+    relayLocalPort: integer('relay_local_port'),
     artifactVersion: varchar('artifact_version', { length: 64 }),
     artifactSha256: varchar('artifact_sha256', { length: 71 }),
     desiredState: varchar('desired_state', { length: 16 })

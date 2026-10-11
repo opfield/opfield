@@ -1,0 +1,250 @@
+package docker
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"path/filepath"
+	"sort"
+	"sync"
+	"time"
+
+	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
+	"github.com/wiolett-industries/gateway/docker-daemon/internal/lease"
+	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+)
+
+// Availability set members on a storage-profile daemon: the member runtime
+// (internal/memberha) is the lease runtime's controller for the sets' lease
+// policies, the relay paths (relay_lease_groups.go) follow its serving state,
+// and Gateway configures it with AvailabilityMemberCommand and reads it from
+// the health report.
+
+// managedAvailabilityMemberCapability: this daemon runs availability set
+// members (lease runtime with a live watchdog, the member runtime, and at least
+// one engine). Gateway makes a node a candidate of a set only with it.
+const managedAvailabilityMemberCapability = "managed_availability_member_v1"
+
+// SetMemberEngineFactory opens one member's engine on this daemon.
+type SetMemberEngineFactory func(p *DockerPlugin, config memberha.Config) (memberha.Engine, error)
+
+var (
+	setMemberEnginesMu sync.RWMutex
+	setMemberEngines   = map[string]SetMemberEngineFactory{}
+)
+
+// RegisterSetMemberEngine registers the member engine of one engine name
+// ("postgres", "valkey", "seaweedfs", "clickhouse").
+func RegisterSetMemberEngine(engine string, factory SetMemberEngineFactory) {
+	setMemberEnginesMu.Lock()
+	setMemberEngines[engine] = factory
+	setMemberEnginesMu.Unlock()
+}
+
+func setMemberEngine(engine string) (SetMemberEngineFactory, bool) {
+	setMemberEnginesMu.RLock()
+	defer setMemberEnginesMu.RUnlock()
+	factory, ok := setMemberEngines[engine]
+	return factory, ok
+}
+
+func setMemberEngineNames() []string {
+	setMemberEnginesMu.RLock()
+	defer setMemberEnginesMu.RUnlock()
+	names := make([]string, 0, len(setMemberEngines))
+	for name := range setMemberEngines {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+type bootWallClock struct{}
+
+func (bootWallClock) Now() time.Duration { return leasefence.Now() }
+func (bootWallClock) Wall() time.Time    { return time.Now() }
+
+// setEndpointsAdapter re-registers the member's relay endpoints with the state
+// the member runtime reports; a stop waits until the member's tunnels ended.
+type setEndpointsAdapter struct{ plugin *DockerPlugin }
+
+func (a setEndpointsAdapter) SetServing(_, _ string, serving bool) {
+	closed := a.plugin.SetMemberServingChanged()
+	if serving {
+		return
+	}
+	timeout := time.NewTimer(endpointCloseWait)
+	defer timeout.Stop()
+	for _, done := range closed {
+		select {
+		case <-done:
+		case <-timeout.C:
+			return
+		}
+	}
+}
+
+// setMemberRuntimeAdapter is the relay side's view of the member runtime.
+type setMemberRuntimeAdapter struct{ manager *memberha.Manager }
+
+func (a setMemberRuntimeAdapter) MemberServing(setID, memberID string) (bool, bool) {
+	return a.manager.MemberServing(setID, memberID)
+}
+
+func (a setMemberRuntimeAdapter) PeerServing(setID, memberID, port string) bool {
+	return a.manager.PeerServing(setID, memberID, port)
+}
+
+// DialPeer serves the member-control port in this process and connects every
+// other port to the member's engine.
+func (a setMemberRuntimeAdapter) DialPeer(ctx context.Context, setID, memberID, port string) (net.Conn, error) {
+	if port != memberha.MemberControlPort {
+		return a.manager.DialPeer(ctx, setID, memberID, port)
+	}
+	state, ok := a.manager.PeerState(setID)
+	if !ok || state.MemberID != memberID {
+		return nil, errSetMemberNotServing
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		return nil, err
+	}
+	local, remote := net.Pipe()
+	go func() {
+		defer remote.Close()
+		_ = remote.SetWriteDeadline(time.Now().Add(5 * time.Second))
+		_, _ = remote.Write(append(data, '\n'))
+	}()
+	return local, nil
+}
+
+// startSetMembers runs the availability set member runtime on a storage-profile
+// daemon, as the lease runtime's controller. Call before the lease runtime's
+// loop runs.
+func (p *DockerPlugin) startSetMembers(runtime *lease.Runtime, fence lease.DirFence) error {
+	store, err := memberha.NewStore(filepath.Join(p.cfg.StateDir, "availability-members"))
+	if err != nil {
+		return err
+	}
+	manager, err := memberha.NewManager(memberha.Deps{
+		Lease: runtime.Node(), Watchdog: fence, Endpoints: setEndpointsAdapter{plugin: p}, Gates: p.setGates.tracker(),
+		Clock: bootWallClock{}, Logger: p.logger,
+		Engine: func(config memberha.Config) (memberha.Engine, error) {
+			factory, ok := setMemberEngine(config.Engine)
+			if !ok {
+				return nil, fmt.Errorf("this daemon cannot run %s availability members", config.Engine)
+			}
+			return factory(p, config)
+		},
+		GatewayConnected: p.sessionLive.Load,
+		PeerState:        p.setPeerState,
+	}, store)
+	if err != nil {
+		return err
+	}
+	runtime.SetController(manager)
+	p.setMembers = manager
+	p.SetSetMemberRuntime(setMemberRuntimeAdapter{manager: manager})
+	return nil
+}
+
+// setPeerState asks a manual pair's peer for its primary assignment over the
+// member mesh (its member-control port).
+func (p *DockerPlugin) setPeerState(ctx context.Context, setID, peerMemberID string) (memberha.PeerState, bool) {
+	local, remote := net.Pipe()
+	defer local.Close()
+	done := make(chan error, 1)
+	go func() { done <- p.BridgeSetPeer(remote, setID, "member-"+peerMemberID+"-"+memberha.MemberControlPort) }()
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = local.SetReadDeadline(deadline)
+	}
+	var state memberha.PeerState
+	if err := json.NewDecoder(local).Decode(&state); err != nil || state.MemberID != peerMemberID {
+		return memberha.PeerState{}, false
+	}
+	return state, true
+}
+
+// setMemberCapabilities advertises the member runtime when it runs with a live
+// watchdog and at least one engine.
+func (p *DockerPlugin) setMemberCapabilities() []string {
+	if p.setMembers == nil || p.lease == nil || !p.lease.watchdogReady() || len(setMemberEngineNames()) == 0 {
+		return nil
+	}
+	return []string{managedAvailabilityMemberCapability}
+}
+
+// handleAvailabilityMember applies Gateway's command for this node's member of a set.
+func (p *DockerPlugin) handleAvailabilityMember(command *pb.AvailabilityMemberCommand) error {
+	if p.setMembers == nil {
+		return errors.New("this daemon does not run availability set members")
+	}
+	switch action := command.GetAction().(type) {
+	case *pb.AvailabilityMemberCommand_Configure:
+		return p.setMembers.Configure(memberConfigFromProto(action.Configure))
+	case *pb.AvailabilityMemberCommand_Remove:
+		if config, ok := p.setMembers.Config(action.Remove.GetSetId()); ok && config.MemberID != action.Remove.GetMemberId() {
+			return errors.New("the set has another member on this node")
+		}
+		return p.setMembers.Remove(action.Remove.GetSetId())
+	case *pb.AvailabilityMemberCommand_AckEvents:
+		return p.setMembers.AckEvents(action.AckEvents.GetSetId(), action.AckEvents.GetThroughSequence())
+	case *pb.AvailabilityMemberCommand_AssignPrimary:
+		assignment := action.AssignPrimary
+		return p.setMembers.AssignPrimary(assignment.GetSetId(), memberha.Assignment{
+			PrimaryMemberID: assignment.GetPrimaryMemberId(), Generation: assignment.GetGeneration()})
+	case *pb.AvailabilityMemberCommand_Switchover:
+		switchover := action.Switchover
+		return p.setMembers.Switchover(switchover.GetSetId(), switchover.GetSuccessorMemberId(), switchover.GetOperationId())
+	}
+	return errors.New("unknown availability member command")
+}
+
+func memberConfigFromProto(config *pb.AvailabilityMemberConfig) memberha.Config {
+	members := make([]memberha.Peer, 0, len(config.GetMembers()))
+	for _, peer := range config.GetMembers() {
+		members = append(members, memberha.Peer{MemberID: peer.GetMemberId(), NodeID: peer.GetNodeId(),
+			MemberIndex: peer.GetMemberIndex(), Priority: peer.GetPriority(), Removing: peer.GetRemoving()})
+	}
+	self := ""
+	for _, peer := range members {
+		if peer.MemberID == config.GetMemberId() {
+			self = peer.NodeID
+		}
+	}
+	return memberha.Config{
+		SetID: config.GetSetId(), MemberID: config.GetMemberId(), NodeID: self, Engine: config.GetEngine(),
+		OwnerKind: config.GetOwnerKind(), OwnerID: config.GetOwnerId(), Mode: config.GetMode(),
+		LeasePolicyID: config.GetLeasePolicyId(), Durability: config.GetDurability(),
+		SyncDegradeAfterSeconds: config.GetSyncDegradeAfterSeconds(), MaxLagBytes: config.GetMaxLagBytes(),
+		Members: members, ConfigRevision: config.GetConfigRevision(), EngineConfig: config.GetEngineConfig(),
+		PublishedPort: config.GetPublishedPort(),
+	}
+}
+
+// availabilityMemberReports are this node's members for the health report.
+func (p *DockerPlugin) availabilityMemberReports() []*pb.AvailabilityMemberReport {
+	if p.setMembers == nil {
+		return nil
+	}
+	reports := p.setMembers.Reports()
+	out := make([]*pb.AvailabilityMemberReport, 0, len(reports))
+	for _, report := range reports {
+		events := make([]*pb.AvailabilityMemberEvent, 0, len(report.Events))
+		for _, event := range report.Events {
+			events = append(events, &pb.AvailabilityMemberEvent{Sequence: event.Seq, Kind: event.Kind, AtUnixMs: event.AtUnixMs,
+				Reason: event.Reason, OperationId: event.OperationID, Detail: event.Detail})
+		}
+		out = append(out, &pb.AvailabilityMemberReport{
+			SetId: report.SetID, MemberId: report.MemberID, Role: report.Role, Serving: report.Serving, LeaseRole: report.LeaseRole,
+			Eligible: report.Eligible, EligibilityReason: report.EligibilityReason, LagBytes: report.LagBytes,
+			LagSeconds: report.LagSeconds, SyncState: report.SyncState, Position: report.Position,
+			DiskFreeBytes: report.DiskFreeBytes, LastError: report.LastError, ConfigRevision: report.ConfigRevision,
+			PrimaryGeneration: report.PrimaryGeneration, Events: events,
+		})
+	}
+	return out
+}
