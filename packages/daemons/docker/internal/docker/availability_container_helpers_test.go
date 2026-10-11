@@ -1,4 +1,4 @@
-//go:build swhacontainer || kvhacontainer
+//go:build swhacontainer || kvhacontainer || pghacontainer
 
 package docker
 

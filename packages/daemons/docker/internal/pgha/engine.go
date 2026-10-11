@@ -365,7 +365,11 @@ func (e *Engine) absorbLocked(s sample, markers logMarkers, now time.Duration) {
 		if st.LatestEndLSN > e.standby.progress {
 			e.standby.progress = st.LatestEndLSN
 		}
-		if st.ReceiverStatus == "streaming" {
+		// A diverged copy's walreceiver restarts in a loop and streams the
+		// shared part of the old timeline for a moment each time before the
+		// fork is found again: a "streaming" sample whose log still reports
+		// the divergence does not reset the rejoin clock.
+		if st.ReceiverStatus == "streaming" && !markers.diverged && !markers.walRemoved {
 			e.standby.notStreamingSince = 0
 			e.standby.divergence, e.standby.divergenceDetail = "", ""
 		} else if e.standby.notStreamingSince == 0 {
