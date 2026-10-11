@@ -164,6 +164,12 @@ describe.skipIf(!url)('availability set relay paths on disposable PostgreSQL', (
       source_id: nodeA,
       target_endpoint_id: controlB.id,
     });
+    // Backups from a copy: every member serves its engine on db-backup (never gated), with no member-to-member routes.
+    expect(await endpoint('managed_availability_peer', peerEndpointOwnerId(memberB, 'db-backup'))).toMatchObject({
+      subject_id: nodeB,
+      status: 'active',
+    });
+    expect(await route('managed_member_peer', peerRouteOwnerId(memberA, memberB, 'db-backup'))).toBeUndefined();
     // Every route to the resource is repeated toward member B with the same source.
     expect(
       await route('set_member:managed_database_binding', memberRouteOwnerId(bindingRouteId, memberB))

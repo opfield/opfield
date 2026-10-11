@@ -100,7 +100,30 @@ export interface ManagedAvailabilityMembersPort {
     successorMemberId: string,
     operationId: string
   ): Promise<CommandResult | null>;
+  /**
+   * Whether each member's engine is to stay stopped (a paused set): the configuration carries it. Providers of every
+   * owner kind are asked; any `stopped: true` stops the member. Optional: hosts before the set lifecycle lack it.
+   */
+  registerRunState?(provider: ManagedAvailabilityRunStateProvider): void;
+  /** Restarts one member's engine on its node (every engine); the primary only with allowPrimary. */
+  restartMember?(
+    setId: string,
+    memberId: string,
+    nodeId: string,
+    operationId: string,
+    allowPrimary: boolean
+  ): Promise<CommandResult | null>;
+  /**
+   * Runs before a node's daemon restarts for an update: a set primary on it hands over to a healthy copy first. The
+   * handlers of every owner kind run; each bounds its own wait.
+   */
+  registerNodeUpdateHandoff?(handler: (nodeId: string) => Promise<void>): void;
 }
+
+export type ManagedAvailabilityRunStateProvider = (
+  set: ManagedAvailabilitySetRef,
+  member: ManagedAvailabilityMemberRef
+) => Promise<{ stopped?: boolean }> | { stopped?: boolean };
 
 export interface ManagedAvailabilityAssignmentSigner {
   signPrimaryAssignment(input: {

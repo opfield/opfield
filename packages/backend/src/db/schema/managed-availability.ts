@@ -71,6 +71,9 @@ export type ManagedAvailabilityOperationKind =
   | 'update_settings'
   | 'move_witness'
   | 'rolling_update'
+  | 'rolling_restart'
+  | 'pause'
+  | 'unpause'
   | 'disable';
 
 /** The orchestrated operation a set runs, durable across Gateway restarts; the reconciler resumes it by step. */

@@ -5,6 +5,7 @@ import {
   containerHealth,
   deploymentHealth,
   healthFromStatus,
+  withAvailabilityState,
 } from './app-health.service.js';
 
 describe('app health aggregation', () => {
@@ -44,5 +45,15 @@ describe('app health aggregation', () => {
     expect(composeHealth('running')).toBe('healthy');
     expect(composeHealth('degraded')).toBe('degraded');
     expect(composeHealth('stopped')).toBe('failing');
+  });
+
+  it('maps an availability set: degraded or no failover is degraded, never down while the primary answers', () => {
+    expect(withAvailabilityState('healthy', null)).toBe('healthy');
+    expect(withAvailabilityState('healthy', 'healthy')).toBe('healthy');
+    expect(withAvailabilityState('healthy', 'degraded')).toBe('degraded');
+    expect(withAvailabilityState('healthy', 'no_failover')).toBe('degraded');
+    expect(withAvailabilityState('failing', 'failing_over')).toBe('degraded');
+    expect(withAvailabilityState('failing', 'no_failover')).toBe('failing');
+    expect(withAvailabilityState('none', 'degraded')).toBe('none');
   });
 });

@@ -175,4 +175,45 @@ describe.skipIf(!url)('availability members on disposable PostgreSQL', () => {
     await service.ingestReports(nodeA, []);
     expect(sent.filter((entry) => entry.command.configure)).toHaveLength(1);
   });
+
+  it('stops the members a run state names, restarts a member and records what the runtime reports of itself', async () => {
+    service.registerRunState((_set, member) => ({ stopped: member.id === memberB }));
+    sent.length = 0;
+    await service.configureSet(setId);
+    const configs = sent.filter((entry) => entry.command.configure).map((entry) => entry.command.configure!);
+    expect(configs.find((config) => config.memberId === memberB)?.stopped).toBe(true);
+    expect(configs.find((config) => config.memberId === memberA)?.stopped).toBeUndefined();
+
+    sent.length = 0;
+    await service.restartMember(setId, memberA, nodeA, 'op-1', false);
+    expect(sent).toEqual([{ nodeId: nodeA, command: { restart: { setId, memberId: memberA, operationId: 'op-1' } } }]);
+
+    await service.ingestReports(nodeB, [
+      {
+        setId,
+        memberId: memberB,
+        role: 'copy' as const,
+        serving: false,
+        eligible: false,
+        syncState: 'none' as const,
+        position: { lsn: '0/2' },
+        configRevision: '99',
+        stopped: true,
+        pendingRestartOperationId: 'op-2',
+      },
+    ]);
+    const [member] = (await q('select engine_position from managed_availability_members where id = $1', [memberB])).rows;
+    expect(member.engine_position).toEqual({ lsn: '0/2', 'runtime.stopped': 'true', 'runtime.pendingRestart': 'op-2' });
+  });
+
+  it('runs the handoffs before a node with a set member updates, bounded and never failing the update', async () => {
+    const handed: string[] = [];
+    service.registerNodeUpdateHandoff(async (nodeId) => {
+      handed.push(nodeId);
+      throw new Error('no copy');
+    });
+    await service.beforeNodeUpdate(nodeA);
+    await service.beforeNodeUpdate(randomUUID());
+    expect(handed).toEqual([nodeA]);
+  });
 });

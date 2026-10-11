@@ -1,4 +1,5 @@
 import { and, eq, ne, sql } from 'drizzle-orm';
+import { container } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { nodes as nodesTable } from '@/db/schema/nodes.js';
 import { createChildLogger } from '@/lib/logger.js';
@@ -11,6 +12,7 @@ import {
   NODE_UPDATE_TASK_WAIT_TIMEOUT_MS,
   NODE_UPDATE_WAITING_PHASE,
 } from './daemon-update.service.js';
+import { AvailabilityMembersService } from './availability-members.service.js';
 import type { LeaseUpdateBlocker } from './daemon-update-lease-gate.js';
 import type { DaemonUpdateRollout } from './daemon-update-rollout.service.js';
 import type { NodeDispatchService } from './node-dispatch.service.js';
@@ -33,6 +35,17 @@ export interface NodeDaemonUpdateDeps {
   taskWait?: { pollMs?: number; timeoutMs?: number; now?: () => number };
   /** The other nodes an ingress node's update waits for (batchUpdatesBefore by default). */
   ingressWaitFor?: (nodeId: string) => Promise<LeaseUpdateBlocker[]>;
+  /**
+   * Runs right before the update is sent (the daemon restarts): database and storage set primaries on the node hand
+   * over to a healthy copy first. AvailabilityMembersService.beforeNodeUpdate by default; it bounds and logs itself.
+   */
+  beforeRestart?: (nodeId: string) => Promise<void>;
+}
+
+/** The registered members service's handoff (none in processes or tests without it). */
+async function availabilityHandoff(nodeId: string): Promise<void> {
+  if (!container.isRegistered(AvailabilityMembersService)) return;
+  await container.resolve(AvailabilityMembersService).beforeNodeUpdate(nodeId);
 }
 
 /** The update phases of a node that restarts now or soon: an ingress node of the same batch waits for them. */
@@ -228,6 +241,13 @@ export async function dispatchNodeDaemonUpdate(
   );
 
   const send = async (operationId: string) => {
+    // Set primaries on the node hand over first (copies restart before primaries: the rollout orders standbys first).
+    await (deps.beforeRestart ?? availabilityHandoff)(nodeId).catch((error: unknown) => {
+      logger.warn('Availability handoff before the daemon update failed; the update goes on', {
+        nodeId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
     const command = await dispatch.sendUpdateDaemonCommand(
       nodeId,
       artifact.downloadUrl,

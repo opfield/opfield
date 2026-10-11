@@ -344,7 +344,11 @@ export const RESOURCE_SETUP_AI_TOOLS: AIToolDefinition[] = [
           enum: ['postgres', 'redis', 'clickhouse'],
           description: 'redis is the key-value store (works with Redis clients).',
         },
-        version: { type: 'string', description: 'Exact version returned by catalog.' },
+        version: {
+          type: 'string',
+          description:
+            'Exact version returned by catalog. update: a newer version of the same engine (PostgreSQL within its major version; Valkey and ClickHouse the next catalog version), one restart on one server, a rolling update copies-first on several servers.',
+        },
         nodeId: { type: 'string', description: 'Database node ID for create, or optional list filter.' },
         excludeAppMembers: { type: 'boolean', description: 'list: leave out databases that belong to an app.' },
         appId: { type: 'string', description: 'list: only databases of this app (any environment).' },
