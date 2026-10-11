@@ -484,6 +484,7 @@ export function ProxyHosts({
       id: "upstream",
       label: "Target",
       width: "22%",
+      align: "right",
       cellContentClassName: "text-sm text-muted-foreground",
       renderCell: (host) =>
         host.type === "proxy" ? (
@@ -498,6 +499,7 @@ export function ProxyHosts({
       id: "ingress-node",
       label: "Ingress Node",
       width: "10rem",
+      align: "right",
       renderCell: (host) => {
         const node = host.nodeId ? ingressNodeById.get(host.nodeId) : undefined;
         return (
@@ -511,23 +513,14 @@ export function ProxyHosts({
       id: "type",
       label: "Type",
       width: "6.5rem",
+      align: "right",
       renderCell: (host) => <TypeBadge type={host.type} />,
-    },
-    {
-      id: "ssl",
-      label: "TLS",
-      width: "4.5rem",
-      renderCell: (host) =>
-        host.sslEnabled ? (
-          <Badge variant="success">SSL</Badge>
-        ) : (
-          <span className="text-xs text-muted-foreground">—</span>
-        ),
     },
     {
       id: "health",
       label: "Health",
       width: "8rem",
+      align: "right",
       renderCell: (host) => {
         if (host.maintenanceEnabled) return <Badge variant="warning">Maintenance</Badge>;
         const status = host.rawConfigEnabled
@@ -544,6 +537,7 @@ export function ProxyHosts({
       id: "enabled",
       label: "Enabled",
       width: "5.5rem",
+      align: "right",
       renderCell: (host) => {
         const publicRouteLocked = isGatewayPublicRoute(host, gatewayPublicUrl) && host.enabled;
         return (
