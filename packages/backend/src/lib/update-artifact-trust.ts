@@ -165,9 +165,10 @@ export interface OpenCodexImageManifestExpectation {
 
 export function verifyDaemonUpdateManifest(
   signedManifest: string,
-  expected: DaemonUpdateManifestExpectation
+  expected: DaemonUpdateManifestExpectation,
+  publicKey: string | Buffer = UPDATE_SIGNING_PUBLIC_KEY_PEM
 ): TrustedDaemonUpdateArtifact {
-  const payload = verifySignedPayload<DaemonUpdateManifestPayload>(signedManifest);
+  const payload = verifySignedPayload<DaemonUpdateManifestPayload>(signedManifest, publicKey);
   if (payload.kind !== 'daemon-binary') throw new UpdateArtifactTrustError('Update manifest kind is not daemon-binary');
   if (payload.daemonType !== expected.daemonType) throw new UpdateArtifactTrustError('Update daemon type mismatch');
   if (payload.version !== expected.version) throw new UpdateArtifactTrustError('Update version mismatch');

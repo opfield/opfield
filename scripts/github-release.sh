@@ -18,6 +18,8 @@ release_notes_file=release-notes.md
 release_already_published=0
 
 source scripts/release-tag.sh
+# shellcheck source=release/manifest-download-base.sh
+source scripts/release/manifest-download-base.sh
 classify_release_tag "$tag"
 
 # Only a stable Gateway release is the repository's Latest: releases/latest/download serves the
@@ -209,7 +211,7 @@ build_daemon_assets() {
         --daemon-type "$daemon_suffix" \
         --arch "$arch" \
         --artifact-name "$artifact" \
-        --download-url "https://get.opfield.dev/gateway/${daemon_name}/${tag}/${artifact}" \
+        --download-url "${MANIFEST_DOWNLOAD_BASE_URL}/${daemon_name}/${tag}/${artifact}" \
         --sha256 "$sha" \
         --git-commit-sha "$commit_sha" \
         --git-pipeline-id "$run_id" \
@@ -230,7 +232,7 @@ build_daemon_assets() {
           --daemon-type relay-worker \
           --arch "$arch" \
           --artifact-name "$artifact" \
-          --download-url "https://get.opfield.dev/gateway/relay-supervisor/${tag}/${artifact}" \
+          --download-url "${MANIFEST_DOWNLOAD_BASE_URL}/relay-supervisor/${tag}/${artifact}" \
           --sha256 "$sha" \
           --git-commit-sha "$commit_sha" \
           --git-pipeline-id "$run_id" \
