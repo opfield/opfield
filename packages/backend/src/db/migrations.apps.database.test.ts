@@ -176,7 +176,7 @@ describe.skipIf(!url)('apps migration on disposable PostgreSQL', () => {
     ).toMatchObject({ code: '23505', constraint: 'app_incident_items_incident_key_unique' });
   });
 
-  it('accepts a managed storage paused status and app incident port holds', async () => {
+  it('accepts a managed storage paused status and keeps app incident port holds while their item exists', async () => {
     const { rows } = await q('select unnest(enum_range(null::managed_storage_status))::text as value');
     expect(rows.map((row) => row.value)).toContain('paused');
     const node = randomUUID();
@@ -184,9 +184,32 @@ describe.skipIf(!url)('apps migration on disposable PostgreSQL', () => {
       "insert into nodes (id, type, hostname, slug) values ($1, 'docker', gen_random_uuid()::text, gen_random_uuid()::text)",
       [node]
     );
-    await q(
-      "insert into node_host_port_reservations (node_id, host_port, owner_kind, owner_id, pending_until) values ($1, 45432, 'app_incident', $2, null)",
-      [node, randomUUID()]
+    const app = await insertApp('Holds');
+    const env = await insertEnv(app, 'production', true);
+    const incident = (
+      await q(
+        "insert into app_incidents (batch_id, app_id, environment_id, kind, state) values ($1, $2, $3, 'isolation', 'active') returning id",
+        [randomUUID(), app, env]
+      )
+    ).rows[0].id;
+    const item = (
+      await q(
+        "insert into app_incident_items (incident_id, item_kind, item_key, ref) values ($1, 'database_publication', 'db:x', '{}') returning id",
+        [incident]
+      )
+    ).rows[0].id;
+    const hold = (owner: string, port: number) =>
+      q(
+        "insert into node_host_port_reservations (node_id, host_port, owner_kind, owner_id, conflict) values ($1, $2, 'app_incident', $3, true)",
+        [node, port, owner]
+      );
+    await hold(item, 45432);
+    await hold(randomUUID(), 45433);
+    await q('select node_host_port_reservations_reconcile()');
+    const { rows: kept } = await q(
+      "select host_port, conflict from node_host_port_reservations where owner_kind = 'app_incident' order by host_port"
     );
+    // The hold of the gone item is released; the live one now holds its port outright.
+    expect(kept).toEqual([{ host_port: 45432, conflict: false }]);
   });
 });
