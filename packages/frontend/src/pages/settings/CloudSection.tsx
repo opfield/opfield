@@ -119,7 +119,7 @@ export function CloudSection({ canManage }: CloudSectionProps) {
 
   // A code shown before a reload is shown again.
   useEffect(() => {
-    if (!canManage || linkState === undefined || linkState === "connected") return;
+    if (!canManage || linkState === undefined) return;
     let cancelled = false;
     api
       .getCloudLinkCode()
@@ -168,6 +168,19 @@ export function CloudSection({ canManage }: CloudSectionProps) {
     } finally {
       setStartingLink(false);
     }
+  };
+
+  // Entering a new code in an account ends the current connection at once, so switching is confirmed.
+  const handleSwitchAccount = async () => {
+    const ok = await confirm({
+      title: "Connect to another account",
+      description: `Get a code for another Opfield account? When it is entered there, the connection to ${
+        status?.accountEmail ?? "your cloud account"
+      } ends at once and this installation connects to the new account.`,
+      confirmLabel: "Get a code",
+      variant: "default",
+    });
+    if (ok) await handleStartLink();
   };
 
   const handleCancelLink = async () => {
@@ -337,29 +350,44 @@ export function CloudSection({ canManage }: CloudSectionProps) {
       id="gateway-cloud"
       title={<span className="text-info-text">Cloud</span>}
       description={
-        connected
-          ? `Connected to ${status.accountEmail ?? "your cloud account"}`
-          : pendingCode
-            ? "Enter this code in your Opfield account → Installations → Add"
-            : disconnectedByAccount
-              ? "Disconnected by the account"
-              : "Connect this Opfield installation to your cloud account"
+        connected && pendingCode
+          ? "Enter this code in the other Opfield account → Installations → Add"
+          : connected
+            ? `Connected to ${status.accountEmail ?? "your cloud account"}`
+            : pendingCode
+              ? "Enter this code in your Opfield account → Installations → Add"
+              : disconnectedByAccount
+                ? "Disconnected by the account"
+                : "Connect this Opfield installation to your cloud account"
       }
       className="xl:col-span-2"
       style={{ borderColor: "var(--color-info)" }}
       actions={
-        connected ? (
-          canManage ? (
-            <Button variant="outline" onClick={handleDisconnect} pending={disconnecting}>
-              <Unplug className="h-4 w-4" />
-              Disconnect
-            </Button>
-          ) : null
-        ) : (
-          (codeDisplay ?? (enterCode ? codeForm : connectButton))
-        )
+        connected
+          ? (codeDisplay ??
+            (canManage ? (
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={handleSwitchAccount} pending={startingLink}>
+                  <Cloud className="h-4 w-4" />
+                  Switch account
+                </Button>
+                <Button variant="outline" onClick={handleDisconnect} pending={disconnecting}>
+                  <Unplug className="h-4 w-4" />
+                  Disconnect
+                </Button>
+              </div>
+            ) : null))
+          : (codeDisplay ?? (enterCode ? codeForm : connectButton))
       }
     >
+      {connected && pendingCode && (
+        <p className="px-4 pt-4 text-sm text-warning-text" role="status">
+          When this code is entered, the connection to{" "}
+          {pendingCode.replacesAccount ?? status.accountEmail ?? "your cloud account"} ends at once
+          and this installation connects to the account that entered it.
+        </p>
+      )}
+
       {connected && (
         <div className="divide-y divide-border">
           <DetailRow label="Account" value={status.accountEmail ?? "—"} />
@@ -378,7 +406,7 @@ export function CloudSection({ canManage }: CloudSectionProps) {
         </div>
       )}
 
-      {!connected && linkEnded && link?.error && (
+      {linkEnded && link?.error && (
         <p className="px-4 pt-4 text-sm text-destructive" role="alert">
           {link.error}
         </p>

@@ -121,6 +121,8 @@ export interface CloudConnectCodeView {
   code: string | null;
   expiresAt: string | null;
   accountEmail: string | null;
+  /** Started while connected: the account whose connection entering the code ends. */
+  replacesAccount: string | null;
   error: string | null;
   errorCode: string | null;
 }

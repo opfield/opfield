@@ -6,8 +6,13 @@ import { CloudLinkRequestError, type CloudLinkService } from './cloud-link.servi
 
 const logger = createChildLogger('CloudLinkConnectCode');
 
-/** The portal is asked whether the code was entered this often. */
+/**
+ * The portal is asked whether the code was entered at most this often, plus up to a second of jitter (the portal
+ * allows 30 claims a minute per address and installation); a 429 doubles the wait up to a minute.
+ */
 export const CLOUD_CLAIM_POLL_MS = 3_000;
+const CLOUD_CLAIM_JITTER_MS = 1_000;
+const CLOUD_CLAIM_MAX_BACKOFF_MS = 60_000;
 /** Shared by every replica, so the code and its state read the same wherever the page asks. */
 const STATE_CACHE_KEY = 'cloud:link:connect-code';
 /** A finished attempt (connected, refused, expired) is still reported this long after its code expired. */
@@ -34,6 +39,11 @@ export interface CloudConnectCodeView {
   expiresAt: string | null;
   /** Account the installation was linked to (connected). */
   accountEmail: string | null;
+  /**
+   * Started while connected: the account it is connected to now. Entering the code revokes that connection at once;
+   * the installation then connects to the account that entered the code.
+   */
+  replacesAccount: string | null;
   error: string | null;
   errorCode: string | null;
 }
@@ -46,6 +56,7 @@ interface StoredAttempt {
   portalUrl: string;
   userId: string | null;
   accountEmail: string | null;
+  replacesAccount?: string | null;
   error: string | null;
   errorCode: string | null;
 }
@@ -55,6 +66,7 @@ const NONE: CloudConnectCodeView = {
   code: null,
   expiresAt: null,
   accountEmail: null,
+  replacesAccount: null,
   error: null,
   errorCode: null,
 };
@@ -79,6 +91,7 @@ function view(attempt: StoredAttempt | null, now: number): CloudConnectCodeView 
     code: state === 'pending' ? attempt.code : null,
     expiresAt: attempt.expiresAt,
     accountEmail: attempt.accountEmail,
+    replacesAccount: attempt.replacesAccount ?? null,
     error: expired ? 'The code expired before it was entered. Get a new code.' : attempt.error,
     errorCode: expired ? 'CLOUD_CLAIM_EXPIRED' : attempt.errorCode,
   };
@@ -93,25 +106,28 @@ function view(attempt: StoredAttempt | null, now: number): CloudConnectCodeView 
 export class CloudLinkConnectCode {
   private local: StoredAttempt | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /** Extra wait after the portal rate limited the claims. */
+  private backoffMs = 0;
 
   constructor(
-    private readonly service: Pick<CloudLinkService, 'isEnrolled' | 'claim' | 'claimPortalUrl' | 'recordConnectCode'>,
+    private readonly service: Pick<
+      CloudLinkService,
+      'getStatus' | 'claim' | 'configuredPortalUrl' | 'recordConnectCode'
+    >,
     private readonly license: Pick<LicenseService, 'requestConnectCode'>,
     private readonly cache: Pick<CacheService, 'get' | 'set' | 'delete'> | null,
     private readonly pollMs = CLOUD_CLAIM_POLL_MS,
-    private readonly now: () => number = Date.now
+    private readonly now: () => number = Date.now,
+    private readonly jitter: () => number = () => Math.random() * CLOUD_CLAIM_JITTER_MS
   ) {}
 
   /** Asks for a code and starts waiting for it; a new code replaces one still shown. */
   async start(actor: { userId: string | null } = { userId: null }): Promise<CloudConnectCodeView> {
-    if (await this.service.isEnrolled()) {
-      throw new CloudLinkRequestError(
-        409,
-        'CLOUD_ALREADY_CONNECTED',
-        'This Opfield installation is already connected; disconnect it first'
-      );
-    }
+    // Connected already: entering the code switches the installation to the account that enters it.
+    const current = await this.service.getStatus();
+    const replacesAccount = current.state === 'connected' ? (current.accountEmail ?? 'your cloud account') : null;
     this.stopPolling();
+    this.backoffMs = 0;
     let issued: Awaited<ReturnType<LicenseService['requestConnectCode']>>;
     try {
       issued = await this.license.requestConnectCode();
@@ -136,9 +152,10 @@ export class CloudLinkConnectCode {
       state: 'pending',
       code: issued.code,
       expiresAt: issued.expiresAt,
-      portalUrl: this.service.claimPortalUrl(issued.portalUrl),
+      portalUrl: this.service.configuredPortalUrl,
       userId: actor.userId,
       accountEmail: null,
+      replacesAccount,
       error: null,
       errorCode: null,
     };
@@ -147,8 +164,9 @@ export class CloudLinkConnectCode {
       outcome: 'requested',
       expiresAt: attempt.expiresAt,
       portalUrl: attempt.portalUrl,
+      ...(replacesAccount ? { replacesAccount } : {}),
     });
-    this.schedule(attempt.id, this.pollMs);
+    this.schedule(attempt.id, this.nextDelay());
     return view(attempt, this.now());
   }
 
@@ -183,11 +201,16 @@ export class CloudLinkConnectCode {
     }
     try {
       const result = await this.service.claim(attempt.code, attempt.portalUrl, actor);
+      this.backoffMs = 0;
       if (result.state === 'pending') return true;
       await this.save({ ...attempt, state: 'connected', accountEmail: result.status.accountEmail });
       return false;
     } catch (error) {
       if (error instanceof CloudLinkRequestError && error.retryable) {
+        this.backoffMs =
+          error.code === 'CLOUD_RATE_LIMITED'
+            ? Math.min(CLOUD_CLAIM_MAX_BACKOFF_MS, Math.max(this.pollMs, this.backoffMs * 2))
+            : 0;
         logger.debug('The cloud account could not be asked about the connect code; retrying', { error: error.message });
         return true;
       }
@@ -217,10 +240,15 @@ export class CloudLinkConnectCode {
           return true;
         })
         .then((again) => {
-          if (again && this.local?.id === id) this.schedule(id, this.pollMs);
+          if (again && this.local?.id === id) this.schedule(id, this.nextDelay());
         });
     }, delayMs);
     this.timer.unref?.();
+  }
+
+  /** At least the poll interval, plus jitter, plus any backoff after a 429. */
+  private nextDelay(): number {
+    return this.pollMs + this.backoffMs + Math.max(0, this.jitter());
   }
 
   private stopPolling(): void {

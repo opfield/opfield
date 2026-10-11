@@ -107,6 +107,19 @@ export class LicenseServerRequestError extends Error {
   }
 }
 
+/**
+ * The connect code the license service issued (`ABCD2345`) as shown, `ABCD-2345`; the account portal accepts it with
+ * or without the dash, in any case. Null when the answer is not a code with an expiry.
+ */
+export function parseConnectCode(value: unknown): { code: string; expiresAt: string } | null {
+  if (!value || typeof value !== 'object') return null;
+  const { code, expiresAt } = value as { code?: unknown; expiresAt?: unknown };
+  const compact = typeof code === 'string' ? code.trim().toUpperCase().replace(/-/g, '') : '';
+  const expires = typeof expiresAt === 'string' ? Date.parse(expiresAt) : Number.NaN;
+  if (!/^[A-Z0-9]{8}$/.test(compact) || !Number.isFinite(expires)) return null;
+  return { code: `${compact.slice(0, 4)}-${compact.slice(4)}`, expiresAt: new Date(expires).toISOString() };
+}
+
 /** No answer at all, or the server itself failing; never a refusal or a state that failed verification. */
 function isLicenseServerUnreachable(error: unknown): error is LicenseServerRequestError {
   return (
@@ -1226,25 +1239,20 @@ export class LicenseService {
    * A short-lived code that links this installation to an Opfield account (Opfield account > Installations > Add).
    * Asked of the license service with the installation token, over its endpoint list; registers first if needed.
    */
-  async requestConnectCode(): Promise<{ code: string; expiresAt: string; portalUrl: string | null }> {
+  async requestConnectCode(): Promise<{ code: string; expiresAt: string }> {
     const credential = await this.ensureRegistered(true);
     if (!credential) {
       throw new LicenseServerRequestError(503, 'LICENSE_SERVER_UNAVAILABLE', 'License server is unavailable');
     }
-    const result = await this.post<{ code?: unknown; expiresAt?: unknown; portalUrl?: unknown }>(
-      '/api/v1/installations/connect-code',
-      { installationToken: credential.token }
-    );
-    const code = typeof result?.code === 'string' ? result.code.trim().toUpperCase() : '';
-    const expiresAt = typeof result?.expiresAt === 'string' ? Date.parse(result.expiresAt) : Number.NaN;
-    if (!/^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code) || !Number.isFinite(expiresAt)) {
+    // 201 { data: { code: "ABCD2345", expiresAt } }; the token goes in the body, as for every installation call.
+    const result = await this.post<{ code?: unknown; expiresAt?: unknown }>('/api/v1/installations/connect-code', {
+      installationToken: credential.token,
+    });
+    const parsed = parseConnectCode(result);
+    if (!parsed) {
       throw new LicenseServerRequestError(502, 'INVALID_LICENSE_STATE', 'License server returned an invalid code');
     }
-    return {
-      code,
-      expiresAt: new Date(expiresAt).toISOString(),
-      portalUrl: typeof result.portalUrl === 'string' && result.portalUrl.trim() ? result.portalUrl.trim() : null,
-    };
+    return parsed;
   }
 
   async getInstallationId(): Promise<string> {

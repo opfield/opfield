@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import { LicenseServerRequestError } from '@/modules/license/license.service.js';
+import { LicenseServerRequestError, parseConnectCode } from '@/modules/license/license.service.js';
 import { CryptoService } from '@/services/crypto.service.js';
 import { CloudLinkService } from './cloud-link.service.js';
 import { CloudLinkConnectCode } from './cloud-link-connect-code.js';
@@ -53,7 +53,7 @@ function setup(
   answers: Array<{ status: number; body?: unknown }>,
   options: {
     now?: () => number;
-    issue?: () => Promise<{ code: string; expiresAt: string; portalUrl: string | null }>;
+    issue?: () => Promise<{ code: string; expiresAt: string }>;
   } = {}
 ) {
   const db = settingsDb();
@@ -70,11 +70,10 @@ function setup(
   service.setAuditService({ log });
   const license = {
     requestConnectCode: vi.fn(
-      options.issue ??
-        (async () => ({ code: CODE, expiresAt: new Date(Date.now() + 600_000).toISOString(), portalUrl: null }))
+      options.issue ?? (async () => ({ code: CODE, expiresAt: new Date(Date.now() + 600_000).toISOString() }))
     ),
   };
-  const flow = new CloudLinkConnectCode(service, license, null, 5, options.now);
+  const flow = new CloudLinkConnectCode(service, license, null, 5, options.now, () => 0);
   const actions = () =>
     log.mock.calls.map(([entry]) => [entry.action, (entry.details as { outcome?: string }).outcome]);
   return { db, service, flow, calls, log, license, actions };
@@ -82,7 +81,8 @@ function setup(
 
 describe('connect with one code started from Gateway', () => {
   it('shows the code, waits while the account has not entered it, then stores the link once', async () => {
-    const t = setup([{ status: 202, body: { state: 'pending' } }, { status: 202 }, { status: 200, body: ENROLLED }]);
+    const answers = [{ status: 202, body: { state: 'pending' } }, { status: 202 }, { status: 200, body: ENROLLED }];
+    const t = setup(answers);
     const started = await t.flow.start({ userId: 'user-1' });
     expect(started).toMatchObject({ state: 'pending', code: CODE, error: null });
 
@@ -105,15 +105,45 @@ describe('connect with one code started from Gateway', () => {
     expect(JSON.stringify(t.log.mock.calls)).not.toContain(CODE);
     expect(JSON.stringify(t.log.mock.calls)).not.toContain(ENROLLED.secret);
 
-    // Connected: no new code.
-    await expect(t.flow.start()).rejects.toMatchObject({ code: 'CLOUD_ALREADY_CONNECTED' });
+    // Connected: a new code switches accounts, and says which connection it ends.
+    const other = { ...ENROLLED, agentId: 'agent-0002-efgh', accountEmail: 'other@example.com' };
+    answers.push({ status: 202 }, { status: 200, body: other });
+    expect(await t.flow.start({ userId: 'user-1' })).toMatchObject({
+      state: 'pending',
+      replacesAccount: 'owner@example.com',
+    });
+    expect(t.log.mock.calls.at(-1)![0]).toMatchObject({
+      action: 'cloud.connect_code',
+      details: { outcome: 'requested', replacesAccount: 'owner@example.com' },
+    });
+    await vi.waitFor(async () => expect((await t.flow.status()).accountEmail).toBe('other@example.com'), {
+      timeout: 2_000,
+    });
+    expect(await t.service.readCredentials()).toMatchObject({ agentId: 'agent-0002-efgh' });
+  });
+
+  it('backs off while the portal rate limits the claims, and keeps the code', async () => {
+    const t = setup([{ status: 429 }, { status: 429 }, { status: 429 }, { status: 200, body: ENROLLED }]);
+    await t.flow.start();
+    await vi.waitFor(() => expect(t.calls.length).toBeGreaterThanOrEqual(2), { timeout: 2_000 });
+    expect((await t.flow.status()).state).toBe('pending');
+    await vi.waitFor(async () => expect((await t.flow.status()).state).toBe('connected'), { timeout: 2_000 });
+    expect(t.calls).toHaveLength(4);
+  });
+
+  it('shows the code the license service issued as XXXX-XXXX', () => {
+    const expiresAt = '2026-10-12T10:10:00.000Z';
+    expect(parseConnectCode({ code: 'abcd2345', expiresAt })).toEqual({ code: 'ABCD-2345', expiresAt });
+    expect(parseConnectCode({ code: 'ABCD-2345', expiresAt })).toEqual({ code: 'ABCD-2345', expiresAt });
+    expect(parseConnectCode({ code: 'ABC2345', expiresAt })).toBeNull();
+    expect(parseConnectCode({ code: 'ABCD2345' })).toBeNull();
   });
 
   it('expires with the code and stops asking', async () => {
     let now = Date.now();
     const t = setup([{ status: 202 }], {
       now: () => now,
-      issue: async () => ({ code: CODE, expiresAt: new Date(now + 60_000).toISOString(), portalUrl: null }),
+      issue: async () => ({ code: CODE, expiresAt: new Date(now + 60_000).toISOString() }),
     });
     await t.flow.start();
     await vi.waitFor(() => expect(t.calls.length).toBeGreaterThan(0));

@@ -311,11 +311,6 @@ export class CloudLinkService {
     return enrollment;
   }
 
-  /** The portal a connect code is claimed at: the one the license service named (https only), else the configured. */
-  claimPortalUrl(named: string | null): string {
-    return named ? this.acceptedPortalUrl(named, this.configuredPortalUrl) : this.configuredPortalUrl;
-  }
-
   /**
    * One poll of a connect code this installation showed (Opfield account > Installations > Add): pending until the
    * account entered it, then the enrolment, stored as a connect with a code would store it. A refusal (unknown or
@@ -380,6 +375,7 @@ export class CloudLinkService {
       );
     }
     if (status === 429) {
+      // 30 claims a minute per address and installation: the poller backs off.
       return new CloudLinkRequestError(429, 'CLOUD_RATE_LIMITED', 'Your cloud account is busy; retrying.', true);
     }
     return new CloudLinkRequestError(
