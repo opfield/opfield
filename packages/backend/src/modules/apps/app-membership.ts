@@ -346,7 +346,12 @@ export class AppMembershipService {
   }
 
   async toRef(folder: AppFolderRef): Promise<AppMemberRef | null> {
-    const names = await this.loadNames();
+    let names = await this.loadNames();
+    // An app or environment created after the names were cached: reload once instead of labelling it as no app.
+    if (!names.apps.has(folder.appId) || (folder.environmentId && !names.envs.has(folder.environmentId))) {
+      this.names = null;
+      names = await this.loadNames();
+    }
     const app = names.apps.get(folder.appId);
     if (!app) return null;
     return {
