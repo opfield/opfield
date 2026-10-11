@@ -837,7 +837,7 @@ func (p *DockerPlugin) OpenBackupRelayRoute(ctx context.Context, ownerKind, rout
 				if len(candidates) == 0 {
 					candidates = []*pb.RelayDataCandidate{{RelayInstanceId: relaybridge.LegacyTargetID, Grant: current.GetGrant()}}
 				}
-				for _, candidate := range p.orderRelayCandidates(relayRouteKey(ownerKind, routeID), candidates) {
+				for _, candidate := range p.orderRelayCandidates(relayRouteKey(ownerKind, routeID), candidates, "") {
 					router := p.relayRouter(candidate.GetRelayInstanceId())
 					if router != nil && router.openSourceTunnel(connection, candidate.GetGrant(), current) {
 						return

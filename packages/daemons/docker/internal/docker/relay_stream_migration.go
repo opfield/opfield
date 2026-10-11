@@ -186,7 +186,7 @@ func (p *DockerPlugin) relaySourceDialer(tag relaySourceTag) relayresume.Dialer 
 			candidates = []*pb.RelayDataCandidate{{RelayInstanceId: relaybridge.LegacyTargetID, Grant: current.GetGrant()}}
 		}
 		route := relayRouteKey(tag.ownerKind, tag.ownerID)
-		ordered := p.orderRelayCandidates(route, candidates)
+		ordered := p.orderRelayCandidates(route, candidates, request.FromRelay)
 		rank := func(candidate *pb.RelayDataCandidate) int {
 			switch {
 			case request.Avoid != "" && candidate.GetRelayInstanceId() == request.Avoid:

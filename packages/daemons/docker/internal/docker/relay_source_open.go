@@ -65,7 +65,7 @@ func (p *DockerPlugin) openRelaySourceOnce(assignment *pb.RelayGrantAssignment, 
 	}
 	route := relayRouteKey(assignment.GetOwnerKind(), assignment.GetOwnerId())
 	refusal := errRelayLaneUnavailable
-	for _, candidate := range p.orderRelayCandidates(route, candidates) {
+	for _, candidate := range p.orderRelayCandidates(route, candidates, "") {
 		router := p.relayRouter(candidate.GetRelayInstanceId())
 		if router == nil {
 			continue
@@ -94,22 +94,19 @@ func relayRouteKey(ownerKind, ownerID string) string {
 	return ownerKind + "/" + ownerID
 }
 
-// recordRelayOpen remembers how relayID answered an open of route (relaybridge.RelayPenalties).
+// recordRelayOpen remembers how relayID answered an open of route (relaybridge.RelayPenalties): a relay that refused
+// for its admission pressure is tried after the others for a while, for every route.
 func (p *DockerPlugin) recordRelayOpen(relayID, route string, err error) {
-	switch {
-	case err == nil:
-		p.relayPenalties.Succeeded(relayID, route)
-	case relaybridge.PenalizesRelay(err):
-		p.relayPenalties.Failed(relayID, route)
-	}
+	p.relayPenalties.Opened(p.logger, relayID, route, err)
 }
 
-// orderRelayCandidates orders the candidates of route (relayRouteKey) for a new source tunnel.
-func (p *DockerPlugin) orderRelayCandidates(route string, candidates []*pb.RelayDataCandidate) []*pb.RelayDataCandidate {
+// orderRelayCandidates orders the candidates of route (relayRouteKey) for a new source tunnel. staying is the relay a
+// stream's planned move leaves ("" for a new connection; relaybridge.KeepStaying).
+func (p *DockerPlugin) orderRelayCandidates(route string, candidates []*pb.RelayDataCandidate, staying string) []*pb.RelayDataCandidate {
 	if len(candidates) < 2 {
 		return append([]*pb.RelayDataCandidate(nil), candidates...)
 	}
-	transports := p.relayTransportLoads(route)
+	transports := relaybridge.KeepStaying(p.relayTransportLoads(route), staying)
 	p.relayTunnelMu.Lock()
 	rotation := p.relaySelection
 	p.relaySelection++
@@ -124,7 +121,7 @@ func (p *DockerPlugin) relayTransportLoads(route string) map[string]relaybridge.
 	transports := make(map[string]relaybridge.TransportLoad, len(p.relayTunnels))
 	for targetID, router := range p.relayTunnels {
 		transports[targetID] = relaybridge.TransportLoad{Available: router.connected(), Active: router.active.Load(),
-			Penalized: p.relayPenalties.Penalized(targetID, route)}
+			Penalized: p.relayPenalties.Penalized(targetID, route), Demoted: p.relayPenalties.Demoted(targetID)}
 	}
 	return transports
 }

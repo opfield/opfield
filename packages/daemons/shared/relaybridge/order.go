@@ -28,10 +28,15 @@ type TransportLoad struct {
 	// Penalized is a relay that failed this route's tunnel recently
 	// (RelayPenalties): it comes after the others of its role.
 	Penalized bool
+	// Demoted is a relay that refused a tunnel for its admission pressure
+	// recently (RelayPenalties.Demoted): it comes after every other connected
+	// relay, whatever its role or distance, and is still tried after them.
+	Demoted bool
 }
 
 // OrderCandidates orders the relays to try for a new source tunnel: relays
-// with a connected transport first, then Gateway's primaries before its
+// with a connected transport first, then relays not demoted for their
+// admission pressure, then Gateway's primaries before its
 // standbys, then relays that did not fail the route recently, then the nearer
 // path (this node's own measured round trip plus the relay's round trip to
 // the endpoint), then fewer active tunnels, then round-robin from rotation.
@@ -61,6 +66,9 @@ func OrderCandidates(
 		left, right := places[leftID], places[rightID]
 		if left.available != right.available {
 			return left.available
+		}
+		if transports[leftID].Demoted != transports[rightID].Demoted {
+			return !transports[leftID].Demoted
 		}
 		if left.role != right.role {
 			return left.role < right.role
@@ -190,4 +198,16 @@ func roleRank(candidate *pb.RelayDataCandidate) int {
 		return 1
 	}
 	return 0
+}
+
+// KeepStaying lifts the admission demotion of the relay a stream's planned
+// move leaves (staying; "" for a new connection): the stream already runs
+// there, so the move still answers that it stays rather than moving it off.
+// Other relays keep theirs.
+func KeepStaying(transports map[string]TransportLoad, staying string) map[string]TransportLoad {
+	if load, ok := transports[staying]; ok && load.Demoted {
+		load.Demoted = false
+		transports[staying] = load
+	}
+	return transports
 }
