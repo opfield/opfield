@@ -1,5 +1,5 @@
 import { createChildLogger } from '@/lib/logger.js';
-import type { CloudRequestAudit } from './cloud-link.types.js';
+import { CLOUD_READ_REQUEST_TYPES, type CloudRequestAudit } from './cloud-link.types.js';
 
 const logger = createChildLogger('CloudLinkAudit');
 
@@ -37,7 +37,7 @@ export interface CloudRequestWindowView {
  * Coalesces the audit of the portal's repeated reads. The first successful read of a (type, service) writes its
  * entry at once and opens a 10-minute window; identical reads in that window only count. Audit rows are append-only
  * (they also go out to SIEM), so the repeats are written as one summary entry when the window closes, the socket
- * stops, or Gateway shuts down. Failed reads always get their own entry.
+ * stops, or Gateway shuts down. Failed reads and actions (setup-link, node-token, update) always get their own entry.
  */
 export class CloudRequestAuditCoalescer {
   private readonly windows = new Map<string, RequestWindow>();
@@ -50,7 +50,7 @@ export class CloudRequestAuditCoalescer {
   ) {}
 
   record(agentId: string, audit: CloudRequestAudit): void {
-    if (!audit.ok) {
+    if (!audit.ok || !CLOUD_READ_REQUEST_TYPES.has(audit.type)) {
       this.track(agentId, audit);
       return;
     }

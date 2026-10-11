@@ -37,6 +37,7 @@ export const CLOUD_AUDIT_ACTIONS = {
   connect: 'cloud.connect',
   disconnect: 'cloud.disconnect',
   disconnectedByAccount: 'cloud.disconnected_by_account',
+  enrollFile: 'cloud.enroll_file',
   request: 'cloud.request',
 } as const;
 export const CLOUD_AUDIT_RESOURCE_TYPE = 'cloud-link';
@@ -49,7 +50,9 @@ export class CloudLinkRequestError extends Error {
   constructor(
     readonly status: number,
     readonly code: string,
-    message: string
+    message: string,
+    /** The portal may accept the same request later (unreachable, rate limited, failing on its side). */
+    readonly retryable = false
   ) {
     super(message);
     this.name = 'CloudLinkRequestError';
@@ -198,8 +201,22 @@ export class CloudLinkService {
   }
 
   /** Enrols with a code from the account portal. Enrolling again replaces the previous agent. */
-  async connect(code: string, actor: { userId: string | null } = { userId: null }): Promise<CloudLinkStatusView> {
-    const portalUrl = this.configuredPortalUrl;
+  async connect(
+    code: string,
+    actor: { userId: string | null } = { userId: null },
+    options: {
+      /** Portal to enrol with instead of the configured one (the enrolment file names it). */
+      portalUrl?: string;
+      /** Where the code came from, for the audit entry. */
+      source?: 'settings' | 'enroll-file';
+      /** Whether a failure the portal may accept later is audited (the enrolment file retries quietly). */
+      auditRetryableFailure?: boolean;
+    } = {}
+  ): Promise<CloudLinkStatusView> {
+    const portalUrl = options.portalUrl
+      ? this.acceptedPortalUrl(options.portalUrl, this.configuredPortalUrl)
+      : this.configuredPortalUrl;
+    const source = options.source ?? 'settings';
     let agentId: string | null = null;
     let accountEmail: string | null = null;
     try {
@@ -216,16 +233,22 @@ export class CloudLinkService {
         accountEmail = enrolled.accountEmail || null;
       });
     } catch (error) {
-      await this.writeAudit(CLOUD_AUDIT_ACTIONS.connect, actor.userId, null, {
-        success: false,
-        portalUrl,
-        errorCode: error instanceof CloudLinkRequestError ? error.code : 'CLOUD_CONNECT_FAILED',
-        error: error instanceof Error ? error.message : String(error),
-      });
+      const retryable = error instanceof CloudLinkRequestError && error.retryable;
+      if (!retryable || options.auditRetryableFailure !== false) {
+        await this.writeAudit(CLOUD_AUDIT_ACTIONS.connect, actor.userId, null, {
+          success: false,
+          source,
+          portalUrl,
+          retryable,
+          errorCode: error instanceof CloudLinkRequestError ? error.code : 'CLOUD_CONNECT_FAILED',
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
       throw error;
     }
     await this.writeAudit(CLOUD_AUDIT_ACTIONS.connect, actor.userId, agentId, {
       success: true,
+      source,
       portalUrl,
       accountEmail,
     });
@@ -333,6 +356,16 @@ export class CloudLinkService {
       });
     });
     if (changed) this.notify();
+  }
+
+  /** Whether an agent is enrolled (the account may still refuse it). */
+  async isEnrolled(): Promise<boolean> {
+    return (await this.readStored()).enrollment !== null;
+  }
+
+  /** An outcome of the enrolment file other than a successful connect, which `connect` audits itself. */
+  async recordEnrollFileEvent(details: Record<string, unknown>): Promise<void> {
+    await this.writeAudit(CLOUD_AUDIT_ACTIONS.enrollFile, null, null, details);
   }
 
   /** The open coalescing windows of this process when it holds the link (repeats not written yet). */
@@ -482,13 +515,15 @@ export class CloudLinkService {
       return new CloudLinkRequestError(
         429,
         'CLOUD_RATE_LIMITED',
-        'Too many attempts. Wait a few minutes before trying again.'
+        'Too many attempts. Wait a few minutes before trying again.',
+        true
       );
     }
     return new CloudLinkRequestError(
       502,
       code ?? 'CLOUD_PORTAL_ERROR',
-      message ?? `Your cloud account answered HTTP ${status}`
+      message ?? `Your cloud account answered HTTP ${status}`,
+      status >= 500
     );
   }
 
@@ -504,7 +539,8 @@ export class CloudLinkService {
       throw new CloudLinkRequestError(
         502,
         'CLOUD_PORTAL_UNAVAILABLE',
-        `Your cloud account could not be reached at ${new URL(url).origin}`
+        `Your cloud account could not be reached at ${new URL(url).origin}`,
+        true
       );
     }
     const text = await response.text().catch(() => '');

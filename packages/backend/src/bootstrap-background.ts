@@ -21,7 +21,9 @@ import { AuditService } from '@/modules/audit/audit.service.js';
 import { SiemDeliveryService } from '@/modules/audit/siem-delivery.service.js';
 import { backupRuntime } from '@/modules/backups/backup-runtime.js';
 import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
+import { createCloudLinkActions } from '@/modules/cloud-link/cloud-link-actions.js';
 import { CloudLinkAgent } from '@/modules/cloud-link/cloud-link-agent.js';
+import { CloudLinkEnrollFile } from '@/modules/cloud-link/cloud-link-enroll-file.js';
 import { createCloudLinkProbe } from '@/modules/cloud-link/cloud-link-probe.js';
 import { DatabaseMonitoringService } from '@/modules/databases/database-monitoring.service.js';
 import { DiagnosticsService } from '@/modules/diagnostics/diagnostics.service.js';
@@ -209,8 +211,13 @@ export async function initializeBackgroundServices(): Promise<void> {
     new CloudLinkAgent(
       container.resolve(CloudLinkService),
       new OperationLeaseStore(db),
-      createCloudLinkProbe(diagnosticsService, env.APP_VERSION)
+      createCloudLinkProbe(diagnosticsService, env.APP_VERSION, createCloudLinkActions())
     )
+  );
+  // A managed installation enrols itself from the code its provisioning left in the app container.
+  container.registerInstance(
+    CloudLinkEnrollFile,
+    new CloudLinkEnrollFile(container.resolve(CloudLinkService), new OperationLeaseStore(db))
   );
   scheduler.registerInterval('gateway-diagnostics-sample', 60_000, () => diagnosticsService.sampleMinute());
   container

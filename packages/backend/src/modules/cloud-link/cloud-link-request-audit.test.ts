@@ -75,4 +75,17 @@ describe('cloud request audit coalescing', () => {
     await coalescer.flush();
     expect(written).toHaveLength(3);
   });
+
+  it('never coalesces actions', async () => {
+    const written: CloudRequestAudit[] = [];
+    const coalescer = new CloudRequestAuditCoalescer(async (_agent, audit) => {
+      written.push(audit);
+    });
+    for (const id of ['a1', 'a2', 'a3']) coalescer.record('a', read(id, 'node-token'));
+    coalescer.record('a', read('u1', 'update-status'));
+    coalescer.record('a', read('u2', 'update-status'));
+    await coalescer.flush();
+    expect(written.map((audit) => audit.requestId)).toEqual(['a1', 'a2', 'a3', 'u1', 'u2']);
+    expect(written.at(-1)?.summary?.count).toBe(1);
+  });
 });

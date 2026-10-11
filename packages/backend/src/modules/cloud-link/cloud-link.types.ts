@@ -74,6 +74,9 @@ export interface CloudRequestAudit {
   service?: string;
   tail?: number;
   since?: string;
+  /** `name` of a node-token request, `version` of an update request. */
+  name?: string;
+  version?: string;
   ok: boolean;
   error?: string;
   /** Size of the JSON answer sent back, in bytes (all repeats together in a summary). */
@@ -147,8 +150,28 @@ export interface CloudLogLine {
   line: string;
 }
 
-/** What the socket requests read: the installation's own host and containers. */
-export interface CloudLinkProbe {
+/** What the cloud account may do over the link besides reading. */
+export interface CloudLinkActions {
+  /** A new first-admin setup code; fails with "already set up" once an admin exists. */
+  setupLink(): Promise<{ code: string; expiresAt: string }>;
+  /** A one-time node enrolment token and the install command, as Nodes → Add node produces. */
+  nodeToken(name?: string): Promise<{ token: string; expiresAt: string; command: string; nodeId: string }>;
+  updateStatus(): Promise<{
+    current: string;
+    latest: string | null;
+    channel: string;
+    available: boolean;
+    updating: boolean;
+  }>;
+  /** Starts the same update as Settings → Update now (default: the latest version). */
+  update(version?: string): Promise<{ started: true; version: string }>;
+}
+
+/** Request kinds that only read; identical successful reads share one audit entry. Actions never do. */
+export const CLOUD_READ_REQUEST_TYPES: ReadonlySet<string> = new Set(['state', 'logs', 'services', 'update-status']);
+
+/** What the socket requests read and do: the installation's own host, containers and the actions above. */
+export interface CloudLinkProbe extends CloudLinkActions {
   state(): Promise<CloudStateData>;
   services(): Promise<string[]>;
   logs(service: string, options: { tail: number; sinceMs?: number }): Promise<CloudLogLine[]>;

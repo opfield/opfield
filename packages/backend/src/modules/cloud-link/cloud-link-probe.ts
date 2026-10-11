@@ -2,6 +2,7 @@ import os from 'node:os';
 import type { DiagnosticsService } from '@/modules/diagnostics/diagnostics.service.js';
 import {
   CLOUD_LOG_LINE_MAX_CHARS,
+  type CloudLinkActions,
   type CloudLinkProbe,
   type CloudServiceState,
   type CloudStateData,
@@ -19,7 +20,11 @@ function errorMessage(error: unknown): string {
  * Docker socket of its Compose project, and its host readings narrow to the container's cgroup where the host is not
  * visible. Nothing new is mounted for the cloud link.
  */
-export function createCloudLinkProbe(diagnostics: DiagnosticsService, appVersion: string): CloudLinkProbe {
+export function createCloudLinkProbe(
+  diagnostics: DiagnosticsService,
+  appVersion: string,
+  actions: CloudLinkActions
+): CloudLinkProbe {
   const services = async (): Promise<CloudServiceState[]> => {
     try {
       return await diagnostics.stackServices();
@@ -29,6 +34,7 @@ export function createCloudLinkProbe(diagnostics: DiagnosticsService, appVersion
   };
 
   return {
+    ...actions,
     async state(): Promise<CloudStateData> {
       const [host, dockerHost, stack] = await Promise.all([
         diagnostics.readHostNow(),

@@ -37,6 +37,23 @@ describe('cloud link', () => {
       },
       services: async () => ['app', 'postgres'],
       logs,
+      setupLink: async () => {
+        throw new Error('already set up');
+      },
+      nodeToken: async (name) => ({
+        token: 'gwn_token',
+        expiresAt: '2026-10-12T10:00:00Z',
+        command: `curl … ${name ?? 'Node'}`,
+        nodeId: 'n1',
+      }),
+      updateStatus: async () => ({
+        current: 'v2.11.4',
+        latest: 'v2.11.5',
+        channel: 'stable',
+        available: true,
+        updating: false,
+      }),
+      update: async (version) => ({ started: true, version: version ?? 'v2.11.5' }),
     };
 
     const request = parseCloudRequest(
@@ -121,5 +138,51 @@ describe('cloud link', () => {
       details: expect.objectContaining({ success: false, errorCode: 'CLOUD_CODE_INVALID' }),
     });
     expect(JSON.stringify(log.mock.calls)).not.toContain('not-a-code');
+  });
+
+  it('answers the setup-link, node-token, update-status and update requests', async () => {
+    const probe = {
+      setupLink: async () => {
+        throw new Error('already set up');
+      },
+      nodeToken: async (name?: string) => ({
+        token: 'gwn_token',
+        expiresAt: '2026-10-12T10:00:00Z',
+        command: `curl -fsSL … --name ${name ?? 'Node'}`,
+        nodeId: 'n1',
+      }),
+      updateStatus: async () => ({
+        current: 'v2.11.4',
+        latest: 'v2.11.5',
+        channel: 'stable',
+        available: true,
+        updating: false,
+      }),
+      update: vi.fn(async (version?: string) => ({ started: true as const, version: version ?? 'v2.11.5' })),
+    } as unknown as CloudLinkProbe;
+    await expect(answerCloudRequest(probe, { id: 's', type: 'setup-link', params: {} })).resolves.toEqual({
+      id: 's',
+      ok: false,
+      error: 'already set up',
+    });
+    await expect(
+      answerCloudRequest(probe, { id: 'n', type: 'node-token', params: { name: 'edge-1' } })
+    ).resolves.toEqual({
+      id: 'n',
+      ok: true,
+      data: { token: 'gwn_token', expiresAt: '2026-10-12T10:00:00Z', command: 'curl -fsSL … --name edge-1' },
+    });
+    await expect(answerCloudRequest(probe, { id: 'u', type: 'update-status', params: {} })).resolves.toMatchObject({
+      ok: true,
+      data: { current: 'v2.11.4', latest: 'v2.11.5', available: true, updating: false },
+    });
+    await expect(answerCloudRequest(probe, { id: 'p', type: 'update', params: {} })).resolves.toEqual({
+      id: 'p',
+      ok: true,
+      data: { started: true },
+    });
+    await expect(answerCloudRequest(probe, { id: 'q', type: 'update', params: { version: 5 } })).resolves.toMatchObject(
+      { ok: false }
+    );
   });
 });

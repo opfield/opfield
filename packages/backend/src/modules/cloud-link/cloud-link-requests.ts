@@ -58,6 +58,26 @@ export async function answerCloudRequest(probe: CloudLinkProbe, request: CloudRe
         const lines = await probe.logs(name, { tail: cappedTail, ...(sinceMs !== undefined ? { sinceMs } : {}) });
         return { id: request.id, ok: true, data: { service: name, lines } };
       }
+      case 'setup-link':
+        return { id: request.id, ok: true, data: await probe.setupLink() };
+      case 'node-token': {
+        const { name } = request.params;
+        if (name !== undefined && name !== null && typeof name !== 'string') {
+          return { id: request.id, ok: false, error: 'params.name is the name of the node' };
+        }
+        const { nodeId: _nodeId, ...data } = await probe.nodeToken(name ?? undefined);
+        return { id: request.id, ok: true, data };
+      }
+      case 'update-status':
+        return { id: request.id, ok: true, data: await probe.updateStatus() };
+      case 'update': {
+        const { version } = request.params;
+        if (version !== undefined && version !== null && typeof version !== 'string') {
+          return { id: request.id, ok: false, error: 'params.version is a release version such as v2.11.5' };
+        }
+        const { started } = await probe.update(version ?? undefined);
+        return { id: request.id, ok: true, data: { started } };
+      }
       default:
         return { id: request.id, ok: false, error: `Unknown request type: ${request.type.slice(0, 64)}` };
     }

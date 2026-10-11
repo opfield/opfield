@@ -34,6 +34,7 @@ import { AIRunService } from '@/modules/ai/ai-run.service.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { AuthEmailQueueService } from '@/modules/auth/auth-email-queue.service.js';
 import { CloudLinkAgent } from '@/modules/cloud-link/cloud-link-agent.js';
+import { CloudLinkEnrollFile } from '@/modules/cloud-link/cloud-link-enroll-file.js';
 import { ManagedDatabaseTunnelProxy } from '@/modules/databases/managed-database-tunnel-proxy.js';
 import { PostgresProbe } from '@/modules/diagnostics/postgres-probe.js';
 import { AvailabilityLeaseService } from '@/modules/docker/availability/lease/availability-lease.service.js';
@@ -276,6 +277,7 @@ async function main() {
     const scheduler = container.resolve(SchedulerService);
     scheduler.start();
     container.resolve(CloudLinkAgent).start();
+    container.resolve(CloudLinkEnrollFile).start();
     await commercialEdition.start();
 
     let userDrainPromises: Promise<unknown>[] = [];
@@ -318,6 +320,7 @@ async function main() {
             ),
             shutdownWork('scheduler', scheduler.stop()),
             shutdownWork('cloud_link', container.resolve(CloudLinkAgent).stop()),
+            shutdownWork('cloud_link_enroll_file', container.resolve(CloudLinkEnrollFile).stop()),
             // B-14: holder changes still waiting for their takeover time are audited with the best time known.
             shutdownWork(
               'availability_lease_takeover_audit',
