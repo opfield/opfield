@@ -79,6 +79,22 @@ export interface AuditLogFilters {
   excludedResourceTypes?: string[];
   from?: Date;
   to?: Date;
+  /** Rows tagged with this app (app activity). */
+  appId?: string;
+  /** With appId: only rows of these environments or of the whole app (no environment). */
+  appEnvironmentIds?: string[];
+  /** With appId: only rows of these members or of no member; undefined = every member. */
+  appMemberIds?: string[];
+}
+
+/** Tags a row with the app, environment and member it concerns (apps module); null leaves it untagged. */
+export interface AuditAppTagger {
+  tag(entry: AuditEntry): Promise<{
+    appId: string;
+    appEnvironmentId: string | null;
+    appMemberType: string | null;
+    appMemberId: string | null;
+  } | null>;
 }
 
 interface AuditLogRow {
@@ -92,6 +108,10 @@ interface AuditLogRow {
   ipAddress: string | null;
   userAgent: string | null;
   createdAt: Date;
+  appId?: string | null;
+  appEnvironmentId?: string | null;
+  appMemberType?: string | null;
+  appMemberId?: string | null;
   userName: string | null;
   userEmail: string | null;
   userAvatarUrl: string | null;
@@ -107,6 +127,12 @@ export class AuditService {
 
   setEventBus(eventBus: import('@/services/event-bus.service.js').EventBusService): void {
     this.eventBus = eventBus;
+  }
+
+  private appTagger?: AuditAppTagger;
+
+  setAppTagger(tagger: AuditAppTagger): void {
+    this.appTagger = tagger;
   }
 
   /**
@@ -151,8 +177,19 @@ export class AuditService {
             clientId: requestContext.mcp.clientId,
           }
         : undefined;
+      // App activity: tagged when written (a container's audit id changes on recreate). A failed lookup leaves the
+      // row untagged, never unwritten.
+      const appTag = this.appTagger ? await this.appTagger.tag(entry).catch(() => null) : null;
       const values = {
         id,
+        ...(appTag
+          ? {
+              appId: appTag.appId,
+              appEnvironmentId: appTag.appEnvironmentId,
+              appMemberType: appTag.appMemberType,
+              appMemberId: appTag.appMemberId,
+            }
+          : {}),
         userId: actorUserId,
         action: entry.action,
         resourceType: entry.resourceType,
@@ -393,6 +430,23 @@ export class AuditService {
       conditions.push(notInArray(auditLog.resourceType, params.excludedResourceTypes));
     if (params.from) conditions.push(gte(auditLog.createdAt, params.from));
     if (params.to) conditions.push(lte(auditLog.createdAt, params.to));
+    if (params.appId) {
+      conditions.push(eq(auditLog.appId, params.appId));
+      if (params.appEnvironmentIds) {
+        conditions.push(
+          params.appEnvironmentIds.length
+            ? or(isNull(auditLog.appEnvironmentId), inArray(auditLog.appEnvironmentId, params.appEnvironmentIds))!
+            : isNull(auditLog.appEnvironmentId)
+        );
+      }
+      if (params.appMemberIds) {
+        conditions.push(
+          params.appMemberIds.length
+            ? or(isNull(auditLog.appMemberId), inArray(auditLog.appMemberId, params.appMemberIds))!
+            : isNull(auditLog.appMemberId)
+        );
+      }
+    }
 
     const where = buildWhere(conditions);
 
@@ -408,6 +462,10 @@ export class AuditService {
           ipAddress: auditLog.ipAddress,
           userAgent: auditLog.userAgent,
           createdAt: auditLog.createdAt,
+          appId: auditLog.appId,
+          appEnvironmentId: auditLog.appEnvironmentId,
+          appMemberType: auditLog.appMemberType,
+          appMemberId: auditLog.appMemberId,
           userName: users.name,
           userEmail: users.email,
           userAvatarUrl: users.avatarUrl,

@@ -1,10 +1,12 @@
 import { container } from '@/container.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { AppActivityService } from '@/modules/apps/app-activity.service.js';
 import { AppMaintenanceAccessService } from '@/modules/apps/app-maintenance-access.js';
 import { AppMembersService } from '@/modules/apps/app-members.service.js';
 import { AppNodesService } from '@/modules/apps/app-nodes.service.js';
 import { AppOverviewService } from '@/modules/apps/app-overview.service.js';
 import { AppVariablesService } from '@/modules/apps/app-variables.service.js';
+import { AppActivityQuerySchema } from '@/modules/apps/apps.docs.js';
 import {
   CreateAppEnvironmentSchema,
   CreateAppSchema,
@@ -25,6 +27,7 @@ export const APP_TOOL_NAMES = new Set([
   'manage_app_members',
   'manage_app_variables',
   'get_app_overview',
+  'get_app_activity',
 ]);
 
 function requiredString(value: unknown, field: string, operation: string): string {
@@ -49,6 +52,16 @@ export async function executeAppTool(user: User, toolName: string, args: Record<
       return manageMembers(service, actor, args);
     case 'manage_app_variables':
       return manageVariables(actor, args);
+    case 'get_app_activity': {
+      const query = AppActivityQuerySchema.parse({
+        page: args.page,
+        limit: args.limit,
+        environmentId: typeof args.environmentId === 'string' && args.environmentId ? args.environmentId : undefined,
+      });
+      return container
+        .resolve(AppActivityService)
+        .list(actor.scopes, requiredString(args.appId, 'appId', 'get_app_activity'), query);
+    }
     case 'get_app_overview':
       return container
         .resolve(AppOverviewService)

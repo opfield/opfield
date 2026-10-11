@@ -245,3 +245,14 @@ export const getAppOverviewRoute = appRoute({
   request: { params: AppParams, query: AppOverviewQuerySchema },
   responses: okJson(UnknownDataResponseSchema),
 });
+
+export const getAppActivityRoute = appRoute({
+  method: 'get',
+  path: '/{id}/activity',
+  tags: TAGS,
+  summary: 'App activity',
+  description:
+    'Audit entries about the app, its environments and its members since they joined, newest first, in the audit log row shape: {data, total, page, limit}. environmentId narrows to one environment (app-wide entries included). Entries about members you cannot view are left out.',
+  request: { params: AppParams, query: AppActivityQuerySchema },
+  responses: okJson(UnknownDataResponseSchema),
+});

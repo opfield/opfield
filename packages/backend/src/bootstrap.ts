@@ -40,6 +40,8 @@ import { AIPlanService } from '@/modules/ai/ai-plan.service.js';
 import { AIProviderRuntimeService } from '@/modules/ai/ai-provider-runtime.service.js';
 import { AIRunService } from '@/modules/ai/ai-run.service.js';
 import { aiRunCommercialRuntime } from '@/modules/ai/ai-run-commercial-runtime.js';
+import { AppActivityService } from '@/modules/apps/app-activity.service.js';
+import { AppAuditTagger } from '@/modules/apps/app-audit-tagger.js';
 import { AppEnvLayerService } from '@/modules/apps/app-env-layer.js';
 import { AppFolderService } from '@/modules/apps/app-folders.service.js';
 import { AppHealthService } from '@/modules/apps/app-health.service.js';
@@ -767,6 +769,10 @@ export async function initializeContainer(): Promise<void> {
   const appHealthService = new AppHealthService(db, appMembersReader);
   container.registerInstance(AppHealthService, appHealthService);
   appsService.setHealthProvider(appHealthService);
+  container.registerInstance(AppActivityService, new AppActivityService(appsService, appMembersReader, auditService));
+  const appAuditTagger = new AppAuditTagger(db, appFolderService, appMembershipService);
+  auditService.setAppTagger(appAuditTagger);
+  eventBus.subscribe('apps', () => appAuditTagger.invalidate());
   container.registerInstance(
     AppOverviewService,
     new AppOverviewService(db, appsService, appMembersReader, appHealthService)

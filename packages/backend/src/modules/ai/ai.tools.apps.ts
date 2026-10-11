@@ -169,4 +169,23 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
     requiredScope: 'apps:view',
     invalidateStores: [],
   },
+  {
+    name: 'get_app_activity',
+    description:
+      'Activity of an app: audit entries about the app, its environments and its members since they joined, newest first ({data, total, page, limit}, audit log row shape). Optional environmentId narrows to one environment; entries about members you cannot view are left out.',
+    parameters: {
+      type: 'object',
+      properties: {
+        appId: { type: 'string', description: 'App id or slug.' },
+        environmentId: { type: 'string', description: 'Only this environment (app-wide entries included).' },
+        page: { type: 'number', description: 'Page (default 1).' },
+        limit: { type: 'number', description: 'Entries per page (default 25, at most 100).' },
+      },
+      required: ['appId'],
+    },
+    destructive: false,
+    category: 'Apps',
+    requiredScope: 'apps:view',
+    invalidateStores: [],
+  },
 ];
