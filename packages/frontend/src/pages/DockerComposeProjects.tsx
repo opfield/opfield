@@ -11,6 +11,9 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { AppMemberBadge } from "@/components/apps/AppMembership";
+import { MoveToAppDialog } from "@/components/apps/MoveToAppDialog";
+import { MoveToAppRowMenu } from "@/components/apps/MoveToAppRowMenu";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -40,6 +43,7 @@ import { TruncateStart } from "@/components/ui/truncate-start";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
+import { NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { createClientUuid } from "@/lib/client-id";
 import { canAdoptComposeProject, hasComposeProjectScope } from "@/lib/compose-access";
 import { loadVisibleDockerNodes } from "@/lib/docker-node-access";
@@ -126,6 +130,15 @@ export function DockerComposeProjects({
   const canManageSomeFolders = useCanManageSomeFolders("docker:folders:manage");
   const canManageFolders = !fixedNodeId && canManageSomeFolders;
   const canCreate = hasScopedAccess("docker:compose:create");
+  // A node's view keeps app members (with an app badge); the normal list leaves them to their app.
+  const loadProjects = useCallback(
+    () => fetchProjects(fixedNodeId, fixedNodeId ? {} : NORMAL_LIST_FILTER),
+    [fetchProjects, fixedNodeId]
+  );
+  const canMoveToApps = !fixedNodeId && hasScopedAccess("docker:compose:manage");
+  const [moveToAppProject, setMoveToAppProject] = useState<DockerComposeProjectSummary | null>(
+    null
+  );
 
   const openCreate = useCallback(() => {
     if (!requireLicenseFeature("compose-applications", "Compose projects")) return;
@@ -133,10 +146,7 @@ export function DockerComposeProjects({
   }, []);
 
   useEffect(() => onCreateRef?.(openCreate), [onCreateRef, openCreate]);
-  useEffect(
-    () => onRefreshRef?.(() => void fetchProjects(fixedNodeId)),
-    [fetchProjects, fixedNodeId, onRefreshRef]
-  );
+  useEffect(() => onRefreshRef?.(() => void loadProjects()), [loadProjects, onRefreshRef]);
   useEffect(() => {
     if (fixedNodeId) {
       setSelectedNode(fixedNodeId);
@@ -163,24 +173,24 @@ export function DockerComposeProjects({
     user?.scopes,
   ]);
   useEffect(() => {
-    void fetchProjects(fixedNodeId).finally(() => setInitialFetchDone(true));
-    const interval = window.setInterval(() => void fetchProjects(fixedNodeId), 30_000);
+    void loadProjects().finally(() => setInitialFetchDone(true));
+    const interval = window.setInterval(() => void loadProjects(), 30_000);
     return () => window.clearInterval(interval);
-  }, [fetchProjects, fixedNodeId]);
+  }, [loadProjects]);
   useRealtime("docker.compose.changed", (payload) => {
     const event = payload as { nodeId?: string } | undefined;
     if (visibleNodeId && event?.nodeId && event.nodeId !== visibleNodeId) return;
-    void fetchProjects(fixedNodeId);
+    void loadProjects();
   });
 
   const hasActiveTransitions = Object.keys(projectTransitions).length > 0;
 
   useEffect(() => {
     if (!hasActiveTransitions) return;
-    void fetchProjects(fixedNodeId);
-    const interval = window.setInterval(() => void fetchProjects(fixedNodeId), 1_000);
+    void loadProjects();
+    const interval = window.setInterval(() => void loadProjects(), 1_000);
     return () => window.clearInterval(interval);
-  }, [fetchProjects, fixedNodeId, hasActiveTransitions]);
+  }, [hasActiveTransitions, loadProjects]);
 
   useEffect(() => {
     setProjectTransitions((current) => {
@@ -248,7 +258,7 @@ export function DockerComposeProjects({
         toast.success(
           action === "pull_apply" ? "Pull & Apply started" : `Compose ${action} started`
         );
-        void fetchProjects(fixedNodeId);
+        void loadProjects();
       } catch (error) {
         setProjectTransitions((current) => {
           const next = { ...current };
@@ -259,7 +269,7 @@ export function DockerComposeProjects({
           toast.error(error instanceof Error ? error.message : "Compose operation failed");
       }
     },
-    [fetchProjects, fixedNodeId]
+    [loadProjects]
   );
 
   const adoptProject = useCallback(async (project: DockerComposeProjectSummary) => {
@@ -279,6 +289,7 @@ export function DockerComposeProjects({
     const query = search.trim().toLowerCase();
     return projects
       .filter((project) => !visibleNodeId || project.nodeId === visibleNodeId)
+      .filter((project) => !!fixedNodeId || !project.app)
       .filter(
         (project) =>
           !query ||
@@ -286,7 +297,7 @@ export function DockerComposeProjects({
             .toLowerCase()
             .includes(query)
       );
-  }, [projects, search, visibleNodeId]);
+  }, [fixedNodeId, projects, search, visibleNodeId]);
   const retainedAdoptEditorProject = useRetainedDialogValue(
     adoptEditorProject,
     !!adoptEditorProject
@@ -307,6 +318,7 @@ export function DockerComposeProjects({
               <div className="flex min-w-0 items-center gap-2">
                 <TruncateStart text={project.name} className="min-w-0 text-sm font-medium" />
                 {project.managementState === "external" && <ExternalComposeBadge />}
+                {project.app && <AppMemberBadge app={project.app} />}
               </div>
             </div>
           </div>
@@ -368,7 +380,7 @@ export function DockerComposeProjects({
       {
         id: "actions",
         label: "Actions",
-        width: "7rem",
+        width: canMoveToApps ? "9.5rem" : "7rem",
         align: "right",
         renderCell: (project) => (
           // Keep all lifecycle controls inert until the matching async operation is terminal.
@@ -427,11 +439,25 @@ export function DockerComposeProjects({
                     </Button>
                   </>
                 )}
+            {canMoveToApps &&
+              !project.app &&
+              project.managementState !== "external" &&
+              hasComposeProjectScope(
+                user?.scopes ?? [],
+                "docker:compose:manage",
+                project.nodeId,
+                project.id
+              ) && (
+                <MoveToAppRowMenu
+                  resourceLabel={project.name}
+                  onMoveToApp={() => setMoveToAppProject(project)}
+                />
+              )}
           </div>
         ),
       },
     ],
-    [adoptProject, fixedNodeId, projectTransitions, runAction, user?.scopes]
+    [adoptProject, canMoveToApps, fixedNodeId, projectTransitions, runAction, user?.scopes]
   );
 
   const nodes = embedded ? storeNodes : localNodes.length ? localNodes : storeNodes;
@@ -447,7 +473,7 @@ export function DockerComposeProjects({
                 {
                   label: "Refresh",
                   icon: <RefreshCw className="h-4 w-4" />,
-                  onClick: () => void fetchProjects(fixedNodeId),
+                  onClick: () => void loadProjects(),
                   disabled: loading,
                 },
                 ...(canManageFolders
@@ -462,7 +488,7 @@ export function DockerComposeProjects({
                 ...(canCreate ? [{ label: "New Project", onClick: openCreate }] : []),
               ]}
             >
-              <RefreshButton onClick={() => void fetchProjects(fixedNodeId)} disabled={loading} />
+              <RefreshButton onClick={() => void loadProjects()} disabled={loading} />
               {canManageFolders && (
                 <Button variant="outline" onClick={() => createFolderRef.current?.()}>
                   <FolderPlus className="mr-1 h-4 w-4" />
@@ -524,6 +550,7 @@ export function DockerComposeProjects({
         minWidth={fixedNodeId ? "720px" : "980px"}
         fixedNodeId={fixedNodeId}
         canManageFolders={canManageFolders}
+        canReorganizeItem={(project) => !project.app}
         getResourceKey={(project) => project.id}
         getResourceLabel={(project) => project.name}
         onItemClick={(project) =>
@@ -531,7 +558,7 @@ export function DockerComposeProjects({
             state: createReturnNavigationState(location),
           })
         }
-        onRefresh={() => fetchProjects(fixedNodeId)}
+        onRefresh={() => loadProjects()}
         onCreateFolderRef={(fn) => {
           createFolderRef.current = fn;
           onCreateFolderRef?.(fn);
@@ -575,17 +602,42 @@ export function DockerComposeProjects({
     </Dialog>
   );
 
+  const moveToAppDialog = canMoveToApps ? (
+    <MoveToAppDialog
+      open={moveToAppProject !== null}
+      onOpenChange={(open) => {
+        if (!open) setMoveToAppProject(null);
+      }}
+      members={
+        moveToAppProject
+          ? [
+              {
+                type: "compose",
+                id: moveToAppProject.id,
+                nodeId: moveToAppProject.nodeId,
+                resourceKey: moveToAppProject.id,
+              },
+            ]
+          : []
+      }
+      resourceLabel={moveToAppProject?.name ?? "the Compose project"}
+      onMoved={() => void loadProjects()}
+    />
+  ) : null;
+
   return embedded ? (
     <>
       {content}
       {createDialog}
       {adoptDialog}
+      {moveToAppDialog}
     </>
   ) : (
     <PageTransition>
       <div className="min-h-full space-y-4 p-6">{content}</div>
       {createDialog}
       {adoptDialog}
+      {moveToAppDialog}
     </PageTransition>
   );
 }

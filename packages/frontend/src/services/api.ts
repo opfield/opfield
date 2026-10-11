@@ -1,3 +1,4 @@
+import { NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { useAuthStore } from "@/stores/auth";
 import { hasLicenseFeature, type LicenseFeature } from "@/stores/license-paywall";
 import { useUIStore } from "@/stores/ui";
@@ -25,6 +26,7 @@ import type {
 import type { AIScenario, PageContext } from "@/types/ai";
 import type { FileEntry } from "@/types/docker";
 import { withAIStatusApi } from "./api-ai-status";
+import { withAppsApi } from "./api-apps";
 import { withAuthApi } from "./api-auth";
 import { withBackupApi } from "./api-backups";
 import { API_BASE, ApiClientBase } from "./api-base";
@@ -45,21 +47,25 @@ import { withProxyApi } from "./api-proxy";
 import { withSystemApi } from "./api-system";
 import { type BackgroundPrewarmTask, runBackgroundPrewarm } from "./background-prewarm";
 
-class ApiClient extends withIngressGroupsApi(
-  withPagesDomainsApi(
-    withAIStatusApi(
-      withInferenceCoreApi(
-        withInferenceApi(
-          withIntegrationsApi(
-            withLoggingApi(
-              withNotificationApi(
-                withAuthApi(
-                  withSystemApi(
-                    withDockerApi(
-                      withBackupApi(
-                        withObjectStorageApi(
-                          withContainerLinksApi(
-                            withDatabaseApi(withPkiApi(withProxyApi(withHostingApi(ApiClientBase))))
+class ApiClient extends withAppsApi(
+  withIngressGroupsApi(
+    withPagesDomainsApi(
+      withAIStatusApi(
+        withInferenceCoreApi(
+          withInferenceApi(
+            withIntegrationsApi(
+              withLoggingApi(
+                withNotificationApi(
+                  withAuthApi(
+                    withSystemApi(
+                      withDockerApi(
+                        withBackupApi(
+                          withObjectStorageApi(
+                            withContainerLinksApi(
+                              withDatabaseApi(
+                                withPkiApi(withProxyApi(withHostingApi(ApiClientBase)))
+                              )
+                            )
                           )
                         )
                       )
@@ -160,12 +166,14 @@ class ApiClient extends withIngressGroupsApi(
     add(
       auth.hasScopedAccess("proxy:view"),
       "proxy-hosts",
-      cache("proxy:grouped", () => this.getGroupedProxyHosts({}))
+      cache("proxy:grouped", () => this.getGroupedProxyHosts({ ...NORMAL_LIST_FILTER }))
     );
     add(
       licensed("pages") && auth.hasScopedAccess("pages:view"),
       "pages-projects",
-      cache("pages:projects", () => this.listPageProjects({ page: 1, limit: 100 }))
+      cache("pages:projects", () =>
+        this.listPageProjects({ page: 1, limit: 100, ...NORMAL_LIST_FILTER })
+      )
     );
     add(
       licensed("pages") &&
@@ -216,7 +224,7 @@ class ApiClient extends withIngressGroupsApi(
       licensed("external-database-connections") && auth.hasScopedAccess("databases:view"),
       "databases",
       cache("databases:list", () =>
-        this.listDatabases({ limit: 200 }).then((result) => result.data)
+        this.listDatabases({ limit: 200, ...NORMAL_LIST_FILTER }).then((result) => result.data)
       )
     );
     // Without a logging backend the lists answer 503; the Logging pages load them on demand.

@@ -3,6 +3,7 @@ import { ArrowRight, FolderPlus, MoreVertical, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { MoveToAppDialog } from "@/components/apps/MoveToAppDialog";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderCreateDialog } from "@/components/common/FolderCreateDialog";
@@ -119,6 +120,7 @@ export function ProxyHosts({
   const [createFolderParentId, setCreateFolderParentId] = useState<string | null>(null);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [moveDialogHostId, setMoveDialogHostId] = useState<string | null>(null);
+  const [moveToAppHost, setMoveToAppHost] = useState<ProxyHost | null>(null);
   const [activeDrag, setActiveDrag] = useState<DragEndEvent["active"] | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [nginxNodeRequiredOpen, setNginxNodeRequiredOpen] = useState(false);
@@ -443,7 +445,13 @@ export function ProxyHosts({
   // Same checks as POST /proxy-host-folders/move-hosts: folder management plus
   // edit access on the route and on the destination.
   const canMoveHost = (host: ProxyHost) =>
-    canManageFolders && canEditHost(host) && canManageFolderAt(host.folderId ?? null);
+    !host.app && canManageFolders && canEditHost(host) && canManageFolderAt(host.folderId ?? null);
+  // System routes and the Gateway public route never join an app (the server refuses them too).
+  const canMoveHostToApp = (host: ProxyHost) =>
+    !host.app &&
+    !host.isSystem &&
+    !isGatewayPublicRoute(host, gatewayPublicUrl) &&
+    canEditHost(host);
   const canMoveHostTo = (folderId: string | null) =>
     canCreateInFolder(user?.scopes ?? [], "proxy:edit", folderId) && canManageFolderAt(folderId);
   const canManageFolder = (folder: FolderTreeNode) => canManageFolderAt(folder.parentId ?? null);
@@ -592,13 +600,16 @@ export function ProxyHosts({
                       >
                         {host.maintenanceEnabled ? "Disable Maintenance" : "Enable Maintenance"}
                       </DropdownMenuItem>
+                      {(canMoveHost(host) || canMoveHostToApp(host)) && <DropdownMenuSeparator />}
                       {canMoveHost(host) && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => setMoveDialogHostId(host.id)}>
-                            Move to folder...
-                          </DropdownMenuItem>
-                        </>
+                        <DropdownMenuItem onClick={() => setMoveDialogHostId(host.id)}>
+                          Move to folder...
+                        </DropdownMenuItem>
+                      )}
+                      {canMoveHostToApp(host) && (
+                        <DropdownMenuItem onClick={() => setMoveToAppHost(host)}>
+                          Move to app...
+                        </DropdownMenuItem>
                       )}
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -781,11 +792,24 @@ export function ProxyHosts({
             getItemSortableData: (host) => ({ type: "host", host }),
             canViewItem: canViewHost,
             isItemDragDisabled: (host) =>
-              !canReorderFolders || !canEditHost(host) || !canManageFolderAt(host.folderId ?? null),
+              !!host.app ||
+              !canReorderFolders ||
+              !canEditHost(host) ||
+              !canManageFolderAt(host.folderId ?? null),
             onItemClick: (host) => navigate(proxyHostRoute(host.slug)),
           }}
         />
       </div>
+
+      <MoveToAppDialog
+        open={moveToAppHost !== null}
+        onOpenChange={(open) => {
+          if (!open) setMoveToAppHost(null);
+        }}
+        members={moveToAppHost ? [{ type: "route", id: moveToAppHost.id }] : []}
+        resourceLabel={moveToAppHost?.domainNames[0] ?? "the route"}
+        onMoved={() => void fetchGroupedHosts()}
+      />
 
       {/* Move to folder dialog */}
       <MoveToFolderDialog

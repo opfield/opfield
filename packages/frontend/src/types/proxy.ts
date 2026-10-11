@@ -1,3 +1,4 @@
+import type { AppMembershipRef } from "./apps";
 import type { NodeAppearanceColor } from "./nodes";
 import type { CertificateDistributionState, SSLCertificate } from "./ssl";
 
@@ -32,6 +33,8 @@ export interface RewriteRule {
 }
 
 export interface ProxyHost {
+  /** Set when the resource is a member of an app environment. */
+  app?: AppMembershipRef | null;
   id: string;
   slug: string;
   type: ProxyHostType;

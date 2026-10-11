@@ -1,6 +1,4 @@
-import { AnimatePresence, motion } from "framer-motion";
 import {
-  ArrowLeft,
   ArrowRight,
   Database as DatabaseIcon,
   DatabaseZap,
@@ -11,37 +9,26 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { AnimatedHeight } from "@/components/common/AnimatedHeight";
-import {
-  type CreateFolderChoices,
-  CreateFolderSelect,
-  getCreateFolderChoices,
-  isCreateFolderAllowed,
-} from "@/components/common/CreateFolderSelect";
+import { AppMemberBadge } from "@/components/apps/AppMembership";
+import { MoveToAppDialog } from "@/components/apps/MoveToAppDialog";
+import { MoveToAppRowMenu } from "@/components/apps/MoveToAppRowMenu";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderedResourceList } from "@/components/common/FolderedResourceList";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
-import { ManagedResourceFields } from "@/components/common/ManagedResourceFields";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
-import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
-import { useContentLoading } from "@/components/common/reveal-gate";
-import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CodeEditor } from "@/components/ui/code-editor";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -49,10 +36,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
+import { NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { refreshDynamicScopes } from "@/lib/live-scopes";
 import { listManagedDatabaseCandidateNodes } from "@/lib/managed-database-nodes";
 import { nodeIconClassNames } from "@/lib/node-appearance";
@@ -66,29 +53,10 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
-import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
-import { useResourceFolderStore } from "@/stores/resource-folders";
-import type {
-  DatabaseConnection,
-  DatabaseType,
-  ManagedDatabase,
-  ManagedDatabaseCatalogEntry,
-  ManagedDatabaseCreateInput,
-  Node,
-} from "@/types";
-import {
-  buildDatabasePayload,
-  canCreateDatabase,
-  type DatabaseConnectionDraft,
-  DatabaseConnectionForm,
-  draftFromConnection,
-} from "./database-detail/DatabaseConnectionForm";
-import {
-  canDeployManagedDatabase,
-  type ManagedDatabaseCapacity,
-  managedDatabaseCapacity,
-  minimumManagedDatabaseMemoryMb,
-} from "./database-detail/managed-database-capacity";
+import { requireLicenseFeature } from "@/stores/license-paywall";
+import type { DatabaseConnection, ManagedDatabaseCatalogEntry, Node } from "@/types";
+import { DatabaseConnectionCreateDialog } from "./database-create/DatabaseConnectionCreateDialog";
+import { ManagedDatabaseCreateDialog } from "./database-create/ManagedDatabaseCreateDialog";
 
 const HEALTH_BADGE: Record<string, "success" | "secondary" | "warning" | "destructive"> = {
   online: "success",
@@ -97,8 +65,6 @@ const HEALTH_BADGE: Record<string, "success" | "secondary" | "warning" | "destru
   unknown: "secondary",
 };
 
-const MANAGED_DATABASE_PROVISION_TIMEOUT_MS = 120_000;
-const MANAGED_DATABASE_PROVISION_INTERVAL_MS = 750;
 const DATABASE_NODE_APPEARANCE_CACHE_KEY = "databases:nodes";
 
 type DatabaseChangedPayload = {
@@ -133,82 +99,6 @@ export function canRenderDatabaseRowsWithNodeAppearance(
   const nodeIds = new Set(nodes.map((node) => node.id));
   return rows.every((row) => !row.managed || nodeIds.has(row.managed.nodeId));
 }
-const DIALOG_PAYLOAD_CLEAR_DELAY_MS = 260;
-
-function delay(ms: number) {
-  return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
-}
-
-async function waitForManagedDatabaseReady(id: string): Promise<ManagedDatabase> {
-  const deadline = Date.now() + MANAGED_DATABASE_PROVISION_TIMEOUT_MS;
-  let current = await api.getManagedDatabase(id);
-  while (current.status !== "ready" && current.status !== "error" && Date.now() < deadline) {
-    await delay(MANAGED_DATABASE_PROVISION_INTERVAL_MS);
-    current = await api.getManagedDatabase(id);
-  }
-  if (current.status === "ready" || current.status === "error") return current;
-  throw new Error("Managed database is still starting. Check its status from the databases list.");
-}
-
-const DEFAULT_MANAGED_DATABASE_VERSIONS: Record<DatabaseType, string[]> = {
-  postgres: ["18.4", "18.3", "17.10", "17.8", "16.14", "16.10", "15.18", "15.14", "14.23", "14.19"],
-  redis: ["8.10.0", "8.8.1", "8.6.5", "8.4.5", "8.2.8", "7.4.10", "7.2.12", "6.2.20"],
-  clickhouse: [
-    "26.7.1.1315",
-    "26.6.2.81",
-    "26.5.6.64",
-    "26.4.5.143",
-    "26.3.17.56",
-    "25.8.28.1",
-    "25.3.8.23",
-    "24.8.14.39",
-    "24.3.18.7",
-  ],
-};
-
-const MANAGED_DATABASE_FORM_ANIMATION = {
-  initial: { opacity: 0, y: 8 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -4 },
-  transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] as const },
-};
-
-function catalogVersions(catalog: ManagedDatabaseCatalogEntry[], type: DatabaseType): string[] {
-  return (
-    catalog.find((entry) => entry.type === type)?.versions ??
-    DEFAULT_MANAGED_DATABASE_VERSIONS[type]
-  );
-}
-
-function defaultManagedDraft(
-  catalog: ManagedDatabaseCatalogEntry[] = []
-): ManagedDatabaseCreateInput {
-  return {
-    name: "",
-    type: "postgres",
-    version: catalogVersions(catalog, "postgres")[0]!,
-    nodeId: "",
-    storageSizeGb: 10,
-    cpuCores: 1,
-    memoryMb: 1024,
-    swapMb: 0,
-    tags: [],
-    publishTcp: false,
-    tlsEnabled: true,
-  };
-}
-
-function parseTags(value: string) {
-  return Array.from(
-    new Set(
-      value
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean)
-    )
-  );
-}
-
 function formatHealthLabel(status: DatabaseConnection["healthStatus"] | "paused"): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
@@ -306,314 +196,6 @@ function DatabaseTagSummary({ tags, type }: { tags: string[]; type: DatabaseConn
   );
 }
 
-export function ManagedDatabaseCreateForm({
-  draft,
-  nodes,
-  catalog,
-  capacity,
-  step,
-  onChange,
-  folderId = "",
-  folderChoices = { allowRoot: true, folders: [], defaultFolderId: "" },
-  foldersLoading = false,
-  onFolderChange,
-}: {
-  draft: ManagedDatabaseCreateInput;
-  nodes: Node[];
-  catalog: ManagedDatabaseCatalogEntry[];
-  capacity: ManagedDatabaseCapacity;
-  step: 1 | 2 | 3;
-  onChange: (draft: ManagedDatabaseCreateInput) => void;
-  folderId?: string;
-  /** Destinations the caller may create in (see `getCreateFolderChoices`). */
-  folderChoices?: CreateFolderChoices;
-  foldersLoading?: boolean;
-  onFolderChange?: (folderId: string) => void;
-}) {
-  const set = <K extends keyof ManagedDatabaseCreateInput>(
-    key: K,
-    value: ManagedDatabaseCreateInput[K]
-  ) => onChange({ ...draft, [key]: value });
-  const [resourceInputs, setResourceInputs] = useState(() => ({
-    storageSizeGb: String(draft.storageSizeGb),
-    cpuCores: String(draft.cpuCores),
-    memoryMb: String(draft.memoryMb),
-    swapMb: String(draft.swapMb),
-  }));
-  const [tagsInput, setTagsInput] = useState(() => (draft.tags ?? []).join(", "));
-  const setResourceInput = (
-    key: "storageSizeGb" | "cpuCores" | "memoryMb" | "swapMb",
-    value: string
-  ) => {
-    setResourceInputs((current) => ({ ...current, [key]: value }));
-    set(key, value === "" ? 0 : Number(value));
-  };
-  const versions = catalogVersions(catalog, draft.type);
-  // The folder list loads when the create dialog opens.
-  useContentLoading(Boolean(onFolderChange) && foldersLoading);
-
-  return (
-    <AnimatePresence mode="popLayout" initial={false}>
-      {step === 1 && (
-        <motion.div
-          key="managed-database-step-1"
-          {...MANAGED_DATABASE_FORM_ANIMATION}
-          className="space-y-4"
-        >
-          <div className="grid gap-4">
-            {onFolderChange && (
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium" htmlFor="managed-db-folder">
-                  Folder
-                </label>
-                <CreateFolderSelect
-                  id="managed-db-folder"
-                  choices={folderChoices}
-                  value={folderId}
-                  onChange={onFolderChange}
-                  loading={foldersLoading}
-                />
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="managed-db-name">
-                Name
-              </label>
-              <Input
-                id="managed-db-name"
-                value={draft.name}
-                onChange={(event) => set("name", event.target.value)}
-                placeholder="Production database"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Engine</label>
-              <Select
-                value={draft.type}
-                onValueChange={(value) => {
-                  const type = value as DatabaseType;
-                  const memoryMb = Math.max(draft.memoryMb, minimumManagedDatabaseMemoryMb(type));
-                  setResourceInputs((current) => ({ ...current, memoryMb: String(memoryMb) }));
-                  onChange({
-                    ...draft,
-                    type,
-                    version: catalogVersions(catalog, type)[0]!,
-                    memoryMb,
-                    ...(type === "clickhouse"
-                      ? {
-                          publishNativeTcp: draft.publishTcp
-                            ? (draft.publishNativeTcp ?? true)
-                            : false,
-                        }
-                      : { publishNativeTcp: undefined, publishedNativePort: undefined }),
-                  });
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="postgres">Postgres</SelectItem>
-                  <SelectItem value="redis">Redis</SelectItem>
-                  <SelectItem value="clickhouse">ClickHouse</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="managed-db-node">
-                Storage node
-              </label>
-              <Select value={draft.nodeId} onValueChange={(value) => set("nodeId", value)}>
-                <SelectTrigger id="managed-db-node">
-                  <SelectValue placeholder="Select node" />
-                </SelectTrigger>
-                <SelectContent>
-                  {nodes.map((node) => (
-                    <SelectItem key={node.id} value={node.id}>
-                      {node.displayName || node.hostname}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Curated version</label>
-              <Select value={draft.version} onValueChange={(value) => set("version", value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {versions.map((version) => (
-                    <SelectItem key={version} value={version}>
-                      {version}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium" htmlFor="managed-db-tags">
-              Tags
-            </label>
-            <Input
-              id="managed-db-tags"
-              value={tagsInput}
-              onChange={(event) => {
-                const value = event.target.value;
-                setTagsInput(value);
-                set("tags", parseTags(value));
-              }}
-              placeholder="team, green:production, analytics"
-            />
-            <p className="text-xs text-muted-foreground">
-              Use color:name for colored tags. Supported colors: blue, red, green, yellow, purple,
-              pink, orange, gray.
-            </p>
-          </div>
-        </motion.div>
-      )}
-
-      {step === 2 && (
-        <motion.div
-          key="managed-database-step-2"
-          {...MANAGED_DATABASE_FORM_ANIMATION}
-          className="space-y-4"
-        >
-          <ManagedResourceFields
-            idPrefix="managed-db"
-            values={resourceInputs}
-            capacity={capacity}
-            onChange={setResourceInput}
-            minimumMemoryMb={minimumManagedDatabaseMemoryMb(draft.type)}
-            memoryHint={
-              draft.type === "clickhouse" ? "ClickHouse requires at least 512 MB. " : undefined
-            }
-          />
-          <PanelShell
-            title="Publish TCP port"
-            description="Enables direct network connections in addition to secure managed links."
-            headerBorder={draft.publishTcp}
-            actions={
-              <Switch
-                checked={draft.publishTcp}
-                onChange={(checked) =>
-                  onChange({
-                    ...draft,
-                    publishTcp: checked,
-                    ...(checked
-                      ? {}
-                      : {
-                          publishedPort: undefined,
-                          publishNativeTcp: false,
-                          publishedNativePort: undefined,
-                        }),
-                  })
-                }
-                ariaLabel="Publish TCP port"
-              />
-            }
-          >
-            <AnimatePresence initial={false} mode="popLayout">
-              {draft.publishTcp && (
-                <motion.div key="published-tcp-settings" {...MANAGED_DATABASE_FORM_ANIMATION}>
-                  <SettingsControlRow
-                    title="Published TCP port"
-                    description="Leave empty to let Docker allocate a free port. Gateway does not change host firewalls."
-                  >
-                    <Input
-                      id="managed-db-published-port"
-                      aria-label="Published TCP port"
-                      type="number"
-                      min="1"
-                      max="65535"
-                      value={draft.publishedPort ?? ""}
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        set("publishedPort", value === "" ? undefined : Number(value));
-                      }}
-                      placeholder="Automatic"
-                    />
-                  </SettingsControlRow>
-                  {draft.type === "clickhouse" && (
-                    <>
-                      <SettingsControlRow
-                        title="Publish native TCP port"
-                        description="Expose the ClickHouse native protocol for native clients."
-                      >
-                        <Switch
-                          checked={draft.publishNativeTcp ?? true}
-                          onChange={(checked) =>
-                            onChange({
-                              ...draft,
-                              publishNativeTcp: checked,
-                              ...(checked ? {} : { publishedNativePort: undefined }),
-                            })
-                          }
-                          ariaLabel="Publish native TCP port"
-                        />
-                      </SettingsControlRow>
-                      {(draft.publishNativeTcp ?? true) && (
-                        <SettingsControlRow
-                          title="Native TCP port"
-                          description="Leave empty to let Docker allocate a free port."
-                        >
-                          <Input
-                            aria-label="Native TCP port"
-                            type="number"
-                            min="1"
-                            max="65535"
-                            value={draft.publishedNativePort ?? ""}
-                            onChange={(event) => {
-                              const value = event.target.value;
-                              set("publishedNativePort", value === "" ? undefined : Number(value));
-                            }}
-                            placeholder="Automatic"
-                          />
-                        </SettingsControlRow>
-                      )}
-                    </>
-                  )}
-                  <SettingsControlRow
-                    title="TLS"
-                    description="Encrypt direct database traffic. Secure managed links always remain encrypted."
-                  >
-                    <Switch
-                      checked={draft.tlsEnabled ?? true}
-                      onChange={(checked) => set("tlsEnabled", checked)}
-                      ariaLabel="Enable TLS"
-                    />
-                  </SettingsControlRow>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </PanelShell>
-        </motion.div>
-      )}
-
-      {step === 3 && draft.type === "clickhouse" && (
-        <motion.div key="managed-database-step-3" {...MANAGED_DATABASE_FORM_ANIMATION}>
-          <PanelShell
-            title="ClickHouse configuration fragment"
-            description="Optional XML configuration. Security, networking and managed data paths remain controlled by Gateway."
-            className="bg-background"
-            bodyClassName="min-h-0 bg-background"
-          >
-            <CodeEditor
-              value={draft.clickhouseConfigXml ?? ""}
-              onChange={(value) => set("clickhouseConfigXml", value || undefined)}
-              language="xml"
-              height="min(42dvh, 440px)"
-              bordered={false}
-              showGutterBorder={false}
-            />
-          </PanelShell>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
 export function Databases(props: Parameters<typeof DatabasesContent>[0] = {}) {
   return (
     <LicenseFeatureBoundary
@@ -635,7 +217,6 @@ function DatabasesContent({
   const navigate = useNavigate();
   const location = useLocation();
   const { hasScope, hasScopedAccess, isLoading: authLoading } = useAuthStore();
-  const userScopes = useAuthStore((state) => state.user?.scopes);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "postgres" | "clickhouse" | "redis">("all");
   const [healthFilter, setHealthFilter] = useState<
@@ -674,41 +255,13 @@ function DatabasesContent({
   const [createOpen, setCreateOpen] = useState(false);
   const [managedCreateOpen, setManagedCreateOpen] = useState(false);
   const [managedNodeRequiredOpen, setManagedNodeRequiredOpen] = useState(false);
-  const [managedCreateStep, setManagedCreateStep] = useState<1 | 2 | 3>(1);
-  const [managedCreateSession, setManagedCreateSession] = useState(0);
-  const [draft, setDraft] = useState<DatabaseConnectionDraft>(draftFromConnection(null));
-  const [folderId, setFolderId] = useState("");
-  const [managedDraft, setManagedDraft] = useState<ManagedDatabaseCreateInput>(defaultManagedDraft);
   const [managedCatalog, setManagedCatalog] = useState<ManagedDatabaseCatalogEntry[]>([]);
   const [databaseNodes, setDatabaseNodes] = useState<Node[]>(initialListState.current.nodes);
   const [databaseNodesLoaded, setDatabaseNodesLoaded] = useState(
     initialListState.current.nodes.length > 0
   );
-  const [saving, setSaving] = useState(false);
-  const [managedSaving, setManagedSaving] = useState(false);
-  const [managedProvisioning, setManagedProvisioning] = useState<{ phase: "waiting" } | null>(null);
-  const [managedProvisioningError, setManagedProvisioningError] = useState<{
-    databaseConnectionId: string;
-    error: string;
-  } | null>(null);
-  const [managedProvisioningErrorOpen, setManagedProvisioningErrorOpen] = useState(false);
-  const managedProvisioningErrorOpenTimerRef = useRef<number | null>(null);
-  const managedProvisioningErrorClearTimerRef = useRef<number | null>(null);
   const [createFolderAction, setCreateFolderAction] = useState<(() => void) | null>(null);
-  const databaseFolders = useResourceFolderStore((state) => state.foldersByType.database);
-  const foldersLoading = useResourceFolderStore((state) => state.loadingByType.database);
-  const fetchFolders = useResourceFolderStore((state) => state.fetchFolders);
-  // Same destination rule as the create routes: folder-scoped creators only get their folders,
-  // node-scoped creators any folder on that node (managed databases).
-  const connectionFolderChoices = useMemo(
-    () => getCreateFolderChoices(userScopes ?? [], "databases:create", databaseFolders),
-    [databaseFolders, userScopes]
-  );
-
-  useEffect(() => {
-    if (createOpen || managedCreateOpen) void fetchFolders("database");
-  }, [createOpen, fetchFolders, managedCreateOpen]);
-
+  const [moveToAppDatabase, setMoveToAppDatabase] = useState<DatabaseConnection | null>(null);
   const openConnectionCreate = () => {
     if (requireLicenseFeature("external-database-connections", "External database connections"))
       setCreateOpen(true);
@@ -720,59 +273,8 @@ function DatabasesContent({
       setManagedNodeRequiredOpen(true);
       return;
     }
-    setManagedDraft(defaultManagedDraft(managedCatalog));
-    setManagedCreateStep(1);
-    setManagedCreateSession((session) => session + 1);
-    setManagedProvisioning(null);
     setManagedCreateOpen(true);
-  }, [databaseNodes.length, databaseNodesLoaded, managedCatalog]);
-
-  const closeManagedCreate = useCallback(() => {
-    if (managedProvisioning?.phase === "waiting") return;
-    setManagedCreateOpen(false);
-  }, [managedProvisioning]);
-
-  const showManagedProvisioningError = useCallback(
-    (failure: { databaseConnectionId: string; error: string }) => {
-      setManagedCreateOpen(false);
-      if (managedProvisioningErrorOpenTimerRef.current !== null) {
-        window.clearTimeout(managedProvisioningErrorOpenTimerRef.current);
-      }
-      managedProvisioningErrorOpenTimerRef.current = window.setTimeout(() => {
-        if (managedProvisioningErrorClearTimerRef.current !== null) {
-          window.clearTimeout(managedProvisioningErrorClearTimerRef.current);
-          managedProvisioningErrorClearTimerRef.current = null;
-        }
-        setManagedProvisioningError(failure);
-        setManagedProvisioningErrorOpen(true);
-        managedProvisioningErrorOpenTimerRef.current = null;
-      }, 250);
-    },
-    []
-  );
-
-  const closeManagedProvisioningError = useCallback(() => {
-    setManagedProvisioningErrorOpen(false);
-    if (managedProvisioningErrorClearTimerRef.current !== null) {
-      window.clearTimeout(managedProvisioningErrorClearTimerRef.current);
-    }
-    managedProvisioningErrorClearTimerRef.current = window.setTimeout(() => {
-      setManagedProvisioningError(null);
-      managedProvisioningErrorClearTimerRef.current = null;
-    }, DIALOG_PAYLOAD_CLEAR_DELAY_MS);
-  }, []);
-
-  useEffect(
-    () => () => {
-      if (managedProvisioningErrorOpenTimerRef.current !== null) {
-        window.clearTimeout(managedProvisioningErrorOpenTimerRef.current);
-      }
-      if (managedProvisioningErrorClearTimerRef.current !== null) {
-        window.clearTimeout(managedProvisioningErrorClearTimerRef.current);
-      }
-    },
-    []
-  );
+  }, [databaseNodes.length, databaseNodesLoaded]);
 
   useEffect(() => {
     if (!(location.state as { createManagedDatabase?: boolean } | null)?.createManagedDatabase) {
@@ -784,6 +286,7 @@ function DatabasesContent({
 
   const load = useCallback(
     async ({ background = false }: { background?: boolean } = {}) => {
+      // A node's view keeps app members; the normal list leaves them to their app's page (server-filtered).
       const cachedRows = api.getCached<DatabaseConnection[]>(databaseCacheKey);
       const cachedNodes = api.getCached<Node[]>(DATABASE_NODE_APPEARANCE_CACHE_KEY) ?? [];
       if (cachedRows && canRenderDatabaseRowsWithNodeAppearance(cachedRows, cachedNodes)) {
@@ -829,6 +332,7 @@ function DatabasesContent({
             search: search || undefined,
             type: typeFilter === "all" ? undefined : typeFilter,
             healthStatus: healthFilter === "all" ? undefined : healthFilter,
+            ...NORMAL_LIST_FILTER,
           });
           data = result.data;
         }
@@ -896,10 +400,6 @@ function DatabasesContent({
   // resources created after the cached scopes were loaded; row actions keep their own checks.
   const filtered = rows;
 
-  const managedVersions = useMemo(
-    () => catalogVersions(managedCatalog, managedDraft.type),
-    [managedCatalog, managedDraft.type]
-  );
   const databaseNodeById = useMemo(
     () => new Map(databaseNodes.map((node) => [node.id, node])),
     [databaseNodes]
@@ -908,118 +408,13 @@ function DatabasesContent({
     () => databaseNodes.filter((node) => node.status === "online" && node.isConnected),
     [databaseNodes]
   );
-  const selectedDeployableDatabaseNode = useMemo(
-    () => deployableDatabaseNodes.find((node) => node.id === managedDraft.nodeId),
-    [deployableDatabaseNodes, managedDraft.nodeId]
-  );
-  const managedCapacity = useMemo(
-    () => managedDatabaseCapacity(selectedDeployableDatabaseNode),
-    [selectedDeployableDatabaseNode]
-  );
-  const managedFolderChoices = useMemo(
-    () =>
-      getCreateFolderChoices(
-        userScopes ?? [],
-        "databases:create",
-        databaseFolders,
-        managedDraft.nodeId || undefined
-      ),
-    [databaseFolders, managedDraft.nodeId, userScopes]
-  );
-  const canDeployManaged = useMemo(
-    () =>
-      !!selectedDeployableDatabaseNode &&
-      canDeployManagedDatabase(managedDraft, managedVersions, managedCapacity),
-    [managedCapacity, managedDraft, managedVersions, selectedDeployableDatabaseNode]
-  );
-  const managedCreateStepCount = managedDraft.type === "clickhouse" ? 3 : 2;
-  const managedCreateStepLabel =
-    managedCreateStep === 1
-      ? "Database"
-      : managedCreateStep === 2
-        ? "Resources & network"
-        : "Configuration";
-  const canContinueManagedCreate =
-    managedCreateStep === 1
-      ? managedDraft.name.trim().length > 0 &&
-        isCreateFolderAllowed(managedFolderChoices, folderId) &&
-        deployableDatabaseNodes.some((node) => node.id === managedDraft.nodeId) &&
-        managedVersions.includes(managedDraft.version)
-      : canDeployManaged;
 
-  const save = async () => {
-    setSaving(true);
-    try {
-      const created = await api.createDatabase({
-        ...buildDatabasePayload(draft),
-        folderId: folderId || null,
-      });
-      toast.success("Database connection created");
-      setCreateOpen(false);
-      setDraft(draftFromConnection(null));
-      setFolderId("");
-      navigate(databaseRoute(created.slug, "overview"));
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create database connection");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const saveManaged = async () => {
-    if (!canDeployManaged) {
-      toast.error("Complete the managed database settings with valid resource limits");
-      return;
-    }
-    setManagedSaving(true);
-    setManagedProvisioning({ phase: "waiting" });
-    let created: ManagedDatabase | null = null;
-    try {
-      created = await api.createManagedDatabase({
-        ...managedDraft,
-        folderId: folderId || null,
-        publishNativeTcp: managedDraft.publishTcp ? managedDraft.publishNativeTcp : false,
-        publishedNativePort: managedDraft.publishTcp ? managedDraft.publishedNativePort : undefined,
-      });
-      const provisioned = await waitForManagedDatabaseReady(created.id);
-      if (provisioned.status !== "ready") {
-        showManagedProvisioningError({
-          databaseConnectionId: provisioned.databaseConnectionId,
-          error: provisioned.lastError ?? "Managed database provisioning failed",
-        });
-        return;
-      }
-      toast.success("Managed database is ready");
-      closeManagedCreate();
-      setManagedDraft(defaultManagedDraft(managedCatalog));
-      setFolderId("");
-      const database = await api.getDatabase(created.databaseConnectionId);
-      navigate(databaseRoute(database.slug, "overview"));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to create managed database";
-      if (created) {
-        showManagedProvisioningError({
-          databaseConnectionId: created.databaseConnectionId,
-          error: message,
-        });
-      } else {
-        setManagedProvisioning(null);
-        if (!handleLicenseApiError(error, "Managed databases")) toast.error(message);
-      }
-    } finally {
-      setManagedSaving(false);
-    }
-  };
-
-  const openFailedManagedDatabase = async (databaseConnectionId: string) => {
-    try {
-      const database = await api.getDatabase(databaseConnectionId);
-      closeManagedProvisioningError();
-      navigate(databaseRoute(database.slug, "overview"));
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to open managed database");
-    }
-  };
+  // Members never show here (they live on their app's page); a node's view lists them read-only.
+  const canMoveToApps = !embedded && hasScopedAccess("databases:edit");
+  const canMoveDatabaseToApp = useCallback(
+    (row: DatabaseConnection) => !row.app && hasScope(`databases:edit:${row.id}`),
+    [hasScope]
+  );
 
   const columns = useMemo<ResourceListColumn<DatabaseConnection>[]>(
     () => [
@@ -1038,7 +433,10 @@ function DatabasesContent({
                 <Icon className={cn("h-5 w-5", iconClassNames.icon)} />
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{row.name}</p>
+                <div className="flex min-w-0 items-center gap-2">
+                  <p className="truncate text-sm font-medium">{row.name}</p>
+                  {row.app && <AppMemberBadge app={row.app} />}
+                </div>
                 <p className="truncate text-xs text-muted-foreground">
                   {row.host}:{row.port}
                   {row.databaseName ? ` · ${row.databaseName}` : ""}
@@ -1082,8 +480,26 @@ function DatabasesContent({
           );
         },
       },
+      ...(canMoveToApps
+        ? [
+            {
+              id: "actions",
+              label: "Actions",
+              width: "4.5rem",
+              align: "right" as const,
+              renderCell: (row: DatabaseConnection) =>
+                canMoveDatabaseToApp(row) ? (
+                  <MoveToAppRowMenu
+                    resourceLabel={row.name}
+                    onOpen={() => navigate(databaseRoute(row.slug, "overview"))}
+                    onMoveToApp={() => setMoveToAppDatabase(row)}
+                  />
+                ) : null,
+            } satisfies ResourceListColumn<DatabaseConnection>,
+          ]
+        : []),
     ],
-    [databaseNodeById]
+    [canMoveDatabaseToApp, canMoveToApps, databaseNodeById, navigate]
   );
 
   return (
@@ -1229,7 +645,7 @@ function DatabasesContent({
           minWidth={920}
           canManageFolders={canManageFolders}
           canViewItem={(row) => hasScope("databases:view") || hasScope(`databases:view:${row.id}`)}
-          canReorganizeItem={() => canManageFolders}
+          canReorganizeItem={(row) => canManageFolders && !row.app}
           getResourceLabel={(row) => row.name}
           onItemClick={(row) => navigate(databaseRoute(row.slug, "overview"))}
           onRefresh={() => load()}
@@ -1237,124 +653,29 @@ function DatabasesContent({
         />
       </div>
 
-      {!embedded && (
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Add Database</DialogTitle>
-            </DialogHeader>
-            <AnimatedHeight>
-              <ContentLoading loading={foldersLoading} />
-              <SettingsControlRow title="Folder" description="Optional organization folder">
-                <CreateFolderSelect
-                  choices={connectionFolderChoices}
-                  value={folderId}
-                  onChange={setFolderId}
-                  loading={foldersLoading}
-                />
-              </SettingsControlRow>
-              <DatabaseConnectionForm draft={draft} onChange={setDraft} />
-            </AnimatedHeight>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setCreateOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={() => void save()}
-                pending={saving}
-                disabled={
-                  !canCreateDatabase(draft) ||
-                  !isCreateFolderAllowed(connectionFolderChoices, folderId)
-                }
-              >
-                Create
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+      {canMoveToApps && (
+        <MoveToAppDialog
+          open={moveToAppDatabase !== null}
+          onOpenChange={(open) => {
+            if (!open) setMoveToAppDatabase(null);
+          }}
+          members={moveToAppDatabase ? [{ type: "database", id: moveToAppDatabase.id }] : []}
+          resourceLabel={moveToAppDatabase?.name ?? "the database"}
+          onMoved={() => void load({ background: true })}
+        />
       )}
 
       {!embedded && (
-        <Dialog
+        <DatabaseConnectionCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
+      )}
+
+      {!embedded && (
+        <ManagedDatabaseCreateDialog
           open={managedCreateOpen}
-          onOpenChange={(open) => {
-            if (open) openManagedCreate();
-            else closeManagedCreate();
-          }}
-        >
-          <DialogContent
-            className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl"
-            onEscapeKeyDown={(event) => {
-              if (managedProvisioning?.phase === "waiting") event.preventDefault();
-            }}
-            onPointerDownOutside={(event) => {
-              if (managedProvisioning?.phase === "waiting") event.preventDefault();
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle>Deploy Managed Database</DialogTitle>
-              <DialogDescription>
-                Step {managedCreateStep} of {managedCreateStepCount} — {managedCreateStepLabel}
-              </DialogDescription>
-            </DialogHeader>
-            <AnimatedHeight>
-              <ManagedDatabaseCreateForm
-                key={managedCreateSession}
-                draft={managedDraft}
-                nodes={deployableDatabaseNodes}
-                catalog={managedCatalog}
-                capacity={managedCapacity}
-                step={managedCreateStep}
-                onChange={setManagedDraft}
-                folderId={folderId}
-                folderChoices={managedFolderChoices}
-                foldersLoading={foldersLoading}
-                onFolderChange={setFolderId}
-              />
-            </AnimatedHeight>
-            <DialogFooter>
-              {managedCreateStep === 1 ? (
-                <>
-                  <Button variant="outline" onClick={closeManagedCreate} disabled={managedSaving}>
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={() => setManagedCreateStep(2)}
-                    disabled={managedSaving || !canContinueManagedCreate}
-                  >
-                    Next <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={() => setManagedCreateStep((step) => (step - 1) as 1 | 2 | 3)}
-                    disabled={managedSaving}
-                  >
-                    <ArrowLeft className="h-4 w-4" /> Back
-                  </Button>
-                  {managedCreateStep < managedCreateStepCount ? (
-                    <Button
-                      onClick={() => setManagedCreateStep(3)}
-                      disabled={managedSaving || !canContinueManagedCreate}
-                    >
-                      Next <ArrowRight className="h-4 w-4" />
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={() => void saveManaged()}
-                      pending={managedSaving}
-                      disabled={!canDeployManaged}
-                    >
-                      Deploy database
-                    </Button>
-                  )}
-                </>
-              )}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          onOpenChange={setManagedCreateOpen}
+          nodes={deployableDatabaseNodes}
+          catalog={managedCatalog}
+        />
       )}
 
       {!embedded && (
@@ -1383,39 +704,8 @@ function DatabasesContent({
           </DialogContent>
         </Dialog>
       )}
-
-      {!embedded && (
-        <Dialog
-          open={managedProvisioningErrorOpen}
-          onOpenChange={(open) => {
-            if (open) setManagedProvisioningErrorOpen(true);
-            else closeManagedProvisioningError();
-          }}
-        >
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Database Provisioning Failed</DialogTitle>
-            </DialogHeader>
-            <p className="text-sm text-muted-foreground">{managedProvisioningError?.error}</p>
-            <DialogFooter>
-              <Button variant="outline" onClick={closeManagedProvisioningError}>
-                Close
-              </Button>
-              <Button
-                onClick={() =>
-                  managedProvisioningError &&
-                  void openFailedManagedDatabase(managedProvisioningError.databaseConnectionId)
-                }
-              >
-                Open database
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
     </PageTransition>
   );
 }
 
-import { ContentLoading } from "@/components/common/ContentLoading";
 import { LicenseFeatureBoundary } from "@/components/license/LicenseFeatureBoundary";

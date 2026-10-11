@@ -22,6 +22,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { AppMembershipLink } from "@/components/apps/AppMembership";
+import { MemberIsolatedNotice } from "@/components/apps/IsolatedNotice";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
@@ -1092,6 +1094,12 @@ export function DockerComposeProjectDetail() {
                 ? "Availability"
                 : node?.displayName || node?.hostname || project.nodeId}{" "}
               · {logicalServiceCount} {logicalServiceCount === 1 ? "service" : "services"}
+              {project.app ? (
+                <>
+                  {" · "}
+                  <AppMembershipLink app={project.app} />
+                </>
+              ) : null}
             </>
           }
           actions={
@@ -1119,6 +1127,8 @@ export function DockerComposeProjectDetail() {
             </ResponsiveHeaderActions>
           }
         />
+
+        <MemberIsolatedNotice app={project.app} />
 
         {project.availability === "unavailable" && (
           <Notice

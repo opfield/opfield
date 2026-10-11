@@ -18,6 +18,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { AppMembershipLink } from "@/components/apps/AppMembership";
+import { MemberIsolatedNotice } from "@/components/apps/IsolatedNotice";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
@@ -82,6 +84,7 @@ import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-p
 import { usePinnedContainersStore } from "@/stores/pinned-containers";
 import { useResolvedPageContext } from "@/stores/resolved-page-context";
 import type {
+  AppMembershipRef,
   DockerAvailabilityPolicy,
   DockerHealthCheck,
   DockerMigration,
@@ -250,6 +253,10 @@ export function DockerContainerDetail({
   const navigate = useStableNavigate();
   const backTarget = getReturnNavigationTarget(location.state, "/docker");
   const [container, setContainer] = useState<InspectData | null>(resolvedContainer ?? null);
+  // Gateway adds the container's app (when it is a member) next to the inspect data.
+  const containerApp = (container?.app ??
+    resolvedContainer?.app ??
+    null) as AppMembershipRef | null;
   const containerRef = useRef<InspectData | null>(resolvedContainer ?? null);
   const scopeResourceId = String(
     container?.scopeResourceId ?? resolvedContainer?.scopeResourceId ?? ""
@@ -1697,6 +1704,11 @@ export function DockerContainerDetail({
                     </span>
                   </>
                 ) : null}
+                {containerApp ? (
+                  <span className="shrink-0">
+                    &middot; <AppMembershipLink app={containerApp} />
+                  </span>
+                ) : null}
               </span>
             ) : (
               <span className="flex min-w-0 items-center gap-1.5">
@@ -1704,6 +1716,11 @@ export function DockerContainerDetail({
                 <span className="shrink-0">
                   &middot; {(container.Id ?? containerId ?? "").slice(0, 12)}
                 </span>
+                {containerApp ? (
+                  <span className="shrink-0">
+                    &middot; <AppMembershipLink app={containerApp} />
+                  </span>
+                ) : null}
               </span>
             )
           }
@@ -1730,6 +1747,8 @@ export function DockerContainerDetail({
             </ResponsiveHeaderActions>
           }
         />
+
+        <MemberIsolatedNotice app={containerApp} />
 
         {buildRolloutReason && !composeManaged && (
           <div

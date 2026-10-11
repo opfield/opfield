@@ -22,6 +22,7 @@ import {
   Webhook,
 } from "lucide-react";
 import type { ElementType } from "react";
+import { appMembershipLabel } from "@/lib/app-members";
 import type { AIResourceReference, AIResourceReferenceType } from "@/types/ai";
 import type { ResourceSearchResult, ResourceSearchType } from "@/types/resource-search";
 import {
@@ -108,6 +109,12 @@ export function resourceTypeLabel(type: string): string {
 function summaryString(result: ResourceSearchResult, key: string): string | undefined {
   const value = result.summary[key];
   return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+/** The muted text after a search result: its type, and for an app member "in <app> · <env>". */
+export function resourceSearchSecondaryText(result: ResourceSearchResult): string {
+  const type = resourceTypeLabel(result.type);
+  return result.app ? `${type} in ${appMembershipLabel(result.app)}` : type;
 }
 
 export function resourceSearchHref(result: ResourceSearchResult): string {

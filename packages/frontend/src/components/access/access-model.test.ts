@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { type FolderOption, folderFamilyForScope } from "@/components/common/scope-list-helpers";
+import {
+  type AppScopeApp,
+  type FolderOption,
+  folderFamilyForScope,
+} from "@/components/common/scope-list-helpers";
 import {
   API_TOKEN_SCOPES,
   FOLDER_SCOPABLE_SCOPES,
@@ -25,8 +29,12 @@ import {
   ACCESS_TYPES,
   type AccessContext,
   type AccessLine,
+  APP_ACCESS_TYPE_IDS,
+  APP_ROLE_SCOPES,
   accessTypeScopes,
+  appMemberCount,
   boundAccessScopes,
+  contextLabels,
   describeLine,
   GIT_LEVELS,
   type GitAccessLine,
@@ -553,5 +561,160 @@ describe("token narrowing", () => {
     expect(
       scopesToLines(backendStoredTokenScopes(kept, githubOwner, { exact: false }), ctx)
     ).toEqual([{ ...use, level: "read" }]);
+  });
+});
+
+describe("app environment lines", () => {
+  const FAMILIES = ["containers", "compose", "routes", "databases", "storage", "pages"] as const;
+  const environment = (
+    id: string,
+    name: string,
+    counts: AppScopeApp["environments"][0]["memberCounts"]
+  ) => ({
+    id,
+    name,
+    memberCounts: counts,
+    folderIds: Object.fromEntries(FAMILIES.map((family) => [family, `hidden-${id}-${family}`])),
+  });
+  const shop: AppScopeApp = {
+    id: "app-shop",
+    name: "Shop",
+    environments: [
+      environment("env-production", "production", { containers: 3, routes: 2 }),
+      environment("env-staging", "staging", { containers: 4, compose: 1, routes: 2 }),
+    ],
+  };
+  const northwind: AppScopeApp = {
+    id: "app-northwind",
+    name: "Northwind",
+    environments: [environment("env-nw-production", "production", { pages: 1 })],
+  };
+  const appCtx: AccessContext = { folders: folders(), apps: [shop, northwind] };
+  const staging = { kind: "app", appId: "app-shop", envId: "env-staging" } as const;
+  const everyEnvironment = { kind: "app", appId: "app-shop", envId: null } as const;
+  const appLine = (
+    role: ResourceAccessLine["role"],
+    where: ResourceAccessLine["where"],
+    mayDelete = false
+  ): ResourceAccessLine => ({
+    kind: "resources",
+    role,
+    types: [...APP_ACCESS_TYPE_IDS],
+    where,
+    mayDelete,
+  });
+
+  it("grants the environment's hidden folders and the role's app scopes on it", () => {
+    const scopes = lineScopes(appLine("developer", staging), appCtx);
+    expect(scopes).toContain("docker:containers:create:folder/hidden-env-staging-containers");
+    expect(scopes).toContain("docker:compose:manage:folder/hidden-env-staging-compose");
+    expect(scopes).toContain("proxy:edit:folder/hidden-env-staging-routes");
+    expect(scopes).toContain("pages:deploy:folder/hidden-env-staging-pages");
+    expect(sorted(scopes.filter((scope) => scope.startsWith("apps:")))).toEqual([
+      "apps:env:manage:env/env-staging",
+      "apps:promote:env/env-staging",
+      "apps:view:env/env-staging",
+    ]);
+    expect(scopes.some((scope) => scope.includes("env-production"))).toBe(false);
+    expect(scopes.some((scope) => scope.startsWith("domains:") || scope.startsWith("ssl:"))).toBe(
+      false
+    );
+  });
+
+  it("gives each role its app scopes", () => {
+    const appScopes = (role: ResourceAccessLine["role"]) =>
+      sorted(
+        lineScopes(appLine(role, staging), appCtx).filter((scope) => scope.startsWith("apps:"))
+      );
+    expect(appScopes("viewer")).toEqual(["apps:view:env/env-staging"]);
+    expect(appScopes("deployer")).toEqual([
+      "apps:promote:env/env-staging",
+      "apps:view:env/env-staging",
+    ]);
+    expect(appScopes("operator")).toEqual(
+      sorted(APP_ROLE_SCOPES.operator.map((scope) => `${scope}:env/env-staging`))
+    );
+  });
+
+  it("grants every current environment's folders and the app scopes on the app for every environment", () => {
+    const scopes = lineScopes(appLine("viewer", everyEnvironment), appCtx);
+    expect(scopes).toContain("docker:containers:view:folder/hidden-env-production-containers");
+    expect(scopes).toContain("docker:containers:view:folder/hidden-env-staging-containers");
+    expect(scopes).toContain("apps:view:app-shop");
+    expect(scopes.some((scope) => scope.includes("env/"))).toBe(false);
+  });
+
+  it("grants the app-root folders for every environment where Gateway reports them", () => {
+    const roots = Object.fromEntries(FAMILIES.map((family) => [family, `root-shop-${family}`]));
+    const rootCtx: AccessContext = { ...appCtx, apps: [{ ...shop, rootFolderIds: roots }] };
+    const line = appLine("developer", everyEnvironment, true);
+    const scopes = lineScopes(line, rootCtx);
+    expect(scopes).toContain("docker:containers:delete:folder/root-shop-containers");
+    expect(scopes.some((scope) => scope.includes("hidden-env-"))).toBe(false);
+    expect(scopesToLines(linesToScopes([line], rootCtx), rootCtx)).toEqual([line]);
+    // A grant on the app-root folder holds each environment's folder.
+    expect(
+      principalHolds(scopes, "docker:containers:view:folder/hidden-env-staging-containers", rootCtx)
+    ).toBe(true);
+  });
+
+  for (const role of ACCESS_ROLES.map((item) => item.id)) {
+    for (const where of [staging, everyEnvironment]) {
+      for (const mayDelete of role === "developer" || role === "operator"
+        ? [false, true]
+        : [false]) {
+        it(`reads back ${role} in ${where.envId ?? "every environment"}${mayDelete ? " with delete" : ""}`, () => {
+          const line = appLine(role, where, mayDelete);
+          expect(scopesToLines(linesToScopes([line], appCtx), appCtx)).toEqual([line]);
+        });
+      }
+    }
+  }
+
+  it("reads app lines next to folder lines and lines on some types", () => {
+    const lines: AccessLine[] = [
+      {
+        kind: "resources",
+        role: "viewer",
+        types: ALL_TYPES.filter((type) => type !== "domains"),
+        where: { kind: "folder", path: "billing" },
+        mayDelete: false,
+      },
+      { ...appLine("deployer", everyEnvironment), types: ["containers", "pages"] },
+      appLine("operator", { kind: "app", appId: "app-northwind", envId: "env-nw-production" }),
+      appLine("developer", { kind: "app", appId: "app-shop", envId: "env-production" }, true),
+    ];
+    const parsed = scopesToLines(linesToScopes(lines, appCtx), appCtx);
+    // Folder lines first, then apps in their order: Shop (every environment, production), Northwind.
+    expect(parsed).toEqual([lines[0], lines[1], lines[3], lines[2]]);
+  });
+
+  it("leaves hidden-folder grants without app scopes as custom scopes", () => {
+    const scopes = ["docker:containers:view:folder/hidden-env-staging-containers"];
+    expect(scopesToLines(scopes, appCtx)).toEqual([{ kind: "custom", scopes }]);
+  });
+
+  it("names the app and environment and the six types", () => {
+    const labels = contextLabels(appCtx);
+    expect(describeLine(appLine("developer", staging), labels)).toEqual({
+      title: "Developer in Shop · staging",
+      detail: "All 6 resource types",
+    });
+    expect(
+      describeLine({ ...appLine("viewer", everyEnvironment), types: ["routes"] }, labels)
+    ).toEqual({
+      title: "Viewer in Shop · every environment",
+      detail: "Routes",
+    });
+    expect(appMemberCount(appCtx, staging)).toBe(7);
+    expect(appMemberCount(appCtx, everyEnvironment, ["containers"])).toBe(7);
+  });
+
+  it("counts an app scope on the whole app for each environment", () => {
+    expect(principalHolds(["apps:view:app-shop"], "apps:view:env/env-staging", appCtx)).toBe(true);
+    expect(principalHolds(["apps:view:app-shop"], "apps:view:env/env-nw-production", appCtx)).toBe(
+      false
+    );
+    expect(principalHolds(["apps:promote"], "apps:promote:env/env-staging", appCtx)).toBe(true);
   });
 });

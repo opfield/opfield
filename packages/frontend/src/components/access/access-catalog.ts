@@ -7,9 +7,11 @@ import {
   resolveGitTargetLabels,
 } from "@/components/common/git-scope-targets";
 import {
+  type AppScopeApp,
   allResourcePages,
   canLoadScopeResource,
   type FolderOption,
+  loadAppScopeCatalog,
   loadFolderFamily,
   reportScopeLoadError,
 } from "@/components/common/scope-list-helpers";
@@ -23,6 +25,7 @@ import {
   type AccessLabels,
   type AccessTypeId,
   accessTypeScopes,
+  contextLabels,
   GIT_TARGET_KINDS,
 } from "./access-model";
 
@@ -211,11 +214,13 @@ export interface AccessCatalog {
 }
 
 /**
- * What the access lines of an open dialog need: the folders of the eight types' trees, Git
- * connectors, and the names of resources and Git targets the given scopes mention.
+ * What the access lines of an open dialog need: the folders of the eight types' trees, the apps
+ * (with their environments' hidden folders, when the user may view apps), Git connectors, and the
+ * names of resources and Git targets the given scopes mention.
  */
 export function useAccessCatalog(open: boolean, scopes: readonly string[]): AccessCatalog {
   const [folders, setFolders] = useState<FolderOption[] | null>(null);
+  const [apps, setApps] = useState<AppScopeApp[] | null>(null);
   const [gitConnectors, setGitConnectors] = useState<GitScopeConnectorCatalog | null>(null);
   const [gitLabels, setGitLabels] = useState<Record<string, GitTargetLabel>>({});
   const [gitLabelsReady, setGitLabelsReady] = useState(false);
@@ -229,6 +234,7 @@ export function useAccessCatalog(open: boolean, scopes: readonly string[]): Acce
     if (!open) {
       // Each opening loads current folders and resources again.
       setFolders(null);
+      setApps(null);
       setGitConnectors(null);
       setResources(null);
       resourcesRequested.current = false;
@@ -237,6 +243,9 @@ export function useAccessCatalog(open: boolean, scopes: readonly string[]): Acce
     let cancelled = false;
     void Promise.all(ACCESS_TYPES.map((type) => loadFolderFamily(type.family))).then((loaded) => {
       if (!cancelled) setFolders(loaded.flat());
+    });
+    void loadAppScopeCatalog().then((loaded) => {
+      if (!cancelled) setApps(loaded);
     });
     void loadGitScopeConnectors(PROVIDERS).then((catalog) => {
       if (!cancelled) setGitConnectors(catalog);
@@ -280,12 +289,16 @@ export function useAccessCatalog(open: boolean, scopes: readonly string[]): Acce
     };
   }, [open, scopesKey, loadResources]);
 
-  const ctx = useMemo<AccessContext>(() => ({ folders: folders ?? [] }), [folders]);
+  const ctx = useMemo<AccessContext>(
+    () => ({ folders: folders ?? [], apps: apps ?? [] }),
+    [apps, folders]
+  );
   const labels = useMemo<AccessLabels>(() => {
     const resourceNames = new Map(
       (resources ?? []).map((item) => [`${item.type}:${item.id}`, item.label])
     );
     return {
+      ...contextLabels(ctx),
       resource: (type, id) => resourceNames.get(`${type}:${id}`),
       connector: (provider, connectorId) =>
         gitConnectors?.[provider]?.find((connector) => connector.id === connectorId)?.name,
@@ -294,7 +307,7 @@ export function useAccessCatalog(open: boolean, scopes: readonly string[]): Acce
         return entry && !entry.missing ? entry.label : undefined;
       },
     };
-  }, [gitConnectors, gitLabels, resources]);
+  }, [ctx, gitConnectors, gitLabels, resources]);
 
   const rememberGitLabel = useCallback(
     (provider: GitScopeProvider, qualifier: string, label: string) => {
@@ -310,6 +323,7 @@ export function useAccessCatalog(open: boolean, scopes: readonly string[]): Acce
   return {
     ready:
       folders !== null &&
+      apps !== null &&
       gitConnectors !== null &&
       gitLabelsReady &&
       (!needsResources || resources !== null),

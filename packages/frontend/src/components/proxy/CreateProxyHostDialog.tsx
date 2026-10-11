@@ -2,6 +2,18 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Minus, Plus } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+  AppEnvironmentFields,
+  allowedNodesHint,
+  NoAllowedNodeNotice,
+} from "@/components/apps/AppEnvironmentFields";
+import {
+  type AppCreateContext,
+  allowedAppNodes,
+  appPlacementFolderId,
+  rememberAppCreation,
+  useAppEnvironmentChoice,
+} from "@/components/apps/app-create-context";
 import { AnimatedHeight } from "@/components/common/AnimatedHeight";
 import { Combobox } from "@/components/common/Combobox";
 import { ContentLoading } from "@/components/common/ContentLoading";
@@ -75,6 +87,12 @@ interface CreateProxyHostDialogProps {
   initialUpstream?: ProxyUpstreamSelection;
   /** Called on successful create/update with the host ID and returned host payload when available. */
   onSuccess?: (hostId: string, host?: ProxyHost) => void;
+  /**
+   * Create from an app: locked App field, environment select, only the environment's allowed
+   * nginx nodes and the ingress groups whose members are all allowed, created in the
+   * environment's placement folder.
+   */
+  appContext?: AppCreateContext;
 }
 interface NodeOption {
   id: string;
@@ -102,6 +120,15 @@ function getCachedNodeOptions(): NodeOption[] {
 }
 
 const NO_SCOPES: string[] = [];
+
+/** Which ingress targets an app environment offers, under the field. */
+function appTargetsHint(environment: { name: string }, nodeCount: number, groupCount: number) {
+  if (groupCount === 0) return allowedNodesHint(environment, nodeCount, "nginx");
+  if (nodeCount === 0 && groupCount === 1) {
+    return `The only ingress group allowed in ${environment.name}.`;
+  }
+  return `Only the nginx nodes and ingress groups allowed in ${environment.name} are offered.`;
+}
 const ROOT_FOLDER_VALUE = "__root__";
 
 const STEP_ANIMATION = {
@@ -131,8 +158,12 @@ export function CreateProxyHostDialog({
   initialIngressGroupId,
   initialUpstream,
   onSuccess,
+  appContext: appContextProp,
 }: CreateProxyHostDialogProps) {
   const isEditing = !!existingHost;
+  const appContext = isEditing ? undefined : appContextProp;
+  const appEnvironment = useAppEnvironmentChoice(appContext, open);
+  const environment = appEnvironment.environment;
   const hasScope = useAuthStore((state) => state.hasScope);
   const scopes = useAuthStore((state) => state.user?.scopes ?? NO_SCOPES);
   // Raw mode is toggled under proxy:raw:write (it seeds and then serves the raw config).
@@ -148,6 +179,7 @@ export function CreateProxyHostDialog({
   const [autoNode, setAutoNode] = useState(false);
   const [ingressGroupId, setIngressGroupId] = useState("");
   const [ingressGroups, setIngressGroups] = useState<RouteIngressGroupOption[]>([]);
+  const [ingressGroupsLoaded, setIngressGroupsLoaded] = useState(false);
   const [domainNames, setDomainNames] = useState<string[]>([""]);
   // Create only: destination folder ("" = root). Moving an existing route uses the move dialog.
   const [folderId, setFolderId] = useState<string>("");
@@ -287,9 +319,13 @@ export function CreateProxyHostDialog({
       })
       .catch(() => {
         if (!cancelled) setIngressGroups([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIngressGroupsLoaded(true);
       });
     return () => {
       cancelled = true;
+      setIngressGroupsLoaded(false);
     };
   }, [existingHost, open]);
 
@@ -410,26 +446,94 @@ export function CreateProxyHostDialog({
           ),
     [hasFolderCreationGrant, isEditing, nodes, scopes]
   );
+  // From an app: the environment's allowed nginx nodes, and the ingress groups whose members are
+  // all allowed (a group serves the route from every member).
+  const targetNodes = useMemo(
+    () => (appContext ? allowedAppNodes(environment, visibleNodes) : visibleNodes),
+    [appContext, environment, visibleNodes]
+  );
+  const targetGroups = useMemo(() => {
+    if (!appContext) return ingressGroups;
+    const allowed = new Set(environment?.allowedNodeIds ?? []);
+    return ingressGroups.filter(
+      (group) => group.members.length > 0 && group.members.every((member) => allowed.has(member.id))
+    );
+  }, [appContext, environment, ingressGroups]);
+  const appTargetCount = targetNodes.length + targetGroups.length;
+  const appTargetLocked = !!appContext && appTargetCount === 1;
+  const noAllowedNode =
+    !!appContext && !!environment && !nodesLoading && ingressGroupsLoaded && appTargetCount === 0;
+  const appTargetAllowed = useCallback(
+    (target: IngressTarget) =>
+      target.ingressGroupId
+        ? targetGroups.some((group) => group.id === target.ingressGroupId)
+        : targetNodes.some((node) => node.id === target.nodeId),
+    [targetGroups, targetNodes]
+  );
+  const placementFolderId = appContext ? appPlacementFolderId(environment, "routes") : null;
   const folderChoices = useMemo(
     () => creationFolderChoices(scopes, "proxy:create", folderOptions, nodeId),
     [folderOptions, nodeId, scopes]
   );
   useEffect(() => {
-    if (!open || isEditing) return;
+    if (!open || isEditing || appContext) return;
     setFolderId((current) => allowedCreationFolderId(folderChoices, current));
-  }, [folderChoices, isEditing, open]);
+  }, [appContext, folderChoices, isEditing, open]);
   const canCreateInSelectedFolder =
-    isEditing || canCreateInFolder(scopes, "proxy:create", folderId || null, nodeId || undefined);
+    isEditing ||
+    canCreateInFolder(
+      scopes,
+      "proxy:create",
+      (appContext ? placementFolderId : folderId) || null,
+      nodeId || undefined
+    );
   // A node-free destination check needs a broad or folder grant; node-only creators pick their node.
+  // From an app the target is always one of the environment's allowed ones.
   const canUseAutomaticNode =
-    !isEditing && (canCreateInFolder(scopes, "proxy:create", null) || hasFolderCreationGrant);
+    !isEditing &&
+    !appContext &&
+    (canCreateInFolder(scopes, "proxy:create", null) || hasFolderCreationGrant);
   const chooseTarget = (target: IngressTarget) => {
     setAutoNode(target.auto);
     setNodeId(target.nodeId);
     setIngressGroupId(target.ingressGroupId);
   };
   const showFolderPicker =
-    !isEditing && (folderChoices.folders.length > 0 || !folderChoices.allowRoot);
+    !isEditing && (!!appContext || folderChoices.folders.length > 0 || !folderChoices.allowRoot);
+
+  // From an app: the only allowed target is the destination; a target the environment does not
+  // allow is dropped when the environment changes.
+  useEffect(() => {
+    if (!open || !appContext || nodesLoading || !ingressGroupsLoaded) return;
+    const current = { nodeId, ingressGroupId, auto: autoNode };
+    if (appTargetLocked) {
+      const onlyGroup = targetGroups[0];
+      const next = onlyGroup
+        ? { nodeId: "", ingressGroupId: onlyGroup.id, auto: false }
+        : { nodeId: targetNodes[0]!.id, ingressGroupId: "", auto: false };
+      if (next.nodeId !== nodeId || next.ingressGroupId !== ingressGroupId || autoNode) {
+        setAutoNode(false);
+        setNodeId(next.nodeId);
+        setIngressGroupId(next.ingressGroupId);
+      }
+    } else if ((nodeId || ingressGroupId || autoNode) && !appTargetAllowed(current)) {
+      setAutoNode(false);
+      setNodeId("");
+      setIngressGroupId("");
+    }
+  }, [
+    appContext,
+    appTargetAllowed,
+    appTargetLocked,
+    autoNode,
+    ingressGroupId,
+    ingressGroupsLoaded,
+    nodeId,
+    nodesLoading,
+    open,
+    targetGroups,
+    targetNodes,
+  ]);
   const selectedNode = useMemo(
     () => visibleNodes.find((node) => node.id === nodeId) ?? null,
     [nodeId, visibleNodes]
@@ -445,6 +549,8 @@ export function CreateProxyHostDialog({
   // Validation
   const isStep1Valid =
     (nodeId !== "" || ingressGroupId !== "" || (autoNode && canUseAutomaticNode)) &&
+    !noAllowedNode &&
+    (!appContext || appTargetAllowed({ nodeId, ingressGroupId, auto: autoNode })) &&
     !selectedLockedForCreation &&
     canCreateInSelectedFolder &&
     domainNames.some((d) => d.trim() !== "");
@@ -496,7 +602,7 @@ export function CreateProxyHostDialog({
       nodeId: autoNode || ingressGroupId ? undefined : nodeId,
       ...(ingressGroupId ? { ingressGroupId } : {}),
       domainNames: domains,
-      folderId: folderId || undefined,
+      folderId: (appContext ? placementFolderId : folderId) || undefined,
       websocketSupport: upstream.kind === "pages" ? false : websocketSupport,
       sslEnabled,
       sslForced,
@@ -556,6 +662,7 @@ export function CreateProxyHostDialog({
       } else {
         const created = await api.createProxyHost(data as CreateProxyHostRequest);
         toast.success("Route created");
+        rememberAppCreation(appContext, environment);
         onSuccess?.(created.id, created);
       }
       onOpenChange(false);
@@ -600,147 +707,190 @@ export function CreateProxyHostDialog({
                 transition={STEP_ANIMATION.transition}
                 className="space-y-6"
               >
-                {/* Type Selector */}
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Type</label>
-                  <Select
-                    value={rawConfigEnabled ? "raw" : type}
-                    onValueChange={(v) => setType(v as ProxyHostType)}
-                    disabled={rawConfigEnabled || maintenanceLocked}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {rawConfigEnabled && <SelectItem value="raw">Raw</SelectItem>}
-                      <SelectItem value="proxy">Proxy</SelectItem>
-                      <SelectItem value="redirect">Redirect</SelectItem>
-                      <SelectItem value="404">404</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Node or ingress group */}
-                <IngressTargetSelect
-                  target={{ nodeId, ingressGroupId, auto: autoNode }}
-                  onChange={chooseTarget}
-                  nodes={visibleNodes}
-                  groups={ingressGroups}
-                  loading={nodesLoading}
-                  allowAutomatic={canUseAutomaticNode}
-                  currentNodeId={isEditing ? ((existingHost as any)?.nodeId ?? null) : null}
-                  lockedGroupName={
-                    isEditing && existingHost?.ingressGroupId
-                      ? (existingHost.ingressGroup?.name ?? "Ingress group")
-                      : null
-                  }
-                />
-
-                {showFolderPicker && (
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Folder</label>
-                    <Select
-                      value={folderId || (folderChoices.allowRoot ? ROOT_FOLDER_VALUE : "")}
-                      onValueChange={(value) =>
-                        setFolderId(value === ROOT_FOLDER_VALUE ? "" : value)
-                      }
-                    >
-                      <SelectTrigger aria-label="Folder">
-                        <SelectValue placeholder="Select a folder..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {folderChoices.allowRoot && (
-                          <SelectItem value={ROOT_FOLDER_VALUE}>No folder</SelectItem>
-                        )}
-                        {folderChoices.folders.map((folder) => (
-                          <SelectItem key={folder.id} value={folder.id}>
-                            {"  ".repeat(folder.depth) + folder.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Domain Names */}
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Domain Names</label>
-                  <div className="space-y-2">
-                    <AnimatePresence initial={false}>
-                      {domainNames.map((domain, i) => (
-                        <motion.div
-                          key={`domain-${i}`}
-                          initial={{ opacity: 0, y: 4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 4 }}
-                          transition={{
-                            opacity: { duration: 0.12 },
-                            y: { duration: 0.12, ease: [0.25, 0.1, 0.25, 1] },
-                          }}
-                          className="flex border border-input bg-background"
-                        >
-                          <DomainAutocompleteInput
-                            value={domain}
-                            nginxNodeId={nodeId || undefined}
-                            onChange={(v) => {
-                              const next = [...domainNames];
-                              next[i] = v;
-                              setDomainNames(next);
-                            }}
-                            onDomainSelect={(selectedDomain) => {
-                              if (selectedDomain?.ingressGroupId && !isEditing) {
-                                chooseTarget({
-                                  nodeId: "",
-                                  ingressGroupId: selectedDomain.ingressGroupId,
-                                  auto: false,
-                                });
-                              } else if (selectedDomain?.nginxNodeId && !ingressGroupId) {
-                                setAutoNode(false);
-                                setNodeId(selectedDomain.nginxNodeId);
-                              }
-                            }}
-                            placeholder="example.com"
-                            inputClassName="border-0 shadow-none"
-                          />
-                          {domainNames.length > 1 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="rounded-none border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
-                              aria-label={`Remove domain ${i + 1}`}
-                              onClick={() => setDomainNames(domainNames.filter((_, j) => j !== i))}
-                            >
-                              <Minus className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {i === domainNames.length - 1 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="rounded-none border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
-                              aria-label="Add domain"
-                              onClick={() => setDomainNames([...domainNames, ""])}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </motion.div>
-                      ))}
-                    </AnimatePresence>
-                  </div>
-                </div>
-
-                {/* Raw mode toggle — only when editing with the raw toggle scope */}
-                {isEditing && canToggleRawConfig && (
-                  <SwitchCard
-                    label="Raw Config Mode"
-                    description="Bypass template rendering and edit nginx config directly"
-                    checked={rawConfigEnabled}
-                    onCheckedChange={setRawConfigEnabled}
-                    disabled={maintenanceLocked}
+                {appContext && (
+                  <AppEnvironmentFields
+                    context={appContext}
+                    environmentId={appEnvironment.environmentId}
+                    onEnvironmentChange={appEnvironment.setEnvironmentId}
                   />
+                )}
+                {noAllowedNode && appContext && environment ? (
+                  <NoAllowedNodeNotice
+                    context={appContext}
+                    environment={environment}
+                    nodeKind="nginx"
+                    resourceKind="Routes"
+                    onNavigate={() => handleOpenChange(false)}
+                  />
+                ) : (
+                  <>
+                    {/* Type Selector */}
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium">Type</label>
+                      <Select
+                        value={rawConfigEnabled ? "raw" : type}
+                        onValueChange={(v) => setType(v as ProxyHostType)}
+                        disabled={rawConfigEnabled || maintenanceLocked}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {rawConfigEnabled && <SelectItem value="raw">Raw</SelectItem>}
+                          <SelectItem value="proxy">Proxy</SelectItem>
+                          <SelectItem value="redirect">Redirect</SelectItem>
+                          <SelectItem value="404">404</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Node or ingress group */}
+                    <IngressTargetSelect
+                      target={{ nodeId, ingressGroupId, auto: autoNode }}
+                      onChange={chooseTarget}
+                      nodes={targetNodes}
+                      groups={targetGroups}
+                      loading={nodesLoading}
+                      allowAutomatic={canUseAutomaticNode}
+                      disabled={appTargetLocked}
+                      hint={
+                        appContext && environment && appTargetCount > 0
+                          ? appTargetsHint(environment, targetNodes.length, targetGroups.length)
+                          : null
+                      }
+                      currentNodeId={isEditing ? ((existingHost as any)?.nodeId ?? null) : null}
+                      lockedGroupName={
+                        isEditing && existingHost?.ingressGroupId
+                          ? (existingHost.ingressGroup?.name ?? "Ingress group")
+                          : null
+                      }
+                    />
+
+                    {showFolderPicker && (
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium">Folder</label>
+                        <Select
+                          value={
+                            appContext
+                              ? ROOT_FOLDER_VALUE
+                              : folderId || (folderChoices.allowRoot ? ROOT_FOLDER_VALUE : "")
+                          }
+                          onValueChange={(value) =>
+                            setFolderId(value === ROOT_FOLDER_VALUE ? "" : value)
+                          }
+                        >
+                          <SelectTrigger aria-label="Folder">
+                            <SelectValue placeholder="Select a folder..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(appContext || folderChoices.allowRoot) && (
+                              <SelectItem value={ROOT_FOLDER_VALUE}>No folder</SelectItem>
+                            )}
+                            {(appContext ? [] : folderChoices.folders).map((folder) => (
+                              <SelectItem key={folder.id} value={folder.id}>
+                                {"  ".repeat(folder.depth) + folder.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {/* Domain Names */}
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium">Domain Names</label>
+                      <div className="space-y-2">
+                        <AnimatePresence initial={false}>
+                          {domainNames.map((domain, i) => (
+                            <motion.div
+                              key={`domain-${i}`}
+                              initial={{ opacity: 0, y: 4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: 4 }}
+                              transition={{
+                                opacity: { duration: 0.12 },
+                                y: { duration: 0.12, ease: [0.25, 0.1, 0.25, 1] },
+                              }}
+                              className="flex border border-input bg-background"
+                            >
+                              <DomainAutocompleteInput
+                                value={domain}
+                                nginxNodeId={nodeId || undefined}
+                                onChange={(v) => {
+                                  const next = [...domainNames];
+                                  next[i] = v;
+                                  setDomainNames(next);
+                                }}
+                                onDomainSelect={(selectedDomain) => {
+                                  // From an app, a domain's node or group is taken only when the
+                                  // environment allows it.
+                                  if (
+                                    appContext &&
+                                    !appTargetAllowed({
+                                      nodeId: selectedDomain?.nginxNodeId ?? "",
+                                      ingressGroupId: selectedDomain?.ingressGroupId ?? "",
+                                      auto: false,
+                                    })
+                                  ) {
+                                    return;
+                                  }
+                                  if (selectedDomain?.ingressGroupId && !isEditing) {
+                                    chooseTarget({
+                                      nodeId: "",
+                                      ingressGroupId: selectedDomain.ingressGroupId,
+                                      auto: false,
+                                    });
+                                  } else if (selectedDomain?.nginxNodeId && !ingressGroupId) {
+                                    setAutoNode(false);
+                                    setNodeId(selectedDomain.nginxNodeId);
+                                  }
+                                }}
+                                placeholder="example.com"
+                                inputClassName="border-0 shadow-none"
+                              />
+                              {domainNames.length > 1 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="rounded-none border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+                                  aria-label={`Remove domain ${i + 1}`}
+                                  onClick={() =>
+                                    setDomainNames(domainNames.filter((_, j) => j !== i))
+                                  }
+                                >
+                                  <Minus className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {i === domainNames.length - 1 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="rounded-none border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+                                  aria-label="Add domain"
+                                  onClick={() => setDomainNames([...domainNames, ""])}
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </motion.div>
+                          ))}
+                        </AnimatePresence>
+                      </div>
+                    </div>
+
+                    {/* Raw mode toggle — only when editing with the raw toggle scope */}
+                    {isEditing && canToggleRawConfig && (
+                      <SwitchCard
+                        label="Raw Config Mode"
+                        description="Bypass template rendering and edit nginx config directly"
+                        checked={rawConfigEnabled}
+                        onCheckedChange={setRawConfigEnabled}
+                        disabled={maintenanceLocked}
+                      />
+                    )}
+                  </>
                 )}
               </motion.div>
             )}

@@ -12,6 +12,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { AppMemberBadge } from "@/components/apps/AppMembership";
+import { MoveToAppDialog } from "@/components/apps/MoveToAppDialog";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderCreateDialog } from "@/components/common/FolderCreateDialog";
@@ -69,7 +71,13 @@ import { isPendingContainerOperation } from "@/services/api-docker";
 import { useAuthStore } from "@/stores/auth";
 import { useDockerStore } from "@/stores/docker";
 import { hasSavedFolderExpansion, useDockerFolderStore } from "@/stores/docker-folders";
-import type { DockerContainer, DockerFolderTreeNode, Node, NodeAppearanceColor } from "@/types";
+import type {
+  AppPlaceMemberInput,
+  DockerContainer,
+  DockerFolderTreeNode,
+  Node,
+  NodeAppearanceColor,
+} from "@/types";
 import { DockerDeployDialog } from "./DockerDeployDialog";
 import {
   containerDisplayName,
@@ -82,6 +90,18 @@ interface DockerContainerListItem extends DockerContainer {
   _nodeSlug: string;
   _nodeName?: string;
   _nodeColor?: NodeAppearanceColor | null;
+}
+
+/** What Move to App sends for a container or a blue/green deployment. */
+function containerAppMember(container: DockerContainerListItem): AppPlaceMemberInput {
+  return container.kind === "deployment"
+    ? {
+        type: "deployment",
+        id: container.deploymentId ?? container.id,
+        nodeId: container._nodeId,
+        resourceKey: container.name,
+      }
+    : { type: "container", nodeId: container._nodeId, resourceKey: container.name };
 }
 
 interface DockerFolderTreeNodeWithContainers extends DockerFolderTreeNode {
@@ -199,6 +219,9 @@ export function DockerContainers({
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [moveFolderId, setMoveFolderId] = useState<string | null>(null);
   const [moveDialogContainer, setMoveDialogContainer] = useState<DockerContainerListItem | null>(
+    null
+  );
+  const [moveToAppContainer, setMoveToAppContainer] = useState<DockerContainerListItem | null>(
     null
   );
   const isMobile = useIsMobile();
@@ -377,12 +400,15 @@ export function DockerContainers({
     () => folders.filter((folder) => !composeFolderIds.has(folder.id)),
     [composeFolderIds, folders]
   );
+  // App members live on their app's page (the server leaves them out too); a node's view keeps them.
   const generalContainers = useMemo(
     () =>
       visibleContainers.filter(
-        (container) => !container.folderId || !composeFolderIds.has(container.folderId)
+        (container) =>
+          (!container.folderId || !composeFolderIds.has(container.folderId)) &&
+          (!!fixedNodeId || !container.app)
       ),
-    [composeFolderIds, visibleContainers]
+    [composeFolderIds, fixedNodeId, visibleContainers]
   );
 
   const filteredContainers = useMemo(() => {
@@ -460,7 +486,8 @@ export function DockerContainers({
     hasScopedAccess("docker:containers:create");
   const canDragFolders = canManageFolders && !isMobile && !isSearchFiltering;
   const canManageRuntime = hasScopedAccess("docker:containers:manage");
-  const showActionsColumn = canManageFolders || canManageRuntime;
+  const canMoveToApps = !fixedNodeId && hasScopedAccess("docker:containers:edit");
+  const showActionsColumn = canManageFolders || canManageRuntime || canMoveToApps;
   const showNodeColumn = !fixedNodeId;
 
   const canViewContainer = useCallback(
@@ -477,9 +504,11 @@ export function DockerContainers({
     [hasScope]
   );
 
+  // Also gates Move to App: the same edit access on the container.
   const canReorganizeContainer = useCallback(
     (container: DockerContainerListItem) =>
       !fixedNodeId &&
+      !container.app &&
       !container.folderIsSystem &&
       !!container.scopeResourceId &&
       hasScope(`docker:containers:edit:${container._nodeId}/${container.scopeResourceId}`),
@@ -801,6 +830,7 @@ export function DockerContainers({
                   Deployment
                 </Badge>
               )}
+              {container.app && <AppMemberBadge app={container.app} />}
             </div>
             <p className="truncate font-mono text-xs text-muted-foreground">
               {container.kind === "deployment"
@@ -890,10 +920,11 @@ export function DockerContainers({
                 canReorganizeContainer(container) &&
                 canManageFolders &&
                 canManageFolderAt(container.folderId ?? null);
+              const moveToApp = canMoveToApps && canReorganizeContainer(container);
               const lifecycleActions = pending
                 ? { canStart: false, canStop: false, canRestart: false }
                 : containerLifecycleActions(container.state);
-              if (!manage && !reorganize) return null;
+              if (!manage && !reorganize && !moveToApp) return null;
 
               return (
                 <div
@@ -938,7 +969,7 @@ export function DockerContainers({
                     </Button>
                   ) : null}
 
-                  {!container.folderIsSystem && reorganize && (
+                  {!container.folderIsSystem && (reorganize || moveToApp) && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon-sm">
@@ -959,9 +990,16 @@ export function DockerContainers({
                           Open
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => setMoveDialogContainer(container)}>
-                          Move to folder...
-                        </DropdownMenuItem>
+                        {reorganize && (
+                          <DropdownMenuItem onClick={() => setMoveDialogContainer(container)}>
+                            Move to folder...
+                          </DropdownMenuItem>
+                        )}
+                        {moveToApp && (
+                          <DropdownMenuItem onClick={() => setMoveToAppContainer(container)}>
+                            Move to app...
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
@@ -1228,6 +1266,20 @@ export function DockerContainers({
           },
         }}
       />
+
+      {canMoveToApps && (
+        <MoveToAppDialog
+          open={moveToAppContainer !== null}
+          onOpenChange={(open) => {
+            if (!open) setMoveToAppContainer(null);
+          }}
+          members={moveToAppContainer ? [containerAppMember(moveToAppContainer)] : []}
+          resourceLabel={
+            moveToAppContainer ? containerDisplayName(moveToAppContainer.name) : "the container"
+          }
+          onMoved={() => void refreshData(true)}
+        />
+      )}
 
       <DockerMoveToFolderDialog
         open={!!moveDialogContainer}

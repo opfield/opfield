@@ -54,6 +54,10 @@ interface DockerDeployFormFieldsProps {
   healthPath: string;
   imageOptions: ComboboxOption[];
   nodeOptions: ComboboxOption[];
+  /** Opened from an app with one allowed node: the node is fixed. */
+  nodeLocked?: boolean;
+  /** Shown under the node field (which nodes the app environment allows). */
+  nodeHint?: string | null;
   registryOptions: ComboboxOption[];
   routeContainerPort: string;
   routeHostPort: string;
@@ -193,7 +197,10 @@ export function DockerDeployFormFields(props: DockerDeployFormFieldsProps) {
                 placeholder="Select a node"
                 searchPlaceholder="Search nodes..."
                 emptyMessage="No nodes found."
+                disabled={props.nodeLocked}
+                ariaLabel="Node"
               />
+              {props.nodeHint && <p className="text-xs text-muted-foreground">{props.nodeHint}</p>}
             </div>
 
             <div className="space-y-1.5">

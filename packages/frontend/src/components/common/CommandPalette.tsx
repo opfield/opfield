@@ -47,8 +47,8 @@ import { setDevForcedUpdateMode } from "@/lib/dev-force-updates";
 import { hasLowInferenceUsage } from "@/lib/inference-self-usage";
 import {
   resourceSearchHref,
+  resourceSearchSecondaryText,
   resourceTypeIcon,
-  resourceTypeLabel,
 } from "@/lib/resource-presentation";
 import { dockerContainerRoute, dockerDeploymentRoute, nodeRoute } from "@/lib/resource-routes";
 import { api } from "@/services/api";
@@ -1189,7 +1189,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                         <Icon className="mr-2 h-4 w-4" />
                         <span className="min-w-0 truncate">{result.name}</span>
                         <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                          {resourceTypeLabel(result.type)}
+                          {resourceSearchSecondaryText(result)}
                         </span>
                       </CommandItem>
                     );

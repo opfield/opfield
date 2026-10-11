@@ -2,6 +2,7 @@ import { ArrowRight, ArrowUpCircle, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { AppMemberBadge } from "@/components/apps/AppMembership";
 import { confirmAction } from "@/components/common/ConfirmDialog";
 import { DetailRow } from "@/components/common/DetailRow";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -442,7 +443,16 @@ export function NodeDetailsTab({
       id: "domain",
       header: "Domain",
       cellClassName: "font-medium",
-      render: (host) => host.domainNames.join(", "),
+      // The node's view keeps app members; the badge opens the app.
+      render: (host) =>
+        host.app ? (
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="truncate">{host.domainNames.join(", ")}</span>
+            <AppMemberBadge app={host.app} />
+          </span>
+        ) : (
+          host.domainNames.join(", ")
+        ),
     },
     {
       id: "type",

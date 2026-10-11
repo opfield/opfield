@@ -1,3 +1,4 @@
+import { setAppMemberListParams } from "@/lib/app-members";
 import {
   INFERENCE_SELF_USAGE_CACHE_KEY,
   publishInferenceSelfUsage,
@@ -57,6 +58,9 @@ export function withPagesDomainsApi<TBase extends ApiClientBaseConstructor>(Base
       limit?: number;
       search?: string;
       folderId?: string | null;
+      /** App members: see `AppMemberListFilter`. */
+      excludeAppMembers?: boolean;
+      appId?: string;
     }): Promise<PaginatedResponse<PageProject>> {
       const searchParams = new URLSearchParams();
       if (params?.page) searchParams.set("page", String(params.page));
@@ -66,6 +70,7 @@ export function withPagesDomainsApi<TBase extends ApiClientBaseConstructor>(Base
         if (params.folderId !== null) searchParams.set("folderId", params.folderId);
         else searchParams.set("folderId", "");
       }
+      setAppMemberListParams(searchParams, params);
       const query = searchParams.toString();
       return this.request<PaginatedResponse<PageProject>>(`/pages${query ? `?${query}` : ""}`);
     }
@@ -91,9 +96,13 @@ export function withPagesDomainsApi<TBase extends ApiClientBaseConstructor>(Base
       return project;
     }
 
-    async listPageProjectPlacementOptions(): Promise<PageProjectPlacementOption[]> {
+    /** Nodes a Project can be placed on; `folderId` in an app environment lists only the nodes it allows. */
+    async listPageProjectPlacementOptions(
+      folderId?: string | null
+    ): Promise<PageProjectPlacementOption[]> {
+      const query = folderId ? `?folderId=${encodeURIComponent(folderId)}` : "";
       return this.unwrapData(
-        this.request<{ data: PageProjectPlacementOption[] }>("/pages/placement-options")
+        this.request<{ data: PageProjectPlacementOption[] }>(`/pages/placement-options${query}`)
       );
     }
 

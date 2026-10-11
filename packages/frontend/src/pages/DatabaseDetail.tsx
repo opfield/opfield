@@ -2,6 +2,7 @@ import { Activity, DatabaseBackup, Puzzle, ScrollText, Table2, Terminal } from "
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { MemberIsolatedNotice } from "@/components/apps/IsolatedNotice";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
@@ -688,6 +689,7 @@ function DatabaseDetailContent({
               onRotateCertificate={() => void rotateCertificate()}
               onRemove={() => void remove()}
             />
+            <MemberIsolatedNotice app={database.app} />
 
             <ManagedInstanceNotice managed={database.managed} />
 

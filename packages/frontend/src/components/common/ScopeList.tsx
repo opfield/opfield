@@ -1,5 +1,5 @@
 import { ChevronRight } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import type { ScopeSelectionFilter } from "@/components/common/ScopeSearchFilter";
@@ -35,7 +35,12 @@ import {
   resolveGitTargetLabels,
 } from "./git-scope-targets";
 import {
+  APP_FAMILY_FOLDER_FAMILY,
+  APP_SCOPE_PREFIX,
+  type AppScopeApp,
   allResourcePages,
+  appFolderOptions,
+  appScopeResourceOptions,
   canLoadScopeResource,
   type DockerResourceOption,
   type FolderFamily,
@@ -45,6 +50,7 @@ import {
   getResourceLabel,
   getResourceOptions,
   isFolderTarget,
+  loadAppScopeCatalog,
   loadFolderFamily,
   loadScopeResourceCatalog,
   matchesQuery,
@@ -56,6 +62,38 @@ import {
 } from "./scope-list-helpers";
 
 export type { ScopeItem } from "./scope-list-helpers";
+
+const APP_FOLDER_FAMILIES = new Set<FolderFamily>(Object.values(APP_FAMILY_FOLDER_FAMILY));
+
+/**
+ * Whether the selection needs the apps: an app scope is picked (its restriction lists apps and
+ * environments), or a grant names a folder no folder tree lists in a family app environments keep
+ * hidden folders in ("Shop · staging" instead of a folder ID).
+ */
+function selectionNeedsApps(
+  scopes: readonly ScopeItem[],
+  selected: readonly string[],
+  restrictions: readonly (Record<string, string[]> | undefined)[],
+  knownFolderTargets: ReadonlySet<string>
+) {
+  if (
+    scopes.some(
+      (scope) => scope.value.startsWith(APP_SCOPE_PREFIX) && selected.includes(scope.value)
+    )
+  )
+    return true;
+  return restrictions.some((byScope) =>
+    Object.entries(byScope ?? {}).some(([scope, ids]) => {
+      if (scope.startsWith(APP_SCOPE_PREFIX)) return ids.length > 0;
+      const family = folderFamilyForScope(scope);
+      return (
+        !!family &&
+        APP_FOLDER_FAMILIES.has(family) &&
+        ids.some((id) => isFolderTarget(id) && !knownFolderTargets.has(id))
+      );
+    })
+  );
+}
 
 interface ScopeListProps {
   scopes: readonly ScopeItem[];
@@ -139,6 +177,8 @@ export function ScopeList({
   const [dockerReady, setDockerReady] = useState(false);
   const [registriesReady, setRegistriesReady] = useState(false);
   const [gitConnectorsReady, setGitConnectorsReady] = useState(false);
+  const [apps, setApps] = useState<AppScopeApp[]>([]);
+  const [appsReady, setAppsReady] = useState(false);
   // biome-ignore lint/correctness/useExhaustiveDependencies: Lookup helpers read current auth/features from stores; rerun and cancel old loads when either changes.
   useEffect(() => {
     let cancelled = false;
@@ -161,6 +201,46 @@ export function ScopeList({
   const q = search.toLowerCase().trim();
   const inheritedParsed = parseScopedSelections(inheritedScopes ?? [], restrictableScopes ?? []);
   const inheritedBaseSet = new Set(inheritedParsed.baseScopes);
+  // Decided once the folder trees are known; the first load holds the reveal like the others.
+  const needsApps =
+    foldersReady &&
+    selectionNeedsApps(
+      scopes,
+      [...selected, ...inheritedParsed.baseScopes],
+      [resources, inheritedParsed.resources, allowedResourceIds],
+      new Set(folderOptions.map((folder) => folderTarget(folder.id)))
+    );
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: The lookup permission helper reads the actor's current scopes from the store.
+  useEffect(() => {
+    if (!foldersReady) return;
+    if (!needsApps) {
+      setAppsReady(true);
+      return;
+    }
+    let cancelled = false;
+    void loadAppScopeCatalog()
+      .then((loaded) => {
+        if (!cancelled) setApps(loaded);
+      })
+      .finally(() => {
+        if (!cancelled) setAppsReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [foldersReady, needsApps, actorScopes]);
+  const rowCatalog = useMemo<ScopeResourceCatalog>(
+    () =>
+      apps.length > 0
+        ? { ...resourceCatalog, apps: appScopeResourceOptions(apps) }
+        : resourceCatalog,
+    [apps, resourceCatalog]
+  );
+  const rowFolderOptions = useMemo(
+    () => (apps.length > 0 ? [...folderOptions, ...appFolderOptions(apps)] : folderOptions),
+    [apps, folderOptions]
+  );
 
   // Git scopes: connectors per provider, and labels for stored group/project/owner/repo
   // qualifiers (selected, inherited, or held by the granting user).
@@ -199,8 +279,14 @@ export function ScopeList({
 
   // A label lookup still pending holds the first reveal, like the option lists do.
   const initialLoading =
-    !(catalogReady && foldersReady && dockerReady && registriesReady && gitConnectorsReady) ||
-    pendingGitLabelKeys.length > 0;
+    !(
+      catalogReady &&
+      foldersReady &&
+      dockerReady &&
+      registriesReady &&
+      gitConnectorsReady &&
+      appsReady
+    ) || pendingGitLabelKeys.length > 0;
   useContentLoading(initialLoading);
   const initialLoadReported = useRef(false);
   useEffect(() => {
@@ -501,8 +587,8 @@ export function ScopeList({
                 loggingSchemas={loggingSchemas}
                 dockerResources={dockerResources}
                 dockerRegistryRepositories={dockerRegistryRepositories}
-                resourceCatalog={resourceCatalog}
-                folderOptions={folderOptions}
+                resourceCatalog={rowCatalog}
+                folderOptions={rowFolderOptions}
                 restrictableScopes={restrictableScopes}
                 allowedResourceIds={allowedResourceIds}
                 inheritedFromName={inheritedFromName}
@@ -633,7 +719,14 @@ function ScopeRow({
       resourceOptions.push({ id: selectedId, label: selectedId });
     }
   }
-  const availableFolderOptions = (folderOptions ?? []).filter((folder) => folder.family === family);
+  // Hidden app folders show only where a grant names them: they are never offered.
+  const availableFolderOptions = (folderOptions ?? []).filter(
+    (folder) =>
+      folder.family === family &&
+      (!folder.appEnvironment ||
+        combinedSelectedIds.includes(folderTarget(folder.id)) ||
+        !!allowedResourceIds?.[scope.value]?.includes(folderTarget(folder.id)))
+  );
   const visibleFolderOptions = allowedIds
     ? availableFolderOptions.filter((folder) => allowedIds.includes(folderTarget(folder.id)))
     : availableFolderOptions;
@@ -781,6 +874,7 @@ function ScopeRow({
       return gitQualifierLabel(gitProvider, id, gitConnectors[gitProvider], gitLabels);
     if (isFolderTarget(id)) {
       const folder = availableFolderOptions.find((option) => folderTarget(option.id) === id);
+      if (folder?.appEnvironment) return folder.label;
       return `${folder?.label ?? id.slice("folder/".length)} (folder)`;
     }
     return resourceOptions.find((option) => option.id === id)?.label ?? id;
@@ -996,7 +1090,9 @@ function ScopeRow({
                     className="form-checkbox"
                   />
                   <span>{folder.label}</span>
-                  <span className="text-xs text-muted-foreground">folder</span>
+                  <span className="text-xs text-muted-foreground">
+                    {folder.appEnvironment ? "app environment" : "folder"}
+                  </span>
                   {inherited && inheritedFromName && (
                     <span className="text-xs text-muted-foreground">inherited</span>
                   )}

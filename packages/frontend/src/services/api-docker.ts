@@ -1,3 +1,4 @@
+import { type AppMemberListFilter, setAppMemberListParams } from "@/lib/app-members";
 import type {
   ContainerCreateConfig,
   DockerAvailabilityOperation,
@@ -77,9 +78,10 @@ type DockerGpuUsage = {
   containers: Array<{ name: string }>;
 };
 
-function dockerListQuery(params?: DockerListQuery & { noCache?: boolean }) {
+function dockerListQuery(params?: DockerListQuery & AppMemberListFilter & { noCache?: boolean }) {
   const query = new URLSearchParams();
   if (params?.search?.trim()) query.set("search", params.search.trim());
+  setAppMemberListParams(query, params);
   if (params?.noCache) query.set("_t", String(Date.now()));
   const qs = query.toString();
   return qs ? `?${qs}` : "";
@@ -329,8 +331,14 @@ export function withDockerApi<TBase extends ApiClientBaseConstructor>(Base: TBas
 
     // ── Docker Compose Projects ───────────────────────────────────────
 
-    async listDockerComposeProjects(nodeId?: string): Promise<DockerComposeProjectSummary[]> {
-      const query = nodeId ? `?nodeId=${encodeURIComponent(nodeId)}` : "";
+    async listDockerComposeProjects(
+      nodeId?: string,
+      filter?: AppMemberListFilter
+    ): Promise<DockerComposeProjectSummary[]> {
+      const params = new URLSearchParams();
+      if (nodeId) params.set("nodeId", nodeId);
+      setAppMemberListParams(params, filter);
+      const query = params.size ? `?${params}` : "";
       return this.unwrapData(
         this.request<{ data: DockerComposeProjectSummary[] }>(`/docker/compose-projects${query}`)
       );
@@ -560,7 +568,7 @@ export function withDockerApi<TBase extends ApiClientBaseConstructor>(Base: TBas
 
     async listDockerContainers(
       nodeId: string,
-      options: boolean | (DockerListQuery & { noCache?: boolean }) = false
+      options: boolean | (DockerListQuery & AppMemberListFilter & { noCache?: boolean }) = false
     ): Promise<DockerContainer[]> {
       const params = typeof options === "boolean" ? { noCache: options } : options;
       const url = `/docker/nodes/${nodeId}/containers${dockerListQuery(params)}`;
@@ -573,7 +581,9 @@ export function withDockerApi<TBase extends ApiClientBaseConstructor>(Base: TBas
       );
     }
 
-    async listDockerContainerSnapshots(params?: DockerListQuery & { nodeId?: string }) {
+    async listDockerContainerSnapshots(
+      params?: DockerListQuery & AppMemberListFilter & { nodeId?: string }
+    ) {
       const query = dockerListQuery(params);
       const separator = query ? "&" : "?";
       const nodeId = params?.nodeId
@@ -624,7 +634,7 @@ export function withDockerApi<TBase extends ApiClientBaseConstructor>(Base: TBas
 
     async listDockerDeployments(
       nodeId: string,
-      params?: DockerListQuery
+      params?: DockerListQuery & AppMemberListFilter
     ): Promise<DockerDeployment[]> {
       return withDockerListMeta(
         await this.request<DockerListEnvelope<DockerDeployment>>(

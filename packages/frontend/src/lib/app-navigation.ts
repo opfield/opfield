@@ -1,5 +1,6 @@
 import {
   Activity,
+  AppWindow,
   Award,
   Bell,
   Box,
@@ -27,6 +28,7 @@ export type AppNavigationGroupId = "main" | "reverse-proxy" | "pki" | "resources
 
 export type AppNavigationItemId =
   | "dashboard"
+  | "apps"
   | "profile"
   | "proxy-hosts"
   | "domains"
@@ -88,6 +90,13 @@ export const APP_NAVIGATION_GROUPS: readonly AppNavigationGroup[] = [
         icon: LayoutDashboard,
         shortcutKey: "1",
         keywords: ["overview", "home"],
+      },
+      {
+        id: "apps",
+        name: "Apps",
+        href: "/apps",
+        icon: AppWindow,
+        keywords: ["applications", "environments", "projects", "staging", "production"],
       },
       {
         id: "profile",
@@ -327,6 +336,8 @@ export function canAccessNavigationItem(
   switch (item.id) {
     case "dashboard":
       return hasDashboardContent(context);
+    case "apps":
+      return hasScopeBase(scopes, "apps:view") || scopeMatches(scopes, "apps:create");
     case "profile":
       return true;
     case "proxy-hosts":

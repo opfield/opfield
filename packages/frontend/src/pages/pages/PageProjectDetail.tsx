@@ -17,6 +17,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { AppMembershipLink } from "@/components/apps/AppMembership";
+import { MemberIsolatedNotice } from "@/components/apps/IsolatedNotice";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { CopyCodeBlock } from "@/components/common/CopyCodeBlock";
 import { CopyValueField } from "@/components/common/CopyValueField";
@@ -92,18 +94,20 @@ function MigrateProjectDialog({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // A Project in an app environment moves only to the nodes that environment allows.
+  const folderId = project.folderId;
   useEffect(() => {
     if (!open) return;
     setTargetNodeId("");
     setLoading(true);
     void api
-      .listPageProjectPlacementOptions()
+      .listPageProjectPlacementOptions(folderId)
       .then(setNodes)
       .catch((error) =>
         toast.error(error instanceof Error ? error.message : "Failed to load Pages nodes")
       )
       .finally(() => setLoading(false));
-  }, [open]);
+  }, [folderId, open]);
 
   const migrate = async () => {
     if (!targetNodeId || saving) return;
@@ -462,6 +466,12 @@ export function PageProjectDetail({
               <p className="truncate text-sm text-muted-foreground">
                 {project.slug}
                 {project.description ? ` · ${project.description}` : ""}
+                {project.app ? (
+                  <>
+                    {" · "}
+                    <AppMembershipLink app={project.app} />
+                  </>
+                ) : null}
               </p>
             </div>
           </div>
@@ -583,6 +593,7 @@ export function PageProjectDetail({
             )}
           </ResponsiveHeaderActions>
         </div>
+        <MemberIsolatedNotice app={project.app} />
 
         {latestPreviewUrl && (
           <CopyValueField

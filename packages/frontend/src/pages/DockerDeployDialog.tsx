@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import {
+  AppEnvironmentFields,
+  allowedNodesHint,
+  NoAllowedNodeNotice,
+} from "@/components/apps/AppEnvironmentFields";
+import {
+  type AppCreateContext,
+  allowedAppNodes,
+  appPlacementFolderId,
+  rememberAppCreation,
+  useAppEnvironmentChoice,
+} from "@/components/apps/app-create-context";
 import type { ComboboxOption } from "@/components/common/Combobox";
 import { flattenFolderTree } from "@/components/common/scope-list-helpers";
 import { Button } from "@/components/ui/button";
@@ -36,6 +48,8 @@ import type {
 import { useDockerDeployData } from "./docker-deploy/useDockerDeployData";
 
 const EMPTY_DOCKER_NODES: Node[] = [];
+const ROOT_FOLDER_OPTIONS: ComboboxOption[] = [{ value: "__root__", label: "No folder" }];
+const noNavigate = () => undefined;
 
 interface DockerDeployDialogProps {
   open: boolean;
@@ -46,6 +60,11 @@ interface DockerDeployDialogProps {
   dockerNodes?: Node[];
   /** Called after a successful deploy; receives the new container ID if available */
   onDeployed?: (containerId?: string) => void;
+  /**
+   * Opened from an app: locked App field, environment select, only the environment's allowed
+   * Docker nodes, created in the environment's placement folder. Stays on the app after deploy.
+   */
+  appContext?: AppCreateContext;
 }
 
 export function DockerDeployDialog({
@@ -54,8 +73,11 @@ export function DockerDeployDialog({
   nodeId,
   dockerNodes = EMPTY_DOCKER_NODES,
   onDeployed,
+  appContext,
 }: DockerDeployDialogProps) {
   const navigate = useNavigate();
+  const appEnvironment = useAppEnvironmentChoice(appContext, open);
+  const environment = appEnvironment.environment;
   const { hasScope } = useAuthStore();
   const effectiveScopes = useAuthStore((state) => state.user?.scopes ?? []);
   const [creationNodes, setCreationNodes] = useState<Node[]>([]);
@@ -81,8 +103,14 @@ export function DockerDeployDialog({
     };
   }, [open, effectiveScopes]);
   const [deployFolderId, setDeployFolderId] = useState<string | null>(null);
-  const [folderOptions, setFolderOptions] = useState<ComboboxOption[]>([]);
-  const [folderOptionsLoaded, setFolderOptionsLoaded] = useState(false);
+  const [loadedFolderOptions, setFolderOptions] = useState<ComboboxOption[]>([]);
+  const [loadedFolderOptionsReady, setFolderOptionsLoaded] = useState(false);
+  // From an app the folder field shows only the root; the environment's folder is sent instead.
+  const folderOptions = appContext ? ROOT_FOLDER_OPTIONS : loadedFolderOptions;
+  const folderOptionsLoaded = appContext ? true : loadedFolderOptionsReady;
+  const destinationFolderId = appContext
+    ? appPlacementFolderId(environment, "containers")
+    : deployFolderId;
 
   const [deployNodeId, setDeployNodeId] = useState<string>("");
   const [deployImage, setDeployImage] = useState("");
@@ -113,7 +141,7 @@ export function DockerDeployDialog({
       ).values(),
     ];
   }, [dockerNodes, storeDockerNodes, creationNodes]);
-  const availableNodes = useMemo(
+  const permittedNodes = useMemo(
     () =>
       allNodes.filter(
         (node) =>
@@ -121,15 +149,29 @@ export function DockerDeployDialog({
           (canCreateInFolder(
             effectiveScopes,
             "docker:containers:create",
-            deployFolderId,
+            destinationFolderId,
             node.id
           ) ||
             effectiveScopes.some((scope) => scope.startsWith("docker:containers:create:folder/")))
       ),
-    [allNodes, effectiveScopes, deployFolderId]
+    [allNodes, effectiveScopes, destinationFolderId]
   );
+  // From an app: only the Docker nodes the environment allows.
+  const availableNodes = useMemo(
+    () => (appContext ? allowedAppNodes(environment, permittedNodes) : permittedNodes),
+    [appContext, environment, permittedNodes]
+  );
+  const appNodeLocked = !!appContext && availableNodes.length === 1;
+  const noAllowedNode =
+    !!appContext &&
+    !!environment &&
+    creationNodesLoaded &&
+    allowedAppNodes(
+      environment,
+      allNodes.filter((node) => !isNodeIncompatible(node))
+    ).length === 0;
   useEffect(() => {
-    if (!open) {
+    if (!open || appContext) {
       setFolderOptionsLoaded(false);
       return;
     }
@@ -157,7 +199,7 @@ export function DockerDeployDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, effectiveScopes, deployNodeId]);
+  }, [open, appContext, effectiveScopes, deployNodeId]);
   const {
     checkingSourceAdmission,
     initialLoading: deployDataLoading,
@@ -286,10 +328,22 @@ export function DockerDeployDialog({
     if (!selectedNode || selectedNode.serviceCreationLocked) setDeployNodeId("");
   }, [availableNodes, deployNodeId, open]);
 
+  // From an app with exactly one allowed Docker node, that node is the destination.
+  useEffect(() => {
+    if (!open || !appNodeLocked) return;
+    const only = availableNodes[0]!;
+    if (only.id !== deployNodeId && !only.serviceCreationLocked) {
+      setDeployNodeId(only.id);
+      setDeployImage("");
+      setDeployRegistryId("");
+      setDeployRuntimeProfile("default");
+    }
+  }, [appNodeLocked, availableNodes, deployNodeId, open]);
+
   // A folder-only creator is never offered the root: preselect their only folder, for image and Git
   // source deployments alike, and drop a choice the selected node no longer allows.
   useEffect(() => {
-    if (!open || !folderOptionsLoaded) return;
+    if (!open || appContext || !folderOptionsLoaded) return;
     const folders = folderOptions.filter((option) => option.value !== "__root__");
     const rootAllowed = folderOptions.some((option) => option.value === "__root__");
     if (deployFolderId && !folders.some((option) => option.value === deployFolderId)) {
@@ -297,7 +351,7 @@ export function DockerDeployDialog({
     } else if (!deployFolderId && !rootAllowed && folders.length === 1) {
       setDeployFolderId(folders[0]!.value);
     }
-  }, [deployFolderId, folderOptions, folderOptionsLoaded, open]);
+  }, [appContext, deployFolderId, folderOptions, folderOptionsLoaded, open]);
 
   const closeDeploy = () => {
     onOpenChange(false);
@@ -305,9 +359,14 @@ export function DockerDeployDialog({
   };
 
   const handleDeploy = async () => {
-    if (deploying || !deployNodeId) return;
+    if (deploying || !deployNodeId || noAllowedNode) return;
     if (
-      !canCreateInFolder(effectiveScopes, "docker:containers:create", deployFolderId, deployNodeId)
+      !canCreateInFolder(
+        effectiveScopes,
+        "docker:containers:create",
+        destinationFolderId,
+        deployNodeId
+      )
     ) {
       toast.error("Select an authorized destination folder");
       return;
@@ -353,14 +412,17 @@ export function DockerDeployDialog({
         deployMode,
         deployName,
         deployNodeId,
-        deployFolderId,
+        deployFolderId: destinationFolderId,
         deployRegistryId,
         deployRestart,
         deployRuntimeProfile,
         drainSeconds,
         healthPath,
-        navigate,
-        onDeployed,
+        navigate: appContext ? noNavigate : navigate,
+        onDeployed: (id) => {
+          rememberAppCreation(appContext, environment);
+          onDeployed?.(id);
+        },
         routeContainerPort,
         routeHostPort,
         sourceAutoBuild,
@@ -404,75 +466,100 @@ export function DockerDeployDialog({
           <DialogDescription>Create a container or a blue/green deployment.</DialogDescription>
         </DialogHeader>
 
-        <DockerDeployFormFields
-          loading={open && (!creationNodesLoaded || !folderOptionsLoaded || deployDataLoading)}
-          availableRegistries={availableRegistries}
-          checkingSourceAdmission={checkingSourceAdmission}
-          deployImage={deployImage}
-          deployLocalImages={deployLocalImages}
-          deployMode={deployMode}
-          deployName={deployName}
-          deployNodeId={deployNodeId}
-          deployFolderId={deployFolderId}
-          folderOptions={folderOptions}
-          onDeployFolderIdChange={setDeployFolderId}
-          deployRegistryId={deployRegistryId}
-          deployRestart={deployRestart}
-          deployRuntimeProfile={deployRuntimeProfile}
-          drainSeconds={drainSeconds}
-          healthPath={healthPath}
-          imageOptions={imageOptions}
-          nodeOptions={nodeOptions}
-          registryOptions={registryOptions}
-          routeContainerPort={routeContainerPort}
-          routeHostPort={routeHostPort}
-          secureRuntimeAvailable={secureRuntimeAvailable}
-          secureRuntimeCanBeConfigured={secureRuntimeCanBeConfigured}
-          sourceAdmission={sourceAdmission}
-          sourceAutoBuild={sourceAutoBuild}
-          sourceAutoDeploy={sourceAutoDeploy}
-          sourceBranch={sourceBranch}
-          sourceConnectorId={sourceConnectorId}
-          sourceConnectorOptions={sourceConnectorOptions}
-          sourceContextPath={sourceContextPath}
-          sourceDockerfilePath={sourceDockerfilePath}
-          sourceLoadErrors={sourceLoadErrors}
-          sourceRepositoriesLoading={sourceRepositoriesLoading}
-          sourceRepositoriesHint={sourceRepositoriesHint}
-          onSourceRepositorySearch={onSourceRepositorySearch}
-          sourceMode={sourceMode}
-          sourceProjectId={sourceProjectId}
-          sourceRepositories={sourceRepositories}
-          sourceRepositoryOptions={sourceRepositoryOptions}
-          onDeployImageChange={setDeployImage}
-          onDeployModeChange={setDeployMode}
-          onDeployNameChange={setDeployName}
-          onDeployNodeIdChange={(value) => {
-            setDeployNodeId(value);
-            setDeployImage("");
-            setDeployRegistryId("");
-            setDeployRuntimeProfile("default");
-          }}
-          onDeployRegistryIdChange={setDeployRegistryId}
-          onDeployRestartChange={setDeployRestart}
-          onDeployRuntimeProfileChange={setDeployRuntimeProfile}
-          onDrainSecondsChange={setDrainSeconds}
-          onHealthPathChange={setHealthPath}
-          onRouteContainerPortChange={setRouteContainerPort}
-          onRouteHostPortChange={setRouteHostPort}
-          onSecureRuntimeSetupOpen={() => setSecureRuntimeSetupOpen(true)}
-          onSourceAutoBuildChange={setSourceAutoBuild}
-          onSourceAutoDeployChange={setSourceAutoDeploy}
-          onSourceBranchChange={setSourceBranch}
-          onSourceConnectorIdChange={(value) => {
-            setSourceConnectorId(value);
-            setSourceProjectId("");
-          }}
-          onSourceContextPathChange={setSourceContextPath}
-          onSourceDockerfilePathChange={setSourceDockerfilePath}
-          onSourceModeChange={setSourceMode}
-          onSourceProjectIdChange={setSourceProjectId}
-        />
+        {appContext && (
+          <AppEnvironmentFields
+            context={appContext}
+            environmentId={appEnvironment.environmentId}
+            onEnvironmentChange={appEnvironment.setEnvironmentId}
+            disabled={deploying}
+          />
+        )}
+
+        {noAllowedNode && appContext && environment ? (
+          <NoAllowedNodeNotice
+            context={appContext}
+            environment={environment}
+            nodeKind="Docker"
+            resourceKind="Containers"
+            onNavigate={closeDeploy}
+          />
+        ) : (
+          <DockerDeployFormFields
+            loading={open && (!creationNodesLoaded || !folderOptionsLoaded || deployDataLoading)}
+            availableRegistries={availableRegistries}
+            checkingSourceAdmission={checkingSourceAdmission}
+            deployImage={deployImage}
+            deployLocalImages={deployLocalImages}
+            deployMode={deployMode}
+            deployName={deployName}
+            deployNodeId={deployNodeId}
+            deployFolderId={deployFolderId}
+            folderOptions={folderOptions}
+            onDeployFolderIdChange={setDeployFolderId}
+            deployRegistryId={deployRegistryId}
+            deployRestart={deployRestart}
+            deployRuntimeProfile={deployRuntimeProfile}
+            drainSeconds={drainSeconds}
+            healthPath={healthPath}
+            imageOptions={imageOptions}
+            nodeOptions={nodeOptions}
+            nodeLocked={appNodeLocked}
+            nodeHint={
+              appContext && environment && availableNodes.length > 0
+                ? allowedNodesHint(environment, availableNodes.length, "Docker")
+                : null
+            }
+            registryOptions={registryOptions}
+            routeContainerPort={routeContainerPort}
+            routeHostPort={routeHostPort}
+            secureRuntimeAvailable={secureRuntimeAvailable}
+            secureRuntimeCanBeConfigured={secureRuntimeCanBeConfigured}
+            sourceAdmission={sourceAdmission}
+            sourceAutoBuild={sourceAutoBuild}
+            sourceAutoDeploy={sourceAutoDeploy}
+            sourceBranch={sourceBranch}
+            sourceConnectorId={sourceConnectorId}
+            sourceConnectorOptions={sourceConnectorOptions}
+            sourceContextPath={sourceContextPath}
+            sourceDockerfilePath={sourceDockerfilePath}
+            sourceLoadErrors={sourceLoadErrors}
+            sourceRepositoriesLoading={sourceRepositoriesLoading}
+            sourceRepositoriesHint={sourceRepositoriesHint}
+            onSourceRepositorySearch={onSourceRepositorySearch}
+            sourceMode={sourceMode}
+            sourceProjectId={sourceProjectId}
+            sourceRepositories={sourceRepositories}
+            sourceRepositoryOptions={sourceRepositoryOptions}
+            onDeployImageChange={setDeployImage}
+            onDeployModeChange={setDeployMode}
+            onDeployNameChange={setDeployName}
+            onDeployNodeIdChange={(value) => {
+              setDeployNodeId(value);
+              setDeployImage("");
+              setDeployRegistryId("");
+              setDeployRuntimeProfile("default");
+            }}
+            onDeployRegistryIdChange={setDeployRegistryId}
+            onDeployRestartChange={setDeployRestart}
+            onDeployRuntimeProfileChange={setDeployRuntimeProfile}
+            onDrainSecondsChange={setDrainSeconds}
+            onHealthPathChange={setHealthPath}
+            onRouteContainerPortChange={setRouteContainerPort}
+            onRouteHostPortChange={setRouteHostPort}
+            onSecureRuntimeSetupOpen={() => setSecureRuntimeSetupOpen(true)}
+            onSourceAutoBuildChange={setSourceAutoBuild}
+            onSourceAutoDeployChange={setSourceAutoDeploy}
+            onSourceBranchChange={setSourceBranch}
+            onSourceConnectorIdChange={(value) => {
+              setSourceConnectorId(value);
+              setSourceProjectId("");
+            }}
+            onSourceContextPathChange={setSourceContextPath}
+            onSourceDockerfilePathChange={setSourceDockerfilePath}
+            onSourceModeChange={setSourceMode}
+            onSourceProjectIdChange={setSourceProjectId}
+          />
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={closeDeploy}>
@@ -483,10 +570,11 @@ export function DockerDeployDialog({
             pending={deploying}
             disabled={
               !deployNodeId ||
+              noAllowedNode ||
               !canCreateInFolder(
                 effectiveScopes,
                 "docker:containers:create",
-                deployFolderId,
+                destinationFolderId,
                 deployNodeId
               ) ||
               (sourceMode === "image"

@@ -63,6 +63,10 @@ interface IngressTargetSelectProps {
   currentNodeId?: string | null;
   /** A route on a group changes its placement from the route page; the edit dialog shows the group only. */
   lockedGroupName?: string | null;
+  /** The only target an app environment allows: shown, not changeable. */
+  disabled?: boolean;
+  /** Shown under the field (which targets an app environment allows). */
+  hint?: string | null;
 }
 
 /**
@@ -78,6 +82,8 @@ export function IngressTargetSelect({
   allowAutomatic,
   currentNodeId,
   lockedGroupName,
+  disabled,
+  hint,
 }: IngressTargetSelectProps) {
   const selectedNode = nodes.find((node) => node.id === target.nodeId) ?? null;
   const selectedGroup = groups.find((group) => group.id === target.ingressGroupId) ?? null;
@@ -90,7 +96,7 @@ export function IngressTargetSelect({
       <Select
         value={lockedGroupName ? "__locked__" : ingressTargetValue(target)}
         onValueChange={(value) => onChange(parseIngressTarget(value))}
-        disabled={loading || !!lockedGroupName}
+        disabled={loading || !!lockedGroupName || disabled}
       >
         <SelectTrigger aria-label="Ingress node" aria-busy={loading}>
           {lockedGroupName ? (
@@ -173,6 +179,7 @@ export function IngressTargetSelect({
           {lockedGroupName && <SelectItem value="__locked__">{lockedGroupName}</SelectItem>}
         </SelectContent>
       </Select>
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }

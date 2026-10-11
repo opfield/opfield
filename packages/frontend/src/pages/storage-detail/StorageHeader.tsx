@@ -7,6 +7,7 @@ import {
   Settings,
   Trash2,
 } from "lucide-react";
+import { AppMembershipLink } from "@/components/apps/AppMembership";
 import { PageBackButton } from "@/components/common/PageBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Badge } from "@/components/ui/badge";
@@ -119,6 +120,12 @@ export function StorageHeader({
           {endpointLabel}
           {storage.region ? ` · ${storage.region}` : ""}
           {storage.defaultBucket ? ` · ${storage.defaultBucket}` : ""}
+          {storage.app ? (
+            <>
+              {" · "}
+              <AppMembershipLink app={storage.app} />
+            </>
+          ) : null}
         </span>
       }
       actions={

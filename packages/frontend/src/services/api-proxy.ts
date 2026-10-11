@@ -1,3 +1,4 @@
+import { setAppMemberListParams } from "@/lib/app-members";
 import type {
   CertificateDistributionState,
   CreateProxyAdditionalRouteRequest,
@@ -30,6 +31,9 @@ export function withProxyApi<TBase extends ApiClientBaseConstructor>(Base: TBase
       sortBy?: string;
       sortOrder?: string;
       nodeId?: string;
+      /** App members: see `AppMemberListFilter`. */
+      excludeAppMembers?: boolean;
+      appId?: string;
     }): Promise<PaginatedResponse<ProxyHost>> {
       const searchParams = new URLSearchParams();
       if (params?.page) searchParams.set("page", params.page.toString());
@@ -41,6 +45,7 @@ export function withProxyApi<TBase extends ApiClientBaseConstructor>(Base: TBase
       if (params?.sortBy) searchParams.set("sortBy", params.sortBy);
       if (params?.sortOrder) searchParams.set("sortOrder", params.sortOrder);
       if (params?.nodeId) searchParams.set("nodeId", params.nodeId);
+      setAppMemberListParams(searchParams, params);
 
       const query = searchParams.toString();
       return this.request<PaginatedResponse<ProxyHost>>(`/proxy-hosts${query ? `?${query}` : ""}`);
@@ -265,12 +270,16 @@ export function withProxyApi<TBase extends ApiClientBaseConstructor>(Base: TBase
       type?: ProxyHostType;
       healthStatus?: HealthStatus;
       enabled?: boolean;
+      /** App members: see `AppMemberListFilter`. */
+      excludeAppMembers?: boolean;
+      appId?: string;
     }): Promise<GroupedProxyHostsResponse> {
       const searchParams = new URLSearchParams();
       if (params?.search) searchParams.set("search", params.search);
       if (params?.type) searchParams.set("type", params.type);
       if (params?.healthStatus) searchParams.set("healthStatus", params.healthStatus);
       if (params?.enabled !== undefined) searchParams.set("enabled", params.enabled.toString());
+      setAppMemberListParams(searchParams, params);
       const query = searchParams.toString();
       return this.unwrapData(
         this.request<{ data: GroupedProxyHostsResponse }>(

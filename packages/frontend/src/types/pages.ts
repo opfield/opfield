@@ -1,3 +1,4 @@
+import type { AppMembershipRef } from "./apps";
 import type { Domain } from "./domains";
 import type { Node, NodeAppearanceColor } from "./nodes";
 import type { SSLCertificate } from "./ssl";
@@ -93,6 +94,8 @@ export interface PageTagMoveResult {
 }
 
 export interface PageProject {
+  /** Set when the resource is a member of an app environment. */
+  app?: AppMembershipRef | null;
   id: string;
   name: string;
   slug: string;

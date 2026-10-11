@@ -8,6 +8,8 @@ import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { useSystemConfigStore } from "@/stores/system-config";
 import {
+  type AppMemberFamily,
+  type AppMemberType,
   type CA,
   type DatabaseConnection,
   type Domain,
@@ -367,6 +369,157 @@ export interface FolderOption {
   label: string;
   family: FolderFamily;
   ancestorIds: string[];
+  /** A hidden folder of an app environment ("Shop · staging"): shown for grants, never offered. */
+  appEnvironment?: boolean;
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Apps: an environment holds its members in one hidden folder per family. Grants name those
+ * folders (`<scope>:folder/<id>`) and the app scopes name the app or environment
+ * (`apps:view:<appId>`, `apps:view:env/<envId>`); both read as "Shop · staging".
+ * ---------------------------------------------------------------------------------------------- */
+
+export interface AppScopeEnvironment {
+  id: string;
+  name: string;
+  /** Members now, per family. */
+  memberCounts: Partial<Record<AppMemberFamily, number>>;
+  /** The hidden folder of each family. */
+  folderIds: Partial<Record<AppMemberFamily, string>>;
+}
+
+export interface AppScopeApp {
+  id: string;
+  name: string;
+  environments: AppScopeEnvironment[];
+  /**
+   * The hidden app-root folder of each family, when Gateway reports it: a grant there covers every
+   * environment, also the ones added later.
+   */
+  rootFolderIds?: Partial<Record<AppMemberFamily, string>>;
+}
+
+/** The folder tree each app family's hidden folders live in. */
+export const APP_FAMILY_FOLDER_FAMILY: Readonly<Record<AppMemberFamily, FolderFamily>> = {
+  containers: "docker",
+  compose: "docker-compose",
+  routes: "proxy",
+  databases: "databases",
+  storage: "storage",
+  pages: "pages",
+};
+
+export const APP_SCOPE_PREFIX = "apps:";
+
+/** App scopes that name an app only (`<appId>`), never one environment. */
+const APP_ONLY_SCOPES = new Set(["apps:edit", "apps:delete"]);
+
+/** "Shop · staging", or "Shop · every environment" for the whole app. */
+export function appPlaceLabel(
+  app: Pick<AppScopeApp, "name">,
+  environment?: { name: string } | null
+) {
+  return `${app.name} · ${environment ? environment.name : "every environment"}`;
+}
+
+/** Member counts by type (the API) as counts by family (the access lines). */
+function familyMemberCounts(
+  counts: Partial<Record<AppMemberType, number>>
+): Partial<Record<AppMemberFamily, number>> {
+  return {
+    containers: (counts.container ?? 0) + (counts.deployment ?? 0),
+    compose: counts.compose ?? 0,
+    routes: counts.route ?? 0,
+    databases: counts.database ?? 0,
+    storage: counts.storage ?? 0,
+    pages: counts.pages ?? 0,
+  };
+}
+
+/**
+ * The apps the signed-in user can see, with each environment's hidden folders and member counts
+ * (one `getApp` per app: the list does not carry the folders). Empty without `apps:view`.
+ */
+export async function loadAppScopeCatalog(): Promise<AppScopeApp[]> {
+  if (!canLoadScopeResource("apps:view")) return [];
+  let summaries: Awaited<ReturnType<typeof api.listApps>>;
+  try {
+    summaries = await api.listApps();
+  } catch (error) {
+    reportScopeLoadError("apps", error);
+    return [];
+  }
+  const apps = await Promise.all(
+    summaries.map(async (summary): Promise<AppScopeApp | null> => {
+      try {
+        const detail = await api.getApp(summary.id);
+        return {
+          id: detail.id,
+          name: detail.name,
+          environments: detail.environments.map((environment) => ({
+            id: environment.id,
+            name: environment.name,
+            memberCounts: familyMemberCounts(environment.memberCounts ?? {}),
+            folderIds: Object.fromEntries(
+              Object.entries(environment.placementFolderIds ?? {}).filter(
+                (entry): entry is [string, string] => typeof entry[1] === "string"
+              )
+            ),
+          })),
+          rootFolderIds: detail.rootFolderIds
+            ? (Object.fromEntries(
+                Object.entries(detail.rootFolderIds).filter(
+                  (entry): entry is [string, string] => typeof entry[1] === "string"
+                )
+              ) as Partial<Record<AppMemberFamily, string>>)
+            : undefined,
+        };
+      } catch (error) {
+        reportScopeLoadError(`app ${summary.name}`, error);
+        return null;
+      }
+    })
+  );
+  return apps.filter((app): app is AppScopeApp => app !== null);
+}
+
+/** Restriction options of the app scopes: each app, then its environments. */
+export function appScopeResourceOptions(apps: readonly AppScopeApp[]): ResourceOption[] {
+  return apps.flatMap((app) => [
+    { id: app.id, label: appPlaceLabel(app) },
+    ...app.environments.map((environment) => ({
+      id: `env/${environment.id}`,
+      label: appPlaceLabel(app, environment),
+      parentId: app.id,
+    })),
+  ]);
+}
+
+/** The hidden folders of the apps, labelled by their app and environment, in each family's tree. */
+export function appFolderOptions(apps: readonly AppScopeApp[]): FolderOption[] {
+  return apps.flatMap((app) => {
+    const roots = Object.entries(app.rootFolderIds ?? {}) as [AppMemberFamily, string][];
+    return [
+      ...roots.map(([family, id]) => ({
+        id,
+        label: appPlaceLabel(app),
+        family: APP_FAMILY_FOLDER_FAMILY[family],
+        ancestorIds: [],
+        appEnvironment: true,
+      })),
+      ...app.environments.flatMap((environment) =>
+        (Object.entries(environment.folderIds) as [AppMemberFamily, string][]).map(
+          ([family, id]) => ({
+            id,
+            label: appPlaceLabel(app, environment),
+            family: APP_FAMILY_FOLDER_FAMILY[family],
+            ancestorIds: app.rootFolderIds?.[family] ? [app.rootFolderIds[family]!] : [],
+            appEnvironment: true,
+          })
+        )
+      ),
+    ];
+  });
 }
 
 export type FolderFamily =
@@ -640,6 +793,10 @@ export function getResourceOptions(
   }
   // Ingress group grants name node folders only, never one group or node.
   if (scope.startsWith("ingress:groups:")) return [];
+  if (scope.startsWith(APP_SCOPE_PREFIX)) {
+    const options = catalog.apps ?? [];
+    return APP_ONLY_SCOPES.has(scope) ? options.filter((option) => !option.parentId) : options;
+  }
   if (family && catalog[family]) return catalog[family]!;
   // Template grants name templates, never routes; the list comes from the catalog above.
   if (scope.startsWith("proxy:templates:")) return [];
@@ -780,6 +937,10 @@ export function getResourceLabel(scope: string): string {
       : "Restrict to specific Docker nodes (leave unchecked for all):";
   }
   if (scope.startsWith("nodes:")) return "Restrict to specific nodes (leave unchecked for all):";
+  if (scope.startsWith(APP_SCOPE_PREFIX))
+    return APP_ONLY_SCOPES.has(scope)
+      ? "Restrict to specific apps (leave unchecked for all):"
+      : "Restrict to apps or single app environments (leave unchecked for all):";
   if (scope.startsWith("ingress:groups:"))
     return "Restrict to node folders; a folder covers the ingress groups in it and its subfolders (leave unchecked for all):";
   if (scope === "proxy:create")

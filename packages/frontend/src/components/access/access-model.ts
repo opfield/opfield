@@ -1,4 +1,9 @@
-import type { FolderFamily, FolderOption } from "@/components/common/scope-list-helpers";
+import {
+  type AppScopeApp,
+  appPlaceLabel,
+  type FolderFamily,
+  type FolderOption,
+} from "@/components/common/scope-list-helpers";
 import { canonicalizeScopeSelection, extractBaseScope, scopeMatches } from "@/lib/scope-utils";
 import { TOKEN_SCOPES } from "@/types";
 import type { GitScopeProvider } from "@/types/integrations";
@@ -251,6 +256,45 @@ export function typesManagingFolders(types: readonly AccessTypeId[]): AccessType
   return types.filter((type) => !!accessType(type).foldersManage);
 }
 
+/**
+ * The six types an app environment holds, one hidden folder each (containers and deployments,
+ * Compose projects, routes, databases, object storage, Pages). Their ids are the app families.
+ */
+export const APP_ACCESS_TYPE_IDS: readonly AccessTypeId[] = [
+  "containers",
+  "compose",
+  "routes",
+  "databases",
+  "storage",
+  "pages",
+];
+
+type AppFamily = keyof AppScopeApp["environments"][number]["folderIds"];
+
+/**
+ * The app scopes each role holds in an app line, qualified by the environment (`:env/<envId>`) or
+ * the whole app (`:<appId>`). Resource actions keep their own scopes (the folder grants).
+ */
+export const APP_ROLE_SCOPES: Readonly<Record<AccessRole, readonly string[]>> = {
+  viewer: ["apps:view"],
+  deployer: ["apps:view", "apps:promote"],
+  developer: ["apps:view", "apps:promote", "apps:env:manage"],
+  operator: ["apps:view", "apps:promote", "apps:env:manage", "apps:operate"],
+};
+
+const APP_LINE_SCOPES = [...new Set(ROLE_IDS.flatMap((role) => APP_ROLE_SCOPES[role]))].sort(
+  (a, b) => b.length - a.length
+);
+
+/** `apps:view:env/<id>` → base and qualifier; null for other scopes or a broad app scope. */
+function splitAppScope(scope: string): { base: string; qualifier: string } | null {
+  for (const base of APP_LINE_SCOPES) {
+    if (scope.startsWith(`${base}:`) && scope.length > base.length + 1)
+      return { base, qualifier: scope.slice(base.length + 1) };
+  }
+  return null;
+}
+
 const TYPE_BY_SCOPE = new Map<string, AccessType>(
   ACCESS_TYPES.flatMap((type) => accessTypeScopes(type).map((scope) => [scope, type] as const))
 );
@@ -305,6 +349,11 @@ export type AccessWhere =
   | { kind: "everywhere" }
   /** A folder picked by its path in every type's own folder tree ("orders/staging"). */
   | { kind: "folder"; path: string }
+  /**
+   * An app environment (`envId`), or every environment of the app (null): the hidden folders of
+   * the six app types plus the app scopes of the role.
+   */
+  | { kind: "app"; appId: string; envId: string | null }
   /** Resource IDs per type, as scopes name them. */
   | { kind: "resources"; ids: Partial<Record<AccessTypeId, string[]>> };
 
@@ -342,12 +391,78 @@ export interface CustomAccessLine {
 
 export type AccessLine = ResourceAccessLine | GitAccessLine | CustomAccessLine;
 
-/** What building and parsing lines need to know: the folders of the eight types' trees. */
+/**
+ * What building and parsing lines need to know: the folders of the eight types' trees, and the
+ * apps the user can see with their environments' hidden folders.
+ */
 export interface AccessContext {
   folders: readonly FolderOption[];
+  apps?: readonly AppScopeApp[];
 }
 
-export const EMPTY_ACCESS_CONTEXT: AccessContext = { folders: [] };
+export const EMPTY_ACCESS_CONTEXT: AccessContext = { folders: [], apps: [] };
+
+export function accessApp(ctx: AccessContext, appId: string) {
+  return ctx.apps?.find((app) => app.id === appId);
+}
+
+/**
+ * The hidden folders an app line grants a type in: the environment's folder; for every
+ * environment the app-root folder (it covers environments added later), or, where Gateway does not
+ * report it, each current environment's folder. Empty when the app or folder is unknown.
+ */
+export function appLineFolderIds(
+  ctx: AccessContext,
+  where: Extract<AccessWhere, { kind: "app" }>,
+  type: AccessTypeId
+): string[] {
+  if (!APP_ACCESS_TYPE_IDS.includes(type)) return [];
+  const app = accessApp(ctx, where.appId);
+  if (!app) return [];
+  const family = type as AppFamily;
+  if (where.envId !== null) {
+    const id = app.environments.find((environment) => environment.id === where.envId)?.folderIds[
+      family
+    ];
+    return id ? [id] : [];
+  }
+  const root = app.rootFolderIds?.[family];
+  if (root) return [root];
+  return app.environments.flatMap((environment) => {
+    const id = environment.folderIds[family];
+    return id ? [id] : [];
+  });
+}
+
+/** The qualifier the app scopes of an app line carry. */
+function appQualifier(where: Extract<AccessWhere, { kind: "app" }>) {
+  return where.envId === null ? where.appId : `env/${where.envId}`;
+}
+
+/** The app scopes of a role in an app line. */
+export function appRoleScopes(role: AccessRole, where: Extract<AccessWhere, { kind: "app" }>) {
+  return APP_ROLE_SCOPES[role].map((scope) => `${scope}:${appQualifier(where)}`);
+}
+
+/** How many resources an app line's place holds now, counting the given types. */
+export function appMemberCount(
+  ctx: AccessContext,
+  where: Extract<AccessWhere, { kind: "app" }>,
+  types: readonly AccessTypeId[] = APP_ACCESS_TYPE_IDS
+) {
+  const app = accessApp(ctx, where.appId);
+  if (!app) return 0;
+  const environments =
+    where.envId === null
+      ? app.environments
+      : app.environments.filter((environment) => environment.id === where.envId);
+  return environments.reduce(
+    (total, environment) =>
+      total +
+      types.reduce((sum, type) => sum + (environment.memberCounts[type as AppFamily] ?? 0), 0),
+    0
+  );
+}
 
 const folderIndexes = new WeakMap<AccessContext, Map<string, string>>();
 
@@ -389,6 +504,7 @@ export function typesWithoutFolder(
 type Place =
   | { kind: "everywhere" }
   | { kind: "folder"; path: string }
+  | { kind: "app"; where: Extract<AccessWhere, { kind: "app" }> }
   | { kind: "resource"; type: AccessTypeId; id: string };
 
 /** A role's scopes in a kind of place: creation scopes name a destination, never a resource. */
@@ -397,11 +513,21 @@ function roleScopesAt(type: AccessType, role: AccessRole, kind: Place["kind"]) {
   return kind === "resource" ? scopes.filter((scope) => !CREATION_SCOPES.has(scope)) : scopes;
 }
 
-function qualify(scope: string, type: AccessType, place: Place, ctx: AccessContext): string | null {
-  if (place.kind === "everywhere") return scope;
-  if (place.kind === "resource") return `${scope}:${place.id}`;
+/** A scope in a place: one scope, several (an app line on every environment), or null (no folder). */
+function qualify(
+  scope: string,
+  type: AccessType,
+  place: Place,
+  ctx: AccessContext
+): string[] | null {
+  if (place.kind === "everywhere") return [scope];
+  if (place.kind === "resource") return [`${scope}:${place.id}`];
+  if (place.kind === "app") {
+    const ids = appLineFolderIds(ctx, place.where, type.id);
+    return ids.length > 0 ? ids.map((id) => `${scope}:folder/${id}`) : null;
+  }
   const id = folderId(ctx, type.family, place.path);
-  return id ? `${scope}:folder/${id}` : null;
+  return id ? [`${scope}:folder/${id}`] : null;
 }
 
 function typeScopesAt(
@@ -415,10 +541,7 @@ function typeScopesAt(
     ...roleScopesAt(type, role, place.kind),
     ...(mayDelete && roleCanDelete(role) ? type.delete : []),
   ];
-  return scopes.flatMap((scope) => {
-    const qualified = qualify(scope, type, place, ctx);
-    return qualified ? [qualified] : [];
-  });
+  return scopes.flatMap((scope) => qualify(scope, type, place, ctx) ?? []);
 }
 
 function gitQualifiers(line: GitAccessLine): (string | null)[] {
@@ -441,6 +564,15 @@ export function lineScopes(line: AccessLine, ctx: AccessContext): string[] {
     );
   }
   const { where } = line;
+  if (where.kind === "app") {
+    const place: Place = { kind: "app", where };
+    return [
+      ...line.types.flatMap((typeId) =>
+        typeScopesAt(accessType(typeId), line.role, line.mayDelete, place, ctx)
+      ),
+      ...appRoleScopes(line.role, where),
+    ];
+  }
   if (where.kind === "resources") {
     return line.types.flatMap((typeId) =>
       (where.ids[typeId] ?? []).flatMap((id) =>
@@ -463,8 +595,7 @@ export function lineScopes(line: AccessLine, ctx: AccessContext): string[] {
 /** The folder management scope of a type in a folder line ("Manage subfolders"). */
 function folderManageScopes(type: AccessType, where: AccessWhere, ctx: AccessContext): string[] {
   if (where.kind !== "folder" || !type.foldersManage) return [];
-  const qualified = qualify(type.foldersManage, type, where, ctx);
-  return qualified ? [qualified] : [];
+  return qualify(type.foldersManage, type, where, ctx) ?? [];
 }
 
 /**
@@ -532,9 +663,10 @@ function matchType(
   broad: ReadonlySet<string>,
   ctx: AccessContext
 ): TypeMatch | null {
+  // A scope with several forms (every environment of an app) counts when all of them are held.
   const stored = (scope: string) => {
     const qualified = qualify(scope, type, place, ctx);
-    return qualified !== null && remaining.has(qualified);
+    return !!qualified?.every((item) => remaining.has(item));
   };
   const holds = (scope: string) =>
     stored(scope) ||
@@ -684,6 +816,14 @@ export function scopesToLines(scopes: readonly string[], ctx: AccessContext): Ac
     }
   }
 
+  // App lines read from the same scopes: a line on every environment shares the folder grants of
+  // a line on one environment (without app-root folders), and each reads by its own app scopes.
+  const beforeApps = new Set(remaining);
+  for (const line of appPlaces(beforeApps, ctx).flatMap(
+    (where) => appLine(where, beforeApps, broad, ctx) ?? []
+  ))
+    consume(line);
+
   // A resource joins a line only through a scope stored for it.
   const resourceMatches = resourcePlaces.flatMap((place) => {
     if (place.kind !== "resource") return [];
@@ -707,6 +847,94 @@ export function scopesToLines(scopes: readonly string[], ctx: AccessContext): Ac
 
   if (remaining.size > 0) lines.push({ kind: "custom", scopes: [...remaining].sort() });
   return lines;
+}
+
+/**
+ * The app places stored scopes name, by app and then every environment before single ones: the
+ * app scopes' qualifiers (`:<appId>`, `:env/<envId>`) and the hidden folders of the six types.
+ */
+function appPlaces(
+  remaining: ReadonlySet<string>,
+  ctx: AccessContext
+): Extract<AccessWhere, { kind: "app" }>[] {
+  const apps = ctx.apps ?? [];
+  if (apps.length === 0) return [];
+  const byFolder = new Map<string, Extract<AccessWhere, { kind: "app" }>>();
+  const byQualifier = new Map<string, Extract<AccessWhere, { kind: "app" }>>();
+  for (const app of apps) {
+    byQualifier.set(app.id, { kind: "app", appId: app.id, envId: null });
+    for (const id of Object.values(app.rootFolderIds ?? {}))
+      if (id) byFolder.set(id, { kind: "app", appId: app.id, envId: null });
+    for (const environment of app.environments) {
+      const where = { kind: "app" as const, appId: app.id, envId: environment.id };
+      byQualifier.set(`env/${environment.id}`, where);
+      for (const id of Object.values(environment.folderIds)) if (id) byFolder.set(id, where);
+    }
+  }
+  const found = new Map<string, Extract<AccessWhere, { kind: "app" }>>();
+  for (const scope of remaining) {
+    const app = splitAppScope(scope);
+    let where = app ? byQualifier.get(app.qualifier) : undefined;
+    if (!where) {
+      const base = extractBaseScope(scope);
+      const qualifier = scope.slice(base.length + 1);
+      if (base !== scope && TYPE_BY_SCOPE.has(base) && qualifier.startsWith("folder/"))
+        where = byFolder.get(qualifier.slice("folder/".length));
+    }
+    if (where) found.set(`${where.appId}|${where.envId ?? ""}`, where);
+  }
+  const order = (where: Extract<AccessWhere, { kind: "app" }>) => {
+    const appIndex = apps.findIndex((app) => app.id === where.appId);
+    const envIndex =
+      where.envId === null
+        ? -1
+        : apps[appIndex]!.environments.findIndex((environment) => environment.id === where.envId);
+    return appIndex * 10_000 + envIndex;
+  };
+  return [...found.values()].sort((a, b) => order(a) - order(b));
+}
+
+/**
+ * The app line stored scopes hold in an app place: its role is the largest whose app scopes are
+ * held (at least one as stored, like a type in `matchType`); the types are those holding that role
+ * in the place's hidden folders. Null when no line reads out of them.
+ */
+function appLine(
+  where: Extract<AccessWhere, { kind: "app" }>,
+  remaining: ReadonlySet<string>,
+  broad: ReadonlySet<string>,
+  ctx: AccessContext
+): ResourceAccessLine | null {
+  const qualifier = appQualifier(where);
+  const stored = (scope: string) => remaining.has(`${scope}:${qualifier}`);
+  const holds = (scope: string) => stored(scope) || broad.has(scope);
+  const role = [...ROLE_IDS]
+    .reverse()
+    .find(
+      (candidate) =>
+        APP_ROLE_SCOPES[candidate].every(holds) && APP_ROLE_SCOPES[candidate].some(stored)
+    );
+  if (!role) return null;
+  const place: Place = { kind: "app", where };
+  const matches = APP_ACCESS_TYPE_IDS.flatMap((typeId) => {
+    const match = matchType(accessType(typeId), place, remaining, broad, ctx);
+    return match?.roles.includes(role) ? [match] : [];
+  });
+  const own = matches.filter((match) => !match.covered);
+  const deleting = roleCanDelete(role) ? own.filter((match) => match.mayDelete) : [];
+  const plain = own.filter((match) => !deleting.includes(match));
+  const mayDelete = deleting.length > plain.length;
+  const chosen = mayDelete ? deleting : plain;
+  const available = APP_ACCESS_TYPE_IDS.filter(
+    (typeId) => appLineFolderIds(ctx, where, typeId).length > 0
+  ).length;
+  // Types held through broad scopes join when the line then covers every type, as it is added.
+  const holding = matches.filter((match) => match.covered && (!mayDelete || match.mayDelete));
+  const types = [...chosen, ...(chosen.length + holding.length === available ? holding : [])]
+    .map((match) => match.type.id)
+    .sort(typeOrder);
+  if (types.length === 0) return null;
+  return { kind: "resources", role, types, where, mayDelete };
 }
 
 function parseGitLines(remaining: ReadonlySet<string>): GitAccessLine[] {
@@ -796,6 +1024,28 @@ export interface AccessLabels {
   connector?: (provider: GitScopeProvider, connectorId: string) => string | undefined;
   /** A group, owner, project or repository path, by provider and qualifier. */
   gitTarget?: (provider: GitScopeProvider, qualifier: string) => string | undefined;
+  /** "Shop · staging" or "Shop · every environment", by app and environment (null: every one). */
+  app?: (appId: string, envId: string | null) => string | undefined;
+}
+
+/** The labels an access context names by itself: its apps and environments. */
+export function contextLabels(ctx: AccessContext): Pick<AccessLabels, "app"> {
+  return {
+    app: (appId, envId) => {
+      const app = accessApp(ctx, appId);
+      if (!app) return undefined;
+      if (envId === null) return appPlaceLabel(app);
+      const environment = app.environments.find((item) => item.id === envId);
+      return environment ? appPlaceLabel(app, environment) : undefined;
+    },
+  };
+}
+
+function appWhereLabel(where: Extract<AccessWhere, { kind: "app" }>, labels: AccessLabels) {
+  return (
+    labels.app?.(where.appId, where.envId) ??
+    (where.envId === null ? "an app · every environment" : "an app environment")
+  );
 }
 
 export function folderPathLabel(path: string) {
@@ -810,8 +1060,17 @@ export function typesText(types: readonly AccessTypeId[]) {
     .join(", ");
 }
 
-export function coversLabel(types: readonly AccessTypeId[]) {
-  if (types.length === ACCESS_TYPES.length) return `All ${ACCESS_TYPES.length} resource types`;
+/** The types a line in this place may cover: the six app types in an app, else all eight. */
+export function placeTypeIds(where: AccessWhere | { kind: AccessWhere["kind"] }) {
+  return where.kind === "app" ? APP_ACCESS_TYPE_IDS : ACCESS_TYPE_IDS;
+}
+
+export function coversLabel(
+  types: readonly AccessTypeId[],
+  choices: readonly AccessTypeId[] = ACCESS_TYPE_IDS
+) {
+  if (types.length === choices.length && choices.every((type) => types.includes(type)))
+    return `All ${choices.length} resource types`;
   const text = typesText(types);
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
@@ -834,10 +1093,14 @@ function resourceNames(where: Extract<AccessWhere, { kind: "resources" }>, label
     );
 }
 
-/** "everywhere", "in folder orders / staging", "on orders-api, orders-web" or "on 3 resources". */
+/**
+ * "everywhere", "in folder orders / staging", "in Shop · staging", "on orders-api, orders-web" or
+ * "on 3 resources".
+ */
 export function whereLabel(where: AccessWhere, labels: AccessLabels = {}) {
   if (where.kind === "everywhere") return "everywhere";
   if (where.kind === "folder") return `in folder ${folderPathLabel(where.path)}`;
+  if (where.kind === "app") return `in ${appWhereLabel(where, labels)}`;
   const names = resourceNames(where, labels);
   return names.length <= 2 ? `on ${names.join(", ")}` : `on ${names.length} resources`;
 }
@@ -896,7 +1159,7 @@ export function describeLine(
   }
   return {
     title: `${roleTitle(line.role)} ${whereLabel(line.where, labels)}`,
-    detail: `${coversLabel(line.types)}${line.mayDelete ? " · may delete" : ""}${
+    detail: `${coversLabel(line.types, placeTypeIds(line.where))}${line.mayDelete ? " · may delete" : ""}${
       line.manageFolders ? " · manages subfolders" : ""
     }`,
   };
@@ -926,15 +1189,44 @@ function parentResourceId(base: string, resourceId: string): string | null {
   return null;
 }
 
-/** Whether `principal` holds `scope`, counting a grant on a folder for its subfolders. */
+/** The folders above a folder: from its tree, or the app-root folder above an environment's. */
+function folderAncestorIds(ctx: AccessContext, id: string): readonly string[] {
+  const folder = ctx.folders.find((candidate) => candidate.id === id);
+  if (folder) return folder.ancestorIds;
+  for (const app of ctx.apps ?? []) {
+    for (const environment of app.environments) {
+      const family = (Object.keys(environment.folderIds) as AppFamily[]).find(
+        (key) => environment.folderIds[key] === id
+      );
+      if (family) {
+        const root = app.rootFolderIds?.[family];
+        return root ? [root] : [];
+      }
+    }
+  }
+  return [];
+}
+
+/**
+ * Whether `principal` holds `scope`, counting a grant on a folder for its subfolders and an app
+ * scope on the whole app for each of its environments.
+ */
 export function principalHolds(principal: readonly string[], scope: string, ctx: AccessContext) {
   if (scopeMatches(principal, scope)) return true;
+  const app = splitAppScope(scope);
+  if (app) {
+    if (principal.includes(app.base)) return true;
+    if (!app.qualifier.startsWith("env/")) return false;
+    const envId = app.qualifier.slice("env/".length);
+    const owner = ctx.apps?.find((item) =>
+      item.environments.some((environment) => environment.id === envId)
+    );
+    return !!owner && principal.includes(`${app.base}:${owner.id}`);
+  }
   const base = extractBaseScope(scope);
   const qualifier = scope.slice(base.length + 1);
   if (base === scope || !qualifier.startsWith("folder/")) return false;
-  const id = qualifier.slice("folder/".length);
-  const folder = ctx.folders.find((candidate) => candidate.id === id);
-  return !!folder?.ancestorIds.some((ancestor) =>
+  return folderAncestorIds(ctx, qualifier.slice("folder/".length)).some((ancestor) =>
     scopeMatches(principal, `${base}:folder/${ancestor}`)
   );
 }
@@ -1006,9 +1298,10 @@ export function tokenStoredScopes(
   return canonicalizeScopeSelection([...held, ...narrowed]);
 }
 
-function shortWhere(where: AccessWhere) {
+function shortWhere(where: AccessWhere, labels: AccessLabels) {
   if (where.kind === "everywhere") return "everywhere";
   if (where.kind === "folder") return `in ${folderPathLabel(where.path)}`;
+  if (where.kind === "app") return `in ${appWhereLabel(where, labels)}`;
   return "on these resources";
 }
 
@@ -1035,7 +1328,7 @@ export function narrowedNote(
     JSON.stringify(only.where) === JSON.stringify(line.where)
   ) {
     const role = roleTitle(only.role);
-    return `Works as ${role}: you are ${role} ${shortWhere(line.where)}`;
+    return `Works as ${role}: you are ${role} ${shortWhere(line.where, labels)}`;
   }
   const titles = parsed.map((item) => describeLine(item, labels).title);
   return `Works as ${titles.slice(0, 2).join("; ")}${titles.length > 2 ? ` and ${titles.length - 2} more` : ""}`;

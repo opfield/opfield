@@ -1,4 +1,5 @@
-import { ChevronRight, Folder } from "lucide-react";
+import { ChevronRight, Folder, type LucideIcon } from "lucide-react";
+import type * as React from "react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,6 +39,51 @@ interface MoveToFolderDialogProps<TFolder extends MoveToFolderNode> {
 const allowEveryDestination = () => true;
 const TOP_LEVEL = { id: null, label: "Root (ungrouped)" };
 
+/** One selectable destination of a "Move to …" picker (folders, apps). */
+export function MoveDestinationRow({
+  label,
+  icon: Icon,
+  strong = false,
+  selected,
+  disabled = false,
+  depth = 0,
+  hasChildren = false,
+  hint,
+  onSelect,
+}: {
+  label: React.ReactNode;
+  icon?: LucideIcon;
+  /** The top destination ("Root (ungrouped)", "No app"). */
+  strong?: boolean;
+  selected: boolean;
+  disabled?: boolean;
+  depth?: number;
+  hasChildren?: boolean;
+  /** Hint after the name, for example "3 routes". */
+  hint?: React.ReactNode;
+  onSelect: () => void;
+}) {
+  return (
+    // Selectable tree row, not an action button.
+    <button
+      type="button"
+      aria-pressed={selected}
+      className={cn(
+        "w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-accent transition-colors disabled:pointer-events-none disabled:opacity-50",
+        selected && "bg-accent"
+      )}
+      style={depth > 0 ? { paddingLeft: `${depth * 20 + 12}px` } : undefined}
+      disabled={disabled}
+      onClick={onSelect}
+    >
+      {hasChildren && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+      {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+      <span className={cn(strong && "font-medium")}>{label}</span>
+      {hint ? <span className="text-xs text-muted-foreground ml-auto">{hint}</span> : null}
+    </button>
+  );
+}
+
 function FolderOption<TFolder extends MoveToFolderNode>({
   folder,
   depth,
@@ -53,27 +99,18 @@ function FolderOption<TFolder extends MoveToFolderNode>({
   canMoveTo: (folderId: string | null) => boolean;
   describeFolder?: (folder: TFolder) => string;
 }) {
-  const allowed = canMoveTo(folder.id);
   return (
     <>
-      {/* Selectable tree row, not an action button. */}
-      <button
-        type="button"
-        className={cn(
-          "w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-accent transition-colors disabled:pointer-events-none disabled:opacity-50",
-          selected === folder.id && "bg-accent"
-        )}
-        style={{ paddingLeft: `${depth * 20 + 12}px` }}
-        disabled={!allowed}
-        onClick={() => onSelect(folder.id)}
-      >
-        {folder.children.length > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
-        <Folder className="h-4 w-4 text-muted-foreground" />
-        <span>{folder.name}</span>
-        {describeFolder && (
-          <span className="text-xs text-muted-foreground ml-auto">{describeFolder(folder)}</span>
-        )}
-      </button>
+      <MoveDestinationRow
+        label={folder.name}
+        icon={Folder}
+        selected={selected === folder.id}
+        disabled={!canMoveTo(folder.id)}
+        depth={depth}
+        hasChildren={folder.children.length > 0}
+        hint={describeFolder?.(folder)}
+        onSelect={() => onSelect(folder.id)}
+      />
       {folder.children.map((child) => (
         <FolderOption
           key={child.id}
@@ -121,18 +158,13 @@ export function MoveToFolderDialog<TFolder extends MoveToFolderNode>({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div className="border border-border">
-          <button
-            type="button"
-            className={cn(
-              "w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-accent transition-colors",
-              selected === root.id && "bg-accent",
-              "disabled:pointer-events-none disabled:opacity-50"
-            )}
+          <MoveDestinationRow
+            label={root.label}
+            strong
+            selected={selected === root.id}
             disabled={!canMoveTo(root.id)}
-            onClick={() => setSelected(root.id)}
-          >
-            <span className="font-medium">{root.label}</span>
-          </button>
+            onSelect={() => setSelected(root.id)}
+          />
           {folders.map((folder) => (
             <FolderOption
               key={folder.id}

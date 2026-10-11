@@ -1,3 +1,5 @@
+import type { AppMembershipRef } from "./apps";
+
 export type ResourceSearchType =
   | "node"
   | "proxy_host"
@@ -31,6 +33,8 @@ export interface ResourceSearchResult {
   name: string;
   nodeId?: string;
   nodeSlug?: string;
+  /** Set when the result is a member of an app environment ("in <app> · <env>"). */
+  app?: AppMembershipRef | null;
   summary: Record<string, unknown>;
 }
 
