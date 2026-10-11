@@ -316,6 +316,9 @@ type managedDatabaseManager struct {
 	// pgSets connects Postgres availability set members to the member
 	// runtime (managed_database_pg_commands.go).
 	pgSets pgSetHooks
+	// kvSets connects Valkey availability set members to the member runtime
+	// (managed_database_kv_member.go).
+	kvSets kvSetHooks
 }
 
 func newManagedDatabaseManager(cfg *config.Config, client *Client, logger *slog.Logger) (*managedDatabaseManager, error) {
@@ -428,6 +431,9 @@ func (m *managedDatabaseManager) handle(ctx context.Context, action, id, configJ
 	}
 	if !managedDatabaseIDPattern.MatchString(id) {
 		return "", errors.New("invalid managed database id")
+	}
+	if handled, detail, err := m.kvSetHandle(ctx, action, id, configJSON); handled {
+		return detail, err
 	}
 	if handled, detail, err := m.pgSetHandle(ctx, action, id, configJSON); handled {
 		return detail, err

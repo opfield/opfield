@@ -179,6 +179,11 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 			hostCfg.PortBindings[nativePort] = []network.PortBinding{{HostIP: netip.MustParseAddr("0.0.0.0"), HostPort: fmt.Sprintf("%d", input.PublishedNativePort)}}
 		}
 	}
+	// A key-value store member of an availability set (managed_database_kv_member.go).
+	setNetwork, err := m.kvMemberContainer(*record, input, dataSource, containerCfg, hostCfg)
+	if err != nil {
+		return "", err
+	}
 	created, err := m.client.cli.ContainerCreate(ctx, mobyclient.ContainerCreateOptions{
 		Config:     containerCfg,
 		HostConfig: hostCfg,
@@ -189,6 +194,12 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 	})
 	if err != nil {
 		return "", fmt.Errorf("create managed database container: %w", err)
+	}
+	if setNetwork != "" {
+		if _, err := m.client.cli.NetworkConnect(ctx, setNetwork, mobyclient.NetworkConnectOptions{Container: created.ID, EndpointConfig: &network.EndpointSettings{}}); err != nil {
+			_ = m.client.RemoveContainer(ctx, created.ID, true)
+			return "", fmt.Errorf("attach the member to its availability set network: %w", err)
+		}
 	}
 	if _, err := m.client.cli.ContainerStart(ctx, created.ID, mobyclient.ContainerStartOptions{}); err != nil {
 		_ = m.client.RemoveContainer(ctx, created.ID, true)
