@@ -636,6 +636,18 @@ message AvailabilityPrimaryAssignment {
   string set_id = 1;
   string primary_member_id = 2;
   uint64 generation = 3;
+  // Gateway signs every assignment with its relay policy signing key: Ed25519
+  // over "gateway-availability-member/primary-assignment/v1" || 0x00 ||
+  // u32be(len(set_id)) || set_id || u32be(len(primary_member_id)) ||
+  // primary_member_id || u64be(generation). A member accepts an assignment,
+  // from Gateway or relayed by its peer, only with a valid signature of a key
+  // it trusts.
+  string signing_key_id = 4;
+  bytes signature = 5;
+  // The policy signing keys, delivered over this authenticated stream (as in
+  // SyncAvailabilityLeaseCommand): the daemon trusts them directly. Gateway
+  // only; a peer-relayed assignment verifies against keys already trusted.
+  repeated AvailabilityLeasePolicyKey policy_keys = 6;
 }
 
 message AvailabilityMemberRemove {

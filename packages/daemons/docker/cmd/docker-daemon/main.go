@@ -54,11 +54,13 @@ func main() {
 			os.Exit(runMountVolumeImages(os.Args[2:]))
 		case "hold-link-listeners":
 			os.Exit(runHoldLinkListeners(os.Args[2:]))
+		case "availability":
+			os.Exit(runAvailabilityCommand(os.Args[2:], os.Stdout, os.Stderr))
 		case "run":
 			exitOnExtraArgs()
 			// explicit run, continue below
 		default:
-			fmt.Fprintf(os.Stderr, "Usage: docker-daemon [run|install|runtime|mount-volume-images|hold-link-listeners|version]\n")
+			fmt.Fprintf(os.Stderr, "Usage: docker-daemon [run|install|runtime|mount-volume-images|hold-link-listeners|availability|version]\n")
 			os.Exit(1)
 		}
 	}

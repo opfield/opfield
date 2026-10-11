@@ -141,6 +141,10 @@ func (p *DockerPlugin) startSetMembers(runtime *lease.Runtime, fence lease.DirFe
 		},
 		GatewayConnected: p.sessionLive.Load,
 		PeerState:        p.setPeerState,
+		VerifyAssignment: func(setID string, assignment memberha.Assignment) error {
+			return runtime.Node().VerifyGatewaySigned(memberha.AssignmentDomain, assignment.SigningKeyID,
+				memberha.AssignmentStatement(setID, assignment), assignment.Signature)
+		},
 	}, store)
 	if err != nil {
 		return err
@@ -174,7 +178,12 @@ func (p *DockerPlugin) setMemberCapabilities() []string {
 	if p.setMembers == nil || p.lease == nil || !p.lease.watchdogReady() || len(setMemberEngineNames()) == 0 {
 		return nil
 	}
-	return []string{managedAvailabilityMemberCapability}
+	capabilities := []string{managedAvailabilityMemberCapability}
+	for _, engine := range setMemberEngineNames() {
+		// Gateway's preflight requires the set's engine on every member node.
+		capabilities = append(capabilities, "managed_availability_"+engine+"_v1")
+	}
+	return capabilities
 }
 
 // handleAvailabilityMember applies Gateway's command for this node's member of a set.
@@ -184,7 +193,13 @@ func (p *DockerPlugin) handleAvailabilityMember(command *pb.AvailabilityMemberCo
 	}
 	switch action := command.GetAction().(type) {
 	case *pb.AvailabilityMemberCommand_Configure:
-		return p.setMembers.Configure(memberConfigFromProto(action.Configure))
+		if err := p.setMembers.Configure(memberConfigFromProto(action.Configure)); err != nil {
+			return err
+		}
+		if primary := action.Configure.GetPrimary(); primary != nil && primary.GetGeneration() > 0 {
+			return p.assignSetPrimary(primary)
+		}
+		return nil
 	case *pb.AvailabilityMemberCommand_Remove:
 		if config, ok := p.setMembers.Config(action.Remove.GetSetId()); ok && config.MemberID != action.Remove.GetMemberId() {
 			return errors.New("the set has another member on this node")
@@ -193,9 +208,7 @@ func (p *DockerPlugin) handleAvailabilityMember(command *pb.AvailabilityMemberCo
 	case *pb.AvailabilityMemberCommand_AckEvents:
 		return p.setMembers.AckEvents(action.AckEvents.GetSetId(), action.AckEvents.GetThroughSequence())
 	case *pb.AvailabilityMemberCommand_AssignPrimary:
-		assignment := action.AssignPrimary
-		return p.setMembers.AssignPrimary(assignment.GetSetId(), memberha.Assignment{
-			PrimaryMemberID: assignment.GetPrimaryMemberId(), Generation: assignment.GetGeneration()})
+		return p.assignSetPrimary(action.AssignPrimary)
 	case *pb.AvailabilityMemberCommand_Switchover:
 		switchover := action.Switchover
 		return p.setMembers.Switchover(switchover.GetSetId(), switchover.GetSuccessorMemberId(), switchover.GetOperationId())
@@ -247,4 +260,21 @@ func (p *DockerPlugin) availabilityMemberReports() []*pb.AvailabilityMemberRepor
 		})
 	}
 	return out
+}
+
+// assignSetPrimary records a manual pair's primary assignment Gateway signed:
+// the policy keys it carries come over this authenticated stream and are
+// trusted directly (as in SyncAvailabilityLeaseCommand); the signature is
+// verified by the member runtime.
+func (p *DockerPlugin) assignSetPrimary(assignment *pb.AvailabilityPrimaryAssignment) error {
+	if p.lease != nil && p.lease.runtime != nil {
+		for _, key := range assignment.GetPolicyKeys() {
+			if err := p.lease.runtime.Node().TrustPolicyKey(key.GetKeyId(), key.GetPublicKey()); err != nil {
+				return fmt.Errorf("policy key %s: %w", key.GetKeyId(), err)
+			}
+		}
+	}
+	return p.setMembers.AssignPrimary(assignment.GetSetId(), memberha.Assignment{
+		PrimaryMemberID: assignment.GetPrimaryMemberId(), Generation: assignment.GetGeneration(),
+		SigningKeyID: assignment.GetSigningKeyId(), Signature: assignment.GetSignature()})
 }

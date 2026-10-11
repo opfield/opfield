@@ -803,6 +803,14 @@ func (m *managedDatabaseManager) reconcile(ctx context.Context) error {
 		if !record.DesiredRunning {
 			continue
 		}
+		if record.AvailabilityMemberID != "" {
+			// A set member is never started here: the member runtime starts it
+			// through standby at rest. Its storage is mounted for it.
+			if err := m.ensureStorageSize(ctx, &record, record.StorageSize); err != nil {
+				m.logger.Warn("availability member storage could not be restored at startup", "id", id, "error", err)
+			}
+			continue
+		}
 		if err := m.ensureStorageSize(ctx, &record, record.StorageSize); err != nil {
 			m.logger.Warn("managed database storage could not be restored at startup", "id", id, "error", err)
 			continue

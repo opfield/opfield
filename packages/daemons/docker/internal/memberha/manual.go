@@ -129,15 +129,27 @@ func (m *Manager) manualPrimaryStepLocked(mem *member, now time.Duration) {
 		})
 		return
 	}
+	if mem.state.Restart != nil {
+		// A restart Gateway asked for: a clean stop, standby at rest and a
+		// start; the assigned primary is promoted again right after.
+		m.closeServingLocked(mem)
+		m.restartCopyLocked(mem)
+		return
+	}
 	m.openServingLocked(mem)
+	m.manualHolderWorkLocked(mem, now)
 }
 
 // demoteLocked stops a writable member and restarts it as a copy (standby at
 // rest first); the copy path rejoins it to the primary when it diverged.
 func (m *Manager) demoteLocked(mem *member, kind, reason string) {
+	// A primary that steps down for a newer assignment stops cleanly: the
+	// engine hands its last writes to the copy that is connected (a planned
+	// switch loses nothing); an isolated primary is killed.
+	kill := kind != EventSteppedDown
 	m.launch(mem, opFence, opTimeout, func(ctx context.Context) func() {
 		m.closeServing(mem)
-		err := m.stopConfirmed(ctx, mem, true)
+		err := m.stopConfirmed(ctx, mem, kill)
 		if err == nil {
 			err = mem.engine.PrepareStandby(ctx)
 		}
@@ -179,6 +191,12 @@ func (m *Manager) contactLocked(mem *member, now time.Duration) {
 		ctx, cancel := context.WithTimeout(context.Background(), peerProbeTimeout)
 		state, ok := m.deps.PeerState(ctx, setID, peer.MemberID)
 		cancel()
+		// Only an assignment Gateway signed counts, whoever relays it.
+		var verified *Assignment
+		if ok && state.Assignment != nil && m.deps.VerifyAssignment(setID, *state.Assignment) == nil {
+			assignment := *state.Assignment
+			verified = &assignment
+		}
 		at := m.deps.Clock.Now()
 		m.mu.Lock()
 		m.results = append(m.results, func() {
@@ -186,7 +204,15 @@ func (m *Manager) contactLocked(mem *member, now time.Duration) {
 			mem.manual.nextProbeAt = at + peerProbeInterval
 			mem.manual.peerReachable = ok
 			if ok {
-				mem.manual.peerGeneration, mem.manual.peerPrimary, mem.manual.peerAt = state.Generation, state.Primary, at
+				mem.manual.peerGeneration, mem.manual.peerPrimary, mem.manual.peerAt = 0, "", at
+				if verified != nil {
+					mem.manual.peerGeneration, mem.manual.peerPrimary = verified.Generation, verified.PrimaryMemberID
+					if verified.Generation > mem.state.Assignment.Generation {
+						if err := m.adoptAssignmentLocked(mem, *verified, "peer"); err != nil {
+							m.setErrorLocked(mem, "could not adopt the peer's primary assignment: "+err.Error())
+						}
+					}
+				}
 			}
 		})
 		m.mu.Unlock()

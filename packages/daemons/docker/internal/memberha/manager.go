@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"sort"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -79,6 +80,9 @@ type member struct {
 	standby standbyRuntime
 	manual  manualRuntime
 	ready   bool
+	// switchover is a planned handoff the engine prepares first
+	// (SwitchoverPreparer, extensions.go).
+	switchover *stagedSwitchover
 	// gate mirrors what the lease callbacks need (they never take the manager's lock).
 	gateStopped  atomic.Bool
 	gateDataBusy atomic.Bool
@@ -147,6 +151,9 @@ func (m *Manager) addMemberLocked(config Config, state MemberState) (*member, er
 // registerHandlerLocked registers the member's lease state handler. The
 // callbacks run on the lease loop: they read the last sample, never the engine.
 func (m *Manager) registerHandlerLocked(mem *member) {
+	if mem.state.Detached != nil {
+		return
+	}
 	m.deps.Lease.SetStateHandler(mem.cfg.LeasePolicyID, &StateHandler{
 		Eligible: func(in EligibilityInput) (bool, string) {
 			ok, reason := m.eligible(mem, in)
@@ -239,6 +246,12 @@ func (m *Manager) Step() {
 		if m.held[id] > 0 {
 			// The daemon replaces the member's container or files: no
 			// decision until it hands the member back.
+			continue
+		}
+		m.drainEngineEventsLocked(mem)
+		if mem.state.Detached != nil {
+			// Detached before its first holder (H2): no lease role, no
+			// engine decision until the daemon forgets it.
 			continue
 		}
 		m.maybeObserveLocked(mem, now)
@@ -536,6 +549,11 @@ func (m *Manager) Configure(config Config) error {
 			m.deps.Lease.SetCandidateReady(mem.cfg.LeasePolicyID, false)
 			mem.ready = false
 		}
+		if reconfigurer, ok := mem.engine.(Reconfigurer); ok {
+			if err := reconfigurer.Reconfigure(config); err != nil {
+				return err
+			}
+		}
 		mem.cfg = config
 		mem.state.Stopped = false
 		if err := m.saveLocked(mem); err != nil {
@@ -561,6 +579,11 @@ func (m *Manager) Remove(setID string) error {
 	mem := m.members[setID]
 	if mem == nil {
 		return nil
+	}
+	if !mem.state.Stopped {
+		if err := m.removableLocked(mem); err != nil {
+			return err
+		}
 	}
 	mem.state.Stopped = true
 	return m.saveLocked(mem)
@@ -597,15 +620,25 @@ func (m *Manager) AckEvents(setID string, through uint64) error {
 	return m.saveLocked(mem)
 }
 
-// AssignPrimary records a manual pair's primary assignment; an assignment not
-// newer than the one recorded is ignored.
+// AssignPrimary records a manual pair's primary assignment Gateway signed; an
+// assignment not newer than the one recorded is ignored, an unverified one is
+// refused.
 func (m *Manager) AssignPrimary(setID string, assignment Assignment) error {
+	if err := m.deps.VerifyAssignment(setID, assignment); err != nil {
+		return fmt.Errorf("primary assignment refused: %w", err)
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	mem := m.members[setID]
 	if mem == nil {
 		return fmt.Errorf("set %s has no member on this node", setID)
 	}
+	return m.adoptAssignmentLocked(mem, assignment, "gateway")
+}
+
+// adoptAssignmentLocked records a verified assignment newer than the one
+// this member knows.
+func (m *Manager) adoptAssignmentLocked(mem *member, assignment Assignment, source string) error {
 	if mem.cfg.Mode != ModeManual {
 		return errors.New("only a manual pair has a primary assignment")
 	}
@@ -616,7 +649,14 @@ func (m *Manager) AssignPrimary(setID string, assignment Assignment) error {
 		return errors.New("the assigned primary is no member of the set")
 	}
 	mem.state.Assignment = assignment
-	return m.saveLocked(mem)
+	if err := m.saveLocked(mem); err != nil {
+		return err
+	}
+	if source != "gateway" {
+		m.eventLocked(mem, Event{Kind: EventAssignmentLearned, Reason: source,
+			Detail: map[string]string{"generation": strconv.FormatUint(assignment.Generation, 10), "primaryMemberId": assignment.PrimaryMemberID}})
+	}
+	return nil
 }
 
 // PeerState is what this node's member of setID tells its peer over the
@@ -628,6 +668,11 @@ func (m *Manager) PeerState(setID string) (PeerState, bool) {
 	if mem == nil {
 		return PeerState{}, false
 	}
-	return PeerState{MemberID: mem.cfg.MemberID, Generation: mem.state.Assignment.Generation,
-		Primary: mem.state.Assignment.PrimaryMemberID}, true
+	state := PeerState{MemberID: mem.cfg.MemberID, Generation: mem.state.Assignment.Generation,
+		Primary: mem.state.Assignment.PrimaryMemberID}
+	if len(mem.state.Assignment.Signature) > 0 {
+		assignment := mem.state.Assignment
+		state.Assignment = &assignment
+	}
+	return state, true
 }
