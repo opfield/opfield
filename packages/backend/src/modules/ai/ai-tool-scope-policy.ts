@@ -106,6 +106,7 @@ export const AI_TOOL_ANY_SCOPE_REQUIREMENTS: Readonly<Record<string, readonly st
   list_docker_builds: ['docker:containers:view', 'docker:compose:view', 'pages:view'],
   find_resource: [
     'ai:workspace:use',
+    'apps:view',
     'nodes:details',
     'proxy:view',
     'proxy:templates:view',

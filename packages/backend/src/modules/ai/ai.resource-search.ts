@@ -1,8 +1,10 @@
 import { container } from '@/container.js';
 import { getResourceScopedIds, hasScope, hasScopeBase, hasScopeForResource } from '@/lib/permissions.js';
 import { extractBaseScope } from '@/lib/scopes.js';
+import { hasAnyAppScope } from '@/modules/apps/app-access.js';
 import type { AppMemberType } from '@/modules/apps/app-families.js';
 import { AppMembershipService, memberKey } from '@/modules/apps/app-membership.js';
+import { AppsService } from '@/modules/apps/apps.service.js';
 import type { DockerManagementService } from '@/modules/docker/docker.service.js';
 import { dockerScopedNodeIds, hasDockerResourceScope } from '@/modules/docker/docker-access-resource.service.js';
 import type { DockerSnapshotKind, DockerSnapshotService } from '@/modules/docker/docker-snapshot.service.js';
@@ -141,6 +143,20 @@ export async function findResource(deps: ResourceSearchDeps, user: User, args: R
   const flattenCas = (cas: Record<string, any>[]): Record<string, any>[] =>
     cas.flatMap((ca) => [ca, ...(Array.isArray(ca.children) ? flattenCas(ca.children) : [])]);
 
+  if (typeWanted('app') && hasAnyAppScope(user.scopes) && container.isRegistered(AppsService)) {
+    searchTasks.push(async () => {
+      const batch: ResourceSearchBatch = { results: [], errors: [] };
+      try {
+        for (const app of await container.resolve(AppsService).list(user.scopes)) {
+          add(batch.results, 'app', { id: app.id, name: app.name, slug: app.slug, path: `/apps/${app.slug}` });
+          if (batch.results.length >= limit) break;
+        }
+      } catch (err) {
+        batch.errors.push({ type: 'app', error: err instanceof Error ? err.message : 'search failed' });
+      }
+      return batch;
+    });
+  }
   if (typeWanted('node') && hasScopeBase(user.scopes, 'nodes:details')) {
     searchTasks.push(() =>
       collect('node', 'list_nodes', { search: query, limit }, (node) => ({

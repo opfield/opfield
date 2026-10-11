@@ -1,4 +1,5 @@
 import { hasScopeBase } from '@/lib/permissions.js';
+import { APP_DOCS } from './ai.docs.apps.js';
 import { FOUNDATION_DOCS } from './ai.docs.foundation.js';
 import { GUIDE_DOCS } from './ai.docs.guides.js';
 import { INFRASTRUCTURE_DOCS } from './ai.docs.infrastructure.js';
@@ -9,6 +10,7 @@ import { PLATFORM_DOCS } from './ai.docs.platform.js';
 export const INTERNAL_DOCS: Record<string, string> = {
   ...FOUNDATION_DOCS,
   ...INGRESS_GROUP_DOCS,
+  ...APP_DOCS,
   ...INFRASTRUCTURE_DOCS,
   ...OPERATIONS_DOCS,
   ...PLATFORM_DOCS,
@@ -24,6 +26,7 @@ export const DOC_TOPIC_SCOPES: Record<string, string | string[]> = {
   pages: 'pages:view',
   domains: 'domains:view',
   'ingress-groups': ['ingress:groups:view', 'ingress:groups:manage', 'proxy:view', 'domains:view'],
+  apps: ['apps:view', 'apps:create', 'apps:edit', 'apps:delete', 'apps:env:manage', 'apps:promote', 'apps:operate'],
   'access-lists': 'acl:view',
   templates: 'pki:templates:view',
   acme: 'ssl:cert:view',

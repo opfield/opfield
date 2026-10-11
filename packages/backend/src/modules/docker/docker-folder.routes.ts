@@ -6,6 +6,7 @@ import { dockerAccessResources, dockerDeployments } from '@/db/schema/index.js';
 import { getFolderScopedIds } from '@/lib/folder-scopes.js';
 import { getResourceScopedIds, hasScope, hasScopeBase } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { withAppMembers } from '@/modules/apps/app-membership.js';
 import {
   assertFolderManage,
   assertFolderManageForFolder,
@@ -475,7 +476,12 @@ export function registerDockerFolderRoutes(router: OpenAPIHono<AppEnv>) {
     if (input.resourceType !== 'container' && input.resourceType !== 'network')
       assertResourceScopes(scopes, viewScope, input.items);
     const service = container.resolve(DockerFolderService);
-    const data = await service.getResourcePlacementsForRefs(input.resourceType, input.items);
+    const placements = await service.getResourcePlacementsForRefs(input.resourceType, input.items);
+    // Container and Compose placements carry `app` (a member sits in a hidden app folder, never in the folder tree).
+    const data =
+      input.resourceType === 'container' || input.resourceType === 'compose'
+        ? await withAppMembers(input.resourceType === 'compose' ? 'compose' : 'containers', placements)
+        : placements;
     return c.json({ data });
   });
 }

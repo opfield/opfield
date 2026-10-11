@@ -1,0 +1,29 @@
+export const APP_DOCS: Record<string, string> = {
+  apps: `# Apps
+
+An app groups resources of several types into environments (production, staging, ...): containers, deployments, Compose projects, routes, databases, storage and Pages. Use list_apps, get_app, manage_app, manage_app_environment, manage_app_members, manage_app_variables, get_app_overview and get_app_activity (REST: /api/apps).
+
+## Model
+- A new app has one environment, production, marked as Production. Exactly one environment holds the marker (manage_app_environment mark_production moves it); the Production environment cannot be deleted.
+- Members sit in hidden folders of their own type: each environment has one folder per type, listed in get_app as placementFolderIds. Normal folder tools never show these folders, and Move to folder refuses a member (RESOURCE_IN_APP): use manage_app_members place instead.
+- Normal list tools return members with an \`app\` field ({id, slug, name, environmentId, environmentName, environmentSlug}); pass excludeAppMembers true to leave them out or appId to list one app's members.
+
+## Creating inside an environment
+- Pass folderId = placementFolderIds[type] of the environment to the normal create tool (create_docker_container, manage_docker_deployment, manage_docker_compose, create_route, manage_managed_database, manage_database_connection, manage_managed_storage, manage_storage_connection, manage_pages).
+- Each environment allows a set of nodes (allowedNodeIds in get_app; manage_app_environment allow_node, remove_node, list_nodes). A create or import on another node is refused with APP_NODE_NOT_ALLOWED, or APP_ENV_NO_ALLOWED_NODE when no node of the needed type is allowed (Docker for containers, deployments and Compose; Nginx for routes and Pages; database or storage nodes for managed databases and storage). Removing a node keeps what runs there.
+
+## Membership
+- manage_app_members place moves members into an environment (target {appId, environmentId}) or out of their app (target null). It needs apps:env:manage on the target environment and on the environment a member leaves, plus edit permission on each member. Each member is placed or refused on its own (system routes, the route of the Gateway public URL, non-allowed nodes, deployment slot and Compose service containers are refused).
+- Deleting an environment or an app leaves its members running at the top level of their lists.
+
+## Environment variables and secrets
+- manage_app_variables: variables (values readable by managers) and secrets (write-only) every container, deployment and Compose project of the environment receives on its next create, recreate, deploy or apply. Nothing restarts on save; get lists pendingWorkloads still running older values. Precedence, lowest first: image ENV, environment variables, environment secrets, the workload's own env, the workload's own secrets.
+
+## Maintenance
+- manage_app_environment set_maintenance puts every proxy route of the environment in maintenance; manage_app update maintenanceOverride does it for every environment. Each route keeps its own maintenance switch: turning the overlay off restores exactly what each route had. Routes show appMaintenanceMode.
+- manage_app_environment create_access_code issues one Maintenance Access Code for every route of the environment (or app) in maintenance: one user, 5 minutes, once per route.
+
+## Permissions
+- apps:view, apps:create, apps:edit, apps:delete, apps:env:manage, apps:promote, apps:operate. Qualifiers: <appId> (whole app) and env/<envId> (view, env:manage, promote, operate). Renaming, environment changes and deleting need the permission on the whole app. Members still need their own permissions; grants on an environment folder (<scope>:folder/<placementFolderId>) cover its members, grants on an app root folder (rootFolderIds) cover every environment.
+`,
+};
