@@ -31,6 +31,7 @@ import { withAuthApi } from "./api-auth";
 import { withAvailabilitySetsApi } from "./api-availability-sets";
 import { withBackupApi } from "./api-backups";
 import { API_BASE, ApiClientBase } from "./api-base";
+import { withConfigurationTransferApi } from "./api-configuration-transfer";
 import { withContainerLinksApi } from "./api-container-links";
 import { withDatabaseApi } from "./api-databases";
 import { withDockerApi } from "./api-docker";
@@ -66,7 +67,11 @@ class ApiClient extends withAppsApi(
                               withDatabaseApi(
                                 withPkiApi(
                                   withProxyApi(
-                                    withHostingApi(withAvailabilitySetsApi(ApiClientBase))
+                                    withHostingApi(
+                                      withAvailabilitySetsApi(
+                                        withConfigurationTransferApi(ApiClientBase)
+                                      )
+                                    )
                                   )
                                 )
                               )

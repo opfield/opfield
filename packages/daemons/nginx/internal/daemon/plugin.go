@@ -593,7 +593,9 @@ func (p *NginxPlugin) OnSessionStart(ctx context.Context, _ *stream.Writer) erro
 		return nil
 	}
 	tlsManager := sharedauth.NewTLSManager(p.baseCfg.TLS.CACert, p.baseCfg.TLS.ClientCert, p.baseCfg.TLS.ClientKey)
-	conn, err := connector.NewConnector(p.baseCfg.Gateway.Address, tlsManager, p.logger).Connect(sessionCtx)
+	// The address the control session uses now: it follows a move of Opfield
+	// to another address (lifecycle.ControlAddress).
+	conn, err := connector.NewConnector(lifecycle.ControlAddress(p.baseCfg.Gateway.Address), tlsManager, p.logger).Connect(sessionCtx)
 	if err != nil {
 		cancel()
 		return err

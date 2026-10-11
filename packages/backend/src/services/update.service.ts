@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, max, sql } from 'drizzle-orm';
+import { DOCKER_COMPOSE_CLI_IMAGE_REF } from '@/config/docker-compose-cli-image.js';
 import type { Env } from '@/config/env.js';
 import type { DrizzleClient, DrizzleTransaction } from '@/db/client.js';
 import { nodes, relayInstances, relayPoolUpdateRuns, relayPoolUpdateSteps } from '@/db/schema/index.js';
@@ -54,8 +55,8 @@ import {
 } from './relay-stream-resume.js';
 
 const logger = createChildLogger('UpdateService');
-export const DOCKER_COMPOSE_CLI_IMAGE_REF =
-  'docker.io/library/docker:27-cli@sha256:851f91d241214e7c6db86513b270d58776379aacc5eb9c4a87e5b47115e3065c';
+
+export { DOCKER_COMPOSE_CLI_IMAGE_REF };
 
 export interface UpdateStatus {
   currentVersion: string;

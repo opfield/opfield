@@ -1,7 +1,7 @@
 import { createReadStream, createWriteStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import http from 'node:http';
-import { Transform } from 'node:stream';
+import { type Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createChildLogger } from '@/lib/logger.js';
 
@@ -1006,6 +1006,101 @@ export class DockerService {
   }
 
   /**
+   * A path of a (possibly stopped) container as a tar stream, read as the caller consumes it. The
+   * request has no overall deadline: a configuration export reads whole volumes through it.
+   */
+  openContainerArchive(id: string, containerPath: string): Promise<Readable> {
+    const params = new URLSearchParams({ path: containerPath });
+    return new Promise((resolve, reject) => {
+      const req = http.request(
+        {
+          socketPath: this.socketPath,
+          method: 'GET',
+          path: `${API_VERSION}/containers/${encodeURIComponent(id)}/archive?${params}`,
+          timeout: DOCKER_REQUEST_DEFAULT_TIMEOUT_MS,
+        },
+        (res) => {
+          if (res.statusCode !== 200) {
+            const chunks: Buffer[] = [];
+            res.on('data', (chunk: Buffer) => chunks.push(chunk));
+            res.on('end', () =>
+              reject(
+                new Error(
+                  `Docker get archive of ${containerPath} failed (${res.statusCode ?? 0}): ${Buffer.concat(chunks).toString('utf8').slice(0, 2000)}`
+                )
+              )
+            );
+            res.on('error', reject);
+            return;
+          }
+          resolve(res);
+        }
+      );
+      req.on('timeout', () => req.destroy(new Error('Docker archive request stalled')));
+      req.on('error', reject);
+      req.end();
+    });
+  }
+
+  /** Extracts a tar stream into a path of a (possibly stopped) container. */
+  async putContainerArchiveStream(id: string, containerPath: string, body: Readable): Promise<void> {
+    const params = new URLSearchParams({ path: containerPath });
+    await new Promise<void>((resolve, reject) => {
+      const req = http.request(
+        {
+          socketPath: this.socketPath,
+          method: 'PUT',
+          path: `${API_VERSION}/containers/${encodeURIComponent(id)}/archive?${params}`,
+          timeout: DOCKER_REQUEST_DEFAULT_TIMEOUT_MS,
+          headers: { 'Content-Type': 'application/x-tar', 'Transfer-Encoding': 'chunked' },
+        },
+        (res) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => {
+            if (chunks.length < 64) chunks.push(chunk);
+          });
+          res.on('end', () => {
+            if (res.statusCode === 200) resolve();
+            else
+              reject(
+                new Error(
+                  `Docker put archive into ${containerPath} failed (${res.statusCode ?? 0}): ${Buffer.concat(chunks).toString('utf8').slice(0, 2000)}`
+                )
+              );
+          });
+          res.on('error', reject);
+        }
+      );
+      req.on('timeout', () => req.destroy(new Error('Docker archive request stalled')));
+      req.on('error', reject);
+      pipeline(body, req).catch((error) => {
+        req.destroy(error as Error);
+        reject(error);
+      });
+    });
+  }
+
+  async pauseContainer(id: string): Promise<void> {
+    const res = await this.request('POST', `${API_VERSION}/containers/${encodeURIComponent(id)}/pause`);
+    if (res.statusCode !== 204) throw new Error(`Docker container pause failed (${res.statusCode}): ${res.body}`);
+  }
+
+  async unpauseContainer(id: string): Promise<void> {
+    const res = await this.request('POST', `${API_VERSION}/containers/${encodeURIComponent(id)}/unpause`);
+    if (res.statusCode !== 204 && !(res.statusCode === 409 && /not paused/i.test(res.body))) {
+      throw new Error(`Docker container unpause failed (${res.statusCode}): ${res.body}`);
+    }
+  }
+
+  /** Full inspect of any container: image, labels, mounts and state. */
+  async inspectContainerDetails(id: string): Promise<DockerContainerDetails | null> {
+    const res = await this.request('GET', `${API_VERSION}/containers/${encodeURIComponent(id)}/json`);
+    if (res.statusCode === 404) return null;
+    if (res.statusCode !== 200) throw new Error(`Docker inspect failed (${res.statusCode}): ${res.body}`);
+    return JSON.parse(res.body) as DockerContainerDetails;
+  }
+
+  /**
    * Create, start, wait for completion, and clean up a one-shot container.
    */
   async runOneShot(config: DockerCreateContainerConfig): Promise<{ exitCode: number; output: string }> {
@@ -1098,6 +1193,17 @@ export interface DockerContainerFullInspect extends DockerContainerInspect {
   NetworkSettings?: {
     Networks?: Record<string, { Aliases?: string[]; IPAddress?: string }>;
   };
+}
+
+export interface DockerContainerDetails {
+  Id: string;
+  Name: string;
+  /** Image ID (sha256:...). */
+  Image: string;
+  Config: { Image: string; Labels?: Record<string, string>; Env?: string[] };
+  State: { Status: string; Running: boolean; Paused?: boolean };
+  Mounts?: Array<{ Type: string; Name?: string; Source?: string; Destination: string; RW?: boolean }>;
+  HostConfig?: { NetworkMode?: string };
 }
 
 export interface DockerVolumeInspect {

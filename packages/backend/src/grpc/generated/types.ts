@@ -416,6 +416,8 @@ export interface GatewayCommand {
   availabilityMember?: AvailabilityMemberCommand;
   syncAvailabilityLease?: SyncAvailabilityLeaseCommand;
   availabilityLeaseHandoff?: AvailabilityLeaseHandoffCommand;
+  /** Daemons with gateway_next_address_v1: the address Opfield moves to. */
+  setGatewayNextAddress?: SetGatewayNextAddressCommand;
   syncDockerRegistryBindings?: SyncDockerRegistryBindingsCommand;
   dockerBuild?: DockerBuildCommand;
   dockerBuildCancel?: DockerBuildCancelCommand;
@@ -510,6 +512,11 @@ export interface UpdateRelayWorkerCommand {
   targetVersion: string;
   checksum: string;
   signedManifest: string;
+}
+
+/** The address Opfield moves to (host:port); empty clears it. */
+export interface SetGatewayNextAddressCommand {
+  address: string;
 }
 
 export interface RenewRelayIdentityCommand {

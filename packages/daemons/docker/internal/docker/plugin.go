@@ -80,6 +80,7 @@ type DockerPlugin struct {
 	databaseListeners        *managedDatabaseHostListenerManager
 	registryProxy            *dockerRegistryProxyManager
 	builderManager           *builderruntime.Manager
+	builderRuntime           *builderruntime.RuntimeSupervisor
 	secureLinks              *dockerSecureLinkManager
 	secureLinkState          *securelink.StateStore
 	runtimeManager           *runtimemanager.Manager
@@ -262,6 +263,8 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 		if err := runtimeSupervisor.Start(); err != nil {
 			return fmt.Errorf("start isolated builder runtime: %w", err)
 		}
+		p.builderRuntime = runtimeSupervisor
+		lifecycle.OnControlAddressChanged(p.reapplyBuilderEgressFence)
 		p.registryCreds = make(map[string]string)
 		p.builderManager = builderruntime.NewManager(
 			runtimeConfig,

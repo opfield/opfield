@@ -214,3 +214,33 @@ func containsLine(lines []string, line string) bool {
 	}
 	return false
 }
+
+func TestReapplyEgressPolicyFencesTheNewControlAddressWithoutRestartingTheRuntime(t *testing.T) {
+	config := DefaultRuntimeConfig(0)
+	config.ControlPlaneAddress = "old.example:9443"
+	var commands []string
+	supervisor := &RuntimeSupervisor{
+		Config:           config,
+		egressScriptPath: filepath.Join(t.TempDir(), "apply-egress-policy"),
+		run: func(name string, args ...string) error {
+			commands = append(commands, name+" "+strings.Join(args, " "))
+			return nil
+		},
+	}
+	if err := supervisor.ReapplyEgressPolicy("new.example:7443"); err != nil {
+		t.Fatal(err)
+	}
+	script, err := os.ReadFile(supervisor.egressScriptPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(script), `CONTROL_HOST="new.example"`) || !strings.Contains(string(script), `CONTROL_PORT="7443"`) {
+		t.Fatalf("policy does not fence the new address:\n%s", script)
+	}
+	if want := []string{"systemctl restart " + egressServiceName}; !reflect.DeepEqual(commands, want) {
+		t.Fatalf("commands = %v, want %v (containerd and BuildKit keep running)", commands, want)
+	}
+	if supervisor.Config.ControlPlaneAddress != "new.example:7443" {
+		t.Fatalf("config keeps %q", supervisor.Config.ControlPlaneAddress)
+	}
+}

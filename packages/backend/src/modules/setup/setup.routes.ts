@@ -11,6 +11,7 @@ import { AuthSettingsService } from '@/modules/auth/auth.settings.service.js';
 import { AuthMailService } from '@/modules/auth/auth-mail.service.js';
 import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
 import { getAcceptedSessionCookieNames, getSessionCookieName } from '@/modules/auth/session-cookie.js';
+import { SetupRestoreService } from '@/modules/configuration-transfer/setup-restore.service.js';
 import { toLicenseAppError } from '@/modules/license/license.errors.js';
 import { LicenseService } from '@/modules/license/license.service.js';
 import { LoggingRuntimeService } from '@/modules/logging/logging-runtime.service.js';
@@ -359,4 +360,67 @@ setupRoutes.post('/wizard/complete', async (c) => {
   const transport = await container.resolve(WebTransportSettingsService).getConfig();
   if (transport.tlsEnabled) container.resolve(RuntimeRestartService).request('first-run web identity updated', 1_000);
   return c.json({ data: { status: 'completed', restartRequired: transport.tlsEnabled } });
+});
+
+// ── Restore from an export ──────────────────────────────────────────
+// The first-run wizard can restore a configuration export instead of setting up a new installation.
+// The file arrives in chunks, is checked with its passphrase, and is restored by a one-off container.
+
+const SetupRestorePassphraseSchema = z.object({ passphrase: z.string().min(1).max(1024) });
+const SetupRestoreStartSchema = z.object({
+  passphrase: z.string().min(1).max(1024),
+  publicUrl: z.string().trim().min(1).max(2048),
+  grpcPublicTarget: z
+    .string()
+    .trim()
+    .min(1)
+    .max(255)
+    .refine(isValidGatewayHostPortTarget, 'Must be a hostname or IP address, optionally with a port'),
+  grpcLocalIp: z
+    .string()
+    .trim()
+    .max(255)
+    .refine((value) => value === '' || isValidGatewayIpPortTarget(value), {
+      message: 'Must be an IPv4 or IPv6 address, optionally with a port',
+    }),
+});
+
+async function requireFreshForRestore(): Promise<void> {
+  if (await container.resolve(SetupTokenPolicyService).isGatewayConfigured()) {
+    throw new AppError(
+      409,
+      'SETUP_RESTORE_CONFIGURED',
+      'An administrator was already created in this installation. Restore into a fresh installation.'
+    );
+  }
+}
+
+setupRoutes.get('/wizard/restore', async (c) => c.json({ data: await container.resolve(SetupRestoreService).view() }));
+
+setupRoutes.put('/wizard/restore/archive', async (c) => {
+  await requireFreshForRestore();
+  const offset = Number(c.req.query('offset') ?? '0');
+  const uploadedBytes = await container.resolve(SetupRestoreService).receiveChunk(offset, c.req.raw.body);
+  return c.json({ data: { uploadedBytes } });
+});
+
+setupRoutes.delete('/wizard/restore', async (c) => {
+  await container.resolve(SetupRestoreService).discard();
+  return c.json({ data: await container.resolve(SetupRestoreService).view() });
+});
+
+setupRoutes.post('/wizard/restore/verify', async (c) => {
+  await requireFreshForRestore();
+  const { passphrase } = SetupRestorePassphraseSchema.parse(await c.req.json());
+  return c.json({ data: await container.resolve(SetupRestoreService).startVerify(passphrase) });
+});
+
+setupRoutes.post('/wizard/restore/start', async (c) => {
+  await requireFreshForRestore();
+  const input = SetupRestoreStartSchema.parse(await c.req.json());
+  const access = container.resolve(SetupAccessService);
+  const data = await access.withApplyLock(getCookie(c, SETUP_SESSION_COOKIE), () =>
+    container.resolve(SetupRestoreService).startRestore(input)
+  );
+  return c.json({ data });
 });

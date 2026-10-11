@@ -49,7 +49,7 @@ curl -fsSL https://get.opfield.dev | bash -s -- --https
 curl -fsSL https://get.opfield.dev | bash -s -- --http
 ```
 
-Supported options are `--install-dir`, `--image`, `--source-dir`, `--http`, `--https`, and `--dry-run`. `--source-dir` builds a fresh test installation from a local Opfield checkout instead of discovering and pulling a release; it cannot update an existing installation. A source build needs 8 GB RAM, or swap on a 4 GB host. `--dry-run` verifies the selected signed release and renders the planned flow without creating files, building or pulling images, or starting services. Run with `--help` for syntax. The installer has no domain, nginx, Cloudflare, OIDC, SMTP, or ClickHouse prompts.
+Supported options are `--install-dir`, `--image`, `--source-dir`, `--http`, `--https`, `--dry-run`, and `--restore` (with `--public-url` and `--grpc-target`). `--source-dir` builds a fresh test installation from a local Opfield checkout instead of discovering and pulling a release; it cannot update an existing installation. A source build needs 8 GB RAM, or swap on a 4 GB host. `--dry-run` verifies the selected signed release and renders the planned flow without creating files, building or pulling images, or starting services. Run with `--help` for syntax. The installer has no domain, nginx, Cloudflare, OIDC, SMTP, or ClickHouse prompts.
 
 ## Browser Setup Wizard
 
@@ -121,9 +121,13 @@ On the first compatible update, legacy `OIDC_*`, `CLICKHOUSE_*`, and `APP_URL` v
 
 The migration removes the old Compose ClickHouse service definition but does not delete its container or volume. When migrated settings select local mode, Opfield adopts the legacy container. Manual Compose deployments may retain legacy env keys until the operator runs an installer-managed or in-app update.
 
+## Restoring An Export
+
+`install.sh --restore <file>` installs the Opfield version that made a [configuration export](configuration-transfer.md) into a fresh directory and restores it. It asks for the passphrase (or reads `OPFIELD_RESTORE_PASSPHRASE`) and for this host's public URL and gRPC address. The setup wizard of a fresh installation can restore an export too.
+
 ## Backups
 
-Back up together:
+A [configuration export](configuration-transfer.md) is the supported way to move an installation. For your own backups, back up together:
 
 - PostgreSQL;
 - Redis if active browser/setup sessions matter;

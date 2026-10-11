@@ -28,6 +28,10 @@ SOURCE_DIR="${GATEWAY_SOURCE_DIR:-}"
 LOG_FILE="${GATEWAY_INSTALL_LOG_FILE:-/tmp/gateway-install.log}"
 DRY_RUN=0
 RELAY_BOOTSTRAP=0
+RESTORE_FILE=""
+RESTORE_PUBLIC_URL=""
+RESTORE_GRPC_TARGET=""
+RESTORE_VERSION=""
 UPDATE_SIGNING_PUBLIC_KEY='-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAxLXGD8vCYQCYboK301miZXyAaoOLc43zFVnMlH3FeWg=
 -----END PUBLIC KEY-----'
@@ -644,6 +648,12 @@ prepare_install_metadata() {
       die "--source-dir must point to an Opfield source checkout"
     SOURCE_DIR="$(cd "$SOURCE_DIR" && pwd)"
     VERSION="local-$(date -u +%Y%m%d%H%M%S)"
+    if [[ -n "$RESTORE_FILE" ]]; then
+      # A source build restores only an export of a source build: it takes that build's version.
+      [[ "$RESTORE_VERSION" == local-* ]] ||
+        die "This export was made by Opfield ${RESTORE_VERSION}; restore it without --source-dir"
+      VERSION="$RESTORE_VERSION"
+    fi
     IMAGE_REF="${IMAGE}:${VERSION}"
     ARTIFACT_DIGEST="$(local_source_checksum)"
     [[ "$ARTIFACT_DIGEST" =~ ^[a-f0-9]{64}$ ]] || die "Could not calculate the local source checksum"
@@ -656,31 +666,40 @@ prepare_install_metadata() {
   fi
 
   local release_json relay_json relay_tag relay_version current_gateway_version current_relay_version
-  info "Resolving the latest Opfield release"
-  # The installer and the updater record the running version; older installs only carry it in a
-  # tagged image reference. A release candidate stays installed until its stable release exists.
-  current_gateway_version="$(env_value GATEWAY_VERSION)"
-  if [[ -z "$current_gateway_version" ]]; then
-    current_gateway_version="$(env_value GATEWAY_IMAGE_REF)"
-    current_gateway_version="${current_gateway_version##*:}"
-  fi
-  [[ "$current_gateway_version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] || current_gateway_version=""
-  release_json="$(fetch_release gateway "$current_gateway_version")" || die "Unable to query Opfield releases"
-  if [[ -z "$release_json" && -n "$current_gateway_version" ]]; then
-    VERSION="$current_gateway_version"
+  if [[ -n "$RESTORE_FILE" ]]; then
+    # An export restores into the exact Opfield version that made it.
+    [[ "$RESTORE_VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] ||
+      die "This export was made by a development build (${RESTORE_VERSION}); restore it with --source-dir and the same source"
+    VERSION="$RESTORE_VERSION"
+    info "Version: ${VERSION} (the version that made the export)"
+    verify_signed_release "$VERSION"
   else
-    VERSION="$(
-      printf '%s' "$release_json" |
-        grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"[^"]+"' |
-        sed -E 's/^.*"([^"]+)"$/\1/' |
-        grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' |
-        sort -V |
-        tail -n1 || true
-    )"
+    info "Resolving the latest Opfield release"
+    # The installer and the updater record the running version; older installs only carry it in a
+    # tagged image reference. A release candidate stays installed until its stable release exists.
+    current_gateway_version="$(env_value GATEWAY_VERSION)"
+    if [[ -z "$current_gateway_version" ]]; then
+      current_gateway_version="$(env_value GATEWAY_IMAGE_REF)"
+      current_gateway_version="${current_gateway_version##*:}"
+    fi
+    [[ "$current_gateway_version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] || current_gateway_version=""
+    release_json="$(fetch_release gateway "$current_gateway_version")" || die "Unable to query Opfield releases"
+    if [[ -z "$release_json" && -n "$current_gateway_version" ]]; then
+      VERSION="$current_gateway_version"
+    else
+      VERSION="$(
+        printf '%s' "$release_json" |
+          grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"[^"]+"' |
+          sed -E 's/^.*"([^"]+)"$/\1/' |
+          grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' |
+          sort -V |
+          tail -n1 || true
+      )"
+    fi
+    [[ -n "$VERSION" ]] || die "The release API did not return an eligible Opfield release"
+    info "Version: ${VERSION}"
+    verify_signed_release "$VERSION"
   fi
-  [[ -n "$VERSION" ]] || die "The release API did not return an eligible Opfield release"
-  info "Version: ${VERSION}"
-  verify_signed_release "$VERSION"
   current_relay_version="$(env_value GATEWAY_RELAY_BUILD_VERSION)"
   if [[ "$FRESH" == 1 || -z "$(env_value GATEWAY_RELAY_IMAGE_REF)" || -z "$current_relay_version" ]]; then
     relay_json="$(fetch_release relay "$current_relay_version")" || die "Unable to query Relay releases"
@@ -715,13 +734,117 @@ print_install_details() {
   guide_blank
 }
 
+read_export_version() {
+  local header_file magic
+  magic="$(head -c 17 "$RESTORE_FILE" 2>/dev/null | LC_ALL=C tr -d '\n')" || magic=""
+  [[ "$magic" == "OPFIELD-EXPORT/1" ]] || die "${RESTORE_FILE} is not an Opfield configuration export"
+  header_file="$(mktemp)"
+  head -c 65536 "$RESTORE_FILE" | LC_ALL=C sed -n '2p' >"$header_file"
+  RESTORE_VERSION="$(json_string_field "$header_file" gatewayVersion)"
+  rm -f "$header_file"
+  [[ "$RESTORE_VERSION" =~ ^[A-Za-z0-9._+-]+$ ]] || die "The header of ${RESTORE_FILE} is invalid"
+}
+
+read_restore_passphrase() {
+  if [[ -n "${OPFIELD_RESTORE_PASSPHRASE:-}" ]]; then
+    RESTORE_PASSPHRASE="$OPFIELD_RESTORE_PASSPHRASE"
+    return
+  fi
+  [[ -r /dev/tty && -w /dev/tty ]] || die "Set OPFIELD_RESTORE_PASSPHRASE to restore without a terminal"
+  printf '%b' "${BRAND_MINT}│${NC} Export passphrase: " >/dev/tty
+  IFS= read -rs RESTORE_PASSPHRASE </dev/tty || RESTORE_PASSPHRASE=""
+  printf '\n' >/dev/tty
+  [[ -n "$RESTORE_PASSPHRASE" ]] || die "No passphrase entered"
+}
+
+prompt_restore_address() {
+  local addresses
+  [[ -z "$RESTORE_PUBLIC_URL" && -z "$RESTORE_GRPC_TARGET" ]] || return 0
+  [[ -r /dev/tty && -w /dev/tty ]] || return 0
+  addresses="$(detect_local_host_addresses)"
+  guide "${GRAY}This host's address. Press Enter to keep the address the export was made with.${NC}"
+  [[ -z "$addresses" ]] || guide "${GRAY}Addresses of this host: ${addresses}${NC}"
+  printf '%b' "${BRAND_MINT}│${NC} Public URL (https://opfield.example.com): " >/dev/tty
+  IFS= read -r RESTORE_PUBLIC_URL </dev/tty || RESTORE_PUBLIC_URL=""
+  printf '%b' "${BRAND_MINT}│${NC} gRPC address nodes connect to (host:9443): " >/dev/tty
+  IFS= read -r RESTORE_GRPC_TARGET </dev/tty || RESTORE_GRPC_TARGET=""
+}
+
+restore_result_field() {
+  printf '%s' "$1" | tail -n1 | sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p"
+}
+
+run_restore() {
+  local project postgres_id pass_file attempt result status message
+  local -a args=()
+  info "Starting the database for the restore"
+  run_quiet "Database startup" "${DOCKER[@]}" compose up -d postgres redis
+  for _ in $(seq 1 60); do
+    "${DOCKER[@]}" compose exec -T postgres pg_isready -U gateway -d gateway </dev/null >/dev/null 2>&1 && break
+    sleep 2
+  done
+  postgres_id="$("${DOCKER[@]}" compose ps -q postgres)"
+  [[ -n "$postgres_id" ]] || die "The database did not start. Check ${LOG_FILE} for details."
+  project="$("${DOCKER[@]}" inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$postgres_id")"
+  [[ -n "$project" ]] || die "Cannot determine the Compose project name"
+  prompt_restore_address
+  [[ -z "$RESTORE_PUBLIC_URL" ]] || args+=(--public-url "$RESTORE_PUBLIC_URL")
+  [[ -z "$RESTORE_GRPC_TARGET" ]] || args+=(--grpc-target "$RESTORE_GRPC_TARGET")
+  # A restore that stopped halfway left this fresh directory configured; it may be replaced.
+  [[ "$RESUME" != 1 ]] || args+=(--replace-existing)
+  for attempt in 1 2 3; do
+    read_restore_passphrase
+    pass_file="$(mktemp)"
+    chmod 600 "$pass_file"
+    printf '%s' "$RESTORE_PASSPHRASE" >"$pass_file"
+    RESTORE_PASSPHRASE=""
+    info "Checking and restoring the export (the whole file is checked before anything changes)"
+    set +e
+    result="$("${DOCKER[@]}" run --rm --network none \
+      -v /var/run/docker.sock:/var/run/docker.sock \
+      -v "$INSTALL_DIR:/host" \
+      -v "$RESTORE_FILE:/restore/export.opfield-export:ro" \
+      -v "$pass_file:/restore/passphrase:ro" \
+      "$IMAGE_REF" node dist/cli/configuration-restore.js restore /restore/export.opfield-export \
+      --passphrase-file /restore/passphrase --host-dir /host --host-path "$INSTALL_DIR" --project "$project" \
+      ${args[@]+"${args[@]}"} </dev/null 2>>"$LOG_FILE")"
+    status=$?
+    set -e
+    rm -f "$pass_file"
+    printf '%s\n' "$result" >>"$LOG_FILE"
+    message="$(restore_result_field "$result" message)"
+    case "$status" in
+      0) break ;;
+      2)
+        if [[ -z "${OPFIELD_RESTORE_PASSPHRASE:-}" && "$attempt" -lt 3 ]]; then
+          warn "The passphrase does not open this export. Try again."
+          continue
+        fi
+        die "The passphrase does not open this export"
+        ;;
+      3) die "${message:-The export file is damaged or incomplete}" ;;
+      4) die "${message:-The export was made by another Opfield version}" ;;
+      *) die "Restore failed: ${message:-unknown error}. Check ${LOG_FILE} for details." ;;
+    esac
+  done
+  RESTORED_PUBLIC_URL="${RESTORE_PUBLIC_URL:-$(restore_result_field "$result" sourcePublicUrl)}"
+  ok "Export restored"
+}
+
 usage() {
   cat <<'EOF'
 Usage: install.sh [--install-dir PATH] [--image IMAGE] [--source-dir PATH] [--http|--https] [--dry-run]
+       install.sh --restore FILE [--public-url URL] [--grpc-target HOST:PORT] [--install-dir PATH]
 
 Installs or updates Opfield. On a fresh interactive install, the only prompt
 selects native HTTPS or HTTP for port 3000. Non-interactive installs default
 to native HTTPS. All product configuration continues in the browser wizard.
+
+--restore installs the Opfield version that made a configuration export into a
+fresh directory and restores the export into it. It asks for the export's
+passphrase (or reads OPFIELD_RESTORE_PASSPHRASE) and for this host's address;
+--public-url and --grpc-target set the address without asking. Without them
+the exported address is kept.
 
 --source-dir builds the Opfield image from a local source checkout on this
 host. It is intended for a fresh test installation and skips remote release
@@ -740,12 +863,22 @@ while (($#)); do
     --http) TRANSPORT="http"; shift ;;
     --https) TRANSPORT="https"; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
+    --restore) RESTORE_FILE="${2:?missing export file}"; shift 2 ;;
+    --public-url) RESTORE_PUBLIC_URL="${2:?missing URL}"; shift 2 ;;
+    --grpc-target) RESTORE_GRPC_TARGET="${2:?missing host:port}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) die "Unknown option: $1" ;;
   esac
 done
 
 show_header
+
+RESTORED_PUBLIC_URL=""
+if [[ -n "$RESTORE_FILE" ]]; then
+  [[ -f "$RESTORE_FILE" && -r "$RESTORE_FILE" ]] || die "Cannot read the export file ${RESTORE_FILE}"
+  RESTORE_FILE="$(cd "$(dirname "$RESTORE_FILE")" && pwd)/$(basename "$RESTORE_FILE")"
+  read_export_version
+fi
 
 if [[ "$DRY_RUN" -eq 0 ]]; then
   umask 077
@@ -768,6 +901,8 @@ FRESH=1
 # already be bound to the database volume.
 RESUME=0
 [[ "$FRESH" == 1 && -f "$INSTALL_DIR/.env" ]] && RESUME=1
+[[ -z "$RESTORE_FILE" || "$FRESH" == 1 ]] ||
+  die "--restore needs a fresh installation directory; ${INSTALL_DIR} already holds an Opfield installation"
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   command -v curl >/dev/null || die "curl is required to inspect the release in dry-run mode"
@@ -791,7 +926,8 @@ if [[ "$RESUME" == 1 && -z "$TRANSPORT" ]]; then
 fi
 if [[ "$FRESH" == 1 && -z "$TRANSPORT" ]]; then
   TRANSPORT="https"
-  if [[ -r /dev/tty && -w /dev/tty ]]; then
+  # A restore brings the web transport setting along with the database.
+  if [[ -z "$RESTORE_FILE" && -r /dev/tty && -w /dev/tty ]]; then
     guide "${GRAY}Opfield can serve port 3000 with its own System CA certificate.${NC}"
     selector_title "Web transport:"
     transport_choice=$(prompt_menu "1" "Internal HTTPS  — use Opfield System CA on :3000" "HTTP            — configure TLS in a reverse proxy later")
@@ -804,7 +940,7 @@ if [[ "$FRESH" == 1 && -z "$TRANSPORT" ]]; then
   fi
 fi
 [[ "$TRANSPORT" == "http" || "$TRANSPORT" == "https" || "$FRESH" == 0 ]] || die "GATEWAY_WEB_TRANSPORT must be http or https"
-if [[ "$FRESH" == 1 ]]; then
+if [[ "$FRESH" == 1 && -z "$RESTORE_FILE" ]]; then
   if [[ "$TRANSPORT" == "https" ]]; then
     guide_blank
     warn "Your browser will show a certificate warning on first visit."
@@ -926,7 +1062,7 @@ if [[ -n "${SECURE_LINK_CONNECTOR_IMAGE_REF:-}" ]]; then
 fi
 ensure_env DB_PASSWORD "$(openssl rand -hex 24)"
 ensure_env PKI_MASTER_KEY "$(openssl rand -hex 32)"
-ensure_env SETUP_BOOTSTRAP "$([[ "$FRESH" == 1 ]] && printf true || printf false)"
+ensure_env SETUP_BOOTSTRAP "$([[ "$FRESH" == 1 && -z "$RESTORE_FILE" ]] && printf true || printf false)"
 ensure_env WEB_TLS_BOOTSTRAP_MODE "${TRANSPORT:-http}"
 ensure_env SANDBOX_RUNNER_WORKSPACE_DIR "/var/lib/gateway/sandbox-workspaces"
 set_env GATEWAY_REGISTRY_IMAGE_REF "$REGISTRY_IMAGE_REF"
@@ -1191,6 +1327,7 @@ if [[ -z "$SOURCE_DIR" ]]; then
 fi
 info "Preparing the pinned recovery helper"
 run_quiet "Opfield recovery helper image pull" "${DOCKER[@]}" pull "$DOCKER_COMPOSE_CLI_IMAGE_REF"
+[[ -z "$RESTORE_FILE" ]] || run_restore
 info "Starting Opfield services"
 if [[ "$FRESH" == 1 ]]; then
   run_quiet "Opfield service startup" "${DOCKER[@]}" compose up -d
@@ -1224,7 +1361,13 @@ fi
 
 ok "Opfield ${VERSION} is running"
 guide_blank
-if [[ "$FRESH" == 1 ]]; then
+if [[ -n "$RESTORE_FILE" ]]; then
+  guide "${BRAND_MINT}Restored from:${NC} ${RESTORE_FILE}"
+  [[ -z "$RESTORED_PUBLIC_URL" ]] || guide "${BRAND_MINT}Open:${NC} ${RESTORED_PUBLIC_URL}"
+  guide "${GRAY}Sign in with the accounts of the exported installation.${NC}"
+  guide "${GRAY}Nodes and relays reconnect to this host's address; see the docs on moving Opfield.${NC}"
+  rm -f "$INSTALL_PENDING_MARKER"
+elif [[ "$FRESH" == 1 ]]; then
   if ! setup_json="$("${DOCKER[@]}" compose exec -T app node dist/cli/setup-code.js </dev/null 2>>"$LOG_FILE" | sed -n '/^{"id":/p' | tail -n1)"; then
     die "Opfield started, but the setup code could not be generated. Check ${LOG_FILE} for details."
   fi

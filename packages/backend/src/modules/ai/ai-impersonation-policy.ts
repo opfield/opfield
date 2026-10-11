@@ -55,6 +55,10 @@ const CREDENTIAL_TOOL_CALLS: Readonly<Record<string, (args: ToolArgs) => boolean
   manage_certificate: (args) => args.operation === 'export' && PRIVATE_KEY_EXPORT_FORMATS.has(args.format),
   // Exports the CA signing key.
   manage_ca: (args) => args.operation === 'export_key',
+  // The configuration export carries the master key, every CA key and every secret; moving Opfield
+  // redirects every node. Both mirror the routes, which refuse impersonation.
+  manage_configuration_export: (args) =>
+    args.operation === 'export' || args.operation === 'announce_move' || args.operation === 'withdraw_move',
 };
 
 export function isImpersonationBlockedToolCall(toolName: string, args: ToolArgs): boolean {

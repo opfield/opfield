@@ -27,3 +27,29 @@ func TestRetryBackoffCapsAtTenSecondsWithJitter(t *testing.T) {
 		t.Fatalf("jittered cap spans %v..%v, want 5s..15s", low, high)
 	}
 }
+
+func TestConnectorAddressChangeIsSignalled(t *testing.T) {
+	c := NewConnector("old.example:9443", nil, nil)
+	changed := c.AddressChanged()
+	if c.SetAddress("old.example:9443") {
+		t.Fatal("setting the same address reported a change")
+	}
+	select {
+	case <-changed:
+		t.Fatal("signalled without a change")
+	default:
+	}
+	if !c.SetAddress("new.example:9443") || c.Address() != "new.example:9443" {
+		t.Fatalf("address = %q", c.Address())
+	}
+	select {
+	case <-changed:
+	default:
+		t.Fatal("change not signalled")
+	}
+	select {
+	case <-c.AddressChanged():
+		t.Fatal("the next change is already signalled")
+	default:
+	}
+}

@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"math"
 	"math/rand/v2"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wiolett-industries/gateway/daemon-shared/auth"
@@ -66,22 +68,81 @@ var ReconnectParams = grpc.ConnectParams{
 }
 
 type Connector struct {
-	Address string
-	TLSMgr  *auth.TLSManager
-	Logger  *slog.Logger
+	TLSMgr *auth.TLSManager
+	Logger *slog.Logger
+
+	// address is the Gateway address the control session and the local relay
+	// lanes dial. It changes while the process runs when Opfield moved to
+	// another host (lifecycle: gateway next address), so every dial reads it
+	// anew.
+	address atomic.Pointer[string]
+	// changed is closed and replaced on every address change (AddressChanged).
+	changedMu sync.Mutex
+	changed   chan struct{}
 }
 
 func NewConnector(address string, tlsMgr *auth.TLSManager, logger *slog.Logger) *Connector {
-	return &Connector{
-		Address: address,
+	c := &Connector{
 		TLSMgr:  tlsMgr,
 		Logger:  logger,
+		changed: make(chan struct{}),
 	}
+	c.address.Store(&address)
+	return c
+}
+
+// Address is the Gateway address the next connection dials.
+func (c *Connector) Address() string {
+	if address := c.address.Load(); address != nil {
+		return *address
+	}
+	return ""
+}
+
+// SetAddress makes the next connections dial address. Connections already
+// open keep their target. It reports whether the address changed.
+func (c *Connector) SetAddress(address string) bool {
+	c.changedMu.Lock()
+	defer c.changedMu.Unlock()
+	if c.Address() == address {
+		return false
+	}
+	c.address.Store(&address)
+	if c.changed != nil {
+		close(c.changed)
+	}
+	c.changed = make(chan struct{})
+	return true
+}
+
+// AddressChanged is closed at the next SetAddress that changes the address.
+func (c *Connector) AddressChanged() <-chan struct{} {
+	c.changedMu.Lock()
+	defer c.changedMu.Unlock()
+	if c.changed == nil {
+		c.changed = make(chan struct{})
+	}
+	return c.changed
 }
 
 // Connect creates a gRPC client connection configured for mTLS.
 func (c *Connector) Connect(ctx context.Context) (*grpc.ClientConn, error) {
-	return c.connect(ctx, c.Address, "", false)
+	return c.connect(ctx, c.Address(), "", false)
+}
+
+// Probe dials address the way the control session does (mTLS with this
+// node's certificate, the server verified against the System CA under the
+// name in address) and reports whether the connection became ready within
+// timeout. The connection is closed again.
+func (c *Connector) Probe(ctx context.Context, address string, timeout time.Duration) error {
+	conn, err := c.connect(ctx, address, "", false)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	attemptCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return waitUntilReady(attemptCtx, conn)
 }
 
 // ConnectTarget creates a relay lane to the pool relay at address.
@@ -220,7 +281,7 @@ func (c *Connector) connectWithRetry(ctx context.Context, lane bool) (*grpc.Clie
 	backoff := InitialBackoff
 	failingSince := time.Time{}
 	for {
-		conn, err := c.connect(ctx, c.Address, "", lane)
+		conn, err := c.connect(ctx, c.Address(), "", lane)
 		if err == nil {
 			attemptCtx, cancel := context.WithTimeout(ctx, ConnectAttemptTimeout)
 			err = waitUntilReady(attemptCtx, conn)
