@@ -25,7 +25,7 @@ func TestRenderServerConfigPairWithWitness(t *testing.T) {
         <log_storage_path>/var/lib/clickhouse/coordination/log</log_storage_path>
         <snapshot_storage_path>/var/lib/clickhouse/coordination/snapshots</snapshot_storage_path>
         <enable_reconfiguration>true</enable_reconfiguration>
-        <four_letter_word_white_list>ruok,srvr,mntr,conf,isro,lgif,rcvr</four_letter_word_white_list>
+        <four_letter_word_white_list>ruok,srvr,mntr,conf,isro,lgif,rqld</four_letter_word_white_list>
         <coordination_settings>
             <operation_timeout_ms>10000</operation_timeout_ms>
             <min_session_timeout_ms>4000</min_session_timeout_ms>
@@ -33,9 +33,9 @@ func TestRenderServerConfigPairWithWitness(t *testing.T) {
             <raft_logs_level>warning</raft_logs_level>
         </coordination_settings>
         <raft_configuration>
-            <server><id>1</id><hostname>127.12.34.1</hostname><port>39501</port></server>
-            <server><id>2</id><hostname>127.12.34.1</hostname><port>39502</port></server>
-            <server><id>101</id><hostname>127.12.34.1</hostname><port>39433</port><can_become_leader>false</can_become_leader></server>
+            <server><id>1</id><hostname>127.12.34.1</hostname><port>39501</port><priority>3</priority></server>
+            <server><id>2</id><hostname>127.12.34.1</hostname><port>39502</port><priority>3</priority></server>
+            <server><id>101</id><hostname>127.12.34.1</hostname><port>39433</port><priority>1</priority></server>
         </raft_configuration>
     </keeper_server>
     <zookeeper><node><host>127.0.0.1</host><port>9181</port></node><session_timeout_ms>5000</session_timeout_ms><operation_timeout_ms>3000</operation_timeout_ms><zookeeper_load_balancing>in_order</zookeeper_load_balancing></zookeeper>
@@ -59,13 +59,13 @@ func TestRenderServerConfigThreeMembersAndBootstrap(t *testing.T) {
 	}
 	config := testConfig(memberha.ModeAutomatic, ec, testMemberC, testMemberA, testMemberB)
 	got := string(RenderServerConfig(config, ec, true))
-	for _, want := range []string{"<server_id>3</server_id>", "<port>39503</port></server>", "<interserver_http_port>39003</interserver_http_port>"} {
+	for _, want := range []string{"<server_id>3</server_id>", "<port>39503</port><priority>3</priority></server>", "<interserver_http_port>39003</interserver_http_port>"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("missing %q in\n%s", want, got)
 		}
 	}
 	if strings.Contains(got, "can_become_leader") {
-		t.Fatal("data members must be allowed to lead")
+		t.Fatal("can_become_leader=false makes a learner (no vote); priorities order leadership")
 	}
 	// Convert: the origin's first Keeper start knows only itself; once the
 	// log exists the desired voters are rendered.
@@ -138,10 +138,10 @@ func TestRenderUsersAndRole(t *testing.T) {
 		t.Fatal("client profile readonly flag")
 	}
 	ec := pairEngineConfig()
-	if got := ec.ReconfigEntry(ec.KeeperServers[2]); got != "server.101=127.12.34.1:39433;participant;0" {
+	if got := ec.ReconfigEntry(ec.KeeperServers[2]); got != "server.101=127.12.34.1:39433;participant;1" {
 		t.Fatalf("witness reconfig entry %q", got)
 	}
-	if got := ec.ReconfigEntry(ec.KeeperServers[1]); got != "server.2=127.12.34.1:39502;participant;1" {
+	if got := ec.ReconfigEntry(ec.KeeperServers[1]); got != "server.2=127.12.34.1:39502;participant;3" {
 		t.Fatalf("member reconfig entry %q", got)
 	}
 }
@@ -167,7 +167,7 @@ func TestGatewayEngineConfigContract(t *testing.T) {
 	}
 	rendered := string(RenderServerConfig(config, ec, true))
 	if !strings.Contains(rendered, "<interserver_http_credentials><user>gw_interserver</user>") ||
-		!strings.Contains(rendered, "<server><id>1001</id><hostname>127.48.54.1</hostname><port>39433</port><can_become_leader>false</can_become_leader></server>") {
+		!strings.Contains(rendered, "<server><id>1001</id><hostname>127.48.54.1</hostname><port>39433</port><priority>1</priority></server>") {
 		t.Fatalf("rendered %s", rendered)
 	}
 }

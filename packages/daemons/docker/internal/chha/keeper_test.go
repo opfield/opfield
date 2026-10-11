@@ -36,7 +36,7 @@ func TestPlanKeeperReplacement(t *testing.T) {
 	}
 	reachable[102] = true
 	action, ok := planKeeper(1, current, ec.Voters(), probe, since, time.Minute)
-	if !ok || action.add == nil || action.add.ID != 102 || action.command(ec) != "reconfig add 'server.102=127.12.34.1:39437;participant;0'" {
+	if !ok || action.add == nil || action.add.ID != 102 || action.command(ec) != "reconfig add 'server.102=127.12.34.1:39437;participant;1'" {
 		t.Fatalf("expected add of 102, got %+v %v", action, ok)
 	}
 	current[102] = "w2"

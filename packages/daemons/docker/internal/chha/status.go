@@ -77,6 +77,15 @@ func keeperServing(mode string) bool {
 // probeKeeper asks a Keeper's client port for its mode (srvr). A Keeper
 // without quorum answers "This instance is not currently serving requests".
 func probeKeeper(ctx context.Context, address string) (string, error) {
+	answer, err := keeperFourLetter(ctx, address, "srvr")
+	if err != nil {
+		return "", err
+	}
+	return parseKeeperMode(answer)
+}
+
+// keeperFourLetter sends one four-letter command to a Keeper client port.
+func keeperFourLetter(ctx context.Context, address, command string) (string, error) {
 	var dialer net.Dialer
 	connection, err := dialer.DialContext(ctx, "tcp", address)
 	if err != nil {
@@ -88,14 +97,14 @@ func probeKeeper(ctx context.Context, address string) (string, error) {
 		deadline = d
 	}
 	_ = connection.SetDeadline(deadline)
-	if _, err := connection.Write([]byte("srvr")); err != nil {
+	if _, err := connection.Write([]byte(command)); err != nil {
 		return "", err
 	}
 	data, err := io.ReadAll(io.LimitReader(connection, 64<<10))
 	if err != nil && len(data) == 0 {
 		return "", err
 	}
-	return parseKeeperMode(string(data))
+	return string(data), nil
 }
 
 func parseKeeperMode(answer string) (string, error) {
@@ -155,6 +164,7 @@ func sampleOf(status memberha.EngineStatus) sample {
 	return sample{
 		quorum: atoi(posQuorum), minActive: atoi(posMinActive), tables: atoi(posTables), readonly: atoi(posReadonly),
 		delay: time.Duration(atoi(posDelay)) * time.Second, keeperQuorum: keeperServing(status.Position[posKeeper]),
-		dbSyncing: status.Position[posDatabasesLate] == "true",
+		keeperMode: status.Position[posKeeper],
+		dbSyncing:  status.Position[posDatabasesLate] == "true",
 	}
 }

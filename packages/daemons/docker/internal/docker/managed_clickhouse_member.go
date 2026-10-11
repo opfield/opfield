@@ -466,7 +466,7 @@ func (r *clickHouseMemberRuntime) KeeperClient(ctx context.Context, command stri
 		[]string{"clickhouse", "keeper-client", "--host", "127.0.0.1", "--port", strconv.Itoa(chha.KeeperClientPort), "--query", command},
 		"", nil, &output)
 	text := output.String()
-	if err == nil && strings.Contains(text, "Coordination::Exception") {
+	if err == nil && (strings.Contains(text, "Coordination::Exception") || strings.Contains(text, "Syntax error")) {
 		err = errors.New(strings.TrimSpace(text))
 	}
 	return text, err

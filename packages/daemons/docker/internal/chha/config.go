@@ -281,15 +281,25 @@ func (ec EngineConfig) Endpoint(server KeeperServer) string {
 	return fmt.Sprintf("%s:%d", ec.LoopbackHost, server.Port)
 }
 
-// ReconfigEntry is the "reconfig add" argument of a server: a witness gets
-// priority 0 (it never leads: a leading witness stalled inserts for ~30 s
-// when it died, P0-T02 item 8).
-func (ec EngineConfig) ReconfigEntry(server KeeperServer) string {
-	priority := 1
-	if server.Witness() {
-		priority = 0
+// Raft priorities: data members lead; a witness only votes (a leading
+// witness stalled inserts for ~30 s when it died, P0-T02 item 8). Not
+// can_become_leader=false: that makes a Keeper a learner, which does not vote.
+const (
+	MemberPriority  = 3
+	WitnessPriority = 1
+)
+
+// Priority is the server's raft priority.
+func (s KeeperServer) Priority() int {
+	if s.Witness() {
+		return WitnessPriority
 	}
-	return fmt.Sprintf("server.%d=%s;participant;%d", server.ID, ec.Endpoint(server), priority)
+	return MemberPriority
+}
+
+// ReconfigEntry is the "reconfig add" argument of a server.
+func (ec EngineConfig) ReconfigEntry(server KeeperServer) string {
+	return fmt.Sprintf("server.%d=%s;participant;%d", server.ID, ec.Endpoint(server), server.Priority())
 }
 
 func escapeXML(value string) string {
@@ -338,7 +348,7 @@ func RenderServerConfig(config memberha.Config, ec EngineConfig, keeperLogEmpty 
 	b.WriteString("        <log_storage_path>/var/lib/clickhouse/coordination/log</log_storage_path>\n")
 	b.WriteString("        <snapshot_storage_path>/var/lib/clickhouse/coordination/snapshots</snapshot_storage_path>\n")
 	b.WriteString("        <enable_reconfiguration>true</enable_reconfiguration>\n")
-	b.WriteString("        <four_letter_word_white_list>ruok,srvr,mntr,conf,isro,lgif,rcvr</four_letter_word_white_list>\n")
+	b.WriteString("        <four_letter_word_white_list>ruok,srvr,mntr,conf,isro,lgif,rqld</four_letter_word_white_list>\n")
 	b.WriteString("        <coordination_settings>\n")
 	b.WriteString("            <operation_timeout_ms>10000</operation_timeout_ms>\n")
 	b.WriteString("            <min_session_timeout_ms>4000</min_session_timeout_ms>\n")
@@ -347,11 +357,8 @@ func RenderServerConfig(config memberha.Config, ec EngineConfig, keeperLogEmpty 
 	b.WriteString("        </coordination_settings>\n")
 	b.WriteString("        <raft_configuration>\n")
 	for _, server := range raft {
-		fmt.Fprintf(&b, "            <server><id>%d</id><hostname>%s</hostname><port>%d</port>", server.ID, ec.LoopbackHost, server.Port)
-		if server.Witness() {
-			b.WriteString("<can_become_leader>false</can_become_leader>")
-		}
-		b.WriteString("</server>\n")
+		fmt.Fprintf(&b, "            <server><id>%d</id><hostname>%s</hostname><port>%d</port><priority>%d</priority></server>\n",
+			server.ID, ec.LoopbackHost, server.Port, server.Priority())
 	}
 	b.WriteString("        </raft_configuration>\n")
 	b.WriteString("    </keeper_server>\n")

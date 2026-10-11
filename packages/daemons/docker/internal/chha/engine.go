@@ -97,6 +97,11 @@ type engine struct {
 	activated    *activation
 	activationOK bool
 	started      time.Time
+	// lastConfigRead and lastRqld pace the Keeper configuration reads and
+	// leadership requests (lease clock).
+	lastConfigRead time.Duration
+	lastRqld       time.Duration
+	lastReconfig   time.Duration
 
 	loopOnce sync.Once
 	stopped  atomic.Bool
@@ -630,6 +635,10 @@ func (e *engine) loop() {
 // bootNow is the lease clock (CLOCK_BOOTTIME), the clock NextValue's now is on.
 func bootNow() time.Duration { return leasefence.Now() }
 
+var errSkipped = errors.New("skipped this pass")
+
+func keeperFollower(s sample) bool { return s.keeperMode == "follower" }
+
 func mustJSON(value any) []byte {
 	data, _ := json.Marshal(value)
 	return data
@@ -654,9 +663,18 @@ func (e *engine) reconcile(ctx context.Context, snap *configSnapshot) {
 	now := bootNow()
 	e.trackGateway(now)
 	e.ensureDatabases(ctx, snap)
-	current, err := e.keeperConfig(ctx)
+	var current map[uint32]string
+	e.mu.Lock()
+	readConfig := row.writable() || e.lastConfigRead == 0 || now-e.lastConfigRead >= copyKeeperConfigPeriod
+	e.mu.Unlock()
+	if readConfig {
+		current, err = e.keeperConfig(ctx)
+	} else {
+		err = errSkipped
+	}
 	if err == nil {
 		e.mu.Lock()
+		e.lastConfigRead = now
 		e.voters = voterList(current)
 		for id := range current {
 			if _, ok := e.inConfig[id]; !ok {
@@ -673,6 +691,7 @@ func (e *engine) reconcile(ctx context.Context, snap *configSnapshot) {
 	if !row.writable() {
 		return
 	}
+	e.requestLeadership(ctx, now)
 	e.holderQuorum(ctx, snap, row, now)
 	if current != nil {
 		e.holderKeeper(ctx, snap, current, now)
@@ -754,11 +773,36 @@ func (e *engine) holderQuorum(ctx context.Context, snap *configSnapshot, row eng
 
 // keeperConfig reads the Keeper's cluster configuration.
 func (e *engine) keeperConfig(ctx context.Context) (map[uint32]string, error) {
-	text, err := e.rt.Query(ctx, keeperConfigQuery)
+	text, err := e.rt.KeeperClient(ctx, keeperConfigCommand)
 	if err != nil {
 		return nil, err
 	}
 	return parseKeeperConfig(text)
+}
+
+// requestLeadership asks this member's Keeper to become the leader (4lw
+// rqld): when Keeper started before the members' forwarders were up, the
+// witness can win the first election, and Keeper never hands leadership back
+// to a higher priority by itself; a leading witness stalls inserts for ~30 s
+// when it dies.
+func (e *engine) requestLeadership(ctx context.Context, now time.Duration) {
+	e.mu.Lock()
+	due := keeperFollower(e.lastSample) && (e.lastRqld == 0 || now-e.lastRqld >= leadershipRequestPeriod)
+	if due {
+		e.lastRqld = now
+	}
+	e.mu.Unlock()
+	if !due {
+		return
+	}
+	address, err := e.rt.Address(ctx)
+	if err != nil {
+		return
+	}
+	answer, err := keeperFourLetter(ctx, net.JoinHostPort(address, strconv.Itoa(KeeperClientPort)), "rqld")
+	if err == nil {
+		e.logger.Info("ClickHouse holder asked its Keeper to lead", "answer", strings.TrimSpace(answer))
+	}
 }
 
 // holderKeeper moves the Keeper membership toward the desired voters and,
@@ -806,10 +850,20 @@ func (e *engine) holderKeeper(ctx context.Context, snap *configSnapshot, current
 		probe[server.ID] = ok
 		return ok
 	}
+	e.mu.Lock()
+	settling := e.lastReconfig > 0 && now-e.lastReconfig < reconfigSettle
+	e.mu.Unlock()
+	if settling {
+		// The configuration read may predate the last reconfiguration.
+		return
+	}
 	action, ok := planKeeper(snap.ec.KeeperServerID, current, desiredVoters(snap.ec, act), reachable, since, now)
 	if !ok {
 		return
 	}
+	e.mu.Lock()
+	e.lastReconfig = now
+	e.mu.Unlock()
 	output, err := e.rt.KeeperClient(ctx, action.command(snap.ec))
 	if err != nil {
 		e.logger.Warn("Keeper reconfiguration failed", "set_id", snap.config.SetID, "command", action.command(snap.ec),

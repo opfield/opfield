@@ -23,8 +23,19 @@ const (
 	gatewayDownFor = 30 * time.Second
 )
 
-// keeperConfigQuery reads the Keeper's replicated cluster configuration.
-const keeperConfigQuery = `SELECT value FROM system.zookeeper WHERE path = '/keeper' AND name = 'config' FORMAT TabSeparatedRaw`
+// keeperConfigCommand reads the Keeper's replicated cluster configuration
+// (system.zookeeper does not list the virtual /keeper/config node).
+const keeperConfigCommand = "get '/keeper/config'"
+
+// Non-holders refresh the Keeper configuration they report this often; the
+// holder reads it every pass.
+const copyKeeperConfigPeriod = 30 * time.Second
+
+// reconfigSettle: no reconfiguration follows another this soon.
+const reconfigSettle = 5 * time.Second
+
+// leadershipRequestPeriod bounds the holder's Keeper leadership requests.
+const leadershipRequestPeriod = time.Minute
 
 // parseKeeperConfig reads "server.<id>=<host>:<port>;<role>;<priority>" lines.
 func parseKeeperConfig(text string) (map[uint32]string, error) {

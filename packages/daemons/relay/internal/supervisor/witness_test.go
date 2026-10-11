@@ -476,13 +476,16 @@ func TestKeeperConfigAndProbe(t *testing.T) {
 	for _, want := range []string{
 		"<listen_host>127.0.0.1</listen_host>", "<tcp_port>39410</tcp_port>", "<server_id>3</server_id>",
 		"<enable_reconfiguration>true</enable_reconfiguration>",
-		"<id>3</id>\n                <hostname>127.0.2.3</hostname>\n                <port>39411</port>",
-		"<id>1</id>\n                <hostname>127.0.1.1</hostname>\n                <port>39501</port>",
+		"<id>3</id>\n                <hostname>127.0.2.3</hostname>\n                <port>39411</port>\n                <priority>1</priority>",
+		"<id>1</id>\n                <hostname>127.0.1.1</hostname>\n                <port>39501</port>\n                <priority>3</priority>",
 		"<log_storage_path>/var/lib/gateway-relay-witness/data/w1/coordination/log</log_storage_path>",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("keeper config lacks %q:\n%s", want, text)
 		}
+	}
+	if strings.Contains(text, "can_become_leader") {
+		t.Errorf("can_become_leader=false makes a learner that does not vote:\n%s", text)
 	}
 	probe, err := parseKeeperSrvr("ClickHouse Keeper version: v25.3.1\nLatency min/avg/max: 0/0/0\nZxid: 0x1a2b\nMode: follower\nNode count: 4\n")
 	if err != nil || probe.role != "follower" || probe.zxid != 0x1a2b {

@@ -77,6 +77,7 @@ type sample struct {
 	readonly     int
 	delay        time.Duration
 	keeperQuorum bool
+	keeperMode   string
 	dbSyncing    bool
 }
 

@@ -179,7 +179,7 @@ func TestHolderActivatesStandbyWhileGatewayIsDown(t *testing.T) {
 	// The standby is reachable now: it is added.
 	rt.probeOK["witness-"+testStandby+"-ch-keeper"] = true
 	e.holderKeeper(ctx, snap, current, start+witnessDeadFor+time.Second)
-	if len(rt.keeper) == 0 || rt.keeper[len(rt.keeper)-1] != "reconfig add 'server.102=127.12.34.1:39437;participant;0'" {
+	if len(rt.keeper) == 0 || rt.keeper[len(rt.keeper)-1] != "reconfig add 'server.102=127.12.34.1:39437;participant;1'" {
 		t.Fatalf("keeper commands %v", rt.keeper)
 	}
 	current[102] = "w2"
