@@ -406,9 +406,10 @@ func (p *DockerPlugin) bridgeTargetConnection(ownerKind, ownerID string, session
 }
 
 // relayStreamsOnBundle applies a new grant bundle to the resumable streams.
-// A source whose relay stays in the assignment stays on it: when the
-// generation its grant belongs to drains, it re-paths onto the same relay
-// under the new grant (relaybridge.PlaceStream), spread over a few seconds.
+// A source whose relay stays in the assignment stays on it and on its path
+// while the generation its grant belongs to drains; once that generation is
+// gone it re-paths onto the same relay under the new grant
+// (relaybridge.PlaceStream), spread over a few seconds.
 // Sources whose relay leaves the assignment or drains as a whole move (paced
 // to the drain deadline), sources and targets whose route or endpoint Gateway
 // no longer assigns end, and targets ask their sources to move off relays

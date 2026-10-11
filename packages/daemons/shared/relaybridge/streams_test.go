@@ -176,6 +176,35 @@ func TestPlaceStreamKeepsAStreamOnARelayThatStays(t *testing.T) {
 	}
 }
 
+// Stand 2.12 N-2: placement replaced a drained relay (NL) by another (UK) in generation 2. Generation 1 drains
+// without a deadline (only a relay's own drain has one): the streams on the relays that stay keep their paths, only
+// the streams on the relay that left move, and a stream whose generation is gone re-paths.
+func TestPlacementDrainedGenerationKeepsStreamsOnRelaysThatStay(t *testing.T) {
+	drained := func(relayID string, generation uint64) *pb.RelayDataCandidate {
+		return placed(relayID, generation, "draining", RoleStandby, time.Millisecond)
+	}
+	assignment := &pb.RelayGrantAssignment{SchemaVersion: 2, Candidates: []*pb.RelayDataCandidate{
+		placed(relayLocal, 2, "active", RolePrimary, time.Millisecond),
+		placed(relayUK, 2, "active", RoleStandby, 62*time.Millisecond),
+		drained(relayLocal, 1), drained(relayNL, 1),
+	}}
+	for _, tc := range []struct {
+		name       string
+		relay      string
+		generation uint64
+		want       StreamAction
+	}{
+		{"old generation on a relay that stays", relayLocal, 1, StreamStays},
+		{"new generation", relayLocal, 2, StreamStays},
+		{"the relay that was replaced", relayNL, 1, StreamLeaves},
+		{"a generation that is gone, on a relay that stays", relayLocal, 7, StreamRegrants},
+	} {
+		if action, _ := PlaceStream(assignment, tc.relay, tc.generation); action != tc.want {
+			t.Errorf("%s: action %d, want %d", tc.name, action, tc.want)
+		}
+	}
+}
+
 func TestReturnTargetPrefersTheNearestStableRelayWithHysteresis(t *testing.T) {
 	pool := []*pb.RelayDataCandidate{
 		placed(relayLocal, 1, "active", RolePrimary, 700*time.Microsecond),

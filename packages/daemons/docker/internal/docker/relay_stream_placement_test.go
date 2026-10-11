@@ -222,8 +222,9 @@ func waitPlacement(t *testing.T, sessions []*relayresume.Session, want map[strin
 }
 
 // The incident: a rebalance stages a new generation on the same three relays. Every stream on the local relay, which
-// stays the nearest primary, stays there under the new grant; none goes to the empty far relay, the old generation's
-// tunnels end, and a bundle sent again moves nothing more.
+// stays the nearest primary, stays on it and on its path (the old generation drains, its tunnels go on); none goes to
+// the empty far relay, and bundles sent again move nothing (stand 2.12 N-2). Once the old generation is gone, the
+// streams re-path onto the local relay under the new grant, once.
 func TestGenerationChangeKeepsStreamsOnTheNearestRelay(t *testing.T) {
 	pair := newPoolPair(t)
 	apps, sessions := pair.openStreams(4)
@@ -234,21 +235,28 @@ func TestGenerationChangeKeepsStreamsOnTheNearestRelay(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	waitPlacement(t, sessions, map[string]int{poolLocal + "/1": 4})
 	pair.apply(3, generation(2, "active", poolLocal, poolUK, poolNL), generation(1, "draining", poolLocal, poolUK, poolNL))
-	waitPlacement(t, sessions, map[string]int{poolLocal + "/2": 4})
-	waitFor(t, "the old generation's tunnels to end", func() bool { return pair.relays[poolLocal].activeTunnels() == 4 })
+	pair.apply(4, generation(2, "active", poolLocal, poolUK, poolNL), generation(1, "draining", poolLocal, poolUK, poolNL))
+	time.Sleep(time.Second)
+	waitPlacement(t, sessions, map[string]int{poolLocal + "/1": 4})
+	if moves := pair.source.relayStreamStats().GetMigrationsOkTotal(); moves != 0 {
+		t.Fatalf("%d moves while the old generation drains", moves)
+	}
 	if pair.relays[poolUK].activeTunnels() != 0 || pair.relays[poolNL].activeTunnels() != 0 {
 		t.Fatalf("tunnels on the remote relays: UK %d, NL %d", pair.relays[poolUK].activeTunnels(), pair.relays[poolNL].activeTunnels())
 	}
+
+	// Generation 1 retired.
+	pair.apply(5, generation(2, "active", poolLocal, poolUK, poolNL))
+	waitPlacement(t, sessions, map[string]int{poolLocal + "/2": 4})
+	waitFor(t, "the old generation's tunnels to end", func() bool { return pair.relays[poolLocal].activeTunnels() == 4 })
 	moves := pair.source.relayStreamStats().GetMigrationsOkTotal()
 	if moves != 4 {
 		t.Fatalf("%d moves, want one re-path per stream", moves)
 	}
-	// Gateway sends bundles again while generation 1 drains: nothing moves.
-	pair.apply(4, generation(2, "active", poolLocal, poolUK, poolNL), generation(1, "draining", poolLocal, poolUK, poolNL))
-	pair.apply(5, generation(2, "active", poolLocal, poolUK, poolNL), generation(1, "draining", poolLocal, poolUK, poolNL))
+	pair.apply(6, generation(2, "active", poolLocal, poolUK, poolNL))
 	time.Sleep(time.Second)
 	if got := pair.source.relayStreamStats().GetMigrationsOkTotal(); got != moves {
-		t.Fatalf("bundles sent again moved streams: %d moves after %d", got, moves)
+		t.Fatalf("a bundle sent again moved streams: %d moves after %d", got, moves)
 	}
 	for _, app := range apps {
 		echoOnce(t, app)
@@ -258,37 +266,35 @@ func TestGenerationChangeKeepsStreamsOnTheNearestRelay(t *testing.T) {
 	}
 }
 
-// The far relay's control stream flaps, an operator drains it and resumes it: each step is a new generation, and
-// every stream ends on the local relay.
+// The far relay's control stream flaps, an operator drains it and resumes it, and placement replaces it by the near
+// relay meanwhile: each step is a new generation, the older ones drain while streams use them. Every stream stays on
+// the local relay and on its path: no step moves it (stand 2.12 N-2).
 func TestFarRelayDrainAndResumeLeaveStreamsOnTheLocalRelay(t *testing.T) {
 	pair := newPoolPair(t)
 	apps, sessions := pair.openStreams(4)
+	held := generation(1, "draining", poolLocal, poolUK, poolNL)
 	steps := []struct {
 		name      string
 		placement [][]poolCandidate
 	}{
 		// The far relay left placement (its control stream ended) and came back: two generations.
-		{"far relay gone", [][]poolCandidate{generation(2, "active", poolLocal, poolUK), generation(1, "draining", poolLocal, poolUK, poolNL)}},
-		{"far relay back", [][]poolCandidate{generation(3, "active", poolLocal, poolUK, poolNL), generation(2, "draining", poolLocal, poolUK)}},
-		// Drained by the operator: every candidate of it drains, the evacuation's generation leaves it out.
-		{"drain staged", [][]poolCandidate{generation(3, "draining", poolNL), generation(3, "active", poolLocal, poolUK), generation(4, "staging", poolLocal, poolUK)}},
-		{"drained", [][]poolCandidate{generation(4, "active", poolLocal, poolUK), generation(3, "draining", poolLocal, poolUK, poolNL)}},
-		{"resumed", [][]poolCandidate{generation(5, "active", poolLocal, poolUK, poolNL), generation(4, "draining", poolLocal, poolUK)}},
+		{"far relay gone", [][]poolCandidate{generation(2, "active", poolLocal, poolUK), held}},
+		{"far relay back", [][]poolCandidate{generation(3, "active", poolLocal, poolUK, poolNL), generation(2, "draining", poolLocal, poolUK), held}},
+		// Drained by the operator: every candidate of it drains; placement replaces it by the near relay.
+		{"drain staged", [][]poolCandidate{generation(3, "draining", poolNL), generation(3, "active", poolLocal, poolUK), generation(4, "staging", poolLocal, poolUK), held}},
+		{"drained", [][]poolCandidate{generation(4, "active", poolLocal, poolUK), generation(3, "draining", poolLocal, poolUK, poolNL), held}},
+		{"resumed", [][]poolCandidate{generation(5, "active", poolLocal, poolNL), generation(4, "draining", poolLocal, poolUK), held}},
 	}
-	want := uint64(1)
 	for index, step := range steps {
 		pair.apply(uint64(index+2), step.placement...)
-		for _, g := range step.placement {
-			for _, candidate := range g {
-				if candidate.relay == poolLocal && candidate.state == "active" {
-					want = candidate.generation
-				}
-			}
-		}
-		waitPlacement(t, sessions, map[string]int{fmt.Sprintf("%s/%d", poolLocal, want): 4})
+		time.Sleep(300 * time.Millisecond)
+		waitPlacement(t, sessions, map[string]int{poolLocal + "/1": 4})
 		if pair.relays[poolNL].activeTunnels() != 0 || pair.relays[poolUK].activeTunnels() != 0 {
 			t.Fatalf("%s: tunnels on UK %d, NL %d", step.name, pair.relays[poolUK].activeTunnels(), pair.relays[poolNL].activeTunnels())
 		}
+	}
+	if moves := pair.source.relayStreamStats().GetMigrationsOkTotal(); moves != 0 {
+		t.Fatalf("%d moves for placement changes that kept the local relay", moves)
 	}
 	for _, app := range apps {
 		echoOnce(t, app)
@@ -378,6 +384,12 @@ func TestDrainAndResumeOfAnEmptyRelayMoveNothing(t *testing.T) {
 	waitPlacement(t, sessions, map[string]int{poolLocal + "/1": 4})
 	// NL is resumed: generation 1 as before.
 	pair.apply(3, generation(1, "active", poolLocal, poolUK, poolNL))
+	time.Sleep(time.Second)
+	waitPlacement(t, sessions, map[string]int{poolLocal + "/1": 4})
+	// A fixed-count spread replaces NL by a new generation instead, and puts it back on resume (stand 2.12 N-2).
+	pair.apply(4, generation(2, "active", poolLocal, poolUK), generation(1, "draining", poolLocal, poolUK, poolNL))
+	time.Sleep(time.Second)
+	pair.apply(5, generation(3, "active", poolLocal, poolNL), generation(2, "draining", poolLocal, poolUK), generation(1, "draining", poolLocal, poolUK, poolNL))
 	time.Sleep(time.Second)
 	waitPlacement(t, sessions, map[string]int{poolLocal + "/1": 4})
 	if got := pair.source.relayStreamStats().GetMigrationsOkTotal(); got != 0 {

@@ -421,8 +421,9 @@ func generationBundle(revision, next uint64) *pb.SyncRelayGrantsCommand {
 	return bundle
 }
 
-// A new assignment generation on the same relays keeps the stream on its relay: it re-paths there under the new
-// grant (the old generation's tunnel ends), never onto the other relay, and bundles sent again move nothing.
+// A new assignment generation on the same relays keeps the stream on its relay and its path: the old generation
+// drains (placement, no deadline), the relay keeps its tunnel, and bundles sent again move nothing (stand 2.12 N-2).
+// Once the old generation is gone the stream re-paths onto the same relay under the new grant, never onto the other.
 func TestSecureLinkStreamStaysOnItsRelayAcrossAGenerationChange(t *testing.T) {
 	fixture := newResumeFixture(t, true)
 	connection := openLinkConnection(t, fixture.plugin)
@@ -431,26 +432,42 @@ func TestSecureLinkStreamStaysOnItsRelayAcrossAGenerationChange(t *testing.T) {
 	if relay, generation, _ := session.CurrentPath(); relay != "relay-near" || generation != 1 {
 		t.Fatalf("stream runs through %s generation %d", relay, generation)
 	}
-	if _, err := fixture.plugin.SyncRelayGrants(generationBundle(2, 2)); err != nil {
-		t.Fatal(err)
-	}
-	waitFor(t, "the stream to re-path under the new grant", func() bool {
-		relay, generation, _ := session.CurrentPath()
-		return relay == "relay-near" && generation == 2
-	})
-	moves := fixture.plugin.relayStreams.Stats().MigrationsOK
-	for revision := uint64(3); revision < 5; revision++ {
+	for revision := uint64(2); revision < 5; revision++ {
 		if _, err := fixture.plugin.SyncRelayGrants(generationBundle(revision, 2)); err != nil {
 			t.Fatal(err)
 		}
 	}
 	time.Sleep(time.Second)
 	connection.roundTrip(64 * 1024)
+	if relay, generation, _ := session.CurrentPath(); relay != "relay-near" || generation != 1 {
+		t.Fatalf("stream moved to %s generation %d while its generation drains", relay, generation)
+	}
+	if got := fixture.plugin.relayStreams.Stats().MigrationsOK; got != 0 {
+		t.Fatalf("%d moves for a generation change on the same relays", got)
+	}
+
+	// Generation 1 retired: only generation 2 is left.
+	retired := generationBundle(5, 2)
+	var active []*pb.RelayDataCandidate
+	for _, candidate := range retired.Grants[0].Candidates {
+		if candidate.GetAssignmentState() == "active" {
+			active = append(active, candidate)
+		}
+	}
+	retired.Grants[0].Candidates = active
+	if _, err := fixture.plugin.SyncRelayGrants(retired); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the stream to re-path under the new grant", func() bool {
+		relay, generation, _ := session.CurrentPath()
+		return relay == "relay-near" && generation == 2
+	})
+	connection.roundTrip(64 * 1024)
 	if relay, _, _ := session.CurrentPath(); relay != "relay-near" || fixture.far.opened.Load() != 0 {
 		t.Fatalf("stream on %s, far relay opened %d tunnels", relay, fixture.far.opened.Load())
 	}
-	if got := fixture.plugin.relayStreams.Stats().MigrationsOK; got != moves || moves != 1 {
-		t.Fatalf("moves %d then %d, want one re-path", moves, got)
+	if got := fixture.plugin.relayStreams.Stats().MigrationsOK; got != 1 {
+		t.Fatalf("%d moves, want one re-path once the generation is gone", got)
 	}
 }
 

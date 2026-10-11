@@ -31,9 +31,9 @@ import {
   relaySessionLimitTarget,
 } from './relay-session-limits.js';
 import {
-  candidateDrainDeadline,
   type RelayRouteResumeAssignment,
   type RelayStreamResumeAssignment,
+  relayCandidateDrainDeadline,
   sourceStreamResume,
   targetRouteResume,
 } from './relay-stream-resume.js';
@@ -500,11 +500,11 @@ export class RelayGrantIssuerService {
         endpoint.subjectKind,
         this.instanceCapabilities(assignment)
       );
-      // Only a relay drain has a deadline; a generation drained by placement can be left at once.
-      const drainDeadlineUnixMs =
-        assignmentState === 'draining' && assignment.instanceState === 'draining'
-          ? candidateDrainDeadline(assignment.drainDeadlineAt)
-          : undefined;
+      const drainDeadlineUnixMs = relayCandidateDrainDeadline(
+        assignmentState,
+        assignment.instanceState,
+        assignment.drainDeadlineAt
+      );
       result.push({
         poolId: assignment.poolId,
         relayInstanceId: assignment.instanceId,

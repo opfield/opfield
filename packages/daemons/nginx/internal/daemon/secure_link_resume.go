@@ -336,9 +336,9 @@ func (p *NginxPlugin) bridgeRelayStream(ownerKind, linkID string, connection net
 }
 
 // moveRelayStreams answers a grant bundle change: a resumable stream whose
-// relay stays in the link's assignment stays on it, re-pathing under the new
-// grant when the generation its grant belongs to drains
-// (relaybridge.PlaceStream); a stream whose relay leaves the assignment or
+// relay stays in the link's assignment stays on it (and on its path while its
+// generation drains), re-pathing under the new grant once that generation is
+// gone (relaybridge.PlaceStream); a stream whose relay leaves the assignment or
 // drains as a whole moves, paced to the drain deadline Gateway set.
 func (p *NginxPlugin) moveRelayStreams() {
 	if p.relayStreams == nil || p.relayGrants == nil {

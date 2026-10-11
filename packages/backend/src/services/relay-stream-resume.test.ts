@@ -21,6 +21,7 @@ import {
   RELAY_UPDATE_DRAIN_GRACE_MS,
   RESUMABLE_DRAIN_GRACE_MS,
   RESUME_KEY_ROTATION_MS,
+  relayCandidateDrainDeadline,
   relaySessionSplit,
   relayStreamCounters,
   relayStreamOutcome,
@@ -182,6 +183,14 @@ describe('drain timing', () => {
   it('tells sources to leave a margin before the drain ends', () => {
     expect(candidateDrainDeadline(null)).toBeUndefined();
     expect(candidateDrainDeadline(new Date(100_000))).toBe(String(100_000 - DRAIN_DEADLINE_MARGIN_MS));
+  });
+
+  it('gives only a relay drain a deadline, never a generation placement drained (stand 2.12 N-2)', () => {
+    const at = new Date(100_000);
+    expect(relayCandidateDrainDeadline('draining', 'draining', at)).toBe(String(100_000 - DRAIN_DEADLINE_MARGIN_MS));
+    // Daemons keep their streams on a relay that stays when its old generation drains without a deadline.
+    expect(relayCandidateDrainDeadline('draining', 'ready', at)).toBeUndefined();
+    expect(relayCandidateDrainDeadline('active', 'draining', at)).toBeUndefined();
   });
 });
 

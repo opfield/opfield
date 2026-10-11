@@ -20,11 +20,11 @@ func answerAt(relay *miniRelay, err error) {
 	relay.hold.Store(&openHold{release: release, err: err})
 }
 
-// Stand 2.12 R-3: the local relay refuses new proxy tunnels for its pressure, and a policy snapshot moves every
-// stream to a new assignment generation while the only other relays do not serve the endpoint under it yet. The
-// demotion survives the snapshot, and the streams re-pathing (each stays on its relay under the new grant, or would
-// leave it) reach the demoted relay about once a second instead of on every attempt; once another relay serves, new
-// connections go there, not to the demoted relay.
+// Stand 2.12 R-3: the local relay refuses new proxy tunnels for its pressure, and a policy snapshot retires the
+// streams' generation while the only other relays do not serve the endpoint under the new one yet. The demotion
+// survives the snapshot, and the streams re-pathing (onto their relay under the new grant, or to another) reach the
+// demoted relay about once a second instead of on every attempt; once another relay serves, new connections go there,
+// not to the demoted relay.
 func TestSnapshotDuringDemotionKeepsItAndPacesTheDemotedRelay(t *testing.T) {
 	pair := newPoolPair(t)
 	_, sessions := pair.openStreams(6)
@@ -44,7 +44,7 @@ func TestSnapshotDuringDemotionKeepsItAndPacesTheDemotedRelay(t *testing.T) {
 	answerAt(pair.relays[poolNL], notRegistered)
 	pair.relays[poolLocal].opens.Store(0)
 	started := time.Now()
-	pair.apply(2, generation(2, "active", poolLocal, poolUK, poolNL), generation(1, "draining", poolLocal, poolUK, poolNL))
+	pair.apply(2, generation(2, "active", poolLocal, poolUK, poolNL))
 	time.Sleep(8 * time.Second)
 	reached := pair.relays[poolLocal].opens.Load()
 	// Unpaced, each of the seven streams tried the local relay on every attempt (backoff 250 ms doubling to 2 s):

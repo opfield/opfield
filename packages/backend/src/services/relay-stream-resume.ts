@@ -267,6 +267,21 @@ export function candidateDrainDeadline(drainDeadlineAt: Date | null | undefined)
   return String(Math.max(1, drainDeadlineAt.getTime() - DRAIN_DEADLINE_MARGIN_MS));
 }
 
+/**
+ * The drain deadline a relay candidate carries: only a relay's own drain has one. A generation that placement drained
+ * has none, and daemons keep the streams on its relays that stay in the new generation where they are: a deadline
+ * would re-path every one of them onto the same relay (stand 2.12 N-2).
+ */
+export function relayCandidateDrainDeadline(
+  assignmentState: 'active' | 'staging' | 'draining',
+  instanceState: string,
+  drainDeadlineAt: Date | null | undefined
+): string | undefined {
+  return assignmentState === 'draining' && instanceState === 'draining'
+    ? candidateDrainDeadline(drainDeadlineAt)
+    : undefined;
+}
+
 export type RelayStreamReports = ReadonlyArray<{ nodeId: string; report: NodeRelayStreamReport }>;
 
 /**
