@@ -55,6 +55,15 @@ Options:
   --max-api-downtime SEC   Longest acceptable API outage during a Gateway update (default: 120)
   --workdir DIR            Working directory (default: /var/tmp/gateway-e2e-<run>)
   --logs-out FILE          Write a tar.gz of the run logs and API evidence before removing the workdir
+  --via TAG                Stable release to update to first (Gateway, daemons, relay), then to the candidate:
+                           the path a customer on --base takes through an intermediate release
+  --before-candidate CMD   With --via: run CMD (bash -c) between the two hops and go on when it exits 0; the
+                           probes, the release feed and the DNS guard keep running. CMD sees GATEWAY_E2E_WORK,
+                           GATEWAY_E2E_INSTALL_DIR and GATEWAY_E2E_PROJECT (e.g. to swap test-signed builds in)
+  --pin HOP:COMPONENT=TAG  Pin a release feed component for one hop (HOP via or candidate; an empty TAG answers
+                           204); repeatable. Unpinned components resolve on the real feed
+  --skip-rollback          Skip step 4 (forced rollback with the base updater)
+  --skip-fresh             Skip step 5 (fresh install of the candidate)
   --keep                   Keep everything the run created
   --cleanup-only DIR       Remove what a run started with --keep created (DIR is its --workdir)
   --ssh TARGET             Stream this script to TARGET and run it there with sudo
@@ -65,6 +74,9 @@ Environment:
   GATEWAY_GITHUB_REPOSITORY  GitHub repository releases come from (default opfield/opfield; the-square-labs/gateway
                            before the repository moved)
   GATEWAY_E2E_LICENSE_HOSTS  License service host names to block, comma-separated (default: config/license-service.json)
+
+DNS for Docker: lines `NAME ADDRESS` in WORK/dns-overrides make the DNS guard answer NAME (and its subdomains) with
+ADDRESS; the file is read on every query, so a --before-candidate command can point release hosts at a stand mirror.
 EOF
 }
 
@@ -121,6 +133,17 @@ EXPECTED_TOKEN_SCOPES=(notifications:alerts:view notifications:webhooks:view pro
 BASE="v2.10.1"
 CANDIDATE=""
 CHANNEL="stable"
+VIA=""
+BEFORE_CANDIDATE=""
+SKIP_ROLLBACK=0
+SKIP_FRESH=0
+HOP=""
+HOP_NOTE=""
+HOP_FROM=""
+HOP_KIND="candidate"
+FINAL_CANDIDATE=""
+FINAL_CHANNEL=""
+declare -a PINS=()
 HOST_ADDR=""
 PUBLIC_URL=""
 DOCKER_POOL=""
@@ -164,6 +187,11 @@ parse_args() {
       --max-api-downtime) MAX_API_DOWNTIME="${2:?missing seconds}"; remote+=("$1" "$2"); shift 2 ;;
       --workdir) WORK="${2:?missing directory}"; remote+=("$1" "$2"); shift 2 ;;
       --logs-out) LOGS_OUT="${2:?missing file}"; remote+=("$1" "$2"); shift 2 ;;
+      --via) VIA="${2:?missing tag}"; remote+=("$1" "$2"); shift 2 ;;
+      --before-candidate) BEFORE_CANDIDATE="${2:?missing command}"; remote+=("$1" "$2"); shift 2 ;;
+      --pin) PINS+=("${2:?missing HOP:COMPONENT=TAG}"); remote+=("$1" "$2"); shift 2 ;;
+      --skip-rollback) SKIP_ROLLBACK=1; remote+=("$1"); shift ;;
+      --skip-fresh) SKIP_FRESH=1; remote+=("$1"); shift ;;
       --keep) KEEP=1; remote+=("$1"); shift ;;
       --cleanup-only) CLEANUP_ONLY="${2:?missing directory}"; remote+=("$1" "$2"); shift 2 ;;
       --ssh) SSH_TARGET="${2:?missing target}"; shift 2 ;;
@@ -357,9 +385,11 @@ http.server.ThreadingHTTPServer((ADDR, PORT), Handler).serve_forever()
 PY
   cat >"$WORK/py/dns_guard.py" <<'PY'
 # DNS forwarder for Docker (daemon.json "dns"): answers NXDOMAIN for the license server while the
-# block file contains 1 and forwards everything else to the host's own resolvers.
-import socket, socketserver, struct, sys, threading, time
+# block file contains 1, answers names listed in dns-overrides (next to the block file) with the address
+# given there and forwards everything else to the host's own resolvers.
+import os, socket, socketserver, struct, sys, threading, time
 ADDR, BLOCK_FILE, LOG = sys.argv[1], sys.argv[2], sys.argv[3]
+OVERRIDE_FILE = os.path.join(os.path.dirname(BLOCK_FILE), 'dns-overrides')
 BLOCKED = [h.strip() for h in sys.argv[4].lower().split(',') if h.strip()]
 
 def upstreams():
@@ -402,6 +432,26 @@ def blocked(name):
     log('BLOCK' if on else 'ALLOW', name)
     return on
 
+def override(name):
+    try:
+        with open(OVERRIDE_FILE) as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) == 2 and name and (name == parts[0].lower() or name.endswith('.' + parts[0].lower())):
+                    return parts[1]
+    except OSError:
+        pass
+    return None
+
+def fixed(msg, end, address):
+    # One A record for an A query; an empty NOERROR answer for every other type (AAAA falls back to A).
+    qtype = struct.unpack('>H', msg[end - 4:end - 2])[0]
+    flags = 0x8000 | (struct.unpack('>H', msg[2:4])[0] & 0x7900) | 0x0080
+    record = b''
+    if qtype == 1:
+        record = b'\xc0\x0c' + struct.pack('>HHIH', 1, 1, 30, 4) + socket.inet_aton(address)
+    return msg[:2] + struct.pack('>HHHHH', flags, 1, 1 if record else 0, 0, 0) + msg[12:end] + record
+
 def nxdomain(msg, end):
     flags = struct.unpack('>H', msg[2:4])[0]
     flags = 0x8000 | (flags & 0x7900) | 0x0080 | 3
@@ -436,6 +486,10 @@ def answer(msg, tcp):
     name, end = question(msg)
     if blocked(name):
         return nxdomain(msg, end)
+    address = override(name)
+    if address:
+        log('OVERRIDE', name)
+        return fixed(msg, end, address)
     return forward(msg, tcp)
 
 class UDP(socketserver.BaseRequestHandler):
@@ -741,22 +795,31 @@ license_block() {
   say "license server $([[ "$1" == 1 ]] && echo blocked || echo reachable) for Docker containers"
 }
 
-# Resolves the license server inside the app container; prints ENOTFOUND while blocked.
+# license_lookup_from_app HOST: resolves HOST inside the app container; prints ENOTFOUND while blocked.
 license_lookup_from_app() {
   local app
   app="$(service_id app)"
   [[ -n "$app" ]] || { echo "no app container"; return 0; }
-  docker exec "$app" node -e "require('node:dns').lookup('${LICENSE_HOST}',(e,a)=>{console.log(e?e.code:'resolved '+a)})" 2>&1 | tail -n1
+  docker exec "$app" node -e "require('node:dns').lookup('$1',(e,a)=>{console.log(e?e.code:'resolved '+a)})" 2>&1 | tail -n1
 }
 
+# Every address of the license service, not only the first: the base and the candidate may use different ones.
 check_license_guard() {
-  local result
-  result="$(license_lookup_from_app)"
-  if [[ "$(cat "$WORK/license-block" 2>/dev/null)" == 1 ]]; then
-    check "license server unreachable from Gateway" "lookup of ${LICENSE_HOST} in the app container: ${result}" \
-      test "$result" = "ENOTFOUND"
+  local host result evidence="" ok=1 blocked
+  blocked="$(cat "$WORK/license-block" 2>/dev/null)"
+  for host in ${LICENSE_HOSTS//,/ }; do
+    result="$(license_lookup_from_app "$host")"
+    evidence+="${host}: ${result}; "
+    if [[ "$blocked" == 1 ]]; then
+      [[ "$result" == ENOTFOUND ]] || ok=0
+    else
+      [[ "$result" == resolved* ]] || ok=0
+    fi
+  done
+  if [[ "$blocked" == 1 ]]; then
+    check "license server unreachable from Gateway" "lookups in the app container: ${evidence%; }" test "$ok" = 1
   else
-    check "license server reachable from Gateway" "lookup of ${LICENSE_HOST}: ${result}" grep -q '^resolved' <<<"$result"
+    check "license server reachable from Gateway" "lookups in the app container: ${evidence%; }" test "$ok" = 1
   fi
 }
 
@@ -838,6 +901,12 @@ snapshot_host() {
   for dir in "${SNAPSHOT_DIRS[@]}"; do
     for entry in $(grep -E "$PRODUCT_ENTRY" "$WORK/snapshot/dir$(tr '/' '_' <<<"$dir")"); do
       [[ "$(cat "$WORK/snapshot/docker-preexisting")" == 1 && "$entry" =~ ^(docker|containerd) ]] && continue
+      # Runtime leftovers of a Docker that is not running (a stale /run/docker.sock after an earlier purge) are not
+      # put back: the run's own Docker and its purge replace them.
+      if [[ "$dir" == /run && "$entry" =~ ^(docker|containerd) ]]; then
+        echo "/run/${entry}" >>"$WORK/snapshot/stale-docker"
+        continue
+      fi
       echo "${dir#/}/${entry}" >>"$WORK/snapshot/preexisting"
     done
   done
@@ -846,7 +915,18 @@ snapshot_host() {
     preexisting_manifest >"$WORK/snapshot/preexisting.manifest"
   fi
   if command -v nft >/dev/null; then
-    nft list ruleset >"$WORK/snapshot/ruleset.nft" 2>/dev/null
+    nft list ruleset >"$WORK/snapshot/ruleset-before.nft" 2>/dev/null
+    if [[ "$(cat "$WORK/snapshot/docker-preexisting")" == 1 ]]; then
+      cp "$WORK/snapshot/ruleset-before.nft" "$WORK/snapshot/ruleset.nft"
+    else
+      # Tables of a Docker that is not running (left by an earlier purge) are not restored: the run's Docker takes
+      # them over and the cleanup leaves the host without them.
+      awk '/^table /{block=$0 ORS; name=$2 " " $3; intable=1; docker=0; next}
+        intable{block=block $0 ORS; if ($0 ~ /chain DOCKER/) docker=1; if ($0 ~ /^}/) {intable=0; if (docker) dropped=dropped name "; "; else printf "%s", block}; next}
+        {print}
+        END{if (dropped != "") print "# dropped stale Docker tables: " dropped > "/dev/stderr"}' \
+        "$WORK/snapshot/ruleset-before.nft" >"$WORK/snapshot/ruleset.nft" 2>"$WORK/snapshot/stale-docker-tables"
+    fi
   elif command -v iptables-save >/dev/null; then
     iptables-save >"$WORK/snapshot/ruleset.iptables" 2>/dev/null
   fi
@@ -990,6 +1070,9 @@ cleanup_host() {
   for port in 3000 9443 80 443 "$WEB_PORT" "$FEED_PORT" 53; do
     port_conflicts "$port" && leftovers+=("listener on port ${port}")
   done
+  if [[ -s "$WORK/snapshot/stale-docker" || -s "$WORK/snapshot/stale-docker-tables" ]]; then
+    say "stale Docker leftovers from before the run, not put back: $(tr '\n' ' ' <"$WORK/snapshot/stale-docker" 2>/dev/null)$(cat "$WORK/snapshot/stale-docker-tables" 2>/dev/null)"
+  fi
   if ((${#leftovers[@]})); then
     fail "host restored" "left: ${leftovers[*]}"
   else
@@ -1070,10 +1153,15 @@ base_translates_retired_scopes() {
 }
 
 preflight() {
-  local tool port missing=()
+  local tool port pin missing=()
   [[ "$(id -u)" == 0 ]] || { echo "Run as root (or use --ssh)." >&2; exit 2; }
   [[ "$CANDIDATE" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] || { echo "--candidate vX.Y.Z[-rc.N] is required." >&2; exit 2; }
   [[ "$BASE" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "--base must be a stable vX.Y.Z tag." >&2; exit 2; }
+  [[ -z "$VIA" || "$VIA" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "--via must be a stable vX.Y.Z tag." >&2; exit 2; }
+  [[ -z "$BEFORE_CANDIDATE" || -n "$VIA" ]] || { echo "--before-candidate needs --via." >&2; exit 2; }
+  for pin in "${PINS[@]}"; do
+    [[ "$pin" =~ ^(via|candidate):[a-z-]+=.*$ ]] || { echo "--pin must be via|candidate:COMPONENT=TAG." >&2; exit 2; }
+  done
   [[ "$LICENSE_MODE" =~ ^(block|block-all|allow)$ ]] || { echo "--license-server must be block, block-all or allow." >&2; exit 2; }
   for tool in python3 curl openssl dpkg-query apt-get systemctl ip ss setsid tar sha256sum; do
     command -v "$tool" >/dev/null || missing+=("$tool")
@@ -1675,6 +1763,8 @@ check_launcher() {
   local type id launcher handover
   for type in docker nginx; do
     id="${FACT[${type}_node]}"
+    # A daemon this release does not ship keeps its launcher (see "daemon update offered").
+    [[ "${FACT[updated_${type}]}" == 1 ]] || continue
     wait_for 120 "${type} launcher ${CANDIDATE}" launcher_is "$id" "$CANDIDATE"
     api GET "/api/nodes/${id}"
     launcher="$(jx "$RESP" '(D.get("capabilities") or {}).get("launcherVersion")')"
@@ -1686,6 +1776,7 @@ check_launcher() {
       "updateConnections $(jx "$RESP" '{k: v for k, v in ((D.get("lastHealthReport") or {}).get("updateConnections") or {}).items() if k != "lastUpdate"}')" \
       test "$handover" = true
   done
+  [[ "${FACT[updated_docker]}" == 1 ]] || return 0
   api POST "/api/system/daemon-updates/${FACT[docker_node]}"
   if [[ "$CODE" =~ ^2 ]]; then
     local target
@@ -1753,6 +1844,8 @@ seed_alert_history() {
 
 alert_snapshot() {
   api GET "/api/notifications/alert-rules"
+  jx "$RESP" '[(r.get("name"), r.get("enabled"), r.get("isBuiltin"), sorted(r.get("webhookIds") or [])) for r in items(d) if r.get("category") == "gateway" and r.get("eventPattern") == "outbound.unavailable"]' \
+    >"$WORK/json/builtin-outbound-rule-$1.json"
   jx "$RESP" '[{k: r.get(k) for k in ("name", "enabled", "type", "category", "severity", "eventPattern", "webhookIds", "cooldownSeconds")} for r in items(d) if r["id"] == args[0]]' \
     "${FACT[rule]}" >"$WORK/json/rule-$1.json"
   api GET "/api/notifications/webhooks/${FACT[webhook]}"
@@ -1767,9 +1860,17 @@ check_alerts_migrated() {
   check "${label}: built-in \"Gateway lost outbound connectivity\" rule exists once" \
     "$(window_value "$rule" '[(r.get("name"), r.get("isBuiltin")) for r in D]')" \
     test "$(window_value "$rule" 'len(D) == 1 and D[0].get("name") == "Gateway lost outbound connectivity"')" = true
-  check "${label}: built-in rule enabled, marked built-in, bound to the proxy/node rules' webhooks" \
-    "$(window_value "$rule" '[(r.get("enabled"), r.get("isBuiltin"), r.get("webhookIds")) for r in D]'), expected webhook ${FACT[webhook]}" \
-    test "$(window_value "$rule" 'len(D) == 1 and D[0].get("enabled") is True and D[0].get("isBuiltin") is True and sorted(D[0].get("webhookIds") or []) == [args[0]]' "${FACT[webhook]}")" = true
+  if [[ "$(jx "$WORK/json/builtin-outbound-rule-base.json" 'len(d)')" == 1 ]]; then
+    # The base already has the rule (2.11.4 on: migration 0235 creates it once, at the base's own install, before the
+    # e2e webhook existed). An install that has such a rule keeps its own: expect it exactly as the base stored it.
+    check "${label}: built-in rule kept as the base had it" \
+      "$(window_value "$rule" '[(r.get("name"), r.get("enabled"), r.get("isBuiltin"), sorted(r.get("webhookIds") or [])) for r in D]'), base $(cat "$WORK/json/builtin-outbound-rule-base.json")" \
+      test "$(window_value "$rule" '[[r.get("name"), r.get("enabled"), r.get("isBuiltin"), sorted(r.get("webhookIds") or [])] for r in D] == json.load(open(args[0]))' "$WORK/json/builtin-outbound-rule-base.json")" = true
+  else
+    check "${label}: built-in rule enabled, marked built-in, bound to the proxy/node rules' webhooks" \
+      "$(window_value "$rule" '[(r.get("enabled"), r.get("isBuiltin"), r.get("webhookIds")) for r in D]'), expected webhook ${FACT[webhook]}" \
+      test "$(window_value "$rule" 'len(D) == 1 and D[0].get("enabled") is True and D[0].get("isBuiltin") is True and sorted(D[0].get("webhookIds") or []) == [args[0]]' "${FACT[webhook]}")" = true
+  fi
   alert_snapshot "${label// /-}"
   check "${label}: existing alert rule unchanged" "$(cat "$WORK/json/rule-${label// /-}.json")" \
     cmp -s "$WORK/json/rule-base.json" "$WORK/json/rule-${label// /-}.json"
@@ -1833,12 +1934,12 @@ check_folder_grant() {
   check "${label}: folder-limited manager refused at the top level" "HTTP ${code} $(short "$RESP" 160)" test "$code" = 403
 }
 
-# PIDs of daemon processes that run the base release: those that logged their start on BASE, and those that staged a
-# self-update (the process an update replaces; every update this run makes starts from the base).
+# PIDs of daemon processes that run the base release: those that logged their start on BASE (or the --via release),
+# and those that staged a self-update (the process an update replaces; every update this run makes starts from there).
 base_daemon_pids() {
   journalctl -u docker-daemon -u nginx-daemon --no-pager -o json 2>/dev/null | python3 -c '
 import json, sys
-base, pids = sys.argv[1], set()
+bases, pids = [b for b in sys.argv[1].split(",") if b], set()
 for line in sys.stdin:
     try:
         entry = json.loads(line)
@@ -1847,9 +1948,9 @@ for line in sys.stdin:
     message = entry.get("MESSAGE")
     if not isinstance(message, str):
         continue
-    if ("\"msg\":\"starting " in message and ("\"version\":\"%s\"" % base) in message) or "\"msg\":\"starting self-update\"" in message:
+    if ("\"msg\":\"starting " in message and any(("\"version\":\"%s\"" % base) in message for base in bases)) or "\"msg\":\"starting self-update\"" in message:
         pids.add(entry.get("_PID"))
-print(" ".join(sorted(p for p in pids if p)))' "$BASE"
+print(" ".join(sorted(p for p in pids if p)))' "${BASE},${VIA}"
 }
 
 # check_logs LABEL SINCE_EPOCH: warnings and errors of the app, the relay and the daemons since SINCE, against LOG_ALLOW.
@@ -2013,32 +2114,48 @@ check_upgraded_state() {
   fi
 }
 
+# hop_pins: the --pin entries of the current hop as COMPONENT=TAG.
+hop_pins() {
+  local pin
+  for pin in "${PINS[@]}"; do
+    [[ "$pin" == "${HOP_KIND}:"* ]] && printf '%s\n' "${pin#*:}"
+  done
+}
+
 phase2_update() {
   local id
-  phase 2 "Update ${BASE} -> ${CANDIDATE} through the product"
-  feed_pin "$CHANNEL" "gateway=${CANDIDATE}"
+  local -a pins=()
+  mapfile -t pins < <(hop_pins)
+  phase "2${HOP}" "Update ${HOP_FROM} -> ${CANDIDATE} through the product"
+  feed_pin "$CHANNEL" "gateway=${CANDIDATE}" "${pins[@]}"
   ensure_session
+  # Nodes keep the daemon they run until phase 3 updates them.
+  for id in "${FACT[docker_node]}" "${FACT[nginx_node]}"; do
+    FACT[daemon_before_${id}]="$(node_status "$id" | cut -d' ' -f2)"
+  done
   # A base that snapshots the database before an update removes the snapshot once the update succeeded; phase 4
   # needs it for the base's own restore, so its inode is kept by a hard link while the update runs.
   start_background dump-capture sh -c 'while :; do for f in "$1"/.gateway-foundation-backups/pre-update-*/gateway-db.dump; do
       [ -s "$f" ] && ln -f "$f" "$2/pre-update-db.dump" 2>/dev/null; done; sleep 0.2; done' sh "$INSTALL_DIR" "$WORK"
-  gateway_update "update"
+  gateway_update "update${HOP_NOTE}"
   local updated=$?
   stop_background dump-capture
   ((updated == 0)) || return 1
   check "database migrated" "$(psql_gateway 'select count(*) from drizzle.__drizzle_migrations') applied migrations" true
   check_foundation_kept
-  check_upgraded_state "after update" upgrade1
-  check_alerts_migrated "after update"
-  builtin_groups_snapshot upgrade1
-  check_folder_grant "after update"
+  check_upgraded_state "after update${HOP_NOTE}" "upgrade1${HOP}"
+  check_alerts_migrated "after update${HOP_NOTE}"
+  builtin_groups_snapshot "upgrade1${HOP}"
+  # Once per run: the folder it creates is unique.
+  [[ "$HOP_KIND" == candidate ]] && check_folder_grant "after update${HOP_NOTE}"
   if [[ "${FACT[sl_ready]}" == 1 ]]; then
     wait_for 120 "route ${SECURE_LINK_DOMAIN}" sl_ok
     check "after update: Route Secure Link serves" "http://${SECURE_LINK_DOMAIN}/ok" sl_ok
   fi
   for id in "${FACT[docker_node]}" "${FACT[nginx_node]}"; do
-    wait_for 120 "node ${id} online" node_online_with "$id" "$BASE"
-    check "node stays online on the ${BASE} daemon" "$(node_status "$id") (${id})" node_online_with "$id" "$BASE"
+    wait_for 120 "node ${id} online" node_online_with "$id" "${FACT[daemon_before_${id}]}"
+    check "node stays online on its ${FACT[daemon_before_${id}]} daemon" "$(node_status "$id") (${id})" \
+      node_online_with "$id" "${FACT[daemon_before_${id}]}"
   done
 }
 
@@ -2056,17 +2173,28 @@ relay_updated() {
 }
 
 phase3_components() {
-  local id target type start before relay_target start_ms window
-  phase 3 "Update daemons and relay through the product"
+  local id target type start before relay_target start_ms window current
+  phase "3${HOP}" "Update daemons and relay to ${CANDIDATE} through the product"
   FACT[phase3_epoch]="$(date +%s)"
+  FACT[updated_docker]=0
+  FACT[updated_nginx]=0
   ensure_session
   api POST /api/system/daemon-updates/check
   keep_json daemon-updates
   for type in docker nginx; do
     id="${FACT[${type}_node]}"
     target="$(jx "$WORK/json/daemon-updates.json" '[x["latestVersion"] for x in D if x["daemonType"] == args[0]][0]' "$type")"
-    check "${type} daemon update offered" "latest ${target:-none} for the ${BASE} node" \
-      test -n "$target" -a "$(jx "$WORK/json/daemon-updates.json" '[n["updateAvailable"] for x in D for n in x["nodes"] if n["nodeId"] == args[0]][0]' "$id")" = true || continue
+    current="$(node_status "$id" | cut -d' ' -f2)"
+    if [[ "$(jx "$WORK/json/daemon-updates.json" '[n["updateAvailable"] for x in D for n in x["nodes"] if n["nodeId"] == args[0]][0]' "$id")" != true ]]; then
+      # A release that does not ship this daemon: the feed has nothing newer than what the node runs.
+      if [[ -z "$target" || "${target#v}" == "${current#v}" ]]; then
+        skip "${type} daemon update offered" "the release feed has no newer ${type} daemon (latest ${target:-none}, node runs ${current})"
+      else
+        fail "${type} daemon update offered" "latest ${target} for the node on ${current}, but no update available"
+      fi
+      continue
+    fi
+    pass "${type} daemon update offered" "latest ${target} for the node on ${current}"
     [[ "${FACT[sl_ready]}" == 1 ]] && live_start "$type"
     start=$SECONDS
     start_ms="$(now_ms)"
@@ -2075,8 +2203,9 @@ phase3_components() {
     check "${type} daemon update scheduled" "HTTP ${CODE} -> ${target}" test "$CODE" = 200 -a -n "$target" || continue
     wait_for 300 "${type} daemon ${target}" node_online_with "$id" "$target"
     FACT[live_${type}_online_ms]="$(now_ms)"
-    TIMING["${type} daemon update"]="$((SECONDS - start)) s"
-    check "${type} daemon updated and online" "$(node_status "$id") after $((SECONDS - start)) s" node_online_with "$id" "$target"
+    TIMING["${type} daemon update${HOP_NOTE}"]="$((SECONDS - start)) s"
+    check "${type} daemon updated and online" "$(node_status "$id") after $((SECONDS - start)) s" node_online_with "$id" "$target" &&
+      FACT[updated_${type}]=1
     live_verdict "$type" "$id" "$target"
     window="$(probe_window "$start_ms" "$(now_ms)")"
     check "route served during the ${type} daemon update" \
@@ -2093,15 +2222,42 @@ phase3_components() {
     "unit $(systemctl is-active gateway-lease-watchdog 2>/dev/null) $(journalctl -u gateway-lease-watchdog --no-pager -o cat 2>/dev/null | grep -o '"version":"[^"]*"' | tail -n1)" \
     watchdog_ready
 
+  relay_update
+  check_logs "after the daemon and relay updates${HOP_NOTE}" "${FACT[phase3_epoch]}"
+  # After the log check: the kills log warnings on purpose. Once per run, on the candidate's daemons.
+  if [[ "$HOP_KIND" != candidate ]]; then
+    skip "Route Secure Link cut on a daemon kill" "checked after the update to the candidate"
+  elif [[ "${FACT[sl_ready]}" == 1 ]]; then
+    kill_cut_check "docker daemon killed mid-download" docker-daemon "/blob?rate=${BLOB_RATE}"
+    kill_cut_check "docker daemon killed mid-stream" docker-daemon "/stream?seconds=600"
+    kill_cut_check "nginx daemon killed mid-stream" nginx-daemon "/stream?seconds=600"
+  else
+    skip "Route Secure Link cut on a daemon kill" "the base Route Secure Link was not set up"
+  fi
+}
+
+# The relay update through the product. A release without a relay of its own (the feed has nothing newer than the
+# running relay) is a SKIP; the rest of phase 3 (log check, kill checks) runs either way.
+relay_update() {
+  local id start relay_target before offered
   api POST /api/system/check-update
   relay_target="$(jx "$RESP" 'D["relay"]["latestVersion"]')"
   before="$(jx "$RESP" 'D["relay"]["currentVersion"]')"
-  check "relay update offered" "${before} -> ${relay_target:-none}" test "$(jx "$RESP" 'D["relay"]["updateAvailable"]')" = true || return 0
+  offered="$(jx "$RESP" 'D["relay"]["updateAvailable"]')"
+  if [[ "$offered" != true ]]; then
+    if [[ -z "$relay_target" || "${relay_target#v}" == "${before#v}" ]]; then
+      skip "relay update offered" "the release feed has no newer relay (${before} -> ${relay_target:-none})"
+    else
+      fail "relay update offered" "${before} -> ${relay_target}, but no update available"
+    fi
+    return 0
+  fi
+  pass "relay update offered" "${before} -> ${relay_target}"
   start=$SECONDS
   api POST /api/system/relay-update "$(mkjson '{"version": a[0]}' "$relay_target")"
-  check "relay update accepted" "HTTP ${CODE}" test "$CODE" = 200 || return 0
+  check "relay update accepted" "HTTP ${CODE} $(short "$RESP" 160)" test "$CODE" = 200 || return 0
   wait_for 300 "relay ${relay_target}" relay_updated "$relay_target"
-  TIMING["relay update"]="$((SECONDS - start)) s"
+  TIMING["relay update${HOP_NOTE}"]="$((SECONDS - start)) s"
   check "relay updated" "$(jx "$RESP" 'D["relay"]["currentVersion"]') after $((SECONDS - start)) s; $(docker inspect -f '{{.State.Health.Status}}' "$(service_id relay)" 2>/dev/null)" \
     relay_updated "$relay_target"
   for id in "${FACT[docker_node]}" "${FACT[nginx_node]}"; do
@@ -2112,15 +2268,6 @@ phase3_components() {
   if [[ "${FACT[sl_ready]}" == 1 ]]; then
     wait_for 120 "route ${SECURE_LINK_DOMAIN}" sl_ok
     check "Route Secure Link serves after the relay update" "http://${SECURE_LINK_DOMAIN}/ok" sl_ok
-  fi
-  check_logs "after the daemon and relay updates" "${FACT[phase3_epoch]}"
-  # After the log check: the kills log warnings on purpose.
-  if [[ "${FACT[sl_ready]}" == 1 ]]; then
-    kill_cut_check "docker daemon killed mid-download" docker-daemon "/blob?rate=${BLOB_RATE}"
-    kill_cut_check "docker daemon killed mid-stream" docker-daemon "/stream?seconds=600"
-    kill_cut_check "nginx daemon killed mid-stream" nginx-daemon "/stream?seconds=600"
-  else
-    skip "Route Secure Link cut on a daemon kill" "the base Route Secure Link was not set up"
   fi
 }
 
@@ -2261,6 +2408,33 @@ phase5_fresh() {
 
 # ── Main ──────────────────────────────────────────────────────────────
 
+# With --via: base -> VIA (Gateway, daemons, relay), the --before-candidate command, then the globals move on to the
+# candidate hop (BASE stays the release the run installed).
+run_via_hop() {
+  phase2_update || return 1
+  phase3_components
+  if [[ -n "$BEFORE_CANDIDATE" ]]; then
+    PHASE="2b"
+    say "running the --before-candidate command"
+    local status=0
+    GATEWAY_E2E_WORK="$WORK" GATEWAY_E2E_INSTALL_DIR="$INSTALL_DIR" GATEWAY_E2E_PROJECT="$PROJECT" \
+      bash -c "$BEFORE_CANDIDATE" </dev/null >>"$WORK/logs/before-candidate.out" 2>&1 || status=$?
+    check "--before-candidate command" "exit ${status} (logs/before-candidate.out)" test "$status" = 0 || return 1
+  fi
+  HOP_FROM="$VIA"
+  CANDIDATE="$FINAL_CANDIDATE"
+  CHANNEL="$FINAL_CHANNEL"
+  HOP=b
+  HOP_KIND=candidate
+  HOP_NOTE=" to ${CANDIDATE}"
+  ensure_session
+  if [[ "$CHANNEL" == preview ]]; then
+    api PUT /api/admin/auth-settings '{"generalSettings":{"updateChannel":"preview"}}'
+    check "update channel set to preview" "HTTP ${CODE}" test "$CODE" = 200 || return 1
+  fi
+  wait_for 120 "Gateway health" api_healthy
+}
+
 start_services() {
   mkdir -p "$WORK/pids" "$WORK/logs" "$WORK/json" "$WORK/smtp"
   if [[ "$LICENSE_MODE" == allow || -n "$LICENSE_KEY" ]]; then echo 0 >"$WORK/license-block"; else echo 1 >"$WORK/license-block"; fi
@@ -2373,6 +2547,19 @@ main() {
   WORK="${WORK:-/var/tmp/gateway-e2e-${RUN_ID}}"
   PUBLIC_URL="${PUBLIC_URL:-https://gateway-e2e-${RUN_ID}.invalid:3000}"
   [[ "$CANDIDATE" == *-rc.* ]] && CHANNEL="preview"
+  # The base rollback() belongs to the base; after a hop through --via it is not the path that release takes.
+  [[ -n "$VIA" ]] && SKIP_ROLLBACK=1
+  FINAL_CANDIDATE="$CANDIDATE"
+  FINAL_CHANNEL="$CHANNEL"
+  HOP_FROM="$BASE"
+  HOP_KIND=candidate
+  if [[ -n "$VIA" ]]; then
+    CANDIDATE="$VIA"
+    CHANNEL=stable
+    HOP=a
+    HOP_KIND=via
+    HOP_NOTE=" to ${VIA}"
+  fi
   [[ ! -e "$WORK" ]] || { echo "${WORK} exists." >&2; exit 2; }
   mkdir -p "$WORK"
   JAR="$WORK/admin.jar"
@@ -2383,15 +2570,21 @@ main() {
   echo "$PROJECT" >"$WORK/project"
   trap on_exit EXIT
   trap 'exit 130' INT TERM HUP
-  say "Gateway release E2E ${BASE} -> ${CANDIDATE}; host ${HOST_ADDR}; public URL ${PUBLIC_URL}; work dir ${WORK}"
+  say "Gateway release E2E ${BASE} -> ${VIA:+${VIA} -> }${FINAL_CANDIDATE}; host ${HOST_ADDR}; public URL ${PUBLIC_URL}; work dir ${WORK}"
 
   phase 0 "Preparation"
   start_services || exit 1
 
   if phase1_base; then
-    if phase2_update; then
+    if [[ -n "$VIA" ]] && ! run_via_hop; then
+      PHASE=2b; skip "product update to ${FINAL_CANDIDATE}" "the hop through ${VIA} did not complete"
+    elif phase2_update; then
       phase3_components
-      phase4_rollback
+      if ((SKIP_ROLLBACK)); then
+        PHASE=4; skip "forced rollback" "${VIA:+after a hop through ${VIA}: }--skip-rollback"
+      else
+        phase4_rollback
+      fi
     else
       PHASE=3; skip "daemon and relay updates" "the Gateway update did not complete"
       PHASE=4; skip "forced rollback" "the Gateway update did not complete"
@@ -2401,7 +2594,11 @@ main() {
     PHASE=3; skip "daemon and relay updates" "the base installation did not complete"
     PHASE=4; skip "forced rollback" "the base installation did not complete"
   fi
-  phase5_fresh
+  if ((SKIP_FRESH)); then
+    PHASE=5; skip "fresh install of ${CANDIDATE}" "--skip-fresh"
+  else
+    phase5_fresh
+  fi
   if [[ -z "$LICENSE_KEY" ]]; then
     PHASE=6
     skip "paid path" "GATEWAY_E2E_LICENSE_KEY is not set"
