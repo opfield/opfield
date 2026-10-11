@@ -607,7 +607,7 @@ describe("gateway update facade", () => {
 			expect(response.status).toBe(200);
 			await expect(response.text()).resolves.toBe("{}");
 			expect(String(fetcher.mock.calls[0]?.[0])).toBe(
-				"https://api.github.com/repos/the-square-labs/gateway/releases/latest",
+				"https://api.github.com/repos/opfield/opfield/releases/latest",
 			);
 			expect(String(fetcher.mock.calls[1]?.[0])).toContain(
 				"/releases/assets/9",
