@@ -141,6 +141,10 @@ export interface RelayRuntimeStatus {
   policySigningKeyIds: string[];
   /** The relay's acceptor and gate view; relays advertising availability_lease_v1. */
   availabilityLease?: AvailabilityLeaseReport | null;
+  /** Local witness hosting gate (relay_witness_v1): allowed | protected_needs_opt_in | disabled. */
+  witnessHosting?: string;
+  witnesses?: WitnessStatus[];
+  appliedWitnessRevision?: string;
 }
 
 export interface RelayAssignmentTunnelCount {
@@ -404,6 +408,8 @@ export interface GatewayCommand {
   updateRelayWorker?: UpdateRelayWorkerCommand;
   renewRelayIdentity?: RenewRelayIdentityCommand;
   getRelayRouteRuntime?: GetRelayRouteRuntimeCommand;
+  /** Relay supervisor only (relay_witness_v1): the full desired set of witness processes. */
+  applyWitnesses?: ApplyWitnessesCommand;
   syncAvailabilityLease?: SyncAvailabilityLeaseCommand;
   availabilityLeaseHandoff?: AvailabilityLeaseHandoffCommand;
   syncDockerRegistryBindings?: SyncDockerRegistryBindingsCommand;
@@ -512,6 +518,63 @@ export interface RenewRelayIdentityCommand {
 /** Relay supervisors with relay_route_runtime_v1; the answer is JSON in CommandResult.detail. */
 export interface GetRelayRouteRuntimeCommand {
   routeIds: string[];
+}
+
+/** The witness processes a relay supervisor runs for availability sets, as the full desired set. */
+export interface ApplyWitnessesCommand {
+  /** Increases with every push to the relay; the supervisor ignores one not above its applied revision. */
+  revision: string;
+  witnesses: WitnessSpec[];
+}
+
+export interface WitnessSpec {
+  id: string;
+  setId: string;
+  /** 'clickhouse_keeper'. */
+  kind: string;
+  /** 'active' runs it; 'standby' fetches, verifies and stages it without running. */
+  role: string;
+  artifact: WitnessArtifact;
+  serverId: number;
+  /** Loopback ports of the relay-local endpoints (39400-39499): Keeper client and raft. */
+  clientPort: number;
+  raftPort: number;
+  /** Host the raft configuration names for this witness; '127.0.0.1' when empty. */
+  raftHost: string;
+  peers: WitnessPeer[];
+  leasePolicyId: string;
+}
+
+export interface WitnessPeer {
+  serverId: number;
+  /** Loopback address and port (39500-39999) of the local forwarder, as the raft configuration names the peer. */
+  host: string;
+  port: number;
+  routeId: string;
+  assignmentGeneration: string;
+}
+
+export interface WitnessArtifact {
+  version: string;
+  downloadUrl: string;
+  sha256: string;
+  signedManifest: string;
+  component: string;
+}
+
+export interface WitnessStatus {
+  id: string;
+  kind: string;
+  role: string;
+  /** fetching | staged | starting | running | updating | stopped | error | refused */
+  state: string;
+  version: string;
+  artifactSha256: string;
+  keeperRole: string;
+  lastZxid: string;
+  error: string;
+  restarts: number;
+  sinceUnix: string;
 }
 
 export interface SyncDockerRegistryBindingsCommand {

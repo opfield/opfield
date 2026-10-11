@@ -11,6 +11,7 @@ import (
 
 	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
 	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
+	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
 	"github.com/wiolett-industries/gateway/daemon-shared/stream"
 	"github.com/wiolett-industries/gateway/daemon-shared/sysmetrics"
 	"github.com/wiolett-industries/gateway/relay-supervisor/internal/config"
@@ -29,6 +30,8 @@ type Plugin struct {
 	started bool
 	// lastAdminSync throttles the admin client certificate check.
 	lastAdminSync time.Time
+	// witnesses runs the witness processes this relay hosts.
+	witnesses *witnessManager
 }
 
 func New(cfg *config.Config) *Plugin {
@@ -41,7 +44,28 @@ func (p *Plugin) SetLogger(logger *slog.Logger) { p.logger = logger }
 
 func (p *Plugin) Init(_ *lifecycle.BaseConfig, logger *slog.Logger) error {
 	p.logger = logger
+	p.startWitnesses()
 	return nil
+}
+
+// startWitnesses restores the last applied witness set and runs it, with or
+// without a Gateway session.
+func (p *Plugin) startWitnesses() {
+	if p.witnesses != nil {
+		return
+	}
+	rt := newHostWitnessRuntime(p.cfg.StateDir, p.logger, func(ctx context.Context) (relayv1.RelayAdmin_DialRouteClient, error) {
+		client, err := p.worker.connectAdmin(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return client.DialRoute(ctx)
+	})
+	p.witnesses = newWitnessManager(filepath.Join(p.cfg.StateDir, "witness"), rt.root, p.logger, p.witnessHosting, rt)
+	if err := p.witnesses.load(); err != nil && p.logger != nil {
+		p.logger.Warn("relay witness state could not be restored", "error", err)
+	}
+	p.witnesses.Start()
 }
 
 // PersistEnrollmentBundle stores a new enrollment, first or repeated. The
@@ -101,7 +125,7 @@ func (p *Plugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 		NodeId: nodeID, Hostname: hostname, DaemonVersion: lifecycle.Version,
 		CpuModel: cpuModel, CpuCores: int32(cpuCores), Architecture: sysmetrics.GetArchitecture(),
 		KernelVersion: sysmetrics.GetKernelVersion(), DaemonType: "relay",
-		Capabilities: append([]string{relayPoolCapability, relayRouteRuntimeCapability}, p.protectedCapabilities()...),
+		Capabilities: append([]string{relayPoolCapability, relayRouteRuntimeCapability, RelayWitnessCapability}, p.protectedCapabilities()...),
 	}
 	if state != nil {
 		register.HostIdentityId = state.HostIdentityID
@@ -173,6 +197,11 @@ func (p *Plugin) HandleCommand(command *pb.GatewayCommand) *pb.CommandResult {
 		}
 	case *pb.GatewayCommand_GetRelayRouteRuntime:
 		result.Detail, err = p.worker.routeRuntime(context.Background(), payload.GetRelayRouteRuntime.GetRouteIds())
+	case *pb.GatewayCommand_ApplyWitnesses:
+		if p.witnesses == nil {
+			p.startWitnesses()
+		}
+		result.Detail, err = p.witnesses.Apply(payload.ApplyWitnesses)
 	case *pb.GatewayCommand_SetDaemonLogStream:
 		stream.SetDaemonLogStreaming(payload.SetDaemonLogStream.Enabled, payload.SetDaemonLogStream.MinLevel)
 	default:
@@ -214,7 +243,12 @@ func (p *Plugin) OnSessionEnd() {
 	p.mu.Unlock()
 }
 
-func (p *Plugin) Shutdown() { p.worker.shutdown() }
+func (p *Plugin) Shutdown() {
+	if p.witnesses != nil {
+		p.witnesses.Shutdown()
+	}
+	p.worker.shutdown()
+}
 
 func (p *Plugin) reportLoop(ctx context.Context, writer *stream.Writer) {
 	ticker := time.NewTicker(5 * time.Second)
@@ -256,9 +290,10 @@ func (p *Plugin) syncAdminClientIfDue(ctx context.Context) {
 func (p *Plugin) collectRuntime(ctx context.Context) *pb.RelayRuntimeStatus {
 	state, _ := loadEnrollmentState(p.cfg.StateDir)
 	status := &pb.RelayRuntimeStatus{
-		State: "joining", Capabilities: append([]string{relayPoolCapability}, p.protectedCapabilities()...),
+		State: "joining", Capabilities: append([]string{relayPoolCapability, RelayWitnessCapability}, p.protectedCapabilities()...),
 		AdvertisedAddresses: append([]string(nil), p.cfg.Worker.AdvertisedAddresses...), ServicePort: uint32(p.cfg.Worker.ServicePort),
 	}
+	p.fillWitnessStatus(status)
 	if state != nil {
 		status.RelayInstanceId = state.InstanceID
 	}
@@ -287,7 +322,7 @@ func (p *Plugin) collectRuntime(ctx context.Context) *pb.RelayRuntimeStatus {
 	}
 	status.BuildVersion = health.GetBuildVersion()
 	status.ProtocolMajor = health.GetProtocolMajor()
-	status.Capabilities = append(append([]string(nil), health.GetCapabilities()...), p.protectedCapabilities()...)
+	status.Capabilities = append(append(append([]string(nil), health.GetCapabilities()...), RelayWitnessCapability), p.protectedCapabilities()...)
 	status.AppliedPolicyRevision = health.GetAppliedRevision()
 	status.PolicyExpiresAtUnix = health.GetPolicyExpiresAtUnix()
 	status.RegisteredEndpoints = health.GetRegisteredEndpoints()

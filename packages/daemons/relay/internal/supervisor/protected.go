@@ -3,6 +3,7 @@ package supervisor
 import (
 	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
 	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
+	"github.com/wiolett-industries/gateway/daemon-shared/relaylocal"
 	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
 	"google.golang.org/protobuf/proto"
 )
@@ -18,6 +19,8 @@ const RelayProtectedWitnessAllowedCapability = "relay_protected_witness_allowed_
 // serves one; a remote relay would dial its fixed name on its own host's
 // network.
 const localServiceSubjectKind = "local_service"
+
+const protectedRelayLocalRefusal = "refused: this relay runs in protected mode without the owner's database witness opt-in and does not serve relay-local endpoints"
 
 const protectedLocalServiceRefusal = "refused: this relay runs in protected mode and does not serve built-in local services, which only the local relay serves"
 
@@ -36,6 +39,9 @@ func (p *Plugin) ProtectedCommandAllowed(cmd *pb.GatewayCommand) bool {
 		*pb.GatewayCommand_RenewRelayIdentity,
 		*pb.GatewayCommand_GetRelayRouteRuntime:
 		return true
+	case *pb.GatewayCommand_ApplyWitnesses:
+		// Witness processes only with the owner's opt-in.
+		return p.cfg.Protected.AllowDatabaseWitness
 	}
 	return false
 }
@@ -77,6 +83,10 @@ func (p *Plugin) protectedPolicyRefusal(encoded []byte) string {
 	for _, endpoint := range endpoints {
 		if endpoint.GetSubjectKind() == localServiceSubjectKind {
 			return protectedLocalServiceRefusal
+		}
+		if endpoint.GetSubjectKind() == relaylocal.SubjectKind && !p.cfg.Protected.AllowDatabaseWitness {
+			// A relay-local endpoint reaches a witness on this host.
+			return protectedRelayLocalRefusal
 		}
 	}
 	return ""

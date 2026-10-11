@@ -14,6 +14,7 @@ import { validateGrpcServerCertificate } from '@/services/grpc-server-certificat
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import type { NodeRegistryService } from '@/services/node-registry.service.js';
 import type { RelayPolicyService } from '@/services/relay-policy.service.js';
+import type { RelayWitnessService } from '@/services/relay-witness.service.js';
 import type { SystemCAService } from '@/services/system-ca.service.js';
 import {
   configureRelayForwardedIdentityTrust,
@@ -110,6 +111,7 @@ export interface GrpcServerDeps {
   relayPeerFingerprint?: string;
   relayPolicy?: RelayPolicyService;
   availabilityLease?: Pick<AvailabilityLeaseService, 'ingestDaemonReport' | 'ingestRelayReport'>;
+  relayWitness?: Pick<RelayWitnessService, 'ingestRuntime'>;
 }
 
 let server: grpc.Server | null = null;

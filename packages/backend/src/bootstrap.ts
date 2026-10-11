@@ -279,6 +279,7 @@ import { RelayRegistryIngressService } from '@/services/relay-registry-ingress.s
 import { RelayStartupFinalizerService } from '@/services/relay-startup-finalizer.service.js';
 import { RelaySupervisorService } from '@/services/relay-supervisor.service.js';
 import { RelayTopologyService } from '@/services/relay-topology.service.js';
+import { RelayWitnessService } from '@/services/relay-witness.service.js';
 import { ResourceSnapshotStore } from '@/services/resource-snapshot.store.js';
 import { RuntimeRestartService } from '@/services/runtime-restart.service.js';
 import { SessionService } from '@/services/session.service.js';
@@ -1388,6 +1389,8 @@ export async function initializeContainer(): Promise<void> {
     new RelayPolicySigningKeyService(db, cryptoService)
   );
   container.registerInstance(AvailabilityLeaseService, availabilityLeaseService);
+  // Witness processes relays host for availability sets (decision 9): desired sets pushed, reports recorded.
+  container.registerInstance(RelayWitnessService, new RelayWitnessService(db, nodeDispatch));
   if (relayPolicyService) {
     relayPolicyService.setAvailabilityLeaseSource(availabilityLeaseService);
     availabilityLeaseService.setRelayPublisher(relayPolicyService);
