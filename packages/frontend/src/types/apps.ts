@@ -7,7 +7,7 @@ import type { AuditLogEntry } from "./pki";
 /** Health of an environment (and of the app: its Production environment). */
 export type AppHealth = "healthy" | "degraded" | "failing" | "unknown";
 
-/** Shutdown / kill switch state (Phase 2 fills it; Phase 1 is always "none"). */
+/** Shutdown / kill switch state of the app's visible environments. */
 export type AppIncidentState = "none" | "stopped" | "isolated" | "partial";
 
 /** The resource families an environment holds (one hidden folder each). */
@@ -82,8 +82,8 @@ export interface AppEnvironmentDetail {
   /** Hidden env folder per family: pass as `folderId` to create inside the environment. */
   placementFolderIds: AppPlacementFolderIds;
   allowedNodeIds: string[];
-  /** Phase 2. */
-  incidents?: unknown[];
+  /** Open shutdown / kill switch incidents of the environment, with their items. */
+  incidents?: AppIncident[];
 }
 
 export interface AppPermissions {
@@ -104,6 +104,8 @@ export interface AppDetail {
   maintenanceOverrideAt?: string | null;
   /** Hidden app-root folder per family ("every environment" access lines grant these). */
   rootFolderIds?: AppPlacementFolderIds;
+  /** Shutdown / kill switch state over the visible environments. */
+  incident?: AppIncidentState;
   environments: AppEnvironmentDetail[];
   permissions: AppPermissions;
 }
@@ -306,6 +308,162 @@ export interface AppActivityPage {
   total: number;
   page: number;
   limit: number;
+}
+
+/* Shutdown and kill switch ------------------------------------------------------------------- */
+
+export type AppIncidentKind = "shutdown" | "isolation";
+
+export type AppIncidentItemStatus =
+  | "pending"
+  | "applied"
+  | "failed"
+  | "restored"
+  | "restore_failed"
+  | "gone";
+
+export interface AppIncidentItem {
+  id: string;
+  kind: string;
+  label: string;
+  status: AppIncidentItemStatus;
+  attempts: number;
+  lastError: string | null;
+}
+
+export interface AppIncidentPerson {
+  id: string;
+  name: string | null;
+}
+
+export interface AppIncident {
+  id: string;
+  batchId: string;
+  environmentId: string;
+  kind: AppIncidentKind;
+  state: "applying" | "active" | "releasing" | "released" | "failed";
+  startedAt: string;
+  startedBy: AppIncidentPerson | null;
+  releasedAt: string | null;
+  releasedBy: AppIncidentPerson | null;
+  lastError: string | null;
+  counts: {
+    total: number;
+    pending: number;
+    applied: number;
+    failed: number;
+    restored: number;
+    restoreFailed: number;
+    gone: number;
+  };
+  items: AppIncidentItem[];
+}
+
+export interface AppShutdownSummary {
+  containers: number;
+  deployments: number;
+  composeProjects: number;
+  databases: number;
+  storages: number;
+  routes: number;
+  pagesRoutes: number;
+}
+
+export interface AppIsolationSummary {
+  routes: number;
+  links: number;
+  bindings: number;
+  secureLinks: number;
+  publications: number;
+  containers: number;
+  composeProjects: number;
+}
+
+export interface AppIncidentPreview<K extends AppIncidentKind = AppIncidentKind> {
+  kind: K;
+  environments: Array<{
+    environmentId: string;
+    summary: K extends "shutdown" ? AppShutdownSummary : AppIsolationSummary;
+    alreadyActive: boolean;
+  }>;
+  summary: K extends "shutdown" ? AppShutdownSummary : AppIsolationSummary;
+}
+
+/* Promote ------------------------------------------------------------------------------------ */
+
+export type AppPromotableType = "container" | "deployment" | "compose" | "pages";
+
+export interface AppPromotionPreviewItem {
+  pairKey: string;
+  type: AppPromotableType;
+  sourceId: string;
+  sourceName: string;
+  sourceNodeId: string | null;
+  targetId: string;
+  targetName: string;
+  targetNodeId: string | null;
+  from: string | null;
+  to: string;
+  fromDigest: string | null;
+  toDigest: string | null;
+  same: boolean;
+  promotable: boolean;
+  reason: string | null;
+  rollout: string;
+  build: { commitSha: string; buildId: string } | null;
+  compose?: {
+    fromRevision: number | null;
+    toRevision: number | null;
+    services: Array<{ name: string; from: string | null; to: string | null; changed: boolean }>;
+    changes: Array<{ path: string; from: string | null; to: string | null }>;
+  };
+  pages?: { fromSequence: number | null; toSequence: number | null; artifactSha256: string | null };
+}
+
+export interface AppPromotionPreview {
+  appId: string;
+  sourceEnvironmentId: string;
+  targetEnvironmentId: string;
+  items: AppPromotionPreviewItem[];
+  unchanged: string[];
+  unpaired: Array<{
+    type: AppPromotableType;
+    id: string;
+    name: string;
+    reason: string;
+    message: string;
+  }>;
+  previewDigest: string;
+}
+
+export type AppPromotionItemStatus = "pending" | "running" | "succeeded" | "failed" | "skipped";
+
+export interface AppPromotionItem {
+  pairKey: string;
+  type: AppPromotableType;
+  sourceId: string;
+  sourceName: string;
+  targetId: string;
+  targetName: string;
+  from: string | null;
+  to: string;
+  status: AppPromotionItemStatus;
+  detail: string | null;
+  error: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface AppPromotion {
+  id: string;
+  appId: string;
+  sourceEnvironmentId: string;
+  targetEnvironmentId: string;
+  status: "running" | "succeeded" | "partial" | "failed";
+  startedAt: string;
+  finishedAt: string | null;
+  startedBy: AppIncidentPerson | null;
+  items: AppPromotionItem[];
 }
 
 /* Realtime ----------------------------------------------------------------------------------- */

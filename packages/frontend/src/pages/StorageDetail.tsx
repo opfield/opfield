@@ -2,6 +2,7 @@ import { Activity, FolderOpen, Key } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { MemberIsolatedNotice } from "@/components/apps/IsolatedNotice";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
 import {
@@ -388,6 +389,7 @@ function StorageDetailContent({
           onRevealCredentials={() => void revealCredentials()}
           onRemove={() => void remove()}
         />
+        <MemberIsolatedNotice app={storage.app} />
 
         <HealthBars history={liveHealthHistory} currentStatus={liveHealthStatus} />
 

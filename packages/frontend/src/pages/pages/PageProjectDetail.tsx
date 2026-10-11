@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { AppMembershipLink } from "@/components/apps/AppMembership";
+import { MemberIsolatedNotice } from "@/components/apps/IsolatedNotice";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { CopyCodeBlock } from "@/components/common/CopyCodeBlock";
 import { CopyValueField } from "@/components/common/CopyValueField";
@@ -592,6 +593,7 @@ export function PageProjectDetail({
             )}
           </ResponsiveHeaderActions>
         </div>
+        <MemberIsolatedNotice app={project.app} />
 
         {latestPreviewUrl && (
           <CopyValueField

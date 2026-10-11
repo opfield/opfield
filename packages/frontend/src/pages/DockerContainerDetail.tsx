@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { AppMembershipLink } from "@/components/apps/AppMembership";
+import { MemberIsolatedNotice } from "@/components/apps/IsolatedNotice";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
@@ -1746,6 +1747,8 @@ export function DockerContainerDetail({
             </ResponsiveHeaderActions>
           }
         />
+
+        <MemberIsolatedNotice app={containerApp} />
 
         {buildRolloutReason && !composeManaged && (
           <div

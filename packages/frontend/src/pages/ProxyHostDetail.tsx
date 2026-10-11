@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { AppMembershipLink } from "@/components/apps/AppMembership";
+import { MemberIsolatedNotice } from "@/components/apps/IsolatedNotice";
 import { confirm, confirmAction } from "@/components/common/ConfirmDialog";
 import { CopyButton } from "@/components/common/CopyButton";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
@@ -1163,6 +1164,8 @@ export function ProxyHostDetail({
             </ResponsiveHeaderActions>
           }
         />
+
+        <MemberIsolatedNotice app={host.app} />
 
         {/* ── Health bars (only when healthCheckEnabled) ──────── */}
         {host.healthCheckEnabled && (

@@ -17,6 +17,8 @@ import { useCallback, useMemo, useState } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import type { AppCreateContext } from "@/components/apps/app-create-context";
+import { openAppIncidents } from "@/components/apps/app-incidents";
+import { IsolatedNotice } from "@/components/apps/IsolatedNotice";
 import { MoveToAppDialog } from "@/components/apps/MoveToAppDialog";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
 import { PageBackButton } from "@/components/common/PageBackButton";
@@ -153,7 +155,11 @@ function AppPageContent({
 }) {
   const { permissions } = app;
   const canCreate = Object.values(permissions.envManage).some(Boolean);
-  const canSettings = permissions.edit || permissions.delete || permissions.operate;
+  const canSettings =
+    permissions.edit ||
+    permissions.delete ||
+    permissions.operate ||
+    Object.values(permissions.operateEnv ?? {}).some(Boolean);
   const counts = app.environments.map((env) => env.memberCounts);
   const members = counts.reduce((sum, item) => sum + memberTotal(item), 0);
   const hasData = counts.some((item) => (item.database ?? 0) + (item.storage ?? 0) > 0);
@@ -222,9 +228,8 @@ function AppPageContent({
     }
   };
 
-  const incident = app.environments.some((env) =>
-    (env.incidents ?? []).some((item) => (item as { kind?: string }).kind === "isolation")
-  );
+  const isolated = openAppIncidents(app, "isolation").length > 0;
+  const stopped = openAppIncidents(app, "shutdown").length > 0;
 
   return (
     <PageTransition>
@@ -233,9 +238,13 @@ function AppPageContent({
           leading={<PageBackButton />}
           title={app.name}
           badges={
-            incident ? (
+            isolated ? (
               <Badge variant="destructive" size="inline" className="shrink-0">
                 isolated
+              </Badge>
+            ) : stopped ? (
+              <Badge variant="secondary" size="inline" className="shrink-0">
+                stopped
               </Badge>
             ) : production && members > 0 ? (
               <HealthBadge health={production.health} inline />
@@ -274,6 +283,7 @@ function AppPageContent({
           }
         />
 
+        <IsolatedNotice app={app} onChanged={() => void refresh()} />
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col">
           <TabsList className="shrink-0">
             {tabs

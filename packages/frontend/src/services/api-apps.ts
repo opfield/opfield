@@ -4,12 +4,17 @@ import type {
   AppDetail,
   AppEnvironmentDetail,
   AppEnvironmentUpdateInput,
+  AppIncident,
+  AppIncidentKind,
+  AppIncidentPreview,
   AppMaintenanceAccessCode,
   AppMember,
   AppOverview,
   AppOverviewRange,
   AppPlaceInput,
   AppPlaceResult,
+  AppPromotion,
+  AppPromotionPreview,
   AppSecretsPatch,
   AppSummary,
   AppUpdateInput,
@@ -245,6 +250,117 @@ export function withAppsApi<TBase extends ApiClientBaseConstructor>(Base: TBase)
       if (params?.environmentId) query.set("environmentId", params.environmentId);
       return this.request<AppActivityPage>(
         `/apps/${seg(appId)}/activity${query.size ? `?${query}` : ""}`
+      );
+    }
+
+    // ── Shutdown, kill switch ──────────────────────────────────────
+    // `environmentIds: null` acts on every environment (apps:operate on the app).
+
+    async previewAppIncident<K extends AppIncidentKind>(
+      appId: string,
+      kind: K,
+      environmentIds: string[] | null
+    ): Promise<AppIncidentPreview<K>> {
+      const query = new URLSearchParams({ kind });
+      if (environmentIds?.length) query.set("environmentIds", environmentIds.join(","));
+      return this.unwrapData(
+        this.request<{ data: AppIncidentPreview<K> }>(
+          `/apps/${seg(appId)}/incidents/preview?${query}`
+        )
+      );
+    }
+
+    async listAppIncidents(appId: string): Promise<AppIncident[]> {
+      return this.unwrapData(
+        this.request<{ data: AppIncident[] }>(`/apps/${seg(appId)}/incidents`)
+      );
+    }
+
+    async shutdownApp(appId: string, environmentIds: string[] | null): Promise<AppIncident[]> {
+      return this.unwrapData(
+        this.request<{ data: AppIncident[] }>(`/apps/${seg(appId)}/shutdown`, {
+          method: "POST",
+          body: JSON.stringify({ environmentIds }),
+        })
+      );
+    }
+
+    async startApp(appId: string, environmentIds: string[] | null): Promise<AppIncident[]> {
+      return this.unwrapData(
+        this.request<{ data: AppIncident[] }>(`/apps/${seg(appId)}/start`, {
+          method: "POST",
+          body: JSON.stringify({ environmentIds }),
+        })
+      );
+    }
+
+    async isolateApp(
+      appId: string,
+      environmentIds: string[] | null,
+      confirmName: string
+    ): Promise<AppIncident[]> {
+      return this.unwrapData(
+        this.request<{ data: AppIncident[] }>(`/apps/${seg(appId)}/isolation`, {
+          method: "POST",
+          body: JSON.stringify({ environmentIds, confirmName }),
+        })
+      );
+    }
+
+    async releaseAppIsolation(
+      appId: string,
+      environmentIds: string[] | null
+    ): Promise<AppIncident[]> {
+      return this.unwrapData(
+        this.request<{ data: AppIncident[] }>(`/apps/${seg(appId)}/isolation`, {
+          method: "DELETE",
+          body: JSON.stringify({ environmentIds }),
+        })
+      );
+    }
+
+    // ── Promote ────────────────────────────────────────────────────
+
+    async previewAppPromotion(
+      appId: string,
+      sourceEnvironmentId: string,
+      targetEnvironmentId: string
+    ): Promise<AppPromotionPreview> {
+      return this.unwrapData(
+        this.request<{ data: AppPromotionPreview }>(`/apps/${seg(appId)}/promotions/preview`, {
+          method: "POST",
+          body: JSON.stringify({ sourceEnvironmentId, targetEnvironmentId }),
+        })
+      );
+    }
+
+    async promoteApp(
+      appId: string,
+      data: {
+        sourceEnvironmentId: string;
+        targetEnvironmentId: string;
+        items: string[];
+        previewDigest: string;
+      }
+    ): Promise<AppPromotion> {
+      return this.unwrapData(
+        this.request<{ data: AppPromotion }>(`/apps/${seg(appId)}/promotions`, {
+          method: "POST",
+          body: JSON.stringify(data),
+        })
+      );
+    }
+
+    async getAppPromotion(appId: string, promotionId: string): Promise<AppPromotion> {
+      return this.unwrapData(
+        this.request<{ data: AppPromotion }>(`/apps/${seg(appId)}/promotions/${seg(promotionId)}`)
+      );
+    }
+
+    async listAppPromotions(appId: string, environmentId?: string): Promise<AppPromotion[]> {
+      const query = environmentId ? `?environmentId=${seg(environmentId)}` : "";
+      return this.unwrapData(
+        this.request<{ data: AppPromotion[] }>(`/apps/${seg(appId)}/promotions${query}`)
       );
     }
   };
