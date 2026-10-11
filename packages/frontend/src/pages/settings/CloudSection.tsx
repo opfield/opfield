@@ -1,7 +1,7 @@
 import { Cloud, Unplug } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { confirm } from "@/components/common/ConfirmDialog";
+import { confirm, confirmAction } from "@/components/common/ConfirmDialog";
 import { DetailRow } from "@/components/common/DetailRow";
 import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
@@ -9,14 +9,6 @@ import { useContentLoading } from "@/components/common/reveal-gate";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/services/api";
@@ -83,7 +75,6 @@ export function CloudSection({ canManage }: CloudSectionProps) {
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [savingRemoteManagement, setSavingRemoteManagement] = useState(false);
-  const [confirmRemoteManagementOpen, setConfirmRemoteManagementOpen] = useState(false);
 
   const applyStatus = useCallback((next: CloudLinkStatusView) => {
     const { warning: _warning, ...view } = next;
@@ -154,8 +145,20 @@ export function CloudSection({ canManage }: CloudSectionProps) {
 
   // Turning it on hands actions to the cloud account, so it is confirmed; turning it off is not.
   const handleRemoteManagement = (enabled: boolean) => {
-    if (enabled) setConfirmRemoteManagementOpen(true);
-    else void saveRemoteManagement(false);
+    if (!enabled) {
+      void saveRemoteManagement(false);
+      return;
+    }
+    void confirmAction(
+      {
+        title: "Allow remote management",
+        description:
+          "Your cloud account will be able to enrol nodes, start Gateway updates and issue a first-admin setup code. You can turn this off at any time.",
+        confirmLabel: "Allow",
+        variant: "default",
+      },
+      () => saveRemoteManagement(true)
+    );
   };
 
   const handleDisconnect = async () => {
@@ -286,40 +289,6 @@ export function CloudSection({ canManage }: CloudSectionProps) {
           {askAdministrator}
         </p>
       )}
-
-      <Dialog
-        open={confirmRemoteManagementOpen}
-        onOpenChange={(open) => {
-          if (!open && !savingRemoteManagement) setConfirmRemoteManagementOpen(false);
-        }}
-      >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Allow remote management</DialogTitle>
-          </DialogHeader>
-          <DialogDescription>
-            Your cloud account will be able to enrol nodes, start Gateway updates and issue a
-            first-admin setup code. You can turn this off at any time.
-          </DialogDescription>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setConfirmRemoteManagementOpen(false)}
-              disabled={savingRemoteManagement}
-            >
-              Cancel
-            </Button>
-            <Button
-              pending={savingRemoteManagement}
-              onClick={async () => {
-                if (await saveRemoteManagement(true)) setConfirmRemoteManagementOpen(false);
-              }}
-            >
-              Allow
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </PanelShell>
   );
 }
