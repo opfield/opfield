@@ -102,9 +102,9 @@ describe('manage_managed_database availability', () => {
     await expect(
       call([`databases:view:${CONNECTION}`], { operation: 'make_primary', databaseId: DATABASE, memberId: MEMBER })
     ).rejects.toMatchObject({ statusCode: 403 });
-    await expect(
-      call(['nodes:details'], { operation: 'availability', databaseId: DATABASE })
-    ).rejects.toMatchObject({ statusCode: 403 });
+    await expect(call(['nodes:details'], { operation: 'availability', databaseId: DATABASE })).rejects.toMatchObject({
+      statusCode: 403,
+    });
     expect(service.makeAvailabilityPrimary).not.toHaveBeenCalled();
     expect(service.availabilityView).not.toHaveBeenCalled();
   });
