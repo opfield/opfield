@@ -27,6 +27,78 @@ function renderDetectedOption(option: ComboboxOption) {
   );
 }
 
+/** The two gRPC address rows of the network step, also used by the restore flow. */
+export function SetupNetworkFields({
+  busy,
+  network,
+  publicUrl,
+  suggestions,
+  setNetwork,
+}: {
+  busy: boolean;
+  network: NetworkDraft;
+  publicUrl: string;
+  suggestions: { publicIps: string[]; localIps: string[] };
+  setNetwork: (value: NetworkDraft) => void;
+}) {
+  const grpcPublicOptions = useMemo(() => {
+    const values = [
+      deriveGrpcPublicTarget(publicUrl),
+      ...suggestions.publicIps.map(grpcTargetForIp),
+    ].filter(Boolean);
+    return [...new Set(values)].map((value) =>
+      detectedOption(value, "Suggested public gRPC target")
+    );
+  }, [publicUrl, suggestions.publicIps]);
+  const grpcLocalOptions = useMemo(
+    () => suggestions.localIps.map((value) => detectedOption(value, "Detected local address")),
+    [suggestions.localIps]
+  );
+
+  return (
+    <>
+      <SettingsControlRow
+        title="gRPC public target"
+        description="Public host or IP included in node enrollment commands."
+      >
+        <Combobox
+          freeText
+          showAllOptionsOnFocus
+          ariaLabel="gRPC public target"
+          value={network.grpcPublicTarget}
+          options={grpcPublicOptions}
+          placeholder="opfield.example.com:9443"
+          searchPlaceholder="Enter or select a public target"
+          emptyMessage="Enter a hostname or IP address."
+          disabled={busy}
+          inputClassName="font-mono text-xs"
+          renderOption={renderDetectedOption}
+          onValueChange={(grpcPublicTarget) => setNetwork({ ...network, grpcPublicTarget })}
+        />
+      </SettingsControlRow>
+      <SettingsControlRow
+        title="gRPC local IP"
+        description="Optional private address used by nodes on the same network."
+      >
+        <Combobox
+          freeText
+          showAllOptionsOnFocus
+          ariaLabel="gRPC local IP"
+          value={network.grpcLocalIp}
+          options={grpcLocalOptions}
+          placeholder="Uses public target when empty"
+          searchPlaceholder="Enter or select a local IP"
+          emptyMessage="Enter a private IPv4 or IPv6 address."
+          disabled={busy}
+          inputClassName="font-mono text-xs"
+          renderOption={renderDetectedOption}
+          onValueChange={(grpcLocalIp) => setNetwork({ ...network, grpcLocalIp })}
+        />
+      </SettingsControlRow>
+    </>
+  );
+}
+
 export function SetupNetworkStep({
   busy,
   network,
@@ -44,19 +116,6 @@ export function SetupNetworkStep({
   onBack: () => void;
   onContinue: () => void;
 }) {
-  const grpcPublicOptions = useMemo(() => {
-    const values = [
-      deriveGrpcPublicTarget(publicUrl),
-      ...suggestions.publicIps.map(grpcTargetForIp),
-    ].filter(Boolean);
-    return [...new Set(values)].map((value) =>
-      detectedOption(value, "Suggested public gRPC target")
-    );
-  }, [publicUrl, suggestions.publicIps]);
-  const grpcLocalOptions = useMemo(
-    () => suggestions.localIps.map((value) => detectedOption(value, "Detected local address")),
-    [suggestions.localIps]
-  );
   const canContinue = isNetworkDraftValid(network);
 
   return (
@@ -72,44 +131,13 @@ export function SetupNetworkStep({
           title="Opfield network"
           description="Choose the public and optional local targets used for node enrollment. Detected values can be replaced."
         >
-          <SettingsControlRow
-            title="gRPC public target"
-            description="Public host or IP included in node enrollment commands."
-          >
-            <Combobox
-              freeText
-              showAllOptionsOnFocus
-              ariaLabel="gRPC public target"
-              value={network.grpcPublicTarget}
-              options={grpcPublicOptions}
-              placeholder="opfield.example.com:9443"
-              searchPlaceholder="Enter or select a public target"
-              emptyMessage="Enter a hostname or IP address."
-              disabled={busy}
-              inputClassName="font-mono text-xs"
-              renderOption={renderDetectedOption}
-              onValueChange={(grpcPublicTarget) => setNetwork({ ...network, grpcPublicTarget })}
-            />
-          </SettingsControlRow>
-          <SettingsControlRow
-            title="gRPC local IP"
-            description="Optional private address used by nodes on the same network."
-          >
-            <Combobox
-              freeText
-              showAllOptionsOnFocus
-              ariaLabel="gRPC local IP"
-              value={network.grpcLocalIp}
-              options={grpcLocalOptions}
-              placeholder="Uses public target when empty"
-              searchPlaceholder="Enter or select a local IP"
-              emptyMessage="Enter a private IPv4 or IPv6 address."
-              disabled={busy}
-              inputClassName="font-mono text-xs"
-              renderOption={renderDetectedOption}
-              onValueChange={(grpcLocalIp) => setNetwork({ ...network, grpcLocalIp })}
-            />
-          </SettingsControlRow>
+          <SetupNetworkFields
+            busy={busy}
+            network={network}
+            publicUrl={publicUrl}
+            suggestions={suggestions}
+            setNetwork={setNetwork}
+          />
         </PanelShell>
         <div className="flex justify-center gap-2">
           <Button

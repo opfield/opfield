@@ -18,6 +18,7 @@ import {
   LoggingStep,
 } from "./setup-wizard/SetupFinalSteps";
 import { SetupNetworkStep } from "./setup-wizard/SetupNetworkStep";
+import { SetupRestoreFlow, SetupStartChoice } from "./setup-wizard/SetupRestoreFlow";
 import { SetupUnlockStep } from "./setup-wizard/SetupUnlockStep";
 import {
   AuthMethodsStep,
@@ -25,6 +26,7 @@ import {
   PublicUrlStep,
   SmtpConfigStep,
 } from "./setup-wizard/SetupWizardForms";
+import { SetupRequestError, setupRequest } from "./setup-wizard/setup-request";
 import {
   type AdminDraft,
   type AuthMethodsDraft,
@@ -38,16 +40,6 @@ import {
   type SetupSmtpDraft,
   type SetupStep,
 } from "./setup-wizard/setup-wizard-model";
-
-class SetupRequestError extends Error {
-  constructor(
-    message: string,
-    readonly code?: string
-  ) {
-    super(message);
-    this.name = "SetupRequestError";
-  }
-}
 
 interface SetupStatus {
   state: "pending" | "complete";
@@ -72,6 +64,9 @@ interface SetupCompleteResult {
 }
 
 const TLS_RESTART_REDIRECT_DELAY_MS = 20_000;
+
+/** Before an administrator exists, setup can start a new installation or restore an export. */
+type SetupStartMode = "choose" | "new" | "restore";
 
 interface PersistedSetupDraft {
   step: SetupStep;
@@ -136,32 +131,6 @@ function isStructuredLoggingLicensed(config: SetupConfig): boolean {
   return config.license.status.entitlements.features.includes("structured-logging");
 }
 
-async function setupRequest<T>(
-  path: string,
-  method = "GET",
-  body?: unknown,
-  csrfToken?: string
-): Promise<T> {
-  const headers = new Headers(
-    body === undefined ? undefined : { "Content-Type": "application/json" }
-  );
-  if (csrfToken) headers.set("X-CSRF-Token", csrfToken);
-  const response = await fetch(`/api/setup${path}`, {
-    method,
-    credentials: "include",
-    headers,
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
-  const payload = (await response.json().catch(() => ({}))) as {
-    code?: string;
-    data?: T;
-    message?: string;
-  };
-  if (!response.ok)
-    throw new SetupRequestError(payload.message ?? "Setup request failed", payload.code);
-  return payload.data as T;
-}
-
 export function SetupWizardPage() {
   const reducedMotion = useReducedMotion();
   const [unlocked, setUnlocked] = useState(false);
@@ -175,6 +144,7 @@ export function SetupWizardPage() {
   const [busy, setBusy] = useState(false);
   const [code, setCode] = useState("");
   const [step, setStep] = useState<SetupStep>("public-url");
+  const [startMode, setStartMode] = useState<SetupStartMode>("choose");
   const [config, setConfig] = useState<SetupConfig | null>(null);
   const [publicUrl, setPublicUrl] = useState("");
   const [network, setNetwork] = useState<NetworkDraft>({
@@ -266,6 +236,8 @@ export function SetupWizardPage() {
     autoGrpcTarget.current = saved?.autoGrpcTarget ?? null;
     const availableSteps = getSetupSteps(nextMethods, next.administratorCreated);
     setStep(restoreStepWithRequiredSecrets(next, saved, nextMethods, availableSteps));
+    // A draft that went past the first step chose a new installation already.
+    setStartMode(saved?.step && saved.step !== "public-url" ? "new" : "choose");
     setDraftReady(true);
   }, []);
 
@@ -359,6 +331,25 @@ export function SetupWizardPage() {
     unlocked,
   ]);
 
+  const canRestore = Boolean(
+    unlocked && config && !config.administratorCreated && config.phase === "configuration"
+  );
+  const mode: SetupStartMode = canRestore ? startMode : "new";
+
+  // An upload or restore already under way goes straight back to the restore, once per visit.
+  const restoreChecked = useRef(false);
+  useEffect(() => {
+    if (!canRestore || startMode !== "choose" || restoreChecked.current) return;
+    restoreChecked.current = true;
+    void setupRequest<{ state: string; restore: { state: string } | null }>("/wizard/restore")
+      .then((view) => {
+        if (view.state !== "empty" || view.restore) {
+          setStartMode((current) => (current === "choose" ? "restore" : current));
+        }
+      })
+      .catch(() => {});
+  }, [canRestore, startMode]);
+
   const enabledPrimaryMethods = useMemo(() => getEnabledPrimaryMethods(methods), [methods]);
   const steps = useMemo(
     () => getSetupSteps(methods, Boolean(config?.administratorCreated)),
@@ -447,9 +438,9 @@ export function SetupWizardPage() {
   return (
     <AuthShell
       wide={unlocked}
-      contentClassName={unlocked && step === "network" ? "max-w-lg" : undefined}
+      contentClassName={unlocked && mode === "new" && step === "network" ? "max-w-lg" : undefined}
     >
-      {unlocked && (
+      {unlocked && mode === "new" && (
         <div className="flex justify-center gap-2">
           <Badge variant="secondary">
             Step {stepIndex + 1} of {steps.length}
@@ -462,7 +453,7 @@ export function SetupWizardPage() {
       <AnimatedHeight>
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.div
-            key={unlocked ? step : "unlock"}
+            key={unlocked ? (mode === "new" ? step : `start-${mode}`) : "unlock"}
             initial={reducedMotion ? false : { opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
             exit={reducedMotion ? undefined : { opacity: 0, x: -10 }}
@@ -501,7 +492,20 @@ export function SetupWizardPage() {
                 }
               />
             )}
-            {unlocked && step === "public-url" && (
+            {unlocked && mode === "choose" && (
+              <SetupStartChoice
+                onNew={() => setStartMode("new")}
+                onRestore={() => setStartMode("restore")}
+              />
+            )}
+            {unlocked && mode === "restore" && (
+              <SetupRestoreFlow
+                csrfToken={csrfToken}
+                suggestions={config?.networkSuggestions ?? { publicIps: [], localIps: [] }}
+                onBack={() => setStartMode("choose")}
+              />
+            )}
+            {unlocked && mode === "new" && step === "public-url" && (
               <PublicUrlStep
                 busy={busy}
                 publicUrl={publicUrl}
@@ -526,7 +530,7 @@ export function SetupWizardPage() {
                 }}
               />
             )}
-            {unlocked && step === "network" && (
+            {unlocked && mode === "new" && step === "network" && (
               <SetupNetworkStep
                 busy={busy}
                 network={network}
@@ -537,7 +541,7 @@ export function SetupWizardPage() {
                 onContinue={nextStep}
               />
             )}
-            {unlocked && step === "auth-methods" && (
+            {unlocked && mode === "new" && step === "auth-methods" && (
               <AuthMethodsStep
                 busy={busy}
                 methods={methods}
@@ -558,7 +562,7 @@ export function SetupWizardPage() {
                 }}
               />
             )}
-            {unlocked && step === "oidc-config" && (
+            {unlocked && mode === "new" && step === "oidc-config" && (
               <OidcConfigStep
                 alreadyConfigured={Boolean(config?.oidc.configured)}
                 busy={busy}
@@ -568,7 +572,7 @@ export function SetupWizardPage() {
                 onContinue={nextStep}
               />
             )}
-            {unlocked && step === "smtp-config" && (
+            {unlocked && mode === "new" && step === "smtp-config" && (
               <SmtpConfigStep
                 alreadyConfigured={Boolean(config?.smtp.configured)}
                 busy={busy}
@@ -580,7 +584,7 @@ export function SetupWizardPage() {
                 onContinue={nextStep}
               />
             )}
-            {unlocked && step === "admin-auth" && (
+            {unlocked && mode === "new" && step === "admin-auth" && (
               <AdminAuthMethodStep
                 admin={admin}
                 busy={busy}
@@ -590,7 +594,7 @@ export function SetupWizardPage() {
                 onContinue={nextStep}
               />
             )}
-            {unlocked && step === "admin-details" && (
+            {unlocked && mode === "new" && step === "admin-details" && (
               <AdminDetailsStep
                 admin={admin}
                 busy={busy}
@@ -599,7 +603,7 @@ export function SetupWizardPage() {
                 onContinue={nextStep}
               />
             )}
-            {unlocked && step === "logging" && (
+            {unlocked && mode === "new" && step === "logging" && (
               <LoggingStep
                 busy={busy}
                 hasSavedPassword={Boolean(config?.logging.passwordLast4)}
@@ -610,7 +614,7 @@ export function SetupWizardPage() {
                 onContinue={nextStep}
               />
             )}
-            {unlocked && step === "finish" && (
+            {unlocked && mode === "new" && step === "finish" && (
               <FinishStep
                 administrator={admin}
                 administratorCreated={Boolean(config?.administratorCreated)}
@@ -657,7 +661,7 @@ export function SetupWizardPage() {
                 }
               />
             )}
-            {unlocked && step === "license" && (
+            {unlocked && mode === "new" && step === "license" && (
               <LicenseStep
                 busy={busy || restartPending}
                 onActivate={(licenseKey) =>
@@ -690,7 +694,7 @@ export function SetupWizardPage() {
                 }
               />
             )}
-            {unlocked && step === "ai-workspace" && (
+            {unlocked && mode === "new" && step === "ai-workspace" && (
               <AIWorkspaceStep
                 busy={busy || restartPending}
                 onConfigure={openAIWorkspaceSetup}

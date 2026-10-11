@@ -13,6 +13,7 @@ import { PagesSettingsSection } from "./pages/PageGlobalSettings";
 import { AIConfigSection } from "./settings/AIConfigSection";
 import { AuthProvisioningSection } from "./settings/AuthProvisioningSection";
 import { CloudSection } from "./settings/CloudSection";
+import { ConfigurationTransferSection } from "./settings/ConfigurationTransferSection";
 import { DockerRegistriesSection } from "./settings/DockerRegistriesSection";
 import { EnvironmentSettingsSection } from "./settings/EnvironmentSettingsSection";
 import { HousekeepingSection } from "./settings/HousekeepingSection";
@@ -81,7 +82,9 @@ export function Settings() {
     hasScope("integrations:git:manage") ||
     hasScope("integrations:ssh:view") ||
     hasScope("integrations:ssh:manage");
-  const canAccessGeneralTab = canViewGatewaySettings || canUpdate || canViewLicense;
+  const canTransferConfiguration = hasScope("admin:system");
+  const canAccessGeneralTab =
+    canViewGatewaySettings || canUpdate || canViewLicense || canTransferConfiguration;
   const canAccessAdvancedTab = canViewGatewaySettings || canManageRegistries;
   const canAccessFeaturesTab =
     canViewGatewaySettings || canViewStatusPage || canViewHousekeeping || canViewPagesSettings;
@@ -206,6 +209,7 @@ export function Settings() {
                 ) : (
                   canUpdate && <UpdateSection canUpdate={canUpdate} />
                 )}
+                {canTransferConfiguration && <ConfigurationTransferSection />}
                 <PoweredByFooter />
               </div>
             </TabsContent>
