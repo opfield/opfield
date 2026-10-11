@@ -647,7 +647,7 @@ export function DashboardLayout() {
             <div className="flex items-center">
               <Button
                 variant="ghost"
-                size="icon-lg"
+                size="icon"
                 aria-label="Open navigation"
                 onClick={() => setMobileMenuOpen(true)}
               >

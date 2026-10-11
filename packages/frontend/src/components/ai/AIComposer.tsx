@@ -331,7 +331,7 @@ export function AIPlanProgress({
       </div>
       {plan.status === "paused" ? (
         <Button
-          size="icon-xs"
+          size="icon"
           variant="ghost"
           onClick={onResume}
           aria-label="Resume plan"
@@ -341,7 +341,7 @@ export function AIPlanProgress({
         </Button>
       ) : canPause ? (
         <Button
-          size="icon-xs"
+          size="icon"
           variant="ghost"
           onClick={onPause}
           aria-label="Pause plan"
@@ -351,7 +351,7 @@ export function AIPlanProgress({
         </Button>
       ) : null}
       <Button
-        size="icon-xs"
+        size="icon"
         variant="ghost"
         onClick={() => void cancel()}
         aria-label="Cancel plan"
@@ -399,7 +399,7 @@ export function AIQueuedMessages({
           {/* Queue row actions share the composer's borderless controls. */}
           <button
             type="button"
-            className={cn(AI_ICON_CONTROL, "h-7 w-7")}
+            className={cn(AI_ICON_CONTROL, "h-9 w-9")}
             onClick={() => onEdit(item)}
             aria-label="Edit queued message"
           >
@@ -407,7 +407,7 @@ export function AIQueuedMessages({
           </button>
           <button
             type="button"
-            className={cn(AI_ICON_CONTROL, "h-7 w-7")}
+            className={cn(AI_ICON_CONTROL, "h-9 w-9")}
             onClick={() => onRemove(item.id)}
             aria-label="Remove queued message"
           >
@@ -436,7 +436,7 @@ function ContextRing({ usage }: { usage: AIContextUsage | null }) {
   return (
     <Tooltip delayDuration={500}>
       <TooltipTrigger asChild>
-        <button type="button" className={cn(AI_ICON_CONTROL, "h-8 w-8")} aria-label="Context usage">
+        <button type="button" className={cn(AI_ICON_CONTROL, "h-9 w-9")} aria-label="Context usage">
           <svg className="h-4 w-4 -rotate-90" viewBox="0 0 20 20" aria-hidden="true">
             <circle
               cx="10"
@@ -844,7 +844,7 @@ export function AIComposer({
                   />
                   <button
                     type="button"
-                    className={cn(AI_ICON_CONTROL, AI_CONTROL_DISABLED, "h-8 w-8")}
+                    className={cn(AI_ICON_CONTROL, AI_CONTROL_DISABLED, "h-9 w-9")}
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploadingAttachments || disabled}
                     aria-label="Attach images"
@@ -864,7 +864,7 @@ export function AIComposer({
                 className={cn(
                   AI_ICON_CONTROL,
                   AI_CONTROL_DISABLED,
-                  "h-8 w-8",
+                  "h-9 w-9",
                   canResume && "text-foreground"
                 )}
                 onClick={

@@ -167,7 +167,7 @@ export function IngressGroupMembersPanel({
                 <div className="flex justify-end gap-1">
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     aria-label="Move up"
                     disabled={busy || index === 0}
                     onClick={() => move(index, -1)}
@@ -176,7 +176,7 @@ export function IngressGroupMembersPanel({
                   </Button>
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     aria-label="Move down"
                     disabled={busy || index === group.members.length - 1}
                     onClick={() => move(index, 1)}
@@ -185,7 +185,7 @@ export function IngressGroupMembersPanel({
                   </Button>
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     aria-label="Remove member"
                     disabled={busy}
                     onClick={() => remove(member)}

@@ -799,6 +799,7 @@ export function AIChatSurface({ active = true, onClose, onEnterLiteMode }: AICha
                       className="shrink-0 text-xs text-muted-foreground"
                     />
                   </button>
+                  {/* size-exception: hover action inside a conversation list row */}
                   <button
                     type="button"
                     aria-label={`Delete ${conversation.title}`}
@@ -900,7 +901,7 @@ export function AIChatSurface({ active = true, onClose, onEnterLiteMode }: AICha
                 </span>
                 <Button
                   variant="ghost"
-                  size="icon-xs"
+                  size="icon"
                   onClick={() => setExcludedResourceContextKey(resourceContextKey)}
                   title="Exclude this resource from the next request"
                   aria-label="Exclude this resource from the next request"

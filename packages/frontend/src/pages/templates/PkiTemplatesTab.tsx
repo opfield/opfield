@@ -336,7 +336,7 @@ export function PkiTemplatesTab({
           <div className="flex justify-end" onClick={stopRowEvent} onPointerDown={stopRowEvent}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${template.name}`}>
+                <Button variant="ghost" size="icon" aria-label={`Actions for ${template.name}`}>
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>

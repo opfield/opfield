@@ -268,12 +268,7 @@ export function AIToolCallBlock({ toolCall, compactSummary }: AIToolCallBlockPro
                     {toolOutputArtifact.estimatedTokens.toLocaleString()} tokens
                   </div>
                 </div>
-                <Button
-                  asChild
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-xs [&_svg]:size-3.5"
-                >
+                <Button asChild variant="outline">
                   <a href={toolOutputArtifact.downloadUrl} download>
                     <Download aria-hidden="true" />
                     Download
@@ -550,6 +545,7 @@ export function QuestionBlock({
               autoFocus
               disabled={isPending}
             />
+            {/* size-exception: submit icon inside the answer input */}
             <button
               type="button"
               className={cn(

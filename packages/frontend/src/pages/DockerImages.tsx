@@ -482,7 +482,7 @@ export function DockerImages({
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     pending={removingImageId === id}
                     aria-label={`${tag} actions`}
                   >

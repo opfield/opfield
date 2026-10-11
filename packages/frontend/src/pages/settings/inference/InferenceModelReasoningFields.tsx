@@ -110,7 +110,7 @@ export function ModelReasoningFields({
       actions={
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           aria-label="Add mapping"
           title="Add mapping"
           disabled={Object.hasOwn(mapping, "")}

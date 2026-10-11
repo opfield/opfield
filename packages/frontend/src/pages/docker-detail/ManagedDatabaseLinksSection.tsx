@@ -937,7 +937,7 @@ export const ManagedDatabaseLinksSection = forwardRef<
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 className="shrink-0 text-muted-foreground hover:text-destructive"
                 disabled={
                   disabled ||

@@ -130,7 +130,7 @@ export function AIProviderControls({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className={cn(AI_ICON_CONTROL, "h-8 w-8")}
+              className={cn(AI_ICON_CONTROL, "h-9 w-9")}
               title="Model and reasoning"
               aria-label="Model and reasoning settings"
               disabled={disabled}

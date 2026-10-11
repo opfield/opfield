@@ -469,7 +469,7 @@ export function CADetail() {
                 hasScope(`pki:ca:edit:${ca.id}`) && !ca.isSystem ? (
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     aria-label="Edit distribution endpoints"
                     onClick={openEndpointsDialog}
                   >

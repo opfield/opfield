@@ -474,7 +474,7 @@ export function Domains() {
           >
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" aria-label="Domain actions">
+                <Button variant="ghost" size="icon" aria-label="Domain actions">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>

@@ -107,7 +107,7 @@ export function ResourceFolderGroup<TFolder, TItem>({
           <div className="ml-auto" onClick={(e) => e.stopPropagation()}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" aria-label="Folder actions">
+                <Button variant="ghost" size="icon" aria-label="Folder actions">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>

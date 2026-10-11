@@ -939,7 +939,7 @@ export function DockerContainers({
                     <>
                       <Button
                         variant="ghost"
-                        size="icon-sm"
+                        size="icon"
                         aria-label="Stop"
                         pending={loadingAction === "stop"}
                         disabled={!!loadingAction || transitioning || unavailable}
@@ -951,7 +951,7 @@ export function DockerContainers({
                       {lifecycleActions.canRestart && (
                         <Button
                           variant="ghost"
-                          size="icon-sm"
+                          size="icon"
                           aria-label="Restart"
                           pending={loadingAction === "restart"}
                           disabled={!!loadingAction || transitioning || unavailable}
@@ -965,7 +965,7 @@ export function DockerContainers({
                   ) : lifecycleActions.canStart ? (
                     <Button
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon"
                       aria-label="Start"
                       pending={loadingAction === "start"}
                       disabled={!!loadingAction || transitioning || unavailable}
@@ -979,7 +979,7 @@ export function DockerContainers({
                   {!container.folderIsSystem && (reorganize || moveToApp) && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon-sm">
+                        <Button variant="ghost" size="icon">
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>

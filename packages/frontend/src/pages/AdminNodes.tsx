@@ -456,7 +456,7 @@ export function AdminNodes() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     pending={lockingNodeId === node.id}
                     aria-label={`${node.displayName || node.hostname} actions`}
                   >

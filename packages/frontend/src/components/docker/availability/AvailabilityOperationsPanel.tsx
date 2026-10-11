@@ -272,7 +272,6 @@ export function AvailabilityOperationsPanel({
           return retryable && canManage ? (
             <Button
               variant="outline"
-              size="sm"
               pending={retryingId === row.id}
               onClick={() => void retry(row)}
             >

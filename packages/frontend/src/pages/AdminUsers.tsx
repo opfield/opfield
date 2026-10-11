@@ -550,7 +550,7 @@ function AdminUsersContent({
           >
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" aria-label="User actions">
+                <Button variant="ghost" size="icon" aria-label="User actions">
                   <EllipsisVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>

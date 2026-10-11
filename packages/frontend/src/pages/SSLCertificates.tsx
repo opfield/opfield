@@ -661,7 +661,7 @@ export function SSLCertificates() {
           <div className="flex justify-end" onClick={(event) => event.stopPropagation()}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" aria-label="Certificate actions">
+                <Button variant="ghost" size="icon" aria-label="Certificate actions">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>

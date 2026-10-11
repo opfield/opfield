@@ -412,6 +412,7 @@ export function AIMessage({
             className="whitespace-nowrap"
           />
           {onEditUserMessage && (
+            // size-exception: icon in the text-xs caption line under a message
             <button
               type="button"
               onClick={() =>
@@ -682,6 +683,7 @@ function ArtifactAttachmentCard({ artifact }: { artifact: ArtifactAttachment }) 
               {[formatBytes(artifact.sizeBytes), artifact.mediaType].filter(Boolean).join(" · ")}
             </span>
           </span>
+          {/* size-exception: download icon inside an attachment tile */}
           <a
             href={artifact.downloadUrl}
             download={artifact.filename}

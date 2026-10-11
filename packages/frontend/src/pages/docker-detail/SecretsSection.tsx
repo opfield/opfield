@@ -94,7 +94,7 @@ export function SecretsSection({
                 {saveButtonLabel ?? "Save"}
               </Button>
             )}
-            <Button variant="ghost" size="icon-sm" onClick={addSecretRow} title="Add secret">
+            <Button variant="ghost" size="icon" onClick={addSecretRow} title="Add secret">
               <Plus className="h-3.5 w-3.5" />
             </Button>
           </div>
