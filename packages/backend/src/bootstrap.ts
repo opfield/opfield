@@ -280,6 +280,7 @@ import { RelayRegistryIngressService } from '@/services/relay-registry-ingress.s
 import { RelayStartupFinalizerService } from '@/services/relay-startup-finalizer.service.js';
 import { RelaySupervisorService } from '@/services/relay-supervisor.service.js';
 import { RelayTopologyService } from '@/services/relay-topology.service.js';
+import { createKeeperPeerResolver } from '@/services/clickhouse-keeper-addressing.js';
 import { RelayWitnessService } from '@/services/relay-witness.service.js';
 import { ResourceSnapshotStore } from '@/services/resource-snapshot.store.js';
 import { RuntimeRestartService } from '@/services/runtime-restart.service.js';
@@ -1393,6 +1394,7 @@ export async function initializeContainer(): Promise<void> {
   // Witness processes relays host for availability sets (decision 9): desired sets pushed, reports recorded.
   const relayWitnessService = new RelayWitnessService(db, nodeDispatch);
   relayWitnessService.setArtifactSource(new WitnessCatalog(env));
+  relayWitnessService.setKeeperPeerResolver(createKeeperPeerResolver(db));
   container.registerInstance(RelayWitnessService, relayWitnessService);
   if (relayPolicyService) {
     relayPolicyService.setAvailabilityLeaseSource(availabilityLeaseService);

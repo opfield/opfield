@@ -62,6 +62,18 @@ func (p *Plugin) startWitnesses() {
 		return client.DialRoute(ctx)
 	})
 	p.witnesses = newWitnessManager(filepath.Join(p.cfg.StateDir, "witness"), rt.root, p.logger, p.witnessHosting, rt)
+	p.witnesses.verify = func(ctx context.Context, policyID string, slot uint32, domain string, payload, signature []byte) (string, error) {
+		client, err := p.worker.connectAdmin(ctx)
+		if err != nil {
+			return "", err
+		}
+		response, err := client.VerifyHolderStatement(ctx, &relayv1.VerifyHolderStatementRequest{
+			PolicyId: policyID, Slot: slot, Domain: domain, Payload: payload, Signature: signature})
+		if err != nil {
+			return "", err
+		}
+		return response.GetHolderId(), nil
+	}
 	if err := p.witnesses.load(); err != nil && p.logger != nil {
 		p.logger.Warn("relay witness state could not be restored", "error", err)
 	}

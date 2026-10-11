@@ -125,6 +125,28 @@ describe('relay witness desired state', () => {
     const used = new Set([...ports.values()].map((pair) => pair.clientPort));
     expect(used.size).toBe(50);
   });
+
+  it('keeps a stored raft port (it is in the Keeper cluster configuration) and renders the set loopback host', () => {
+    const older = witness('w-older', { createdAt: new Date('2026-10-10T00:00:00Z') });
+    const placed = witness('w-placed', { relayLocalPort: 39433 });
+    const ports = allocateWitnessPorts([older, placed]);
+    expect(ports.get('w-placed')).toEqual({ clientPort: 39432, raftPort: 39433 });
+    expect(ports.get('w-older')?.raftPort).not.toBe(39433);
+    const plan = planRelayWitnesses(
+      relay(),
+      [older, placed],
+      new Map([
+        ['w-older', artifact],
+        ['w-placed', artifact],
+      ]),
+      new Map(),
+      new Map([['w-placed', '127.12.34.1']])
+    );
+    const spec = plan.specs.find((entry) => entry.id === 'w-placed');
+    expect(spec?.raftPort).toBe(39433);
+    expect(spec?.raftHost).toBe('127.12.34.1');
+    expect(plan.specs.find((entry) => entry.id === 'w-older')?.raftHost).toBe('');
+  });
 });
 
 describe('RelayWitnessService.syncRelay', () => {

@@ -145,3 +145,29 @@ func TestRenderUsersAndRole(t *testing.T) {
 		t.Fatalf("member reconfig entry %q", got)
 	}
 }
+
+// The engine configuration Gateway builds (CORE engine-clickhouse.test.ts
+// "matches the daemon contract" pins the same document).
+func TestGatewayEngineConfigContract(t *testing.T) {
+	document := `{"version":1,"loopbackHost":"127.48.54.1","keeperServerId":1,
+		"keeperServers":[{"id":1,"port":39501,"memberId":"11111111-1111-4111-8111-111111111111","role":"voter"},
+			{"id":2,"port":39502,"memberId":"22222222-2222-4222-8222-222222222222","role":"voter"},
+			{"id":1001,"port":39433,"witnessId":"44444444-4444-4444-8444-444444444444","role":"voter"},
+			{"id":1002,"port":39437,"witnessId":"55555555-5555-4555-8555-555555555555","role":"standby"}],
+		"interserver":[{"memberId":"11111111-1111-4111-8111-111111111111","port":39000},{"memberId":"22222222-2222-4222-8222-222222222222","port":39001}],
+		"interserverUser":"gw_interserver","interserverPassword":"interserver-password-0123456789","databases":["app"]}`
+	config := testConfig(memberha.ModeAutomatic, EngineConfig{}, testMemberA, testMemberB)
+	config.EngineConfig = []byte(document)
+	ec, err := ParseEngineConfig(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ec.Voters()) != 3 || len(standbys(ec)) != 1 || ec.InterserverPort(testMemberB) != 39001 {
+		t.Fatalf("parsed %+v", ec)
+	}
+	rendered := string(RenderServerConfig(config, ec, true))
+	if !strings.Contains(rendered, "<interserver_http_credentials><user>gw_interserver</user>") ||
+		!strings.Contains(rendered, "<server><id>1001</id><hostname>127.48.54.1</hostname><port>39433</port><can_become_leader>false</can_become_leader></server>") {
+		t.Fatalf("rendered %s", rendered)
+	}
+}
