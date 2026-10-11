@@ -79,7 +79,12 @@ export async function ensureLeaseState(db: Executor, policyId: string): Promise<
     .where(eq(leasePolicies.id, policyId))
     .limit(1);
   if (!registered) await registerAvailabilityLeasePolicy(db, policyId);
-  await db.insert(dockerAvailabilityLeaseState).values({ policyId }).onConflictDoNothing();
+  // Dated on Gateway's clock like every later mode change.
+  const now = new Date();
+  await db
+    .insert(dockerAvailabilityLeaseState)
+    .values({ policyId, modeChangedAt: now, updatedAt: now })
+    .onConflictDoNothing();
   const [row] = await db
     .select()
     .from(dockerAvailabilityLeaseState)
