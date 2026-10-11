@@ -185,8 +185,14 @@ const AVAILABILITY_NETWORKS_MANAGED =
 /** The app kill switch freeze as Docker container mutations see it (AppMemberFreeze). */
 export interface DockerAppFreezeGuard {
   anyIsolationOpen(): Promise<boolean>;
+  /** Whether any kill switch or shutdown is applying or active (fast path of assertContainerKept). */
+  anyIncidentOpen(): Promise<boolean>;
   assertContainer(nodeId: string, name: string): Promise<void>;
+  /** Delete and rename: 409 APP_ISOLATED while isolated, APP_INCIDENT_ACTIVE while its environment is shut down. */
+  assertContainerKept(nodeId: string, name: string): Promise<void>;
   assertMayStart(nodeId: string, name: string): Promise<void>;
+  /** 409 APP_ISOLATED for a network a container isolated by the kill switch is reconnected to on release. */
+  assertNetworkNotHeld(nodeId: string, network: { id: string; name: string }): Promise<void>;
 }
 
 export class DockerManagementService {
@@ -351,6 +357,17 @@ export class DockerManagementService {
     const name = await this.resolveContainerName(nodeId, containerId);
     await this.appFreeze.assertContainer(nodeId, name);
     if (name !== containerId) await this.appFreeze.assertContainer(nodeId, containerId);
+  }
+
+  /**
+   * Removing or renaming a container of an app environment: 409 APP_ISOLATED while the kill switch isolates it, 409
+   * APP_INCIDENT_ACTIVE while it is shut down (Start would no longer find it).
+   */
+  private async assertNoAppIncident(nodeId: string, containerId: string): Promise<void> {
+    if (!this.appFreeze || !(await this.appFreeze.anyIncidentOpen())) return;
+    const name = await this.resolveContainerName(nodeId, containerId);
+    await this.appFreeze.assertContainerKept(nodeId, name);
+    if (name !== containerId) await this.appFreeze.assertContainerKept(nodeId, containerId);
   }
 
   /** Makes rename and update claims (and migration admissions) exclusive across backend processes. */
@@ -570,6 +587,9 @@ export class DockerManagementService {
       assertContainerMutationAllowed: async (nodeId: string, containerId: string) => {
         await this.assertNotAppFrozen(nodeId, containerId);
         await this.assertContainerMutationAllowed(nodeId, containerId);
+      },
+      assertNetworkRemovable: async (nodeId: string, network: { id: string; name: string }) => {
+        await this.appFreeze?.assertNetworkNotHeld(nodeId, network);
       },
       onNetworkCreated: async (
         nodeId: string,
@@ -1552,6 +1572,7 @@ export class DockerManagementService {
 
   async removeContainer(nodeId: string, containerId: string, force: boolean, userId: string) {
     await this.assertContainerBuildRolloutAllowed(nodeId, containerId);
+    await this.assertNoAppIncident(nodeId, containerId);
     const managed = await this.workloadResolver?.resolveContainerRuntimeTarget(nodeId, containerId);
     if (managed && managed.workload.policy.mode !== 'single') {
       throw new AppError(
@@ -1584,7 +1605,7 @@ export class DockerManagementService {
 
   async renameContainer(nodeId: string, containerId: string, newName: string, userId: string) {
     await this.assertContainerBuildRolloutAllowed(nodeId, containerId);
-    await this.assertNotAppFrozen(nodeId, containerId);
+    await this.assertNoAppIncident(nodeId, containerId);
     await this.assertNotAvailabilityManaged(
       nodeId,
       containerId,

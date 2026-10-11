@@ -23,6 +23,9 @@ export abstract class ProxyServiceLifecycle extends ProxyServiceMutations {
   protected secureLinkRuntimeCollectionEpoch: object = {};
 
   async deleteProxyHost(id: string, userId: string, options: { abandonOfflineNode?: boolean } = {}) {
+    // A route of an isolated or shut-down app environment stays until the incident ends (the node of a route that is
+    // abandoned with its offline node is gone either way).
+    if (!options.abandonOfflineNode) await this.appFreeze?.assertRouteRemovable(id);
     return withProxyHostLock(id, () => this.deleteProxyHostLocked(id, userId, options));
   }
 
@@ -260,6 +263,8 @@ export abstract class ProxyServiceLifecycle extends ProxyServiceMutations {
   ) {
     const host = await this.requireManagedProxyHost(id);
     if (!this.secureLinks) throw new AppError(503, 'SECURE_LINK_UNAVAILABLE', 'Proxy Secure Links are unavailable');
+    await this.appFreeze?.assertRoute(id);
+    await this.assertUpstreamNotAppFrozen(input);
     const binding = await this.secureLinks.createAdditional(host, input, actorScopes);
     await this.auditService.log({
       userId,
@@ -274,6 +279,7 @@ export abstract class ProxyServiceLifecycle extends ProxyServiceMutations {
   async retryAdditionalSecureLink(id: string, bindingId: string, userId: string, actorScopes?: string[]) {
     const host = await this.requireManagedProxyHost(id);
     if (!this.secureLinks) throw new AppError(503, 'SECURE_LINK_UNAVAILABLE', 'Proxy Secure Links are unavailable');
+    await this.appFreeze?.assertRoute(id);
     const binding = await this.secureLinks.retryAdditional(host, bindingId, actorScopes);
     await this.auditService.log({
       userId,
@@ -302,6 +308,8 @@ export abstract class ProxyServiceLifecycle extends ProxyServiceMutations {
   ) {
     const host = await this.requireManagedProxyHost(id);
     if (!this.secureLinks) throw new AppError(503, 'SECURE_LINK_UNAVAILABLE', 'Proxy Secure Links are unavailable');
+    await this.appFreeze?.assertRoute(id);
+    await this.assertUpstreamNotAppFrozen(input);
     const before = (await this.secureLinks.listAdditional(id)).find((binding) => binding.id === bindingId);
     // The Route upstream for the link carries its scheme, so a scheme change
     // must reach nginx; a failure fails (and rolls back) the retarget. After
@@ -341,6 +349,7 @@ export abstract class ProxyServiceLifecycle extends ProxyServiceMutations {
   async deleteAdditionalSecureLink(id: string, bindingId: string, userId: string) {
     const host = await this.requireManagedProxyHost(id);
     if (!this.secureLinks) throw new AppError(503, 'SECURE_LINK_UNAVAILABLE', 'Proxy Secure Links are unavailable');
+    await this.appFreeze?.assertRouteRemovable(id);
     await this.secureLinks.deleteAdditional(host, bindingId);
     this.forgetSecureLinkRuntime(`additional:${bindingId}`);
     this.queueDockerReconciliation(true);

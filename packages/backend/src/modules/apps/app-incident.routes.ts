@@ -31,7 +31,7 @@ export const shutdownAppRoute = appRoute({
   path: '/{id}/shutdown',
   tags: TAGS,
   summary: 'Shut down an app',
-  description: `Stops what can be stopped in each environment: running containers, deployments and Compose projects stop, managed databases and storage pause, and the routes of the environment and of its Pages projects show the maintenance page (team access works). What ran is recorded, so Start brings back exactly that. Runs in the background: the incidents come back with state applying and their items. ${SCOPE_TEXT}`,
+  description: `Stops what can be stopped in each environment: running containers, deployments and Compose projects stop, managed databases and storage pause, and the routes of the environment and of its Pages projects show the maintenance page (team access works). What ran is recorded, so Start brings back exactly that. While shut down, deleting a member (and its links, bindings and Secure Links), renaming or migrating a workload, Compose down, Availability enable/disable and membership changes answer 409 APP_INCIDENT_ACTIVE; other changes stay allowed. An environment isolated by the kill switch is not shut down (409 APP_ISOLATED): turn the kill switch off first. Runs in the background: the incidents come back with state applying and their items. ${SCOPE_TEXT}`,
   request: { params: AppParams, ...jsonBody(AppIncidentScopeSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -51,7 +51,7 @@ export const isolateAppRoute = appRoute({
   path: '/{id}/isolation',
   tags: TAGS,
   summary: 'Isolate an app (kill switch)',
-  description: `For a security incident; confirmName must be the app name. Routes of the environment and routes whose upstream is a member show the maintenance page without team access (other routes are withdrawn), container links and database/storage bindings touching a member are suspended, Secure Links to members close, direct database/storage publications are suspended (ports kept), and every member container loses all its networks (a host-network container is stopped). Members are frozen until the kill switch is turned off: recreate, deploy, Compose apply, migration, route and membership changes answer 409 APP_ISOLATED. Every change is recorded with its prior state and restored exactly. ${SCOPE_TEXT}`,
+  description: `For a security incident; confirmName must be the app name. Routes of the environment and routes whose upstream is a member show the maintenance page without team access (other routes are withdrawn), container links and database/storage bindings touching a member are suspended, Secure Links to members close, direct database/storage publications are suspended (ports kept), and every member container loses all its networks (a host-network container is stopped). Members are frozen until the kill switch is turned off: every change answers 409 APP_ISOLATED (recreate, update, rename, deploy, Compose apply/down, migration, Availability, route edits and deletes, deleting the member itself or its links, bindings and Secure Links, settings, new resources in the environment, membership). Reads, logs, console, stop, restart and start still work. Every change is recorded with its prior state and restored exactly. ${SCOPE_TEXT}`,
   request: { params: AppParams, ...jsonBody(AppIsolationBodySchema) },
   responses: okJson(UnknownDataResponseSchema),
 });

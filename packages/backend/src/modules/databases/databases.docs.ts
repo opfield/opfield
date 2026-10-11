@@ -123,6 +123,8 @@ export const updateManagedDatabaseRoute = appRoute({
   path: '/managed/{id}',
   tags: ['Databases'],
   summary: 'Update managed database configuration',
+  description:
+    'Changes resources, version, publication and engine settings. A database in an app environment isolated by the kill switch is refused (409 `APP_ISOLATED`).',
   request: { params: IdParamSchema, ...jsonBody(UpdateManagedDatabaseSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -132,6 +134,8 @@ export const deleteManagedDatabaseRoute = appRoute({
   path: '/managed/{id}',
   tags: ['Databases'],
   summary: 'Delete a managed database instance',
+  description:
+    'A database in an app environment isolated by the kill switch (409 `APP_ISOLATED`) or shut down (409 `APP_INCIDENT_ACTIVE`) is refused until the incident ends.',
   request: { params: IdParamSchema },
   responses: okJson(z.object({ success: z.boolean() })),
 });
@@ -261,6 +265,8 @@ export const deleteManagedDatabaseBindingRoute = appRoute({
   path: '/managed/{id}/bindings/{bindingId}',
   tags: ['Databases'],
   summary: 'Delete a managed database binding',
+  description:
+    'Removes the binding, its connector and the variables it gave the workload. Refused while the database or the workload sits in an app environment isolated by the kill switch (409 `APP_ISOLATED`) or shut down (409 `APP_INCIDENT_ACTIVE`): the incident holds the binding and restores it.',
   request: {
     params: IdParamSchema.extend({ bindingId: z.string().uuid() }),
     ...jsonBody(DeleteManagedDatabaseBindingSchema),

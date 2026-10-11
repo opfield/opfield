@@ -2,11 +2,7 @@ import { Activity, DatabaseBackup, Puzzle, ScrollText, Table2, Terminal } from "
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
-import {
-  IsolatedNotice,
-  memberIncidentBlock,
-  useMemberApp,
-} from "@/components/apps/IsolatedNotice";
+import { IsolatedNotice, useMemberIncidentHold } from "@/components/apps/IsolatedNotice";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
@@ -133,16 +129,14 @@ function DatabaseDetailContent({
   const canRestart = canEdit && !!database?.managed && database.managed.status !== "paused";
   const canMoveToValkey =
     canManageSettings && database?.type === "redis" && database.managed?.engine === "redis";
-  const { app: memberApp, reload: reloadMemberApp } = useMemberApp(database?.app);
-  const incidentBlock = memberIncidentBlock(memberApp, database?.app);
-  const moveToValkeyDisabledReason =
-    incidentBlock === "isolation"
-      ? "Unavailable while the app kill switch isolates this environment."
-      : incidentBlock === "shutdown"
-        ? "Unavailable while this app environment is shut down."
-        : database?.managed?.status !== "ready"
-          ? "Available when the key-value store is running."
-          : null;
+  const {
+    app: memberApp,
+    reload: reloadMemberApp,
+    hold: incidentHold,
+  } = useMemberIncidentHold(database?.app);
+  const storeStoppedReason =
+    database?.managed?.status !== "ready" ? "Available when the key-value store is running." : null;
+  const moveToValkeyDisabledReason = incidentHold.kept ?? storeStoppedReason;
   const canDelete = hasDatabaseScope(hasScope, "databases:delete", id);
   const canRead = hasDatabaseScope(hasScope, "databases:query:read", id);
   const canWrite = hasDatabaseScope(hasScope, "databases:query:write", id);
@@ -679,6 +673,7 @@ function DatabaseDetailContent({
               }
               canRotateCertificate={canManageSettings && database.managed?.publishedPort != null}
               canDelete={canDelete}
+              removeDisabledReason={incidentHold.kept}
               onOpenPin={() => setPinOpen(true)}
               onBack={() => navigate("/databases")}
               onTest={() => void testConnection()}

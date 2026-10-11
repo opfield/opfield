@@ -43,9 +43,12 @@ const EMPTY_SELECTION: ProxyUpstreamSelection = {
 export function AdditionalSecureLinkBindings({
   hostId,
   canManage,
+  removeDisabledReason = null,
 }: {
   hostId: string;
   canManage: boolean;
+  /** Why removing a binding is disabled (the route's app environment is isolated or shut down). */
+  removeDisabledReason?: string | null;
 }) {
   const [bindings, setBindings] = useState<ProxyAdditionalSecureLink[] | null>(null);
   const [containers, setContainers] = useState<DockerContainer[]>([]);
@@ -382,9 +385,9 @@ export function AdditionalSecureLinkBindings({
                       size="icon"
                       className="rounded-none border-l border-border"
                       onClick={() => remove(binding)}
-                      disabled={!canManage}
+                      disabled={!canManage || removeDisabledReason !== null}
                       aria-label={`Remove ${binding.name}`}
-                      title="Remove"
+                      title={removeDisabledReason ?? "Remove"}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

@@ -18,7 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { AppMembershipLink } from "@/components/apps/AppMembership";
-import { MemberIsolatedNotice } from "@/components/apps/IsolatedNotice";
+import { MemberIsolatedNotice, useMemberIncidentHold } from "@/components/apps/IsolatedNotice";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { CopyCodeBlock } from "@/components/common/CopyCodeBlock";
 import { CopyValueField } from "@/components/common/CopyValueField";
@@ -288,6 +288,12 @@ export function PageProjectDetail({
   const canDelete = useAuthStore((state) => state.hasScopedAccess(`pages:delete:${projectId}`));
   const initialProjectRef = useRef(initialProject?.id === projectId ? initialProject : undefined);
   const [project, setProject] = useState<PageProject | null>(initialProjectRef.current ?? null);
+  // The open incident of the project's app environment refuses deleting it.
+  const {
+    app: memberApp,
+    reload: reloadMemberApp,
+    hold: incidentHold,
+  } = useMemberIncidentHold(project?.app);
   const [loading, setLoading] = useState(!initialProjectRef.current);
   const [deployInstructionsOpen, setDeployInstructionsOpen] = useState(false);
   const [manualDeployOpen, setManualDeployOpen] = useState(false);
@@ -538,6 +544,8 @@ export function PageProjectDetail({
                       label: "Delete project",
                       icon: <Trash2 className="h-4 w-4" />,
                       onClick: () => void remove(),
+                      disabled: incidentHold.kept !== null,
+                      disabledReason: incidentHold.kept ?? undefined,
                       destructive: true,
                       separatorBefore: true,
                     },
@@ -586,14 +594,19 @@ export function PageProjectDetail({
               </Button>
             )}
             {canDelete && (
-              <Button variant="destructive" onClick={() => void remove()}>
+              <Button
+                variant="destructive"
+                onClick={() => void remove()}
+                disabled={incidentHold.kept !== null}
+                title={incidentHold.kept ?? undefined}
+              >
                 <Trash2 className="h-4 w-4" />
                 Delete project
               </Button>
             )}
           </ResponsiveHeaderActions>
         </div>
-        <MemberIsolatedNotice app={project.app} />
+        <MemberIsolatedNotice app={project.app} memberApp={memberApp} onChanged={reloadMemberApp} />
 
         {latestPreviewUrl && (
           <CopyValueField

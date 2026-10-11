@@ -88,6 +88,8 @@ export interface SettingsTabProps {
   isSavingTemplate: boolean;
   hasTemplateSettingsChanged: boolean;
   canManage: boolean;
+  /** Why removing Secure Link bindings is disabled (the route's app environment is isolated or shut down). */
+  secureLinkRemovalDisabledReason?: string | null;
   hasHeadersChanged: boolean;
   hasRewritesChanged: boolean;
   healthCheckEnabled: boolean;
@@ -152,6 +154,7 @@ export function SettingsTab({
   isSavingTemplate,
   hasTemplateSettingsChanged,
   canManage,
+  secureLinkRemovalDisabledReason = null,
   hasHeadersChanged,
   hasRewritesChanged,
   healthCheckEnabled,
@@ -391,7 +394,11 @@ export function SettingsTab({
       )}
 
       {host.type === "proxy" && !host.rawConfigEnabled ? (
-        <AdditionalSecureLinkBindings hostId={host.id} canManage={canManage} />
+        <AdditionalSecureLinkBindings
+          hostId={host.id}
+          canManage={canManage}
+          removeDisabledReason={secureLinkRemovalDisabledReason}
+        />
       ) : null}
 
       <PanelShell

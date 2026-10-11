@@ -4,6 +4,7 @@ import { nodes, proxyHosts } from '@/db/schema/index.js';
 import { grantCreatedResourcePermissions } from '@/lib/created-resource-permissions.js';
 import { writeWithAllocatedSlug } from '@/lib/resource-slugs.js';
 import { AppError } from '@/middleware/error-handler.js';
+import type { FreezeTarget } from '@/modules/apps/app-member-freeze.js';
 import { assertAppPlacement, filterNodesForAppFolder } from '@/modules/apps/app-placement-guard.js';
 import { requireRoutableIngressGroup } from '@/modules/ingress-groups/ingress-group-routing.js';
 import { assertNodeAllowsServiceCreation } from '@/modules/nodes/service-creation-lock.js';
@@ -46,6 +47,42 @@ export { __testOnly } from './proxy.service-helpers.js';
 import { isDockerUpstream, logger, type ProxyHostView, sameDomainNames } from './proxy.service.core.js';
 import { ProxyServicePlacement, requestedPlacementChange } from './proxy.service.placement.js';
 
+/** The app kill switch freeze as route mutations see it (AppMemberFreeze; set by the apps module). */
+export interface ProxyAppFreezeGuard {
+  /** 409 APP_ISOLATED: a route of an isolated environment, or one the kill switch holds because it reaches a member. */
+  assertRoute(routeId: string): Promise<void>;
+  /** Removing a route: 409 APP_ISOLATED while isolated, APP_INCIDENT_ACTIVE while its environment is shut down. */
+  assertRouteRemovable(routeId: string): Promise<void>;
+  /** 409 APP_ISOLATED when a route or Secure Link would newly reach a member of an isolated environment. */
+  assertUpstream(target: FreezeTarget): Promise<void>;
+}
+
+/** Upstream fields of a route or an additional Secure Link that name a workload. */
+export interface AppFreezeUpstreamFields {
+  upstreamKind?: string | null;
+  dockerNodeId?: string | null;
+  dockerContainerName?: string | null;
+  dockerComposeProjectId?: string | null;
+  dockerDeploymentId?: string | null;
+  pageProjectId?: string | null;
+  managedStorageId?: string | null;
+}
+
+/** The app member an upstream names (null for a manual upstream or when no workload field is given). */
+export function appFreezeTargetOfUpstream(
+  upstream: AppFreezeUpstreamFields,
+  fallbackDockerNodeId?: string | null
+): FreezeTarget | null {
+  if (upstream.upstreamKind === 'manual') return null;
+  if (upstream.dockerDeploymentId) return { kind: 'deployment', id: upstream.dockerDeploymentId };
+  if (upstream.dockerComposeProjectId) return { kind: 'compose', id: upstream.dockerComposeProjectId };
+  const nodeId = upstream.dockerNodeId ?? fallbackDockerNodeId;
+  if (upstream.dockerContainerName && nodeId) return { kind: 'container', nodeId, name: upstream.dockerContainerName };
+  if (upstream.pageProjectId) return { kind: 'pages', id: upstream.pageProjectId };
+  if (upstream.managedStorageId) return { kind: 'managedStorage', id: upstream.managedStorageId };
+  return null;
+}
+
 /**
  * A proxy host write that names an SSL certificate waits on that certificate's
  * row lock (the foreign-key check), so a concurrent certificate delete either
@@ -72,11 +109,29 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
     this.appOverlay = hook;
   }
 
-  /** Refuses changes to routes an app kill switch holds (409 APP_ISOLATED; set by the apps module). */
-  protected appFreeze?: (routeId: string) => Promise<void>;
+  /** Refuses changes to routes an app kill switch holds or a shutdown keeps (set by the apps module). */
+  protected appFreeze?: ProxyAppFreezeGuard;
 
-  setAppFreezeGuard(guard: (routeId: string) => Promise<void>) {
+  setAppFreezeGuard(guard: ProxyAppFreezeGuard) {
     this.appFreeze = guard;
+  }
+
+  /**
+   * 409 APP_ISOLATED for a route the kill switch freezes. A user placement change checks it first; internal ingress
+   * group moves do not (they move many routes and roll back as one).
+   */
+  async assertRouteNotAppFrozen(id: string): Promise<void> {
+    await this.appFreeze?.assertRoute(id);
+  }
+
+  /** A route or Secure Link may not newly reach a workload of an environment isolated by the kill switch. */
+  protected async assertUpstreamNotAppFrozen(
+    upstream: AppFreezeUpstreamFields,
+    fallbackDockerNodeId?: string | null
+  ): Promise<void> {
+    if (!this.appFreeze) return;
+    const target = appFreezeTargetOfUpstream(upstream, fallbackDockerNodeId);
+    if (target) await this.appFreeze.assertUpstream(target);
   }
 
   /** A route created in, or changed inside, an app environment takes the environment's maintenance overlay. */
@@ -219,6 +274,7 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
     }
     // A route created in an app environment is served only by nodes the environment allows (every group member).
     await assertAppPlacement(this.db, 'routes', input.folderId, placement.servingNodeIds);
+    await this.assertUpstreamNotAppFrozen(input);
     await assertRegisteredDomainsUseTarget(this.db, input.domainNames, placement);
 
     // 0b. Validate advanced config if provided
@@ -449,7 +505,17 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
     userId: string,
     validationOptions: ProxyValidationInput = {}
   ) {
-    await this.appFreeze?.(id);
+    await this.appFreeze?.assertRoute(id);
+    if (this.appFreeze && input.dockerContainerName && !input.dockerNodeId) {
+      const [current] = await this.db
+        .select({ dockerNodeId: proxyHosts.dockerNodeId })
+        .from(proxyHosts)
+        .where(eq(proxyHosts.id, id))
+        .limit(1);
+      await this.assertUpstreamNotAppFrozen(input, current?.dockerNodeId);
+    } else {
+      await this.assertUpstreamNotAppFrozen(input);
+    }
     // Serialize the DB write and node apply with every other change to this
     // host, so the node always serves the last committed row. A move also
     // fences reconnect cleanup on the target node.

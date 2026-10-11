@@ -1,8 +1,13 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { IsolatedNotice, memberIncidentBlock } from "@/components/apps/IsolatedNotice";
+import {
+  IsolatedNotice,
+  memberIncidentBlock,
+  memberIncidentHold,
+} from "@/components/apps/IsolatedNotice";
 import type { AppDetail, AppIncident, AppPromotionPreviewItem } from "@/types";
+import { shutdownBlockedReason } from "./dialogs/incident-scope";
 import { KillSwitchDialog } from "./dialogs/KillSwitchDialog";
 import { differenceSummary } from "./dialogs/PromoteDialog";
 import { SettingsTab } from "./tabs/SettingsTab";
@@ -125,6 +130,33 @@ describe("App shutdown and kill switch", () => {
     expect(screen.getByRole("button", { name: /Turn off/ })).toBeInTheDocument();
   });
 
+  it("disables Shut down with the reason while the kill switch isolates every environment", () => {
+    settings(
+      app({
+        "env-live": [incident("isolation", "env-live")],
+        "env-staging": [incident("isolation", "env-staging")],
+      })
+    );
+    const shutDown = screen.getByRole("button", { name: /Shut down/ });
+    expect(shutDown).toBeDisabled();
+    expect(shutDown.getAttribute("title")).toContain("Turn the kill switch off");
+  });
+
+  it("refuses a shutdown only for scopes that hold an isolated environment", () => {
+    const detail = app({ "env-live": [incident("isolation", "env-live")] });
+    expect(shutdownBlockedReason(detail, "all")).toBe(
+      "live is isolated by the app kill switch. Turn the kill switch off before shutting it down."
+    );
+    expect(shutdownBlockedReason(detail, "env-live")).not.toBeNull();
+    expect(shutdownBlockedReason(detail, "env-staging")).toBeNull();
+    const releasing = app({
+      "env-live": [incident("isolation", "env-live", { state: "releasing" })],
+    });
+    expect(shutdownBlockedReason(releasing, "all")).toBeNull();
+    settings(detail);
+    expect(screen.getByRole("button", { name: /Shut down/ })).toBeEnabled();
+  });
+
   it("shows the live consequences and isolates only after the name is typed", async () => {
     render(<KillSwitchDialog app={app()} open onOpenChange={vi.fn()} onDone={vi.fn()} />);
     expect(
@@ -221,5 +253,31 @@ describe("member incident block (Move to Valkey)", () => {
     ).toBeNull();
     expect(memberIncidentBlock(null, ref)).toBeNull();
     expect(memberIncidentBlock(app(), null)).toBeNull();
+  });
+});
+
+describe("member incident hold (deletes, unbinds, renames)", () => {
+  const ref = {
+    id: "app-1",
+    slug: "shop",
+    name: "Shop",
+    environmentId: "env-live",
+    environmentName: "live",
+  };
+
+  it("keeps members of an isolated or shut-down environment, freezes changes only when isolated", () => {
+    const isolated = app({ "env-live": [incident("isolation", "env-live")] });
+    const isolatedReason = "Unavailable while the app kill switch isolates this environment.";
+    expect(memberIncidentHold(isolated, ref)).toEqual({
+      frozen: isolatedReason,
+      kept: isolatedReason,
+    });
+    const shutDown = app({ "env-live": [incident("shutdown", "env-live")] });
+    expect(memberIncidentHold(shutDown, ref)).toEqual({
+      frozen: null,
+      kept: "Unavailable while this app environment is shut down.",
+    });
+    expect(memberIncidentHold(app(), ref)).toEqual({ frozen: null, kept: null });
+    expect(memberIncidentHold(null, ref)).toEqual({ frozen: null, kept: null });
   });
 });

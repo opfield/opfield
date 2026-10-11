@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { AppMembershipLink } from "@/components/apps/AppMembership";
-import { MemberIsolatedNotice } from "@/components/apps/IsolatedNotice";
+import { MemberIsolatedNotice, useMemberIncidentHold } from "@/components/apps/IsolatedNotice";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
@@ -257,6 +257,12 @@ export function DockerContainerDetail({
   const containerApp = (container?.app ??
     resolvedContainer?.app ??
     null) as AppMembershipRef | null;
+  // The open incident of the container's app environment refuses removing and renaming it (and its links).
+  const {
+    app: memberApp,
+    reload: reloadMemberApp,
+    hold: incidentHold,
+  } = useMemberIncidentHold(containerApp);
   const containerRef = useRef<InspectData | null>(resolvedContainer ?? null);
   const scopeResourceId = String(
     container?.scopeResourceId ?? resolvedContainer?.scopeResourceId ?? ""
@@ -1401,6 +1407,7 @@ export function DockerContainerDetail({
     pendingHeaderAction === "Kill";
   const removeDisabled =
     availabilityManaged ||
+    incidentHold.kept !== null ||
     (stopping
       ? unavailable || composeManaged || !!buildRolloutReason || pendingHeaderAction === "Remove"
       : actionDisabled);
@@ -1589,7 +1596,8 @@ export function DockerContainerDetail({
             label: "Rename",
             icon: <Type className="h-4 w-4" />,
             onClick: openRename,
-            disabled: actionDisabled,
+            disabled: actionDisabled || incidentHold.kept !== null,
+            disabledReason: incidentHold.kept ?? undefined,
             separatorBefore: true,
           },
         ]
@@ -1650,7 +1658,7 @@ export function DockerContainerDetail({
             disabled: removeDisabled,
             disabledReason: availabilityManaged
               ? "Disable Availability in Settings before removing this container."
-              : undefined,
+              : (incidentHold.kept ?? undefined),
             destructive: true,
             separatorBefore: !canManage,
           },
@@ -1748,7 +1756,11 @@ export function DockerContainerDetail({
           }
         />
 
-        <MemberIsolatedNotice app={containerApp} />
+        <MemberIsolatedNotice
+          app={containerApp}
+          memberApp={memberApp}
+          onChanged={reloadMemberApp}
+        />
 
         {buildRolloutReason && !composeManaged && (
           <div
@@ -1970,6 +1982,7 @@ export function DockerContainerDetail({
                   containerState={environmentWorkloadState}
                   disabled={!!currentTransition || !!buildRolloutReason}
                   managedLinksDisabled={!!currentTransition}
+                  linkRemovalDisabledReason={incidentHold.kept}
                   onMutationStart={beginMutationTransition}
                   onMutationEnd={clearMutationTransition}
                   onRecreating={refreshAfterMutation}

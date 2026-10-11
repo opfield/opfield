@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { AppError } from '@/middleware/error-handler.js';
 import { DockerManagementService } from './docker.service.js';
 
 function dbWithOnlineDockerNode() {
@@ -219,5 +220,52 @@ describe('DockerManagementService.removeContainer', () => {
       vi.clearAllTimers();
       vi.useRealTimers();
     }
+  });
+});
+
+describe('DockerManagementService app incident hold', () => {
+  function freezeGuard(code: string | null) {
+    return {
+      anyIsolationOpen: vi.fn().mockResolvedValue(code === 'APP_ISOLATED'),
+      anyIncidentOpen: vi.fn().mockResolvedValue(code !== null),
+      assertContainer: vi.fn().mockResolvedValue(undefined),
+      assertContainerKept: vi.fn(async () => {
+        if (code) throw new AppError(409, code, 'Shop · production is held by an app incident');
+      }),
+      assertMayStart: vi.fn().mockResolvedValue(undefined),
+      assertNetworkNotHeld: vi.fn().mockResolvedValue(undefined),
+    };
+  }
+
+  it.each(['APP_ISOLATED', 'APP_INCIDENT_ACTIVE'])(
+    'refuses removing or renaming a member before Docker is asked (%s)',
+    async (code) => {
+      const dispatch = { sendDockerContainerCommand: vi.fn().mockResolvedValue(inspectResult('exited')) };
+      const { service } = createService(dispatch);
+      const guard = freezeGuard(code);
+      service.setAppFreezeGuard(guard);
+
+      await expect(service.removeContainer('node-1', 'container-1', false, 'user-1')).rejects.toMatchObject({ code });
+      await expect(service.renameContainer('node-1', 'container-1', 'api-2', 'user-1')).rejects.toMatchObject({ code });
+
+      expect(guard.assertContainerKept).toHaveBeenCalledWith('node-1', 'api');
+      const actions = dispatch.sendDockerContainerCommand.mock.calls.map((call) => call[1]);
+      expect(actions).not.toContain('remove');
+      expect(actions).not.toContain('rename');
+    }
+  );
+
+  it('removes as before when no incident is open', async () => {
+    const answer = async (_node: string, action: string) =>
+      action === 'remove' ? { success: true } : inspectResult('exited');
+    const dispatch = { sendDockerContainerCommand: vi.fn().mockImplementation(answer) };
+    const { service } = createService(dispatch);
+    const guard = freezeGuard(null);
+    service.setAppFreezeGuard(guard);
+
+    await service.removeContainer('node-1', 'container-1', false, 'user-1');
+
+    expect(guard.assertContainerKept).not.toHaveBeenCalled();
+    expect(dispatch.sendDockerContainerCommand.mock.calls.map((call) => call[1])).toContain('remove');
   });
 });

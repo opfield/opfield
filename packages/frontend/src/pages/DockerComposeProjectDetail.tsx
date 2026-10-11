@@ -23,7 +23,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { AppMembershipLink } from "@/components/apps/AppMembership";
-import { MemberIsolatedNotice } from "@/components/apps/IsolatedNotice";
+import { MemberIsolatedNotice, useMemberIncidentHold } from "@/components/apps/IsolatedNotice";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
@@ -153,6 +153,12 @@ export function DockerComposeProjectDetail() {
   const { hasScopedAccess, user } = useAuthStore();
   const dockerNodes = useDockerStore((state) => state.dockerNodes);
   const [project, setProject] = useState<DockerComposeProject | null>(null);
+  // The open incident of the project's app environment refuses deleting it (and removing its links).
+  const {
+    app: memberApp,
+    reload: reloadMemberApp,
+    hold: incidentHold,
+  } = useMemberIncidentHold(project?.app);
   const [availabilityPolicy, setAvailabilityPolicy] = useState<DockerAvailabilityPolicy | null>(
     null
   );
@@ -551,12 +557,16 @@ export function DockerComposeProjectDetail() {
                   actionKey: "delete",
                   icon: <Trash2 className="h-4 w-4" />,
                   onClick: () => void deleteProject(),
-                  disabled: !!currentOperation || deleting || project.status === "deleting",
+                  disabled:
+                    !!currentOperation ||
+                    deleting ||
+                    project.status === "deleting" ||
+                    incidentHold.kept !== null,
                   disabledReason: currentOperation
                     ? "Wait for the active operation to finish"
                     : deleting || project.status === "deleting"
                       ? "Deleting project runtime resources"
-                      : undefined,
+                      : (incidentHold.kept ?? undefined),
                   destructive: true,
                   separatorBefore: true,
                 },
@@ -1128,7 +1138,7 @@ export function DockerComposeProjectDetail() {
           }
         />
 
-        <MemberIsolatedNotice app={project.app} />
+        <MemberIsolatedNotice app={project.app} memberApp={memberApp} onChanged={reloadMemberApp} />
 
         {project.availability === "unavailable" && (
           <Notice
@@ -1378,7 +1388,12 @@ export function DockerComposeProjectDetail() {
           </TabsContent>
 
           <TabsContent value="variables" className="pb-0">
-            <ComposeVariablesTab project={project} canManage={canManage} onApplied={load} />
+            <ComposeVariablesTab
+              project={project}
+              canManage={canManage}
+              onApplied={load}
+              linkRemovalDisabledReason={incidentHold.kept}
+            />
           </TabsContent>
           {canManageAvailability && (
             <TabsContent value="settings" className="pb-6">

@@ -20,6 +20,7 @@ import {
   type IncidentScope,
   ScopeSelect,
   scopeEnvironmentIds,
+  shutdownBlockedReason,
   shutdownConsequences,
   useIncidentPreview,
 } from "./incident-scope";
@@ -38,6 +39,7 @@ export function ShutdownDialog({
   const [scope, setScope] = useState<IncidentScope>(() => defaultScope(app));
   const [pending, setPending] = useState(false);
   const { preview, error } = useIncidentPreview(app, "shutdown", scope, open);
+  const blocked = scope ? shutdownBlockedReason(app, scope) : null;
 
   useEffect(() => {
     if (open) setScope(defaultScope(app));
@@ -68,7 +70,9 @@ export function ShutdownDialog({
         </DialogHeader>
         <div className="space-y-4">
           <ScopeSelect app={app} value={scope} onChange={setScope} disabled={pending} />
-          {error ? (
+          {blocked ? (
+            <p className="text-sm text-destructive">{blocked}</p>
+          ) : error ? (
             <p className="text-sm text-destructive">{error}</p>
           ) : (
             <Consequences items={preview ? shutdownConsequences(preview.summary) : null} />
@@ -81,7 +85,8 @@ export function ShutdownDialog({
           <Button
             variant="destructive"
             pending={pending}
-            disabled={!scope}
+            disabled={!scope || blocked !== null}
+            title={blocked ?? undefined}
             onClick={() => void shutDown()}
           >
             Shut down

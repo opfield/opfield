@@ -43,7 +43,7 @@ import {
   RowMenu,
 } from "../app-shared";
 import { DeleteAppDialog } from "../dialogs/DeleteAppDialog";
-import { canOperateApp } from "../dialogs/incident-scope";
+import { canOperateApp, shutdownUnavailableReason } from "../dialogs/incident-scope";
 import { KillSwitchDialog } from "../dialogs/KillSwitchDialog";
 import { RenameEnvironmentDialog } from "../dialogs/RenameEnvironmentDialog";
 import { ShutdownDialog } from "../dialogs/ShutdownDialog";
@@ -77,6 +77,8 @@ export function SettingsTab({
   const isolatedIncidents = openAppIncidents(app, "isolation");
   const stopped = stoppedIncidents.length > 0;
   const isolated = isolatedIncidents.length > 0;
+  // A shutdown on top of the kill switch is refused (409 APP_ISOLATED): turn the kill switch off first.
+  const shutdownUnavailable = shutdownUnavailableReason(app);
 
   const start = async () => {
     setEnding("start");
@@ -308,7 +310,12 @@ export function SettingsTab({
                   Start
                 </Button>
               ) : (
-                <Button variant="outline" onClick={() => setShutdownOpen(true)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setShutdownOpen(true)}
+                  disabled={shutdownUnavailable !== null}
+                  title={shutdownUnavailable ?? undefined}
+                >
                   <Power className="h-4 w-4" />
                   Shut down
                 </Button>

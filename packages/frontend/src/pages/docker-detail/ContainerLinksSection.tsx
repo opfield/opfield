@@ -46,6 +46,7 @@ export function ContainerLinksSection({
   canManage,
   canSetEnvironment,
   disabled,
+  removeDisabledReason = null,
   onMutationStart,
   onMutationEnd,
   onRecreating,
@@ -61,6 +62,8 @@ export function ContainerLinksSection({
   /** Setting variable names on a link needs environment access to the workload. */
   canSetEnvironment: boolean;
   disabled?: boolean;
+  /** Why removing a link is disabled (the workload's app environment is isolated or shut down). */
+  removeDisabledReason?: string | null;
   onMutationStart?: (transition: "updating" | "recreating") => void;
   onMutationEnd?: () => void;
   onRecreating?: () => void | Promise<void>;
@@ -292,9 +295,9 @@ export function ContainerLinksSection({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      title="Remove link"
+                      title={removeDisabledReason ?? "Remove link"}
                       aria-label={`Remove link ${link.alias}`}
-                      disabled={disabled}
+                      disabled={disabled || removeDisabledReason !== null}
                       onClick={() => removeLink(link)}
                     >
                       <Trash2 className="h-4 w-4" />

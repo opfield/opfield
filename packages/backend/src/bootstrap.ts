@@ -1482,11 +1482,18 @@ export async function initializeContainer(): Promise<void> {
   appNodesService.setFreezeCheck((environmentId) =>
     appMemberFreeze.assertNotFrozen({ kind: 'environment', id: environmentId })
   );
-  proxyService.setAppFreezeGuard((routeId) => appMemberFreeze.assertNotFrozen({ kind: 'route', id: routeId }));
+  proxyService.setAppFreezeGuard({
+    assertRoute: (routeId) => appMemberFreeze.assertNotFrozen({ kind: 'route', id: routeId }),
+    assertRouteRemovable: (routeId) => appMemberFreeze.assertNoOpenIncident({ kind: 'route', id: routeId }),
+    assertUpstream: (target) => appMemberFreeze.assertNotFrozen(target),
+  });
   dockerManagementService.setAppFreezeGuard({
     anyIsolationOpen: () => appMemberFreeze.anyIsolationOpen(),
+    anyIncidentOpen: () => appMemberFreeze.anyIncidentOpen(),
     assertContainer: (nodeId, name) => appMemberFreeze.assertNotFrozen({ kind: 'container', nodeId, name }),
+    assertContainerKept: (nodeId, name) => appMemberFreeze.assertNoOpenIncident({ kind: 'container', nodeId, name }),
     assertMayStart: (nodeId, name) => appMemberFreeze.assertMayStart(nodeId, name),
+    assertNetworkNotHeld: (nodeId, network) => appMemberFreeze.assertNetworkNotHeld(nodeId, network),
   });
   const dockerWorkloadResolver = new DockerWorkloadResolverService(db);
   container.registerInstance(DockerWorkloadResolverService, dockerWorkloadResolver);

@@ -12,10 +12,13 @@ export function ComposeVariablesTab({
   project,
   canManage,
   onApplied,
+  linkRemovalDisabledReason = null,
 }: {
   project: DockerComposeProject;
   canManage: boolean;
   onApplied: () => void | Promise<void>;
+  /** Why removing links is disabled (the project's app environment is isolated or shut down). */
+  linkRemovalDisabledReason?: string | null;
 }) {
   const activeRevision = project.activeRevision;
   // A Git project before its first revision takes links pending; its services come from the Compose file the
@@ -87,6 +90,7 @@ export function ComposeVariablesTab({
         targetResourceId={project.id}
         containerName={project.name}
         disabled={(!beforeFirstRevision && serviceNames.length === 0) || !canManage}
+        removeDisabledReason={linkRemovalDisabledReason}
         recreatesRunningWorkload={recreatesRunningProject}
         composeBeforeFirstRevision={beforeFirstRevision}
         composeServices={serviceNames.map((name) => ({
@@ -106,6 +110,7 @@ export function ComposeVariablesTab({
           services={serviceNames}
           canManage={canManage}
           canSetEnvironment={canManage}
+          removeDisabledReason={linkRemovalDisabledReason}
           onApplied={onApplied}
         />
       )}

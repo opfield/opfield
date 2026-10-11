@@ -499,6 +499,7 @@ proxyRoutes.openapi(
     const input = RouteIngressPlacementSchema.parse(await c.req.json());
     const scopes = c.get('effectiveScopes') || [];
     const proxyService = container.resolve(ProxyService);
+    await proxyService.assertRouteNotAppFrozen(id);
     const existing = await proxyService.getProxyHost(id);
     const existingGroupId = (existing as { ingressGroupId?: string | null }).ingressGroupId ?? null;
     // Keeping the group the route is on changes nothing and needs no check.

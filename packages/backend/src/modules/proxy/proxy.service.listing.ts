@@ -126,7 +126,7 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
 
   /** `appIncident`: the app kill switch withdraws or re-delivers the route itself (its freeze does not apply). */
   async toggleProxyHost(id: string, enabled: boolean, userId: string, options: { appIncident?: boolean } = {}) {
-    if (!options.appIncident) await this.appFreeze?.(id);
+    if (!options.appIncident) await this.appFreeze?.assertRoute(id);
     return withProxyHostLock(id, () => this.toggleProxyHostLocked(id, enabled, userId));
   }
 
@@ -289,7 +289,7 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
   }
 
   async toggleMaintenance(id: string, enabled: boolean, userId: string) {
-    await this.appFreeze?.(id);
+    await this.appFreeze?.assertRoute(id);
     return withProxyHostLock(id, () => this.toggleMaintenanceLocked(id, enabled, userId));
   }
 
