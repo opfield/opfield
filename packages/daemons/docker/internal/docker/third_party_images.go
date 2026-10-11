@@ -15,7 +15,9 @@ import (
 // pipeline mirrors digest-pinned third-party runtime images into
 // (scripts/mirror-third-party-images.mjs, config/third-party-images.json). The
 // mirror keeps the upstream index digest byte for byte, so the digest stays the
-// trust anchor whichever registry serves it.
+// trust anchor whichever registry serves it. Releases publish the mirror under
+// ghcr.io/opfield/opfield too; nodes keep pulling the earlier repository, which
+// stays published, because running containers are matched by this exact reference.
 const thirdPartyMirrorRepository = "ghcr.io/the-square-labs/gateway"
 
 var thirdPartyImageReferencePattern = regexp.MustCompile(`^([a-z0-9.-]+\.[a-z]+(?::[0-9]+)?/[a-z0-9._/-]+)@(sha256:[a-f0-9]{64})$`)

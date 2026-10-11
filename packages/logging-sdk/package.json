@@ -6,13 +6,13 @@
   "types": "./dist/index.d.ts",
   "repository": {
     "type": "git",
-    "url": "https://github.com/the-square-labs/gateway.git",
+    "url": "https://github.com/opfield/opfield.git",
     "directory": "packages/logging-sdk"
   },
   "bugs": {
-    "url": "https://github.com/the-square-labs/gateway/issues"
+    "url": "https://github.com/opfield/opfield/issues"
   },
-  "homepage": "https://github.com/the-square-labs/gateway/tree/main/packages/logging-sdk#readme",
+  "homepage": "https://github.com/opfield/opfield/tree/main/packages/logging-sdk#readme",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

@@ -61,6 +61,9 @@ interface NextUpdateResponse {
 	reason: "latest" | "patch" | "minor-baseline";
 }
 
+// Inference core release lines, oldest first (see parseReleaseVersion).
+const CORE_RELEASE_LINES = ["wiolett", "thesqlabs", "opfield"];
+
 const TAG_PATTERNS: Readonly<Record<string, RegExp>> = {
 	gateway: /^v\d+\.\d+\.\d+(?:-rc\.\d+)?$/,
 	relay: /^v\d+\.\d+\.\d+(?:-rc\.\d+)?-relay$/,
@@ -70,7 +73,7 @@ const TAG_PATTERNS: Readonly<Record<string, RegExp>> = {
 	// The lease watchdog ships on its own line, independent of docker-daemon.
 	"lease-watchdog": /^v\d+\.\d+\.\d+(?:-rc\.\d+)?-watchdog$/,
 	"relay-supervisor": /^v\d+\.\d+\.\d+(?:-rc\.\d+)?-relay$/,
-	"inference-core": /^v\d+\.\d+\.\d+-(?:wiolett|thesqlabs)\.\d+$/,
+	"inference-core": /^v\d+\.\d+\.\d+-(?:wiolett|thesqlabs|opfield)\.\d+$/,
 	// Witness binaries (availability set Keeper voters relays run) ship as assets of the Gateway release.
 	"witness-clickhouse-keeper": /^v\d+\.\d+\.\d+(?:-rc\.\d+)?$/,
 };
@@ -193,13 +196,13 @@ function parseReleaseVersion(
 ): ParsedReleaseVersion | null {
 	const clean = value.replace(/^v/, "");
 	if (component === "inference-core") {
-		const match = /^(\d+)\.(\d+)\.(\d+)-(wiolett|thesqlabs)\.(\d+)$/.exec(
-			clean,
-		);
+		const match =
+			/^(\d+)\.(\d+)\.(\d+)-(wiolett|thesqlabs|opfield)\.(\d+)$/.exec(clean);
 		if (!match) return null;
-		// `thesqlabs` replaced the legacy `wiolett` release line; on the same base
-		// version every thesqlabs build must order after every wiolett build.
-		const lineOffset = match[4] === "thesqlabs" ? 1_000_000 : 0;
+		// Release lines replaced each other: wiolett, then thesqlabs, then opfield. On the
+		// same base version every build of a later line orders after every build of an
+		// earlier one.
+		const lineOffset = CORE_RELEASE_LINES.indexOf(match[4]) * 1_000_000;
 		return {
 			major: Number(match[1]),
 			minor: Number(match[2]),

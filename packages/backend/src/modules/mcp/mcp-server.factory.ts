@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { getEnv } from '@/config/env.js';
 import { accessSummaryPrincipal } from '@/lib/access-summary-resolver.js';
+import { OPFIELD_ABOUT_INSTRUCTIONS } from '@/modules/ai/opfield-about.js';
 import type { User } from '@/types.js';
 import { registerMcpAccessResource } from './mcp-access.js';
 import { registerMcpPrompts } from './mcp-prompts.js';
@@ -24,12 +25,13 @@ export interface CreateMcpServerOptions {
 }
 
 export const MCP_SERVER_INSTRUCTIONS =
-  'Opfield MCP exposes scoped control-plane tools, curated read-only resources, operational prompts, and agent skills (gateway://skills; start with gateway://skills/using-gateway/SKILL.md). OAuth token scopes determine every listed and callable capability. Access limited to folders, nodes or resources is normal: when a list is empty or an action is refused at the root, call get_my_access (or read gateway://access) and work inside the granted folders, passing folderId (and nodeId) when creating.';
+  `${OPFIELD_ABOUT_INSTRUCTIONS}\n\n` +
+  'Opfield MCP exposes scoped control-plane tools, curated read-only resources, operational prompts, and agent skills (gateway://skills; start with gateway://skills/using-opfield/SKILL.md). OAuth token scopes determine every listed and callable capability. Access limited to folders, nodes or resources is normal: when a list is empty or an action is refused at the root, call get_my_access (or read gateway://access) and work inside the granted folders, passing folderId (and nodeId) when creating.';
 
 export function createMcpServer(options: CreateMcpServerOptions) {
   const server = new McpServer(
-    // Clients see the Gateway release they talk to (`dev` in a source checkout).
-    { name: 'gateway', version: getEnv().APP_VERSION },
+    // Clients see the Opfield release they talk to (`dev` in a source checkout).
+    { name: 'opfield', version: getEnv().APP_VERSION },
     {
       instructions: options.accessInstructions
         ? `${MCP_SERVER_INSTRUCTIONS}\n\n${options.accessInstructions}`

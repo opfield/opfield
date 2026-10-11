@@ -1,11 +1,11 @@
 ---
 name: access-control
-description: Administer Opfield identity and access, including users, permission groups, scopes, folder, node, and resource restrictions, API tokens, OAuth and MCP grants, and impersonation limits. Use when asked to create, block, or delete a user, change someone's permissions, design a least-privilege scope set for an integration or agent, or explain what a token or OAuth grant can and cannot do. Use after using-gateway has confirmed the Opfield MCP connection.
+description: Administer Opfield identity and access, including users, permission groups, scopes, folder, node, and resource restrictions, API tokens, OAuth and MCP grants, and impersonation limits. Use when asked to create, block, or delete a user, change someone's permissions, design a least-privilege scope set for an integration or agent, or explain what a token or OAuth grant can and cannot do. Use after using-opfield has confirmed the Opfield MCP connection.
 ---
 
 # Access Control
 
-Start with `using-gateway` for connection, discovery, and safety rules; its connection reference explains how scopes bound an MCP session. Read `read_gateway_documentation({ topic: "permissions" })` (also `users`, `authentication`) before changing access, and check a specific scope in the [Scopes reference](https://docs.opfield.dev/en/identity/scopes-reference/) instead of guessing its name.
+Start with `using-opfield` for connection, discovery, and safety rules; its connection reference explains how scopes bound an MCP session. Read `read_gateway_documentation({ topic: "permissions" })` (also `users`, `authentication`) before changing access, and check a specific scope in the [Scopes reference](https://docs.opfield.dev/en/identity/scopes-reference/) instead of guessing its name.
 
 ## Users and groups
 

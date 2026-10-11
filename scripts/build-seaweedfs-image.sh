@@ -9,7 +9,7 @@ if [[ "${1:-}" == "--push" ]]; then
   exec docker buildx build \
     --platform linux/amd64,linux/arm64 \
     --tag "$tag" \
-    --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY:-the-square-labs/gateway}" \
+    --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY:-opfield/opfield}" \
     --provenance=false \
     --sbom=false \
     --push "$context"

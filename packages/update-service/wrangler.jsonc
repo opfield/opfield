@@ -16,8 +16,8 @@
 		{ "pattern": "get.opfield.dev/install.sh", "zone_name": "opfield.dev" }
 	],
 	"vars": {
-		"GITHUB_OWNER": "the-square-labs",
-		"GITHUB_GATEWAY_REPO": "gateway",
+		"GITHUB_OWNER": "opfield",
+		"GITHUB_GATEWAY_REPO": "opfield",
 		"GITHUB_INFERENCE_CORE_REPO": "inference-core"
 	},
 	"observability": {

@@ -2,7 +2,8 @@
 # binary rebuilt from the same upstream commit plus the patches in patches/.
 # Everything else (Alpine base, entrypoint, user, layout) is the upstream
 # image byte for byte. Build with scripts/build-seaweedfs-image.sh; the Image
-# workflow publishes it as ghcr.io/the-square-labs/gateway/seaweedfs-gateway:tree-<tree hash>
+# workflow publishes it as <image repository>/seaweedfs-gateway:tree-<tree hash> (ghcr.io/opfield/opfield, and
+# ghcr.io/the-square-labs/gateway as its mirror)
 # and the docker daemon pins its digest (seaweedfsImage).
 #
 # To move to a new upstream release: update the three ARGs below and re-apply

@@ -230,7 +230,7 @@ describe('MCP route authentication', () => {
     expect(names).toContain('list_nodes');
   });
 
-  it('reports the Gateway release as the server version', async () => {
+  it('reports the Opfield release as the server version and says what Opfield is', async () => {
     registerOAuth(['nodes:details']);
 
     const { body } = await mcpRequest('initialize', {
@@ -239,7 +239,9 @@ describe('MCP route authentication', () => {
       clientInfo: { name: 'test-client', version: '1.0.0' },
     });
 
-    expect(body.result.serverInfo).toMatchObject({ name: 'gateway', version: '2.11.0-rc.39' });
+    expect(body.result.serverInfo).toMatchObject({ name: 'opfield', version: '2.11.0-rc.39' });
+    expect(body.result.instructions).toContain('self-hosted infrastructure control plane for a fleet of nodes');
+    expect(body.result.instructions).toContain('It is not another Docker panel for one host.');
   });
 
   it('rejects API-resource OAuth access tokens for MCP', async () => {

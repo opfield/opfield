@@ -1,13 +1,13 @@
 ---
 name: managing-nodes
-description: Enroll, inspect, and operate Opfield Nodes, the servers running Opfield daemons for nginx ingress, Docker, builder, storage and databases, monitoring, and relay. Use when asked to add a server to Opfield, check Node or daemon health, change a Node's service address, open a Node console or browse its filesystem, update daemons, or diagnose an offline or degraded Node. For a brand-new installation, start with the instance setup in using-gateway. Use after using-gateway has confirmed the Opfield MCP connection.
+description: Enroll, inspect, and operate Opfield Nodes, the servers running Opfield daemons for nginx ingress, Docker, builder, storage and databases, monitoring, and relay. Use when asked to add a server to Opfield, check Node or daemon health, change a Node's service address, open a Node console or browse its filesystem, update daemons, or diagnose an offline or degraded Node. For a brand-new installation, start with the instance setup in using-opfield. Use after using-opfield has confirmed the Opfield MCP connection.
 ---
 
 # Managing Nodes
 
 Nodes are servers running an Opfield daemon that connects to the control plane over mutual-TLS gRPC (port 9443). A Node's type decides what it can run, and a Node is never silently repurposed to another type.
 
-Start with `using-gateway` for connection, discovery, and safety rules; its instance-setup reference covers a brand-new control plane and first Nodes. Read `read_gateway_documentation({ topic: "nodes" })` (and `node-files`) before enrollment or file work: it has the current setup scripts, the manual-install fallback, and every reported health field.
+Start with `using-opfield` for connection, discovery, and safety rules; its instance-setup reference covers a brand-new control plane and first Nodes. Read `read_gateway_documentation({ topic: "nodes" })` (and `node-files`) before enrollment or file work: it has the current setup scripts, the manual-install fallback, and every reported health field.
 
 ## Node types
 

@@ -1,6 +1,6 @@
 ---
 name: databases
-description: Provision and operate managed PostgreSQL, key-value stores (Redis clients), and ClickHouse on Opfield, bind them privately to Containers, Deployments, or Compose services, register external database connections, run SQL queries or Redis commands, and manage native backups and restores. Use when asked to create a database, give an application private database access, run a query, rotate database credentials or certificates, or set up and verify backups. Use after using-gateway has confirmed the Opfield MCP connection.
+description: Provision and operate managed PostgreSQL, key-value stores (Redis clients), and ClickHouse on Opfield, bind them privately to Containers, Deployments, or Compose services, register external database connections, run SQL queries or Redis commands, and manage native backups and restores. Use when asked to create a database, give an application private database access, run a query, rotate database credentials or certificates, or set up and verify backups. Use after using-opfield has confirmed the Opfield MCP connection.
 ---
 
 # Databases
@@ -10,7 +10,7 @@ Opfield has two database models. Keep them apart:
 - **External connections**: an existing database Opfield should operate or observe over operator-supplied connection details. Register one only when Opfield should query, monitor, or back it up.
 - **Managed instances**: curated PostgreSQL, key-value store, or ClickHouse that Opfield runs on a `storage` Node (or a legacy `databases` Node). They are private by default, reached through an authenticated relay tunnel, with daemon-managed storage.
 
-Start with `using-gateway` for connection, discovery, and safety rules. Read `read_gateway_documentation({ topic: "databases" })` (also `postgres`, `redis` for key-value stores, `clickhouse`) before an unfamiliar workflow.
+Start with `using-opfield` for connection, discovery, and safety rules. Read `read_gateway_documentation({ topic: "databases" })` (also `postgres`, `redis` for key-value stores, `clickhouse`) before an unfamiliar workflow.
 
 A key-value store is `type: "redis"` in the API and tools and works with Redis clients. New stores run Valkey 9.1.2 (with JSON, Bloom and Search); `get` reports `engine` `valkey`, or `redis` for a store created before 2.12 that still runs Redis.
 

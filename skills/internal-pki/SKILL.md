@@ -1,6 +1,6 @@
 ---
 name: internal-pki
-description: Operate Opfield's user-facing Internal PKI (Enterprise), including root and intermediate certificate authorities, tls-server, tls-client, code-signing, and email certificates, templates, revocation, expiry, and linking an internal certificate as a Route's SSL certificate. Use when asked to stand up a private certificate authority, issue, renew, or revoke an internal certificate, or explain internal PKI expiry and reissue. Separate from Opfield's hidden system PKI. Use after using-gateway has confirmed the Opfield MCP connection.
+description: Operate Opfield's user-facing Internal PKI (Enterprise), including root and intermediate certificate authorities, tls-server, tls-client, code-signing, and email certificates, templates, revocation, expiry, and linking an internal certificate as a Route's SSL certificate. Use when asked to stand up a private certificate authority, issue, renew, or revoke an internal certificate, or explain internal PKI expiry and reissue. Separate from Opfield's hidden system PKI. Use after using-opfield has confirmed the Opfield MCP connection.
 ---
 
 # Internal PKI
@@ -9,7 +9,7 @@ Internal PKI is a private trust domain that Opfield operates for you: certificat
 
 Enterprise is required to create authorities, issue certificates, or change templates. After a license grace period ends, existing authorities, certificates, and templates stay viewable, revocable, and exportable; creating, issuing, and editing templates need the plan again.
 
-Start with `using-gateway` for connection, discovery, and safety rules. Read `read_gateway_documentation({ topic: "pki" })` before an unfamiliar workflow.
+Start with `using-opfield` for connection, discovery, and safety rules. Read `read_gateway_documentation({ topic: "pki" })` before an unfamiliar workflow.
 
 ## Certificate authorities
 

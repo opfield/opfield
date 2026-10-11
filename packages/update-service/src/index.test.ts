@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { handleRequest } from "./index.js";
 
 const env = {
-	GITHUB_OWNER: "the-square-labs",
-	GITHUB_GATEWAY_REPO: "gateway",
+	GITHUB_OWNER: "opfield",
+	GITHUB_GATEWAY_REPO: "opfield",
 	GITHUB_INFERENCE_CORE_REPO: "inference-core",
 	GITHUB_INFERENCE_CORE_TOKEN: "private-core-token",
 } as Env;
@@ -13,7 +13,7 @@ function release(tag_name: string, prerelease = tag_name.includes("-rc.")) {
 		tag_name,
 		name: tag_name,
 		body: "",
-		html_url: `https://github.com/the-square-labs/gateway/releases/tag/${tag_name}`,
+		html_url: `https://github.com/opfield/opfield/releases/tag/${tag_name}`,
 		published_at: "2026-08-27T00:00:00Z",
 		draft: false,
 		prerelease,
@@ -61,8 +61,7 @@ describe("gateway update facade", () => {
 						tag_name: "v2.9.11",
 						name: "Gateway v2.9.11",
 						body: "Release notes",
-						html_url:
-							"https://github.com/the-square-labs/gateway/releases/tag/v2.9.11",
+						html_url: "https://github.com/opfield/opfield/releases/tag/v2.9.11",
 						published_at: "2026-08-27T00:00:00Z",
 						draft: false,
 						prerelease: false,
@@ -77,7 +76,7 @@ describe("gateway update facade", () => {
 						name: "Inference Core v2.25.0-wiolett.21",
 						body: "Core release notes",
 						html_url:
-							"https://github.com/the-square-labs/inference-core/releases/tag/v2.25.0-wiolett.21",
+							"https://github.com/opfield/inference-core/releases/tag/v2.25.0-wiolett.21",
 						published_at: "2026-08-27T00:00:00Z",
 						draft: false,
 						prerelease: false,
@@ -270,8 +269,8 @@ describe("gateway update facade", () => {
 			target: { tag_name: "v2.10.1" },
 		});
 		expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
-			"https://api.github.com/repos/the-square-labs/gateway/releases?per_page=100&page=1",
-			"https://api.github.com/repos/the-square-labs/gateway/releases?per_page=100&page=2",
+			"https://api.github.com/repos/opfield/opfield/releases?per_page=100&page=1",
+			"https://api.github.com/repos/opfield/opfield/releases?per_page=100&page=2",
 		]);
 	});
 
@@ -430,6 +429,38 @@ describe("gateway update facade", () => {
 		});
 	});
 
+	it("orders opfield core builds after the thesqlabs line", async () => {
+		const fetcher = vi
+			.fn<typeof fetch>()
+			.mockImplementation(async () =>
+				Response.json([
+					release("v2.60.6-thesqlabs.6"),
+					release("v2.61.0-opfield.1"),
+					release("v2.61.0-thesqlabs.9"),
+					release("v2.60.0-wiolett.40"),
+				]),
+			);
+		const response = await handleRequest(
+			new Request(
+				"https://get.opfield.dev/gateway/releases?component=inference-core&current=v2.60.6-thesqlabs.6",
+			),
+			env,
+			fetcher,
+		);
+		await expect(response.json()).resolves.toMatchObject({
+			reason: "latest",
+			target: { tag_name: "v2.61.0-opfield.1" },
+		});
+		const current = await handleRequest(
+			new Request(
+				"https://get.opfield.dev/gateway/releases?component=inference-core&current=v2.61.0-opfield.1",
+			),
+			env,
+			fetcher,
+		);
+		expect(current.status).toBe(204);
+	});
+
 	it("returns the latest component release when current is omitted", async () => {
 		const fetcher = vi
 			.fn<typeof fetch>()
@@ -481,8 +512,7 @@ describe("gateway update facade", () => {
 					tag_name: "v2.9.11",
 					name: null,
 					body: null,
-					html_url:
-						"https://github.com/the-square-labs/gateway/releases/tag/v2.9.11",
+					html_url: "https://github.com/opfield/opfield/releases/tag/v2.9.11",
 					published_at: "2026-08-27T00:00:00Z",
 					draft: false,
 					prerelease: false,
@@ -545,7 +575,7 @@ describe("gateway update facade", () => {
 		expect(response.status).toBe(200);
 		await expect(response.text()).resolves.toBe("#!/bin/sh");
 		expect(String(fetcher.mock.calls[0]?.[0])).toBe(
-			"https://api.github.com/repos/the-square-labs/gateway/releases/latest",
+			"https://api.github.com/repos/opfield/opfield/releases/latest",
 		);
 		expect(String(fetcher.mock.calls[1]?.[0])).toContain("/releases/assets/7");
 		expect(response.headers.get("Cache-Control")).toBe("public, max-age=300");
@@ -578,7 +608,7 @@ describe("gateway update facade", () => {
 		);
 		expect(response.status).toBe(200);
 		expect(String(fetcher.mock.calls[0]?.[0])).toBe(
-			"https://api.github.com/repos/the-square-labs/gateway/releases/tags/v2.12.0",
+			"https://api.github.com/repos/opfield/opfield/releases/tags/v2.12.0",
 		);
 		expect(response.headers.get("Cache-Control")).toContain("immutable");
 	});
@@ -601,7 +631,7 @@ describe("gateway update facade", () => {
 				name: null,
 				body: null,
 				html_url:
-					"https://github.com/the-square-labs/gateway/releases/tag/v2.9.11-docker",
+					"https://github.com/opfield/opfield/releases/tag/v2.9.11-docker",
 				published_at: "2026-08-27T00:00:00Z",
 				draft: false,
 				prerelease: false,
@@ -637,7 +667,7 @@ describe("gateway update facade", () => {
 				name: null,
 				body: null,
 				html_url:
-					"https://github.com/the-square-labs/inference-core/releases/tag/v2.25.0-wiolett.21",
+					"https://github.com/opfield/inference-core/releases/tag/v2.25.0-wiolett.21",
 				published_at: "2026-08-27T00:00:00Z",
 				draft: false,
 				prerelease: false,
@@ -661,7 +691,7 @@ describe("gateway update facade", () => {
 		);
 		expect(response.status).toBe(200);
 		expect(fetcher.mock.calls[0]?.[0]).toBe(
-			"https://api.github.com/repos/the-square-labs/inference-core/releases/tags/v2.25.0-wiolett.21",
+			"https://api.github.com/repos/opfield/inference-core/releases/tags/v2.25.0-wiolett.21",
 		);
 		const headers = new Headers(fetcher.mock.calls[0]?.[1]?.headers);
 		expect(headers.get("Authorization")).toBe("Bearer private-core-token");
@@ -691,7 +721,7 @@ describe("gateway update facade", () => {
 		);
 		expect(response.status).toBe(200);
 		expect(fetcher.mock.calls[0]?.[0]).toBe(
-			"https://api.github.com/repos/the-square-labs/gateway/releases/tags/v2.12.0",
+			"https://api.github.com/repos/opfield/opfield/releases/tags/v2.12.0",
 		);
 		for (const path of [
 			"witness-clickhouse-keeper/v2.12.0-relay/witness-clickhouse-keeper-25.8.28.1-linux-arm64",

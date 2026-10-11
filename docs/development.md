@@ -105,7 +105,7 @@ gateway/
 |       +-- shared/       # shared Go packages and generated protobuf
 +-- proto/                # protobuf service definitions
 +-- scripts/              # Opfield and daemon installers
-+-- skills/               # agent skills served as gateway://skills (synced from gateway-skills)
++-- skills/               # agent skills served as gateway://skills (synced from opfield-skills)
 +-- docker-compose.yml    # production compose stack
 +-- docker-compose.dev.yml
 ```
@@ -245,17 +245,18 @@ pnpm build:all
 
 ## Release Images
 
-Workflows `Image` and `Release` publish every image under `ghcr.io/the-square-labs/gateway` (`…/relay`,
-`…/secure-link-connector`, `…/backup-runner`, …). Installed releases pin that repository: signed update manifests
-name it and updates accept only it, so it stays fixed when the GitHub repository or organization moves. The
-repository variable `GATEWAY_IMAGE` overrides it for forks.
-
-Dual publishing to a second repository is opt-in:
+Workflows `Image` and `Release` publish every image (`…/relay`, `…/secure-link-connector`, `…/backup-runner`,
+`…/seaweedfs-gateway`, the third-party mirrors) under two repositories, resolved by
+`scripts/release/image-repositories.sh`:
 
 | Setting | Kind | Effect |
 | --- | --- | --- |
-| `GATEWAY_IMAGE_MIRROR` | repository variable | For example `ghcr.io/opfield/opfield`. Every release tag (`vX.Y.Z`, `X.Y.Z`, `latest`) of the Opfield, relay, secure-link connector and backup-runner images is copied there with the same digest. Unset: nothing is mirrored and nothing fails. |
-| `GHCR_PUSH_TOKEN` | repository secret | A token that can write packages in both organizations (a classic token with `write:packages`). Needed when the repository and one of the image repositories live in different organizations, for example mirroring to the new organization before the move or keeping the old path after it. Without it the workflow token is used. |
+| `OPFIELD_GHCR` | repository variable | `true` once the opfield organization publishes images: `ghcr.io/opfield/opfield` becomes the primary repository (main builds, release tags) and `ghcr.io/the-square-labs/gateway` the mirror, which receives every release tag (`vX.Y.Z`, `X.Y.Z`, `latest`), the patched SeaweedFS builds and the third-party mirrors with the same digests. Unset: everything goes to `ghcr.io/the-square-labs/gateway` only. |
+| `GATEWAY_SIGNED_IMAGE` | repository variable | The repository signed release manifests name, which installs then pull from. Defaults to `ghcr.io/the-square-labs/gateway` while it is published: installs up to 2.11 accept only it. Every 2.12 install accepts both repositories and the update feed walks through every minor release, so from 2.13 on it can be `ghcr.io/opfield/opfield`. |
+| `GATEWAY_IMAGE`, `GATEWAY_IMAGE_MIRROR` | repository variables | Override the primary repository and the mirror (forks). |
+| `GHCR_PUSH_TOKEN` | repository secret | A token that can write packages in both organizations (a classic token with `write:packages`). Needed while the repository and one of the image repositories live in different organizations. Without it the workflow token is used. |
+| `COMMERCIAL_REPOSITORY` | repository variable | The private commercial core repository CI and releases dispatch to. Defaults to `opfield/opfield-commercial` in the opfield organization, `<owner>/gateway-commercial` elsewhere. |
 
-Keep publishing to the old repository for at least a year after a move: GHCR does not redirect image pulls the way
-GitHub redirects release download URLs.
+Docker nodes and the installer pull the third-party mirrors and the patched SeaweedFS from
+`ghcr.io/the-square-labs/gateway`, where existing containers were created from. Keep publishing there for at least a
+year after the move: GHCR does not redirect image pulls the way GitHub redirects repository and release URLs.

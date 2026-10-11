@@ -13,7 +13,7 @@
 AI-first, но не AI-dependent платформа управления инфраструктурой для nginx ingress, Docker-нагрузок, сертификатов, баз данных, логов, мониторинга, статус-страниц и автоматизации.
 
 > [!NOTE]
-> Основная разработка ведется на [GitHub](https://github.com/the-square-labs/gateway). Issues и запросы функций можно оставлять в [GitHub issue tracker](https://github.com/the-square-labs/gateway/issues).
+> Основная разработка ведется на [GitHub](https://github.com/opfield/opfield). Issues и запросы функций можно оставлять в [GitHub issue tracker](https://github.com/opfield/opfield/issues).
 
 ## Зачем нужен Opfield
 
@@ -91,24 +91,24 @@ Installer запускает Opfield и выводит одноразовый к
 <td align="center"><strong>Планирование в AI Workspace</strong></td>
 </tr>
 <tr>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/dashboard-overview.png" width="100%" alt="Dashboard Opfield с маршрутами, базами данных, нодами, health status и использованием ресурсов"></td>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/ai-workspace.png" width="100%" alt="AI Workspace с проверенным планом развертывания инфраструктуры"></td>
+<td><img src="https://docs.opfield.dev/screenshots/product-tour/dashboard-overview.png" width="100%" alt="Dashboard Opfield с маршрутами, базами данных, нодами, health status и использованием ресурсов"></td>
+<td><img src="https://docs.opfield.dev/screenshots/product-tour/ai-workspace.png" width="100%" alt="AI Workspace с проверенным планом развертывания инфраструктуры"></td>
 </tr>
 <tr>
 <td align="center"><strong>Workload и Secure Link runtime</strong></td>
 <td align="center"><strong>Наблюдаемость managed database</strong></td>
 </tr>
 <tr>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/container-secure-link.png" width="100%" alt="Обзор Docker workload с метриками Secure Link runtime"></td>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/managed-database.png" width="100%" alt="Health и performance overview managed PostgreSQL database"></td>
+<td><img src="https://docs.opfield.dev/screenshots/product-tour/container-secure-link.png" width="100%" alt="Обзор Docker workload с метриками Secure Link runtime"></td>
+<td><img src="https://docs.opfield.dev/screenshots/product-tour/managed-database.png" width="100%" alt="Health и performance overview managed PostgreSQL database"></td>
 </tr>
 <tr>
 <td align="center"><strong>Ingress route и health</strong></td>
 <td align="center"><strong>Распределённые ноды</strong></td>
 </tr>
 <tr>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/ingress-route.png" width="100%" alt="Работающий ingress route с Docker Secure Link"></td>
-<td><img src="https://raw.githubusercontent.com/the-square-labs/gateway-docs/main/public/screenshots/product-tour/nodes.png" width="100%" alt="Список нод Opfield с ingress, Docker, database, monitoring, build и relay ролями"></td>
+<td><img src="https://docs.opfield.dev/screenshots/product-tour/ingress-route.png" width="100%" alt="Работающий ingress route с Docker Secure Link"></td>
+<td><img src="https://docs.opfield.dev/screenshots/product-tour/nodes.png" width="100%" alt="Список нод Opfield с ingress, Docker, database, monitoring, build и relay ролями"></td>
 </tr>
 </table>
 
@@ -238,10 +238,10 @@ Managed services продолжают работать. Existing nginx configs �
 
 | План | Месяц | Год | Масштаб и назначение |
 |------|-------|-----|----------------------|
-| ![Community](docs/assets/license/wiolett-gw-community-24.png)<br>Community | $0 | $0 | Ядро платформы, AI Workspace и Opfield Inference для своей инфраструктуры и других сценариев, не конкурирующих с Opfield; до 25 managed nodes, 3 пользователей и 1 custom permission group; read-only discovery, inventory, monitoring и logs Compose-проектов. Pages, databases, storage, GitLab integration, а также Scenarios, Plan Mode и sandboxes AI Workspace недоступны. |
-| ![Personal](docs/assets/license/wiolett-gw-personal-24.png)<br>Personal | $29 | $290 | Неограниченные plan quotas для managed nodes/users/groups, deployment и lifecycle management Compose-проектов, import/export архивов контейнеров, blue/green deployments, cross-node migration, managed databases и external database connections с бэкапами, storage connections и managed SeaweedFS object storage, GitLab integration, Scenarios, Plan Mode и sandboxes AI Workspace, публичные status pages, Pages static-site hosting и registry discovery. Multi-node Workload Availability доступна с Business и выше. |
-| ![Business](docs/assets/license/wiolett-gw-business-24.png)<br>Business | $189 | $1,890 | Возможности Personal (включая Compose management и Pages), а также Git push-to-deploy для containers, blue/green deployments, Compose Projects и Pages с изолированными Build Workers и build vulnerability policy, опциональный внешний доступ к private internal registry, Docker Secure Runtime, structured logging, audit export, guided onboarding, доступную multi-node Workload Availability (HA), а также расширенное сканирование безопасности, автомасштабирование по метрикам и same-node multi-instance после выпуска. |
-| ![Enterprise](docs/assets/license/wiolett-gw-enterprise-24.png)<br>Enterprise | По запросу | По запросу | Возможности Business (включая Pages), а также Internal PKI, SIEM export, выделенный технический контакт и сопровождение развёртывания и миграции. |
+| ![Community](docs/assets/license/opfield-community-24.png)<br>Community | $0 | $0 | Ядро платформы, AI Workspace и Opfield Inference для своей инфраструктуры и других сценариев, не конкурирующих с Opfield; до 25 managed nodes, 3 пользователей и 1 custom permission group; read-only discovery, inventory, monitoring и logs Compose-проектов. Pages, databases, storage, GitLab integration, а также Scenarios, Plan Mode и sandboxes AI Workspace недоступны. |
+| ![Personal](docs/assets/license/opfield-personal-24.png)<br>Personal | $29 | $290 | Неограниченные plan quotas для managed nodes/users/groups, deployment и lifecycle management Compose-проектов, import/export архивов контейнеров, blue/green deployments, cross-node migration, managed databases и external database connections с бэкапами, storage connections и managed SeaweedFS object storage, GitLab integration, Scenarios, Plan Mode и sandboxes AI Workspace, публичные status pages, Pages static-site hosting и registry discovery. Multi-node Workload Availability доступна с Business и выше. |
+| ![Business](docs/assets/license/opfield-business-24.png)<br>Business | $189 | $1,890 | Возможности Personal (включая Compose management и Pages), а также Git push-to-deploy для containers, blue/green deployments, Compose Projects и Pages с изолированными Build Workers и build vulnerability policy, опциональный внешний доступ к private internal registry, Docker Secure Runtime, structured logging, audit export, guided onboarding, доступную multi-node Workload Availability (HA), а также расширенное сканирование безопасности, автомасштабирование по метрикам и same-node multi-instance после выпуска. |
+| ![Enterprise](docs/assets/license/opfield-enterprise-24.png)<br>Enterprise | По запросу | По запросу | Возможности Business (включая Pages), а также Internal PKI, SIEM export, выделенный технический контакт и сопровождение развёртывания и миграции. |
 
 Эти лимиты Community и возможности выше, которым теперь нужен Personal или выше, действуют с 2.11; в 2.10 Community допускал 100 managed nodes, 10 пользователей и 5 custom permission groups. Лимиты проверяются только при создании, поэтому установка, которая уже превышает их, сохраняет существующие ноды, пользователей и группы, но не может добавить новые, пока остаётся на лимите или выше.
 

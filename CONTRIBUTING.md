@@ -1,6 +1,6 @@
 # Contributing to Opfield
 
-Thank you for your interest in Opfield. Bug reports, reproducible issue descriptions, and feature requests are welcome through [GitHub Issues](https://github.com/the-square-labs/gateway/issues).
+Thank you for your interest in Opfield. Bug reports, reproducible issue descriptions, and feature requests are welcome through [GitHub Issues](https://github.com/opfield/opfield/issues).
 
 ## Source-code changes
 

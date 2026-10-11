@@ -19,3 +19,17 @@ export const UPDATES_BASE_URL = 'https://get.opfield.dev/gateway';
 export const LEGACY_UPDATES_BASE_URLS: readonly string[] = ['https://updates.thesqlabs.com/gateway'];
 /** Node installers of a release, GitHub release download layout: `/download/<tag>/<file>`, `/latest/download/<file>`. */
 export const INSTALLER_RELEASES_URL = `${UPDATES_BASE_URL}/releases`;
+/**
+ * Image repositories Opfield images are published under: the opfield organization, and the earlier repository that
+ * every release keeps receiving for installs up to 2.11. Releases of 2.12 sign their manifests for the earlier
+ * repository (installs up to 2.11 accept only it); every 2.12 install accepts both, so a later release can sign for
+ * the opfield one.
+ */
+export const OPFIELD_IMAGE_REPOSITORY = 'ghcr.io/opfield/opfield';
+export const LEGACY_IMAGE_REPOSITORIES: readonly string[] = ['ghcr.io/the-square-labs/gateway'];
+export const OFFICIAL_IMAGE_REPOSITORIES: readonly string[] = [OPFIELD_IMAGE_REPOSITORY, ...LEGACY_IMAGE_REPOSITORIES];
+/** The same for the managed inference core image. */
+export const OFFICIAL_INFERENCE_CORE_IMAGE_REPOSITORIES: readonly string[] = [
+  'ghcr.io/opfield/inference-core',
+  'ghcr.io/the-square-labs/inference-core',
+];
