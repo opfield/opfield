@@ -99,13 +99,23 @@ func (p *DockerPlugin) initAvailabilityLease() {
 		return
 	}
 	integration.runtime = runtime
+	if p.cfg.Docker.IsStorageProfile() {
+		// Availability set members: the member runtime owns their policies; it
+		// is the controller before the runtime's first step.
+		if err := p.startSetMembers(runtime, integration.fence); err != nil {
+			p.logger.Warn("availability set members disabled", "error", err)
+		}
+	}
 	if _, statErr := os.Stat(integration.fence.Dir.HeartbeatPath()); statErr == nil {
 		for deadline := time.Now().Add(leaseWatchdogStartupWait); time.Now().Before(deadline) && !integration.watchdogReady(); {
 			time.Sleep(250 * time.Millisecond)
 		}
 	}
-	// Every user-workload start passes the lease start hook (A5, A12.1).
-	p.client.beforeStart = integration.beforeStart
+	if !p.cfg.Docker.IsStorageProfile() {
+		// Every user-workload start passes the lease start hook (A5, A12.1). A storage-profile daemon runs no
+		// Availability workloads; its set members arm their deadline records themselves.
+		p.client.beforeStart = integration.beforeStart
+	}
 	integration.ctx, integration.cancel = context.WithCancel(context.Background())
 	// Recover copies that run on live records before any relay registration,
 	// so they register serving, not dormant, after a daemon restart (B-13).

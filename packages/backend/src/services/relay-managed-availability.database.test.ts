@@ -159,6 +159,11 @@ describe.skipIf(!url)('availability set relay paths on disposable PostgreSQL', (
       source_id: nodeB,
       target_endpoint_id: peerA.id,
     });
+    const controlB = await endpoint('managed_availability_peer', peerEndpointOwnerId(memberB, 'member-control'));
+    expect(await route('managed_member_peer', peerRouteOwnerId(memberA, memberB, 'member-control'))).toMatchObject({
+      source_id: nodeA,
+      target_endpoint_id: controlB.id,
+    });
     // Every route to the resource is repeated toward member B with the same source.
     expect(
       await route('set_member:managed_database_binding', memberRouteOwnerId(bindingRouteId, memberB))
@@ -194,12 +199,18 @@ describe.skipIf(!url)('availability set relay paths on disposable PostgreSQL', (
     await q('update managed_availability_sets set lease_policy_id = $2 where id = $1', [setId, leasePolicyId]);
     const clientB = await endpoint('managed_availability_member', memberB);
     const peerA = await endpoint('managed_availability_peer', peerEndpointOwnerId(memberA, 'pg-repl'));
+    const controlA = await endpoint('managed_availability_peer', peerEndpointOwnerId(memberA, 'member-control'));
     const gate = await relayLeasePolicyIds(
       db,
       [
         { id: anchorId, ownerKind: 'managed_database', ownerId: databaseId },
         { id: clientB.id, ownerKind: 'managed_availability_member', ownerId: memberB },
         { id: peerA.id, ownerKind: 'managed_availability_peer', ownerId: peerEndpointOwnerId(memberA, 'pg-repl') },
+        {
+          id: controlA.id,
+          ownerKind: 'managed_availability_peer',
+          ownerId: peerEndpointOwnerId(memberA, 'member-control'),
+        },
       ],
       []
     );

@@ -62,24 +62,29 @@ export type MemberPortName =
   | 'sw-volume'
   | 'sw-filer'
   | 'ch-interserver'
-  | 'ch-keeper';
+  | 'ch-keeper'
+  | 'member-control';
+
+/**
+ * The member runtime's own port on every engine: a manual pair's member asks its peer for the primary assignment
+ * over it.
+ */
+const MEMBER_CONTROL_PORT = { name: 'member-control', primary: false } as const;
 
 /** The engine-to-engine ports of each engine; primary ports reach the primary only. */
 export const ENGINE_MEMBER_PORTS: Record<
   ManagedAvailabilityEngine,
   ReadonlyArray<{ name: MemberPortName; primary: boolean }>
 > = {
-  postgres: [{ name: 'pg-repl', primary: true }],
-  valkey: [{ name: 'kv-repl', primary: true }],
+  postgres: [{ name: 'pg-repl', primary: true }, MEMBER_CONTROL_PORT],
+  valkey: [{ name: 'kv-repl', primary: true }, MEMBER_CONTROL_PORT],
   seaweedfs: [
     { name: 'sw-master', primary: true },
     { name: 'sw-volume', primary: false },
     { name: 'sw-filer', primary: false },
+    MEMBER_CONTROL_PORT,
   ],
-  clickhouse: [
-    { name: 'ch-interserver', primary: false },
-    { name: 'ch-keeper', primary: false },
-  ],
+  clickhouse: [{ name: 'ch-interserver', primary: false }, { name: 'ch-keeper', primary: false }, MEMBER_CONTROL_PORT],
 };
 
 export function isPrimaryMemberPort(engine: ManagedAvailabilityEngine, port: string): boolean {

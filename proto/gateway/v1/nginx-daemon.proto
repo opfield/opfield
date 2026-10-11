@@ -205,6 +205,8 @@ message HealthReport {
   // Nginx daemons advertising ingress_group_v1: what the reserved endpoint
   // /.well-known/gateway-ingress-health answers (sf-ingress range 195-199).
   IngressHealthReport ingress_health = 195;
+  // Storage-profile docker daemons: their availability set members.
+  repeated AvailabilityMemberReport availability_members = 196;
 }
 
 // Connections across an update of the daemon. A daemon advertising
@@ -495,7 +497,114 @@ message GatewayCommand {
     // Relay supervisor only (relay_route_runtime_v1): the runtime of relay
     // routes as its worker counts them.
     GetRelayRouteRuntimeCommand get_relay_route_runtime = 77;
+    // Storage-profile docker daemons (managed_availability_member_v1): this
+    // node's member of a database or storage availability set.
+    AvailabilityMemberCommand availability_member = 81;
   }
+}
+
+// This node's member of a database or storage availability set.
+message AvailabilityMemberCommand {
+  oneof action {
+    AvailabilityMemberConfig configure = 1;
+    AvailabilityMemberRemove remove = 2;
+    AvailabilityMemberEventsAck ack_events = 3;
+    // Manual pairs: the primary assignment (Gateway names the primary under a
+    // generation that grows with every switch).
+    AvailabilityPrimaryAssignment assign_primary = 4;
+    // Automatic sets: a planned switchover the holder runs (writes stop, the
+    // successor catches up, then the holder releases to it).
+    AvailabilityMemberSwitchover switchover = 5;
+  }
+}
+
+message AvailabilityMemberConfig {
+  string set_id = 1;
+  string member_id = 2;
+  // "postgres", "valkey", "seaweedfs" or "clickhouse".
+  string engine = 3;
+  // "managed_database" or "managed_storage", and the resource id.
+  string owner_kind = 4;
+  string owner_id = 5;
+  // "automatic" (lease) or "manual" (replicated pair without witness).
+  string mode = 6;
+  string lease_policy_id = 7;
+  // "synchronous" or "asynchronous".
+  string durability = 8;
+  uint32 sync_degrade_after_seconds = 9;
+  uint64 max_lag_bytes = 10;
+  repeated AvailabilityMemberPeer members = 11;
+  AvailabilityPrimaryAssignment primary = 12;
+  // A configuration older than the one applied is ignored.
+  uint64 config_revision = 13;
+  // The engine's own configuration (JSON), opaque to the member runtime.
+  bytes engine_config = 14;
+  // The member proxy's published port (direct publication); 0: none.
+  uint32 published_port = 15;
+}
+
+message AvailabilityMemberPeer {
+  string member_id = 1;
+  string node_id = 2;
+  uint32 member_index = 3;
+  int32 priority = 4;
+  bool removing = 5;
+}
+
+message AvailabilityPrimaryAssignment {
+  string set_id = 1;
+  string primary_member_id = 2;
+  uint64 generation = 3;
+}
+
+message AvailabilityMemberRemove {
+  string set_id = 1;
+  string member_id = 2;
+}
+
+message AvailabilityMemberEventsAck {
+  string set_id = 1;
+  string member_id = 2;
+  uint64 through_sequence = 3;
+}
+
+message AvailabilityMemberSwitchover {
+  string set_id = 1;
+  string successor_member_id = 2;
+  string operation_id = 3;
+}
+
+// One member as its node reports it, with the events Gateway has not
+// acknowledged yet (kept on disk with the time they happened).
+message AvailabilityMemberReport {
+  string set_id = 1;
+  string member_id = 2;
+  // "primary", "copy", "rebuilding", "fenced" or "unknown".
+  string role = 3;
+  bool serving = 4;
+  // The lease proposer role of the set's key on this node (automatic sets).
+  string lease_role = 5;
+  bool eligible = 6;
+  string eligibility_reason = 7;
+  uint64 lag_bytes = 8;
+  double lag_seconds = 9;
+  // "sync", "async" or "none".
+  string sync_state = 10;
+  map<string, string> position = 11;
+  uint64 disk_free_bytes = 12;
+  string last_error = 13;
+  uint64 config_revision = 14;
+  uint64 primary_generation = 15;
+  repeated AvailabilityMemberEvent events = 16;
+}
+
+message AvailabilityMemberEvent {
+  uint64 sequence = 1;
+  string kind = 2;
+  int64 at_unix_ms = 3;
+  string reason = 4;
+  string operation_id = 5;
+  map<string, string> detail = 6;
 }
 
 // A serialized relay.v1.ApplySnapshotRequest. Keeping the policy as opaque
