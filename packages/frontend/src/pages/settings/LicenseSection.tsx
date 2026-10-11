@@ -35,7 +35,7 @@ function planLabel(plan: LicensePlan): string {
 }
 
 function planIconSrc(plan: LicensePlan): string {
-  return `/license/wiolett-gw-${plan}.png?v=2`;
+  return `/license/opfield-${plan}.png`;
 }
 
 function statusLabel(status: LicenseStatus): string {
