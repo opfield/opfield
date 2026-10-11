@@ -1,5 +1,5 @@
 import type { WitnessArtifact } from '@/grpc/generated/types.js';
-import { releaseArtifactSource } from '@/lib/release-artifacts.js';
+import { isAcceptedArtifactUrl, releaseArtifactSource } from '@/lib/release-artifacts.js';
 import { UpdateArtifactTrustError, verifySignedPayload } from '@/lib/update-artifact-trust.js';
 import type { WitnessArtifactSource } from '@/services/relay-witness.service.js';
 
@@ -92,10 +92,10 @@ export class WitnessCatalog implements WitnessArtifactSource {
     if (payload.component !== component || payload.version !== version || payload.arch !== arch) {
       throw new UpdateArtifactTrustError('Witness manifest does not name this artifact');
     }
-    if (payload.artifactName !== artifactName || payload.downloadUrl !== source.artifactUrl) {
+    if (payload.artifactName !== artifactName || !source.acceptedArtifactUrls.includes(payload.downloadUrl)) {
       throw new UpdateArtifactTrustError('Witness download URL mismatch');
     }
-    if (!payload.downloadUrl.startsWith(source.trustedPrefix) || !payload.downloadUrl.startsWith('https://')) {
+    if (!isAcceptedArtifactUrl(source, payload.downloadUrl)) {
       throw new UpdateArtifactTrustError('Witness download URL is not trusted');
     }
     if (!SHA256_RE.test(payload.sha256)) throw new UpdateArtifactTrustError('Witness checksum is invalid');

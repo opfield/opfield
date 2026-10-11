@@ -16,7 +16,7 @@ When MCP is already connected, use `read_gateway_documentation` for the current 
 The supported release installer is:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/the-square-labs/gateway/main/scripts/install.sh | bash
+curl -fsSL https://get.opfield.dev | bash
 ```
 
 Run it only on an isolated Linux VM or dedicated trusted host meeting the current requirements. Native HTTPS on port `3000` is the default. Choose plaintext HTTP only deliberately behind a trusted TLS terminator. Use `--dry-run` when the goal is to verify the signed release and rendered flow without installation.

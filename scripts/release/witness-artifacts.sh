@@ -13,7 +13,7 @@ set -euo pipefail
 tag="${1:?usage: witness-artifacts.sh <tag> <out-dir>}"
 out_dir="${2:?usage: witness-artifacts.sh <tag> <out-dir>}"
 root="$(cd "$(dirname "$0")/../.." && pwd)"
-base_url="${ARTIFACT_BASE_URL:-https://updates.thesqlabs.com/gateway}"
+base_url="${ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
 base_url="${base_url%/}"
 [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] || { echo "not a Gateway release tag: $tag" >&2; exit 1; }
 if [[ "${WITNESS_DRY_RUN:-}" != "1" && -z "${UPDATE_SIGNING_PRIVATE_KEY_PEM_B64:-}" ]]; then

@@ -524,6 +524,76 @@ describe("gateway update facade", () => {
 		expect(redirectHeaders.has("Authorization")).toBe(false);
 	});
 
+	it("serves the latest stable server installer at the root with a short cache", async () => {
+		const fetcher = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(
+				Response.json({
+					...release("v2.12.0"),
+					assets: [
+						{ id: 7, name: "install.sh", size: 9, content_type: "text/x-sh" },
+					],
+				}),
+			)
+			.mockResolvedValueOnce(new Response("#!/bin/sh"));
+
+		const response = await handleRequest(
+			new Request("https://get.opfield.dev/"),
+			env,
+			fetcher,
+		);
+		expect(response.status).toBe(200);
+		await expect(response.text()).resolves.toBe("#!/bin/sh");
+		expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+			"https://api.github.com/repos/the-square-labs/gateway/releases/latest",
+		);
+		expect(String(fetcher.mock.calls[1]?.[0])).toContain("/releases/assets/7");
+		expect(response.headers.get("Cache-Control")).toBe("public, max-age=300");
+	});
+
+	it("serves a release's node installers in the GitHub download layout", async () => {
+		const fetcher = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(
+				Response.json({
+					...release("v2.12.0"),
+					assets: [
+						{
+							id: 8,
+							name: "setup-node.sh",
+							size: 9,
+							content_type: "text/x-sh",
+						},
+					],
+				}),
+			)
+			.mockResolvedValueOnce(new Response("#!/bin/sh"));
+
+		const response = await handleRequest(
+			new Request(
+				"https://get.opfield.dev/gateway/releases/download/v2.12.0/setup-node.sh",
+			),
+			env,
+			fetcher,
+		);
+		expect(response.status).toBe(200);
+		expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+			"https://api.github.com/repos/the-square-labs/gateway/releases/tags/v2.12.0",
+		);
+		expect(response.headers.get("Cache-Control")).toContain("immutable");
+	});
+
+	it.each([
+		"https://get.opfield.dev/gateway/releases/download/v2.12.0-docker/setup-node.sh",
+		"https://get.opfield.dev/gateway/releases/download/v2.12.0/docker-compose.yml",
+		"https://get.opfield.dev/gateway/releases/latest/download/../secrets",
+	])("refuses installer paths outside the allowlist: %s", async (url) => {
+		const fetcher = vi.fn<typeof fetch>();
+		const response = await handleRequest(new Request(url), env, fetcher);
+		expect(response.status).toBe(404);
+		expect(fetcher).not.toHaveBeenCalled();
+	});
+
 	it("answers HEAD from release metadata without downloading the asset", async () => {
 		const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
 			Response.json({

@@ -68,7 +68,7 @@ EOF
 REPO="the-square-labs/gateway"
 RAW_BASE="https://raw.githubusercontent.com/${REPO}"
 RELEASE_DOWNLOAD="https://github.com/${REPO}/releases/download"
-REAL_FEED="https://updates.thesqlabs.com/gateway/releases"
+REAL_FEED="https://get.opfield.dev/gateway/releases"
 # The license server answers on license.opfield.dev (2.12+) and on its earlier name, which releases up to 2.11 use and
 # 2.12+ fall back to; the DNS guard blocks both, the app-container lookup checks the current one.
 LICENSE_HOST="license.opfield.dev"

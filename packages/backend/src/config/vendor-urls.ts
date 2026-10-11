@@ -10,9 +10,12 @@ export const LICENSE_SERVER_URL = 'https://license.opfield.dev';
  */
 export const LEGACY_LICENSE_SERVER_URLS: readonly string[] = ['https://license.thesqlabs.com'];
 export const DEFAULT_CLOUD_PORTAL_URL = 'https://account.opfield.dev';
+/** Release feed and artifact host (the update Worker): `${UPDATES_BASE_URL}/releases`, `/<package>/<tag>/<file>`. */
+export const UPDATES_BASE_URL = 'https://get.opfield.dev/gateway';
 /**
- * Release feed and artifact host (the update Worker). Installs up to 2.11.4 hard-code this host, so it stays served
- * forever. Switch to the get.opfield.dev route of the same Worker (https://get.opfield.dev/gateway) here once that
- * route is live; the paths below the base do not change.
+ * Earlier names of the same update Worker. Installs up to 2.11 use them and they stay served forever. Manifests signed
+ * before the move name their artifacts there, so an artifact URL under any of them is accepted for the same path.
  */
-export const UPDATES_BASE_URL = 'https://updates.thesqlabs.com/gateway';
+export const LEGACY_UPDATES_BASE_URLS: readonly string[] = ['https://updates.thesqlabs.com/gateway'];
+/** Node installers of a release, GitHub release download layout: `/download/<tag>/<file>`, `/latest/download/<file>`. */
+export const INSTALLER_RELEASES_URL = `${UPDATES_BASE_URL}/releases`;

@@ -14,8 +14,8 @@ REDIS_UPSTREAM_IMAGE_REF="docker.io/library/redis@sha256:858f009f9709ce576febc73
 DEFAULT_INSTALL_DIR="/opt/gateway"
 # Present from the start of a fresh install until its setup code is shown; a re-run resumes it.
 INSTALL_PENDING_MARKER=".gateway-install-pending"
-RELEASES_API_URL="${RELEASES_API_URL:-https://updates.thesqlabs.com/gateway/releases}"
-ARTIFACT_BASE_URL="${ARTIFACT_BASE_URL:-https://updates.thesqlabs.com/gateway}"
+RELEASES_API_URL="${RELEASES_API_URL:-https://get.opfield.dev/gateway/releases}"
+ARTIFACT_BASE_URL="${ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
 INSTALL_DIR="${GATEWAY_INSTALL_DIR:-$DEFAULT_INSTALL_DIR}"
 IMAGE="${GATEWAY_IMAGE:-$DEFAULT_IMAGE}"
 TRANSPORT="${GATEWAY_WEB_TRANSPORT:-}"

@@ -139,6 +139,8 @@ export interface DaemonUpdateManifestExpectation {
   artifactName: string;
   downloadUrl: string;
   trustedPackagePrefix: string;
+  /** The same artifact under the update host's other names (manifests signed before a host move name those). */
+  acceptedDownloadUrls?: readonly string[];
 }
 
 export interface GatewayImageManifestExpectation {
@@ -173,8 +175,13 @@ export function verifyDaemonUpdateManifest(
   if (payload.arch !== expected.arch) throw new UpdateArtifactTrustError('Update architecture mismatch');
   if (payload.artifactName !== expected.artifactName)
     throw new UpdateArtifactTrustError('Update artifact name mismatch');
-  if (payload.downloadUrl !== expected.downloadUrl) throw new UpdateArtifactTrustError('Update download URL mismatch');
-  if (!isTrustedHttpsUrl(payload.downloadUrl, expected.trustedPackagePrefix)) {
+  if (payload.downloadUrl === expected.downloadUrl) {
+    if (!isTrustedHttpsUrl(payload.downloadUrl, expected.trustedPackagePrefix)) {
+      throw new UpdateArtifactTrustError('Update download URL is not trusted');
+    }
+  } else if (!expected.acceptedDownloadUrls?.includes(payload.downloadUrl)) {
+    throw new UpdateArtifactTrustError('Update download URL mismatch');
+  } else if (!payload.downloadUrl.startsWith('https://')) {
     throw new UpdateArtifactTrustError('Update download URL is not trusted');
   }
   if (!SHA256_RE.test(payload.sha256)) throw new UpdateArtifactTrustError('Update checksum is invalid');

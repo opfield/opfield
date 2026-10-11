@@ -28,7 +28,7 @@ type DockerConfig struct {
 	LeaseWatchdogDir string `yaml:"lease_watchdog_dir"`
 	// LeaseWatchdogReleasesURL and LeaseWatchdogArtifactBaseURL override the
 	// update service used to bootstrap a missing watchdog (default: the
-	// installer's updates.thesqlabs.com endpoints).
+	// installer's get.opfield.dev endpoints).
 	LeaseWatchdogReleasesURL     string `yaml:"lease_watchdog_releases_url"`
 	LeaseWatchdogArtifactBaseURL string `yaml:"lease_watchdog_artifact_base_url"`
 }

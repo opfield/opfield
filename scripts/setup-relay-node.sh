@@ -9,8 +9,8 @@ ADVERTISE_ADDRESS=""
 SERVICE_PORT="9443"
 SERVICE_PORT_GIVEN=0
 VERSION="latest"
-RELEASES_API_URL="${GATEWAY_RELEASES_API_URL:-https://updates.thesqlabs.com/gateway/releases}"
-ARTIFACT_BASE_URL="${GATEWAY_ARTIFACT_BASE_URL:-https://updates.thesqlabs.com/gateway}"
+RELEASES_API_URL="${GATEWAY_RELEASES_API_URL:-https://get.opfield.dev/gateway/releases}"
+ARTIFACT_BASE_URL="${GATEWAY_ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
 RUN_USER="${GATEWAY_RELAY_RUN_USER:-root}"
 # Defaults to the run user's primary group (root for root).
 RUN_GROUP="${GATEWAY_RELAY_RUN_GROUP:-}"

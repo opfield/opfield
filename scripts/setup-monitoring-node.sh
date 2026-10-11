@@ -7,7 +7,7 @@ IFS=$'\n\t'
 # No nginx or Docker required — this agent reports system metrics only.
 #
 # Usage:
-#   curl -sSL https://github.com/the-square-labs/gateway/releases/latest/download/setup-monitoring-node.sh | \
+#   curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-monitoring-node.sh | \
 #     sudo bash -s -- --gateway gateway.example.com:9443 --token <ENROLLMENT_TOKEN> --gateway-cert-sha256 sha256:<HEX>
 # ───────────────────────────────────────────────────────────────────
 
@@ -36,8 +36,8 @@ GATEWAY_CERT_SHA256="${GATEWAY_NODE_CERT_SHA256:-}"
 DAEMON_VERSION="${GATEWAY_NODE_DAEMON_VERSION:-latest}"
 DISABLE_CONSOLE="${GATEWAY_NODE_DISABLE_CONSOLE:-0}"
 DISABLE_FILES="${GATEWAY_NODE_DISABLE_FILES:-0}"
-RELEASES_API_URL="${GATEWAY_RELEASES_API_URL:-https://updates.thesqlabs.com/gateway/releases}"
-ARTIFACT_BASE_URL="${GATEWAY_ARTIFACT_BASE_URL:-https://updates.thesqlabs.com/gateway}"
+RELEASES_API_URL="${GATEWAY_RELEASES_API_URL:-https://get.opfield.dev/gateway/releases}"
+ARTIFACT_BASE_URL="${GATEWAY_ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
 RUN_USER=""
 NON_INTERACTIVE=0
 NO_LOGO=0

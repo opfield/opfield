@@ -209,7 +209,7 @@ build_daemon_assets() {
         --daemon-type "$daemon_suffix" \
         --arch "$arch" \
         --artifact-name "$artifact" \
-        --download-url "https://updates.thesqlabs.com/gateway/${daemon_name}/${tag}/${artifact}" \
+        --download-url "https://get.opfield.dev/gateway/${daemon_name}/${tag}/${artifact}" \
         --sha256 "$sha" \
         --git-commit-sha "$commit_sha" \
         --git-pipeline-id "$run_id" \
@@ -230,7 +230,7 @@ build_daemon_assets() {
           --daemon-type relay-worker \
           --arch "$arch" \
           --artifact-name "$artifact" \
-          --download-url "https://updates.thesqlabs.com/gateway/relay-supervisor/${tag}/${artifact}" \
+          --download-url "https://get.opfield.dev/gateway/relay-supervisor/${tag}/${artifact}" \
           --sha256 "$sha" \
           --git-commit-sha "$commit_sha" \
           --git-pipeline-id "$run_id" \

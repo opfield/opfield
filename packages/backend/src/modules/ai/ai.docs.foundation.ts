@@ -455,12 +455,12 @@ Nodes are remote servers running Opfield daemons. Each daemon type manages diffe
 Go to **Nodes** page → click **Add Node** → select the node type (nginx, docker, builder, storage, databases, monitoring, or relay) → set a display name → click **Create Node**. Relay nodes also require the address advertised to participating hosts. This generates a **one-time enrollment token**, the Opfield gRPC certificate fingerprint, and setup commands. **Settings → Relay → Add relay node** opens the same flow with Relay preselected.
 
 ### Step 2: Run the setup script on the target server
-The UI shows ready-to-copy commands, one per enrollment target, with curl or wget; create_node and manage_node regenerate_enrollment_token return the same commands as installCommands. Give the user the command for the target the host can reach, unchanged, and run it on the target server. On a release build the command downloads the installer from that Opfield release on GitHub, runs it only when it matches the release's \`gateway-daemon-installers.sha256\`, and pins with \`--version\` the daemon release of Opfield's own minor line (a relay gets the release its pool runs). An unreleased build (version \`dev\`) runs the installer from the main branch instead. For Opfield v2.11.0 the nginx command looks like this:
+The UI shows ready-to-copy commands, one per enrollment target, with curl or wget; create_node and manage_node regenerate_enrollment_token return the same commands as installCommands. Give the user the command for the target the host can reach, unchanged, and run it on the target server. On a release build the command downloads the installer of that Opfield release from get.opfield.dev, runs it only when it matches the release's \`gateway-daemon-installers.sha256\`, and pins with \`--version\` the daemon release of Opfield's own minor line (a relay gets the release its pool runs). An unreleased build (version \`dev\`) runs the installer from the main branch instead. For Opfield v2.11.0 the nginx command looks like this:
 
 \`\`\`bash
 cd "$(mktemp -d)" && \\
-curl -fsSL -o setup-node.sh https://github.com/the-square-labs/gateway/releases/download/v2.11.0/setup-node.sh && \\
-curl -fsSL -o gateway-daemon-installers.sha256 https://github.com/the-square-labs/gateway/releases/download/v2.11.0/gateway-daemon-installers.sha256 && \\
+curl -fsSL -o setup-node.sh https://get.opfield.dev/gateway/releases/download/v2.11.0/setup-node.sh && \\
+curl -fsSL -o gateway-daemon-installers.sha256 https://get.opfield.dev/gateway/releases/download/v2.11.0/gateway-daemon-installers.sha256 && \\
 grep ' setup-node.sh$' gateway-daemon-installers.sha256 | sha256sum -c - && \\
 sudo bash setup-node.sh \\
   --gateway <gateway-host>:9443 --token <enrollment-token> --gateway-cert-sha256 sha256:<gateway-cert-fingerprint> --version v2.11.0

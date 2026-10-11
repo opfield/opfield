@@ -6,7 +6,7 @@ IFS=$'\n\t'
 # Installs nginx + nginx-daemon on a host and enrolls it with the Gateway.
 #
 # Usage:
-#   curl -sSL https://github.com/the-square-labs/gateway/releases/latest/download/setup-node.sh | \
+#   curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-node.sh | \
 #     bash -s -- --gateway gateway.example.com:9443 --token <ENROLLMENT_TOKEN> --gateway-cert-sha256 sha256:<HEX>
 #
 # Or download and run:
@@ -39,8 +39,8 @@ DAEMON_VERSION="${GATEWAY_NODE_DAEMON_VERSION:-latest}"
 SKIP_NGINX="${GATEWAY_NODE_SKIP_NGINX:-0}"
 DISABLE_CONSOLE="${GATEWAY_NODE_DISABLE_CONSOLE:-0}"
 DISABLE_FILES="${GATEWAY_NODE_DISABLE_FILES:-0}"
-RELEASES_API_URL="${GATEWAY_RELEASES_API_URL:-https://updates.thesqlabs.com/gateway/releases}"
-ARTIFACT_BASE_URL="${GATEWAY_ARTIFACT_BASE_URL:-https://updates.thesqlabs.com/gateway}"
+RELEASES_API_URL="${GATEWAY_RELEASES_API_URL:-https://get.opfield.dev/gateway/releases}"
+ARTIFACT_BASE_URL="${GATEWAY_ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
 RUN_USER=""
 NGINX_MODE="${GATEWAY_NODE_NGINX_MODE:-}"
 NON_INTERACTIVE=0

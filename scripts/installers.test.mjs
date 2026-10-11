@@ -1663,7 +1663,7 @@ test('the relay installer downloads its binaries from the mirror and checks them
       return runShell(
         [
           'set -euo pipefail',
-          `${env} ARTIFACT_BASE_URL="\${GATEWAY_ARTIFACT_BASE_URL:-https://updates.thesqlabs.com/gateway}"`,
+          `${env} ARTIFACT_BASE_URL="\${GATEWAY_ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"`,
           `TAG=${tag}; VERSION=v2.11.1; ARCH=amd64; LOG_FILE=/dev/null; TEMP_DIR='${dir}/tmp'`,
           'PACKAGE_BASE="${ARTIFACT_BASE_URL%/}/relay-supervisor/${TAG}"',
           // The signature check is the real openssl call in the installer; here every signature verifies.

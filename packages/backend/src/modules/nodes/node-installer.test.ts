@@ -15,7 +15,7 @@ vi.mock('@/config/env.js', async (importOriginal) => ({
   getEnv: () => ({ APP_VERSION: '2.11.0', GRPC_PORT: 9443 }),
 }));
 
-const RELEASE = 'https://github.com/the-square-labs/gateway/releases/download/v2.11.0';
+const RELEASE = 'https://get.opfield.dev/gateway/releases/download/v2.11.0';
 const CERT = `sha256:${'a'.repeat(64)}`;
 
 function storageCommands(release: string | null) {

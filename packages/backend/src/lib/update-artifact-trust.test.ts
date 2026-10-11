@@ -107,6 +107,24 @@ describe('update artifact trust', () => {
     expect(artifact.downloadUrl).toBe(daemonUrl);
   });
 
+  it('accepts a daemon manifest that names the artifact under an earlier name of the update host', () => {
+    const expected = {
+      daemonType: 'nginx' as const,
+      version: 'v9.9.9',
+      tag: 'v9.9.9-nginx',
+      arch: 'amd64',
+      artifactName: 'nginx-daemon-linux-amd64',
+      downloadUrl: 'https://get.opfield.dev/gateway/nginx-daemon/v9.9.9-nginx/nginx-daemon-linux-amd64',
+      trustedPackagePrefix: 'https://get.opfield.dev/gateway/',
+    };
+
+    expect(() => verifyDaemonUpdateManifest(daemonManifest, expected)).toThrow('Update download URL mismatch');
+    expect(
+      verifyDaemonUpdateManifest(daemonManifest, { ...expected, acceptedDownloadUrls: [expected.downloadUrl, daemonUrl] })
+        .downloadUrl
+    ).toBe(daemonUrl);
+  });
+
   it('rejects daemon manifests for the wrong architecture', () => {
     expect(() =>
       verifyDaemonUpdateManifest(daemonManifest, {

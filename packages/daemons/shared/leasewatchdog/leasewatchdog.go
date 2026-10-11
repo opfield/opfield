@@ -35,8 +35,8 @@ const (
 	Component  = "lease-watchdog"
 	DaemonType = "watchdog"
 
-	DefaultReleasesURL     = "https://updates.thesqlabs.com/gateway/releases"
-	DefaultArtifactBaseURL = "https://updates.thesqlabs.com/gateway"
+	DefaultReleasesURL     = "https://get.opfield.dev/gateway/releases"
+	DefaultArtifactBaseURL = "https://get.opfield.dev/gateway"
 
 	maxResponseBytes = 64 * 1024
 )

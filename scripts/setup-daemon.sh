@@ -6,7 +6,7 @@ IFS=$'\n\t'
 # Downloads and runs the appropriate setup script for a daemon type.
 #
 # Usage:
-#   curl -sSL https://github.com/the-square-labs/gateway/releases/latest/download/setup-daemon.sh | \
+#   curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-daemon.sh | \
 #     sudo bash -s -- --type nginx --gateway gateway.example.com:9443 --token <TOKEN> --gateway-cert-sha256 sha256:<HEX>
 # ────────────────────────────────────────────────────────────────────
 
@@ -28,7 +28,7 @@ LOCAL_SCRIPT_DIR="${GATEWAY_SETUP_SCRIPT_DIR:-}"
 # A release publishes this file with its own tag here, so the node installers come from the same release.
 INSTALLER_RELEASE=latest
 SETUP_VERSION="${GATEWAY_SETUP_VERSION:-$INSTALLER_RELEASE}"
-RELEASE_DOWNLOAD_BASE="${GATEWAY_RELEASE_DOWNLOAD_BASE:-https://github.com/the-square-labs/gateway/releases}"
+RELEASE_DOWNLOAD_BASE="${GATEWAY_RELEASE_DOWNLOAD_BASE:-https://get.opfield.dev/gateway/releases}"
 PASSTHROUGH_ARGS=()
 
 # ── Helpers ─────────────────────────────────────────────────────────
