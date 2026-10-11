@@ -90,6 +90,22 @@ func (m *managedDatabaseManager) update(ctx context.Context, record *managedData
 			return errors.New("the key-value store runs Valkey and cannot go back to Redis")
 		}
 	}
+	if record.clickHouseAvailabilityMember() && input.ClickhouseAvailability != nil &&
+		clickHouseAvailabilitySetID(input) == record.ClickhouseAvailabilitySetID {
+		// A ClickHouse member that stays one: the member update rule.
+		return m.updateClickHouseMember(ctx, record, input)
+	}
+	// A newer engine image (a version change) recreates the container on it
+	// with the data kept; Postgres only within its major version.
+	imageChanged, err := m.containerImageChanged(ctx, *record, input)
+	if err != nil {
+		return err
+	}
+	if imageChanged {
+		if err := m.checkPostgresMajor(ctx, *record, input); err != nil {
+			return err
+		}
+	}
 	requiresRecreate := managedDatabaseRequiresRecreate(*record, input)
 	// Redis derives maxmemory from the memory limit; a running Redis applies a
 	// new one without a restart, like the limit itself.
@@ -105,6 +121,7 @@ func (m *managedDatabaseManager) update(ctx context.Context, record *managedData
 			return err
 		}
 	}
+	requiresRecreate = requiresRecreate || imageChanged
 	if requiresRecreate {
 		if err := m.recreateClickHouseAware(ctx, record, input); err != nil {
 			return err
@@ -135,7 +152,7 @@ func (m *managedDatabaseManager) update(ctx context.Context, record *managedData
 			if err != nil {
 				return err
 			}
-			if _, err := m.reloadTLS(ctx, record, input, leaf, true); err != nil {
+			if _, err := m.reloadTLS(ctx, record, input, leaf, record.ClickhouseAvailabilitySetID == ""); err != nil {
 				return fmt.Errorf("apply renewed managed database certificate: %w", err)
 			}
 		}

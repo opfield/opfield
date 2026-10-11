@@ -434,7 +434,9 @@ func newPGCTNode(t *testing.T, root, name, memberID, dbID string, client *Client
 	}
 	members, err := memberha.NewManager(memberha.Deps{
 		Lease: pgNoLease{}, Watchdog: pgNoWatchdog{}, Endpoints: pgNoEndpoints{}, Clock: bootWallClock{}, Logger: logger,
-		Engine: func(memberha.Config) (memberha.Engine, error) { return nil, errors.New("the test drives the engines") },
+		// The test drives the engines; the runtime only holds members for
+		// a recreate (it is never stepped).
+		Engine: func(memberha.Config) (memberha.Engine, error) { return muEngine{}, nil },
 	}, store)
 	if err != nil {
 		t.Fatal(err)
@@ -820,5 +822,130 @@ func TestPostgresSetContainers(t *testing.T) {
 	if got, want := a.count(t, "sync"), pgctSyncRows; got != want {
 		t.Fatalf("A has %d of %d acknowledged rows at the end", got, want)
 	}
+
+	// Rolling update (P3-T07): the copy's container is recreated through the
+	// managed database update (a setting fixed at creation, or the image of
+	// PGHA_CT_IMAGE2, same major) under the member runtime's hold; it starts
+	// as a copy again (the test plays the runtime) and follows A.
+	if err := b.plugin.setMembers.Configure(pgctConfig(pgctB, pgctDBB)); err != nil {
+		t.Fatal(err)
+	}
+	update := input
+	update.OperationID = "op-recreate-b"
+	update.PostgresConfig = &managedPostgresConfig{MaxConnections: 150}
+	if image2 := os.Getenv("PGHA_CT_IMAGE2"); image2 != "" {
+		if _, err := dockerCLI("image", "inspect", image2); err != nil {
+			mustDocker(t, "pull", image2)
+		}
+		update.PostgresConfig, update.Image = nil, image2
+	}
+	before := b.containerID(t)
+	run.mu.Lock()
+	body, _ := json.Marshal(update)
+	if _, err := b.m.handle(ctx, "update", pgctDBB, string(body)); err != nil {
+		run.mu.Unlock()
+		t.Fatalf("recreate the copy: %v", err)
+	}
+	after := b.containerID(t)
+	if after == before || after == "" {
+		run.mu.Unlock()
+		t.Fatalf("the copy's container was not recreated (%s -> %s)", before, after)
+	}
+	if out, _ := dockerCLI("inspect", "-f", "{{.State.Running}} {{index .Config.Labels \"wiolett.gateway.availability.member\"}}", after); strings.TrimSpace(out) != "false "+pgctB {
+		run.mu.Unlock()
+		t.Fatalf("the recreated copy is created, not started, with its member label: %q", out)
+	}
+	if err := b.engine.PrepareStandby(ctx); err != nil {
+		run.mu.Unlock()
+		t.Fatal(err)
+	}
+	if err := b.engine.Start(ctx); err != nil {
+		run.mu.Unlock()
+		t.Fatal(err)
+	}
+	run.mu.Unlock()
+	pgctWait(t, "the recreated copy follows A", 2*time.Minute, func() bool { return b.status(t).Streaming })
+	if got := b.count(t, "sync"); got != pgctSyncRows {
+		t.Fatalf("the recreated copy has %d of %d acknowledged rows", got, pgctSyncRows)
+	}
+	pgctWait(t, "B certified synchronous after its recreate", 2*time.Minute, func() bool { return run.value().InSyncSet(pgctB) })
+	t.Logf("copy recreated: %s -> %s", before[:12], after[:12])
+
+	// The set is paused (AvailabilityMemberConfig.stopped): the copy stops
+	// cleanly first, then the primary, which keeps its role (the test plays
+	// the runtime: a clean stop and standby at rest each). The pause ends:
+	// the primary starts first (standby at rest, promoted again, its new
+	// timeline certified), then the copy, which follows it. Nothing is lost.
+	run.mu.Lock()
+	for _, n := range []*pgctNode{b, a} {
+		if err := n.engine.StopClean(ctx, 30*time.Second); err != nil {
+			run.mu.Unlock()
+			t.Fatalf("stop %s for the pause: %v", n.name, err)
+		}
+		if err := n.engine.PrepareStandby(ctx); err != nil {
+			run.mu.Unlock()
+			t.Fatal(err)
+		}
+	}
+	for _, n := range []*pgctNode{a, b} {
+		if status := n.status(t); status.Answering {
+			run.mu.Unlock()
+			t.Fatalf("%s still answers while the set is paused", n.name)
+		}
+	}
+	if err := a.engine.Start(ctx); err != nil {
+		run.mu.Unlock()
+		t.Fatal(err)
+	}
+	pgctWaitLocked := func(what string, cond func() bool) {
+		deadline := time.Now().Add(2 * time.Minute)
+		for !cond() {
+			if time.Now().After(deadline) {
+				run.mu.Unlock()
+				t.Fatalf("timed out waiting for %s", what)
+			}
+			time.Sleep(300 * time.Millisecond)
+		}
+	}
+	pgctWaitLocked("A answers after the pause", func() bool { return a.status(t).Answering })
+	if a.status(t).Writable {
+		run.mu.Unlock()
+		t.Fatal("the primary must come back read-only (standby at rest) before its promotion")
+	}
+	certified = run.cert
+	if err := a.engine.Promote(ctx, certified); err != nil {
+		run.mu.Unlock()
+		t.Fatalf("promote A again after the pause: %v", err)
+	}
+	promoted = nil
+	for attempt := 0; attempt < 60 && promoted == nil; attempt++ {
+		a.status(t)
+		if value, err := a.engine.PromotedValue(certified, memberha.EngineStatus{}); err == nil {
+			promoted = value
+		} else {
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	if promoted == nil {
+		run.mu.Unlock()
+		t.Fatal("A's promotion after the pause was never certified")
+	}
+	run.cert = promoted
+	if err := b.engine.Start(ctx); err != nil {
+		run.mu.Unlock()
+		t.Fatal(err)
+	}
+	run.mu.Unlock()
+	pgctWait(t, "B follows A after the pause", 2*time.Minute, func() bool { return b.status(t).Streaming })
+	for kind, want := range map[string]int{"sync": pgctSyncRows, "before_switch": 1, "end": 1, "after": 3} {
+		if got := a.count(t, kind); got != want {
+			t.Fatalf("A has %d %s rows after the pause, want %d", got, kind, want)
+		}
+	}
+	if out, err := a.sql(t, "INSERT INTO ct_rows (kind) VALUES ('after_pause')"); err != nil {
+		t.Fatalf("A takes writes after the pause: %v %s", err, out)
+	}
+	pgctWait(t, "B replays the write after the pause", time.Minute, func() bool { return b.count(t, "after_pause") == 1 })
+	pgctWait(t, "B certified synchronous after the pause", 2*time.Minute, func() bool { return run.value().InSyncSet(pgctB) })
 	fmt.Fprintln(os.Stderr, "postgres set container test passed")
 }

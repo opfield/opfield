@@ -596,6 +596,13 @@ message AvailabilityMemberCommand {
     // Automatic sets: a planned switchover the holder runs (writes stop, the
     // successor catches up, then the holder releases to it).
     AvailabilityMemberSwitchover switchover = 5;
+    // A restart of this node's member with its current configuration (every
+    // engine). The primary is refused (text contains
+    // AVAILABILITY_SWITCHOVER_REQUIRED) unless allow_primary; a repeat with
+    // the same operation id is accepted. It finished once the member's
+    // report no longer names it in pending_restart_operation_id (events
+    // restarted / restart_failed).
+    AvailabilityMemberRestart restart = 6;
   }
 }
 
@@ -622,6 +629,12 @@ message AvailabilityMemberConfig {
   bytes engine_config = 14;
   // The member proxy's published port (direct publication); 0: none.
   uint32 published_port = 15;
+  // The set is paused (e.g. its app is shut down): this member's engine is
+  // stopped cleanly and never started while set. A copy reports eligible
+  // false (reason "stopped"); the primary closes serving, stops and keeps
+  // its role (lease or assignment). Gateway sets it on the copies first,
+  // then the primary, and clears it on the primary first, then the copies.
+  bool stopped = 16;
 }
 
 message AvailabilityMemberPeer {
@@ -667,6 +680,14 @@ message AvailabilityMemberSwitchover {
   string operation_id = 3;
 }
 
+message AvailabilityMemberRestart {
+  string set_id = 1;
+  string member_id = 2;
+  string operation_id = 3;
+  // Restart the primary in place (normally Gateway switches over first).
+  bool allow_primary = 4;
+}
+
 // One member as its node reports it, with the events Gateway has not
 // acknowledged yet (kept on disk with the time they happened).
 message AvailabilityMemberReport {
@@ -689,6 +710,10 @@ message AvailabilityMemberReport {
   uint64 config_revision = 14;
   uint64 primary_generation = 15;
   repeated AvailabilityMemberEvent events = 16;
+  // The set is paused and this member's engine is confirmed down.
+  bool stopped = 17;
+  // A requested restart that has not finished (empty when none).
+  string pending_restart_operation_id = 18;
 }
 
 message AvailabilityMemberEvent {

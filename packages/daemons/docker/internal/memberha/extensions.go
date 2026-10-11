@@ -142,12 +142,18 @@ type RestartRequest struct {
 	AllowPrimary bool   `json:"allowPrimary,omitempty"`
 }
 
+// SwitchoverRequiredCode starts the text of every refusal that needs the
+// set's primary to switch over first (Gateway matches it, switches over and
+// retries on the old primary, then a copy).
+const SwitchoverRequiredCode = "AVAILABILITY_SWITCHOVER_REQUIRED"
+
 // Errors of the extension operations.
 var (
-	ErrDetachRefused = errors.New("detach refused")
-	ErrForceRefused  = errors.New("forced promotion refused")
-	ErrNotRetained   = errors.New("this member is not the retained primary of its set")
-	ErrRemovePrimary = errors.New("the primary of a set cannot be removed; switch over first")
+	ErrSwitchoverRequired = errors.New(SwitchoverRequiredCode + ": this member is the primary of its availability set; switch over first")
+	ErrDetachRefused      = errors.New("detach refused")
+	ErrForceRefused       = errors.New("forced promotion refused")
+	ErrNotRetained        = errors.New("this member is not the retained primary of its set")
+	ErrRemovePrimary      = errors.New("the primary of a set cannot be removed; switch over first")
 )
 
 // ----- holder and copy extras -------------------------------------------
@@ -194,7 +200,7 @@ func (m *Manager) holderExtrasLocked(mem *member, status HolderStatus, cert Cert
 	if r := mem.state.Restart; r != nil {
 		if !r.AllowPrimary {
 			// Gateway asked for a copy's restart; this member holds now.
-			m.finishRestartLocked(mem, errors.New("the member became the primary; switch over first"))
+			m.finishRestartLocked(mem, fmt.Errorf("%s: the member became the primary; switch over first", SwitchoverRequiredCode))
 			return false
 		}
 		m.restartHolderCleanLocked(mem, status)
@@ -583,8 +589,12 @@ func (m *Manager) RestartMember(setID, operationID string, allowPrimary bool) er
 	if r := mem.state.Restart; r != nil && r.OperationID == operationID {
 		return nil
 	}
+	if operationID != "" && mem.state.RestartDone == operationID {
+		// A repeat of a restart that already ran.
+		return nil
+	}
 	if !allowPrimary && m.isPrimaryLocked(mem) {
-		return errors.New("the member is the primary; switch over first or allow the primary's restart")
+		return fmt.Errorf("%w (or allow the primary's restart)", ErrSwitchoverRequired)
 	}
 	mem.state.Restart = &RestartRequest{OperationID: operationID, AllowPrimary: allowPrimary}
 	return m.saveLocked(mem)
@@ -601,12 +611,50 @@ func (m *Manager) isPrimaryLocked(mem *member) bool {
 	return mem.primaryRunning()
 }
 
+// HoldCopy is Hold for a change that replaces a copy's container (a new
+// engine image, settings fixed at creation): it refuses the member that is
+// or may become the primary (the holder, a retained or acquiring member, a
+// manual pair's assigned primary, a writable engine) with
+// ErrSwitchoverRequired. While held the member is ineligible and no
+// candidate, so it cannot take the primary role over meanwhile.
+func (m *Manager) HoldCopy(ctx context.Context, setID string) (func(), error) {
+	release, err := m.Hold(ctx, setID)
+	if err != nil {
+		return nil, err
+	}
+	m.mu.Lock()
+	mem := m.members[setID]
+	var refusal error
+	switch {
+	case mem == nil:
+		refusal = errors.New("the set has no member on this node")
+	case m.removableLocked(mem) != nil, m.isPrimaryLocked(mem), mem.legacy.Load():
+		refusal = ErrSwitchoverRequired
+	}
+	m.mu.Unlock()
+	if refusal != nil {
+		release()
+		return nil, refusal
+	}
+	return release, nil
+}
+
+// Stopped reports whether Gateway paused this node's member of setID
+// (Config.Stopped).
+func (m *Manager) Stopped(setID string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	mem := m.members[setID]
+	return mem != nil && mem.cfg.Stopped
+}
+
 func (m *Manager) finishRestartLocked(mem *member, err error) {
 	r := mem.state.Restart
 	if r == nil {
 		return
 	}
 	mem.state.Restart = nil
+	mem.state.RestartDone = r.OperationID
 	if err != nil {
 		m.eventLocked(mem, Event{Kind: EventRestartFailed, OperationID: r.OperationID, Reason: err.Error()})
 		return

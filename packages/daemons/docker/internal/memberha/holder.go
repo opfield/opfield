@@ -2,6 +2,7 @@ package memberha
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -89,7 +90,10 @@ func (m *Manager) holderStepLocked(mem *member, status HolderStatus, now time.Du
 		m.deps.Lease.Abandon(key)
 		return
 	}
-	if mem.obs.container.Running {
+	if mem.obs.container.Running || (mem.cfg.Stopped && mem.obs.container.Exists) {
+		// A paused primary keeps the record of its stopped container armed:
+		// it keeps the role, and the record covers its start when the pause
+		// ends.
 		m.armRecordLocked(mem, status.Deadline)
 	}
 	if status.Role == RoleRecovering {
@@ -105,12 +109,21 @@ func (m *Manager) holderStepLocked(mem *member, status HolderStatus, now time.Du
 	if mem.busy || !mem.fresh(now) {
 		return
 	}
+	if mem.cfg.Stopped {
+		m.pausedHolderStepLocked(mem)
+		return
+	}
 	cert, ok := m.deps.Lease.CommittedState(key)
 	if !ok {
 		return
 	}
 	free := m.resolvePendingLocked(mem, key)
 	obs := mem.obs
+	if !obs.container.Running && mem.resumeStart {
+		m.resumeHolderLocked(mem, status)
+		return
+	}
+	mem.resumeStart = mem.resumeStart && !obs.container.Running
 	if !obs.container.Running || !obs.status.Answering {
 		// Down on two samples at least healthWindow apart: a container that
 		// only restarts (it comes back read-only and is promoted again) is no
@@ -299,4 +312,76 @@ func (m *Manager) restartHolderLocked(mem *member, status HolderStatus) {
 			}
 		}
 	})
+}
+
+// pausedHolderStepLocked keeps a paused set's holder (Config.Stopped) as the
+// primary with its engine down: serving closed, a clean stop, no health
+// release and no local restarts; the lease renews on its own and the record
+// stays armed, so no other member takes over.
+func (m *Manager) pausedHolderStepLocked(mem *member) {
+	m.closeServingLocked(mem)
+	mem.holder.unhealthySince = 0
+	m.pausedRestartLocked(mem)
+	if mem.obs.container.Running {
+		m.pauseStopLocked(mem)
+		return
+	}
+	mem.resumeStart = true
+}
+
+// resumeHolderLocked starts the holder's engine when its set's pause ended:
+// the deadline record armed first, standby at rest, a start only while the
+// lease allows one; the holder path promotes it again. A start that fails
+// leaves the engine to the health rules (release or local restarts).
+func (m *Manager) resumeHolderLocked(mem *member, status HolderStatus) {
+	if !m.watchdog.fresh || !m.armRecordLocked(mem, status.Deadline) {
+		return
+	}
+	key := mem.cfg.Key()
+	m.launch(mem, opResume, opTimeout, func(ctx context.Context) func() {
+		err := mem.engine.PrepareStandby(ctx)
+		if err == nil {
+			if st := m.deps.Lease.HolderStatus(key); !st.MayStart {
+				err = errors.New("the lease no longer allows a start")
+			} else {
+				err = mem.engine.Start(ctx)
+			}
+		}
+		return func() {
+			mem.resumeStart = false
+			if err != nil {
+				m.setErrorLocked(mem, "could not start the primary after the pause: "+err.Error())
+			}
+		}
+	})
+}
+
+// pauseStopLocked stops a paused member's engine cleanly (a kill only when the
+// clean stop fails) and writes standby at rest for its next start. An engine
+// with several containers may need more than one pass (SeaweedFS: the master,
+// then the volume server and filer).
+func (m *Manager) pauseStopLocked(mem *member) {
+	m.closeServingLocked(mem)
+	m.launch(mem, opPauseStop, opTimeout, func(ctx context.Context) func() {
+		m.closeServing(mem)
+		err := m.stopConfirmed(ctx, mem, false)
+		if err == nil {
+			err = mem.engine.PrepareStandby(ctx)
+		}
+		return func() {
+			if err != nil {
+				m.setErrorLocked(mem, "could not stop the member for the pause: "+err.Error())
+			}
+		}
+	})
+}
+
+// pausedRestartLocked completes a restart Gateway asked for while the set is
+// paused: the engine is down, and it starts fresh when the pause ends.
+func (m *Manager) pausedRestartLocked(mem *member) {
+	if r := mem.state.Restart; r != nil {
+		mem.state.Restart = nil
+		mem.state.RestartDone = r.OperationID
+		m.eventLocked(mem, Event{Kind: EventRestarted, OperationID: r.OperationID, Reason: "stopped"})
+	}
 }

@@ -393,9 +393,12 @@ func (m *managedDatabaseManager) kvPromoteLocal(ctx context.Context, record mana
 		[]string{"REDISCLI_AUTH=" + engine.ReplicationPassword})
 }
 
-// kvMemberUpdate applies an update to a member: its container is recreated
-// with the new settings while the member runtime is held (a primary comes
-// back as a copy and is promoted again).
+// kvMemberUpdate applies an update to a member (the member update rule,
+// managed_database_member_update.go): limits, maxmemory, a grown disk and a
+// renewed certificate apply live on any member; a change that needs the
+// container recreated (a new Valkey image, settings fixed at creation)
+// recreates a copy's container while the member runtime is held and is
+// refused on the primary (AVAILABILITY_SWITCHOVER_REQUIRED).
 func (m *managedDatabaseManager) kvMemberUpdate(ctx context.Context, id, configJSON string) (string, error) {
 	var input managedDatabaseCommand
 	if err := json.Unmarshal([]byte(configJSON), &input); err != nil {
@@ -408,6 +411,12 @@ func (m *managedDatabaseManager) kvMemberUpdate(ctx context.Context, id, configJ
 	if err != nil {
 		return "", err
 	}
+	if input.Type != record.Type {
+		return "", errors.New("managed database engine cannot be changed")
+	}
+	if input.StorageSizeBytes < record.StorageSize {
+		return "", errors.New("managed database storage cannot be reduced")
+	}
 	if !managedRedisRunsValkey(input.Image) {
 		return "", errors.New("a member of an availability set stays on Valkey")
 	}
@@ -415,29 +424,102 @@ func (m *managedDatabaseManager) kvMemberUpdate(ctx context.Context, id, configJ
 	if members == nil {
 		return "", errors.New("the availability member runtime is not running on this node")
 	}
-	release, err := members.Hold(ctx, record.AvailabilitySetID)
+	done := func() (string, error) {
+		return pgOK(map[string]any{"status": "ready", "memberId": record.AvailabilityMemberID})
+	}
+	if record.OperationID == input.OperationID && !input.PreserveLifecycleOperationID {
+		return done()
+	}
+	recreate, imageChanged, err := m.memberRecreateNeeded(ctx, record, input)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+	currentMaxmemory, liveMaxmemory := int64(0), false
+	if recreate && !imageChanged && !managedDatabaseContainerSettingsChanged(record, withRecordPublication(record, input)) {
+		// Only maxmemory differs in the config file: Valkey applies it live.
+		currentMaxmemory, liveMaxmemory = m.redisMaxmemoryOnlyChange(record, input)
+		recreate = !liveMaxmemory
+	}
+	if recreate {
+		release, err := holdMemberCopy(ctx, members, record.AvailabilitySetID)
+		if err != nil {
+			return "", err
+		}
+		defer release()
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		m.generations.bump(id)
+		if record, err = m.loadRecord(id); err != nil {
+			return "", err
+		}
+		if input.StorageSizeBytes > record.StorageSize {
+			if err := m.ensureStorageSize(ctx, &record, input.StorageSizeBytes); err != nil {
+				return "", err
+			}
+			record.StorageSize = input.StorageSizeBytes
+		}
+		if err := m.recreateContainer(ctx, &record, input); err != nil {
+			return "", err
+		}
+		if members.Stopped(record.AvailabilitySetID) {
+			// The set is paused: the member runtime keeps the engine down.
+			if err := m.stopContainer(ctx, record.ContainerID); err != nil {
+				m.logger.Warn("could not stop the recreated member of a paused set", "id", id, "error", err)
+			}
+		}
+		applyManagedDatabaseOperationID(&record, input)
+		if err := m.saveRecord(record); err != nil {
+			return "", err
+		}
+		return done()
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.generations.bump(id)
+	if record, err = m.loadRecord(id); err != nil {
+		return "", err
+	}
 	if input.StorageSizeBytes > record.StorageSize {
 		if err := m.ensureStorageSize(ctx, &record, input.StorageSizeBytes); err != nil {
 			return "", err
 		}
 		record.StorageSize = input.StorageSizeBytes
 	}
-	if managedDatabaseRequiresRecreate(record, input) || input.TLSCertificateID != record.TLSCertificateID {
-		if err := m.recreateContainer(ctx, &record, input); err != nil {
+	// A lower maxmemory before the lower limit, a higher one after it.
+	shrinking := liveMaxmemory && managedRedisMaxmemory(input) < currentMaxmemory
+	if shrinking {
+		if err := m.applyRedisMaxmemory(ctx, record, input); err != nil {
 			return "", err
 		}
 	}
-	record.OperationID = input.OperationID
+	if err := m.client.LiveUpdateContainer(ctx, record.ContainerID, managedDatabaseRuntimeJSON(input)); err != nil {
+		return "", err
+	}
+	if liveMaxmemory && !shrinking {
+		if err := m.applyRedisMaxmemory(ctx, record, input); err != nil {
+			return "", err
+		}
+	}
+	if input.TLSEnabled && record.TLSEnabled && input.TLSCertificateID != record.TLSCertificateID {
+		leaf, err := leafCertificateFingerprint(input.TLSCertificatePEM, input.TLSPrivateKeyPEM)
+		if err != nil {
+			return "", err
+		}
+		// A member never restarts outside the member runtime (L1).
+		if _, err := m.reloadTLS(ctx, &record, input, leaf, false); err != nil {
+			return "", fmt.Errorf("apply renewed managed database certificate: %w", err)
+		}
+	}
+	// The published port is the member proxy's (its member configuration).
+	record.PublishedPort = input.PublishedPort
+	if !input.PublishTCP {
+		record.PublishedPort = 0
+	}
+	applyManagedDatabaseOperationID(&record, input)
 	if err := m.saveRecord(record); err != nil {
 		return "", err
 	}
-	return pgOK(map[string]any{"status": "ready", "memberId": record.AvailabilityMemberID})
+	return done()
 }
 
 // kvLift turns the kept member (availability turned off) back into the
