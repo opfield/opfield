@@ -15,7 +15,7 @@ import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderAct
 import { Button } from "@/components/ui/button";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
-import { NORMAL_LIST_FILTER, withoutAppMembers } from "@/lib/app-members";
+import { NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { nodeIconClassNames } from "@/lib/node-appearance";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -104,6 +104,7 @@ export function Pages() {
     }
     setLoading((current) => current || projectsRef.current.length === 0);
     try {
+      // App members live on their app's page: the server leaves them out.
       const response = await api.listPageProjects({ page: 1, limit: 100, ...NORMAL_LIST_FILTER });
       if (version !== loadVersion.current) return;
       setProjects(response.data ?? []);
@@ -128,18 +129,16 @@ export function Pages() {
   useRealtime("pages.project.changed", () => void load());
   useRealtime("pages.folder.changed", () => void load());
 
-  // App members live on their app's page (the server leaves them out too).
-  const listedProjects = useMemo(() => withoutAppMembers(projects), [projects]);
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return needle
-      ? listedProjects.filter(
+      ? projects.filter(
           (project) =>
             project.name.toLowerCase().includes(needle) ||
             project.slug.toLowerCase().includes(needle)
         )
-      : listedProjects;
-  }, [listedProjects, search]);
+      : projects;
+  }, [projects, search]);
 
   const openProject = useCallback(
     (project: PageProject) => navigate(`/pages/${project.slug}/deployments`),
@@ -179,7 +178,7 @@ export function Pages() {
             <div>
               <h1 className="text-2xl font-bold">Pages</h1>
               <p className="text-sm text-muted-foreground">
-                {listedProjects.length} project{listedProjects.length === 1 ? "" : "s"}
+                {projects.length} project{projects.length === 1 ? "" : "s"}
               </p>
             </div>
           </div>

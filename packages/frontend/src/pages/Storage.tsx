@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
-import { NORMAL_LIST_FILTER, withoutAppMembers } from "@/lib/app-members";
+import { NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { refreshDynamicScopes } from "@/lib/live-scopes";
 import {
   isManagedStorageCandidateNode,
@@ -276,9 +276,8 @@ function StorageContent() {
   const canManageFolders = useCanManageSomeFolders("storage:folders:manage");
 
   // The server already filters the list by view grants, including folder grants that cover
-  // resources created after the cached scopes were loaded; row actions keep their own checks.
-  // App members live on their app's page (the server leaves them out too).
-  const filtered = useMemo(() => withoutAppMembers(rows), [rows]);
+  // resources created after the cached scopes were loaded, and leaves app members out (they live on
+  // their app's page); row actions keep their own checks.
   const canMoveToApps = hasScopedAccess("storage:edit");
   const canMoveStorageToApp = useCallback(
     (row: ObjectStorageConnection) => !row.app && hasScope(`storage:edit:${row.id}`),
@@ -454,7 +453,7 @@ function StorageContent() {
         <FolderedResourceList<ObjectStorageConnection>
           resourceType="storage"
           realtimeChannel="storage.folder.changed"
-          resources={filtered}
+          resources={rows}
           columns={columns}
           search={{
             placeholder: "Search storage...",

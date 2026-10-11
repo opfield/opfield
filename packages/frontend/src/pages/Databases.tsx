@@ -39,7 +39,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
-import { NORMAL_LIST_FILTER, withoutAppMembers } from "@/lib/app-members";
+import { NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { refreshDynamicScopes } from "@/lib/live-scopes";
 import { listManagedDatabaseCandidateNodes } from "@/lib/managed-database-nodes";
 import { nodeIconClassNames } from "@/lib/node-appearance";
@@ -235,11 +235,10 @@ function DatabasesContent({
     loading: boolean;
   } | null>(null);
   if (!initialListState.current) {
-    const cachedList = embedded
+    const cachedRows = embedded
       ? undefined
       : (api.getCached<DatabaseConnection[]>("databases:list::all:all") ??
         api.getCached<DatabaseConnection[]>("databases:list"));
-    const cachedRows = cachedList ? withoutAppMembers(cachedList) : undefined;
     const cachedNodes = api.getCached<Node[]>(DATABASE_NODE_APPEARANCE_CACHE_KEY) ?? [];
     const canRenderCachedRows =
       !embedded &&
@@ -287,9 +286,8 @@ function DatabasesContent({
 
   const load = useCallback(
     async ({ background = false }: { background?: boolean } = {}) => {
-      const cachedList = api.getCached<DatabaseConnection[]>(databaseCacheKey);
-      // A node's view keeps app members; the normal list leaves them to their app's page.
-      const cachedRows = cachedList && !managedNodeId ? withoutAppMembers(cachedList) : cachedList;
+      // A node's view keeps app members; the normal list leaves them to their app's page (server-filtered).
+      const cachedRows = api.getCached<DatabaseConnection[]>(databaseCacheKey);
       const cachedNodes = api.getCached<Node[]>(DATABASE_NODE_APPEARANCE_CACHE_KEY) ?? [];
       if (cachedRows && canRenderDatabaseRowsWithNodeAppearance(cachedRows, cachedNodes)) {
         setDatabaseNodes(cachedNodes);
@@ -336,7 +334,7 @@ function DatabasesContent({
             healthStatus: healthFilter === "all" ? undefined : healthFilter,
             ...NORMAL_LIST_FILTER,
           });
-          data = withoutAppMembers(result.data);
+          data = result.data;
         }
 
         const nodes = await nodesRequest;

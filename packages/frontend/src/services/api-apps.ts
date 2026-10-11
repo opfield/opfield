@@ -24,6 +24,9 @@ import type { ApiClientBaseConstructor } from "./api-mixins";
 
 const seg = (value: string) => encodeURIComponent(value);
 
+/** Upper bound of pages read for one app tab list (each page is the endpoint's maximum page size). */
+const MAX_MEMBER_PAGES = 50;
+
 /** Cache keys of the Apps pages (invalidated by every `/apps` mutation). */
 export const APPS_LIST_CACHE_KEY = "apps:list";
 export const appDetailCacheKey = (idOrSlug: string) => `apps:detail:${idOrSlug}`;
@@ -183,32 +186,33 @@ export function withAppsApi<TBase extends ApiClientBaseConstructor>(Base: TBase)
 
     // ── Member rows for the app tabs (normal list endpoints, `appId` filter) ──
 
+    /** Every row of a list endpoint the server narrows to one app's members (`appId`), page by page. */
+    async listAllAppMembers<T>(path: string, appId: string, limit: number): Promise<T[]> {
+      const rows: T[] = [];
+      for (let page = 1; page <= MAX_MEMBER_PAGES; page += 1) {
+        const response = await this.request<PaginatedResponse<T>>(
+          `${path}?appId=${seg(appId)}&limit=${limit}&page=${page}`
+        );
+        rows.push(...response.data);
+        if (page >= (response.pagination?.totalPages ?? 1) || response.data.length < limit) break;
+      }
+      return rows;
+    }
+
     async listAppRoutes(appId: string): Promise<ProxyHost[]> {
-      const page = await this.request<PaginatedResponse<ProxyHost>>(
-        `/proxy-hosts?appId=${seg(appId)}&limit=100`
-      );
-      return page.data.filter((row) => row.app?.id === appId);
+      return this.listAllAppMembers<ProxyHost>("/proxy-hosts", appId, 100);
     }
 
     async listAppDatabases(appId: string): Promise<DatabaseConnection[]> {
-      const page = await this.request<PaginatedResponse<DatabaseConnection>>(
-        `/databases?appId=${seg(appId)}&limit=200`
-      );
-      return page.data.filter((row) => row.app?.id === appId);
+      return this.listAllAppMembers<DatabaseConnection>("/databases", appId, 200);
     }
 
     async listAppStorage(appId: string): Promise<ObjectStorageConnection[]> {
-      const page = await this.request<PaginatedResponse<ObjectStorageConnection>>(
-        `/object-storage?appId=${seg(appId)}&limit=200`
-      );
-      return page.data.filter((row) => row.app?.id === appId);
+      return this.listAllAppMembers<ObjectStorageConnection>("/object-storage", appId, 200);
     }
 
     async listAppPages(appId: string): Promise<PageProject[]> {
-      const page = await this.request<PaginatedResponse<PageProject>>(
-        `/pages?appId=${seg(appId)}&limit=100`
-      );
-      return page.data.filter((row) => row.app?.id === appId);
+      return this.listAllAppMembers<PageProject>("/pages", appId, 100);
     }
 
     // ── Maintenance access code, overview, activity ────────────────

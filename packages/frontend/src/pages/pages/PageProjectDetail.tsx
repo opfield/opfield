@@ -93,18 +93,20 @@ function MigrateProjectDialog({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // A Project in an app environment moves only to the nodes that environment allows.
+  const folderId = project.folderId;
   useEffect(() => {
     if (!open) return;
     setTargetNodeId("");
     setLoading(true);
     void api
-      .listPageProjectPlacementOptions()
+      .listPageProjectPlacementOptions(folderId)
       .then(setNodes)
       .catch((error) =>
         toast.error(error instanceof Error ? error.message : "Failed to load Pages nodes")
       )
       .finally(() => setLoading(false));
-  }, [open]);
+  }, [folderId, open]);
 
   const migrate = async () => {
     if (!targetNodeId || saving) return;

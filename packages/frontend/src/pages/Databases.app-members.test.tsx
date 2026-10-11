@@ -80,8 +80,9 @@ beforeEach(() => {
 });
 
 describe("app members in the database list", () => {
-  it("asks the server to leave app members out and hides any it still returns", async () => {
-    api.listDatabases.mockResolvedValue({ data: [orders, shopDb] });
+  it("asks the server to leave app members out", async () => {
+    // The server leaves members out (excludeAppMembers): the list shows what it returns.
+    api.listDatabases.mockResolvedValue({ data: [orders] });
     render(
       <MemoryRouter>
         <Databases />
