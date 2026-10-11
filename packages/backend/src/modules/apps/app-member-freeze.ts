@@ -216,6 +216,26 @@ export class AppMemberFreeze {
   }
 
   /**
+   * Refuse a change that must not run while the resource's environment has an open incident: isolated → 409
+   * APP_ISOLATED (the freeze above), shut down → 409 APP_INCIDENT_ACTIVE. Used by changes that restart a member in a
+   * way the incident's restore does not expect (moving a key-value store to Valkey).
+   */
+  async assertNoOpenIncident(target: FreezeTarget): Promise<void> {
+    await this.assertNotFrozen(target);
+    const environmentId = await this.environmentOf(target);
+    if (!environmentId) return;
+    const incident = await this.incidents.openFor(environmentId, 'shutdown', FROZEN_INCIDENT_STATES);
+    if (!incident) return;
+    const shutDown = await this.describe(environmentId, incident.id);
+    throw new AppError(
+      409,
+      'APP_INCIDENT_ACTIVE',
+      `${shutDown ? `${shutDown.appName} · ${shutDown.environmentName}` : 'Its app environment'} is shut down; start it before changing this resource`,
+      shutDown ? { appId: shutDown.appId, environmentId } : undefined
+    );
+  }
+
+  /**
    * Start stays allowed for frozen members (an isolated container has no network), except a host-network container
    * the kill switch stopped: starting it would bring it back on the host network.
    */

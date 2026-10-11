@@ -179,6 +179,10 @@ describe.skipIf(!url)('app incidents on disposable PostgreSQL', () => {
       code: 'APP_ISOLATED',
     });
     await expect(freeze.assertNotFrozen({ kind: 'route', id: unrelated })).resolves.toBeUndefined();
+    await expect(freeze.assertNoOpenIncident({ kind: 'route', id: member })).rejects.toMatchObject({
+      code: 'APP_ISOLATED',
+    });
+    await expect(freeze.assertNoOpenIncident({ kind: 'route', id: unrelated })).resolves.toBeUndefined();
 
     const moved = await members.place(actor(), { target: null, members: [{ type: 'route', id: member }] } as never);
     expect(moved.refused).toEqual([expect.objectContaining({ code: 'APP_INCIDENT_ACTIVE' })]);
@@ -210,11 +214,17 @@ describe.skipIf(!url)('app incidents on disposable PostgreSQL', () => {
     expect(await mode(plain)).toMatchObject({ maintenance_enabled: false, app_maintenance_mode: 'maintenance' });
     // Members are not frozen by a shutdown.
     await expect(freeze.assertNotFrozen({ kind: 'route', id: plain })).resolves.toBeUndefined();
+    // Changes that need a running environment (moving a key-value store to Valkey) are refused while it is shut down.
+    await expect(freeze.assertNoOpenIncident({ kind: 'route', id: plain })).rejects.toMatchObject({
+      code: 'APP_INCIDENT_ACTIVE',
+      message: expect.stringContaining('Blog'),
+    });
     expect((await apps.list(ALL)).find((item) => item.id === app.id)?.incident).toBe('stopped');
     await settle(await service.start(actor(), app.id, [env.id]));
     expect(await mode(own)).toMatchObject({ maintenance_enabled: true, app_maintenance_mode: 'off' });
     expect(await mode(plain)).toMatchObject({ maintenance_enabled: false, app_maintenance_mode: 'off' });
     await expect(service.start(actor(), app.id, [env.id])).rejects.toMatchObject({ code: 'APP_INCIDENT_NOT_ACTIVE' });
+    await expect(freeze.assertNoOpenIncident({ kind: 'route', id: plain })).resolves.toBeUndefined();
   });
 
   it('needs apps:operate on every environment it touches', async () => {

@@ -38,8 +38,8 @@ interface DatabaseHeaderProps {
   canConfigurePostgres: boolean;
   /** Shows "Move to Valkey" (a managed key-value store that still runs Redis). */
   canMoveToValkey: boolean;
-  /** Enables "Move to Valkey" (the store is ready). */
-  moveToValkeyReady: boolean;
+  /** Why "Move to Valkey" is disabled (the store is not running, its app environment is isolated or shut down); null enables it. */
+  moveToValkeyDisabledReason: string | null;
   canReveal: boolean;
   canRotateDirectCredentials: boolean;
   canRotateCertificate: boolean;
@@ -74,7 +74,7 @@ export function DatabaseHeader({
   canConfigureRedis,
   canConfigurePostgres,
   canMoveToValkey,
-  moveToValkeyReady,
+  moveToValkeyDisabledReason,
   canReveal,
   canRotateDirectCredentials,
   canRotateCertificate,
@@ -165,8 +165,8 @@ export function DatabaseHeader({
             buttonLabel: "Move to Valkey",
             icon: <ArrowRightLeft className="h-4 w-4" />,
             onClick: onMoveToValkey,
-            disabled: !moveToValkeyReady,
-            disabledReason: "Available when the key-value store is running.",
+            disabled: moveToValkeyDisabledReason !== null,
+            disabledReason: moveToValkeyDisabledReason ?? undefined,
           },
         ]
       : []),

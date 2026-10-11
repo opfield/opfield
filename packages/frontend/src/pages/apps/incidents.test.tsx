@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { IsolatedNotice } from "@/components/apps/IsolatedNotice";
+import { IsolatedNotice, memberIncidentBlock } from "@/components/apps/IsolatedNotice";
 import type { AppDetail, AppIncident, AppPromotionPreviewItem } from "@/types";
 import { KillSwitchDialog } from "./dialogs/KillSwitchDialog";
 import { differenceSummary } from "./dialogs/PromoteDialog";
@@ -191,5 +191,35 @@ describe("Promote", () => {
       ])
     ).toBe("2 images, 1 Compose revision and 1 Pages deployment");
     expect(differenceSummary([item("container", { same: true })])).toBe("");
+  });
+});
+
+describe("member incident block (Move to Valkey)", () => {
+  const ref = {
+    id: "app-1",
+    slug: "shop",
+    name: "Shop",
+    environmentId: "env-live",
+    environmentName: "live",
+  };
+
+  it("blocks a member of an isolated or shut-down environment, not one that is releasing or elsewhere", () => {
+    expect(memberIncidentBlock(app({ "env-live": [incident("isolation", "env-live")] }), ref)).toBe(
+      "isolation"
+    );
+    expect(memberIncidentBlock(app({ "env-live": [incident("shutdown", "env-live")] }), ref)).toBe(
+      "shutdown"
+    );
+    expect(
+      memberIncidentBlock(
+        app({ "env-live": [incident("isolation", "env-live", { state: "releasing" })] }),
+        ref
+      )
+    ).toBeNull();
+    expect(
+      memberIncidentBlock(app({ "env-staging": [incident("isolation", "env-staging")] }), ref)
+    ).toBeNull();
+    expect(memberIncidentBlock(null, ref)).toBeNull();
+    expect(memberIncidentBlock(app(), null)).toBeNull();
   });
 });

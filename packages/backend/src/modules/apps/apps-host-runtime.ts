@@ -195,6 +195,14 @@ export const appsHostRuntime = {
     if (!container.isRegistered(AppMemberFreeze)) return Promise.resolve();
     return container.resolve(AppMemberFreeze).assertNotFrozen(target);
   },
+  /**
+   * The freeze plus a shut-down environment: 409 APP_ISOLATED when isolated, APP_INCIDENT_ACTIVE when shut down
+   * (moving a key-value store to Valkey).
+   */
+  assertNoOpenIncident(target: FreezeTarget) {
+    if (!container.isRegistered(AppMemberFreeze)) return Promise.resolve();
+    return container.resolve(AppMemberFreeze).assertNoOpenIncident(target);
+  },
   /** Whether a resource sits in an isolated environment (reconcilers skip it instead of throwing). */
   async isFrozen(target: FreezeTarget): Promise<boolean> {
     if (!container.isRegistered(AppMemberFreeze)) return false;

@@ -91,10 +91,13 @@ export function IsolatedNotice({
 }
 
 /**
- * The banner on a member's own page: loads the member's app (when the caller may view it) and shows
- * the kill switch of the member's environment.
+ * The app of a member (when the caller may view it), kept current through the apps realtime channel.
+ * Null outside apps or without view permission on the app.
  */
-export function MemberIsolatedNotice({ app: ref }: { app: AppMembershipRef | null | undefined }) {
+export function useMemberApp(ref: AppMembershipRef | null | undefined): {
+  app: AppDetail | null;
+  reload: () => void;
+} {
   const [app, setApp] = useState<AppDetail | null>(null);
   const appId = ref?.id ?? null;
   const appIdRef = useRef(appId);
@@ -108,7 +111,7 @@ export function MemberIsolatedNotice({ app: ref }: { app: AppMembershipRef | nul
     try {
       setApp(await api.getApp(appId));
     } catch {
-      // No view permission on the app (or it is gone): no banner.
+      // No view permission on the app (or it is gone).
       setApp(null);
     }
   }, [appId]);
@@ -122,8 +125,35 @@ export function MemberIsolatedNotice({ app: ref }: { app: AppMembershipRef | nul
     if (appIdRef.current && payload?.appId === appIdRef.current) void load();
   });
 
+  const reload = useCallback(() => void load(), [load]);
+  return { app: ref ? app : null, reload };
+}
+
+/**
+ * The open incident of a member's environment that refuses changes needing a running, connected
+ * environment (moving a key-value store to Valkey): the kill switch or a shutdown that is applying or
+ * active. Null when there is none (or the app is not visible: the server still refuses).
+ */
+export function memberIncidentBlock(
+  app: AppDetail | null,
+  ref: AppMembershipRef | null | undefined
+): "isolation" | "shutdown" | null {
+  if (!app || !ref) return null;
+  const holds = (kind: "isolation" | "shutdown") =>
+    openAppIncidents(app, kind, [ref.environmentId]).some(
+      (incident) => incident.state === "applying" || incident.state === "active"
+    );
+  if (holds("isolation")) return "isolation";
+  if (holds("shutdown")) return "shutdown";
+  return null;
+}
+
+/**
+ * The banner on a member's own page: loads the member's app (when the caller may view it) and shows
+ * the kill switch of the member's environment.
+ */
+export function MemberIsolatedNotice({ app: ref }: { app: AppMembershipRef | null | undefined }) {
+  const { app, reload } = useMemberApp(ref);
   if (!ref || !app) return null;
-  return (
-    <IsolatedNotice app={app} environmentIds={[ref.environmentId]} onChanged={() => void load()} />
-  );
+  return <IsolatedNotice app={app} environmentIds={[ref.environmentId]} onChanged={reload} />;
 }
