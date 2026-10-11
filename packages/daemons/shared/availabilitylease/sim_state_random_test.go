@@ -141,7 +141,25 @@ func checkStatefulFailover(w *simWorld, topo simTopology, result *seedResult) {
 	}
 	holder := ""
 	for attempt := 0; attempt < 5 && holder == ""; attempt++ {
-		if !w.waitFor(90*time.Second, func() bool { return readyHolder() != "" }) {
+		// The holder can be lost after the heal with no KNOWN majority left
+		// (two voters wiped while the Gateway is gone): after 30 s without
+		// one the operator forces again, the documented recovery as above.
+		var lostSince time.Duration = -1
+		if !w.waitFor(90*time.Second, func() bool {
+			if readyHolder() != "" {
+				return true
+			}
+			switch {
+			case w.holder(key) != "":
+				lostSince = -1
+			case lostSince < 0:
+				lostSince = w.now
+			case w.now-lostSince >= 30*time.Second:
+				lostSince = -1
+				forceRecovery(w, topo, key)
+			}
+			return false
+		}) {
 			if w.violation == "" {
 				w.fail("liveness: the holder never certified every candidate as a sync member (%s)", w.describeCandidates(topo, key))
 			}

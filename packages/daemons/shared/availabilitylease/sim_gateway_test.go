@@ -309,8 +309,37 @@ func (g *simGateway) changeVoters(policyID string, next []string, deliverP float
 			p.sets, p.joint = [][]string{next}, false
 			g.deliver(g.buildManifest(p), deliverP)
 			g.w.tracef("gateway %s settles epoch %d voters=%v", policyID, p.epoch, next)
+			g.redeliverUntilAdopted(policyID, p.epoch, next, deliverP)
 			return
 		}
+		g.w.after(time.Second, poll)
+	}
+	g.w.after(time.Second, poll)
+}
+
+// redeliverUntilAdopted sends the settled manifest again every second until
+// every running member of the new voter set adopted its epoch, as the
+// Gateway's distribution does (a daemon that has not reported the applied
+// revision gets it again after a short retry interval; relays get every
+// policy snapshot). Without it a settle lost on the way to every live new
+// voter could never be learned: only members forward a policy's blocks.
+func (g *simGateway) redeliverUntilAdopted(policyID string, epoch uint64, voters []string, deliverP float64) {
+	var poll func()
+	poll = func() {
+		p := g.policies[policyID]
+		if !g.alive || p.epoch != epoch {
+			return
+		}
+		missing := false
+		for _, id := range voters {
+			if n := g.w.nodes[id]; n.processUp() && n.node.Epoch(policyID) < epoch {
+				missing = true
+			}
+		}
+		if !missing {
+			return
+		}
+		g.deliver(p.block, deliverP)
 		g.w.after(time.Second, poll)
 	}
 	g.w.after(time.Second, poll)
