@@ -113,7 +113,10 @@ export async function manageManagedDatabaseAvailability(
       return service.disableAvailability(
         databaseId,
         user.id,
-        ManagedAvailabilityDisableSchema.parse({ keepMemberId: args.keepMemberId })
+        ManagedAvailabilityDisableSchema.parse({
+          keepMemberId: args.keepMemberId,
+          ...(args.force !== undefined ? { force: args.force } : {}),
+        })
       );
     default:
       throw new AppError(400, 'INVALID_AI_TOOL_OPERATION', `Unsupported managed database operation: ${operation}`);

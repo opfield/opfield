@@ -281,6 +281,12 @@ export function AvailabilityPanel({
 
   const primary = primaryOf(view);
   const busy = view.operation !== null || view.state === "converting" || view.state === "closing";
+  // A disable that waits for a member to hold the primary role: turning off again with a server to keep replaces it.
+  const waitingForPrimary =
+    view.operation?.kind === "disable" &&
+    view.operation.step === "choose" &&
+    !!view.lease &&
+    !view.lease.holderNodeId;
   const members = activeMembers(view);
   const witnessName = (witness: AvailabilityView["witnesses"][number]) =>
     (witness.relayInstanceId && witnessNames.relays.get(witness.relayInstanceId)) ||
@@ -413,7 +419,9 @@ export function AvailabilityPanel({
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     className="text-destructive"
-                    disabled={view.state === "closing"}
+                    disabled={
+                      view.state === "closing" && view.operation !== null && !waitingForPrimary
+                    }
                     onClick={() => setDisableOpen(true)}
                   >
                     <ShieldCheck />

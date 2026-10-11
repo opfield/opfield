@@ -249,3 +249,25 @@ func TestARestartedSetStillHasAnEligibleMember(t *testing.T) {
 		t.Fatalf("a copy that mirrored before its restart: %s", reason)
 	}
 }
+
+func TestForcedValueCertifiesTheCopysOwnHistory(t *testing.T) {
+	engine := newTestEngine(t)
+	engine.mu.Lock()
+	// Neither eligible (another history, ACLs never mirrored): an operator forces it.
+	engine.role, engine.replID, engine.offset = "slave", "mine", 4200
+	engine.mu.Unlock()
+	raw, err := engine.ForcedValue("op", memberha.EngineStatus{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, err := decodeValue(raw)
+	if err != nil || value.ReplID != "mine" || value.OffsetFloor != 4200 {
+		t.Fatalf("forced value %+v %v", value, err)
+	}
+	engine.mu.Lock()
+	engine.role = "master"
+	engine.mu.Unlock()
+	if _, err := engine.ForcedValue("op", memberha.EngineStatus{}); err == nil {
+		t.Fatal("a member that already runs as the primary is not forced")
+	}
+}

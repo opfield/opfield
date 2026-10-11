@@ -148,7 +148,10 @@ type Engine struct {
 	workerStop    chan struct{}
 }
 
-var _ memberha.Engine = (*Engine)(nil)
+var (
+	_ memberha.Engine       = (*Engine)(nil)
+	_ memberha.ForcedValuer = (*Engine)(nil)
+)
 
 // New opens the engine of one member.
 func New(host Host) (*Engine, error) {
@@ -373,6 +376,19 @@ func (e *Engine) Eligible(input memberha.EligibilityInput, _ memberha.EngineStat
 		return false, "behind"
 	}
 	return true, ""
+}
+
+// ForcedValue is the value a forced promotion certifies (AS10): this copy's
+// own history and offset. An operator promotes it although it is not eligible
+// (another history, ACLs not mirrored): its data becomes the set's, and
+// Gateway applies the store's users to it again once it serves.
+func (e *Engine) ForcedValue(string, memberha.EngineStatus) ([]byte, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.role == "master" {
+		return nil, errors.New("this member already runs as the primary")
+	}
+	return Value{ReplID: e.replID, OffsetFloor: e.offset}.encode()
 }
 
 func (e *Engine) BootstrapValue(memberha.EngineStatus) ([]byte, error) {

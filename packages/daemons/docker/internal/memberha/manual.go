@@ -41,7 +41,14 @@ func (m *Manager) manualStepLocked(mem *member, now time.Duration) {
 	}
 	mem.started = true
 	if mem.busy || !mem.fresh(now) {
-		m.closeServingLocked(mem)
+		// Engine work running or an observation in flight (the primary's
+		// holder work every few seconds, the observation right after it): no
+		// role change, a serving primary keeps its listener and sessions. Only
+		// the self-fence bound still applies; it stops admitting at once (the
+		// demotion follows on the next fresh observation).
+		if mem.serving.Load() && now-mem.manual.lastContact >= selfFenceAfter {
+			m.closeServingLocked(mem)
+		}
 		return
 	}
 	if mem.cfg.Stopped && !mem.state.Stopped {

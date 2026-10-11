@@ -172,7 +172,13 @@ export const ManagedAvailabilitySettingsSchema = z
   .strict();
 
 /** Turning availability off keeps the primary; naming it guards against a switch meanwhile. */
-export const ManagedAvailabilityDisableSchema = z.object({ keepMemberId: z.string().uuid().optional() }).strict();
+export const ManagedAvailabilityDisableSchema = z
+  .object({
+    keepMemberId: z.string().uuid().optional(),
+    /** No member holds the primary role: keep keepMemberId (or the member with the most recent data) at once. */
+    force: z.boolean().optional(),
+  })
+  .strict();
 
 export const ManagedAvailabilityEventsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),

@@ -20,6 +20,8 @@ export interface ManagedAvailabilityHost {
   settings: { relayPolicyLeaseHours(): Promise<number> };
   /** Witness processes relays host for sets (RelayWitnessService): pushed again after witness rows changed. */
   witnesses: ManagedAvailabilityWitnessPort;
+  /** Users (bindings) of the databases on a node applied again: after a forced promotion of a member. */
+  principals: { reapply(nodeId: string): Promise<void> };
 }
 
 export interface ManagedAvailabilityWitnessPort {

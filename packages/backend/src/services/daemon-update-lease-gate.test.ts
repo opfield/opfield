@@ -7,6 +7,7 @@ import {
   type LeaseUpdateView,
   leasePoliciesOf,
   leaseUpdateBlockers,
+  planAvailabilitySetGate,
   setHoldsUpdates,
 } from './daemon-update-lease-gate.js';
 
@@ -112,14 +113,35 @@ describe('leaseUpdateBlockers', () => {
   it('holds the other members of a database set while a restarted copy catches up, up to its own timeout', () => {
     const policy = 'set-lease';
     const catching = { since: NOW - 60_000, catchingUpIn: new Set([policy]) };
-    expect(leaseUpdateBlockers(view({ [policy]: ['p', 'c'] }, { p: {}, c: catching }), 'p', NOW).blockers).toEqual([
+    const data = { dataMemberIn: new Set([policy]) };
+    expect(leaseUpdateBlockers(view({ [policy]: ['p', 'c'] }, { p: data, c: catching }), 'p', NOW).blockers).toEqual([
       { memberId: 'c', policyId: policy, reason: 'availability_catching_up' },
     ]);
     const long = { since: NOW - AVAILABILITY_CATCH_UP_TIMEOUT_MS, catchingUpIn: new Set([policy]) };
-    expect(leaseUpdateBlockers(view({ [policy]: ['p', 'c'] }, { p: {}, c: long }), 'p', NOW)).toEqual({
+    expect(leaseUpdateBlockers(view({ [policy]: ['p', 'c'] }, { p: data, c: long }), 'p', NOW)).toEqual({
       blockers: [],
       settleTimedOut: [{ memberId: 'c', policyId: policy, reason: 'availability_catching_up' }],
     });
+  });
+
+  it('never holds a witness (relay or docker node) of a set back for a catching-up copy', () => {
+    const policy = 'set-lease';
+    const catching = { since: NOW - 60_000, catchingUpIn: new Set([policy]) };
+    const data = { dataMemberIn: new Set([policy]) };
+    const current = view(
+      { [policy]: ['p', 'c', 'relay', 'app-node'] },
+      { p: data, c: catching, relay: { since: null }, 'app-node': {} }
+    );
+    expect(leaseUpdateBlockers(current, 'relay', NOW).blockers).toEqual([]);
+    expect(leaseUpdateBlockers(current, 'app-node', NOW).blockers).toEqual([]);
+    // A relay still waits (bounded) while another voter of the policy abstains: it may be the quorum margin.
+    const abstaining = view(
+      { [policy]: ['p', 'relay'] },
+      { p: { since: NOW - 10_000, abstaining: true }, relay: { since: null } }
+    );
+    expect(leaseUpdateBlockers(abstaining, 'relay', NOW).blockers).toEqual([
+      { memberId: 'p', policyId: policy, reason: 'abstaining' },
+    ]);
   });
 
   it('sequences a manual pair by its pseudo policy without lease reports', () => {
@@ -142,5 +164,43 @@ describe('setHoldsUpdates', () => {
     // A convert past the lease start still seeds its copies.
     expect(setHoldsUpdates({ state: 'degraded', operation: { kind: 'create' } })).toBe(false);
     expect(setHoldsUpdates({ state: 'closing', operation: { kind: 'disable' } })).toBe(false);
+  });
+});
+
+describe('planAvailabilitySetGate', () => {
+  const member = (id: string, nodeId: string, values: Record<string, unknown> = {}) => ({
+    id,
+    setId: 's',
+    nodeId,
+    desiredState: 'member',
+    eligible: false,
+    eligibilityReason: 'behind',
+    lastReportedAt: new Date(NOW - 5_000),
+    enginePosition: {},
+    ...values,
+  });
+  const plan = (leaseHolder: Map<string, string>, members = [member('a', 'n1'), member('b', 'n2')]) =>
+    planAvailabilitySetGate({
+      sets: [{ id: 's', leasePolicyId: 'lp', primaryMemberId: 'a', state: 'healthy', operation: null }],
+      members,
+      leaseHolder,
+      policyMembers: new Map([['lp', new Set(['n1', 'n2', 'relay'])]]),
+      holders: new Set(),
+      now: NOW,
+      connectedAt: () => NOW - 60_000,
+    });
+
+  it('marks a copy that catches up with a serving primary, and the set members as its data members', () => {
+    const gate = plan(new Map([['lp', 'n1']]));
+    expect([...(gate.catchingUp.get('n2') ?? [])]).toEqual(['lp']);
+    expect([...gate.dataMembers.keys()].sort()).toEqual(['n1', 'n2']);
+    expect(gate.dataMembers.has('relay')).toBe(false);
+  });
+
+  it('holds nothing back for a set without a holder or a copy that never catches up (another history)', () => {
+    // 8e49c494: no holder, members other_history / acl_not_mirrored.
+    expect(plan(new Map()).catchingUp.size).toBe(0);
+    const otherHistory = [member('a', 'n1'), member('b', 'n2', { eligibilityReason: 'other_history' })];
+    expect(plan(new Map([['lp', 'n1']]), otherHistory).catchingUp.size).toBe(0);
   });
 });
