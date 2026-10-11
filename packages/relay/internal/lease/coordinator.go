@@ -323,3 +323,9 @@ func (c *Coordinator) ingest(links []*relayv1.LeasePolicyKeyRotation, blocks []*
 	}
 	return changed
 }
+
+// VerifyHolderStatement checks a holder statement against this relay's latest
+// verified commit of the key (admin.HolderStatementVerifier).
+func (c *Coordinator) VerifyHolderStatement(key availabilitylease.Key, domain string, payload, signature []byte) (string, error) {
+	return c.node.VerifyHolderStatement(key, domain, payload, signature)
+}

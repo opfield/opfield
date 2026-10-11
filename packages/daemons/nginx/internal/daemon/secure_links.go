@@ -1204,7 +1204,10 @@ func (p *NginxPlugin) openSecureLink(ownerKind, logName, linkID string, connecti
 		p.secureLinkOutcomes.Failed(p.logger, outcome, "stage", "grant", "error", "no relay grant for the link")
 		return
 	}
-	candidates := relaybridge.PoolCandidates(assignment, false)
+	candidates := leaseGroupCandidates(assignment)
+	if len(candidates) == 0 {
+		candidates = relaybridge.PoolCandidates(assignment, false)
+	}
 	if len(candidates) == 0 {
 		candidates = []*pb.RelayDataCandidate{{RelayInstanceId: relaybridge.LegacyTargetID, Grant: assignment.Grant}}
 	}

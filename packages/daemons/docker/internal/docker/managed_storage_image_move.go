@@ -114,7 +114,7 @@ func (m *managedStorageManager) moveStorageToPinnedImage(ctx context.Context, id
 // created from and whether it differs from pinned. A container that cannot be
 // inspected or names no image is left alone.
 func (m *managedStorageManager) seaweedfsRunningImageOutdated(ctx context.Context, record managedStorageRecord, pinned string) (string, bool) {
-	if record.Removed || record.engine() != managedStorageEngineSeaweedFS || record.ContainerID == "" {
+	if record.Removed || record.engine() != managedStorageEngineSeaweedFS || record.Set != nil || record.ContainerID == "" {
 		return "", false
 	}
 	inspect, err := m.client.cli.ContainerInspect(ctx, record.ContainerID, mobyclient.ContainerInspectOptions{})

@@ -249,7 +249,7 @@ export const CreateManagedDatabaseSchema = z
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['redisConfig'],
-        message: 'redisConfig is only supported for Redis',
+        message: 'redisConfig is only supported for key-value stores',
       });
     }
     if (value.postgresConfig !== undefined && value.type !== 'postgres') {
@@ -263,7 +263,7 @@ export const CreateManagedDatabaseSchema = z
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['ownerUsername'],
-        message: 'Redis uses the built-in default owner username',
+        message: 'A key-value store uses the built-in default owner username',
       });
     }
   });
@@ -531,3 +531,12 @@ export type UpdateManagedDatabaseInput = z.infer<typeof UpdateManagedDatabaseSch
 export type ManagedAvailabilityEnableInput = z.infer<typeof ManagedAvailabilityEnableSchema>;
 export type ManagedAvailabilitySettingsInput = z.infer<typeof ManagedAvailabilitySettingsSchema>;
 export type CreateManagedDatabaseBindingInput = z.infer<typeof CreateManagedDatabaseBindingSchema>;
+
+/** POST /databases/managed/{id}/move-to-valkey. The body is optional. */
+export const MoveManagedDatabaseToValkeySchema = z
+  .object({
+    /** Lets the move drop the pending entries of stream consumer groups (see the move check). */
+    acceptPendingStreamLoss: z.boolean().optional(),
+  })
+  .strict();
+export type MoveManagedDatabaseToValkeyInput = z.infer<typeof MoveManagedDatabaseToValkeySchema>;

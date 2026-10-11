@@ -14,7 +14,7 @@ func (m *witnessManager) report() (uint64, []*pb.WitnessStatus) {
 	statuses := make([]*pb.WitnessStatus, 0, len(m.desired))
 	for id, spec := range m.desired {
 		status := &pb.WitnessStatus{
-			Id: id, Kind: spec.GetKind(), Role: spec.GetRole(), State: witnessStateFetching,
+			Id: id, Kind: spec.GetKind(), Role: m.effectiveRoleLocked(id, spec.GetRole()), State: witnessStateFetching,
 			Version: spec.GetArtifact().GetVersion(), ArtifactSha256: spec.GetArtifact().GetSha256(),
 		}
 		if entry := m.witnesses[id]; entry != nil {

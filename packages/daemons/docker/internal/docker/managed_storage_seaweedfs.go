@@ -24,6 +24,7 @@ import (
 	mobyclient "github.com/moby/moby/client"
 
 	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
+	"github.com/wiolett-industries/gateway/docker-daemon/internal/swha"
 )
 
 // SeaweedFS runtime contract (rc.8): one `weed server` container per cluster
@@ -65,7 +66,10 @@ func validateSeaweedFSCommand(input managedStorageCommand, creating bool) error 
 	if input.FTP != nil || input.SFTP != nil {
 		return errors.New("SeaweedFS managed storage does not support FTP or SFTP")
 	}
-	if len(input.Members) > 1 || (len(input.Members) == 1 && input.Members[0].MemberIndex != 0) || input.MemberIndex != 0 {
+	// A storage that left its availability set keeps the index of the member
+	// it kept (updates only); a new one is member 0.
+	if len(input.Members) > 1 || (len(input.Members) == 1 && input.Members[0].MemberIndex != 0) ||
+		input.MemberIndex < 0 || input.MemberIndex > swha.MaxMemberIndex || (creating && input.MemberIndex != 0) {
 		return errors.New("SeaweedFS managed storage is single-node")
 	}
 	if input.PeerBindAddress != "" {

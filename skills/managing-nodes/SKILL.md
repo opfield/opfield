@@ -16,7 +16,7 @@ Start with `using-gateway` for connection, discovery, and safety rules; its inst
 | `nginx` | Ingress: Routes, TLS replicas, Access Lists, public traffic, Pages publication |
 | `docker` | Containers, Deployments, images, volumes, networks, Compose Projects |
 | `builder` | Isolated Git builds through a dedicated BuildKit and containerd profile, with no Docker socket |
-| `storage` | Managed PostgreSQL, Redis, ClickHouse, managed SeaweedFS (and legacy MinIO), bounded backup jobs |
+| `storage` | Managed PostgreSQL, key-value stores, ClickHouse, managed SeaweedFS (and legacy MinIO), bounded backup jobs |
 | `databases` | Legacy database-only profile, superseded by `storage` for new capacity |
 | `monitoring` | Lightweight system metrics; no nginx or Docker required |
 | `relay` | Secure Link Relay Pool worker; needs an advertised address reachable by participating hosts |

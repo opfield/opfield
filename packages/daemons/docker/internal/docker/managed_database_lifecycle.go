@@ -74,6 +74,22 @@ func (m *managedDatabaseManager) update(ctx context.Context, record *managedData
 	if _, err := m.restageRuntimeFiles(*record, &input); err != nil {
 		return err
 	}
+	if input.Type == "redis" {
+		runsValkey, exists, err := m.managedRedisContainerRunsValkey(ctx, record.ContainerID)
+		if err != nil {
+			return fmt.Errorf("inspect managed database container: %w", err)
+		}
+		switch wantsValkey := managedRedisRunsValkey(input.Image); {
+		case exists && !runsValkey && wantsValkey:
+			if err := m.moveRedisToValkey(ctx, record, input); err != nil {
+				return err
+			}
+			applyManagedDatabaseOperationID(record, input)
+			return nil
+		case exists && runsValkey && !wantsValkey:
+			return errors.New("the key-value store runs Valkey and cannot go back to Redis")
+		}
+	}
 	requiresRecreate := managedDatabaseRequiresRecreate(*record, input)
 	// Redis derives maxmemory from the memory limit; a running Redis applies a
 	// new one without a restart, like the limit itself.
@@ -90,7 +106,7 @@ func (m *managedDatabaseManager) update(ctx context.Context, record *managedData
 		}
 	}
 	if requiresRecreate {
-		if err := m.recreateContainer(ctx, record, input); err != nil {
+		if err := m.recreateClickHouseAware(ctx, record, input); err != nil {
 			return err
 		}
 	} else {
@@ -204,7 +220,11 @@ func managedRedisConfigText(input managedDatabaseCommand) string {
 	if config.RDBSnapshotsEnabled {
 		save = fmt.Sprintf("save %d %d", config.RDBSaveSeconds, config.RDBSaveChanges)
 	}
-	return fmt.Sprintf("aclfile /data/users.acl\nmaxmemory %d\nmaxmemory-policy %s\nappendonly %s\nappendfsync %s\naof-use-rdb-preamble yes\nauto-aof-rewrite-percentage %d\nauto-aof-rewrite-min-size %dmb\n%s\nmaxclients %d\ntimeout %d\ntcp-keepalive %d\nslowlog-log-slower-than %d\nslowlog-max-len %d\nactivedefrag %s\n",
+	modules := ""
+	if managedRedisRunsValkey(input.Image) {
+		modules = managedValkeyModuleConfig()
+	}
+	return fmt.Sprintf("aclfile /data/users.acl\nmaxmemory %d\nmaxmemory-policy %s\nappendonly %s\nappendfsync %s\naof-use-rdb-preamble yes\nauto-aof-rewrite-percentage %d\nauto-aof-rewrite-min-size %dmb\n%s\nmaxclients %d\ntimeout %d\ntcp-keepalive %d\nslowlog-log-slower-than %d\nslowlog-max-len %d\nactivedefrag %s\n%s",
 		managedRedisMaxmemory(input),
 		config.MaxmemoryPolicy,
 		yesNo(config.AppendOnly),
@@ -218,6 +238,7 @@ func managedRedisConfigText(input managedDatabaseCommand) string {
 		config.SlowlogThresholdMicroseconds,
 		config.SlowlogMaxLen,
 		yesNo(config.ActiveDefrag),
+		modules,
 	)
 }
 
@@ -345,7 +366,8 @@ func managedDatabaseContainerSettingsChanged(record managedDatabaseRecord, input
 		input.TLSEnabled != record.TLSEnabled ||
 		(input.PublishTCP != (record.PublishedPort != 0)) ||
 		(record.Type == "clickhouse" && (clickHouseConfigHash(input.ClickhouseConfig) != record.ClickhouseConfigHash ||
-			record.ClickhouseRuntimeProfileVersion != clickHouseRuntimeProfileVersion))
+			record.ClickhouseRuntimeProfileVersion != clickHouseRuntimeProfileVersion)) ||
+		clickHouseAvailabilityChanged(record, input)
 }
 
 func portBindingNeedsPinning(bindings network.PortMap, containerPort network.Port, expected uint16) bool {
@@ -361,7 +383,8 @@ func (m *managedDatabaseManager) publicationNeedsPinning(
 	record managedDatabaseRecord,
 	input managedDatabaseCommand,
 ) (bool, error) {
-	if !input.PublishTCP {
+	if !input.PublishTCP || (record.clickHouseAvailabilityMember() && clickHouseAvailabilitySetID(input) != "") {
+		// A set member's published ports are its member proxy's.
 		return false, nil
 	}
 	inspect, err := m.client.cli.ContainerInspect(ctx, record.ContainerID, mobyclient.ContainerInspectOptions{})
@@ -415,6 +438,15 @@ func (m *managedDatabaseManager) restart(ctx context.Context, record *managedDat
 		return err
 	}
 	if needsPinning {
+		if input.Type == "redis" {
+			runsValkey, exists, err := m.managedRedisContainerRunsValkey(ctx, record.ContainerID)
+			if err != nil {
+				return fmt.Errorf("inspect managed database container: %w", err)
+			}
+			if exists && runsValkey != managedRedisRunsValkey(input.Image) {
+				return errors.New("a restart cannot change the engine of the key-value store")
+			}
+		}
 		if err := m.recreateContainer(ctx, record, input); err != nil {
 			return err
 		}
@@ -635,6 +667,9 @@ func validateManagedDatabaseInput(input managedDatabaseCommand) error {
 	if input.Type != "postgres" && input.Type != "redis" && input.Type != "clickhouse" {
 		return errors.New("unsupported managed database type")
 	}
+	if input.ClickhouseAvailability != nil && input.Type != "clickhouse" {
+		return errors.New("availability members of this command are supported only for ClickHouse")
+	}
 	if input.Type == "redis" && input.OwnerUsername != "default" {
 		return errors.New("Redis owner username must be default")
 	}
@@ -751,14 +786,15 @@ var curatedManagedDatabaseImages = map[string]map[string]struct{}{
 		"docker.io/library/postgres@sha256:962ffbe9f6418387643411b127c1db27465e5a23b9a8849bfaf45fa6323963ce": {},
 	},
 	"redis": {
-		"docker.io/library/redis@sha256:c29e49ab2f85760a3827b53882e6dd9f5c6c3f0bb7d724e07bb31cbf275a5236": {},
-		"docker.io/library/redis@sha256:c88d347edef6249a6d2293f926f1eeb48bd40c57cbcd02c07f52e7f1fd2cb46b": {},
-		"docker.io/library/redis@sha256:aefcda4d4388a70e628ad5ebbf162ae65509b20ea3dd6eeac7dcbbb675d94dba": {},
-		"docker.io/library/redis@sha256:6159aff1adde991d8747d705fa1135ceda04b0414dc372b381a6af415ec3b374": {},
-		"docker.io/library/redis@sha256:616bb446d5db225ddf786052834279e7c7222c48694d4451e8af22b8f5953b28": {},
-		"docker.io/library/redis@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b": {},
-		"docker.io/library/redis@sha256:16623900b6ddd58e8bac04ccb6b611b9a5d1aed165453e28bcaed251d549d62c": {},
-		"docker.io/library/redis@sha256:2a5e873bfae4bcc660b27f45c391d4a7a01799b65dea7286acc858e9c6c1e7d3": {},
+		"docker.io/valkey/valkey-bundle@sha256:dd30c59c2b2a598e83308095220a31d6d93d64c40a839c702cb1e98c8e220660": {},
+		"docker.io/library/redis@sha256:c29e49ab2f85760a3827b53882e6dd9f5c6c3f0bb7d724e07bb31cbf275a5236":        {},
+		"docker.io/library/redis@sha256:c88d347edef6249a6d2293f926f1eeb48bd40c57cbcd02c07f52e7f1fd2cb46b":        {},
+		"docker.io/library/redis@sha256:aefcda4d4388a70e628ad5ebbf162ae65509b20ea3dd6eeac7dcbbb675d94dba":        {},
+		"docker.io/library/redis@sha256:6159aff1adde991d8747d705fa1135ceda04b0414dc372b381a6af415ec3b374":        {},
+		"docker.io/library/redis@sha256:616bb446d5db225ddf786052834279e7c7222c48694d4451e8af22b8f5953b28":        {},
+		"docker.io/library/redis@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b":        {},
+		"docker.io/library/redis@sha256:16623900b6ddd58e8bac04ccb6b611b9a5d1aed165453e28bcaed251d549d62c":        {},
+		"docker.io/library/redis@sha256:2a5e873bfae4bcc660b27f45c391d4a7a01799b65dea7286acc858e9c6c1e7d3":        {},
 	},
 	"clickhouse": {
 		"docker.io/clickhouse/clickhouse-server@sha256:d7556a3841027651307b5aa08d72b5c467d0241d3db5b67d9e158ef3975626f5": {},

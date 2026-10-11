@@ -427,14 +427,19 @@ func renderKeeperConfig(spec *pb.WitnessSpec, dataDir string) ([]byte, error) {
 		ID       uint32 `xml:"id"`
 		Hostname string `xml:"hostname"`
 		Port     uint32 `xml:"port"`
+		// Raft priority: data members (peers) 3, the witness 1, so a data
+		// member leads (a leading witness stalled inserts for ~30 s when it
+		// died, P0-T02 item 8). Not can_become_leader=false: that makes a
+		// learner, which does not vote.
+		Priority int `xml:"priority"`
 	}
 	raftHost := spec.GetRaftHost()
 	if raftHost == "" {
 		raftHost = "127.0.0.1"
 	}
-	servers := []server{{ID: spec.GetServerId(), Hostname: raftHost, Port: spec.GetRaftPort()}}
+	servers := []server{{ID: spec.GetServerId(), Hostname: raftHost, Port: spec.GetRaftPort(), Priority: 1}}
 	for _, peer := range spec.GetPeers() {
-		servers = append(servers, server{ID: peer.GetServerId(), Hostname: peer.GetHost(), Port: peer.GetPort()})
+		servers = append(servers, server{ID: peer.GetServerId(), Hostname: peer.GetHost(), Port: peer.GetPort(), Priority: 3})
 	}
 	type coordination struct {
 		OperationTimeoutMs int    `xml:"operation_timeout_ms"`

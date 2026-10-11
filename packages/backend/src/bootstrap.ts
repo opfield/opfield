@@ -247,7 +247,9 @@ import { StorageWorkloadStore } from '@/modules/storage/storage-workload-store.j
 import { TokensService } from '@/modules/tokens/tokens.service.js';
 import { UIBootstrapService } from '@/modules/ui-bootstrap/ui-bootstrap.service.js';
 import { AvailabilityAssignmentSigner } from '@/services/availability-assignment-signing.js';
+import { AvailabilityMembersService } from '@/services/availability-members.service.js';
 import { CacheService, createRedisClient } from '@/services/cache.service.js';
+import { createKeeperPeerResolver } from '@/services/clickhouse-keeper-addressing.js';
 import { ConfigValidatorService } from '@/services/config-validator.service.js';
 import { CryptoService } from '@/services/crypto.service.js';
 import { scheduleQueuedDaemonUpdateResume } from '@/services/daemon-node-update.js';
@@ -1397,21 +1399,30 @@ export async function initializeContainer(): Promise<void> {
     new RelayPolicySigningKeyService(db, cryptoService)
   );
   container.registerInstance(AvailabilityAssignmentSigner, availabilityAssignmentSigner);
-  // Database availability sets: the commercial control plane follows set leases and signs manual assignments.
-  managedDatabaseService.setAvailabilityHost({
-    lease: availabilityLeaseService,
-    signer: availabilityAssignmentSigner,
-    settings: { relayPolicyLeaseHours: async () => (await generalSettingsService.getConfig()).relayPolicyLeaseHours },
-  });
   // Witness processes relays host for availability sets (decision 9): desired sets pushed, reports recorded.
   const relayWitnessService = new RelayWitnessService(db, nodeDispatch);
   relayWitnessService.setArtifactSource(new WitnessCatalog(env));
+  relayWitnessService.setKeeperPeerResolver(createKeeperPeerResolver(db));
   container.registerInstance(RelayWitnessService, relayWitnessService);
+  // Members of database and storage availability sets: node configuration and health-stream reports.
+  const availabilityMembers = new AvailabilityMembersService(db, nodeDispatch);
+  availabilityMembers.setAssignmentSigner(container.resolve(AvailabilityAssignmentSigner));
+  container.registerInstance(AvailabilityMembersService, availabilityMembers);
+  // Database and storage availability sets run on one shared orchestration; both get the same host parts.
+  const availabilityHost = {
+    lease: availabilityLeaseService,
+    signer: availabilityAssignmentSigner,
+    settings: { relayPolicyLeaseHours: async () => (await generalSettingsService.getConfig()).relayPolicyLeaseHours },
+    members: availabilityMembers,
+    witnesses: relayWitnessService,
+    ...(relayPolicyService ? { relay: relayPolicyService } : {}),
+  };
   if (relayPolicyService) {
     relayPolicyService.setAvailabilityLeaseSource(availabilityLeaseService);
     availabilityLeaseService.setRelayPublisher(relayPolicyService);
-    managedDatabaseService.setAvailabilityHost({ relay: relayPolicyService });
   }
+  managedDatabaseService.setAvailabilityHost(availabilityHost);
+  managedStorageService.setAvailabilityHost(availabilityHost);
   const dockerAvailabilityService = commercialEdition.createDockerAvailabilityService(
     {
       db,

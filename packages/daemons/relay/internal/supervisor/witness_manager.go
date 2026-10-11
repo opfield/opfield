@@ -132,6 +132,13 @@ type witnessManager struct {
 	stop      chan struct{}
 	stopped   chan struct{}
 	started   bool
+	// activated: staged standbys the set's lease holder activated while
+	// Gateway was down (witness_activate.go); activations listen on staged
+	// standbys' raft ports; verify checks holder statements (worker).
+	activated   map[string]bool
+	activations map[string]*activationListener
+	verify      holderVerifier
+	listen      func(network, address string) (net.Listener, error)
 }
 
 // witnessEntry is the runtime of one witness; guarded by witnessManager.mu.
@@ -171,6 +178,7 @@ func newWitnessManager(dir, workRoot string, logger *slog.Logger, gate func() st
 		desired: map[string]*pb.WitnessSpec{}, witnesses: map[string]*witnessEntry{},
 		fetching: map[string]bool{}, fetched: map[string]string{}, fetchErr: map[string]fetchFailure{},
 		wake: make(chan struct{}, 1), stop: make(chan struct{}), stopped: make(chan struct{}),
+		activated: map[string]bool{}, activations: map[string]*activationListener{}, listen: net.Listen,
 	}
 }
 
@@ -192,6 +200,7 @@ func (m *witnessManager) load() error {
 	if err := validateWitnesses(command.GetWitnesses()); err != nil {
 		return fmt.Errorf("stored witness state: %w", err)
 	}
+	m.loadActivations()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.setDesiredLocked(command)
@@ -223,6 +232,7 @@ func (m *witnessManager) Apply(command *pb.ApplyWitnessesCommand) (string, error
 	}
 	m.mu.Lock()
 	m.setDesiredLocked(command)
+	m.pruneActivationsLocked()
 	// A new desired set retries refused fetches at once.
 	m.fetchErr = map[string]fetchFailure{}
 	m.mu.Unlock()
@@ -265,6 +275,7 @@ func (m *witnessManager) loop() {
 		m.reconcile()
 		select {
 		case <-m.stop:
+			m.closeActivationListeners()
 			m.stopAll()
 			return
 		case <-ticker.C:
@@ -341,6 +352,7 @@ func (m *witnessManager) reconcileOne(id, hosting string, now time.Time) {
 
 	if spec == nil {
 		// Removed from the desired set: stop it and drop its data.
+		m.closeActivationListener(id)
 		m.stopProcess(entry)
 		_ = os.RemoveAll(m.dataDir(id))
 		_ = os.RemoveAll(m.runDir(id))
@@ -352,6 +364,7 @@ func (m *witnessManager) reconcileOne(id, hosting string, now time.Time) {
 	if hosting != WitnessHostingAllowed {
 		// Re-checked on every pass: a running witness stops once the local
 		// gate closes.
+		m.closeActivationListener(id)
 		m.stopProcess(entry)
 		m.setState(entry, witnessStateRefused, "witness hosting is not allowed on this relay: "+hosting, now)
 		return
@@ -378,11 +391,17 @@ func (m *witnessManager) reconcileOne(id, hosting string, now time.Time) {
 		m.setState(entry, witnessStateError, err.Error(), now)
 		return
 	}
-	if spec.GetRole() == witnessRoleStandby {
+	m.mu.Lock()
+	role := m.effectiveRoleLocked(id, spec.GetRole())
+	m.mu.Unlock()
+	if role == witnessRoleStandby {
 		m.stopProcess(entry)
 		m.setState(entry, witnessStateStaged, "", now)
+		m.ensureActivationListener(id, spec.GetRaftPort())
 		return
 	}
+	// The Keeper binds the raft port the activation listener held.
+	m.closeActivationListener(id)
 	sha := spec.GetArtifact().GetSha256()
 	switch {
 	case entry.proc == nil:

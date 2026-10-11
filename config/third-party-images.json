@@ -70,52 +70,58 @@
       "usedBy": "Managed PostgreSQL 14.19"
     },
     {
+      "name": "valkey-bundle",
+      "tag": "9.1.3",
+      "source": "docker.io/valkey/valkey-bundle@sha256:dd30c59c2b2a598e83308095220a31d6d93d64c40a839c702cb1e98c8e220660",
+      "usedBy": "Managed key-value store (Valkey 9.1.2 with JSON, Bloom and Search); key-value restore staging"
+    },
+    {
       "name": "redis",
       "tag": "8.10.0",
       "source": "docker.io/library/redis@sha256:c29e49ab2f85760a3827b53882e6dd9f5c6c3f0bb7d724e07bb31cbf275a5236",
-      "usedBy": "Managed Redis 8.10.0; Redis restore staging"
+      "usedBy": "Managed key-value store on Redis 8.10.0 (stores created before 2.12); key-value restore staging"
     },
     {
       "name": "redis",
       "tag": "8.8.1",
       "source": "docker.io/library/redis@sha256:c88d347edef6249a6d2293f926f1eeb48bd40c57cbcd02c07f52e7f1fd2cb46b",
-      "usedBy": "Managed Redis 8.8.1; Redis restore staging"
+      "usedBy": "Managed key-value store on Redis 8.8.1 (stores created before 2.12); key-value restore staging"
     },
     {
       "name": "redis",
       "tag": "8.6.5",
       "source": "docker.io/library/redis@sha256:aefcda4d4388a70e628ad5ebbf162ae65509b20ea3dd6eeac7dcbbb675d94dba",
-      "usedBy": "Managed Redis 8.6.5; Redis restore staging"
+      "usedBy": "Managed key-value store on Redis 8.6.5 (stores created before 2.12); key-value restore staging"
     },
     {
       "name": "redis",
       "tag": "8.4.5",
       "source": "docker.io/library/redis@sha256:6159aff1adde991d8747d705fa1135ceda04b0414dc372b381a6af415ec3b374",
-      "usedBy": "Managed Redis 8.4.5; Redis restore staging"
+      "usedBy": "Managed key-value store on Redis 8.4.5 (stores created before 2.12); key-value restore staging"
     },
     {
       "name": "redis",
       "tag": "8.2.8",
       "source": "docker.io/library/redis@sha256:616bb446d5db225ddf786052834279e7c7222c48694d4451e8af22b8f5953b28",
-      "usedBy": "Managed Redis 8.2.8; Redis restore staging"
+      "usedBy": "Managed key-value store on Redis 8.2.8 (stores created before 2.12); key-value restore staging"
     },
     {
       "name": "redis",
       "tag": "7.4.10",
       "source": "docker.io/library/redis@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b",
-      "usedBy": "Managed Redis 7.4.10; Redis restore staging"
+      "usedBy": "Managed key-value store on Redis 7.4.10 (stores created before 2.12); key-value restore staging"
     },
     {
       "name": "redis",
       "tag": "7.2.12",
       "source": "docker.io/library/redis@sha256:16623900b6ddd58e8bac04ccb6b611b9a5d1aed165453e28bcaed251d549d62c",
-      "usedBy": "Managed Redis 7.2.12; Redis restore staging"
+      "usedBy": "Managed key-value store on Redis 7.2.12 (stores created before 2.12); key-value restore staging"
     },
     {
       "name": "redis",
       "tag": "6.2.20",
       "source": "docker.io/library/redis@sha256:2a5e873bfae4bcc660b27f45c391d4a7a01799b65dea7286acc858e9c6c1e7d3",
-      "usedBy": "Managed Redis 6.2.20; Redis restore staging"
+      "usedBy": "Managed key-value store on Redis 6.2.20 (stores created before 2.12); key-value restore staging"
     },
     {
       "name": "clickhouse-server",

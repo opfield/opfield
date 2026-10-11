@@ -29,7 +29,7 @@ Each domain has its own skill in this package. If one is not installed, install 
 - The same workload on several Docker Nodes with failover or replicas: `high-availability`.
 - Public hostname, DNS, TLS, Route, Access List, Secure Link, maintenance mode, or reachability: `ingress-and-domains`.
 - Private certificate authority or internal certificates: `internal-pki`.
-- Managed or external PostgreSQL, Redis, ClickHouse, application bindings, queries, or backups: `databases`.
+- Managed or external PostgreSQL, key-value stores, ClickHouse, application bindings, queries, or backups: `databases`.
 - Object storage, external S3, FTP, or SFTP, copy jobs, or the MinIO to SeaweedFS migration: `storage`.
 - Adding, updating, or repairing Nodes, daemon health, Node console or files: `managing-nodes`.
 - Logs, SIEM export, alert rules, webhooks, status pages, or the audit log: `observability`.

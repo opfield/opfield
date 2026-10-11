@@ -53,6 +53,11 @@ export interface RelayWitnessRow {
   artifactSha256: string | null;
   createdAt: Date;
   leasePolicyId: string | null;
+  /**
+   * The raft port the witness was given when it was placed (managed_availability_witnesses.relay_local_port): it is
+   * part of the Keeper cluster configuration, so it never moves while the witness lives. Null: allocated here.
+   */
+  relayLocalPort?: number | null;
 }
 
 /** Signed witness artifacts per kind, version and architecture (witness catalog). */
@@ -60,8 +65,14 @@ export interface WitnessArtifactSource {
   resolve(kind: string, version: string, arch: string): Promise<WitnessArtifact | null>;
 }
 
-/** The other Keeper voters of a set as the witness reaches them (routes and loopback addresses; P2-T08). */
-export type KeeperPeerResolver = (witness: RelayWitnessRow, relay: RelayWitnessRelay) => Promise<WitnessPeer[]>;
+/**
+ * The other Keeper voters of a set as the witness reaches them (routes and loopback addresses; P2-T08), and the
+ * loopback host of the witness's own raft entry (the set's Keeper endpoint host; default 127.0.0.1).
+ */
+export type KeeperPeerResolver = (
+  witness: RelayWitnessRow,
+  relay: RelayWitnessRelay
+) => Promise<WitnessPeer[] | { peers: WitnessPeer[]; raftHost?: string }>;
 
 export interface RelayWitnessPlan {
   specs: WitnessSpec[];
@@ -75,14 +86,25 @@ export interface RelayWitnessPlan {
  * removed (it then moves back, which republishes its relay-local endpoints).
  */
 export function allocateWitnessPorts(
-  witnesses: readonly { id: string; createdAt: Date }[]
+  witnesses: readonly { id: string; createdAt: Date; relayLocalPort?: number | null }[]
 ): Map<string, { clientPort: number; raftPort: number }> {
   const ordered = [...witnesses].sort(
     (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id)
   );
   const taken = new Set<number>();
   const ports = new Map<string, { clientPort: number; raftPort: number }>();
+  // A stored raft port is kept as is (it is in the Keeper cluster configuration of the witness's set).
   for (const witness of ordered) {
+    const raftPort = witness.relayLocalPort;
+    if (!raftPort || raftPort < RELAY_LOCAL_PORT_MIN + 1 || raftPort > RELAY_LOCAL_PORT_MAX) continue;
+    if ((raftPort - RELAY_LOCAL_PORT_MIN) % 2 !== 1) continue;
+    const pair = (raftPort - RELAY_LOCAL_PORT_MIN - 1) / 2;
+    if (taken.has(pair)) continue;
+    taken.add(pair);
+    ports.set(witness.id, { clientPort: raftPort - 1, raftPort });
+  }
+  for (const witness of ordered) {
+    if (ports.has(witness.id)) continue;
     if (taken.size >= PORT_PAIRS) break;
     let pair = createHash('sha256').update(witness.id).digest().readUInt32BE(0) % PORT_PAIRS;
     while (taken.has(pair)) pair = (pair + 1) % PORT_PAIRS;
@@ -121,7 +143,8 @@ export function planRelayWitnesses(
   relay: RelayWitnessRelay,
   witnesses: readonly RelayWitnessRow[],
   artifacts: ReadonlyMap<string, WitnessArtifact | null>,
-  peers: ReadonlyMap<string, WitnessPeer[]>
+  peers: ReadonlyMap<string, WitnessPeer[]>,
+  raftHosts: ReadonlyMap<string, string> = new Map()
 ): RelayWitnessPlan {
   const keepers = witnesses.filter(
     (witness) => witness.purpose === 'keeper' && witness.hostKind === 'relay' && witness.desiredState !== 'removed'
@@ -154,7 +177,7 @@ export function planRelayWitnesses(
         serverId: witness.keeperServerId,
         clientPort: pair.clientPort,
         raftPort: pair.raftPort,
-        raftHost: '',
+        raftHost: raftHosts.get(witness.id) ?? '',
         peers: peers.get(witness.id) ?? [],
         leasePolicyId: witness.leasePolicyId ?? '',
       });
@@ -240,6 +263,7 @@ export class RelayWitnessService {
         artifactSha256: managedAvailabilityWitnesses.artifactSha256,
         createdAt: managedAvailabilityWitnesses.createdAt,
         leasePolicyId: managedAvailabilitySets.leasePolicyId,
+        relayLocalPort: managedAvailabilityWitnesses.relayLocalPort,
       })
       .from(managedAvailabilityWitnesses)
       .innerJoin(managedAvailabilitySets, eq(managedAvailabilitySets.id, managedAvailabilityWitnesses.setId))
@@ -253,6 +277,7 @@ export class RelayWitnessService {
     const witnesses = await this.loadWitnesses(relayInstanceId);
     const artifacts = new Map<string, WitnessArtifact | null>();
     const peers = new Map<string, WitnessPeer[]>();
+    const raftHosts = new Map<string, string>();
     for (const witness of witnesses) {
       if (witness.purpose !== 'keeper' || witness.hostKind !== 'relay' || witness.desiredState === 'removed') continue;
       artifacts.set(
@@ -266,9 +291,15 @@ export class RelayWitnessService {
               })
           : null
       );
-      peers.set(witness.id, this.peers ? await this.peers(witness, relay) : []);
+      const resolved = this.peers ? await this.peers(witness, relay) : [];
+      if (Array.isArray(resolved)) {
+        peers.set(witness.id, resolved);
+      } else {
+        peers.set(witness.id, resolved.peers);
+        if (resolved.raftHost) raftHosts.set(witness.id, resolved.raftHost);
+      }
     }
-    return { relay, ...planRelayWitnesses(relay, witnesses, artifacts, peers) };
+    return { relay, ...planRelayWitnesses(relay, witnesses, artifacts, peers, raftHosts) };
   }
 
   /** Pushes the desired set to a relay when it changed or the relay is behind; force pushes it anyway. */

@@ -290,6 +290,7 @@
       "emptyMethods": [
         "setEventBus",
         "setLicensePolicyService",
+        "setAvailabilityHost",
         "setCertificateRenewal",
         "setBindingsTeardown",
         "setAppCertificateFingerprint",

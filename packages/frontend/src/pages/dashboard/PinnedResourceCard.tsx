@@ -2,6 +2,7 @@ import { Box, Boxes, Database } from "lucide-react";
 import { Link } from "react-router-dom";
 import { databaseHealthTone, dockerStateTone } from "@/components/common/resource-status";
 import { Badge } from "@/components/ui/badge";
+import { databaseTypeLabel } from "@/lib/database-type";
 import {
   databaseRoute,
   dockerComposeProjectRoute,
@@ -35,7 +36,7 @@ export function PinnedDatabaseCard({
         <Database className="h-4 w-4 shrink-0 text-muted-foreground" />
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{database.name}</p>
-          <p className="text-xs text-muted-foreground">{database.type}</p>
+          <p className="text-xs text-muted-foreground">{databaseTypeLabel(database.type)}</p>
         </div>
       </div>
       <Badge variant={databaseHealthTone(database.healthStatus)} size="inline">

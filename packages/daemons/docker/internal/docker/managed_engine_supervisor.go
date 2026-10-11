@@ -84,7 +84,7 @@ func (m *managedDatabaseManager) startStoppedEngine(ctx context.Context, id, con
 	if !record.DesiredRunning || record.Deleting || record.ContainerID == "" || (containerID != "" && containerID != record.ContainerID) {
 		return nil
 	}
-	if record.AvailabilityMemberID != "" {
+	if record.AvailabilityMemberID != "" || record.clickHouseAvailabilityMember() {
 		// The member runtime starts a set member, always through standby at
 		// rest.
 		return nil
@@ -132,6 +132,10 @@ func (m *managedStorageManager) startStoppedEngine(ctx context.Context, id, cont
 		return err
 	}
 	if !record.DesiredRunning || record.Removed || record.ContainerID == "" || (containerID != "" && containerID != record.ContainerID) {
+		return nil
+	}
+	if record.Set != nil {
+		// The member runtime starts a set member's containers.
 		return nil
 	}
 	if m.repairs.running(id) || record.DiskRepair.blocksEngine() {

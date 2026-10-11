@@ -145,6 +145,9 @@ type managedDatabaseCommand struct {
 	ClickhouseConfig    string                 `json:"clickhouseConfigXml"`
 	RedisConfig         *managedRedisConfig    `json:"redisConfig,omitempty"`
 	PostgresConfig      *managedPostgresConfig `json:"postgresConfig,omitempty"`
+	// ClickhouseAvailability makes the container a ClickHouse availability set
+	// member (managed_clickhouse_member.go).
+	ClickhouseAvailability *clickHouseAvailabilityCommand `json:"clickhouseAvailability,omitempty"`
 	// Internal runtime preparation must not replace the durable lifecycle
 	// operation ID used by controller reconciliation after a lost response.
 	PreserveLifecycleOperationID bool `json:"preserveLifecycleOperationId,omitempty"`
@@ -153,6 +156,9 @@ type managedDatabaseCommand struct {
 	// (PublishedPort or PublishedNativePort is 0): the port is free only while
 	// that workload is stopped.
 	ExcludedHostPorts []uint16 `json:"excludedHostPorts,omitempty"`
+	// AcceptPendingStreamLoss lets a move to Valkey drop the pending entries
+	// of stream consumer groups (managed_redis_move.go).
+	AcceptPendingStreamLoss bool `json:"acceptPendingStreamLoss,omitempty"`
 }
 
 type managedRedisConfig struct {
@@ -252,9 +258,16 @@ type managedDatabaseRecord struct {
 	RedisConfigHash      string `json:"redisConfigHash,omitempty"`
 	// PostgresMaxConnections is the max_connections the container was started
 	// with; 0 is the engine default.
-	PostgresMaxConnections          int    `json:"postgresMaxConnections,omitempty"`
-	ClickhouseRuntimeProfileVersion int    `json:"clickhouseRuntimeProfileVersion,omitempty"`
-	OperationID                     string `json:"operationId"`
+	PostgresMaxConnections          int `json:"postgresMaxConnections,omitempty"`
+	ClickhouseRuntimeProfileVersion int `json:"clickhouseRuntimeProfileVersion,omitempty"`
+	// ClickhouseAvailabilitySetID/MemberID: the container is that ClickHouse
+	// availability set member's (the member runtime starts and stops it).
+	ClickhouseAvailabilitySetID    string `json:"clickhouseAvailabilitySetId,omitempty"`
+	ClickhouseAvailabilityMemberID string `json:"clickhouseAvailabilityMemberId,omitempty"`
+	// ClickhouseAvailabilityFiles: the container binds the availability files
+	// (a set member, or a standalone node that kept its Replicated databases).
+	ClickhouseAvailabilityFiles bool   `json:"clickhouseAvailabilityFiles,omitempty"`
+	OperationID                 string `json:"operationId"`
 	// Deleting is set before a delete tears anything down. An instance whose
 	// delete could not finish is never remounted; the repair pass and a
 	// repeated delete complete it.
@@ -313,6 +326,12 @@ type managedDatabaseManager struct {
 	// pgSets connects Postgres availability set members to the member
 	// runtime (managed_database_pg_commands.go).
 	pgSets pgSetHooks
+	// kvSets connects Valkey availability set members to the member runtime
+	// (managed_database_kv_member.go).
+	kvSets kvSetHooks
+	// plugin reaches the availability member runtime (set members are held
+	// while their container is replaced).
+	plugin *DockerPlugin
 }
 
 func newManagedDatabaseManager(cfg *config.Config, client *Client, logger *slog.Logger) (*managedDatabaseManager, error) {
@@ -426,6 +445,9 @@ func (m *managedDatabaseManager) handle(ctx context.Context, action, id, configJ
 	if !managedDatabaseIDPattern.MatchString(id) {
 		return "", errors.New("invalid managed database id")
 	}
+	if handled, detail, err := m.kvSetHandle(ctx, action, id, configJSON); handled {
+		return detail, err
+	}
 	if handled, detail, err := m.pgSetHandle(ctx, action, id, configJSON); handled {
 		return detail, err
 	}
@@ -443,6 +465,19 @@ func (m *managedDatabaseManager) handle(ctx context.Context, action, id, configJ
 			return "", err
 		}
 		return m.runtimeStats(ctx, record)
+	case "move_to_valkey_preflight_v1":
+		// Read-only, so it does not wait for commands on other databases.
+		var input struct {
+			OwnerPassword string `json:"ownerPassword"`
+		}
+		if err := json.Unmarshal([]byte(configJSON), &input); err != nil {
+			return "", fmt.Errorf("parse move preflight: %w", err)
+		}
+		record, err := m.loadRecord(id)
+		if err != nil {
+			return "", err
+		}
+		return m.moveToValkeyPreflight(ctx, record, input.OwnerPassword)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()

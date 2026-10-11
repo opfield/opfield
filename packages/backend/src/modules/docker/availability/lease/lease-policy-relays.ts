@@ -27,8 +27,16 @@ export const MANAGED_AVAILABILITY_MEMBER_ENDPOINT_OWNER = 'managed_availability_
  */
 export const MANAGED_AVAILABILITY_PEER_ENDPOINT_OWNER = 'managed_availability_peer';
 
-/** Peer ports that reach the primary only (primary-<port>); their peer endpoints are lease-gated. */
-export const MANAGED_AVAILABILITY_PRIMARY_PORTS: ReadonlySet<string> = new Set(['pg-repl', 'kv-repl', 'sw-master']);
+/**
+ * Peer ports that reach the primary only (primary-<port>); their peer endpoints are lease-gated. SeaweedFS speaks
+ * HTTP and gRPC on separate ports, so its master has two.
+ */
+export const MANAGED_AVAILABILITY_PRIMARY_PORTS: ReadonlySet<string> = new Set([
+  'pg-repl',
+  'kv-repl',
+  'sw-master',
+  'sw-master-grpc',
+]);
 
 /**
  * The relay instances that carry each policy's lease-gated traffic: the relays assigned to the Secure Link endpoint of
