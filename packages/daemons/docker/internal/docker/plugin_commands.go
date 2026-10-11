@@ -71,9 +71,20 @@ func (p *DockerPlugin) HandleCommand(cmd *pb.GatewayCommand) *pb.CommandResult {
 			} else {
 				p.backupHandler.handleBackupCommand(payload.DockerBackup, result)
 			}
+		// Availability sets run their members on storage nodes, so the lease and member commands belong here too.
+		case *pb.GatewayCommand_SyncAvailabilityLease:
+			p.handleAvailabilityLeaseSync(payload.SyncAvailabilityLease, result)
+		case *pb.GatewayCommand_AvailabilityLeaseHandoff:
+			p.handleAvailabilityLeaseHandoff(payload.AvailabilityLeaseHandoff, result)
+		case *pb.GatewayCommand_ApplyWitnesses:
+			p.handleApplyKeeperWitnesses(payload.ApplyWitnesses, result)
+		case *pb.GatewayCommand_AvailabilityMember:
+			if err := p.handleAvailabilityMember(payload.AvailabilityMember); err != nil {
+				result.Success, result.Error = false, err.Error()
+			}
 		default:
 			result.Success = false
-			result.Error = "storage-profile daemon accepts only docker_database, docker_storage and docker_backup commands"
+			result.Error = "storage-profile daemon accepts only docker_database, docker_storage, docker_backup and availability commands"
 		}
 		return result
 	}
