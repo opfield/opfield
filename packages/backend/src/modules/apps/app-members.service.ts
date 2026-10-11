@@ -17,7 +17,7 @@ import {
   proxyHosts,
 } from '@/db/schema/index.js';
 import { hasScopeForResource } from '@/lib/permissions.js';
-import type { AppError } from '@/middleware/error-handler.js';
+import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import { hasDockerResourceScope } from '@/modules/docker/docker-access-resource.service.js';
 import { ProxyService } from '@/modules/proxy/proxy.service.js';
@@ -435,6 +435,13 @@ export class AppMembersService {
     this.eventBus = bus;
   }
 
+  private incidentCheck?: (environmentId: string) => Promise<boolean>;
+
+  /** Whether an environment has an open shutdown or kill switch (moves in and out are refused then). */
+  setIncidentCheck(check: (environmentId: string) => Promise<boolean>) {
+    this.incidentCheck = check;
+  }
+
   /** Maintenance overlay recompute for routes that changed environment (set by the maintenance module). */
   setRouteMoveHook(hook: (routeIds: string[]) => Promise<void>) {
     this.afterRoutesMoved = hook;
@@ -447,6 +454,13 @@ export class AppMembersService {
       const env = await this.apps.getEnvironment(app.id, input.target.environmentId);
       assertAppScope(actor.scopes, APP_ENV_MANAGE_SCOPE, app.id, env.id);
       target = { appId: app.id, environmentId: env.id, name: app.name, envName: env.name };
+      if (await this.incidentCheck?.(env.id)) {
+        throw new AppError(
+          409,
+          'APP_INCIDENT_ACTIVE',
+          `${app.name} · ${env.name} is shut down or isolated; turn that off before moving resources into it`
+        );
+      }
     }
     const result: PlaceResult = { placed: [], refused: [] };
     const touchedApps = new Set<string>(target ? [target.appId] : []);
@@ -475,6 +489,10 @@ export class AppMembersService {
       }
       if (source && !hasAppScope(actor.scopes, APP_ENV_MANAGE_SCOPE, source.appId, source.environmentId)) {
         refuse('FORBIDDEN', 'Missing apps:env:manage for the environment this resource leaves');
+        continue;
+      }
+      if (source?.environmentId && (await this.incidentCheck?.(source.environmentId))) {
+        refuse('APP_INCIDENT_ACTIVE', 'Its environment is shut down or isolated; turn that off before moving it');
         continue;
       }
       const targetFolderId = target ? (targetFolders?.[family] ?? null) : null;

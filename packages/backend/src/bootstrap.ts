@@ -45,11 +45,17 @@ import { AppAuditTagger } from '@/modules/apps/app-audit-tagger.js';
 import { AppEnvLayerService } from '@/modules/apps/app-env-layer.js';
 import { AppFolderService } from '@/modules/apps/app-folders.service.js';
 import { AppHealthService } from '@/modules/apps/app-health.service.js';
+import { DefaultAppIncidentActions } from '@/modules/apps/app-incident-actions.js';
+import { AppIncidentRunner } from '@/modules/apps/app-incident-runner.js';
+import { AppIncidentTargetsReader } from '@/modules/apps/app-incident-targets.js';
 import { AppIncidentsRepo } from '@/modules/apps/app-incidents.repo.js';
+import { AppIncidentService } from '@/modules/apps/app-isolation.service.js';
 import { AppMaintenanceService } from '@/modules/apps/app-maintenance.service.js';
 import { AppMaintenanceAccessService } from '@/modules/apps/app-maintenance-access.js';
+import { AppMemberFreeze } from '@/modules/apps/app-member-freeze.js';
 import { AppMembersReader, AppMembersService } from '@/modules/apps/app-members.service.js';
 import { AppMembershipService } from '@/modules/apps/app-membership.js';
+import { AppNetworkIsolation } from '@/modules/apps/app-network-isolation.js';
 import { AppNodesService } from '@/modules/apps/app-nodes.service.js';
 import { AppOverviewService } from '@/modules/apps/app-overview.service.js';
 import { AppVariablesService } from '@/modules/apps/app-variables.service.js';
@@ -778,7 +784,8 @@ export async function initializeContainer(): Promise<void> {
     AppOverviewService,
     new AppOverviewService(db, appsService, appMembersReader, appHealthService)
   );
-  container.registerInstance(AppNodesService, new AppNodesService(db, auditService, appsService, appMembersReader));
+  const appNodesService = new AppNodesService(db, auditService, appsService, appMembersReader);
+  container.registerInstance(AppNodesService, appNodesService);
   const appEnvLayerService = new AppEnvLayerService(db, cryptoService, appMembersReader);
   container.registerInstance(AppEnvLayerService, appEnvLayerService);
   container.registerInstance(
@@ -1431,6 +1438,45 @@ export async function initializeContainer(): Promise<void> {
   proxyService.setAppOverlayHook((routeIds) => appMaintenanceService.applyModes(routeIds));
   appsService.setMaintenanceHooks(appMaintenanceService);
   appMembersService.setRouteMoveHook((routeIds) => appMaintenanceService.applyModes(routeIds));
+  // Apps shutdown and kill switch: incidents record every change with its prior state and restore it item by item;
+  // members of an isolated environment are frozen in every mutation path.
+  const appMemberFreeze = new AppMemberFreeze(db, appIncidentsRepo);
+  container.registerInstance(AppMemberFreeze, appMemberFreeze);
+  const appNetworkIsolation = new AppNetworkIsolation(db, nodeDispatch);
+  container.registerInstance(AppNetworkIsolation, appNetworkIsolation);
+  const appIncidentRunner = new AppIncidentRunner(
+    appIncidentsRepo,
+    new DefaultAppIncidentActions(db, appMaintenanceService, appNetworkIsolation),
+    {
+      changed: (incident) => {
+        appMemberFreeze.invalidate();
+        appsService.publish(incident.appId, 'incident_changed');
+      },
+    },
+    new OperationLeaseStore(db)
+  );
+  container.registerInstance(AppIncidentRunner, appIncidentRunner);
+  const appIncidentService = new AppIncidentService(
+    db,
+    appsService,
+    appIncidentsRepo,
+    new AppIncidentTargetsReader(db, appMembersReader),
+    appIncidentRunner,
+    appMemberFreeze,
+    auditService
+  );
+  container.registerInstance(AppIncidentService, appIncidentService);
+  appsService.setIncidentGuard(appIncidentService);
+  appMembersService.setIncidentCheck((environmentId) => appIncidentService.environmentHasIncident(environmentId));
+  appNodesService.setFreezeCheck((environmentId) =>
+    appMemberFreeze.assertNotFrozen({ kind: 'environment', id: environmentId })
+  );
+  proxyService.setAppFreezeGuard((routeId) => appMemberFreeze.assertNotFrozen({ kind: 'route', id: routeId }));
+  dockerManagementService.setAppFreezeGuard({
+    anyIsolationOpen: () => appMemberFreeze.anyIsolationOpen(),
+    assertContainer: (nodeId, name) => appMemberFreeze.assertNotFrozen({ kind: 'container', nodeId, name }),
+    assertMayStart: (nodeId, name) => appMemberFreeze.assertMayStart(nodeId, name),
+  });
   const dockerWorkloadResolver = new DockerWorkloadResolverService(db);
   container.registerInstance(DockerWorkloadResolverService, dockerWorkloadResolver);
   dockerHealthCheckService.setWorkloadResolver(dockerWorkloadResolver);

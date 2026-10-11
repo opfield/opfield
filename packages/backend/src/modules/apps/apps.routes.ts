@@ -5,6 +5,7 @@ import { authMiddleware, requireAnyScopeBase } from '@/modules/auth/auth.middlew
 import type { AppEnv } from '@/types.js';
 import { APP_SCOPES } from './app-access.js';
 import { registerAppActivityRoutes } from './app-activity.routes.js';
+import { registerAppIncidentRoutes } from './app-incident.routes.js';
 import { registerAppMaintenanceRoutes } from './app-maintenance.routes.js';
 import { registerAppMembersRoutes } from './app-members.routes.js';
 import { registerAppNodesRoutes } from './app-nodes.routes.js';
@@ -85,3 +86,4 @@ registerAppVariablesRoutes(appsRoutes);
 registerAppMaintenanceRoutes(appsRoutes);
 registerAppOverviewRoutes(appsRoutes);
 registerAppActivityRoutes(appsRoutes);
+registerAppIncidentRoutes(appsRoutes);

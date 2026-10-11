@@ -7,6 +7,7 @@ import {
   mergeLayerEnv,
 } from './app-env-layer.js';
 import type { AppFamily } from './app-families.js';
+import { AppMemberFreeze, type FreezeTarget } from './app-member-freeze.js';
 import { type AppListFilter, AppMembershipService, parseAppListFilter } from './app-membership.js';
 import {
   APP_FAMILY_NODE_TYPES,
@@ -64,6 +65,19 @@ export const appsHostRuntime = {
   },
   layerOwnerKey,
   mergeLayerEnv,
+  /**
+   * Kill switch freeze for core mutation paths: deploy/switch, Compose apply/up/start, migration, link and binding
+   * create, Pages activation on members of an isolated environment answer 409 APP_ISOLATED.
+   */
+  assertNotFrozen(target: FreezeTarget) {
+    if (!container.isRegistered(AppMemberFreeze)) return Promise.resolve();
+    return container.resolve(AppMemberFreeze).assertNotFrozen(target);
+  },
+  /** Whether a resource sits in an isolated environment (reconcilers skip it instead of throwing). */
+  async isFrozen(target: FreezeTarget): Promise<boolean> {
+    if (!container.isRegistered(AppMemberFreeze)) return false;
+    return (await container.resolve(AppMemberFreeze).frozenEnvironment(target)) !== null;
+  },
   /** `app` of one resource by its folder (detail responses). */
   appForFolder(family: AppFamily, folderId: string | null | undefined) {
     return container.resolve(AppMembershipService).refForFolder(family, folderId);

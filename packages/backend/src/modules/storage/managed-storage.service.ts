@@ -284,4 +284,31 @@ export class ManagedStorageService {
   async reconcilePendingOperations(): Promise<void> {
     return commercialModuleUnavailable();
   }
+  /** App shutdown: docker pause every member of the cluster (status `paused`; restart and update refused). */
+  async pause(_id: string, _userId: string | null): Promise<unknown> {
+    return commercialModuleUnavailable();
+  }
+  async unpause(_id: string, _userId: string | null): Promise<unknown> {
+    return commercialModuleUnavailable();
+  }
+  /**
+   * App kill switch: stop publishing the S3 port and keep it with a reservation hold owned by `holdOwnerId` (owner
+   * kind `app_incident`). Returns the publication before, or null when the storage is gone or was not published.
+   */
+  async suspendPublication(
+    _id: string,
+    _holdOwnerId: string,
+    _userId: string | null
+  ): Promise<{ publishS3: boolean; publishedPort: number } | null> {
+    return commercialModuleUnavailable();
+  }
+  /** Publish the same port again and release the hold. False when the storage is gone. */
+  async resumePublication(
+    _id: string,
+    _prior: { publishS3: boolean; publishedPort: number },
+    _holdOwnerId: string,
+    _userId: string | null
+  ): Promise<boolean> {
+    return commercialModuleUnavailable();
+  }
 }

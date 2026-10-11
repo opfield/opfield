@@ -1,5 +1,5 @@
 {
-  "id": "89981268-fde8-4ec0-8c46-f23ca8f80058",
+  "id": "f8556624-02ab-4c5a-ac49-0b4e60dee5c2",
   "prevId": "ef447c56-9c0e-40bb-b8d1-71678a32e707",
   "version": "7",
   "dialect": "postgresql",
@@ -24126,6 +24126,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'creating'"
+        },
+        "desired_state": {
+          "name": "desired_state",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
         },
         "observed_state": {
           "name": "observed_state",

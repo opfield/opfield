@@ -13,7 +13,7 @@ export interface ContainerLinkEnvironment {
   url?: string;
 }
 
-export type ContainerLinkDesiredState = 'active' | 'deleted';
+export type ContainerLinkDesiredState = 'active' | 'suspended' | 'deleted';
 
 /**
  * `creating`: being provisioned. `ready`: the consumer reaches the target. `waiting`: the target does not run; the

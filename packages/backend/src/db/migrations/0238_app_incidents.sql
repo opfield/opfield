@@ -33,6 +33,7 @@ CREATE TABLE "app_incidents" (
 );
 --> statement-breakpoint
 ALTER TABLE "node_host_port_reservations" DROP CONSTRAINT "node_host_port_reservations_owner_kind_valid";--> statement-breakpoint
+ALTER TABLE "managed_storage_bindings" ADD COLUMN "desired_state" varchar(32) DEFAULT 'active' NOT NULL;--> statement-breakpoint
 ALTER TABLE "proxy_additional_secure_links" ADD COLUMN "incident_suspended_by" uuid;--> statement-breakpoint
 ALTER TABLE "app_incident_items" ADD CONSTRAINT "app_incident_items_incident_id_app_incidents_id_fk" FOREIGN KEY ("incident_id") REFERENCES "public"."app_incidents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "app_incidents" ADD CONSTRAINT "app_incidents_app_id_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."apps"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

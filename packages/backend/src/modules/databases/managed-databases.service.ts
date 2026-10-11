@@ -413,6 +413,27 @@ export class ManagedDatabaseService {
   async reconcilePendingOperations(): Promise<void> {
     return commercialModuleUnavailable();
   }
+  /**
+   * App kill switch: turn the direct publication off through the normal update path and keep its ports with a
+   * reservation hold owned by `holdOwnerId` (owner kind `app_incident`). Returns the ports before, or null when the
+   * database is gone or was not published.
+   */
+  async suspendPublication(
+    _id: string,
+    _holdOwnerId: string,
+    _userId: string | null
+  ): Promise<{ publishedPort: number | null; publishedNativePort: number | null } | null> {
+    return commercialModuleUnavailable();
+  }
+  /** Republish the same ports and release the hold. False when the database is gone. */
+  async resumePublication(
+    _id: string,
+    _prior: { publishedPort: number | null; publishedNativePort: number | null },
+    _holdOwnerId: string,
+    _userId: string | null
+  ): Promise<boolean> {
+    return commercialModuleUnavailable();
+  }
 }
 export type {
   ManagedDatabaseLogOptions,

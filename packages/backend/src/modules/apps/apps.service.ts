@@ -71,9 +71,23 @@ export interface AppMaintenanceHooks {
   ): Promise<Map<string, Record<string, unknown>>>;
 }
 
-/** Hook for incident checks (shutdown/isolation, phase 2): refuse deletes while one is active. */
+/** Hook for incidents (shutdown/isolation): refuse deletes while one is active; open incidents per environment. */
 export interface AppIncidentGuard {
   assertNoActiveIncident(appId: string, environmentId?: string): Promise<void>;
+  summaries?(environmentIds: readonly string[]): Promise<Map<string, Array<{ kind: 'shutdown' | 'isolation' }>>>;
+}
+
+/** The app list's incident badge from the open incidents of its visible environments. */
+export function appIncidentState(
+  environmentIds: readonly string[],
+  incidents: ReadonlyMap<string, ReadonlyArray<{ kind: 'shutdown' | 'isolation' }>>
+): AppIncidentState {
+  if (environmentIds.length === 0) return 'none';
+  const isolated = environmentIds.filter((id) => incidents.get(id)?.some((incident) => incident.kind === 'isolation'));
+  if (isolated.length > 0) return isolated.length === environmentIds.length ? 'isolated' : 'partial';
+  const stopped = environmentIds.filter((id) => incidents.get(id)?.some((incident) => incident.kind === 'shutdown'));
+  if (stopped.length > 0) return stopped.length === environmentIds.length ? 'stopped' : 'partial';
+  return 'none';
 }
 
 const DEFAULT_HEALTH: EnvironmentHealthSummary = {
@@ -236,10 +250,11 @@ export class AppsService {
       if (envIds.length === 0 && !hasAppWideScope(scopes, APP_VIEW_SCOPE, app.id)) return [];
       return [{ app, envs: envs.filter((env) => envIds.includes(env.id)) }];
     });
-    const health = await this.summarize(
-      scopes,
-      visible.flatMap(({ envs }) => envs.map((env) => env.id))
-    );
+    const allEnvIds = visible.flatMap(({ envs }) => envs.map((env) => env.id));
+    const [health, incidents] = await Promise.all([
+      this.summarize(scopes, allEnvIds),
+      this.incidentSummaries(allEnvIds),
+    ]);
     return visible.map(({ app, envs }) => {
       const production = envs.find((env) => env.isProduction) ?? null;
       const summary = (production && health.get(production.id)) || DEFAULT_HEALTH;
@@ -255,7 +270,10 @@ export class AppsService {
           health: (health.get(env.id) ?? DEFAULT_HEALTH).health,
         })),
         health: summary.health,
-        incident: 'none' as AppIncidentState,
+        incident: appIncidentState(
+          envs.map((env) => env.id),
+          incidents
+        ),
         cpuPercent: summary.cpuPercent,
         memoryBytes: summary.memoryBytes,
         running: summary.running,
@@ -277,7 +295,7 @@ export class AppsService {
       allEnvs.map((env) => env.id)
     );
     const envs = allEnvs.filter((env) => envIds.includes(env.id));
-    const [roots, folders, nodes, counts, health, maintenance] = await Promise.all([
+    const [roots, folders, nodes, counts, health, maintenance, incidents] = await Promise.all([
       this.folders.appRootFolders(app.id),
       this.folders.envFolders(envIds),
       this.allowedNodes(envIds),
@@ -285,6 +303,7 @@ export class AppsService {
       this.summarize(scopes, envIds),
       this.maintenance?.environmentMaintenance(app, envs) ??
         Promise.resolve(new Map<string, Record<string, unknown>>()),
+      this.incidentSummaries(envIds),
     ]);
     return {
       id: app.id,
@@ -292,6 +311,7 @@ export class AppsService {
       name: app.name,
       maintenanceOverride: app.maintenanceOverride,
       maintenanceOverrideAt: app.maintenanceOverrideAt,
+      incident: appIncidentState(envIds, incidents),
       /** App-root folder per family: a grant there covers every environment, present and future. */
       rootFolderIds: roots,
       createdAt: app.createdAt,
@@ -303,6 +323,7 @@ export class AppsService {
           counts: counts.get(env.id) ?? emptyMemberCounts(),
           health: health.get(env.id) ?? DEFAULT_HEALTH,
           maintenance: maintenance.get(env.id),
+          incidents: incidents.get(env.id) ?? [],
         })
       ),
       permissions: {
@@ -330,6 +351,7 @@ export class AppsService {
       counts: AppMemberCounts;
       health: EnvironmentHealthSummary;
       maintenance?: Record<string, unknown>;
+      incidents?: unknown[];
     }
   ) {
     return {
@@ -351,7 +373,8 @@ export class AppsService {
       },
       allowedNodeIds: extra.nodeIds,
       maintenance: extra.maintenance ?? null,
-      incidents: [] as unknown[],
+      /** Open shutdown / kill switch incidents of the environment, with their items. */
+      incidents: extra.incidents ?? [],
     };
   }
 
@@ -382,6 +405,13 @@ export class AppsService {
       .where(inArray(appEnvironmentNodes.environmentId, [...environmentIds]));
     for (const row of rows) result.get(row.environmentId)?.push(row.nodeId);
     return result;
+  }
+
+  private async incidentSummaries(environmentIds: readonly string[]) {
+    if (!this.incidents?.summaries || environmentIds.length === 0) {
+      return new Map<string, Array<{ kind: 'shutdown' | 'isolation' }>>();
+    }
+    return this.incidents.summaries(environmentIds);
   }
 
   private async summarize(scopes: readonly string[], environmentIds: readonly string[]) {

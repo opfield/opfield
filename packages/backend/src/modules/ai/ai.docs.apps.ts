@@ -1,7 +1,7 @@
 export const APP_DOCS: Record<string, string> = {
   apps: `# Apps
 
-An app groups resources of several types into environments (production, staging, ...): containers, deployments, Compose projects, routes, databases, storage and Pages. Use list_apps, get_app, manage_app, manage_app_environment, manage_app_members, manage_app_variables, get_app_overview and get_app_activity (REST: /api/apps).
+An app groups resources of several types into environments (production, staging, ...): containers, deployments, Compose projects, routes, databases, storage and Pages. Use list_apps, get_app, manage_app, manage_app_environment, manage_app_members, manage_app_variables, manage_app_incident, get_app_overview and get_app_activity (REST: /api/apps).
 
 ## Model
 - A new app has one environment, production, marked as Production. Exactly one environment holds the marker (manage_app_environment mark_production moves it); the Production environment cannot be deleted.
@@ -22,6 +22,11 @@ An app groups resources of several types into environments (production, staging,
 ## Maintenance
 - manage_app_environment set_maintenance puts every proxy route of the environment in maintenance; manage_app update maintenanceOverride does it for every environment. Each route keeps its own maintenance switch: turning the overlay off restores exactly what each route had. Routes show appMaintenanceMode.
 - manage_app_environment create_access_code issues one Maintenance Access Code for every route of the environment (or app) in maintenance: one user, 5 minutes, once per route.
+
+## Shutdown and kill switch
+- manage_app_incident shutdown stops what runs (containers, deployments, Compose projects stop; managed databases and storage pause; routes and Pages routes show the maintenance page); start brings back exactly that set. Members are not frozen.
+- manage_app_incident isolate (confirmName = the app name) is the kill switch for a security incident: routes lock down (maintenance page, no team access, no access code), links, bindings and Secure Links touching members close, direct publications are suspended, member containers lose their networks. Members are frozen: recreate, deploy, Compose apply, migration, route edits and membership changes answer 409 APP_ISOLATED; stop, restart, logs and delete still work. release restores every item from its recorded prior state.
+- Both run in the background; status shows each incident with its items and errors (failed items are retried every 30 seconds and when nodes reconnect). preview counts what would change. Scope: environmentIds (apps:operate on each) or every environment (apps:operate on the app). Deleting an app or environment is refused while an incident is open (APP_INCIDENT_ACTIVE).
 
 ## Permissions
 - apps:view, apps:create, apps:edit, apps:delete, apps:env:manage, apps:promote, apps:operate. Qualifiers: <appId> (whole app) and env/<envId> (view, env:manage, promote, operate). Renaming, environment changes and deleting need the permission on the whole app. Members still need their own permissions; grants on an environment folder (<scope>:folder/<placementFolderId>) cover its members, grants on an app root folder (rootFolderIds) cover every environment.

@@ -38,6 +38,13 @@ export class AppNodesService {
     private readonly members: AppMembersReader
   ) {}
 
+  private freeze?: (environmentId: string) => Promise<void>;
+
+  /** Allowlist changes are refused while the environment is isolated by the kill switch. */
+  setFreezeCheck(check: (environmentId: string) => Promise<void>) {
+    this.freeze = check;
+  }
+
   async list(actor: AppActor, appId: string, environmentId: string) {
     const { app } = await this.apps.resolveVisible(actor.scopes, appId);
     const env = await this.apps.getEnvironment(app.id, environmentId);
@@ -80,6 +87,7 @@ export class AppNodesService {
     const { app } = await this.apps.resolveVisible(actor.scopes, appId);
     const env = await this.apps.getEnvironment(app.id, environmentId);
     assertAppScope(actor.scopes, APP_ENV_MANAGE_SCOPE, app.id, env.id);
+    await this.freeze?.(env.id);
     const [node] = await this.db
       .select({ id: nodes.id, type: nodes.type, hostname: nodes.hostname, displayName: nodes.displayName })
       .from(nodes)
@@ -121,6 +129,7 @@ export class AppNodesService {
     const { app } = await this.apps.resolveVisible(actor.scopes, appId);
     const env = await this.apps.getEnvironment(app.id, environmentId);
     assertAppScope(actor.scopes, APP_ENV_MANAGE_SCOPE, app.id, env.id);
+    await this.freeze?.(env.id);
     const removed = await this.db
       .delete(appEnvironmentNodes)
       .where(and(eq(appEnvironmentNodes.environmentId, env.id), eq(appEnvironmentNodes.nodeId, nodeId)))

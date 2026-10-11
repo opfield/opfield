@@ -14,7 +14,7 @@ export interface ObjectStorageManagedView {
   runtimeConfig: { cpuCores: number; memoryMb: number; swapMb: number };
   publishS3?: boolean;
   publishedPort: number;
-  status: 'creating' | 'updating' | 'ready' | 'stopped' | 'error' | 'deleting';
+  status: 'creating' | 'updating' | 'ready' | 'paused' | 'stopped' | 'error' | 'deleting';
   lastError: string | null;
   /** Present while a migration write freeze keeps every issued key read-only. */
   writesFrozenAt?: string;

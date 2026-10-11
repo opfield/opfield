@@ -364,6 +364,8 @@ export const managedStorageBindings = pgTable(
     principal: varchar('principal', { length: 128 }),
     buckets: jsonb('buckets').$type<string[]>().notNull().default([]),
     status: storageBindingStatusEnum('status').notNull().default('creating'),
+    // 'suspended': an app kill switch tore its transport down; the row, principal and key stay (Apps).
+    desiredState: varchar('desired_state', { length: 32 }).$type<'active' | 'suspended'>().notNull().default('active'),
     observedState: varchar('observed_state', { length: 32 })
       .$type<ManagedStorageBindingObservedState>()
       .notNull()

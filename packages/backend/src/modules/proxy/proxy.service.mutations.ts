@@ -72,6 +72,13 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
     this.appOverlay = hook;
   }
 
+  /** Refuses changes to routes an app kill switch holds (409 APP_ISOLATED; set by the apps module). */
+  protected appFreeze?: (routeId: string) => Promise<void>;
+
+  setAppFreezeGuard(guard: (routeId: string) => Promise<void>) {
+    this.appFreeze = guard;
+  }
+
   /** A route created in, or changed inside, an app environment takes the environment's maintenance overlay. */
   protected async refreshAppOverlay(host: {
     id: string;
@@ -442,6 +449,7 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
     userId: string,
     validationOptions: ProxyValidationInput = {}
   ) {
+    await this.appFreeze?.(id);
     // Serialize the DB write and node apply with every other change to this
     // host, so the node always serves the last committed row. A move also
     // fences reconnect cleanup on the target node.
