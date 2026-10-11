@@ -143,7 +143,7 @@ describe('cloud enrolment file', () => {
     const SECRET = 'client-secret-9f8e7d';
     const file = {
       code: 'CLD-7K3M-Q9TX',
-      publicUrl: 'https://acme.opfield.cloud',
+      publicUrl: 'https://acme.opfield.cloud:3000',
       sso: { issuer: 'https://account.opfield.dev', clientId: 'gw-acme', clientSecret: SECRET },
       owner: { sub: '0b6f3c8e-6a1e-4d43-9b8e-2b8d3c1f0a77', email: 'Owner@Example.com', name: 'Ada Owner' },
     };
@@ -165,7 +165,7 @@ describe('cloud enrolment file', () => {
       runner.setManagedSso(sso);
       await expect(runner.runOnce()).resolves.toBe(true);
       expect(sso.apply).toHaveBeenCalledWith({
-        publicUrl: 'https://acme.opfield.cloud',
+        publicUrl: 'https://acme.opfield.cloud:3000',
         sso: file.sso,
         owner: { ...file.owner, email: 'owner@example.com' },
       });

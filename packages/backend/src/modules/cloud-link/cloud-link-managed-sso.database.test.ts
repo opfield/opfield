@@ -44,7 +44,8 @@ const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
 const ISSUER = 'https://account.opfield.dev';
 const SECRET = 'portal-client-secret-4b1f9e';
 const OWNER = { sub: '0b6f3c8e-6a1e-4d43-9b8e-2b8d3c1f0a77', email: 'ada@example.com', name: 'Ada Owner' };
-const PUBLIC_URL = 'https://acme.opfield.cloud';
+// The installer serves HTTPS on 3000: the port is part of the public URL and of the redirect URI.
+const PUBLIC_URL = 'https://acme.opfield.cloud:3000';
 
 /**
  * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): a managed installation whose enrolment file carries the Opfield
@@ -168,6 +169,7 @@ describe.skipIf(!url)('managed installation signed in with the Opfield account (
     expect((await generalSettings.getConfig()).gatewayGrpcPublicTarget).toBe('acme.opfield.cloud');
     expect(await new FinalizeSetupService(db).isOwner(owner!.id)).toBe(true);
     // Stored encrypted, never in the audit, and the file is gone once every step settled.
+    expect((await oidcSettings.getRuntimeConfig())?.redirectUri).toBe('https://acme.opfield.cloud:3000/auth/callback');
     const stored = await q(`select value::text from settings where key = 'auth:oidc'`);
     expect(stored.rows[0].value).not.toContain(SECRET);
     expect(JSON.stringify(audit.mock.calls)).not.toContain(SECRET);
