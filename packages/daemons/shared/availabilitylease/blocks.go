@@ -79,6 +79,20 @@ func (n *Node) SetCandidateReady(policyID string, ready bool) {
 	n.run(func(time.Duration) { n.ready[policyID] = ready })
 }
 
+// SetStateHandler registers the application handler of a stateful policy;
+// nil unregisters it. A candidate of a stateful policy without a handler
+// never acquires; it still votes and accepts as a member.
+func (n *Node) SetStateHandler(policyID string, handler *StateHandler) {
+	n.run(func(time.Duration) {
+		if handler == nil {
+			delete(n.handlers, policyID)
+			return
+		}
+		copied := *handler
+		n.handlers[policyID] = &copied
+	})
+}
+
 // LeaseMode reports whether this node holds a lease manifest for the policy
 // that is not lease-closed. While true the daemon refuses backend start and
 // serve commands for the policy unless it holds the lease (A5 gate).
@@ -166,12 +180,18 @@ func (n *Node) adoptBlock(block *pb.LeaseSignedBlock, forwarded bool, now time.D
 		if previous != nil && manifest.Epoch < previous.Epoch && !manifest.Closed {
 			return false, fmt.Errorf("lease manifest voter epoch %d goes back from %d", manifest.Epoch, previous.Epoch)
 		}
+		if previous != nil && previous.Stateful != manifest.Stateful && !previous.Closed && !manifest.Closed {
+			// A policy's holder state cannot appear or vanish: the Gateway
+			// uses a new policy id instead (M10).
+			return false, fmt.Errorf("lease manifest of %s changes whether it is stateful", manifest.PolicyID)
+		}
 		if err := n.chain.verifyBlock(block, domainManifest); err != nil {
 			return false, err
 		}
 		if previous != nil && previous.BootstrapID == manifest.BootstrapID {
 			manifest.bootstrapSince = previous.bootstrapSince
 		}
+		n.forgetOnJoin(previous, manifest)
 		n.manifests[manifest.PolicyID] = manifest
 		n.dirtyOther[prefixManifest+manifest.PolicyID] = data
 		n.keyCache = nil

@@ -16,6 +16,7 @@ import (
 const (
 	domainFrame       = "gateway-availability-lease/frame/v1"
 	domainAccept      = "gateway-availability-lease/accept/v1"
+	domainAcceptV2    = "gateway-availability-lease/accept/v2"
 	domainManifest    = "gateway-availability-lease/manifest/v1"
 	domainKeyRotation = "gateway-availability-lease/key-rotation/v1"
 )

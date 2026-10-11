@@ -28,6 +28,16 @@ func (n *Node) commitQuorum(commit *pb.LeaseCommit, manifest *Manifest) (bool, e
 		return false, fmt.Errorf("lease commit epoch %d is unknown", commit.GetEpoch())
 	}
 	ballot := ballotFromProto(commit.GetBallot())
+	// Stateful policies: the commit carries the certified state and every
+	// accept of its QC signs the v2 statement over that state's hash.
+	var hash [32]byte
+	if manifest.Stateful {
+		state, err := decodeHolderState(commit.GetState())
+		if err != nil || state.Holder != ballot.Proposer {
+			return false, errors.New("lease commit of a stateful key carries no valid state")
+		}
+		hash = stateHash(commit.GetState())
+	}
 	signers := map[string]bool{}
 	relay := false
 	for _, accepted := range commit.GetQuorum() {
@@ -40,7 +50,10 @@ func (n *Node) commitQuorum(commit *pb.LeaseCommit, manifest *Manifest) (bool, e
 			accepted.GetEpoch() != commit.GetEpoch() || accepted.GetManifestVersion() != commit.GetManifestVersion() {
 			continue
 		}
-		message := acceptStatement(key, ballot, accepted.GetEpoch(), accepted.GetManifestVersion(), id, accepted.GetAcceptorIncarnation())
+		if manifest.Stateful && !sameBytes(accepted.GetStateHash(), hash[:]) {
+			continue
+		}
+		message := statementFor(manifest.Stateful, key, ballot, accepted.GetEpoch(), accepted.GetManifestVersion(), id, accepted.GetAcceptorIncarnation(), hash)
 		if !n.verifyAny(n.identityKeys(id), message, accepted.GetSignature(), accepted.GetAdditionalSignatures()) {
 			continue
 		}
@@ -175,10 +188,12 @@ func (n *Node) AcceptorView() []KeyView {
 	for _, key := range keys {
 		ak := n.acceptors[key]
 		state, holder, reserved := n.keyState(ak, n.manifests[key.PolicyID], key, now)
-		views = append(views, KeyView{
+		view := KeyView{
 			Key: key, State: state, Holder: holder, ReservedFor: reserved, Promised: ak.promised(),
 			CommitBallot: ak.commitBallot, Abstaining: !n.voting(key.PolicyID, now), CommitSince: ak.commitSince,
-		})
+		}
+		n.statefulView(&view, ak)
+		views = append(views, view)
 	}
 	return views
 }

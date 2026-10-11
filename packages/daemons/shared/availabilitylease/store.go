@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -27,6 +28,11 @@ const (
 	// in the same boot (lease clock origin and reading, and the abstention
 	// deadline then in force); older builds never write it.
 	recordBootStamp = "bootstamp"
+	// recordStoreInfo marks a store written by a v3 node, with the
+	// incarnation that created it (M1); stores without it are fresh or come
+	// from an older release, and neither holds KNOWN stateful memory.
+	recordStoreInfo = "storeinfo"
+	prefixHolder    = "holder/"
 	prefixVoters    = "voters/"
 	prefixManifest  = "manifest/"
 	prefixKey       = "key/"
@@ -70,11 +76,71 @@ type keyRecord struct {
 	// clock reading; after a restart within the same boot it restores the
 	// hold exactly (restoreHolds). Older builds ignore it.
 	Accepted *acceptedRecord `json:"accepted,omitempty"`
+	// Known is set for a stateful key when Accepted is this acceptor's memory
+	// of the key: it accepted, as a voter, a propose echoing a promise of its
+	// current incarnation, and it has not joined the policy's voters anew
+	// since (AS1). Stores of older releases never set it (UNKNOWN).
+	Known bool `json:"known,omitempty"`
 }
 
 type acceptedRecord struct {
 	Ballot Ballot `json:"ballot"`
 	AtNs   int64  `json:"atNs"`
+	// Stateful keys: the accepted state, its sha256 and the voter epoch of the
+	// accept, written in the same transaction as Promised before the accepted
+	// reply leaves (M1).
+	StateHash []byte `json:"stateHash,omitempty"`
+	State     []byte `json:"state,omitempty"`
+	Epoch     uint64 `json:"epoch,omitempty"`
+}
+
+// storeInfo is the store-created marker (M1).
+type storeInfo struct {
+	CreatedIncarnation uint64 `json:"createdIncarnation"`
+	Schema             int    `json:"schema"`
+	// Fresh: the store held no records when this marker was written.
+	Fresh bool `json:"fresh"`
+}
+
+// holderRecord is the proposer side of a stateful key (AS2): the state this
+// node's latest QC certified and the transition queued or possibly chosen on
+// top of it, persisted before any propose carrying it leaves.
+type holderRecord struct {
+	Certified *certifiedRecord `json:"certified,omitempty"`
+	Pending   *pendingRecord   `json:"pending,omitempty"`
+}
+
+type certifiedRecord struct {
+	Ballot          Ballot `json:"ballot"`
+	Epoch           uint64 `json:"epoch"`
+	ManifestVersion uint64 `json:"manifestVersion"`
+	State           []byte `json:"state"`
+}
+
+type pendingRecord struct {
+	ID       string `json:"id"`
+	Value    []byte `json:"value"`
+	Promoted bool   `json:"promoted,omitempty"`
+	Base     []byte `json:"base"`
+	Sent     bool   `json:"sent,omitempty"`
+}
+
+func holderRecordName(key Key) string {
+	return fmt.Sprintf("%s%s/%d", prefixHolder, key.PolicyID, key.Slot)
+}
+
+// parseKeyName splits "<prefix><policy>/<slot>".
+func parseKeyName(name, prefix string) (Key, bool) {
+	rest := strings.TrimPrefix(name, prefix)
+	cut := strings.LastIndex(rest, "/")
+	if cut <= 0 {
+		return Key{}, false
+	}
+	var slot uint32
+	if _, err := fmt.Sscanf(rest[cut+1:], "%d", &slot); err != nil {
+		return Key{}, false
+	}
+	return Key{PolicyID: rest[:cut], Slot: slot}, true
 }
 
 func keyRecordName(key Key) string { return fmt.Sprintf("%s%s/%d", prefixKey, key.PolicyID, key.Slot) }

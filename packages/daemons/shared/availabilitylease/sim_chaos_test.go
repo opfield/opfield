@@ -114,6 +114,9 @@ func (w *simWorld) downLinks(links []*simLink, duration time.Duration) {
 
 func applyFault(w *simWorld, topo simTopology, kind faultKind) {
 	w.tracef("fault %s", faultNames[kind])
+	if w.state != nil && statefulFault(w, topo, kind) {
+		return
+	}
 	switch kind {
 	case faultPartition:
 		isolated := map[string]bool{}
@@ -319,6 +322,11 @@ func quiet(w *simWorld, topo simTopology) {
 		// Only the Gateway enters lease mode again (a dead one leaves the
 		// policy closed: runRandomSeed then checks no failover).
 		w.gw.reopenLease("p1", 1)
+	}
+	if policy.stateful {
+		// A stateful bootstrap depends on the named holder's data, not on its
+		// container; the reservation stays until the holder acquired (A5).
+		return
 	}
 	// The Gateway drops a slot's bootstrap reservation once its named holder
 	// no longer runs the legacy copy (it acquired, or the copy is gone); a

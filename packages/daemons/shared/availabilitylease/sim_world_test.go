@@ -28,9 +28,12 @@ type simWorld struct {
 	links   map[string]*simLink
 	net     simNetParams
 	gw      *simGateway
-	keys    []Key
-	strict  map[string]bool
-	wire    bool
+	// state models the application of stateful policies (v3); nil when the
+	// world has none.
+	state  *simStateModel
+	keys   []Key
+	strict map[string]bool
+	wire   bool
 
 	// freezeDrift is the nodes' FreezeDriftRate: drifting clocks need more
 	// than the production default. noBeacons turns relay clock beacons off.
@@ -297,7 +300,7 @@ func (w *simWorld) describeBatch(batch *pb.LeaseBatch) string {
 		case *pb.LeaseItem_Prepare:
 			parts = append(parts, "prepare "+ballotFromProto(body.Prepare.GetBallot()).String())
 		case *pb.LeaseItem_Promise:
-			parts = append(parts, fmt.Sprintf("promise %s shadow=%v", ballotFromProto(body.Promise.GetBallot()), body.Promise.GetShadow()))
+			parts = append(parts, fmt.Sprintf("promise %s shadow=%v%s", ballotFromProto(body.Promise.GetBallot()), body.Promise.GetShadow(), describeAccepted(body.Promise.GetAccepted())))
 		case *pb.LeaseItem_Propose:
 			parts = append(parts, "propose "+ballotFromProto(body.Propose.GetBallot()).String())
 		case *pb.LeaseItem_Accepted:
@@ -313,7 +316,7 @@ func (w *simWorld) describeBatch(batch *pb.LeaseBatch) string {
 		case *pb.LeaseItem_Query:
 			parts = append(parts, "query")
 		case *pb.LeaseItem_Status:
-			parts = append(parts, fmt.Sprintf("status %s holder=%s", body.Status.GetState(), body.Status.GetHolderId()))
+			parts = append(parts, fmt.Sprintf("status %s holder=%s%s", body.Status.GetState(), body.Status.GetHolderId(), describeAccepted(body.Status.GetAccepted())))
 		}
 	}
 	if len(batch.GetBlocks()) > 0 {

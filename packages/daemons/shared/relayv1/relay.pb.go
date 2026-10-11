@@ -346,6 +346,13 @@ const (
 	// Graceful close: the acceptor does not confirm the close to this holder
 	// (it is not the slot's retained holder, or another proposer superseded it).
 	LeaseNackReason_LEASE_NACK_REASON_RETAIN_REFUSED LeaseNackReason = 11
+	// Stateful keys (availability_lease_v3): the propose does not echo a promise
+	// this acceptor issued in its current incarnation (it restarted or lost its
+	// state since), so it neither accepts nor leaves UNKNOWN (AS1).
+	LeaseNackReason_LEASE_NACK_REASON_NO_PROMISE LeaseNackReason = 12
+	// Stateful keys: the proposed holder state is missing, too large, cannot be
+	// decoded, or names another holder than the ballot's proposer.
+	LeaseNackReason_LEASE_NACK_REASON_STATE_INVALID LeaseNackReason = 13
 )
 
 // Enum value maps for LeaseNackReason.
@@ -363,6 +370,8 @@ var (
 		9:  "LEASE_NACK_REASON_NOT_CANDIDATE",
 		10: "LEASE_NACK_REASON_UNKNOWN_POLICY",
 		11: "LEASE_NACK_REASON_RETAIN_REFUSED",
+		12: "LEASE_NACK_REASON_NO_PROMISE",
+		13: "LEASE_NACK_REASON_STATE_INVALID",
 	}
 	LeaseNackReason_value = map[string]int32{
 		"LEASE_NACK_REASON_UNSPECIFIED":     0,
@@ -377,6 +386,8 @@ var (
 		"LEASE_NACK_REASON_NOT_CANDIDATE":   9,
 		"LEASE_NACK_REASON_UNKNOWN_POLICY":  10,
 		"LEASE_NACK_REASON_RETAIN_REFUSED":  11,
+		"LEASE_NACK_REASON_NO_PROMISE":      12,
+		"LEASE_NACK_REASON_STATE_INVALID":   13,
 	}
 )
 
@@ -4163,8 +4174,12 @@ type LeasePromise struct {
 	// True while the acceptor abstains (A3) or does not vote: never counted.
 	Shadow              bool   `protobuf:"varint,4,opt,name=shadow,proto3" json:"shadow,omitempty"`
 	AcceptorIncarnation uint64 `protobuf:"varint,5,opt,name=acceptor_incarnation,json=acceptorIncarnation,proto3" json:"acceptor_incarnation,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Stateful keys only (availability_lease_v3): the acceptor's highest
+	// accepted ballot and state (Paxos phase 1b), or UNKNOWN. Absent means
+	// UNKNOWN, so a v2 acceptor never counts toward a KNOWN majority.
+	Accepted      *LeaseAcceptedState `protobuf:"bytes,6,opt,name=accepted,proto3" json:"accepted,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LeasePromise) Reset() {
@@ -4232,6 +4247,13 @@ func (x *LeasePromise) GetAcceptorIncarnation() uint64 {
 	return 0
 }
 
+func (x *LeasePromise) GetAccepted() *LeaseAcceptedState {
+	if x != nil {
+		return x.Accepted
+	}
+	return nil
+}
+
 type LeasePropose struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Key             *LeaseKey              `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
@@ -4239,8 +4261,11 @@ type LeasePropose struct {
 	Epoch           uint64                 `protobuf:"varint,3,opt,name=epoch,proto3" json:"epoch,omitempty"`
 	ManifestVersion uint64                 `protobuf:"varint,4,opt,name=manifest_version,json=manifestVersion,proto3" json:"manifest_version,omitempty"`
 	Echo            uint64                 `protobuf:"varint,5,opt,name=echo,proto3" json:"echo,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Stateful keys only: the proposed LeaseHolderState, encoded. Its sha256 is
+	// what the accept v2 statement covers; the transition id travels inside.
+	State         []byte `protobuf:"bytes,6,opt,name=state,proto3" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LeasePropose) Reset() {
@@ -4308,6 +4333,13 @@ func (x *LeasePropose) GetEcho() uint64 {
 	return 0
 }
 
+func (x *LeasePropose) GetState() []byte {
+	if x != nil {
+		return x.State
+	}
+	return nil
+}
+
 // A signed accept. The signature covers the canonical accept statement
 // described in availabilitylease/doc.go, so accepts form a forwardable QC.
 type LeaseAccepted struct {
@@ -4322,8 +4354,11 @@ type LeaseAccepted struct {
 	// Signature of the same statement with the acceptor's previous identity
 	// key while it rotates keys; any one verifying signature suffices.
 	AdditionalSignatures [][]byte `protobuf:"bytes,8,rep,name=additional_signatures,json=additionalSignatures,proto3" json:"additional_signatures,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// Stateful keys only: sha256 of the accepted propose's state. Its presence
+	// selects the accept v2 statement (doc.go).
+	StateHash     []byte `protobuf:"bytes,9,opt,name=state_hash,json=stateHash,proto3" json:"state_hash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LeaseAccepted) Reset() {
@@ -4408,6 +4443,13 @@ func (x *LeaseAccepted) GetSignature() []byte {
 func (x *LeaseAccepted) GetAdditionalSignatures() [][]byte {
 	if x != nil {
 		return x.AdditionalSignatures
+	}
+	return nil
+}
+
+func (x *LeaseAccepted) GetStateHash() []byte {
+	if x != nil {
+		return x.StateHash
 	}
 	return nil
 }
@@ -4529,8 +4571,11 @@ type LeaseCommit struct {
 	Epoch           uint64                 `protobuf:"varint,3,opt,name=epoch,proto3" json:"epoch,omitempty"`
 	ManifestVersion uint64                 `protobuf:"varint,4,opt,name=manifest_version,json=manifestVersion,proto3" json:"manifest_version,omitempty"`
 	Quorum          []*LeaseAccepted       `protobuf:"bytes,5,rep,name=quorum,proto3" json:"quorum,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Stateful keys only: the certified LeaseHolderState bytes; every accept of
+	// the quorum covers their sha256.
+	State         []byte `protobuf:"bytes,6,opt,name=state,proto3" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LeaseCommit) Reset() {
@@ -4594,6 +4639,13 @@ func (x *LeaseCommit) GetManifestVersion() uint64 {
 func (x *LeaseCommit) GetQuorum() []*LeaseAccepted {
 	if x != nil {
 		return x.Quorum
+	}
+	return nil
+}
+
+func (x *LeaseCommit) GetState() []byte {
+	if x != nil {
+		return x.State
 	}
 	return nil
 }
@@ -4936,7 +4988,10 @@ type LeaseStatus struct {
 	Epoch           uint64                 `protobuf:"varint,6,opt,name=epoch,proto3" json:"epoch,omitempty"`
 	ManifestVersion uint64                 `protobuf:"varint,7,opt,name=manifest_version,json=manifestVersion,proto3" json:"manifest_version,omitempty"`
 	// Reserved-for holder while state is RESERVED (bootstrap or successor).
-	ReservedFor   string `protobuf:"bytes,8,opt,name=reserved_for,json=reservedFor,proto3" json:"reserved_for,omitempty"`
+	ReservedFor string `protobuf:"bytes,8,opt,name=reserved_for,json=reservedFor,proto3" json:"reserved_for,omitempty"`
+	// Stateful keys only: as LeasePromise.accepted, so candidates evaluate
+	// eligibility before they send a prepare.
+	Accepted      *LeaseAcceptedState `protobuf:"bytes,9,opt,name=accepted,proto3" json:"accepted,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5027,6 +5082,278 @@ func (x *LeaseStatus) GetReservedFor() string {
 	return ""
 }
 
+func (x *LeaseStatus) GetAccepted() *LeaseAcceptedState {
+	if x != nil {
+		return x.Accepted
+	}
+	return nil
+}
+
+// Stateful keys only (availability_lease_v3). An acceptor's memory of a key:
+// UNKNOWN (known = false) when its store was created fresh, it has no accepted
+// record for the key, or the record predates its adoption of the policy's
+// current voter set as a new voter (AS1).
+type LeaseAcceptedState struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Known bool                   `protobuf:"varint,1,opt,name=known,proto3" json:"known,omitempty"`
+	// Highest ballot this acceptor accepted as a voter and the state it carried.
+	Ballot *LeaseBallot `protobuf:"bytes,2,opt,name=ballot,proto3" json:"ballot,omitempty"`
+	State  []byte       `protobuf:"bytes,3,opt,name=state,proto3" json:"state,omitempty"`
+	// The proposer of ballot released it (final release, A6) as far as this
+	// acceptor knows, and the successor that release designated.
+	Released            bool   `protobuf:"varint,4,opt,name=released,proto3" json:"released,omitempty"`
+	ReleasedSuccessorId string `protobuf:"bytes,5,opt,name=released_successor_id,json=releasedSuccessorId,proto3" json:"released_successor_id,omitempty"`
+	// Voter epoch the accept was made under.
+	Epoch         uint64 `protobuf:"varint,6,opt,name=epoch,proto3" json:"epoch,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LeaseAcceptedState) Reset() {
+	*x = LeaseAcceptedState{}
+	mi := &file_relay_v1_relay_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LeaseAcceptedState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LeaseAcceptedState) ProtoMessage() {}
+
+func (x *LeaseAcceptedState) ProtoReflect() protoreflect.Message {
+	mi := &file_relay_v1_relay_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LeaseAcceptedState.ProtoReflect.Descriptor instead.
+func (*LeaseAcceptedState) Descriptor() ([]byte, []int) {
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{56}
+}
+
+func (x *LeaseAcceptedState) GetKnown() bool {
+	if x != nil {
+		return x.Known
+	}
+	return false
+}
+
+func (x *LeaseAcceptedState) GetBallot() *LeaseBallot {
+	if x != nil {
+		return x.Ballot
+	}
+	return nil
+}
+
+func (x *LeaseAcceptedState) GetState() []byte {
+	if x != nil {
+		return x.State
+	}
+	return nil
+}
+
+func (x *LeaseAcceptedState) GetReleased() bool {
+	if x != nil {
+		return x.Released
+	}
+	return false
+}
+
+func (x *LeaseAcceptedState) GetReleasedSuccessorId() string {
+	if x != nil {
+		return x.ReleasedSuccessorId
+	}
+	return ""
+}
+
+func (x *LeaseAcceptedState) GetEpoch() uint64 {
+	if x != nil {
+		return x.Epoch
+	}
+	return 0
+}
+
+// The certified value of a stateful lease key (availability_lease_v3). The
+// library maintains every field but value, which is the application's state
+// (opaque to relays, at most 1024 bytes). The encoded bytes are hashed as
+// carried; nobody re-encodes them.
+type LeaseHolderState struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Value []byte                 `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
+	// Proposer of the ballot that proposed this state.
+	HolderId string `protobuf:"bytes,2,opt,name=holder_id,json=holderId,proto3" json:"holder_id,omitempty"`
+	// Set by every acquisition; cleared by the holder's Promoted transition.
+	PendingPromotion bool `protobuf:"varint,3,opt,name=pending_promotion,json=pendingPromotion,proto3" json:"pending_promotion,omitempty"`
+	// Last holder whose Promoted transition was certified.
+	PromotedHolderId string `protobuf:"bytes,4,opt,name=promoted_holder_id,json=promotedHolderId,proto3" json:"promoted_holder_id,omitempty"`
+	// Incremented on every change of the state.
+	Generation uint64 `protobuf:"varint,5,opt,name=generation,proto3" json:"generation,omitempty"`
+	// Id of the last application transition applied to value; empty after an
+	// acquisition or bootstrap.
+	TransitionId string `protobuf:"bytes,6,opt,name=transition_id,json=transitionId,proto3" json:"transition_id,omitempty"`
+	// Set by a forced acquisition (AS10); kept until the next Promoted transition.
+	Forced        *LeaseForcedMarker `protobuf:"bytes,7,opt,name=forced,proto3" json:"forced,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LeaseHolderState) Reset() {
+	*x = LeaseHolderState{}
+	mi := &file_relay_v1_relay_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LeaseHolderState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LeaseHolderState) ProtoMessage() {}
+
+func (x *LeaseHolderState) ProtoReflect() protoreflect.Message {
+	mi := &file_relay_v1_relay_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LeaseHolderState.ProtoReflect.Descriptor instead.
+func (*LeaseHolderState) Descriptor() ([]byte, []int) {
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{57}
+}
+
+func (x *LeaseHolderState) GetValue() []byte {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+func (x *LeaseHolderState) GetHolderId() string {
+	if x != nil {
+		return x.HolderId
+	}
+	return ""
+}
+
+func (x *LeaseHolderState) GetPendingPromotion() bool {
+	if x != nil {
+		return x.PendingPromotion
+	}
+	return false
+}
+
+func (x *LeaseHolderState) GetPromotedHolderId() string {
+	if x != nil {
+		return x.PromotedHolderId
+	}
+	return ""
+}
+
+func (x *LeaseHolderState) GetGeneration() uint64 {
+	if x != nil {
+		return x.Generation
+	}
+	return 0
+}
+
+func (x *LeaseHolderState) GetTransitionId() string {
+	if x != nil {
+		return x.TransitionId
+	}
+	return ""
+}
+
+func (x *LeaseHolderState) GetForced() *LeaseForcedMarker {
+	if x != nil {
+		return x.Forced
+	}
+	return nil
+}
+
+type LeaseForcedMarker struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	OperationId string                 `protobuf:"bytes,1,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
+	// Highest commit ballot the operator saw when forcing.
+	Over     *LeaseBallot `protobuf:"bytes,2,opt,name=over,proto3" json:"over,omitempty"`
+	HolderId string       `protobuf:"bytes,3,opt,name=holder_id,json=holderId,proto3" json:"holder_id,omitempty"`
+	// Highest KNOWN accepted ballot the forced state replaced; empty when none.
+	Base          *LeaseBallot `protobuf:"bytes,4,opt,name=base,proto3" json:"base,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LeaseForcedMarker) Reset() {
+	*x = LeaseForcedMarker{}
+	mi := &file_relay_v1_relay_proto_msgTypes[58]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LeaseForcedMarker) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LeaseForcedMarker) ProtoMessage() {}
+
+func (x *LeaseForcedMarker) ProtoReflect() protoreflect.Message {
+	mi := &file_relay_v1_relay_proto_msgTypes[58]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LeaseForcedMarker.ProtoReflect.Descriptor instead.
+func (*LeaseForcedMarker) Descriptor() ([]byte, []int) {
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{58}
+}
+
+func (x *LeaseForcedMarker) GetOperationId() string {
+	if x != nil {
+		return x.OperationId
+	}
+	return ""
+}
+
+func (x *LeaseForcedMarker) GetOver() *LeaseBallot {
+	if x != nil {
+		return x.Over
+	}
+	return nil
+}
+
+func (x *LeaseForcedMarker) GetHolderId() string {
+	if x != nil {
+		return x.HolderId
+	}
+	return ""
+}
+
+func (x *LeaseForcedMarker) GetBase() *LeaseBallot {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
 // Signed by the relay policy signing key (Ed25519) over
 // "gateway-availability-lease/manifest/v1" 0x00 || payload.
 type LeaseSignedBlock struct {
@@ -5041,7 +5368,7 @@ type LeaseSignedBlock struct {
 
 func (x *LeaseSignedBlock) Reset() {
 	*x = LeaseSignedBlock{}
-	mi := &file_relay_v1_relay_proto_msgTypes[56]
+	mi := &file_relay_v1_relay_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5053,7 +5380,7 @@ func (x *LeaseSignedBlock) String() string {
 func (*LeaseSignedBlock) ProtoMessage() {}
 
 func (x *LeaseSignedBlock) ProtoReflect() protoreflect.Message {
-	mi := &file_relay_v1_relay_proto_msgTypes[56]
+	mi := &file_relay_v1_relay_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5066,7 +5393,7 @@ func (x *LeaseSignedBlock) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaseSignedBlock.ProtoReflect.Descriptor instead.
 func (*LeaseSignedBlock) Descriptor() ([]byte, []int) {
-	return file_relay_v1_relay_proto_rawDescGZIP(), []int{56}
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *LeaseSignedBlock) GetSigningKeyId() string {
@@ -5108,7 +5435,7 @@ type LeaseCandidate struct {
 
 func (x *LeaseCandidate) Reset() {
 	*x = LeaseCandidate{}
-	mi := &file_relay_v1_relay_proto_msgTypes[57]
+	mi := &file_relay_v1_relay_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5120,7 +5447,7 @@ func (x *LeaseCandidate) String() string {
 func (*LeaseCandidate) ProtoMessage() {}
 
 func (x *LeaseCandidate) ProtoReflect() protoreflect.Message {
-	mi := &file_relay_v1_relay_proto_msgTypes[57]
+	mi := &file_relay_v1_relay_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5133,7 +5460,7 @@ func (x *LeaseCandidate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaseCandidate.ProtoReflect.Descriptor instead.
 func (*LeaseCandidate) Descriptor() ([]byte, []int) {
-	return file_relay_v1_relay_proto_rawDescGZIP(), []int{57}
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *LeaseCandidate) GetId() string {
@@ -5160,7 +5487,7 @@ type LeaseBootstrapSlot struct {
 
 func (x *LeaseBootstrapSlot) Reset() {
 	*x = LeaseBootstrapSlot{}
-	mi := &file_relay_v1_relay_proto_msgTypes[58]
+	mi := &file_relay_v1_relay_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5172,7 +5499,7 @@ func (x *LeaseBootstrapSlot) String() string {
 func (*LeaseBootstrapSlot) ProtoMessage() {}
 
 func (x *LeaseBootstrapSlot) ProtoReflect() protoreflect.Message {
-	mi := &file_relay_v1_relay_proto_msgTypes[58]
+	mi := &file_relay_v1_relay_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5185,7 +5512,7 @@ func (x *LeaseBootstrapSlot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaseBootstrapSlot.ProtoReflect.Descriptor instead.
 func (*LeaseBootstrapSlot) Descriptor() ([]byte, []int) {
-	return file_relay_v1_relay_proto_rawDescGZIP(), []int{58}
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *LeaseBootstrapSlot) GetSlot() uint32 {
@@ -5236,14 +5563,18 @@ type LeaseManifest struct {
 	// confirmed the close to it (LeaseRetained). Gateway names the committed
 	// holder it sees for the slot when it closes; an unheld slot has no entry.
 	// A holder that is not named, or cannot reach such a majority, fences.
-	Retained      []*LeaseRetainedSlot `protobuf:"bytes,16,rep,name=retained,proto3" json:"retained,omitempty"`
+	Retained []*LeaseRetainedSlot `protobuf:"bytes,16,rep,name=retained,proto3" json:"retained,omitempty"`
+	// Every key carries a certified holder state (availability_lease_v3; every
+	// participant must advertise it). Strict partition mode only: the library
+	// rejects AVAILABLE for a stateful manifest (AS8).
+	Stateful      bool `protobuf:"varint,17,opt,name=stateful,proto3" json:"stateful,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LeaseManifest) Reset() {
 	*x = LeaseManifest{}
-	mi := &file_relay_v1_relay_proto_msgTypes[59]
+	mi := &file_relay_v1_relay_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5255,7 +5586,7 @@ func (x *LeaseManifest) String() string {
 func (*LeaseManifest) ProtoMessage() {}
 
 func (x *LeaseManifest) ProtoReflect() protoreflect.Message {
-	mi := &file_relay_v1_relay_proto_msgTypes[59]
+	mi := &file_relay_v1_relay_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5268,7 +5599,7 @@ func (x *LeaseManifest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaseManifest.ProtoReflect.Descriptor instead.
 func (*LeaseManifest) Descriptor() ([]byte, []int) {
-	return file_relay_v1_relay_proto_rawDescGZIP(), []int{59}
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *LeaseManifest) GetSchemaVersion() uint32 {
@@ -5383,6 +5714,13 @@ func (x *LeaseManifest) GetRetained() []*LeaseRetainedSlot {
 	return nil
 }
 
+func (x *LeaseManifest) GetStateful() bool {
+	if x != nil {
+		return x.Stateful
+	}
+	return false
+}
+
 type LeaseRetainedSlot struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Slot  uint32                 `protobuf:"varint,1,opt,name=slot,proto3" json:"slot,omitempty"`
@@ -5399,7 +5737,7 @@ type LeaseRetainedSlot struct {
 
 func (x *LeaseRetainedSlot) Reset() {
 	*x = LeaseRetainedSlot{}
-	mi := &file_relay_v1_relay_proto_msgTypes[60]
+	mi := &file_relay_v1_relay_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5411,7 +5749,7 @@ func (x *LeaseRetainedSlot) String() string {
 func (*LeaseRetainedSlot) ProtoMessage() {}
 
 func (x *LeaseRetainedSlot) ProtoReflect() protoreflect.Message {
-	mi := &file_relay_v1_relay_proto_msgTypes[60]
+	mi := &file_relay_v1_relay_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5424,7 +5762,7 @@ func (x *LeaseRetainedSlot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaseRetainedSlot.ProtoReflect.Descriptor instead.
 func (*LeaseRetainedSlot) Descriptor() ([]byte, []int) {
-	return file_relay_v1_relay_proto_rawDescGZIP(), []int{60}
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *LeaseRetainedSlot) GetSlot() uint32 {
@@ -5459,7 +5797,7 @@ type LeaseMember struct {
 
 func (x *LeaseMember) Reset() {
 	*x = LeaseMember{}
-	mi := &file_relay_v1_relay_proto_msgTypes[61]
+	mi := &file_relay_v1_relay_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5471,7 +5809,7 @@ func (x *LeaseMember) String() string {
 func (*LeaseMember) ProtoMessage() {}
 
 func (x *LeaseMember) ProtoReflect() protoreflect.Message {
-	mi := &file_relay_v1_relay_proto_msgTypes[61]
+	mi := &file_relay_v1_relay_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5484,7 +5822,7 @@ func (x *LeaseMember) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaseMember.ProtoReflect.Descriptor instead.
 func (*LeaseMember) Descriptor() ([]byte, []int) {
-	return file_relay_v1_relay_proto_rawDescGZIP(), []int{61}
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *LeaseMember) GetId() string {
@@ -5517,7 +5855,7 @@ type LeaseQuorumSet struct {
 
 func (x *LeaseQuorumSet) Reset() {
 	*x = LeaseQuorumSet{}
-	mi := &file_relay_v1_relay_proto_msgTypes[62]
+	mi := &file_relay_v1_relay_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5529,7 +5867,7 @@ func (x *LeaseQuorumSet) String() string {
 func (*LeaseQuorumSet) ProtoMessage() {}
 
 func (x *LeaseQuorumSet) ProtoReflect() protoreflect.Message {
-	mi := &file_relay_v1_relay_proto_msgTypes[62]
+	mi := &file_relay_v1_relay_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5542,7 +5880,7 @@ func (x *LeaseQuorumSet) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaseQuorumSet.ProtoReflect.Descriptor instead.
 func (*LeaseQuorumSet) Descriptor() ([]byte, []int) {
-	return file_relay_v1_relay_proto_rawDescGZIP(), []int{62}
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *LeaseQuorumSet) GetVoterIds() []string {
@@ -5568,7 +5906,7 @@ type LeasePolicyKeyRotation struct {
 
 func (x *LeasePolicyKeyRotation) Reset() {
 	*x = LeasePolicyKeyRotation{}
-	mi := &file_relay_v1_relay_proto_msgTypes[63]
+	mi := &file_relay_v1_relay_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5580,7 +5918,7 @@ func (x *LeasePolicyKeyRotation) String() string {
 func (*LeasePolicyKeyRotation) ProtoMessage() {}
 
 func (x *LeasePolicyKeyRotation) ProtoReflect() protoreflect.Message {
-	mi := &file_relay_v1_relay_proto_msgTypes[63]
+	mi := &file_relay_v1_relay_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5593,7 +5931,7 @@ func (x *LeasePolicyKeyRotation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeasePolicyKeyRotation.ProtoReflect.Descriptor instead.
 func (*LeasePolicyKeyRotation) Descriptor() ([]byte, []int) {
-	return file_relay_v1_relay_proto_rawDescGZIP(), []int{63}
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *LeasePolicyKeyRotation) GetPreviousKeyId() string {
@@ -5641,7 +5979,7 @@ type LeaseGateWatchRequest struct {
 
 func (x *LeaseGateWatchRequest) Reset() {
 	*x = LeaseGateWatchRequest{}
-	mi := &file_relay_v1_relay_proto_msgTypes[64]
+	mi := &file_relay_v1_relay_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5653,7 +5991,7 @@ func (x *LeaseGateWatchRequest) String() string {
 func (*LeaseGateWatchRequest) ProtoMessage() {}
 
 func (x *LeaseGateWatchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_relay_v1_relay_proto_msgTypes[64]
+	mi := &file_relay_v1_relay_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5666,7 +6004,7 @@ func (x *LeaseGateWatchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaseGateWatchRequest.ProtoReflect.Descriptor instead.
 func (*LeaseGateWatchRequest) Descriptor() ([]byte, []int) {
-	return file_relay_v1_relay_proto_rawDescGZIP(), []int{64}
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *LeaseGateWatchRequest) GetPolicyIds() []string {
@@ -5687,7 +6025,7 @@ type LeaseGateSnapshot struct {
 
 func (x *LeaseGateSnapshot) Reset() {
 	*x = LeaseGateSnapshot{}
-	mi := &file_relay_v1_relay_proto_msgTypes[65]
+	mi := &file_relay_v1_relay_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5699,7 +6037,7 @@ func (x *LeaseGateSnapshot) String() string {
 func (*LeaseGateSnapshot) ProtoMessage() {}
 
 func (x *LeaseGateSnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_relay_v1_relay_proto_msgTypes[65]
+	mi := &file_relay_v1_relay_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5712,7 +6050,7 @@ func (x *LeaseGateSnapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaseGateSnapshot.ProtoReflect.Descriptor instead.
 func (*LeaseGateSnapshot) Descriptor() ([]byte, []int) {
-	return file_relay_v1_relay_proto_rawDescGZIP(), []int{65}
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *LeaseGateSnapshot) GetRelayMemberId() string {
@@ -5763,7 +6101,7 @@ type LeaseGateView struct {
 
 func (x *LeaseGateView) Reset() {
 	*x = LeaseGateView{}
-	mi := &file_relay_v1_relay_proto_msgTypes[66]
+	mi := &file_relay_v1_relay_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5775,7 +6113,7 @@ func (x *LeaseGateView) String() string {
 func (*LeaseGateView) ProtoMessage() {}
 
 func (x *LeaseGateView) ProtoReflect() protoreflect.Message {
-	mi := &file_relay_v1_relay_proto_msgTypes[66]
+	mi := &file_relay_v1_relay_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5788,7 +6126,7 @@ func (x *LeaseGateView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaseGateView.ProtoReflect.Descriptor instead.
 func (*LeaseGateView) Descriptor() ([]byte, []int) {
-	return file_relay_v1_relay_proto_rawDescGZIP(), []int{66}
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *LeaseGateView) GetPolicyId() string {
@@ -5888,7 +6226,7 @@ type AvailabilityLeaseReport struct {
 
 func (x *AvailabilityLeaseReport) Reset() {
 	*x = AvailabilityLeaseReport{}
-	mi := &file_relay_v1_relay_proto_msgTypes[67]
+	mi := &file_relay_v1_relay_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5900,7 +6238,7 @@ func (x *AvailabilityLeaseReport) String() string {
 func (*AvailabilityLeaseReport) ProtoMessage() {}
 
 func (x *AvailabilityLeaseReport) ProtoReflect() protoreflect.Message {
-	mi := &file_relay_v1_relay_proto_msgTypes[67]
+	mi := &file_relay_v1_relay_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5913,7 +6251,7 @@ func (x *AvailabilityLeaseReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AvailabilityLeaseReport.ProtoReflect.Descriptor instead.
 func (*AvailabilityLeaseReport) Descriptor() ([]byte, []int) {
-	return file_relay_v1_relay_proto_rawDescGZIP(), []int{67}
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *AvailabilityLeaseReport) GetMemberId() string {
@@ -6038,7 +6376,7 @@ type AvailabilityLeaseManifestAck struct {
 
 func (x *AvailabilityLeaseManifestAck) Reset() {
 	*x = AvailabilityLeaseManifestAck{}
-	mi := &file_relay_v1_relay_proto_msgTypes[68]
+	mi := &file_relay_v1_relay_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6050,7 +6388,7 @@ func (x *AvailabilityLeaseManifestAck) String() string {
 func (*AvailabilityLeaseManifestAck) ProtoMessage() {}
 
 func (x *AvailabilityLeaseManifestAck) ProtoReflect() protoreflect.Message {
-	mi := &file_relay_v1_relay_proto_msgTypes[68]
+	mi := &file_relay_v1_relay_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6063,7 +6401,7 @@ func (x *AvailabilityLeaseManifestAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AvailabilityLeaseManifestAck.ProtoReflect.Descriptor instead.
 func (*AvailabilityLeaseManifestAck) Descriptor() ([]byte, []int) {
-	return file_relay_v1_relay_proto_rawDescGZIP(), []int{68}
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *AvailabilityLeaseManifestAck) GetPolicyId() string {
@@ -6126,7 +6464,7 @@ type AvailabilityLeaseHeld struct {
 
 func (x *AvailabilityLeaseHeld) Reset() {
 	*x = AvailabilityLeaseHeld{}
-	mi := &file_relay_v1_relay_proto_msgTypes[69]
+	mi := &file_relay_v1_relay_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6138,7 +6476,7 @@ func (x *AvailabilityLeaseHeld) String() string {
 func (*AvailabilityLeaseHeld) ProtoMessage() {}
 
 func (x *AvailabilityLeaseHeld) ProtoReflect() protoreflect.Message {
-	mi := &file_relay_v1_relay_proto_msgTypes[69]
+	mi := &file_relay_v1_relay_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6151,7 +6489,7 @@ func (x *AvailabilityLeaseHeld) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AvailabilityLeaseHeld.ProtoReflect.Descriptor instead.
 func (*AvailabilityLeaseHeld) Descriptor() ([]byte, []int) {
-	return file_relay_v1_relay_proto_rawDescGZIP(), []int{69}
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *AvailabilityLeaseHeld) GetPolicyId() string {
@@ -6244,13 +6582,22 @@ type AvailabilityLeaseKeyView struct {
 	// for a holder change it learns later, for example after it was down
 	// (N-5). Zero when unknown.
 	HolderSinceUnixMs int64 `protobuf:"varint,25,opt,name=holder_since_unix_ms,json=holderSinceUnixMs,proto3" json:"holder_since_unix_ms,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// Stateful keys only (availability_lease_v3): whether this acceptor's
+	// memory of the key is KNOWN, the ballot it last accepted and the sha256 of
+	// that state ("sha256:<hex>"), and the hash of the latest commit's state.
+	// The state bytes are never reported.
+	Stateful           bool                     `protobuf:"varint,26,opt,name=stateful,proto3" json:"stateful,omitempty"`
+	StateKnown         bool                     `protobuf:"varint,27,opt,name=state_known,json=stateKnown,proto3" json:"state_known,omitempty"`
+	StateHash          string                   `protobuf:"bytes,28,opt,name=state_hash,json=stateHash,proto3" json:"state_hash,omitempty"`
+	Accepted           *AvailabilityLeaseBallot `protobuf:"bytes,29,opt,name=accepted,proto3" json:"accepted,omitempty"`
+	CommittedStateHash string                   `protobuf:"bytes,30,opt,name=committed_state_hash,json=committedStateHash,proto3" json:"committed_state_hash,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *AvailabilityLeaseKeyView) Reset() {
 	*x = AvailabilityLeaseKeyView{}
-	mi := &file_relay_v1_relay_proto_msgTypes[70]
+	mi := &file_relay_v1_relay_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6262,7 +6609,7 @@ func (x *AvailabilityLeaseKeyView) String() string {
 func (*AvailabilityLeaseKeyView) ProtoMessage() {}
 
 func (x *AvailabilityLeaseKeyView) ProtoReflect() protoreflect.Message {
-	mi := &file_relay_v1_relay_proto_msgTypes[70]
+	mi := &file_relay_v1_relay_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6275,7 +6622,7 @@ func (x *AvailabilityLeaseKeyView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AvailabilityLeaseKeyView.ProtoReflect.Descriptor instead.
 func (*AvailabilityLeaseKeyView) Descriptor() ([]byte, []int) {
-	return file_relay_v1_relay_proto_rawDescGZIP(), []int{70}
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *AvailabilityLeaseKeyView) GetPolicyId() string {
@@ -6390,6 +6737,41 @@ func (x *AvailabilityLeaseKeyView) GetHolderSinceUnixMs() int64 {
 	return 0
 }
 
+func (x *AvailabilityLeaseKeyView) GetStateful() bool {
+	if x != nil {
+		return x.Stateful
+	}
+	return false
+}
+
+func (x *AvailabilityLeaseKeyView) GetStateKnown() bool {
+	if x != nil {
+		return x.StateKnown
+	}
+	return false
+}
+
+func (x *AvailabilityLeaseKeyView) GetStateHash() string {
+	if x != nil {
+		return x.StateHash
+	}
+	return ""
+}
+
+func (x *AvailabilityLeaseKeyView) GetAccepted() *AvailabilityLeaseBallot {
+	if x != nil {
+		return x.Accepted
+	}
+	return nil
+}
+
+func (x *AvailabilityLeaseKeyView) GetCommittedStateHash() string {
+	if x != nil {
+		return x.CommittedStateHash
+	}
+	return ""
+}
+
 type AvailabilityLeaseBallot struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Round         uint64                 `protobuf:"varint,1,opt,name=round,proto3" json:"round,omitempty"`
@@ -6401,7 +6783,7 @@ type AvailabilityLeaseBallot struct {
 
 func (x *AvailabilityLeaseBallot) Reset() {
 	*x = AvailabilityLeaseBallot{}
-	mi := &file_relay_v1_relay_proto_msgTypes[71]
+	mi := &file_relay_v1_relay_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6413,7 +6795,7 @@ func (x *AvailabilityLeaseBallot) String() string {
 func (*AvailabilityLeaseBallot) ProtoMessage() {}
 
 func (x *AvailabilityLeaseBallot) ProtoReflect() protoreflect.Message {
-	mi := &file_relay_v1_relay_proto_msgTypes[71]
+	mi := &file_relay_v1_relay_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6426,7 +6808,7 @@ func (x *AvailabilityLeaseBallot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AvailabilityLeaseBallot.ProtoReflect.Descriptor instead.
 func (*AvailabilityLeaseBallot) Descriptor() ([]byte, []int) {
-	return file_relay_v1_relay_proto_rawDescGZIP(), []int{71}
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *AvailabilityLeaseBallot) GetRound() uint64 {
@@ -6465,7 +6847,7 @@ type AvailabilityLeaseEvent struct {
 
 func (x *AvailabilityLeaseEvent) Reset() {
 	*x = AvailabilityLeaseEvent{}
-	mi := &file_relay_v1_relay_proto_msgTypes[72]
+	mi := &file_relay_v1_relay_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6477,7 +6859,7 @@ func (x *AvailabilityLeaseEvent) String() string {
 func (*AvailabilityLeaseEvent) ProtoMessage() {}
 
 func (x *AvailabilityLeaseEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_relay_v1_relay_proto_msgTypes[72]
+	mi := &file_relay_v1_relay_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6490,7 +6872,7 @@ func (x *AvailabilityLeaseEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AvailabilityLeaseEvent.ProtoReflect.Descriptor instead.
 func (*AvailabilityLeaseEvent) Descriptor() ([]byte, []int) {
-	return file_relay_v1_relay_proto_rawDescGZIP(), []int{72}
+	return file_relay_v1_relay_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *AvailabilityLeaseEvent) GetKind() string {
@@ -6837,19 +7219,21 @@ const file_relay_v1_relay_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\v2\x12.relay.v1.LeaseKeyR\x03key\x12-\n" +
 	"\x06ballot\x18\x02 \x01(\v2\x15.relay.v1.LeaseBallotR\x06ballot\x12\x14\n" +
 	"\x05epoch\x18\x03 \x01(\x04R\x05epoch\x12)\n" +
-	"\x10manifest_version\x18\x04 \x01(\x04R\x0fmanifestVersion\"\xc2\x01\n" +
+	"\x10manifest_version\x18\x04 \x01(\x04R\x0fmanifestVersion\"\xfc\x01\n" +
 	"\fLeasePromise\x12$\n" +
 	"\x03key\x18\x01 \x01(\v2\x12.relay.v1.LeaseKeyR\x03key\x12-\n" +
 	"\x06ballot\x18\x02 \x01(\v2\x15.relay.v1.LeaseBallotR\x06ballot\x12\x12\n" +
 	"\x04echo\x18\x03 \x01(\x04R\x04echo\x12\x16\n" +
 	"\x06shadow\x18\x04 \x01(\bR\x06shadow\x121\n" +
-	"\x14acceptor_incarnation\x18\x05 \x01(\x04R\x13acceptorIncarnation\"\xb8\x01\n" +
+	"\x14acceptor_incarnation\x18\x05 \x01(\x04R\x13acceptorIncarnation\x128\n" +
+	"\baccepted\x18\x06 \x01(\v2\x1c.relay.v1.LeaseAcceptedStateR\baccepted\"\xce\x01\n" +
 	"\fLeasePropose\x12$\n" +
 	"\x03key\x18\x01 \x01(\v2\x12.relay.v1.LeaseKeyR\x03key\x12-\n" +
 	"\x06ballot\x18\x02 \x01(\v2\x15.relay.v1.LeaseBallotR\x06ballot\x12\x14\n" +
 	"\x05epoch\x18\x03 \x01(\x04R\x05epoch\x12)\n" +
 	"\x10manifest_version\x18\x04 \x01(\x04R\x0fmanifestVersion\x12\x12\n" +
-	"\x04echo\x18\x05 \x01(\x04R\x04echo\"\xcc\x02\n" +
+	"\x04echo\x18\x05 \x01(\x04R\x04echo\x12\x14\n" +
+	"\x05state\x18\x06 \x01(\fR\x05state\"\xeb\x02\n" +
 	"\rLeaseAccepted\x12$\n" +
 	"\x03key\x18\x01 \x01(\v2\x12.relay.v1.LeaseKeyR\x03key\x12-\n" +
 	"\x06ballot\x18\x02 \x01(\v2\x15.relay.v1.LeaseBallotR\x06ballot\x12\x14\n" +
@@ -6859,7 +7243,9 @@ const file_relay_v1_relay_proto_rawDesc = "" +
 	"acceptorId\x121\n" +
 	"\x14acceptor_incarnation\x18\x06 \x01(\x04R\x13acceptorIncarnation\x12\x1c\n" +
 	"\tsignature\x18\a \x01(\fR\tsignature\x123\n" +
-	"\x15additional_signatures\x18\b \x03(\fR\x14additionalSignatures\"\x93\x03\n" +
+	"\x15additional_signatures\x18\b \x03(\fR\x14additionalSignatures\x12\x1d\n" +
+	"\n" +
+	"state_hash\x18\t \x01(\fR\tstateHash\"\x93\x03\n" +
 	"\tLeaseNack\x12$\n" +
 	"\x03key\x18\x01 \x01(\v2\x12.relay.v1.LeaseKeyR\x03key\x12-\n" +
 	"\x06ballot\x18\x02 \x01(\v2\x15.relay.v1.LeaseBallotR\x06ballot\x121\n" +
@@ -6869,13 +7255,14 @@ const file_relay_v1_relay_proto_rawDesc = "" +
 	"\rlatest_commit\x18\x06 \x01(\v2\x15.relay.v1.LeaseCommitR\flatestCommit\x12\x14\n" +
 	"\x05epoch\x18\a \x01(\x04R\x05epoch\x12)\n" +
 	"\x10manifest_version\x18\b \x01(\x04R\x0fmanifestVersion\x121\n" +
-	"\x14acceptor_incarnation\x18\t \x01(\x04R\x13acceptorIncarnation\"\xd4\x01\n" +
+	"\x14acceptor_incarnation\x18\t \x01(\x04R\x13acceptorIncarnation\"\xea\x01\n" +
 	"\vLeaseCommit\x12$\n" +
 	"\x03key\x18\x01 \x01(\v2\x12.relay.v1.LeaseKeyR\x03key\x12-\n" +
 	"\x06ballot\x18\x02 \x01(\v2\x15.relay.v1.LeaseBallotR\x06ballot\x12\x14\n" +
 	"\x05epoch\x18\x03 \x01(\x04R\x05epoch\x12)\n" +
 	"\x10manifest_version\x18\x04 \x01(\x04R\x0fmanifestVersion\x12/\n" +
-	"\x06quorum\x18\x05 \x03(\v2\x17.relay.v1.LeaseAcceptedR\x06quorum\"\xb9\x01\n" +
+	"\x06quorum\x18\x05 \x03(\v2\x17.relay.v1.LeaseAcceptedR\x06quorum\x12\x14\n" +
+	"\x05state\x18\x06 \x01(\fR\x05state\"\xb9\x01\n" +
 	"\fLeaseRelease\x12$\n" +
 	"\x03key\x18\x01 \x01(\v2\x12.relay.v1.LeaseKeyR\x03key\x12-\n" +
 	"\x06ballot\x18\x02 \x01(\v2\x15.relay.v1.LeaseBallotR\x06ballot\x121\n" +
@@ -6898,7 +7285,7 @@ const file_relay_v1_relay_proto_rawDesc = "" +
 	"\x06ballot\x18\x02 \x01(\v2\x15.relay.v1.LeaseBallotR\x06ballot\x12\x14\n" +
 	"\x05epoch\x18\x03 \x01(\x04R\x05epoch\x12)\n" +
 	"\x10manifest_version\x18\x04 \x01(\x04R\x0fmanifestVersion\x121\n" +
-	"\x14acceptor_incarnation\x18\x05 \x01(\x04R\x13acceptorIncarnation\"\xd2\x02\n" +
+	"\x14acceptor_incarnation\x18\x05 \x01(\x04R\x13acceptorIncarnation\"\x8c\x03\n" +
 	"\vLeaseStatus\x12$\n" +
 	"\x03key\x18\x01 \x01(\v2\x12.relay.v1.LeaseKeyR\x03key\x12-\n" +
 	"\x05state\x18\x02 \x01(\x0e2\x17.relay.v1.LeaseKeyStateR\x05state\x12\x1b\n" +
@@ -6907,7 +7294,30 @@ const file_relay_v1_relay_proto_rawDesc = "" +
 	"\rlatest_commit\x18\x05 \x01(\v2\x15.relay.v1.LeaseCommitR\flatestCommit\x12\x14\n" +
 	"\x05epoch\x18\x06 \x01(\x04R\x05epoch\x12)\n" +
 	"\x10manifest_version\x18\a \x01(\x04R\x0fmanifestVersion\x12!\n" +
-	"\freserved_for\x18\b \x01(\tR\vreservedFor\"\x9e\x01\n" +
+	"\freserved_for\x18\b \x01(\tR\vreservedFor\x128\n" +
+	"\baccepted\x18\t \x01(\v2\x1c.relay.v1.LeaseAcceptedStateR\baccepted\"\xd5\x01\n" +
+	"\x12LeaseAcceptedState\x12\x14\n" +
+	"\x05known\x18\x01 \x01(\bR\x05known\x12-\n" +
+	"\x06ballot\x18\x02 \x01(\v2\x15.relay.v1.LeaseBallotR\x06ballot\x12\x14\n" +
+	"\x05state\x18\x03 \x01(\fR\x05state\x12\x1a\n" +
+	"\breleased\x18\x04 \x01(\bR\breleased\x122\n" +
+	"\x15released_successor_id\x18\x05 \x01(\tR\x13releasedSuccessorId\x12\x14\n" +
+	"\x05epoch\x18\x06 \x01(\x04R\x05epoch\"\x9a\x02\n" +
+	"\x10LeaseHolderState\x12\x14\n" +
+	"\x05value\x18\x01 \x01(\fR\x05value\x12\x1b\n" +
+	"\tholder_id\x18\x02 \x01(\tR\bholderId\x12+\n" +
+	"\x11pending_promotion\x18\x03 \x01(\bR\x10pendingPromotion\x12,\n" +
+	"\x12promoted_holder_id\x18\x04 \x01(\tR\x10promotedHolderId\x12\x1e\n" +
+	"\n" +
+	"generation\x18\x05 \x01(\x04R\n" +
+	"generation\x12#\n" +
+	"\rtransition_id\x18\x06 \x01(\tR\ftransitionId\x123\n" +
+	"\x06forced\x18\a \x01(\v2\x1b.relay.v1.LeaseForcedMarkerR\x06forced\"\xa9\x01\n" +
+	"\x11LeaseForcedMarker\x12!\n" +
+	"\foperation_id\x18\x01 \x01(\tR\voperationId\x12)\n" +
+	"\x04over\x18\x02 \x01(\v2\x15.relay.v1.LeaseBallotR\x04over\x12\x1b\n" +
+	"\tholder_id\x18\x03 \x01(\tR\bholderId\x12)\n" +
+	"\x04base\x18\x04 \x01(\v2\x15.relay.v1.LeaseBallotR\x04base\"\x9e\x01\n" +
 	"\x10LeaseSignedBlock\x12$\n" +
 	"\x0esigning_key_id\x18\x01 \x01(\tR\fsigningKeyId\x12,\n" +
 	"\x04kind\x18\x02 \x01(\x0e2\x18.relay.v1.LeaseBlockKindR\x04kind\x12\x18\n" +
@@ -6919,7 +7329,7 @@ const file_relay_v1_relay_proto_rawDesc = "" +
 	"public_key\x18\x02 \x01(\fR\tpublicKey\"E\n" +
 	"\x12LeaseBootstrapSlot\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\rR\x04slot\x12\x1b\n" +
-	"\tholder_id\x18\x02 \x01(\tR\bholderId\"\xce\x05\n" +
+	"\tholder_id\x18\x02 \x01(\tR\bholderId\"\xea\x05\n" +
 	"\rLeaseManifest\x12%\n" +
 	"\x0eschema_version\x18\x01 \x01(\rR\rschemaVersion\x12\x1b\n" +
 	"\tpolicy_id\x18\x02 \x01(\tR\bpolicyId\x12)\n" +
@@ -6941,7 +7351,8 @@ const file_relay_v1_relay_proto_rawDesc = "" +
 	"\amembers\x18\x0e \x03(\v2\x15.relay.v1.LeaseMemberR\amembers\x129\n" +
 	"\vquorum_sets\x18\x0f \x03(\v2\x18.relay.v1.LeaseQuorumSetR\n" +
 	"quorumSets\x127\n" +
-	"\bretained\x18\x10 \x03(\v2\x1b.relay.v1.LeaseRetainedSlotR\bretained\"s\n" +
+	"\bretained\x18\x10 \x03(\v2\x1b.relay.v1.LeaseRetainedSlotR\bretained\x12\x1a\n" +
+	"\bstateful\x18\x11 \x01(\bR\bstateful\"s\n" +
 	"\x11LeaseRetainedSlot\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\rR\x04slot\x12\x1b\n" +
 	"\tholder_id\x18\x02 \x01(\tR\bholderId\x12-\n" +
@@ -7012,7 +7423,7 @@ const file_relay_v1_relay_proto_rawDesc = "" +
 	"\x10manifest_version\x18\x06 \x01(\x04R\x0fmanifestVersion\x12!\n" +
 	"\fplacement_id\x18\a \x01(\tR\vplacementId\x121\n" +
 	"\x14placement_generation\x18\b \x01(\x04R\x13placementGeneration\x12\x1a\n" +
-	"\bretained\x18\t \x01(\bR\bretained\"\x87\x05\n" +
+	"\bretained\x18\t \x01(\bR\bretained\"\xd4\x06\n" +
 	"\x18AvailabilityLeaseKeyView\x12\x1b\n" +
 	"\tpolicy_id\x18\x01 \x01(\tR\bpolicyId\x12\x12\n" +
 	"\x04slot\x18\x02 \x01(\rR\x04slot\x12\x14\n" +
@@ -7034,7 +7445,14 @@ const file_relay_v1_relay_proto_rawDesc = "" +
 	"\n" +
 	"abstaining\x18\x18 \x01(\bR\n" +
 	"abstaining\x12/\n" +
-	"\x14holder_since_unix_ms\x18\x19 \x01(\x03R\x11holderSinceUnixMs\"r\n" +
+	"\x14holder_since_unix_ms\x18\x19 \x01(\x03R\x11holderSinceUnixMs\x12\x1a\n" +
+	"\bstateful\x18\x1a \x01(\bR\bstateful\x12\x1f\n" +
+	"\vstate_known\x18\x1b \x01(\bR\n" +
+	"stateKnown\x12\x1d\n" +
+	"\n" +
+	"state_hash\x18\x1c \x01(\tR\tstateHash\x12=\n" +
+	"\baccepted\x18\x1d \x01(\v2!.relay.v1.AvailabilityLeaseBallotR\baccepted\x120\n" +
+	"\x14committed_state_hash\x18\x1e \x01(\tR\x12committedStateHash\"r\n" +
 	"\x17AvailabilityLeaseBallot\x12\x14\n" +
 	"\x05round\x18\x01 \x01(\x04R\x05round\x12 \n" +
 	"\vincarnation\x18\x02 \x01(\x04R\vincarnation\x12\x1f\n" +
@@ -7072,7 +7490,7 @@ const file_relay_v1_relay_proto_rawDesc = "" +
 	"\x18LEASE_MEMBER_ROLE_DAEMON\x10\x02*W\n" +
 	"\x0eLeaseBlockKind\x12 \n" +
 	"\x1cLEASE_BLOCK_KIND_UNSPECIFIED\x10\x00\x12\x1d\n" +
-	"\x19LEASE_BLOCK_KIND_MANIFEST\x10\x01\"\x04\b\x02\x10\x02*\xbb\x03\n" +
+	"\x19LEASE_BLOCK_KIND_MANIFEST\x10\x01\"\x04\b\x02\x10\x02*\x82\x04\n" +
 	"\x0fLeaseNackReason\x12!\n" +
 	"\x1dLEASE_NACK_REASON_UNSPECIFIED\x10\x00\x12$\n" +
 	" LEASE_NACK_REASON_BALLOT_TOO_LOW\x10\x01\x12\x1a\n" +
@@ -7086,7 +7504,9 @@ const file_relay_v1_relay_proto_rawDesc = "" +
 	"\x1fLEASE_NACK_REASON_NOT_CANDIDATE\x10\t\x12$\n" +
 	" LEASE_NACK_REASON_UNKNOWN_POLICY\x10\n" +
 	"\x12$\n" +
-	" LEASE_NACK_REASON_RETAIN_REFUSED\x10\v*\xbe\x01\n" +
+	" LEASE_NACK_REASON_RETAIN_REFUSED\x10\v\x12 \n" +
+	"\x1cLEASE_NACK_REASON_NO_PROMISE\x10\f\x12#\n" +
+	"\x1fLEASE_NACK_REASON_STATE_INVALID\x10\r*\xbe\x01\n" +
 	"\rLeaseKeyState\x12\x1f\n" +
 	"\x1bLEASE_KEY_STATE_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14LEASE_KEY_STATE_FREE\x10\x01\x12\x18\n" +
@@ -7135,7 +7555,7 @@ func file_relay_v1_relay_proto_rawDescGZIP() []byte {
 }
 
 var file_relay_v1_relay_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
-var file_relay_v1_relay_proto_msgTypes = make([]protoimpl.MessageInfo, 73)
+var file_relay_v1_relay_proto_msgTypes = make([]protoimpl.MessageInfo, 76)
 var file_relay_v1_relay_proto_goTypes = []any{
 	(EndpointServingState)(0),              // 0: relay.v1.EndpointServingState
 	(RelayMode)(0),                         // 1: relay.v1.RelayMode
@@ -7203,23 +7623,26 @@ var file_relay_v1_relay_proto_goTypes = []any{
 	(*LeaseRetain)(nil),                    // 63: relay.v1.LeaseRetain
 	(*LeaseRetained)(nil),                  // 64: relay.v1.LeaseRetained
 	(*LeaseStatus)(nil),                    // 65: relay.v1.LeaseStatus
-	(*LeaseSignedBlock)(nil),               // 66: relay.v1.LeaseSignedBlock
-	(*LeaseCandidate)(nil),                 // 67: relay.v1.LeaseCandidate
-	(*LeaseBootstrapSlot)(nil),             // 68: relay.v1.LeaseBootstrapSlot
-	(*LeaseManifest)(nil),                  // 69: relay.v1.LeaseManifest
-	(*LeaseRetainedSlot)(nil),              // 70: relay.v1.LeaseRetainedSlot
-	(*LeaseMember)(nil),                    // 71: relay.v1.LeaseMember
-	(*LeaseQuorumSet)(nil),                 // 72: relay.v1.LeaseQuorumSet
-	(*LeasePolicyKeyRotation)(nil),         // 73: relay.v1.LeasePolicyKeyRotation
-	(*LeaseGateWatchRequest)(nil),          // 74: relay.v1.LeaseGateWatchRequest
-	(*LeaseGateSnapshot)(nil),              // 75: relay.v1.LeaseGateSnapshot
-	(*LeaseGateView)(nil),                  // 76: relay.v1.LeaseGateView
-	(*AvailabilityLeaseReport)(nil),        // 77: relay.v1.AvailabilityLeaseReport
-	(*AvailabilityLeaseManifestAck)(nil),   // 78: relay.v1.AvailabilityLeaseManifestAck
-	(*AvailabilityLeaseHeld)(nil),          // 79: relay.v1.AvailabilityLeaseHeld
-	(*AvailabilityLeaseKeyView)(nil),       // 80: relay.v1.AvailabilityLeaseKeyView
-	(*AvailabilityLeaseBallot)(nil),        // 81: relay.v1.AvailabilityLeaseBallot
-	(*AvailabilityLeaseEvent)(nil),         // 82: relay.v1.AvailabilityLeaseEvent
+	(*LeaseAcceptedState)(nil),             // 66: relay.v1.LeaseAcceptedState
+	(*LeaseHolderState)(nil),               // 67: relay.v1.LeaseHolderState
+	(*LeaseForcedMarker)(nil),              // 68: relay.v1.LeaseForcedMarker
+	(*LeaseSignedBlock)(nil),               // 69: relay.v1.LeaseSignedBlock
+	(*LeaseCandidate)(nil),                 // 70: relay.v1.LeaseCandidate
+	(*LeaseBootstrapSlot)(nil),             // 71: relay.v1.LeaseBootstrapSlot
+	(*LeaseManifest)(nil),                  // 72: relay.v1.LeaseManifest
+	(*LeaseRetainedSlot)(nil),              // 73: relay.v1.LeaseRetainedSlot
+	(*LeaseMember)(nil),                    // 74: relay.v1.LeaseMember
+	(*LeaseQuorumSet)(nil),                 // 75: relay.v1.LeaseQuorumSet
+	(*LeasePolicyKeyRotation)(nil),         // 76: relay.v1.LeasePolicyKeyRotation
+	(*LeaseGateWatchRequest)(nil),          // 77: relay.v1.LeaseGateWatchRequest
+	(*LeaseGateSnapshot)(nil),              // 78: relay.v1.LeaseGateSnapshot
+	(*LeaseGateView)(nil),                  // 79: relay.v1.LeaseGateView
+	(*AvailabilityLeaseReport)(nil),        // 80: relay.v1.AvailabilityLeaseReport
+	(*AvailabilityLeaseManifestAck)(nil),   // 81: relay.v1.AvailabilityLeaseManifestAck
+	(*AvailabilityLeaseHeld)(nil),          // 82: relay.v1.AvailabilityLeaseHeld
+	(*AvailabilityLeaseKeyView)(nil),       // 83: relay.v1.AvailabilityLeaseKeyView
+	(*AvailabilityLeaseBallot)(nil),        // 84: relay.v1.AvailabilityLeaseBallot
+	(*AvailabilityLeaseEvent)(nil),         // 85: relay.v1.AvailabilityLeaseEvent
 }
 var file_relay_v1_relay_proto_depIdxs = []int32{
 	12,  // 0: relay.v1.EndpointControl.register:type_name -> relay.v1.RegisterEndpoint
@@ -7245,8 +7668,8 @@ var file_relay_v1_relay_proto_depIdxs = []int32{
 	28,  // 20: relay.v1.PolicyEnvelopePayload.routes:type_name -> relay.v1.RoutePolicy
 	29,  // 21: relay.v1.PolicyEnvelopePayload.admission_policy:type_name -> relay.v1.AdmissionPolicy
 	26,  // 22: relay.v1.PolicyEnvelopePayload.policy_signing_keys:type_name -> relay.v1.PolicySigningKey
-	66,  // 23: relay.v1.PolicyEnvelopePayload.lease_blocks:type_name -> relay.v1.LeaseSignedBlock
-	73,  // 24: relay.v1.PolicyEnvelopePayload.lease_key_rotations:type_name -> relay.v1.LeasePolicyKeyRotation
+	69,  // 23: relay.v1.PolicyEnvelopePayload.lease_blocks:type_name -> relay.v1.LeaseSignedBlock
+	76,  // 24: relay.v1.PolicyEnvelopePayload.lease_key_rotations:type_name -> relay.v1.LeasePolicyKeyRotation
 	25,  // 25: relay.v1.ApplySnapshotRequest.public_keys:type_name -> relay.v1.PublicKey
 	27,  // 26: relay.v1.ApplySnapshotRequest.endpoints:type_name -> relay.v1.EndpointPolicy
 	28,  // 27: relay.v1.ApplySnapshotRequest.routes:type_name -> relay.v1.RoutePolicy
@@ -7254,10 +7677,10 @@ var file_relay_v1_relay_proto_depIdxs = []int32{
 	31,  // 29: relay.v1.ApplySnapshotRequest.signed_envelope:type_name -> relay.v1.SignedPolicyEnvelope
 	1,   // 30: relay.v1.HealthResponse.mode:type_name -> relay.v1.RelayMode
 	40,  // 31: relay.v1.HealthResponse.assignment_tunnels:type_name -> relay.v1.AssignmentTunnelCount
-	77,  // 32: relay.v1.HealthResponse.availability_lease:type_name -> relay.v1.AvailabilityLeaseReport
+	80,  // 32: relay.v1.HealthResponse.availability_lease:type_name -> relay.v1.AvailabilityLeaseReport
 	53,  // 33: relay.v1.LeaseBatch.items:type_name -> relay.v1.LeaseItem
-	66,  // 34: relay.v1.LeaseBatch.blocks:type_name -> relay.v1.LeaseSignedBlock
-	73,  // 35: relay.v1.LeaseBatch.key_rotations:type_name -> relay.v1.LeasePolicyKeyRotation
+	69,  // 34: relay.v1.LeaseBatch.blocks:type_name -> relay.v1.LeaseSignedBlock
+	76,  // 35: relay.v1.LeaseBatch.key_rotations:type_name -> relay.v1.LeasePolicyKeyRotation
 	54,  // 36: relay.v1.LeaseItem.prepare:type_name -> relay.v1.LeasePrepare
 	55,  // 37: relay.v1.LeaseItem.promise:type_name -> relay.v1.LeasePromise
 	56,  // 38: relay.v1.LeaseItem.propose:type_name -> relay.v1.LeasePropose
@@ -7274,86 +7697,93 @@ var file_relay_v1_relay_proto_depIdxs = []int32{
 	52,  // 49: relay.v1.LeasePrepare.ballot:type_name -> relay.v1.LeaseBallot
 	51,  // 50: relay.v1.LeasePromise.key:type_name -> relay.v1.LeaseKey
 	52,  // 51: relay.v1.LeasePromise.ballot:type_name -> relay.v1.LeaseBallot
-	51,  // 52: relay.v1.LeasePropose.key:type_name -> relay.v1.LeaseKey
-	52,  // 53: relay.v1.LeasePropose.ballot:type_name -> relay.v1.LeaseBallot
-	51,  // 54: relay.v1.LeaseAccepted.key:type_name -> relay.v1.LeaseKey
-	52,  // 55: relay.v1.LeaseAccepted.ballot:type_name -> relay.v1.LeaseBallot
-	51,  // 56: relay.v1.LeaseNack.key:type_name -> relay.v1.LeaseKey
-	52,  // 57: relay.v1.LeaseNack.ballot:type_name -> relay.v1.LeaseBallot
-	6,   // 58: relay.v1.LeaseNack.reason:type_name -> relay.v1.LeaseNackReason
-	52,  // 59: relay.v1.LeaseNack.promised:type_name -> relay.v1.LeaseBallot
-	59,  // 60: relay.v1.LeaseNack.latest_commit:type_name -> relay.v1.LeaseCommit
-	51,  // 61: relay.v1.LeaseCommit.key:type_name -> relay.v1.LeaseKey
-	52,  // 62: relay.v1.LeaseCommit.ballot:type_name -> relay.v1.LeaseBallot
-	57,  // 63: relay.v1.LeaseCommit.quorum:type_name -> relay.v1.LeaseAccepted
-	51,  // 64: relay.v1.LeaseRelease.key:type_name -> relay.v1.LeaseKey
-	52,  // 65: relay.v1.LeaseRelease.ballot:type_name -> relay.v1.LeaseBallot
-	8,   // 66: relay.v1.LeaseRelease.phase:type_name -> relay.v1.LeaseReleasePhase
-	51,  // 67: relay.v1.LeaseReleaseAck.key:type_name -> relay.v1.LeaseKey
-	52,  // 68: relay.v1.LeaseReleaseAck.ballot:type_name -> relay.v1.LeaseBallot
-	8,   // 69: relay.v1.LeaseReleaseAck.phase:type_name -> relay.v1.LeaseReleasePhase
-	51,  // 70: relay.v1.LeaseQuery.keys:type_name -> relay.v1.LeaseKey
-	51,  // 71: relay.v1.LeaseRetain.key:type_name -> relay.v1.LeaseKey
-	52,  // 72: relay.v1.LeaseRetain.ballot:type_name -> relay.v1.LeaseBallot
-	51,  // 73: relay.v1.LeaseRetained.key:type_name -> relay.v1.LeaseKey
-	52,  // 74: relay.v1.LeaseRetained.ballot:type_name -> relay.v1.LeaseBallot
-	51,  // 75: relay.v1.LeaseStatus.key:type_name -> relay.v1.LeaseKey
-	7,   // 76: relay.v1.LeaseStatus.state:type_name -> relay.v1.LeaseKeyState
-	52,  // 77: relay.v1.LeaseStatus.promised:type_name -> relay.v1.LeaseBallot
-	59,  // 78: relay.v1.LeaseStatus.latest_commit:type_name -> relay.v1.LeaseCommit
-	5,   // 79: relay.v1.LeaseSignedBlock.kind:type_name -> relay.v1.LeaseBlockKind
-	2,   // 80: relay.v1.LeaseManifest.mode:type_name -> relay.v1.LeasePolicyMode
-	3,   // 81: relay.v1.LeaseManifest.partition_mode:type_name -> relay.v1.LeasePartitionMode
-	67,  // 82: relay.v1.LeaseManifest.candidates:type_name -> relay.v1.LeaseCandidate
-	68,  // 83: relay.v1.LeaseManifest.bootstrap:type_name -> relay.v1.LeaseBootstrapSlot
-	71,  // 84: relay.v1.LeaseManifest.members:type_name -> relay.v1.LeaseMember
-	72,  // 85: relay.v1.LeaseManifest.quorum_sets:type_name -> relay.v1.LeaseQuorumSet
-	70,  // 86: relay.v1.LeaseManifest.retained:type_name -> relay.v1.LeaseRetainedSlot
-	52,  // 87: relay.v1.LeaseRetainedSlot.ballot:type_name -> relay.v1.LeaseBallot
-	4,   // 88: relay.v1.LeaseMember.role:type_name -> relay.v1.LeaseMemberRole
-	76,  // 89: relay.v1.LeaseGateSnapshot.gates:type_name -> relay.v1.LeaseGateView
-	52,  // 90: relay.v1.LeaseGateView.ballot:type_name -> relay.v1.LeaseBallot
-	9,   // 91: relay.v1.LeaseGateView.holder_endpoint:type_name -> relay.v1.LeaseHolderEndpoint
-	78,  // 92: relay.v1.AvailabilityLeaseReport.manifests:type_name -> relay.v1.AvailabilityLeaseManifestAck
-	79,  // 93: relay.v1.AvailabilityLeaseReport.held:type_name -> relay.v1.AvailabilityLeaseHeld
-	80,  // 94: relay.v1.AvailabilityLeaseReport.acceptor:type_name -> relay.v1.AvailabilityLeaseKeyView
-	82,  // 95: relay.v1.AvailabilityLeaseReport.events:type_name -> relay.v1.AvailabilityLeaseEvent
-	81,  // 96: relay.v1.AvailabilityLeaseHeld.ballot:type_name -> relay.v1.AvailabilityLeaseBallot
-	81,  // 97: relay.v1.AvailabilityLeaseKeyView.promised:type_name -> relay.v1.AvailabilityLeaseBallot
-	81,  // 98: relay.v1.AvailabilityLeaseKeyView.committed:type_name -> relay.v1.AvailabilityLeaseBallot
-	81,  // 99: relay.v1.AvailabilityLeaseKeyView.gate_ballot:type_name -> relay.v1.AvailabilityLeaseBallot
-	81,  // 100: relay.v1.AvailabilityLeaseEvent.ballot:type_name -> relay.v1.AvailabilityLeaseBallot
-	11,  // 101: relay.v1.TunnelBroker.RegisterEndpoint:input_type -> relay.v1.EndpointControl
-	17,  // 102: relay.v1.TunnelBroker.OpenTunnel:input_type -> relay.v1.TunnelFrame
-	17,  // 103: relay.v1.TunnelBroker.AcceptTunnel:input_type -> relay.v1.TunnelFrame
-	49,  // 104: relay.v1.TunnelBroker.Coordinate:input_type -> relay.v1.CoordinationFrame
-	74,  // 105: relay.v1.TunnelBroker.WatchLeaseGates:input_type -> relay.v1.LeaseGateWatchRequest
-	38,  // 106: relay.v1.RelayAdmin.GetHealth:input_type -> relay.v1.HealthRequest
-	41,  // 107: relay.v1.RelayAdmin.GetRouteRuntime:input_type -> relay.v1.RouteRuntimeRequest
-	32,  // 108: relay.v1.RelayAdmin.ApplySnapshot:input_type -> relay.v1.ApplySnapshotRequest
-	34,  // 109: relay.v1.RelayAdmin.BootstrapPolicyTrust:input_type -> relay.v1.BootstrapPolicyTrustRequest
-	36,  // 110: relay.v1.RelayAdmin.ResetLocalPolicyTrust:input_type -> relay.v1.ResetLocalPolicyTrustRequest
-	43,  // 111: relay.v1.RelayAdmin.ReloadIdentity:input_type -> relay.v1.ReloadIdentityRequest
-	45,  // 112: relay.v1.RelayAdmin.CommitIdentityRotation:input_type -> relay.v1.CommitIdentityRotationRequest
-	47,  // 113: relay.v1.RelayAdmin.SetDrain:input_type -> relay.v1.SetDrainRequest
-	11,  // 114: relay.v1.TunnelBroker.RegisterEndpoint:output_type -> relay.v1.EndpointControl
-	17,  // 115: relay.v1.TunnelBroker.OpenTunnel:output_type -> relay.v1.TunnelFrame
-	17,  // 116: relay.v1.TunnelBroker.AcceptTunnel:output_type -> relay.v1.TunnelFrame
-	49,  // 117: relay.v1.TunnelBroker.Coordinate:output_type -> relay.v1.CoordinationFrame
-	75,  // 118: relay.v1.TunnelBroker.WatchLeaseGates:output_type -> relay.v1.LeaseGateSnapshot
-	39,  // 119: relay.v1.RelayAdmin.GetHealth:output_type -> relay.v1.HealthResponse
-	42,  // 120: relay.v1.RelayAdmin.GetRouteRuntime:output_type -> relay.v1.RouteRuntimeResponse
-	33,  // 121: relay.v1.RelayAdmin.ApplySnapshot:output_type -> relay.v1.ApplySnapshotResponse
-	35,  // 122: relay.v1.RelayAdmin.BootstrapPolicyTrust:output_type -> relay.v1.BootstrapPolicyTrustResponse
-	37,  // 123: relay.v1.RelayAdmin.ResetLocalPolicyTrust:output_type -> relay.v1.ResetLocalPolicyTrustResponse
-	44,  // 124: relay.v1.RelayAdmin.ReloadIdentity:output_type -> relay.v1.ReloadIdentityResponse
-	46,  // 125: relay.v1.RelayAdmin.CommitIdentityRotation:output_type -> relay.v1.CommitIdentityRotationResponse
-	48,  // 126: relay.v1.RelayAdmin.SetDrain:output_type -> relay.v1.SetDrainResponse
-	114, // [114:127] is the sub-list for method output_type
-	101, // [101:114] is the sub-list for method input_type
-	101, // [101:101] is the sub-list for extension type_name
-	101, // [101:101] is the sub-list for extension extendee
-	0,   // [0:101] is the sub-list for field type_name
+	66,  // 52: relay.v1.LeasePromise.accepted:type_name -> relay.v1.LeaseAcceptedState
+	51,  // 53: relay.v1.LeasePropose.key:type_name -> relay.v1.LeaseKey
+	52,  // 54: relay.v1.LeasePropose.ballot:type_name -> relay.v1.LeaseBallot
+	51,  // 55: relay.v1.LeaseAccepted.key:type_name -> relay.v1.LeaseKey
+	52,  // 56: relay.v1.LeaseAccepted.ballot:type_name -> relay.v1.LeaseBallot
+	51,  // 57: relay.v1.LeaseNack.key:type_name -> relay.v1.LeaseKey
+	52,  // 58: relay.v1.LeaseNack.ballot:type_name -> relay.v1.LeaseBallot
+	6,   // 59: relay.v1.LeaseNack.reason:type_name -> relay.v1.LeaseNackReason
+	52,  // 60: relay.v1.LeaseNack.promised:type_name -> relay.v1.LeaseBallot
+	59,  // 61: relay.v1.LeaseNack.latest_commit:type_name -> relay.v1.LeaseCommit
+	51,  // 62: relay.v1.LeaseCommit.key:type_name -> relay.v1.LeaseKey
+	52,  // 63: relay.v1.LeaseCommit.ballot:type_name -> relay.v1.LeaseBallot
+	57,  // 64: relay.v1.LeaseCommit.quorum:type_name -> relay.v1.LeaseAccepted
+	51,  // 65: relay.v1.LeaseRelease.key:type_name -> relay.v1.LeaseKey
+	52,  // 66: relay.v1.LeaseRelease.ballot:type_name -> relay.v1.LeaseBallot
+	8,   // 67: relay.v1.LeaseRelease.phase:type_name -> relay.v1.LeaseReleasePhase
+	51,  // 68: relay.v1.LeaseReleaseAck.key:type_name -> relay.v1.LeaseKey
+	52,  // 69: relay.v1.LeaseReleaseAck.ballot:type_name -> relay.v1.LeaseBallot
+	8,   // 70: relay.v1.LeaseReleaseAck.phase:type_name -> relay.v1.LeaseReleasePhase
+	51,  // 71: relay.v1.LeaseQuery.keys:type_name -> relay.v1.LeaseKey
+	51,  // 72: relay.v1.LeaseRetain.key:type_name -> relay.v1.LeaseKey
+	52,  // 73: relay.v1.LeaseRetain.ballot:type_name -> relay.v1.LeaseBallot
+	51,  // 74: relay.v1.LeaseRetained.key:type_name -> relay.v1.LeaseKey
+	52,  // 75: relay.v1.LeaseRetained.ballot:type_name -> relay.v1.LeaseBallot
+	51,  // 76: relay.v1.LeaseStatus.key:type_name -> relay.v1.LeaseKey
+	7,   // 77: relay.v1.LeaseStatus.state:type_name -> relay.v1.LeaseKeyState
+	52,  // 78: relay.v1.LeaseStatus.promised:type_name -> relay.v1.LeaseBallot
+	59,  // 79: relay.v1.LeaseStatus.latest_commit:type_name -> relay.v1.LeaseCommit
+	66,  // 80: relay.v1.LeaseStatus.accepted:type_name -> relay.v1.LeaseAcceptedState
+	52,  // 81: relay.v1.LeaseAcceptedState.ballot:type_name -> relay.v1.LeaseBallot
+	68,  // 82: relay.v1.LeaseHolderState.forced:type_name -> relay.v1.LeaseForcedMarker
+	52,  // 83: relay.v1.LeaseForcedMarker.over:type_name -> relay.v1.LeaseBallot
+	52,  // 84: relay.v1.LeaseForcedMarker.base:type_name -> relay.v1.LeaseBallot
+	5,   // 85: relay.v1.LeaseSignedBlock.kind:type_name -> relay.v1.LeaseBlockKind
+	2,   // 86: relay.v1.LeaseManifest.mode:type_name -> relay.v1.LeasePolicyMode
+	3,   // 87: relay.v1.LeaseManifest.partition_mode:type_name -> relay.v1.LeasePartitionMode
+	70,  // 88: relay.v1.LeaseManifest.candidates:type_name -> relay.v1.LeaseCandidate
+	71,  // 89: relay.v1.LeaseManifest.bootstrap:type_name -> relay.v1.LeaseBootstrapSlot
+	74,  // 90: relay.v1.LeaseManifest.members:type_name -> relay.v1.LeaseMember
+	75,  // 91: relay.v1.LeaseManifest.quorum_sets:type_name -> relay.v1.LeaseQuorumSet
+	73,  // 92: relay.v1.LeaseManifest.retained:type_name -> relay.v1.LeaseRetainedSlot
+	52,  // 93: relay.v1.LeaseRetainedSlot.ballot:type_name -> relay.v1.LeaseBallot
+	4,   // 94: relay.v1.LeaseMember.role:type_name -> relay.v1.LeaseMemberRole
+	79,  // 95: relay.v1.LeaseGateSnapshot.gates:type_name -> relay.v1.LeaseGateView
+	52,  // 96: relay.v1.LeaseGateView.ballot:type_name -> relay.v1.LeaseBallot
+	9,   // 97: relay.v1.LeaseGateView.holder_endpoint:type_name -> relay.v1.LeaseHolderEndpoint
+	81,  // 98: relay.v1.AvailabilityLeaseReport.manifests:type_name -> relay.v1.AvailabilityLeaseManifestAck
+	82,  // 99: relay.v1.AvailabilityLeaseReport.held:type_name -> relay.v1.AvailabilityLeaseHeld
+	83,  // 100: relay.v1.AvailabilityLeaseReport.acceptor:type_name -> relay.v1.AvailabilityLeaseKeyView
+	85,  // 101: relay.v1.AvailabilityLeaseReport.events:type_name -> relay.v1.AvailabilityLeaseEvent
+	84,  // 102: relay.v1.AvailabilityLeaseHeld.ballot:type_name -> relay.v1.AvailabilityLeaseBallot
+	84,  // 103: relay.v1.AvailabilityLeaseKeyView.promised:type_name -> relay.v1.AvailabilityLeaseBallot
+	84,  // 104: relay.v1.AvailabilityLeaseKeyView.committed:type_name -> relay.v1.AvailabilityLeaseBallot
+	84,  // 105: relay.v1.AvailabilityLeaseKeyView.gate_ballot:type_name -> relay.v1.AvailabilityLeaseBallot
+	84,  // 106: relay.v1.AvailabilityLeaseKeyView.accepted:type_name -> relay.v1.AvailabilityLeaseBallot
+	84,  // 107: relay.v1.AvailabilityLeaseEvent.ballot:type_name -> relay.v1.AvailabilityLeaseBallot
+	11,  // 108: relay.v1.TunnelBroker.RegisterEndpoint:input_type -> relay.v1.EndpointControl
+	17,  // 109: relay.v1.TunnelBroker.OpenTunnel:input_type -> relay.v1.TunnelFrame
+	17,  // 110: relay.v1.TunnelBroker.AcceptTunnel:input_type -> relay.v1.TunnelFrame
+	49,  // 111: relay.v1.TunnelBroker.Coordinate:input_type -> relay.v1.CoordinationFrame
+	77,  // 112: relay.v1.TunnelBroker.WatchLeaseGates:input_type -> relay.v1.LeaseGateWatchRequest
+	38,  // 113: relay.v1.RelayAdmin.GetHealth:input_type -> relay.v1.HealthRequest
+	41,  // 114: relay.v1.RelayAdmin.GetRouteRuntime:input_type -> relay.v1.RouteRuntimeRequest
+	32,  // 115: relay.v1.RelayAdmin.ApplySnapshot:input_type -> relay.v1.ApplySnapshotRequest
+	34,  // 116: relay.v1.RelayAdmin.BootstrapPolicyTrust:input_type -> relay.v1.BootstrapPolicyTrustRequest
+	36,  // 117: relay.v1.RelayAdmin.ResetLocalPolicyTrust:input_type -> relay.v1.ResetLocalPolicyTrustRequest
+	43,  // 118: relay.v1.RelayAdmin.ReloadIdentity:input_type -> relay.v1.ReloadIdentityRequest
+	45,  // 119: relay.v1.RelayAdmin.CommitIdentityRotation:input_type -> relay.v1.CommitIdentityRotationRequest
+	47,  // 120: relay.v1.RelayAdmin.SetDrain:input_type -> relay.v1.SetDrainRequest
+	11,  // 121: relay.v1.TunnelBroker.RegisterEndpoint:output_type -> relay.v1.EndpointControl
+	17,  // 122: relay.v1.TunnelBroker.OpenTunnel:output_type -> relay.v1.TunnelFrame
+	17,  // 123: relay.v1.TunnelBroker.AcceptTunnel:output_type -> relay.v1.TunnelFrame
+	49,  // 124: relay.v1.TunnelBroker.Coordinate:output_type -> relay.v1.CoordinationFrame
+	78,  // 125: relay.v1.TunnelBroker.WatchLeaseGates:output_type -> relay.v1.LeaseGateSnapshot
+	39,  // 126: relay.v1.RelayAdmin.GetHealth:output_type -> relay.v1.HealthResponse
+	42,  // 127: relay.v1.RelayAdmin.GetRouteRuntime:output_type -> relay.v1.RouteRuntimeResponse
+	33,  // 128: relay.v1.RelayAdmin.ApplySnapshot:output_type -> relay.v1.ApplySnapshotResponse
+	35,  // 129: relay.v1.RelayAdmin.BootstrapPolicyTrust:output_type -> relay.v1.BootstrapPolicyTrustResponse
+	37,  // 130: relay.v1.RelayAdmin.ResetLocalPolicyTrust:output_type -> relay.v1.ResetLocalPolicyTrustResponse
+	44,  // 131: relay.v1.RelayAdmin.ReloadIdentity:output_type -> relay.v1.ReloadIdentityResponse
+	46,  // 132: relay.v1.RelayAdmin.CommitIdentityRotation:output_type -> relay.v1.CommitIdentityRotationResponse
+	48,  // 133: relay.v1.RelayAdmin.SetDrain:output_type -> relay.v1.SetDrainResponse
+	121, // [121:134] is the sub-list for method output_type
+	108, // [108:121] is the sub-list for method input_type
+	108, // [108:108] is the sub-list for extension type_name
+	108, // [108:108] is the sub-list for extension extendee
+	0,   // [0:108] is the sub-list for field type_name
 }
 
 func init() { file_relay_v1_relay_proto_init() }
@@ -7397,7 +7827,7 @@ func file_relay_v1_relay_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_relay_v1_relay_proto_rawDesc), len(file_relay_v1_relay_proto_rawDesc)),
 			NumEnums:      10,
-			NumMessages:   73,
+			NumMessages:   76,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

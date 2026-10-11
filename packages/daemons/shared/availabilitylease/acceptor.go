@@ -262,6 +262,9 @@ func (n *Node) onPrepare(from string, msg *pb.LeasePrepare, now time.Duration) {
 		Key: key.proto(), Ballot: ballot.proto(), Echo: ak.echoFor(ballot, now, n.nextEcho),
 		Shadow: !voting, AcceptorIncarnation: n.incarnation,
 	}
+	if manifest.Stateful {
+		promise.Accepted = n.acceptedState(ak, key)
+	}
 	n.queue(from, &pb.LeaseItem{Body: &pb.LeaseItem_Promise{Promise: promise}})
 }
 
@@ -284,6 +287,14 @@ func (n *Node) onPropose(from string, msg *pb.LeasePropose, now time.Duration) {
 		n.nack(from, key, ballot, reason, holder, ak)
 		return
 	}
+	var hash [32]byte
+	if manifest.Stateful {
+		var reason pb.LeaseNackReason
+		if hash, reason = n.checkStatefulPropose(ak, ballot, msg); reason != 0 {
+			n.nack(from, key, ballot, reason, "", ak)
+			return
+		}
+	}
 	voting := n.voting(key.PolicyID, now)
 	if voting {
 		if ak.rec.Promised.Less(ballot) {
@@ -303,13 +314,21 @@ func (n *Node) onPropose(from string, msg *pb.LeasePropose, now time.Duration) {
 	}
 	// Persisted before the accepted reply leaves (commitLocked), so a
 	// restart within the same boot restores this hold exactly.
-	ak.rec.Accepted = &acceptedRecord{Ballot: ballot, AtNs: int64(now)}
-	n.markDirty(key)
+	if manifest.Stateful {
+		n.recordStatefulAccept(ak, key, ballot, msg.GetEpoch(), msg.GetState(), hash, int64(now))
+	} else {
+		ak.rec.Accepted = &acceptedRecord{Ballot: ballot, AtNs: int64(now)}
+		n.markDirty(key)
+	}
 	accepted := &pb.LeaseAccepted{
 		Key: key.proto(), Ballot: ballot.proto(), Epoch: msg.GetEpoch(), ManifestVersion: msg.GetManifestVersion(),
 		AcceptorId: n.id, AcceptorIncarnation: n.incarnation,
 	}
-	signature, extra, err := signAll(n.signers(), acceptStatement(key, ballot, msg.GetEpoch(), msg.GetManifestVersion(), n.id, n.incarnation))
+	if manifest.Stateful {
+		accepted.StateHash = append([]byte(nil), hash[:]...)
+	}
+	statement := statementFor(manifest.Stateful, key, ballot, msg.GetEpoch(), msg.GetManifestVersion(), n.id, n.incarnation, hash)
+	signature, extra, err := signAll(n.signers(), statement)
 	if err != nil {
 		n.logf("sign lease accept: %v", err)
 		return
@@ -338,6 +357,10 @@ func (n *Node) storeCommit(commit *pb.LeaseCommit, now time.Duration) {
 	if persist {
 		ak.commitSince = now
 	}
+	// Stateful keys: the latest commit is persisted whenever its state
+	// changes too, so views and reports after a restart show the certified
+	// state (M1).
+	persist = persist || (manifest.Stateful && (ak.commit == nil || !sameBytes(ak.commit.GetState(), commit.GetState())))
 	ak.commit, ak.commitBallot = commit, ballot
 	if bootstrapSatisfiedBy(manifest, key, commit) && ak.rec.BootstrapSatisfied != manifest.BootstrapID {
 		ak.rec.BootstrapSatisfied = manifest.BootstrapID
@@ -443,6 +466,9 @@ func (n *Node) onQuery(from string, msg *pb.LeaseQuery, now time.Duration) {
 		status := &pb.LeaseStatus{
 			Key: key.proto(), State: state, HolderId: holder, Promised: ak.promised().proto(),
 			LatestCommit: ak.commit, Epoch: config.Epoch, ManifestVersion: manifest.Version, ReservedFor: reserved,
+		}
+		if manifest.Stateful {
+			status.Accepted = n.acceptedState(ak, key)
 		}
 		n.forwardOnce(from, key.PolicyID)
 		n.queue(from, &pb.LeaseItem{Body: &pb.LeaseItem_Status{Status: status}})

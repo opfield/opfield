@@ -134,6 +134,9 @@ func (n *simNode) start() {
 	n.node = node
 	n.w.tracef("%s start incarnation=%d", n.id, node.Incarnation())
 	n.w.gw.onNodeStart(n)
+	if n.w.state != nil {
+		n.w.state.register(n)
+	}
 	if !n.w.noBeacons {
 		n.beaconGen++
 		n.scheduleBeacon(n.beaconGen, n.gen)
@@ -251,11 +254,18 @@ func (n *simNode) after() {
 	if !n.processUp() || n.frozen || n.node == nil {
 		return
 	}
-	for _, event := range n.node.DrainEvents() {
-		n.w.tracef("%s event %s %s ballot=%s reason=%s succ=%s", n.id, event.Kind, event.Key, event.Ballot, event.Reason, event.Successor)
+	events := n.node.DrainEvents()
+	for _, event := range events {
+		n.w.tracef("%s event %s %s ballot=%s reason=%s succ=%s forced=%s", n.id, event.Kind, event.Key, event.Ballot, event.Reason, event.Successor, event.Forced)
 		n.w.events2 = append(n.w.events2, simEvent2{node: n.id, event: event, at: n.w.now})
 		if event.Kind == EventAcquired {
 			n.w.acquired = append(n.w.acquired, simAcquire{node: n.id, key: event.Key, at: n.w.now})
+		}
+	}
+	if n.w.state != nil && !n.relay {
+		n.w.state.observe(n, events)
+		if n.w.violation != "" {
+			return
 		}
 	}
 	if !n.relay {

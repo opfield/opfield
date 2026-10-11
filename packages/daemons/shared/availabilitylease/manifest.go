@@ -17,9 +17,11 @@ type Manifest struct {
 	PolicyID string
 	Version  uint64
 	// Epoch is the policy's voter epoch; Voters is the voter config of it.
-	Epoch      uint64
-	Voters     *VoterConfig
-	Available  bool
+	Epoch     uint64
+	Voters    *VoterConfig
+	Available bool
+	// Stateful: every key carries a certified holder state (v3). Strict only.
+	Stateful   bool
 	Slots      uint32
 	Closed     bool
 	Candidates []string
@@ -68,6 +70,11 @@ func parseManifest(block *pb.LeaseSignedBlock) (*Manifest, error) {
 	if partition != pb.LeasePartitionMode_LEASE_PARTITION_MODE_STRICT && partition != pb.LeasePartitionMode_LEASE_PARTITION_MODE_AVAILABLE {
 		return nil, errors.New("lease manifest partition mode is invalid")
 	}
+	if value.GetStateful() && partition == pb.LeasePartitionMode_LEASE_PARTITION_MODE_AVAILABLE {
+		// AS8: a minority certificate would certify a state no later majority
+		// has to see; stateful policies are strict only.
+		return nil, errors.New("stateful lease manifest must use the strict partition mode")
+	}
 	slots := value.GetSlots()
 	if slots == 0 || (mode == pb.LeasePolicyMode_LEASE_POLICY_MODE_FAILOVER && slots != 1) || slots > 32 {
 		return nil, errors.New("lease manifest slot count is invalid")
@@ -75,7 +82,7 @@ func parseManifest(block *pb.LeaseSignedBlock) (*Manifest, error) {
 	manifest := &Manifest{
 		block: block, PolicyID: value.GetPolicyId(), Version: value.GetManifestVersion(), Epoch: value.GetVoterEpoch(),
 		Available: partition == pb.LeasePartitionMode_LEASE_PARTITION_MODE_AVAILABLE,
-		Slots:     slots, Closed: value.GetClosed(),
+		Stateful:  value.GetStateful(), Slots: slots, Closed: value.GetClosed(),
 		rank: map[string]int{}, keys: map[string][]byte{},
 		BootstrapID: value.GetBootstrapId(), Bootstrap: map[uint32]string{}, Retained: map[uint32]RetainedHolder{},
 		bootstrapSince: value.GetManifestVersion(),

@@ -254,6 +254,9 @@
 //	                                           CLOSED, latest commit; an
 //	                                           empty status reports lag
 //
+// For stateful keys promise and status also carry the acceptor's memory
+// (LeaseAcceptedState), propose and commit the state, accepted its hash.
+//
 // The accept statement signed by acceptors is
 //
 //	"gateway-availability-lease/accept/v1" 0x00
@@ -263,7 +266,88 @@
 // with str = 4-byte big-endian length then bytes and u64 = 8-byte big
 // endian. A rotation link is signed by the previous key over
 // "gateway-availability-lease/key-rotation/v1" 0x00 || str(key_id) ||
-// public_key.
+// public_key. Accepts of stateful keys sign the v2 statement instead
+// (below); stateless keys keep exactly these bytes.
+//
+// # Stateful policies (availability_lease_v3)
+//
+// A manifest with stateful = true (covered by its signature) gives every key a
+// certified holder state, first used for the Postgres primary role. The state
+// is a LeaseHolderState: the application's opaque value (at most
+// MaxStateValueBytes) plus fields the library maintains: holder,
+// pending_promotion, promoted_holder, generation, transition_id and a forced
+// marker. Its encoded bytes are hashed as carried and never re-encoded.
+// Propose carries the state, accepts sign
+//
+//	"gateway-availability-lease/accept/v2" 0x00 <v1 fields> u64(1) str(sha256(state))
+//
+// with the hash also in LeaseAccepted.state_hash, and a commit carries the
+// state its QC certifies. A stateful manifest must be strict (the library
+// rejects available), and a policy never changes whether it is stateful.
+//
+// Acceptor memory (AS1). Promises and statuses of a stateful key report the
+// acceptor's highest accepted ballot and state, or UNKNOWN: when its store is
+// fresh (a renamed relay.db, a lost state file), it has no accepted record,
+// or it became a voter of the policy anew (not a voter under the previously
+// adopted manifest, or voter epochs were skipped). It leaves UNKNOWN only by
+// accepting, as a voting member, a propose that echoes a promise it issued in
+// its current incarnation (NACK NO_PROMISE otherwise); a propose whose state
+// does not decode or names another holder is refused (NACK STATE_INVALID).
+// UNKNOWN and shadow reports never count.
+//
+// Rounds (AS2). Every round proposes the highest KNOWN accepted state of its
+// promise quorum plus at most one transition:
+//   - acquisition, including a designated successor: needs a KNOWN majority
+//     of every quorum set and the application's StateHandler.Eligible on the
+//     adopted state, with its ballot's proposer as PreviousHolder and whether
+//     it was released (AS6). The same check runs on fresh query statuses
+//     before any prepare, so an ineligible candidate never duels. The
+//     proposal is the adopted state unchanged with this node as holder,
+//     pending_promotion set and generation + 1. A stale-manifest NACK
+//     restarts it under the delivered manifest at once;
+//   - renewal and Recover: a strict voting majority. While the lease is
+//     continuous (before the soft fence; for Recover, before the recorded
+//     deadline) no other proposer can have been chosen, so the holder
+//     proposes its own certified state, or a higher KNOWN ballot of its own;
+//     a higher KNOWN ballot of another proposer fences it. Without its own
+//     holder record the KNOWN-majority rule applies. The queued transition
+//     rides along when its base is the adopted state (else it is rejected);
+//   - bootstrap: the named holder with no holder record, once every voter of
+//     every quorum set promised and nobody remembers anything but its own
+//     earlier bootstrap attempts, proposes StateHandler.BootstrapValue (or its
+//     highest earlier attempt); otherwise the acquisition rules apply;
+//   - forced (ForceAcquire, AS10): skips only the eligibility check (with its
+//     KNOWN-majority rule), still needs a strict voting majority, single use,
+//     bound to the commit ballot the operator saw, expires after ForceWindow
+//     or on any newer commit, and also when its own promise quorum reports
+//     a ballot of another proposer accepted after that commit
+//     (ForceStatus.Newer; forcing again is a new decision over it); the
+//     state records the forced marker.
+//
+// The application proposes one Transition at a time (ProposeTransition) and
+// acts only once CommittedState shows it; until then it configures for the
+// certified state AND PendingState (AS5). A Promoted transition clears
+// pending_promotion. A local fence of a stateful key does not release it
+// (the previous holder stays eligible); successors wait out the hold.
+// CommittedState is this node's latest QC over every quorum set, never a
+// minority or another node's commit; ObservedCommit is informational.
+//
+// Persistence (M1). Store stays a generic durable key-value store. The node
+// writes, in the transaction that precedes a reply: each voter's accepted
+// ballot, time, state and hash with Promised (key/<policy>/<slot>, plus the
+// KNOWN flag); the latest commit whenever its holder or state changes; a
+// store-created marker (storeinfo); and, on holders, the certified state and
+// the pending transition (holder/<policy>/<slot>) before any propose carrying
+// it leaves. A holder restarts from that record (CommittedState.Restored)
+// and certifies again from the adopted value, never from the application's
+// own configuration.
+//
+// Gateway obligations for stateful policies: publish them only when every
+// member and candidate advertises availability_lease_v3; strict only; a new
+// policy id per enable (M10); a bootstrap reservation naming the serving
+// member; keep a voter change joint until a live holder reports
+// HeldCommit(key).epoch >= the joint epoch (a stateful commit is a KNOWN QC
+// over both sets); without a live holder it stays joint.
 //
 // # Invariants and residuals
 //
@@ -271,7 +355,14 @@
 // two live containers for a key; I2, all relay gates together admit at most
 // one holder; I3, a successor commits within 45 s of a holder's death when a
 // voter majority is reachable; I4, available mode converges to one copy
-// after a partition heals. Residual (A2.5): a VM whose clocks froze may run
+// after a partition heals. For stateful policies (strict only, so I4 does not
+// apply) it also checks I5, a candidate acquires only when the application
+// found it eligible under exactly the adopted state of a KNOWN majority, and
+// I6, every certified state descends from every state certified at a lower
+// ballot unless an explicit forced acquisition replaced it; I3 there assumes
+// an eligible successor and a KNOWN majority without the dead holder. When a
+// majority of the voters lost their memory, or no member is eligible, only a
+// forced acquisition (data loss accepted) makes progress. Residual (A2.5): a VM whose clocks froze may run
 // its container after resuming until the first frame from a peer whose clock
 // it knew before the freeze (a relay beacon, within a second of reaching any
 // relay), or until its frozen budget ends when it reaches nobody; relays
