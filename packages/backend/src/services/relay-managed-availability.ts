@@ -66,21 +66,30 @@ export type MemberPortName =
   | 'sw-filer-grpc'
   | 'ch-interserver'
   | 'ch-keeper'
-  | 'member-control';
+  | 'member-control'
+  | 'db-backup';
 
 /**
  * The member runtime's own port on every engine: a manual pair's member asks its peer for the primary assignment
  * over it.
  */
 const MEMBER_CONTROL_PORT = { name: 'member-control', primary: false } as const;
+/**
+ * Backups from a copy (P3-T06): every database member serves its own engine on this port, whatever its role (never
+ * lease-gated). Only backup runs route to it (from their executor node); members have no routes to each other's.
+ */
+export const BACKUP_SOURCE_PORT = { name: 'db-backup', primary: false, peerRoutes: false } as const;
 
-/** The engine-to-engine ports of each engine; primary ports reach the primary only. */
+/**
+ * The engine-to-engine ports of each engine; primary ports reach the primary only. `peerRoutes: false`: an endpoint
+ * on every member without member-to-member routes.
+ */
 export const ENGINE_MEMBER_PORTS: Record<
   ManagedAvailabilityEngine,
-  ReadonlyArray<{ name: MemberPortName; primary: boolean }>
+  ReadonlyArray<{ name: MemberPortName; primary: boolean; peerRoutes?: false }>
 > = {
-  postgres: [{ name: 'pg-repl', primary: true }, MEMBER_CONTROL_PORT],
-  valkey: [{ name: 'kv-repl', primary: true }, MEMBER_CONTROL_PORT],
+  postgres: [{ name: 'pg-repl', primary: true }, MEMBER_CONTROL_PORT, BACKUP_SOURCE_PORT],
+  valkey: [{ name: 'kv-repl', primary: true }, MEMBER_CONTROL_PORT, BACKUP_SOURCE_PORT],
   seaweedfs: [
     // SeaweedFS serves HTTP and gRPC on separate ports: each component has a port of each.
     { name: 'sw-master', primary: true },
@@ -91,7 +100,12 @@ export const ENGINE_MEMBER_PORTS: Record<
     { name: 'sw-filer-grpc', primary: false },
     MEMBER_CONTROL_PORT,
   ],
-  clickhouse: [{ name: 'ch-interserver', primary: false }, { name: 'ch-keeper', primary: false }, MEMBER_CONTROL_PORT],
+  clickhouse: [
+    { name: 'ch-interserver', primary: false },
+    { name: 'ch-keeper', primary: false },
+    MEMBER_CONTROL_PORT,
+    BACKUP_SOURCE_PORT,
+  ],
 };
 
 export function isPrimaryMemberPort(engine: ManagedAvailabilityEngine, port: string): boolean {
@@ -494,6 +508,7 @@ async function reconcileOneSet(
     for (const target of view.members) {
       if (target.id === source.id) continue;
       for (const port of ports) {
+        if (port.peerRoutes === false) continue;
         const targetEndpointId = peerEndpointOf.get(peerEndpointOwnerId(target.id, port.name));
         if (!targetEndpointId) continue;
         const ownerId = peerRouteOwnerId(source.id, target.id, port.name);

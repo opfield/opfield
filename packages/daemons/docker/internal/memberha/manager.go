@@ -86,6 +86,14 @@ type member struct {
 	// gate mirrors what the lease callbacks need (they never take the manager's lock).
 	gateStopped  atomic.Bool
 	gateDataBusy atomic.Bool
+	// gatePaused mirrors cfg.Stopped (Gateway paused the set); gateHeld: the
+	// daemon holds the member to replace its container or files.
+	gatePaused atomic.Bool
+	gateHeld   atomic.Bool
+	// resumeStart: the primary's engine is down because the set was paused;
+	// once the pause ends the holder starts it at once (standby at rest, then
+	// promoted again) instead of treating it as a failed engine.
+	resumeStart bool
 
 	// status is the last engine status, for the eligibility callback.
 	statusMu   sync.Mutex
@@ -141,6 +149,7 @@ func (m *Manager) addMemberLocked(config Config, state MemberState) (*member, er
 	}
 	mem := &member{cfg: config, state: state, engine: engine}
 	mem.gateStopped.Store(state.Stopped)
+	mem.gatePaused.Store(config.Stopped)
 	m.members[config.SetID] = mem
 	if config.Mode == ModeAutomatic {
 		m.registerHandlerLocked(mem)
@@ -182,6 +191,10 @@ func (m *Manager) eligible(mem *member, in EligibilityInput) (bool, string) {
 	switch {
 	case stopped:
 		return false, "removing"
+	case mem.gatePaused.Load():
+		return false, "stopped"
+	case mem.gateHeld.Load():
+		return false, "held"
 	case !watchdogFresh:
 		return false, "watchdog_not_fresh"
 	case busy:
@@ -269,17 +282,32 @@ func (m *Manager) Step() {
 func (m *Manager) Hold(ctx context.Context, setID string) (func(), error) {
 	m.mu.Lock()
 	m.held[setID]++
+	if mem := m.members[setID]; mem != nil {
+		// A held member may not take the primary role over: its container or
+		// files change under it.
+		mem.gateHeld.Store(true)
+		if mem.cfg.Mode == ModeAutomatic && mem.ready {
+			mem.ready = false
+			m.deps.Lease.SetCandidateReady(mem.cfg.LeasePolicyID, false)
+		}
+	}
 	m.mu.Unlock()
+	var once sync.Once
 	release := func() {
-		m.mu.Lock()
-		defer m.mu.Unlock()
-		if m.held[setID]--; m.held[setID] <= 0 {
-			delete(m.held, setID)
-		}
-		if mem := m.members[setID]; mem != nil {
-			mem.lastOpDone = m.deps.Clock.Now()
-			mem.nextObserve = 0
-		}
+		once.Do(func() {
+			m.mu.Lock()
+			defer m.mu.Unlock()
+			still := true
+			if m.held[setID]--; m.held[setID] <= 0 {
+				delete(m.held, setID)
+				still = false
+			}
+			if mem := m.members[setID]; mem != nil {
+				mem.gateHeld.Store(still)
+				mem.lastOpDone = m.deps.Clock.Now()
+				mem.nextObserve = 0
+			}
+		})
 	}
 	for {
 		m.mu.Lock()
@@ -397,6 +425,7 @@ func (m *Manager) launch(mem *member, name string, timeout time.Duration, op fun
 // saveLocked persists the member before the runtime acts on its new state.
 func (m *Manager) saveLocked(mem *member) error {
 	mem.gateStopped.Store(mem.state.Stopped)
+	mem.gatePaused.Store(mem.cfg.Stopped)
 	if err := m.store.Save(mem.cfg, mem.state); err != nil {
 		m.logger.Error("could not persist availability member state", "set_id", mem.cfg.SetID, "error", err)
 		return err
@@ -553,6 +582,10 @@ func (m *Manager) Configure(config Config) error {
 			if err := reconfigurer.Reconfigure(config); err != nil {
 				return err
 			}
+		}
+		if mem.cfg.Stopped && !config.Stopped {
+			// The pause ends: a primary whose engine is down starts at once.
+			mem.resumeStart = true
 		}
 		mem.cfg = config
 		mem.state.Stopped = false

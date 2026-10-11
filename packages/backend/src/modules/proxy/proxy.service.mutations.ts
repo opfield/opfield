@@ -49,10 +49,11 @@ import { ProxyServicePlacement, requestedPlacementChange } from './proxy.service
 
 /** The app kill switch freeze as route mutations see it (AppMemberFreeze; set by the apps module). */
 export interface ProxyAppFreezeGuard {
-  /** 409 APP_ISOLATED: a route of an isolated environment, or one the kill switch holds because it reaches a member. */
+  /**
+   * 409 APP_ISOLATED: a route of an isolated environment, or one the kill switch holds because it reaches a member
+   * (edits and deletes alike; a shut-down app holds nothing).
+   */
   assertRoute(routeId: string): Promise<void>;
-  /** Removing a route: 409 APP_ISOLATED while isolated, APP_INCIDENT_ACTIVE while its environment is shut down. */
-  assertRouteRemovable(routeId: string): Promise<void>;
   /** 409 APP_ISOLATED when a route or Secure Link would newly reach a member of an isolated environment. */
   assertUpstream(target: FreezeTarget): Promise<void>;
 }

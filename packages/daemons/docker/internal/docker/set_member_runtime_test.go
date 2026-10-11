@@ -128,3 +128,68 @@ func TestTheMemberControlPortAnswersWithThePrimaryAssignment(t *testing.T) {
 		t.Fatalf("the peer line must carry the signed assignment: %+v", state.Assignment)
 	}
 }
+
+// P3-T07: a paused member (stopped), the restart command for every engine,
+// and the backup port of a database member (P3-T06).
+func TestPausedMembersRestartsAndTheBackupPortOverTheProto(t *testing.T) {
+	store, err := memberha.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager, err := memberha.NewManager(memberha.Deps{
+		Lease: stubSetLease{}, Watchdog: stubSetWatchdog{}, Endpoints: stubSetEndpoints{}, Clock: bootWallClock{},
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Engine: func(memberha.Config) (memberha.Engine, error) { return muEngine{}, nil },
+		Async:  func(func()) {},
+	}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := newTestDatabaseManager(t, nil)
+	plugin := &DockerPlugin{setMembers: manager, databaseManager: m}
+	configure := &pb.AvailabilityMemberConfig{
+		SetId: testSetID, MemberId: testMemberA, Engine: "seaweedfs", OwnerKind: "managed_storage", OwnerId: testDatabase,
+		Mode: "automatic", LeasePolicyId: "22222222-2222-4222-8222-222222222222", ConfigRevision: 1, Stopped: true,
+		Members: []*pb.AvailabilityMemberPeer{{MemberId: testMemberA, NodeId: "node-a"}, {MemberId: testMemberB, NodeId: "node-b", MemberIndex: 1}},
+	}
+	if err := plugin.handleAvailabilityMember(&pb.AvailabilityMemberCommand{Action: &pb.AvailabilityMemberCommand_Configure{Configure: configure}}); err != nil {
+		t.Fatal(err)
+	}
+	if !manager.Stopped(testSetID) {
+		t.Fatal("stopped must reach the member runtime")
+	}
+	reports := plugin.availabilityMemberReports()
+	if len(reports) != 1 || reports[0].GetEligible() || reports[0].GetEligibilityReason() != "stopped" {
+		t.Fatalf("a paused member reports ineligible (stopped): %+v", reports)
+	}
+	restart := func(member, op string) error {
+		return plugin.handleAvailabilityMember(&pb.AvailabilityMemberCommand{Action: &pb.AvailabilityMemberCommand_Restart{
+			Restart: &pb.AvailabilityMemberRestart{SetId: testSetID, MemberId: member, OperationId: op}}})
+	}
+	if err := restart(testMemberB, "op-1"); err == nil {
+		t.Fatal("a restart naming another member must be refused")
+	}
+	if err := restart(testMemberA, ""); err == nil {
+		t.Fatal("a restart needs its operation id")
+	}
+	if err := restart(testMemberA, "op-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := restart(testMemberA, "op-1"); err != nil {
+		t.Fatalf("a repeat with the same operation id is accepted: %v", err)
+	}
+	if reports := plugin.availabilityMemberReports(); reports[0].GetPendingRestartOperationId() != "op-1" {
+		t.Fatalf("the pending restart is reported: %+v", reports[0])
+	}
+	adapter := setMemberRuntimeAdapter{manager: manager, plugin: plugin}
+	if _, err := adapter.DialPeer(context.Background(), testSetID, testMemberB, setMemberBackupPort); !errors.Is(err, errSetMemberNotServing) {
+		t.Fatalf("another member's backup port is not served here: %v", err)
+	}
+	if _, err := adapter.DialPeer(context.Background(), testSetID, testMemberA, setMemberBackupPort); err == nil {
+		t.Fatal("a storage member serves no database backup")
+	}
+	capabilities := (&DockerPlugin{}).setMemberCapabilities()
+	if len(capabilities) != 0 {
+		t.Fatalf("no member runtime, no capabilities: %v", capabilities)
+	}
+}

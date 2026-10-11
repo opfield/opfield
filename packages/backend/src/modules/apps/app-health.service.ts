@@ -7,6 +7,10 @@ import {
   dockerDeploymentSlots,
   dockerDeployments,
   dockerHealthChecks,
+  type ManagedAvailabilityState,
+  managedAvailabilitySets,
+  managedDatabaseInstances,
+  managedStorageClusters,
   objectStorageConnections,
   proxyHosts,
 } from '@/db/schema/index.js';
@@ -49,6 +53,21 @@ export function healthFromStatus(status: string | null | undefined): MemberHealt
     default:
       return 'none';
   }
+}
+
+/**
+ * A database or storage that runs on several servers (an availability set): its connection's health is the primary's,
+ * the set's state says whether the copies can take over. A set that lost a copy or cannot fail over is degraded, never
+ * down while the primary answers; a failover in progress is degraded too (the copy takes over within seconds).
+ */
+export function withAvailabilityState(
+  health: MemberHealth,
+  state: ManagedAvailabilityState | null | undefined
+): MemberHealth {
+  if (!state || state === 'healthy' || health === 'none') return health;
+  if (health === 'healthy') return 'degraded';
+  if (health === 'failing' && state === 'failing_over') return 'degraded';
+  return health;
 }
 
 /** A container from its runtime state and its Gateway health check. */
@@ -178,6 +197,32 @@ export class AppHealthService implements AppHealthProvider {
           .where(inArray(dockerDeployments.id, list))
       ),
     ]);
+    const [databaseSets, storageSets] = await Promise.all([
+      this.rows(ids('database'), (list) =>
+        this.db
+          .select({ id: managedDatabaseInstances.databaseConnectionId, state: managedAvailabilitySets.state })
+          .from(managedAvailabilitySets)
+          .innerJoin(
+            managedDatabaseInstances,
+            eq(managedDatabaseInstances.id, managedAvailabilitySets.managedDatabaseId)
+          )
+          .where(inArray(managedDatabaseInstances.databaseConnectionId, list))
+      ),
+      this.rows(ids('storage'), (list) =>
+        this.db
+          .select({ id: managedStorageClusters.objectStorageConnectionId, state: managedAvailabilitySets.state })
+          .from(managedAvailabilitySets)
+          .innerJoin(
+            managedStorageClusters,
+            eq(managedStorageClusters.id, managedAvailabilitySets.managedStorageClusterId)
+          )
+          .where(inArray(managedStorageClusters.objectStorageConnectionId, list))
+      ),
+    ]);
+    const setStateOf = (rows: Array<{ id: string | null; state: ManagedAvailabilityState }>) =>
+      new Map(rows.filter((row) => row.id).map((row) => [row.id!, row.state]));
+    const databaseSetState = setStateOf(databaseSets);
+    const storageSetState = setStateOf(storageSets);
     const deploymentIds = deployments.map((row) => row.id);
     const containerMembers = members.filter((member) => member.type === 'container');
     const [deploymentChecks, slots, containerChecks] = await Promise.all([
@@ -236,9 +281,21 @@ export class AppHealthService implements AppHealthProvider {
           return { ...base, health: healthFromStatus(row.healthStatus) };
         }
         case 'database':
-          return { ...base, health: healthFromStatus(databaseById.get(member.id)?.healthStatus) };
+          return {
+            ...base,
+            health: withAvailabilityState(
+              healthFromStatus(databaseById.get(member.id)?.healthStatus),
+              databaseSetState.get(member.id)
+            ),
+          };
         case 'storage':
-          return { ...base, health: healthFromStatus(storageById.get(member.id)?.healthStatus) };
+          return {
+            ...base,
+            health: withAvailabilityState(
+              healthFromStatus(storageById.get(member.id)?.healthStatus),
+              storageSetState.get(member.id)
+            ),
+          };
         case 'pages':
           return { ...base, health: 'none' };
         case 'compose':

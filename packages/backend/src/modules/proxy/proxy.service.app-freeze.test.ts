@@ -10,33 +10,32 @@ const NODE = '22222222-2222-4222-8222-222222222222';
 function service(refusal: { code: string } | null) {
   const proxy = Object.create(ProxyService.prototype) as ProxyService;
   const refuse = async () => {
-    if (refusal) throw new AppError(409, refusal.code, 'Shop · production is held by an app incident');
+    if (refusal) throw new AppError(409, refusal.code, 'Shop · production is isolated by the app kill switch');
   };
   const guard = {
     assertRoute: vi.fn(refuse),
-    assertRouteRemovable: vi.fn(refuse),
     assertUpstream: vi.fn(refuse),
   };
   proxy.setAppFreezeGuard(guard);
   return { proxy, guard };
 }
 
-describe('Routes of an isolated or shut-down app environment', () => {
-  it.each(['APP_ISOLATED', 'APP_INCIDENT_ACTIVE'])('refuse deleting the route (%s)', async (code) => {
-    const { proxy, guard } = service({ code });
-    await expect(proxy.deleteProxyHost(ROUTE, 'user-1')).rejects.toMatchObject({ code });
-    expect(guard.assertRouteRemovable).toHaveBeenCalledWith(ROUTE);
+describe('Routes of an isolated app environment', () => {
+  it('refuse deleting the route', async () => {
+    const { proxy, guard } = service({ code: 'APP_ISOLATED' });
+    await expect(proxy.deleteProxyHost(ROUTE, 'user-1')).rejects.toMatchObject({ code: 'APP_ISOLATED' });
+    expect(guard.assertRoute).toHaveBeenCalledWith(ROUTE);
   });
 
   it('refuse deleting an additional Secure Link of the route', async () => {
-    const { proxy, guard } = service({ code: 'APP_INCIDENT_ACTIVE' });
+    const { proxy, guard } = service({ code: 'APP_ISOLATED' });
     vi.spyOn(proxy as any, 'requireManagedProxyHost').mockResolvedValue({ id: ROUTE });
     const deleteAdditional = vi.fn();
     (proxy as any).secureLinks = { deleteAdditional };
     await expect(proxy.deleteAdditionalSecureLink(ROUTE, 'binding-1', 'user-1')).rejects.toMatchObject({
-      code: 'APP_INCIDENT_ACTIVE',
+      code: 'APP_ISOLATED',
     });
-    expect(guard.assertRouteRemovable).toHaveBeenCalledWith(ROUTE);
+    expect(guard.assertRoute).toHaveBeenCalledWith(ROUTE);
     expect(deleteAdditional).not.toHaveBeenCalled();
   });
 

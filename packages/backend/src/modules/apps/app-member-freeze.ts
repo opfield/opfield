@@ -46,8 +46,8 @@ export interface FrozenEnvironment {
 const ANY_OPEN_TTL_MS = 2_000;
 
 /**
- * The app kill switch freeze and the shutdown hold on app members (REST, MCP and AI share the services that call it;
- * the incident's own apply and restore never go through these checks).
+ * The app kill switch freeze on app members (REST, MCP and AI share the services that call it; the incident's own
+ * apply and restore never go through these checks).
  *
  * Isolated environment (kill switch on, incident applying or active) → 409 APP_ISOLATED for every change of a member:
  * recreate, update, env changes, rename, network attach/detach, deploy/switch/rollback, Compose apply/start/down,
@@ -59,17 +59,15 @@ const ANY_OPEN_TTL_MS = 2_000;
  * a host-network container the kill switch stopped, see assertMayStart), pause/unpause, credential and certificate
  * rotation, and app variables and container secrets (stored until the next recreate, which is frozen).
  *
- * Shut-down environment (incident applying or active) → 409 APP_INCIDENT_ACTIVE only for changes that would make Start
- * restore something else or leave a member unbound: deleting a member (container, deployment, Compose project or its
- * containers via down/delete volumes, database, storage, route, Pages project, connection), deleting or moving links
- * and bindings, renaming or migrating a workload, enabling or disabling Availability, moving a key-value store to
- * Valkey, and membership changes. Everything else stays allowed while shut down (config edits are picked up by Start).
+ * A shut-down environment holds nothing: its members take every change, deletes, unbinds, renames, migrations and
+ * moves included. Start brings back what ran at shutdown and still exists (found by id, a container by name, then by
+ * its runtime id, then where a migration took it) and reports what was deleted meanwhile (DefaultAppIncidentActions).
  *
- * Reads go to the database (never the 10 s membership caches); a 2 s "which incidents are open" flag keeps mutations
+ * Reads go to the database (never the 10 s membership caches); a 2 s "is any kill switch open" flag keeps mutations
  * outside incidents free.
  */
 export class AppMemberFreeze {
-  private openKinds: { at: number; isolation: boolean; any: boolean } | null = null;
+  private openKinds: { at: number; isolation: boolean } | null = null;
 
   constructor(
     private readonly db: DrizzleClient,
@@ -81,7 +79,7 @@ export class AppMemberFreeze {
     this.openKinds = null;
   }
 
-  private async openIncidentKinds(): Promise<{ isolation: boolean; any: boolean }> {
+  private async openIncidentKinds(): Promise<{ isolation: boolean }> {
     if (this.openKinds && Date.now() - this.openKinds.at < ANY_OPEN_TTL_MS) return this.openKinds;
     const rows = await this.db
       .select({ kind: appIncidents.kind })
@@ -91,18 +89,12 @@ export class AppMemberFreeze {
     this.openKinds = {
       at: Date.now(),
       isolation: rows.some((row) => row.kind === 'isolation'),
-      any: rows.length > 0,
     };
     return this.openKinds;
   }
 
   async anyIsolationOpen(): Promise<boolean> {
     return (await this.openIncidentKinds()).isolation;
-  }
-
-  /** Whether any kill switch or shutdown is applying or active (fast path of assertNoOpenIncident). */
-  async anyIncidentOpen(): Promise<boolean> {
-    return (await this.openIncidentKinds()).any;
   }
 
   /** The environment a resource belongs to (from where it sits), or null outside apps. */
@@ -242,27 +234,6 @@ export class AppMemberFreeze {
       'APP_ISOLATED',
       `${frozen.appName} · ${frozen.environmentName} is isolated by the app kill switch; turn it off before changing its resources`,
       { appId: frozen.appId, environmentId: frozen.environmentId }
-    );
-  }
-
-  /**
-   * Refuse a change that must not run while the resource's environment has an open incident: isolated → 409
-   * APP_ISOLATED (the freeze above), shut down → 409 APP_INCIDENT_ACTIVE. Used by deletes, unbinds, renames, migrations
-   * and other changes the incident's restore does not expect (see the class comment).
-   */
-  async assertNoOpenIncident(target: FreezeTarget): Promise<void> {
-    if (!(await this.anyIncidentOpen())) return;
-    await this.assertNotFrozen(target);
-    const environmentId = await this.environmentOf(target);
-    if (!environmentId) return;
-    const incident = await this.incidents.openFor(environmentId, 'shutdown', FROZEN_INCIDENT_STATES);
-    if (!incident) return;
-    const shutDown = await this.describe(environmentId, incident.id);
-    throw new AppError(
-      409,
-      'APP_INCIDENT_ACTIVE',
-      `${shutDown ? `${shutDown.appName} · ${shutDown.environmentName}` : 'Its app environment'} is shut down; start it before changing this resource`,
-      shutDown ? { appId: shutDown.appId, environmentId } : undefined
     );
   }
 

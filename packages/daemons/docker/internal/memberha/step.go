@@ -13,6 +13,10 @@ const (
 	opRelease      = "release"
 	opRejoin       = "rejoin"
 	opLocalRestart = "local_restart"
+	// The set is paused (Config.Stopped): the engine stops cleanly; when the
+	// pause ends the primary's engine starts again.
+	opPauseStop = "pause_stop"
+	opResume    = "resume_start"
 )
 
 // stepMemberLocked is the decision of one automatic-mode member for this
@@ -63,7 +67,7 @@ func (m *Manager) stepMemberLocked(mem *member, now time.Duration) {
 // certified state.
 func (m *Manager) updateReadyLocked(mem *member, status HolderStatus, leaseMode bool, now time.Duration) {
 	obs := mem.obs
-	ready := leaseMode && m.watchdog.fresh && !mem.state.Stopped && obs.at > 0 && now-obs.at <= 3*observeInterval &&
+	ready := leaseMode && m.watchdog.fresh && !mem.state.Stopped && !mem.cfg.Stopped && obs.at > 0 && now-obs.at <= 3*observeInterval &&
 		obs.container.Running && obs.status.Answering && !mem.dataBusy()
 	if status.Role != RoleHolding && status.Role != RoleRecovering && obs.status.Writable &&
 		!m.deps.Lease.BootstrapPending(mem.cfg.Key()) {
@@ -82,7 +86,10 @@ func (m *Manager) updateReadyLocked(mem *member, status HolderStatus, leaseMode 
 // fence. A running primary without a live record is unowned and the
 // non-holder path fences it. Everything else is a copy.
 func (m *Manager) startupLocked(mem *member, status HolderStatus, now time.Duration) {
-	if status.Role == RoleHolding || status.Role == RoleRecovering || !mem.obs.container.Running {
+	// A paused primary keeps its record armed for its stopped container, so it
+	// recovers its role after a daemon restart as a running one does.
+	pausedDown := mem.cfg.Stopped && mem.obs.container.Exists && !mem.obs.container.Running
+	if status.Role == RoleHolding || status.Role == RoleRecovering || (!mem.obs.container.Running && !pausedDown) {
 		return
 	}
 	records, err := m.deps.Watchdog.Records()

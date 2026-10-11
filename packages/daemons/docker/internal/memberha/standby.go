@@ -30,7 +30,9 @@ func backoff(failures int, low, high time.Duration) time.Duration {
 // nonHolderStepLocked runs while this node does not hold the primary role.
 func (m *Manager) nonHolderStepLocked(mem *member, status HolderStatus, leaseMode, bootstrapping bool, now time.Duration) {
 	mem.holder.announced = false
-	if mem.legacy.Load() && (mem.busy || !mem.fresh(now) || mem.primaryRunning()) && (!leaseMode || bootstrapping) {
+	mem.resumeStart = false
+	paused := mem.cfg.Stopped
+	if !paused && mem.legacy.Load() && (mem.busy || !mem.fresh(now) || mem.primaryRunning()) && (!leaseMode || bootstrapping) {
 		// The member that serves the resource before the set's lease
 		// bootstrap committed (no manifest yet, or its reservation pending)
 		// keeps serving as the single-node resource it still is.
@@ -49,11 +51,13 @@ func (m *Manager) nonHolderStepLocked(mem *member, status HolderStatus, leaseMod
 			m.fenceLocked(mem, status, now, "primary_without_lease")
 			return
 		}
-		// Before the set's lease runs, a writable member is the single-node
-		// resource it was: it keeps serving until the bootstrap commits.
-		mem.legacy.Store(true)
-		m.openServingLocked(mem)
-		return
+		if !paused {
+			// Before the set's lease runs, a writable member is the single-node
+			// resource it was: it keeps serving until the bootstrap commits.
+			mem.legacy.Store(true)
+			m.openServingLocked(mem)
+			return
+		}
 	}
 	mem.legacy.Store(false)
 	m.closeServingLocked(mem)
@@ -65,6 +69,15 @@ func (m *Manager) nonHolderStepLocked(mem *member, status HolderStatus, leaseMod
 // when it diverged and a primary is known.
 func (m *Manager) copyStepLocked(mem *member, now time.Duration, primaryKnown bool) {
 	obs := mem.obs
+	if mem.cfg.Stopped && !mem.state.Stopped {
+		// The set is paused: the engine stops cleanly and is never started
+		// until the pause ends.
+		m.pausedRestartLocked(mem)
+		if obs.container.Running {
+			m.pauseStopLocked(mem)
+		}
+		return
+	}
 	if mem.state.Stopped {
 		if obs.container.Running {
 			m.launch(mem, opStopStandby, opTimeout, func(ctx context.Context) func() {

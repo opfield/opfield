@@ -40,6 +40,17 @@ func (m *Manager) manualStepLocked(mem *member, now time.Duration) {
 		m.closeServingLocked(mem)
 		return
 	}
+	if mem.cfg.Stopped && !mem.state.Stopped {
+		// The set is paused: the primary keeps its assignment, every member's
+		// engine stops cleanly and stays down; the primary starts (and is
+		// promoted again) when the pause ends.
+		m.closeServingLocked(mem)
+		m.pausedRestartLocked(mem)
+		if mem.obs.container.Running {
+			m.pauseStopLocked(mem)
+		}
+		return
+	}
 	assignment := mem.state.Assignment
 	// A peer that serves under a newer generation than this member knows:
 	// this member steps down whatever it thought (the newer assignment

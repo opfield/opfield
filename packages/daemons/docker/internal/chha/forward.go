@@ -11,7 +11,7 @@ import (
 // forwarders are the listeners in a member container's network namespace that
 // carry Keeper raft and interserver connections over the member mesh: one per
 // other server (LoopbackHost:port), bound again after every container start
-// (a new container is a new namespace).
+// (a new container, or the same container started again, is a new namespace).
 type forwarders struct {
 	listen func(pid int, address string) (net.Listener, error)
 	bridge func(connection net.Conn, alias string) error
@@ -19,6 +19,7 @@ type forwarders struct {
 
 	mu          sync.Mutex
 	containerID string
+	pid         int
 	open        map[string]net.Listener
 	aliases     map[string]string
 	failed      map[string]string
@@ -56,14 +57,15 @@ func desiredForwardsGated(memberID string, ec EngineConfig, keeperToMembers bool
 }
 
 // ensure binds what is missing for the running container containerID (pid)
-// and closes what is no longer wanted; a new container drops every listener
+// and closes what is no longer wanted; a new container, or a new process of
+// the same container (started again: a new namespace), drops every listener
 // of the previous one first. It returns the addresses that failed to bind.
 func (f *forwarders) ensure(containerID string, pid int, desired map[string]string) []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if containerID != f.containerID {
+	if containerID != f.containerID || pid != f.pid {
 		f.closeLocked()
-		f.containerID = containerID
+		f.containerID, f.pid = containerID, pid
 	}
 	for address, listener := range f.open {
 		if _, ok := desired[address]; !ok {
@@ -121,7 +123,7 @@ func (f *forwarders) close() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.closeLocked()
-	f.containerID = ""
+	f.containerID, f.pid = "", 0
 }
 
 func (f *forwarders) closeLocked() {
@@ -154,8 +156,8 @@ func NewForwarders(listen func(pid int, address string) (net.Listener, error), b
 }
 
 // Ensure binds desired (address → bridge key) for the running container; a
-// new container id drops every listener of the previous one. It returns the
-// addresses that failed.
+// new container id or process id (the container started again) drops every
+// listener of the previous one. It returns the addresses that failed.
 func (f *Forwarders) Ensure(containerID string, pid int, desired map[string]string) []string {
 	return f.f.ensure(containerID, pid, desired)
 }

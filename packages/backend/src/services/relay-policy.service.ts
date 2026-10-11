@@ -61,12 +61,15 @@ import {
   secureLinkEgressEqual,
 } from './relay-link-routes.js';
 import {
+  BACKUP_SOURCE_PORT,
   loadSetRelayViews,
   orderedSetRoutes,
   parentKindOfMemberRoute,
+  peerEndpointOwnerId,
   reconcileSetRelayPaths as reconcileSetPaths,
   reconcileSetPathsOfEndpoint,
   releaseSetRelayPaths as releaseSetPaths,
+  SET_PEER_ENDPOINT_KIND,
   SET_PEER_ROUTE_KIND,
   type SetRelayView,
   setEndpointIds,
@@ -2675,6 +2678,41 @@ export class RelayPolicyService {
     await this.syncNodeGrants(target.nodeId, ROUTINE_GRANT_SYNC);
     await this.syncNodeGrants(sourceNodeId, ROUTINE_GRANT_SYNC);
     // The daemon resolves an assignment by owner kind and this per-run owner ID.
+    return runId;
+  }
+
+  /**
+   * A backup run's route to one member of a database availability set (P3-T06, backups from a copy): the member's
+   * `db-backup` peer endpoint, which its node serves from its own engine whatever its role. The run's executor node
+   * is the source; the daemon resolves it by owner kind and run id as for any backup route.
+   */
+  async ensureMemberBackupRoute(
+    runId: string,
+    sourceNodeId: string,
+    target: { memberId: string; nodeId: string; setId: string },
+    ownerKind: 'database_backup_source'
+  ): Promise<string> {
+    const ownerId = peerEndpointOwnerId(target.memberId, BACKUP_SOURCE_PORT.name);
+    const find = async () =>
+      (
+        await this.db
+          .select({ id: relayEndpoints.id, status: relayEndpoints.status })
+          .from(relayEndpoints)
+          .where(and(eq(relayEndpoints.ownerKind, SET_PEER_ENDPOINT_KIND), eq(relayEndpoints.ownerId, ownerId)))
+          .limit(1)
+      )[0];
+    let endpoint = await find();
+    if (!endpoint) {
+      await this.reconcileSetRelayPaths(target.setId);
+      endpoint = await find();
+    }
+    if (!endpoint || endpoint.status !== 'active') throw new Error('The member has no backup relay endpoint yet');
+    await this.ensureLegacyCompatibleAssignment(endpoint.id);
+    const source = await this.grantIssuer.requireNodeIdentity(sourceNodeId);
+    await this.ensureRoute(ownerKind, runId, 'daemon', sourceNodeId, source.certificateFingerprint, endpoint.id);
+    await this.syncSnapshot();
+    await this.syncNodeGrants(target.nodeId, ROUTINE_GRANT_SYNC);
+    await this.syncNodeGrants(sourceNodeId, ROUTINE_GRANT_SYNC);
     return runId;
   }
 

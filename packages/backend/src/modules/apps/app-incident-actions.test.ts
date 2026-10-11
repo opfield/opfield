@@ -4,7 +4,12 @@ import type { AppIncidentItem } from '@/db/schema/index.js';
 import { ManagedDatabaseBindingService } from '@/modules/databases/managed-database-bindings.service.js';
 import { DockerManagementService } from '@/modules/docker/docker.service.js';
 import { DockerSnapshotReconciler } from '@/modules/docker/docker-snapshot-reconciler.service.js';
-import { DefaultAppIncidentActions, networkRestoreNotes, splitGoneNetworks } from './app-incident-actions.js';
+import {
+  DELETED_WHILE_SHUT_DOWN,
+  DefaultAppIncidentActions,
+  networkRestoreNotes,
+  splitGoneNetworks,
+} from './app-incident-actions.js';
 import type { AppIncidentConsumerEnv } from './app-incident-consumer-env.js';
 import type { NetworkRestoreResult } from './app-network-isolation.js';
 
@@ -34,7 +39,7 @@ function restoreResult(overrides: Partial<NetworkRestoreResult> = {}): NetworkRe
 
 /** A database answering every `select … limit` with `rows`. */
 function db(rows: unknown[] = []) {
-  const chain = { from: () => chain, where: () => chain, limit: async () => rows };
+  const chain = { from: () => chain, where: () => chain, orderBy: () => chain, limit: async () => rows };
   return { select: () => chain };
 }
 
@@ -263,6 +268,88 @@ describe('Kill switch release of other items', () => {
       priorState: { desiredState: 'active', consumer: { nodeId: 'n1', name: 'api', env: ['REDIS_URL'] } },
     });
     expect(consumerEnv.record).toHaveBeenCalledWith('database_binding', 'b1');
+  });
+});
+
+describe('Start after a shutdown, with members changed while it was shut down', () => {
+  const STOPPED = item({
+    itemKind: 'container_stop',
+    itemKey: 'container:n1:api',
+    phase: 20,
+    ref: { nodeId: 'n1', name: 'api', label: 'api' },
+    priorState: { state: 'running', containerId: 'runtime-1' },
+  });
+  const missing = () => Object.assign(new Error('No such container'), { statusCode: 404 });
+  const exited = (id: string, name: string) => ({
+    Id: id,
+    Name: `/${name}`,
+    State: { Running: false, Status: 'exited' },
+  });
+
+  it('records the runtime ID of a container it stops', async () => {
+    const { actions, docker } = setup();
+    (docker as any).stopContainer = vi.fn();
+    await expect(actions.apply({ ...STOPPED, priorState: null, status: 'pending' }, CONTEXT)).resolves.toEqual({
+      status: 'applied',
+      priorState: { state: 'running', containerId: 'runtime-1' },
+    });
+  });
+
+  it('starts a container recreated under its name as the same container', async () => {
+    const { actions, docker } = setup();
+    docker.inspectContainer.mockResolvedValueOnce(exited('runtime-2', 'api') as never);
+    await expect(actions.restore(STOPPED, CONTEXT)).resolves.toEqual({ status: 'restored' });
+    expect(docker.startContainer).toHaveBeenCalledWith('n1', 'api', 'user-1', { appIncident: true });
+  });
+
+  it('finds a container renamed meanwhile by its runtime ID and starts it', async () => {
+    const { actions, docker } = setup();
+    docker.inspectContainer
+      .mockRejectedValueOnce(missing())
+      .mockResolvedValueOnce(exited('runtime-1', 'api-old') as never);
+    await expect(actions.restore(STOPPED, CONTEXT)).resolves.toEqual({
+      status: 'restored',
+      detail: 'Renamed to api-old while the app was shut down',
+    });
+    expect(docker.inspectContainer).toHaveBeenLastCalledWith('n1', 'runtime-1');
+    expect(docker.startContainer).toHaveBeenCalledWith('n1', 'runtime-1', 'user-1', { appIncident: true });
+  });
+
+  it('follows a container migrated meanwhile to its new node', async () => {
+    const { actions, docker } = setup({ rows: [{ targetNodeId: 'n2', cutoverAt: new Date(Date.now() + 1_000) }] });
+    docker.inspectContainer.mockResolvedValueOnce(exited('runtime-9', 'api') as never);
+    await expect(actions.restore(STOPPED, CONTEXT)).resolves.toEqual({
+      status: 'restored',
+      detail: 'Migrated to another node while the app was shut down',
+    });
+    expect(docker.inspectContainer).toHaveBeenCalledWith('n2', 'api');
+    expect(docker.startContainer).toHaveBeenCalledWith('n2', 'api', 'user-1', { appIncident: true });
+  });
+
+  it('skips a container deleted meanwhile and says so', async () => {
+    const { actions, docker } = setup();
+    docker.inspectContainer.mockRejectedValueOnce(missing()).mockRejectedValueOnce(missing());
+    await expect(actions.restore(STOPPED, CONTEXT)).resolves.toEqual({
+      status: 'gone',
+      detail: DELETED_WHILE_SHUT_DOWN,
+    });
+    expect(docker.startContainer).not.toHaveBeenCalled();
+  });
+
+  it('skips a deployment, Compose project, database or storage deleted meanwhile and says so', async () => {
+    const { actions } = setup({ rows: [] });
+    const stopped = [
+      item({ itemKind: 'deployment_stop', ref: { deploymentId: 'd1' }, priorState: { status: 'ready' } }),
+      item({ itemKind: 'compose_stop', ref: { projectId: 'p1' }, priorState: { status: 'running' } }),
+      item({ itemKind: 'database_pause', ref: { databaseId: 'db1' }, priorState: { status: 'ready' } }),
+      item({ itemKind: 'storage_pause', ref: { storageId: 's1' }, priorState: { status: 'ready' } }),
+    ];
+    for (const entry of stopped) {
+      await expect(actions.restore(entry, CONTEXT)).resolves.toEqual({
+        status: 'gone',
+        detail: DELETED_WHILE_SHUT_DOWN,
+      });
+    }
   });
 });
 

@@ -82,6 +82,8 @@ export interface BackupRunView {
   completedAt: Date | null;
   artifactsDeletedAt: Date | null;
   createdAt: Date;
+  /** A database on several servers: the member the backup read (a copy when one was eligible), else null. */
+  source?: { memberId: string | null; nodeId: string | null; role: 'copy' | 'primary' } | null;
 }
 
 export interface BackupRuntimeConnection {

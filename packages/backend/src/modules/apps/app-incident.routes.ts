@@ -31,7 +31,7 @@ export const shutdownAppRoute = appRoute({
   path: '/{id}/shutdown',
   tags: TAGS,
   summary: 'Shut down an app',
-  description: `Stops what can be stopped in each environment: running containers, deployments and Compose projects stop, managed databases and storage pause, and the routes of the environment and of its Pages projects show the maintenance page (team access works). What ran is recorded, so Start brings back exactly that. While shut down, deleting a member (and its links, bindings and Secure Links), renaming or migrating a workload, Compose down, Availability enable/disable and membership changes answer 409 APP_INCIDENT_ACTIVE; other changes stay allowed. An environment isolated by the kill switch is not shut down (409 APP_ISOLATED): turn the kill switch off first. Runs in the background: the incidents come back with state applying and their items. ${SCOPE_TEXT}`,
+  description: `Stops what can be stopped in each environment: running containers, deployments and Compose projects stop, managed databases and storage pause, and the routes of the environment and of its Pages projects show the maintenance page (team access works). What ran is recorded, so Start brings back exactly that. While shut down, members can be changed freely: edits, deletes, unbinding, renames, migration, Compose down, Availability and moves between environments all work. An environment isolated by the kill switch is not shut down (409 APP_ISOLATED): turn the kill switch off first. Runs in the background: the incidents come back with state applying and their items. ${SCOPE_TEXT}`,
   request: { params: AppParams, ...jsonBody(AppIncidentScopeSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -41,7 +41,7 @@ export const startAppRoute = appRoute({
   path: '/{id}/start',
   tags: TAGS,
   summary: 'Start an app after a shutdown',
-  description: `Restores what the shutdown changed, item by item, and only where the resource is still as the shutdown left it (a container started by hand meanwhile is left alone). ${SCOPE_TEXT}`,
+  description: `Restores what the shutdown changed, item by item, and only where the resource is still as the shutdown left it (a container started by hand meanwhile is left alone). Starts what ran at shutdown and still exists, wherever it is now: a member renamed, migrated or moved to another environment or out of the app is still started (a container by its name, then by its runtime ID), and a Compose project taken down comes up from its active revision. A member deleted meanwhile is skipped: its item ends gone with the detail "Deleted while the app was shut down; not started", and the incident lists it in skipped. ${SCOPE_TEXT}`,
   request: { params: AppParams, ...jsonBody(AppIncidentScopeSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -72,7 +72,7 @@ export const listAppIncidentsRoute = appRoute({
   tags: TAGS,
   summary: 'App incidents',
   description:
-    'Shutdowns and kill switch isolations of the environments you can view: open ones first, then recent ones, each with its items (kind, label, status pending/applied/failed/restored/restore_failed/gone, attempts, last error, and detail: what a restored or gone item could not put back as it was).',
+    'Shutdowns and kill switch isolations of the environments you can view: open ones first, then recent ones, each with its items (kind, label, status pending/applied/failed/restored/restore_failed/gone, attempts, last error, and detail: what a restored or gone item could not put back as it was) and skipped: the gone items with their detail (for a shutdown, the members deleted while it was shut down, which Start does not bring back).',
   request: { params: AppParams },
   responses: okJson(UnknownDataResponseSchema),
 });

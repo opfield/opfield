@@ -32,6 +32,9 @@ type MemberState struct {
 	// Restart is a restart Gateway asked for (settings that need one, M4);
 	// cleared once it ran.
 	Restart *RestartRequest `json:"restart,omitempty"`
+	// RestartDone is the operation id of the last restart that finished, so a
+	// repeat of it is accepted without restarting again.
+	RestartDone string `json:"restartDone,omitempty"`
 	// NextEvent and Events are the durable event queue (decision 18).
 	NextEvent uint64  `json:"nextEvent"`
 	Events    []Event `json:"events,omitempty"`

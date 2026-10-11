@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AVAILABILITY_CATCH_UP_TIMEOUT_MS,
+  AVAILABILITY_SET_POLICY_PREFIX,
   LEASE_PEER_SETTLE_TIMEOUT_MS,
   type LeaseUpdatePeerState,
   type LeaseUpdateView,
@@ -104,5 +106,29 @@ describe('leaseUpdateBlockers', () => {
     expect(leaseUpdateBlockers(current, 'nginx-1', NOW).blockers).toEqual([]);
     expect(leasePoliciesOf(current.topology, 'a2')).toEqual(['hafo']);
     expect(leasePoliciesOf(current.topology, 'nginx-1')).toEqual([]);
+  });
+
+  it('holds the other members of a database set while a restarted copy catches up, up to its own timeout', () => {
+    const policy = 'set-lease';
+    const catching = { since: NOW - 60_000, catchingUpIn: new Set([policy]) };
+    expect(leaseUpdateBlockers(view({ [policy]: ['p', 'c'] }, { p: {}, c: catching }), 'p', NOW).blockers).toEqual([
+      { memberId: 'c', policyId: policy, reason: 'availability_catching_up' },
+    ]);
+    const long = { since: NOW - AVAILABILITY_CATCH_UP_TIMEOUT_MS, catchingUpIn: new Set([policy]) };
+    expect(leaseUpdateBlockers(view({ [policy]: ['p', 'c'] }, { p: {}, c: long }), 'p', NOW)).toEqual({
+      blockers: [],
+      settleTimedOut: [{ memberId: 'c', policyId: policy, reason: 'availability_catching_up' }],
+    });
+  });
+
+  it('sequences a manual pair by its pseudo policy without lease reports', () => {
+    const policy = `${AVAILABILITY_SET_POLICY_PREFIX}pair`;
+    // Its nodes report no lease state: only an update or a copy catching up holds the other member back.
+    const quiet = { since: NOW - 10_000, reportedAt: null };
+    expect(leaseUpdateBlockers(view({ [policy]: ['p', 'c'] }, { p: quiet, c: quiet }), 'p', NOW).blockers).toEqual([]);
+    expect(
+      leaseUpdateBlockers(view({ [policy]: ['p', 'c'] }, { p: quiet, c: { ...quiet, updating: true } }), 'p', NOW)
+        .blockers
+    ).toEqual([{ memberId: 'c', policyId: policy, reason: 'updating' }]);
   });
 });

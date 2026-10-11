@@ -81,21 +81,30 @@ func TestPGMemberHBAKeepsSetRolesOnTLSWithACertificate(t *testing.T) {
 	}
 }
 
-// H1: an update of a member applies live changes only; anything that needs
-// a new container is refused (a member container has no Docker port
-// bindings, so the single-node publication check would always recreate it).
-func TestPGMemberUpdateIsLiveOnly(t *testing.T) {
+// H1 (with P3-T07): an update a member never takes is refused; a moved
+// published port is the member proxy's, so it is no reason to refuse (or
+// recreate) at all.
+func TestPGMemberUpdateRefusesWhatNoMemberTakes(t *testing.T) {
 	record := managedDatabaseRecord{Type: "postgres", PublishedPort: 15432, StorageSize: 1 << 30,
-		AvailabilitySetID: "s", AvailabilityMemberID: "m"}
+		AvailabilitySetID: "s", AvailabilityMemberID: "m", TLSEnabled: true}
 	input := managedDatabaseCommand{Type: "postgres", Image: pgCuratedTestImage(), StorageSizeBytes: 2 << 30, MemoryBytes: 1 << 30,
 		PublishTCP: true, PublishedPort: 15432, OperationID: "op", OwnerUsername: "owner", OwnerPassword: "secret-password-0123456789", DatabaseName: "app"}
+	plain := input
+	if err := pgMemberUpdateAllowed(record, plain); err == nil {
+		t.Fatal("a member keeps TLS")
+	}
+	ca, cert, key := muTLS(t)
+	input.TLSEnabled, input.TLSCACertificatePEM, input.TLSCertificatePEM, input.TLSPrivateKeyPEM, input.TLSCertificateID = true, ca, cert, key, "leaf"
 	if err := pgMemberUpdateAllowed(record, input); err != nil {
 		t.Fatalf("a live update must be allowed: %v", err)
 	}
 	moved := input
 	moved.PublishedPort = 15433
-	if err := pgMemberUpdateAllowed(record, moved); err == nil {
-		t.Fatal("moving the published port needs a new container and must be refused")
+	if err := pgMemberUpdateAllowed(record, moved); err != nil {
+		t.Fatalf("moving the published port is the member proxy's: %v", err)
+	}
+	if managedDatabaseRequiresRecreate(record, withRecordPublication(record, moved)) {
+		t.Fatal("a member's publication never needs a recreate")
 	}
 	smaller := input
 	smaller.StorageSizeBytes = 1 << 20

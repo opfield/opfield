@@ -165,6 +165,16 @@ export class ManagedDatabaseService {
   async getDatabaseCACertificate(): Promise<string | null> {
     return commercialModuleUnavailable();
   }
+  /**
+   * The member a backup of a database on several servers reads (P3-T06): an eligible copy within the lag bound, else
+   * the primary; null for a database on one server.
+   */
+  async backupSource(
+    _managedDatabaseId: string,
+    _input: { executorNodeId: string; forcePrimary?: boolean }
+  ): Promise<{ setId: string; memberId: string; nodeId: string; role: 'copy' | 'primary' } | null> {
+    return commercialModuleUnavailable();
+  }
   async warmReadyPostgresExtensionCatalogs(): Promise<void> {
     return commercialModuleUnavailable();
   }

@@ -76,7 +76,7 @@ export const deleteAppRoute = appRoute({
   tags: TAGS,
   summary: 'Delete an app',
   description:
-    'Needs apps:delete on the app. Members keep running and leave the app (they show at the top level of their lists); environment variables, secrets and allowed nodes are deleted, and grants naming the app, its environments or its folders are removed.',
+    'Needs apps:delete on the app. Members keep running and leave the app (they show at the top level of their lists); environment variables, secrets and allowed nodes are deleted, and grants naming the app, its environments or its folders are removed. Refused while a shutdown or the kill switch is open in any environment (409 APP_INCIDENT_ACTIVE): start the app or turn the kill switch off first.',
   request: { params: AppParams },
   responses: noContent,
 });
@@ -108,7 +108,7 @@ export const deleteAppEnvironmentRoute = appRoute({
   tags: TAGS,
   summary: 'Delete an environment',
   description:
-    'Needs apps:edit on the app. The Production environment cannot be deleted. Members keep running and leave the app; variables, secrets and allowed nodes of the environment are deleted.',
+    'Needs apps:edit on the app. The Production environment cannot be deleted. Members keep running and leave the app; variables, secrets and allowed nodes of the environment are deleted. Refused while the environment is shut down or isolated (409 APP_INCIDENT_ACTIVE): start it or turn the kill switch off first.',
   request: { params: EnvParams },
   responses: noContent,
 });
@@ -119,7 +119,7 @@ export const placeAppMembersRoute = appRoute({
   tags: TAGS,
   summary: 'Move resources into, between or out of app environments',
   description:
-    'target {appId, environmentId} imports or moves each member into that environment; target null takes them out of their app (top level of their lists). Members: {type, id} (deployment, compose, database, storage, route, pages by id) or {type: container, id: name, nodeId}. Needs apps:env:manage on the target environment and on the environment a member leaves, plus the edit permission of each member. Refused per member: system routes and the Gateway public URL route (ROUTE_NOT_PLACEABLE), a node the target environment does not allow (APP_NODE_NOT_ALLOWED), no permission (FORBIDDEN), unknown member (NOT_FOUND). Partial success: placed and refused are listed.',
+    'target {appId, environmentId} imports or moves each member into that environment; target null takes them out of their app (top level of their lists). Members: {type, id} (deployment, compose, database, storage, route, pages by id) or {type: container, id: name, nodeId}. Needs apps:env:manage on the target environment and on the environment a member leaves, plus the edit permission of each member. Refused per member: system routes and the Gateway public URL route (ROUTE_NOT_PLACEABLE), a node the target environment does not allow (APP_NODE_NOT_ALLOWED), no permission (FORBIDDEN), unknown member (NOT_FOUND), a member of an environment isolated by the kill switch (APP_ISOLATED; an isolated target refuses the whole request with 409 APP_ISOLATED). Shut-down environments take moves both ways; Start still starts a member moved out that ran at shutdown. Partial success: placed and refused are listed.',
   request: jsonBody(PlaceAppMembersSchema),
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -252,7 +252,7 @@ export const getAppOverviewRoute = appRoute({
   tags: TAGS,
   summary: 'App monitoring overview',
   description:
-    'Per environment the caller may view: health, member count, issues (failing or degraded members per type), alerts ({tone: destructive for a failing member or warning for a nearly full disk or 5xx errors, title, detail}), and 24-point series over the range (1h or 24h) for containers (CPU, memory, unhealthy names), databases (disk, connections, transactions), storage (disk, objects, buckets, RX/TX), routes (requests, 5xx, p95 latency, traffic) and Pages (active deployment), plus the nodes the members run on. Only members the caller may view count; unknown values are null and unknown series empty. Cached for 15 seconds.',
+    'Per environment the caller may view: health, member count, issues (failing or degraded members per type), alerts ({tone: destructive for a failing member or warning for a nearly full disk or 5xx errors, title, detail}), and 24-point series over the range (1h or 24h) for containers (CPU, memory, unhealthy names), databases (disk, connections, transactions), storage (disk, objects, buckets, RX/TX), routes (requests, 5xx, p95 latency, traffic) and Pages (active deployment), plus the nodes the members run on. A database or storage on several servers carries `availability` {state, mode, stateReason, members[{memberId, nodeId, nodeName, role, primary, eligible, health: healthy|degraded|down|stopped}]} (null on one server); a set that lost a copy or cannot fail over counts degraded, not failing, while its primary answers. Only members the caller may view count; unknown values are null and unknown series empty. Cached for 15 seconds.',
   request: { params: AppParams, query: AppOverviewQuerySchema },
   responses: okJson(UnknownDataResponseSchema),
 });

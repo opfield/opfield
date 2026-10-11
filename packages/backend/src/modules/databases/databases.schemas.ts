@@ -308,6 +308,11 @@ export const UpdateManagedDatabaseSchema = z
     clickhouseConfigXml: z.string().trim().max(32_768).optional(),
     redisConfig: ManagedRedisConfigSchema.optional(),
     postgresConfig: ManagedPostgresConfigSchema.optional(),
+    /**
+     * A newer catalog version of the same engine: PostgreSQL within its major version, Valkey and ClickHouse the next
+     * catalog version. One restart on a single server; a rolling update (copies first, then a switchover) on several.
+     */
+    version: z.string().trim().min(1).max(32).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { message: 'At least one field must be provided' });
 

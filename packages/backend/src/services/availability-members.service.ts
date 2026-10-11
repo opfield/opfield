@@ -58,6 +58,24 @@ export interface PrimaryAssignmentSigner {
     generation: number;
   }): Promise<AvailabilityPrimaryAssignment>;
 }
+/** Whether a member's engine is to stay stopped (a paused set); see registerRunState. */
+export type MemberRunStateProvider = (
+  set: AvailabilitySetRow,
+  member: AvailabilityMemberRow
+) => Promise<{ stopped?: boolean }> | { stopped?: boolean };
+/** Runs before a node's daemon restarts for an update (a set primary on it hands over first). */
+export type NodeUpdateHandoff = (nodeId: string) => Promise<void>;
+
+/**
+ * Keys of a member row's `engine_position` the member runtime itself reports (not the engine): `runtime.stopped` =
+ * "true" while the engine is down because the set is paused, `runtime.pendingRestart` = the operation id of a requested
+ * restart that has not finished.
+ */
+export const MEMBER_RUNTIME_STOPPED_KEY = 'runtime.stopped';
+export const MEMBER_RUNTIME_PENDING_RESTART_KEY = 'runtime.pendingRestart';
+/** A node update waits at most this long for the set primaries on the node to hand over. */
+const NODE_UPDATE_HANDOFF_TIMEOUT_MS = 5 * 60_000;
+
 export type PrimaryChangedListener = (
   set: AvailabilitySetRow,
   member: AvailabilityMemberRow,
@@ -76,6 +94,8 @@ export class AvailabilityMembersService {
   private readonly engineConfig = new Map<ManagedAvailabilityEngine, EngineConfigProvider>();
   private readonly eventListeners: MemberEventListener[] = [];
   private readonly primaryListeners: PrimaryChangedListener[] = [];
+  private readonly runStateProviders: MemberRunStateProvider[] = [];
+  private readonly nodeUpdateHandoffs: NodeUpdateHandoff[] = [];
   private readonly lastConfigured = new Map<string, { revision: number; at: number }>();
   private readonly ingesting = new Set<string>();
   private signer: PrimaryAssignmentSigner | null = null;
@@ -114,6 +134,68 @@ export class AvailabilityMembersService {
   /** Called after `primary_member_id` and the resource's `node_id` followed a new serving primary. */
   onPrimaryChanged(listener: PrimaryChangedListener): void {
     this.primaryListeners.push(listener);
+  }
+
+  /** Whether each member's engine stays stopped (paused sets); providers of every owner kind are asked. */
+  registerRunState(provider: MemberRunStateProvider): void {
+    this.runStateProviders.push(provider);
+  }
+
+  /** Handoffs that run before a node's daemon restarts for an update (see beforeNodeUpdate). */
+  registerNodeUpdateHandoff(handler: NodeUpdateHandoff): void {
+    this.nodeUpdateHandoffs.push(handler);
+  }
+
+  /**
+   * Before a node's daemon restarts for an update: every set primary on the node hands over to a healthy copy first
+   * (the owner kinds' handoffs start a planned switchover and wait for it). Bounded; a handoff that fails or times out
+   * only logs, and the update goes on (the set then fails over or waits as for any restart).
+   */
+  async beforeNodeUpdate(nodeId: string): Promise<void> {
+    if (this.nodeUpdateHandoffs.length === 0) return;
+    const hosted = await this.db
+      .select({ id: managedAvailabilityMembers.id })
+      .from(managedAvailabilityMembers)
+      .where(eq(managedAvailabilityMembers.nodeId, nodeId))
+      .limit(1);
+    if (hosted.length === 0) return;
+    for (const handoff of this.nodeUpdateHandoffs) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          handoff(nodeId),
+          new Promise<void>((_, reject) => {
+            timer = setTimeout(
+              () => reject(new Error('the handoff did not finish in time')),
+              NODE_UPDATE_HANDOFF_TIMEOUT_MS
+            );
+            timer.unref?.();
+          }),
+        ]);
+      } catch (error) {
+        logger.warn('Availability primaries did not hand over before the node update; it goes on', {
+          nodeId,
+          error: (error as Error).message,
+        });
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    }
+  }
+
+  private async memberStopped(set: AvailabilitySetRow, member: AvailabilityMemberRow): Promise<boolean> {
+    for (const provider of this.runStateProviders) {
+      try {
+        if ((await provider(set, member)).stopped) return true;
+      } catch (error) {
+        logger.warn('Availability member run state is unknown; the member keeps running', {
+          setId: set.id,
+          memberId: member.id,
+          error: (error as Error).message,
+        });
+      }
+    }
+    return false;
   }
 
   private async loadSet(setId: string): Promise<{ set: AvailabilitySetRow; members: AvailabilityMemberRow[] } | null> {
@@ -159,6 +241,7 @@ export class AvailabilityMembersService {
     const assignment = await this.signedAssignment(set);
     if (assignment) config.primary = assignment;
     if (engineConfig) config.engineConfig = Buffer.from(JSON.stringify(engineConfig));
+    if (await this.memberStopped(set, member)) config.stopped = true;
     return config;
   }
 
@@ -225,6 +308,19 @@ export class AvailabilityMembersService {
     return failed;
   }
 
+  /** Restarts one member's engine on its node (every engine); the primary only with allowPrimary. */
+  async restartMember(
+    setId: string,
+    memberId: string,
+    nodeId: string,
+    operationId: string,
+    allowPrimary: boolean
+  ): Promise<CommandResult | null> {
+    return this.send(nodeId, {
+      restart: { setId, memberId, operationId, ...(allowPrimary ? { allowPrimary: true } : {}) },
+    });
+  }
+
   /** Asks the holder's node for a planned switchover to successorMemberId (automatic sets). */
   async switchover(
     setId: string,
@@ -285,6 +381,11 @@ export class AvailabilityMembersService {
   private async applyReport(set: AvailabilitySetRow, member: AvailabilityMemberRow, report: AvailabilityMemberReport) {
     const reportedAt = new Date(this.now());
     const position: Record<string, string> = { ...(report.position ?? {}) };
+    delete position[MEMBER_RUNTIME_STOPPED_KEY];
+    delete position[MEMBER_RUNTIME_PENDING_RESTART_KEY];
+    if (report.stopped) position[MEMBER_RUNTIME_STOPPED_KEY] = 'true';
+    if (report.pendingRestartOperationId)
+      position[MEMBER_RUNTIME_PENDING_RESTART_KEY] = report.pendingRestartOperationId;
     await this.db
       .update(managedAvailabilityMembers)
       .set({

@@ -10,6 +10,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  varchar,
 } from 'drizzle-orm/pg-core';
 // Keep the schema load order safe when this module imports databases.ts directly.
 import './certificate-templates.js';
@@ -112,6 +113,14 @@ export const backupRuns = pgTable(
     bytes: text('bytes').notNull().default('0'),
     sanitizedError: text('sanitized_error'),
     encryptedRuntimePayload: text('encrypted_runtime_payload'),
+    /**
+     * Which member of a database availability set a backup read (P3-T06): an eligible copy, else the primary. Null for
+     * databases on one server. `source_role` 'primary' set at admission forces the primary (the retry of a dump a
+     * recovery conflict cancelled on the copy).
+     */
+    sourceMemberId: uuid('source_member_id'),
+    sourceNodeId: uuid('source_node_id'),
+    sourceRole: varchar('source_role', { length: 16 }).$type<'copy' | 'primary'>(),
     runtimeCleanupPending: boolean('runtime_cleanup_pending').notNull().default(false),
     artifactsDeletedAt: timestamp('artifacts_deleted_at', { withTimezone: true }),
     createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),

@@ -1468,6 +1468,8 @@ export interface AvailabilityMemberConfig {
   /** The engine's own configuration (JSON), opaque to the member runtime. */
   engineConfig?: Buffer;
   publishedPort?: number;
+  /** The set is paused: this member's engine stays stopped (copies stop first, the primary keeps its role). */
+  stopped?: boolean;
 }
 
 export interface AvailabilityMemberCommand {
@@ -1476,6 +1478,15 @@ export interface AvailabilityMemberCommand {
   ackEvents?: { setId: string; memberId: string; throughSequence: string };
   assignPrimary?: AvailabilityPrimaryAssignment;
   switchover?: { setId: string; successorMemberId: string; operationId: string };
+  /** Restarts the member's engine (every engine); the primary only with allowPrimary. */
+  restart?: AvailabilityMemberRestart;
+}
+
+export interface AvailabilityMemberRestart {
+  setId: string;
+  memberId: string;
+  operationId: string;
+  allowPrimary?: boolean;
 }
 
 export interface AvailabilityMemberEvent {
@@ -1504,4 +1515,8 @@ export interface AvailabilityMemberReport {
   configRevision?: string;
   primaryGeneration?: string;
   events?: AvailabilityMemberEvent[];
+  /** The engine is down because the member's configuration asks it (the set is paused). */
+  stopped?: boolean;
+  /** A requested restart that has not finished (empty when none). */
+  pendingRestartOperationId?: string;
 }
