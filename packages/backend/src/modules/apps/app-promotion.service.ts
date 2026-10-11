@@ -792,6 +792,16 @@ export class AppPromotionService {
           },
           actor.userId
         );
+        if (result.operationId) {
+          const operation = await this.resolve(DockerComposeService)!.waitForOperation(result.operationId, 10 * 60_000);
+          if (operation?.status && operation.status !== 'succeeded') {
+            throw new AppError(
+              502,
+              'PROMOTION_COMPOSE_APPLY_FAILED',
+              `Revision #${result.revisionNumber} was created; applying it ended ${operation.status}${operation.error ? `: ${operation.error}` : ''}`
+            );
+          }
+        }
         const changed = [...sourceState.services.entries()]
           .filter(([name, image]) => (image?.digest ?? null) !== (targetState.services.get(name)?.digest ?? null))
           .map(([name]) => name);
