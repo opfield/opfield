@@ -9,6 +9,7 @@ import type {
   ManagedDatabaseBindingRuntimeStatus,
   ManagedDatabaseCatalogEntry,
   ManagedDatabaseCreateInput,
+  ManagedDatabaseMoveToValkeyCheck,
   ManagedPostgresExtension,
   PaginatedResponse,
   PostgresTableMetadata,
@@ -162,6 +163,31 @@ export function withDatabaseApi<TBase extends ApiClientBaseConstructor>(Base: TB
           `/databases/managed/${encodeURIComponent(id)}/restart`,
           {
             method: "POST",
+          }
+        )
+      );
+    }
+
+    async getManagedDatabaseMoveToValkeyCheck(
+      id: string
+    ): Promise<ManagedDatabaseMoveToValkeyCheck> {
+      return this.unwrapData(
+        this.request<{ data: ManagedDatabaseMoveToValkeyCheck }>(
+          `/databases/managed/${encodeURIComponent(id)}/move-to-valkey`
+        )
+      );
+    }
+
+    async moveManagedDatabaseToValkey(
+      id: string,
+      options: { acceptPendingStreamLoss?: boolean } = {}
+    ): Promise<ManagedDatabase> {
+      return this.unwrapData(
+        this.request<{ data: ManagedDatabase }>(
+          `/databases/managed/${encodeURIComponent(id)}/move-to-valkey`,
+          {
+            method: "POST",
+            body: JSON.stringify(options),
           }
         )
       );

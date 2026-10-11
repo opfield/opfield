@@ -40,6 +40,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
 import { NORMAL_LIST_FILTER } from "@/lib/app-members";
+import { DATABASE_TYPE_LABELS, databaseTypeLabel } from "@/lib/database-type";
 import { refreshDynamicScopes } from "@/lib/live-scopes";
 import { listManagedDatabaseCandidateNodes } from "@/lib/managed-database-nodes";
 import { nodeIconClassNames } from "@/lib/node-appearance";
@@ -189,7 +190,7 @@ function DatabaseTagSummary({ tags, type }: { tags: string[]; type: DatabaseConn
       )}
       <span ref={typeRef} className="inline-flex shrink-0">
         <Badge variant="outline" className="uppercase">
-          {type}
+          {databaseTypeLabel(type)}
         </Badge>
       </span>
     </div>
@@ -605,7 +606,7 @@ function DatabasesContent({
                     <SelectItem value="all">All types</SelectItem>
                     <SelectItem value="postgres">Postgres</SelectItem>
                     <SelectItem value="clickhouse">ClickHouse</SelectItem>
-                    <SelectItem value="redis">Redis</SelectItem>
+                    <SelectItem value="redis">{DATABASE_TYPE_LABELS.redis}</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select

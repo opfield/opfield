@@ -303,9 +303,18 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
     execute: ['execute_command'],
   }),
   manage_managed_database: operationPolicies({
-    read: ['catalog', 'list', 'get', 'list_bindings', 'logs', 'get_binding_runtime', 'certificate_status'],
+    read: [
+      'catalog',
+      'list',
+      'get',
+      'list_bindings',
+      'logs',
+      'get_binding_runtime',
+      'certificate_status',
+      'move_to_valkey_check',
+    ],
     create: ['create', 'create_binding'],
-    update: ['update', 'retry', 'rotate_certificate'],
+    update: ['update', 'retry', 'rotate_certificate', 'move_to_valkey'],
     // Rotation returns the new direct-access password.
     execute: ['restart', 'pause', 'unpause', 'reveal_credentials', 'reveal_binding_credentials', 'rotate_credentials'],
     delete: ['delete', 'delete_binding'],

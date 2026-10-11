@@ -64,7 +64,7 @@ After the update:
 - Paid installations download the signed private core of the new release during the update, so the Gateway host must reach the license server; see [Commercial core](commercial-core.md). Community installations that never held a paid plan update without it.
 - Docker Availability policies switch to lease mode by themselves once every node and relay of the workload has run 2.11 for 2 minutes. Each Docker node needs the [lease watchdog](nodes.md#lease-watchdog); nodes whose daemon runs without root need the node installer re-run, or they stay under **Excluded nodes**. In lease mode every node of the policy must reach every relay (see [Firewall Requirements](nodes.md#firewall-requirements)).
 - After the Docker daemon update, the first apply of an unchanged Compose revision recreates its services once (see [Container Log Limits](#container-log-limits)).
-- External PostgreSQL and Redis connections with TLS stay unverified until you add their CA or enable verification (see [Databases](capabilities.md#databases)).
+- External PostgreSQL and key-value connections with TLS stay unverified until you add their CA or enable verification (see [Databases](capabilities.md#databases)).
 - Storage nodes need outbound HTTPS to `ghcr.io` to pull the backup runner.
 - Review permission groups, user permissions, API tokens, and OAuth grants: retired scope names were migrated, some of them to broader permissions, and custom groups do not receive the new 2.11 permissions automatically (see [SCOPES.md](../SCOPES.md)).
 

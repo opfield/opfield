@@ -1,4 +1,5 @@
 import {
+  ArrowRightLeft,
   FileCode2,
   HardDrive,
   KeyRound,
@@ -20,6 +21,7 @@ import {
 } from "@/components/common/ResponsiveHeaderActions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { databaseTypeLabel, managedDatabaseVersionLabel } from "@/lib/database-type";
 import type { DatabaseConnection } from "@/types";
 import { formatHealthStatusLabel, HEALTH_BADGE } from "./shared";
 
@@ -34,6 +36,10 @@ interface DatabaseHeaderProps {
   canConfigureClickHouse: boolean;
   canConfigureRedis: boolean;
   canConfigurePostgres: boolean;
+  /** Shows "Move to Valkey" (a managed key-value store that still runs Redis). */
+  canMoveToValkey: boolean;
+  /** Enables "Move to Valkey" (the store is ready). */
+  moveToValkeyReady: boolean;
   canReveal: boolean;
   canRotateDirectCredentials: boolean;
   canRotateCertificate: boolean;
@@ -49,6 +55,7 @@ interface DatabaseHeaderProps {
   onConfigureClickHouse: () => void;
   onConfigureRedis: () => void;
   onConfigurePostgres: () => void;
+  onMoveToValkey: () => void;
   onRevealCredentials: () => void;
   onRotateDirectCredentials: () => void;
   onRotateCertificate: () => void;
@@ -66,6 +73,8 @@ export function DatabaseHeader({
   canConfigureClickHouse,
   canConfigureRedis,
   canConfigurePostgres,
+  canMoveToValkey,
+  moveToValkeyReady,
   canReveal,
   canRotateDirectCredentials,
   canRotateCertificate,
@@ -81,6 +90,7 @@ export function DatabaseHeader({
   onConfigureClickHouse,
   onConfigureRedis,
   onConfigurePostgres,
+  onMoveToValkey,
   onRevealCredentials,
   onRotateDirectCredentials,
   onRotateCertificate,
@@ -140,10 +150,23 @@ export function DatabaseHeader({
       ? [
           {
             id: "database:configure-redis",
-            label: "Configure Redis",
-            buttonLabel: "Configure Redis",
+            label: "Configure key-value store",
+            buttonLabel: "Configure key-value store",
             icon: <SlidersHorizontal className="h-4 w-4" />,
             onClick: onConfigureRedis,
+          },
+        ]
+      : []),
+    ...(canMoveToValkey
+      ? [
+          {
+            id: "database:move-to-valkey",
+            label: "Move to Valkey",
+            buttonLabel: "Move to Valkey",
+            icon: <ArrowRightLeft className="h-4 w-4" />,
+            onClick: onMoveToValkey,
+            disabled: !moveToValkeyReady,
+            disabledReason: "Available when the key-value store is running.",
           },
         ]
       : []),
@@ -231,6 +254,9 @@ export function DatabaseHeader({
       : []),
   ];
 
+  const managedTitle =
+    database.type === "redis" ? "Managed key-value store ·" : `Managed ${database.type}`;
+
   return (
     <PageHeader
       className="shrink-0"
@@ -246,14 +272,14 @@ export function DatabaseHeader({
             {formatHealthStatusLabel(healthStatus)}
           </Badge>
           <Badge variant="secondary" size="inline" className="shrink-0">
-            {database.type}
+            {databaseTypeLabel(database.type)}
           </Badge>
         </>
       }
       description={
         <span className="break-all">
           {database.managed
-            ? `Managed ${database.type} ${database.managed.version} · ${database.managed.publishedPort === null ? "private" : `TCP ${database.managed.publishedPort}${database.type === "clickhouse" && database.managed.publishedNativePort != null ? ` · native ${database.managed.publishedNativePort}` : ""}`}`
+            ? `${managedTitle} ${managedDatabaseVersionLabel({ type: database.type, version: database.managed.version, engine: database.managed.engine })} · ${database.managed.publishedPort === null ? "private" : `TCP ${database.managed.publishedPort}${database.type === "clickhouse" && database.managed.publishedNativePort != null ? ` · native ${database.managed.publishedNativePort}` : ""}`}`
             : `${database.host}:${database.port}${database.databaseName ? ` · ${database.databaseName}` : ""}`}
           {database.app ? (
             <>
@@ -271,6 +297,8 @@ export function DatabaseHeader({
               variant={headerAction.destructive ? "destructive" : "outline"}
               size={headerAction.iconOnly ? "icon" : "default"}
               aria-label={headerAction.iconOnly ? headerAction.label : undefined}
+              disabled={headerAction.disabled}
+              title={headerAction.disabled ? headerAction.disabledReason : undefined}
               onClick={headerAction.onClick}
             >
               {headerAction.icon}

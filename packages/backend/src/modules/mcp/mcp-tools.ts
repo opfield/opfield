@@ -175,7 +175,8 @@ const MCP_TOOLSET_DEFINITIONS: McpToolsetDefinition[] = [
   {
     id: 'databases',
     title: 'Databases',
-    description: 'Database connections, managed databases and bindings, PostgreSQL data tools, and Redis data tools.',
+    description:
+      'Database connections, managed databases and bindings, PostgreSQL data tools, and key-value data tools.',
     toolNames: toolNamesForCategories(['Databases', 'Managed Databases']),
   },
   {

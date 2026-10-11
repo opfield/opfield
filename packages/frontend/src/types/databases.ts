@@ -1,6 +1,7 @@
 import type { AppMembershipRef } from "./apps";
 // Databases
 export type DatabaseType = "postgres" | "redis" | "clickhouse";
+export type ManagedDatabaseEngine = "postgres" | "redis" | "valkey" | "clickhouse";
 export type DatabaseHealthStatus = "online" | "offline" | "degraded" | "unknown";
 export type ManagedDatabaseStatus =
   | "creating"
@@ -19,6 +20,8 @@ export interface ManagedDatabase {
   name: string;
   type: DatabaseType;
   version: string;
+  /** Engine the instance runs; for type redis either "valkey" or "redis". */
+  engine?: ManagedDatabaseEngine;
   nodeId: string;
   storageSizeBytes: string | number;
   runtimeConfig: { cpuCores: number; memoryMb: number; swapMb: number };
@@ -29,6 +32,18 @@ export interface ManagedDatabase {
   lastError: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** What moving a key-value store from Redis to Valkey involves, checked on the node. */
+export interface ManagedDatabaseMoveToValkeyCheck {
+  fromVersion: string;
+  toVersion: string;
+  keys: number;
+  usedMemoryBytes: number;
+  pendingStreamEntries: number;
+  /** Data Valkey cannot take over (for example "Bloom filters (2)"); the move is refused while any remain. */
+  blockers: string[];
+  estimatedPauseSeconds: number;
 }
 
 export interface ManagedDatabaseCatalogEntry {
@@ -285,6 +300,8 @@ export interface DatabaseConnection {
     nodeId: string;
     nodeAvailable?: boolean;
     version: string;
+    /** Engine the instance runs; for type redis either "valkey" or "redis". */
+    engine?: ManagedDatabaseEngine;
     storageSizeBytes: number;
     runtimeConfig: { cpuCores: number; memoryMb: number; swapMb: number };
     publishedPort: number | null;

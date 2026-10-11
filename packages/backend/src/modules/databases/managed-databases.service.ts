@@ -66,6 +66,7 @@ export class ManagedDatabaseService {
       slug: string;
       type: 'postgres' | 'redis' | 'clickhouse';
       version: string;
+      engine: 'postgres' | 'redis' | 'valkey' | 'clickhouse';
       storageSizeBytes: number;
       runtimeConfig: {
         cpuCores: number;
@@ -91,6 +92,7 @@ export class ManagedDatabaseService {
     slug: string;
     type: 'postgres' | 'redis' | 'clickhouse';
     version: string;
+    engine: 'postgres' | 'redis' | 'valkey' | 'clickhouse';
     storageSizeBytes: number;
     runtimeConfig: {
       cpuCores: number;
@@ -115,6 +117,7 @@ export class ManagedDatabaseService {
     slug: string;
     type: 'postgres' | 'redis' | 'clickhouse';
     version: string;
+    engine: 'postgres' | 'redis' | 'valkey' | 'clickhouse';
     storageSizeBytes: number;
     runtimeConfig: {
       cpuCores: number;
@@ -161,7 +164,8 @@ export class ManagedDatabaseService {
   }
   async create(
     _input: CreateManagedDatabaseInput,
-    _userId: string
+    _userId: string,
+    _options?: { keepLegacyRedisVersion?: boolean }
   ): Promise<{
     id: string;
     databaseConnectionId: string | null;
@@ -170,6 +174,7 @@ export class ManagedDatabaseService {
     slug: string;
     type: 'postgres' | 'redis' | 'clickhouse';
     version: string;
+    engine: 'postgres' | 'redis' | 'valkey' | 'clickhouse';
     storageSizeBytes: number;
     runtimeConfig: {
       cpuCores: number;
@@ -198,6 +203,7 @@ export class ManagedDatabaseService {
     slug: string;
     type: 'postgres' | 'redis' | 'clickhouse';
     version: string;
+    engine: 'postgres' | 'redis' | 'valkey' | 'clickhouse';
     storageSizeBytes: number;
     runtimeConfig: {
       cpuCores: number;
@@ -226,6 +232,7 @@ export class ManagedDatabaseService {
     slug: string;
     type: 'postgres' | 'redis' | 'clickhouse';
     version: string;
+    engine: 'postgres' | 'redis' | 'valkey' | 'clickhouse';
     storageSizeBytes: number;
     runtimeConfig: {
       cpuCores: number;
@@ -253,6 +260,7 @@ export class ManagedDatabaseService {
     slug: string;
     type: 'postgres' | 'redis' | 'clickhouse';
     version: string;
+    engine: 'postgres' | 'redis' | 'valkey' | 'clickhouse';
     storageSizeBytes: number;
     runtimeConfig: {
       cpuCores: number;
@@ -280,6 +288,7 @@ export class ManagedDatabaseService {
     slug: string;
     type: 'postgres' | 'redis' | 'clickhouse';
     version: string;
+    engine: 'postgres' | 'redis' | 'valkey' | 'clickhouse';
     storageSizeBytes: number;
     runtimeConfig: {
       cpuCores: number;
@@ -307,6 +316,47 @@ export class ManagedDatabaseService {
     slug: string;
     type: 'postgres' | 'redis' | 'clickhouse';
     version: string;
+    engine: 'postgres' | 'redis' | 'valkey' | 'clickhouse';
+    storageSizeBytes: number;
+    runtimeConfig: {
+      cpuCores: number;
+      memoryMb: number;
+      swapMb: number;
+    };
+    publishedPort: number | null;
+    publishedNativePort: number | null;
+    tlsEnabled: boolean;
+    status: 'error' | 'creating' | 'updating' | 'ready' | 'paused' | 'stopped' | 'deleting';
+    lastError: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }> {
+    return commercialModuleUnavailable();
+  }
+  async moveToValkeyPreflight(_id: string): Promise<{
+    fromVersion: string;
+    toVersion: string;
+    keys: number;
+    usedMemoryBytes: number;
+    pendingStreamEntries: number;
+    blockers: string[];
+    estimatedPauseSeconds: number;
+  }> {
+    return commercialModuleUnavailable();
+  }
+  async moveToValkey(
+    _id: string,
+    _userId: string,
+    _options?: { acceptPendingStreamLoss?: boolean }
+  ): Promise<{
+    id: string;
+    databaseConnectionId: string | null;
+    nodeId: string;
+    name: string;
+    slug: string;
+    type: 'postgres' | 'redis' | 'clickhouse';
+    version: string;
+    engine: 'postgres' | 'redis' | 'valkey' | 'clickhouse';
     storageSizeBytes: number;
     runtimeConfig: {
       cpuCores: number;
@@ -335,6 +385,7 @@ export class ManagedDatabaseService {
         slug: string;
         type: 'postgres' | 'redis' | 'clickhouse';
         version: string;
+        engine: 'postgres' | 'redis' | 'valkey' | 'clickhouse';
         storageSizeBytes: number;
         runtimeConfig: {
           cpuCores: number;
@@ -366,6 +417,7 @@ export class ManagedDatabaseService {
     slug: string;
     type: 'postgres' | 'redis' | 'clickhouse';
     version: string;
+    engine: 'postgres' | 'redis' | 'valkey' | 'clickhouse';
     storageSizeBytes: number;
     runtimeConfig: {
       cpuCores: number;

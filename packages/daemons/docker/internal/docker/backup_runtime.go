@@ -981,7 +981,7 @@ func (r *backupRuntime) startRedisStage(ctx context.Context, runID string, paylo
 	if err := os.Chown(stageConfig, 65532, 65532); err != nil {
 		return nil, err
 	}
-	command := "until [ -f /work/redis-stage/dump.rdb ]; do sleep 0.1; done; exec redis-server /work/redis-stage/redis.conf"
+	command := redisStageCommand()
 	created, err := r.plugin.client.cli.ContainerCreate(ctx, mobyclient.ContainerCreateOptions{
 		Config: &container.Config{Image: stageImage, User: "65532:65532", Cmd: []string{"sh", "-ec", command}, Labels: map[string]string{backupRunnerManagedLabel: backupRedisStageManagedValue, backupRunnerRunLabel: runID}},
 		HostConfig: func() *container.HostConfig {
@@ -1018,6 +1018,22 @@ func (r *backupRuntime) startRedisStage(ctx context.Context, runID string, paylo
 	return func() {
 		_, _ = r.plugin.client.cli.ContainerRemove(context.Background(), created.ID, mobyclient.ContainerRemoveOptions{Force: true})
 	}, nil
+}
+
+// redisStageCommand starts the staging key-value server of a restore once the
+// dump is complete, with the modules of its image, so a dump holding JSON,
+// Bloom or Search data loads: the Redis 8 images keep theirs in
+// /usr/local/lib/redis/modules, the valkey-bundle image in /usr/lib/valkey
+// (its LDAP module is left out). An image's own entrypoint adds them only when
+// it starts the server itself, which a staging container does not.
+func redisStageCommand() string {
+	modules := "/usr/local/lib/redis/modules/*.so " + strings.Join(managedValkeyModules, " ")
+	return `until [ -f /work/redis-stage/dump.rdb ]; do sleep 0.1; done
+set --
+for module in ` + modules + `; do
+  if [ -f "$module" ]; then set -- "$@" --loadmodule "$module"; fi
+done
+exec redis-server /work/redis-stage/redis.conf "$@"`
 }
 
 func redisStageMemoryLimits(memoryMB int64) (int64, int64, error) {

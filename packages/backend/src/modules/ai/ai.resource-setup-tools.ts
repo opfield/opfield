@@ -251,6 +251,18 @@ async function manageManagedDatabase(user: User, args: Record<string, unknown>) 
     await ensureManagedDatabaseScopes(user, databaseId, 'databases:edit');
     return service.unpause(databaseId, user.id);
   }
+  if (operation === 'move_to_valkey') {
+    // Same as POST /databases/managed/{id}/move-to-valkey.
+    await ensureManagedDatabaseScopes(user, databaseId, 'databases:edit');
+    return service.moveToValkey(databaseId, user.id, {
+      acceptPendingStreamLoss: args.acceptPendingStreamLoss === true,
+    });
+  }
+  if (operation === 'move_to_valkey_check') {
+    // Same as GET /databases/managed/{id}/move-to-valkey.
+    await ensureManagedDatabaseScopes(user, databaseId, 'databases:edit');
+    return service.moveToValkeyPreflight(databaseId);
+  }
   if (operation === 'rotate_certificate') {
     // Same as POST /databases/managed/{id}/rotate-certificate: reloaded in place unless allowRestart.
     await ensureManagedDatabaseScopes(user, databaseId, 'databases:edit');
