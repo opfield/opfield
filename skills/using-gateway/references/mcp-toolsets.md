@@ -31,7 +31,7 @@ The list is defined by the server; never invent an ID.
 | `hosting` | Hosting provider connectors, VMs, power and resize, snapshots, firewalls |
 | `notifications` | Alert rules, webhooks, delivery logs, statistics |
 | `administration` | Users, permission groups, audit log, system alerts |
-| `maintenance` | Gateway settings, system updates, license, housekeeping, and Gateway's own diagnostics (`manage_gateway_diagnostics`) |
+| `maintenance` | Gateway settings, system updates, license, cloud account connection, housekeeping, and Gateway's own diagnostics (`manage_gateway_diagnostics`) |
 | `inference` | Gateway Inference core, provider connections, published models, limits, usage, personal keys |
 | `ai_assistant` | AI assistant provider, limits, tool access, web search, sandbox runner configuration |
 

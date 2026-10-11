@@ -606,6 +606,7 @@ export const tags = [
   { name: 'Inference', description: 'Standalone multi-provider inference proxy management' },
   { name: 'System', description: 'Version, release, and update operations' },
   { name: 'License', description: 'Gateway license activation and status' },
+  { name: 'Cloud', description: 'Connection of this installation to its cloud account' },
   { name: 'Housekeeping', description: 'Retention, cleanup, and housekeeping runs' },
   { name: 'Monitoring', description: 'Dashboard, health, log, and nginx monitoring' },
   { name: 'Setup', description: 'Initial setup and bootstrap operations' },

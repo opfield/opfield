@@ -88,6 +88,21 @@ export interface LicenseEntitlements {
   features: string[];
 }
 
+export type CloudLinkState = "not_connected" | "connected" | "disconnected_by_account";
+export type CloudSocketState = "connecting" | "online" | "reconnecting";
+
+export interface CloudLinkStatusView {
+  state: CloudLinkState;
+  portalUrl: string;
+  accountEmail: string | null;
+  connectedSince: string | null;
+  socket: { state: CloudSocketState; since: string | null; lastError: string | null } | null;
+  disconnectedAt: string | null;
+  disconnectedReason: string | null;
+  /** Set by a disconnect the cloud account could not confirm. */
+  warning?: string;
+}
+
 export interface LicenseStatusView {
   moduleRestarting?: boolean;
   status: LicenseStatus;

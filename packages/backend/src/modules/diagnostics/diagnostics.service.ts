@@ -14,6 +14,7 @@ import {
   matchesLogFilter,
   parseLogLine,
   parseTimeArgument,
+  redactText,
 } from './diagnostics-logs.js';
 import { type HostReading, type ProcessReading, readDisk, SystemReader } from './diagnostics-system.js';
 import type { PostgresDetails, PostgresProbe, PostgresProbeResult } from './postgres-probe.js';
@@ -38,6 +39,7 @@ const COMPOSE_PROJECT_LABEL = 'com.docker.compose.project';
 const COMPOSE_SERVICE_LABEL = 'com.docker.compose.service';
 const MANAGED_SERVICE_LABEL = 'com.wiolett.gateway.managed-service';
 const UPDATE_ATTEMPT_KEY = 'update:gateway:attempt';
+const DOCKER_TIMESTAMP_PREFIX = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))\s?(.*)$/;
 /** A job counts as failing after this many failed runs in a row. */
 export const FAILING_JOB_RUNS = 3;
 
@@ -555,6 +557,102 @@ export class DiagnosticsService {
 
   getLastSample(): DiagnosticsSample | null {
     return this.lastSample;
+  }
+
+  // ── Cloud link readers ───────────────────────────────────────────
+
+  /** Host readings now, without starting a new CPU window (the minute sampler owns it). */
+  async readHostNow(): Promise<HostReading | { error: string }> {
+    return this.readHost(false);
+  }
+
+  async readDockerHostInfo(): Promise<DiagnosticsSnapshot['gateway']['dockerHost']> {
+    return this.readDockerHost();
+  }
+
+  /** Gateway's own containers (its Compose project and the services it manages), one entry per service. */
+  async stackServices(): Promise<
+    Array<{ name: string; state: string; health: string | null; startedAt: string | null }>
+  > {
+    const discovered = await this.stackContainerItems();
+    const byName = new Map<string, DockerContainerListItem>();
+    for (const item of discovered.items) {
+      const name = item.Id === discovered.selfId ? 'app' : serviceOf(item);
+      if (!byName.has(name) || item.State === 'running') byName.set(name, item);
+    }
+    const services = await Promise.all(
+      [...byName].map(async ([name, item]) => {
+        const details = await withTimeout(this.docker.inspectContainer(item.Id), DOCKER_TIMEOUT_MS, 'Docker').then(
+          (value) => value as typeof value & { State: { Health?: { Status?: string } } },
+          () => null
+        );
+        return {
+          name,
+          state: item.State,
+          health: details?.State.Health?.Status ?? null,
+          startedAt: details?.State.StartedAt ?? null,
+        };
+      })
+    );
+    return services.sort((a, b) => (a.name === 'app' ? -1 : b.name === 'app' ? 1 : a.name.localeCompare(b.name)));
+  }
+
+  /**
+   * The last `tail` lines one of Gateway's own containers logged, as Docker keeps them, each with its stream.
+   * Secrets are redacted like every other log reading.
+   */
+  async containerLogLines(
+    source: string,
+    options: { tail: number; sinceMs?: number; maxLineChars: number }
+  ): Promise<{ service: string; lines: Array<{ t: string; stream: 'stdout' | 'stderr'; line: string }> }> {
+    const { id, name } = await this.resolveLogContainer(source.trim().toLowerCase());
+    const read = async (stream: 'stdout' | 'stderr') => {
+      try {
+        const raw = await this.docker.getContainerLogs(id, {
+          stdout: stream === 'stdout',
+          stderr: stream === 'stderr',
+          tail: options.tail,
+          ...(options.sinceMs !== undefined ? { sinceMs: options.sinceMs } : {}),
+          timestamps: true,
+          timeoutMs: 10_000,
+        });
+        return raw
+          .split('\n')
+          .filter((line) => line.trim())
+          .map((line, index) => {
+            const stamped = DOCKER_TIMESTAMP_PREFIX.exec(line);
+            const t = stamped?.[1] ?? '';
+            const text = redactText(stamped ? (stamped[2] ?? '') : line);
+            return {
+              t,
+              at: t ? Date.parse(t) : Number.NaN,
+              index,
+              stream,
+              line: text.length > options.maxLineChars ? `${text.slice(0, options.maxLineChars)}…` : text,
+            };
+          });
+      } catch (error) {
+        const message = errorMessage(error);
+        if (/does not support reading/i.test(message)) {
+          throw new AppError(
+            409,
+            'LOGS_NOT_READABLE',
+            `Docker's logging driver for ${name} does not keep logs Docker can read back`
+          );
+        }
+        throw new AppError(502, 'LOGS_UNAVAILABLE', `Docker could not return the logs of ${name}: ${message}`);
+      }
+    };
+    const [stdout, stderr] = await Promise.all([read('stdout'), read('stderr')]);
+    const merged = [...stdout, ...stderr].sort(
+      (a, b) =>
+        (Number.isNaN(a.at) ? 0 : a.at) - (Number.isNaN(b.at) ? 0 : b.at) ||
+        (a.stream === b.stream ? a.index - b.index : 0)
+    );
+    return {
+      service: name,
+      lines: merged.slice(-options.tail).map(({ t, stream, line }) => ({ t, stream, line })),
+    };
   }
 
   private async storeSample(sample: DiagnosticsSample): Promise<void> {

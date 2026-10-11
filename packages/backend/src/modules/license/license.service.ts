@@ -1145,7 +1145,8 @@ export class LicenseService {
     return error instanceof Error ? error.message : 'License server unreachable';
   }
 
-  private getInstallationName(): string {
+  /** The name this installation reports to the license server and the cloud account. */
+  getInstallationName(): string {
     try {
       const publicUrl = this.generalSettingsService?.getCachedPublicUrl() ?? this.env.APP_URL;
       return new URL(publicUrl).hostname || os.hostname();

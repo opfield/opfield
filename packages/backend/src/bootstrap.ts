@@ -76,6 +76,7 @@ import { LocalAuthService } from '@/modules/auth/local-auth.service.js';
 import { MfaService } from '@/modules/auth/mfa.service.js';
 import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
 import { PasskeyService } from '@/modules/auth/passkey.service.js';
+import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
 import { databaseCommercialRuntime } from '@/modules/databases/database-commercial-runtime.js';
 import { DatabaseFolderService } from '@/modules/databases/database-folders.service.js';
 import { DatabaseMonitoringService } from '@/modules/databases/database-monitoring.service.js';
@@ -392,6 +393,10 @@ export async function initializeContainer(): Promise<void> {
   // source label. It does not participate in licensing or tier checks.
   const licenseService = new LicenseService(db, cryptoService, env, fetch, generalSettingsService, eventBus);
   container.registerInstance(LicenseService, licenseService);
+  container.registerInstance(
+    CloudLinkService,
+    new CloudLinkService(db, cryptoService, env, licenseService, cacheService)
+  );
   const licensePolicyService = new LicensePolicyService(licenseService);
   container.registerInstance(LicensePolicyService, licensePolicyService);
   generalSettingsService.setLicensePolicyService(licensePolicyService);

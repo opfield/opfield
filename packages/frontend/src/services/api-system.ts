@@ -1,4 +1,5 @@
 import type {
+  CloudLinkStatusView,
   DaemonNodeUpdateResult,
   DaemonUpdateStatus,
   DashboardRelaySnapshot,
@@ -181,6 +182,27 @@ export function withSystemApi<TBase extends ApiClientBaseConstructor>(Base: TBas
           method: "POST",
           ...(options.now ? { body: JSON.stringify({ now: true }) } : {}),
         })
+      );
+    }
+
+    // ── Cloud ───────────────────────────────────────────────────────
+
+    async getCloudLinkStatus(): Promise<CloudLinkStatusView> {
+      return this.unwrapData(this.request<{ data: CloudLinkStatusView }>("/system/cloud/status"));
+    }
+
+    async connectCloud(code: string): Promise<CloudLinkStatusView> {
+      return this.unwrapData(
+        this.request<{ data: CloudLinkStatusView }>("/system/cloud/connect", {
+          method: "POST",
+          body: JSON.stringify({ code }),
+        })
+      );
+    }
+
+    async disconnectCloud(): Promise<CloudLinkStatusView> {
+      return this.unwrapData(
+        this.request<{ data: CloudLinkStatusView }>("/system/cloud/disconnect", { method: "POST" })
       );
     }
 

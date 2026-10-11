@@ -32,6 +32,7 @@ import {
   updateAdminUserGroups,
 } from '@/modules/admin/admin-user-actions.js';
 import { readGatewaySettings, updateGatewaySettings } from '@/modules/admin/gateway-settings.js';
+import { CloudLinkRequestError, CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
 import { DiagnosticsService } from '@/modules/diagnostics/diagnostics.service.js';
 import { HousekeepingConfigUpdateSchema } from '@/modules/housekeeping/housekeeping.docs.js';
 import { toLicenseAppError } from '@/modules/license/license.errors.js';
@@ -296,6 +297,27 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
           }
         } catch (error) {
           throw toLicenseAppError(error) ?? error;
+        }
+      }
+      case 'get_cloud_status':
+        return container.resolve(CloudLinkService).getStatus();
+      case 'manage_cloud': {
+        // Mirrors /system/cloud.
+        const service = container.resolve(CloudLinkService);
+        try {
+          switch (a.operation) {
+            case 'connect': {
+              const code = String(a.code ?? '').trim();
+              if (!code) throw new AppError(400, 'CLOUD_CODE_INVALID', 'code is required');
+              return await service.connect(code);
+            }
+            case 'disconnect':
+              return await service.disconnect();
+            default:
+              throw new Error('Unsupported cloud operation');
+          }
+        } catch (error) {
+          throw error instanceof CloudLinkRequestError ? new AppError(error.status, error.code, error.message) : error;
         }
       }
       case 'manage_gateway_diagnostics': {

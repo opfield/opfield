@@ -57,6 +57,9 @@ const envSchema = z.object({
   INFERENCE_CORE_UPDATE_IMAGE_REPOSITORIES: z.string().default('ghcr.io/the-square-labs/inference-core'),
   UPDATE_CHECK_INTERVAL_HOURS: z.coerce.number().default(4),
 
+  // Cloud account portal that a connected installation enrols with and keeps its cloud link socket to.
+  CLOUD_PORTAL_URL: z.string().url().default('https://account.opfield.dev'),
+
   // Managed inference core. The distribution image repository is derived from
   // the Gateway's own image; the override exists for development/lab installs
   // where the Gateway image is a local build without the production repo name.
