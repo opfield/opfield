@@ -15,6 +15,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
@@ -98,6 +99,7 @@ export function AccessLists() {
     {
       id: "ip-rules",
       header: "IP Rules",
+      align: "right",
       render: (al) => (
         <Badge variant="secondary" className="gap-1">
           <span>{(al.ipRules || []).length}</span>
@@ -108,6 +110,7 @@ export function AccessLists() {
     {
       id: "auth-users",
       header: "Auth Users",
+      align: "right",
       render: (al) => (
         <Badge variant={al.basicAuthEnabled ? "secondary" : "outline"} className="gap-1">
           {al.basicAuthEnabled ? (
@@ -124,16 +127,20 @@ export function AccessLists() {
     {
       id: "usage",
       header: "Usage",
+      align: "right",
       render: (al) => (
-        <span className="text-sm text-muted-foreground">{al.usageCount ?? 0} hosts</span>
+        <Badge variant="secondary" className="gap-1">
+          <span>{al.usageCount ?? 0}</span>
+          <span>{al.usageCount === 1 ? "route" : "routes"}</span>
+        </Badge>
       ),
     },
     {
       id: "actions",
-      header: "",
+      header: "Actions",
       align: "right",
-      className: "w-12",
-      cellClassName: "w-12",
+      className: "w-24",
+      cellClassName: "w-24",
       render: (al) =>
         canEditAccessList(al.id) || canDeleteAccessList(al.id) ? (
           <div onClick={(event) => event.stopPropagation()}>
@@ -151,10 +158,13 @@ export function AccessLists() {
                   </DropdownMenuItem>
                 )}
                 {canDeleteAccessList(al.id) && (
-                  <DropdownMenuItem onClick={() => handleDelete(al)} className="text-destructive">
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </DropdownMenuItem>
+                  <>
+                    {canEditAccessList(al.id) && <DropdownMenuSeparator />}
+                    <DropdownMenuItem onClick={() => handleDelete(al)} className="text-destructive">
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>

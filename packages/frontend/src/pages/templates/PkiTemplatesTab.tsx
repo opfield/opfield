@@ -309,18 +309,21 @@ export function PkiTemplatesTab({
       id: "type",
       label: "Type",
       width: "9rem",
+      align: "right",
       renderCell: (template) => <Badge variant="secondary">{template.certType}</Badge>,
     },
     {
       id: "algorithm",
       label: "Algorithm",
       width: "9rem",
+      align: "right",
       renderCell: (template) => <Badge variant="secondary">{template.keyAlgorithm}</Badge>,
     },
     {
       id: "validity",
       label: "Validity",
       width: "7rem",
+      align: "right",
       renderCell: (template) => <Badge variant="secondary">{template.validityDays}d</Badge>,
     },
     {

@@ -330,6 +330,7 @@ export function DockerComposeProjects({
               id: "node",
               label: "Node",
               width: "minmax(0, 1fr)",
+              align: "right",
               renderCell: (project: DockerComposeProjectSummary) => (
                 <Badge variant="secondary" className={nodeBadgeClassName(project._nodeColor)}>
                   <span className="truncate">{project._nodeName || project.nodeId}</span>
@@ -342,6 +343,7 @@ export function DockerComposeProjects({
         id: "status",
         label: "Status",
         width: "8rem",
+        align: "right",
         renderCell: (project) => {
           const transition = projectTransitions[project.id];
           const status =
@@ -369,6 +371,7 @@ export function DockerComposeProjects({
         id: "services",
         label: "Services",
         width: "7rem",
+        align: "right",
         renderCell: (project) => (
           <Badge
             variant={project.runningServiceCount === project.serviceCount ? "secondary" : "warning"}
@@ -380,7 +383,7 @@ export function DockerComposeProjects({
       {
         id: "actions",
         label: "Actions",
-        width: canMoveToApps ? "9.5rem" : "7rem",
+        width: canMoveToApps ? "8.5rem" : "6.5rem",
         align: "right",
         renderCell: (project) => (
           // Keep all lifecycle controls inert until the matching async operation is terminal.
@@ -391,13 +394,13 @@ export function DockerComposeProjects({
             {project.managementState === "external"
               ? canAdoptComposeProject(user?.scopes ?? [], project.nodeId, project.id) && (
                   <Button
-                    size="icon"
+                    size="icon-sm"
                     variant="ghost"
                     title="Adopt into Gateway"
                     aria-label={`Adopt ${project.name} into Gateway`}
                     onClick={() => void adoptProject(project)}
                   >
-                    <Import className="h-3.5 w-3.5" />
+                    <Import />
                   </Button>
                 )
               : hasComposeProjectScope(
@@ -409,33 +412,36 @@ export function DockerComposeProjects({
                   <>
                     {project.status === "running" ? (
                       <Button
-                        size="icon"
+                        size="icon-sm"
                         variant="ghost"
                         title="Stop"
+                        aria-label={`Stop ${project.name}`}
                         disabled={Boolean(projectTransitions[project.id])}
                         onClick={() => void runAction(project, "stop")}
                       >
-                        <Square className="h-3.5 w-3.5" />
+                        <Square />
                       </Button>
                     ) : (
                       <Button
-                        size="icon"
+                        size="icon-sm"
                         variant="ghost"
                         title="Start"
+                        aria-label={`Start ${project.name}`}
                         disabled={Boolean(projectTransitions[project.id])}
                         onClick={() => void runAction(project, "start")}
                       >
-                        <Play className="h-3.5 w-3.5" />
+                        <Play />
                       </Button>
                     )}
                     <Button
-                      size="icon"
+                      size="icon-sm"
                       variant="ghost"
                       title="Pull & Apply"
+                      aria-label={`Pull and apply ${project.name}`}
                       disabled={Boolean(projectTransitions[project.id])}
                       onClick={() => void runAction(project, "pull_apply")}
                     >
-                      <UploadCloud className="h-3.5 w-3.5" />
+                      <UploadCloud />
                     </Button>
                   </>
                 )}

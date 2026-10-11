@@ -59,6 +59,7 @@ const columns: ResourceListColumn<AppSummary>[] = [
   {
     id: "environments",
     label: "Environments",
+    align: "right",
     cellContentClassName: "text-sm text-muted-foreground",
     renderCell: (app) => (
       <span className="truncate">

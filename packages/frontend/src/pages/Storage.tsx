@@ -330,7 +330,7 @@ function StorageContent() {
         id: "lastCheck",
         label: "Last Check",
         width: "14%",
-        align: "center",
+        align: "right",
         renderCell: (row) => (
           <Badge variant="outline">
             <RelativeTime value={row.lastHealthCheckAt} fallback="Never" />
@@ -341,7 +341,7 @@ function StorageContent() {
         id: "health",
         label: "Health",
         width: "14%",
-        align: "center",
+        align: "right",
         renderCell: (row) => {
           if (row.managed) {
             return (

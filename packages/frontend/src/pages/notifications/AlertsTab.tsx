@@ -22,31 +22,6 @@ import type { AlertRule } from "@/types";
 import { AlertDialog } from "./AlertDialog";
 import { alertSeverityVariant } from "./notification-status";
 
-const ROOT_DISK_TARGET = "/";
-const CERTIFICATE_EXPIRY_METRIC = "days_until_expiry";
-
-function isCertificateExpiryRule(rule: AlertRule) {
-  return (
-    rule.type === "threshold" &&
-    rule.category === "certificate" &&
-    rule.metric === CERTIFICATE_EXPIRY_METRIC
-  );
-}
-
-function formatAlertCondition(rule: AlertRule) {
-  if (isCertificateExpiryRule(rule)) {
-    return `Days until expiry ${rule.operator} ${rule.thresholdValue}`;
-  }
-
-  if (rule.type === "threshold") {
-    return `${rule.metric}${rule.metricTarget ? ` (${rule.metricTarget === ROOT_DISK_TARGET ? "Root Disk" : rule.metricTarget})` : ""} ${rule.operator} ${rule.thresholdValue} • fire ${rule.fireThresholdPercent}% in ${Math.round(rule.durationSeconds / 60)}m • resolve ${rule.resolveThresholdPercent}% in ${Math.round(rule.resolveAfterSeconds / 60)}m`;
-  }
-
-  return rule.durationSeconds > 0 || rule.resolveAfterSeconds > 0
-    ? `${rule.eventPattern ?? "—"} • fire ${rule.fireThresholdPercent}% in ${Math.round(rule.durationSeconds / 60)}m • resolve ${rule.resolveThresholdPercent}% in ${Math.round(rule.resolveAfterSeconds / 60)}m`
-    : (rule.eventPattern ?? "—");
-}
-
 // ── Alerts Tab ──────────────────────────────────────────────────────
 
 export function AlertsTab({
@@ -171,41 +146,33 @@ export function AlertsTab({
     {
       id: "category",
       header: "Category",
+      align: "right",
       render: (rule) => <Badge variant="secondary">{rule.category}</Badge>,
-    },
-    {
-      id: "condition",
-      header: "Condition",
-      render: (rule) => (
-        <span className="text-sm text-muted-foreground">{formatAlertCondition(rule)}</span>
-      ),
     },
     {
       id: "scope",
       header: "Scope",
+      align: "right",
       render: (rule) => (
-        <span className="text-sm text-muted-foreground">
-          {rule.resourceIds.length === 0 ? "All" : `${rule.resourceIds.length} selected`}
-        </span>
+        <Badge variant="secondary">
+          {rule.resourceIds.length === 0 ? "All" : rule.resourceIds.length}
+        </Badge>
       ),
     },
     {
       id: "severity",
       header: "Severity",
+      align: "right",
       render: (rule) => (
         <Badge variant={alertSeverityVariant(rule.severity)}>{rule.severity}</Badge>
       ),
     },
     {
-      id: "webhooks",
-      header: "Webhooks",
-      render: (rule) => <Badge variant="secondary">{rule.webhookIds.length}</Badge>,
-    },
-    {
       id: "active",
       header: "Active",
-      className: "w-16",
-      cellClassName: "w-16",
+      align: "right",
+      className: "w-20",
+      cellClassName: "w-20",
       render: (rule) => (
         <div onClick={(event) => event.stopPropagation()}>
           <Switch
@@ -220,10 +187,10 @@ export function AlertsTab({
     },
     {
       id: "actions",
-      header: "",
+      header: "Actions",
       align: "right",
-      className: "w-12",
-      cellClassName: "w-12",
+      className: "w-24",
+      cellClassName: "w-24",
       render: (rule) =>
         canManage ? (
           <div onClick={(event) => event.stopPropagation()}>

@@ -1,4 +1,16 @@
-import { ArrowUpCircle, Cloud, FolderPlus, Plus, Server, Trash2 } from "lucide-react";
+import {
+  ArrowUpCircle,
+  Cloud,
+  ExternalLink,
+  FolderPlus,
+  KeyRound,
+  Lock,
+  MoreVertical,
+  Plus,
+  Server,
+  Trash2,
+  Unlock,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -26,6 +38,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -45,6 +64,7 @@ import {
 import { isNodeProtected } from "@/lib/node-host-access";
 import { confirmAndDeleteNode } from "@/lib/remove-node";
 import { nodeRoute } from "@/lib/resource-routes";
+import { canCreateInFolder } from "@/lib/scope-utils";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { accessContextKey, useAuthStore } from "@/stores/auth";
@@ -84,6 +104,7 @@ export function AdminNodes() {
   const navigate = useNavigate();
   const { hasScope, hasScopedAccess } = useAuthStore();
   const authKey = useAuthStore(accessContextKey);
+  const user = useAuthStore((state) => state.user);
   const canViewHosting = hasScopedAccess("integrations:hosting:view");
   const [selectedTab, setSelectedTab] = useState("nodes");
   const { nodes, isLoading, filters, total, fetchNodes, setFilters, resetFilters } =
@@ -93,6 +114,8 @@ export function AdminNodes() {
   const [enrollDialogOpen, setEnrollDialogOpen] = useState(false);
   const [choiceOpen, setChoiceOpen] = useState(false);
   const [bulkUpdateOpen, setBulkUpdateOpen] = useState(false);
+  const [lockingNodeId, setLockingNodeId] = useState<string | null>(null);
+  const [reissueNode, setReissueNode] = useState<Node | null>(null);
   const [enrollMode, setEnrollMode] = useState<"external" | "hosting">("external");
   const [hostingUnavailable, setHostingUnavailable] = useState(false);
   const [checkingHosting, setCheckingHosting] = useState(false);
@@ -266,6 +289,25 @@ export function AdminNodes() {
     [fetchNodes]
   );
 
+  const handleServiceCreationLock = useCallback(
+    async (node: Node, serviceCreationLocked: boolean) => {
+      setLockingNodeId(node.id);
+      try {
+        await api.setNodeServiceCreationLock(node.id, serviceCreationLocked);
+        toast.success(
+          serviceCreationLocked ? "Service creation locked" : "Service creation unlocked"
+        );
+        fetchNodes();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to update lock");
+      } finally {
+        setLockingNodeId(null);
+      }
+    },
+    [fetchNodes]
+  );
+  const clearReissueNode = useCallback(() => setReissueNode(null), []);
+
   const columns = useMemo<ResourceListColumn<Node>[]>(
     () => [
       {
@@ -301,14 +343,14 @@ export function AdminNodes() {
         id: "type",
         label: "Type",
         width: "13%",
-        align: "center",
+        align: "right",
         renderCell: (node) => <Badge variant="secondary">{nodeTypeLabel(node.type)}</Badge>,
       },
       {
         id: "lock",
         label: "Lock",
         width: "13%",
-        align: "center",
+        align: "right",
         renderCell: (node) =>
           isNodeProtected(node) ? (
             <ProtectedNodeBadge label="PROTECTED" />
@@ -322,7 +364,7 @@ export function AdminNodes() {
         id: "lastSeen",
         label: "Last Seen",
         width: "16%",
-        align: "center",
+        align: "right",
         renderCell: (node) => (
           <Badge variant="outline">
             <RelativeTime value={node.lastSeenAt} fallback="Never" />
@@ -333,7 +375,7 @@ export function AdminNodes() {
         id: "status",
         label: "Status",
         width: "14%",
-        align: "center",
+        align: "right",
         renderCell: (node) => {
           if (isNodeUpdating(node)) {
             return (
@@ -384,35 +426,104 @@ export function AdminNodes() {
       {
         id: "actions",
         label: "Actions",
-        width: "10%",
+        width: "5rem",
         align: "right",
-        renderCell: (node) =>
-          hasScope("nodes:delete") || hasScope(`nodes:delete:${node.id}`) ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Remove node"
-              disabled={
-                isNodeUpdating(node) ||
-                (node.status !== "pending" &&
-                  ["create", "install", "delete"].includes(
-                    hostingBindings[node.id]?.operationAction ?? ""
-                  ) &&
-                  !["ready", "failed"].includes(
-                    hostingBindings[node.id]?.operationPhase ?? "ready"
-                  ))
-              }
-              onClick={(event) => {
-                event.stopPropagation();
-                void handleDelete(node.id, node.hostname);
-              }}
+        renderCell: (node) => {
+          const binding = hostingBindings[node.id];
+          const hostingBusy =
+            ["create", "install", "delete"].includes(binding?.operationAction ?? "") &&
+            !["ready", "failed"].includes(binding?.operationPhase ?? "ready");
+          const updating = isNodeUpdating(node);
+          // The node page's actions, with the same grants and locks.
+          const actionsLocked = updating || node.status === "pending" || hostingBusy;
+          const canLock =
+            (node.type === "nginx" || node.type === "docker") &&
+            (hasScope("nodes:lock") || hasScope(`nodes:lock:${node.id}`));
+          const canReissue =
+            node.status === "pending" &&
+            !binding &&
+            (hasScope(`nodes:manage:${node.id}`) ||
+              canCreateInFolder(user?.scopes ?? [], "nodes:create", node.folderId, node.id));
+          const canRemove = hasScope("nodes:delete") || hasScope(`nodes:delete:${node.id}`);
+          if (!canLock && !canReissue && !canRemove) return null;
+          return (
+            <div
+              className="flex justify-end"
+              onClick={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
             >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          ) : null,
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    pending={lockingNodeId === node.id}
+                    aria-label={`${node.displayName || node.hostname} actions`}
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => navigate(nodeRoute(node.slug))}>
+                    <ExternalLink className="h-4 w-4" />
+                    Open
+                  </DropdownMenuItem>
+                  {canLock && (
+                    <DropdownMenuItem
+                      disabled={actionsLocked || lockingNodeId !== null}
+                      onClick={() =>
+                        void handleServiceCreationLock(node, !node.serviceCreationLocked)
+                      }
+                    >
+                      {node.serviceCreationLocked ? (
+                        <Unlock className="h-4 w-4" />
+                      ) : (
+                        <Lock className="h-4 w-4" />
+                      )}
+                      {node.serviceCreationLocked ? "Unlock new services" : "Lock new services"}
+                    </DropdownMenuItem>
+                  )}
+                  {canReissue && (
+                    <DropdownMenuItem
+                      disabled={reissueNode !== null}
+                      onClick={() => setReissueNode(node)}
+                    >
+                      <KeyRound className="h-4 w-4" />
+                      New enrollment token
+                    </DropdownMenuItem>
+                  )}
+                  {canRemove && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive"
+                        disabled={updating || (node.status !== "pending" && hostingBusy)}
+                        onClick={() => void handleDelete(node.id, node.hostname)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Remove
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          );
+        },
       },
     ],
-    [daemonUpdates, hasScope, handleDelete, hostingBindings, showUpdateNotifications]
+    [
+      daemonUpdates,
+      hasScope,
+      handleDelete,
+      handleServiceCreationLock,
+      hostingBindings,
+      lockingNodeId,
+      navigate,
+      reissueNode,
+      showUpdateNotifications,
+      user?.scopes,
+    ]
   );
 
   return (
@@ -638,6 +749,8 @@ export function AdminNodes() {
         onNodeCreated={() => fetchNodes()}
         onNodeEnrolled={() => fetchNodes()}
         onHostingCreated={fetchNodes}
+        reissueNode={reissueNode}
+        onReissueHandled={clearReissueNode}
       />
       <BulkNodeUpdateDialog open={bulkUpdateOpen} onOpenChange={setBulkUpdateOpen} />
     </PageTransition>

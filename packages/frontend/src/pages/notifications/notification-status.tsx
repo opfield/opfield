@@ -1,5 +1,6 @@
-import { CheckCircle2, Clock, MinusCircle, XCircle } from "lucide-react";
+import { Check, Clock, Minus, X } from "lucide-react";
 import type { StatusTone } from "@/components/common/resource-status";
+import { cn } from "@/lib/utils";
 import type { SiemDeliveryStatus } from "@/types";
 
 /** Alert severity as a Badge variant: alert rules and webhook deliveries. */
@@ -46,18 +47,27 @@ export function DeliveryStatusIcon({
 }: {
   state: "delivered" | "failed" | "pending" | "in-progress" | "skipped";
 }) {
+  // The tile takes the matching Badge colour at the Badge's low opacity.
+  const tile =
+    state === "delivered"
+      ? "bg-success/15"
+      : state === "failed"
+        ? "bg-destructive/15"
+        : state === "in-progress"
+          ? "bg-warning/15"
+          : "bg-muted";
   return (
-    <span className="flex h-8 w-8 items-center justify-center bg-muted">
+    <span className={cn("flex h-8 w-8 items-center justify-center", tile)}>
       {state === "delivered" ? (
-        <CheckCircle2 className="h-4 w-4 text-success-text" />
+        <Check className="h-4 w-4 text-success-text" aria-label="Delivered" />
       ) : state === "failed" ? (
-        <XCircle className="h-4 w-4 text-destructive" />
+        <X className="h-4 w-4 text-destructive" aria-label="Failed" />
       ) : state === "pending" ? (
         <Clock className="h-4 w-4 text-muted-foreground" aria-label="Pending" />
       ) : state === "skipped" ? (
-        <MinusCircle className="h-4 w-4 text-muted-foreground" aria-label="Not sent" />
+        <Minus className="h-4 w-4 text-muted-foreground" aria-label="Not sent" />
       ) : (
-        <Clock className="h-4 w-4 text-warning-text" />
+        <Clock className="h-4 w-4 text-warning-text" aria-label="In progress" />
       )}
     </span>
   );

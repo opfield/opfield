@@ -17,8 +17,8 @@ export const HEALTH_LABEL: Record<string, string> = {
   offline: "Offline",
   degraded: "Degraded",
   unknown: "Unknown",
-  // Health checks are off, or raw config mode skips them; the route itself serves.
-  disabled: "No health check",
+  // Health checks are off, or raw config mode skips them: the route's health is not known.
+  disabled: "Unknown",
 };
 
 /** Compute effective status: if currently online but had errors/slow in last 5 min, show "recovering" */

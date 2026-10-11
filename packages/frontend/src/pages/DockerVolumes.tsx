@@ -1,4 +1,12 @@
-import { ArrowRightLeft, Database, Plus, RefreshCw, Trash2 } from "lucide-react";
+import {
+  ArrowRightLeft,
+  Database,
+  ExternalLink,
+  MoreVertical,
+  Plus,
+  RefreshCw,
+  Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -22,6 +30,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { RefreshButton } from "@/components/ui/refresh-button";
 import {
@@ -350,12 +365,14 @@ export function DockerVolumes({
         id: "driver",
         label: "Driver",
         width: "7rem",
+        align: "right" as const,
         renderCell: (v) => <Badge variant="secondary">{v.driver}</Badge>,
       },
       {
         id: "node",
         label: "Node",
         width: "minmax(0, 1.15fr)",
+        align: "right" as const,
         renderCell: (v) => (
           <div className="min-w-0">
             <Badge variant="secondary" className={nodeBadgeClassName((v as any)._nodeColor)}>
@@ -368,6 +385,7 @@ export function DockerVolumes({
         id: "usage",
         label: "Usage",
         width: "6.5rem",
+        align: "right" as const,
         renderCell: (v) => {
           if (v.availability === "unavailable") {
             return (
@@ -413,57 +431,80 @@ export function DockerVolumes({
       {
         id: "actions",
         label: "Actions",
-        width: "9rem",
+        width: "5.75rem",
         align: "right" as const,
         renderCell: (v) => {
           const usedBy: string[] = (v as any).usedBy ?? (v as any).UsedBy ?? [];
           const usedByCount = (v as any).usedByCount ?? usedBy.length;
           const isUsed = usedByCount > 0;
+          const nodeId = (v as any)._nodeId;
+          const canRemove =
+            (hasScope("docker:volumes:delete") ||
+              hasScopedAccess(`docker:volumes:delete:${nodeId}/${v.scopeResourceId ?? v.name}`)) &&
+            !isUsed &&
+            v.availability !== "unavailable";
+          const canAdopt =
+            v.managementState === "legacy" &&
+            v.adoptable &&
+            canEditDockerVolume(hasScope, nodeId, v.scopeResourceId ?? v.name);
+          if (!canRemove && !canAdopt) return null;
+          const pending =
+            pendingVolumeAction === `remove:${nodeId}/${v.name}` ||
+            pendingVolumeAction === `adopt:${nodeId}/${v.name}`;
           return (
             <div
-              className="flex items-center justify-end pr-1"
+              className="flex justify-end"
               onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
             >
-              {(hasScope("docker:volumes:delete") ||
-                hasScopedAccess(
-                  `docker:volumes:delete:${(v as any)._nodeId}/${v.scopeResourceId ?? v.name}`
-                )) &&
-                !isUsed &&
-                v.availability !== "unavailable" && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon-xs"
-                    pending={pendingVolumeAction === `remove:${(v as any)._nodeId}/${v.name}`}
-                    onClick={() => handleRemove(v.name, (v as any)._nodeId)}
-                    title="Remove"
+                    size="icon-sm"
+                    pending={pending}
+                    aria-label={`${v.name} actions`}
                   >
-                    {pendingVolumeAction !== `remove:${(v as any)._nodeId}/${v.name}` && (
-                      <Trash2 className="h-3.5 w-3.5" />
-                    )}
+                    <MoreVertical className="h-4 w-4" />
                   </Button>
-                )}
-              {v.managementState === "legacy" &&
-                v.adoptable &&
-                canEditDockerVolume(hasScope, (v as any)._nodeId, v.scopeResourceId ?? v.name) && (
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    pending={pendingVolumeAction === `adopt:${(v as any)._nodeId}/${v.name}`}
-                    onClick={() => handleAdopt(v.name, (v as any)._nodeId)}
-                    title="Migrate to Gateway management"
-                    aria-label="Migrate to Gateway management"
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() =>
+                      navigate(dockerVolumeRoute((v as any)._nodeSlug, v.name), {
+                        state: createReturnNavigationState(location),
+                      })
+                    }
                   >
-                    {pendingVolumeAction !== `adopt:${(v as any)._nodeId}/${v.name}` && (
-                      <ArrowRightLeft />
-                    )}
-                  </Button>
-                )}
+                    <ExternalLink className="h-4 w-4" />
+                    Open
+                  </DropdownMenuItem>
+                  {canAdopt && (
+                    <DropdownMenuItem onClick={() => handleAdopt(v.name, nodeId)}>
+                      <ArrowRightLeft className="h-4 w-4" />
+                      Migrate to Gateway management
+                    </DropdownMenuItem>
+                  )}
+                  {canRemove && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => handleRemove(v.name, nodeId)}
+                        className="text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Remove
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           );
         },
       },
     ],
-    [handleAdopt, hasScope, handleRemove, hasScopedAccess, pendingVolumeAction]
+    [handleAdopt, hasScope, handleRemove, hasScopedAccess, location, navigate, pendingVolumeAction]
   );
   const volumeColumns = allVolumeColumns.filter((c) => {
     if (fixedNodeId && c.id === "node") return false;

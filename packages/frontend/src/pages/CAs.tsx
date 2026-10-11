@@ -137,18 +137,21 @@ export function CAs() {
       id: "algorithm",
       label: "Algorithm",
       width: "9rem",
+      align: "right",
       renderCell: (ca) => <Badge variant="secondary">{ca.keyAlgorithm}</Badge>,
     },
     {
       id: "certificates",
-      label: "Certificates",
-      width: "9rem",
+      label: "Certs",
+      width: "5.5rem",
+      align: "right",
       renderCell: (ca) => <Badge variant="secondary">{ca.certCount}</Badge>,
     },
     {
       id: "status",
       label: "Status",
       width: "8rem",
+      align: "right",
       renderCell: (ca) => <StatusBadge status={ca.status} />,
     },
     {

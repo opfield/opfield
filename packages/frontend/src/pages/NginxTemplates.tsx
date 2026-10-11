@@ -199,6 +199,7 @@ export function NginxTemplates({
       id: "type",
       label: "Type",
       width: "8rem",
+      align: "right",
       renderCell: (template) => <Badge variant="secondary">{template.type}</Badge>,
     },
     {

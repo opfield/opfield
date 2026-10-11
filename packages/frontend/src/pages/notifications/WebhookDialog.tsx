@@ -227,8 +227,8 @@ export function WebhookDialog({
                   description="Extra HTTP headers sent with every delivery."
                   headerActionsClassName="pl-4"
                   actions={
-                    <Button variant="outline" size="sm" onClick={addHeader}>
-                      <Plus className="h-3.5 w-3.5" />
+                    <Button onClick={addHeader}>
+                      <Plus />
                       Add header
                     </Button>
                   }

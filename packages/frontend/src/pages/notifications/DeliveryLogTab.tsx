@@ -41,11 +41,10 @@ const DELIVERY_COLUMNS: ResourceListColumn<WebhookDelivery>[] = [
   { id: "status", label: "", width: "56px" },
   { id: "webhook", label: "Webhook", width: "220px" },
   { id: "event", label: "Event" },
-  { id: "severity", label: "Severity", width: "120px" },
-  { id: "http", label: "HTTP", width: "96px" },
-  { id: "time", label: "Time", width: "96px" },
-  { id: "attempt", label: "Attempts", width: "100px" },
-  { id: "when", label: "When", width: "180px" },
+  { id: "severity", label: "Severity", width: "120px", align: "right" },
+  { id: "http", label: "HTTP", width: "96px", align: "right" },
+  { id: "time", label: "Time", width: "96px", align: "right" },
+  { id: "when", label: "When", width: "180px", align: "right" },
 ];
 
 export function DeliveryLogTab({
@@ -254,7 +253,7 @@ export function DeliveryLogTab({
           onAction={onConfigureWebhook}
         />
       ) : (
-        <ResourceListFrame minWidth={896} innerClassName="flex flex-col">
+        <ResourceListFrame minWidth={800} innerClassName="flex flex-col">
           <ResourceListHeaderTable columns={DELIVERY_COLUMNS} />
           <div ref={scrollRef} className="max-h-[calc(100dvh-18rem)] overflow-auto">
             <ResourceListTable
@@ -263,7 +262,7 @@ export function DeliveryLogTab({
             >
               {filteredDeliveries.length === 0 ? (
                 <ResourceListRow className="opacity-100">
-                  <ResourceListCell colSpan={8} contentClassName="block p-0">
+                  <ResourceListCell colSpan={7} contentClassName="block p-0">
                     <EmptyState message="No deliveries match the current search." embedded />
                   </ResourceListCell>
                 </ResourceListRow>
@@ -299,10 +298,10 @@ export function DeliveryLogTab({
                         {d.eventType}
                       </span>
                     </ResourceListCell>
-                    <ResourceListCell>
+                    <ResourceListCell align="right">
                       <Badge variant={alertSeverityVariant(d.severity)}>{d.severity}</Badge>
                     </ResourceListCell>
-                    <ResourceListCell>
+                    <ResourceListCell align="right">
                       {d.responseStatus ? (
                         <Badge variant={httpStatusVariant(d.responseStatus)}>
                           {d.responseStatus}
@@ -311,22 +310,19 @@ export function DeliveryLogTab({
                         <span className="text-sm text-muted-foreground">—</span>
                       )}
                     </ResourceListCell>
-                    <ResourceListCell>
+                    <ResourceListCell align="right">
                       <span className="text-sm text-muted-foreground">
                         {d.responseTimeMs != null ? `${d.responseTimeMs}ms` : "—"}
                       </span>
                     </ResourceListCell>
-                    <ResourceListCell>
-                      <span className="text-sm text-muted-foreground">{d.attempt}</span>
-                    </ResourceListCell>
-                    <ResourceListCell>
+                    <ResourceListCell align="right">
                       <RelativeTime value={d.createdAt} className="text-xs text-muted-foreground" />
                     </ResourceListCell>
                   </ResourceListRow>
                 ))
               )}
               <ResourceListRow className="border-b-0 opacity-100">
-                <ResourceListCell colSpan={8} contentClassName="min-h-0 p-0">
+                <ResourceListCell colSpan={7} contentClassName="min-h-0 p-0">
                   <div
                     ref={sentinelRef}
                     className={`flex w-full items-center justify-center px-3 text-xs text-muted-foreground ${

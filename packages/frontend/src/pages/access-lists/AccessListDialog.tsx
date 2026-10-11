@@ -104,8 +104,8 @@ export function AccessListDialog({
               }
               headerActionsClassName="pl-4"
               actions={
-                <Button variant="outline" size="sm" onClick={() => form.addIpRule()}>
-                  <Plus className="h-3.5 w-3.5" />
+                <Button onClick={() => form.addIpRule()}>
+                  <Plus />
                   Add rule
                 </Button>
               }
@@ -167,8 +167,8 @@ export function AccessListDialog({
               headerActionsClassName="pl-4"
               actions={
                 form.basicAuthEnabled ? (
-                  <Button variant="outline" size="sm" onClick={() => form.addBasicAuthUser()}>
-                    <Plus className="h-3.5 w-3.5" />
+                  <Button onClick={() => form.addBasicAuthUser()}>
+                    <Plus />
                     Add user
                   </Button>
                 ) : null

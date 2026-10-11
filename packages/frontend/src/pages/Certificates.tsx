@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
-import { cn, daysUntil, formatDate } from "@/lib/utils";
+import { cn, daysUntil, formatDate, hoursUntil } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth";
 import { useCAStore } from "@/stores/ca";
 import { useCertificatesStore } from "@/stores/certificates";
@@ -147,24 +147,27 @@ export function Certificates() {
       id: "type",
       label: "Type",
       width: "9rem",
+      align: "right",
       renderCell: (cert) => <Badge variant="secondary">{cert.type}</Badge>,
     },
     {
       id: "issuing-ca",
       label: "Issuing CA",
       width: "15rem",
+      align: "right",
       renderCell: (cert) => <IssuingCABadge certificate={cert} ca={casById.get(cert.caId)} />,
     },
     {
       id: "status",
       label: "Status",
       width: "8rem",
+      align: "right",
       renderCell: (cert) => <StatusBadge status={cert.status} />,
     },
     {
       id: "expires",
       label: "Expires",
-      width: "9rem",
+      width: "190px",
       align: "right",
       cellClassName: "whitespace-nowrap",
       renderCell: (cert) => {
@@ -181,6 +184,10 @@ export function Certificates() {
             )}
           >
             {formatDate(cert.notAfter)}
+            {expDays > 0 && <span className="ml-1">({expDays}d)</span>}
+            {expDays === 0 && hoursUntil(cert.notAfter) > 0 && (
+              <span className="ml-1">({hoursUntil(cert.notAfter)}h)</span>
+            )}
           </span>
         );
       },
@@ -319,7 +326,7 @@ export function Certificates() {
               }}
             />
           }
-          minWidth={860}
+          minWidth={900}
           canManageFolders={canManageFolders}
           canReorganizeItem={(cert) =>
             canManageFolders && !cert.isSystem && hasScope(`pki:cert:issue:${cert.caId}`)

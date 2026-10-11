@@ -38,6 +38,7 @@ const environmentColumns: ResourceListColumn<LoggingEnvironment>[] = [
     id: "schema",
     label: "Schema",
     width: "minmax(8rem, 0.8fr)",
+    align: "right",
     renderCell: (environment) => (
       <Badge variant="outline">{environment.schemaName ?? "No schema"}</Badge>
     ),
@@ -46,12 +47,14 @@ const environmentColumns: ResourceListColumn<LoggingEnvironment>[] = [
     id: "mode",
     label: "Mode",
     width: "7rem",
+    align: "right",
     renderCell: (environment) => <Badge variant="secondary">{environment.schemaMode}</Badge>,
   },
   {
     id: "retention",
     label: "Retention",
     width: "7rem",
+    align: "right",
     renderCell: (environment) => (
       <span className="text-sm text-muted-foreground">{environment.retentionDays}d</span>
     ),
@@ -161,18 +164,21 @@ function schemaColumns({
       id: "mode",
       label: "Mode",
       width: "7rem",
+      align: "right",
       renderCell: (schema) => <Badge variant="secondary">{schema.schemaMode}</Badge>,
     },
     {
       id: "fields",
       label: "Fields",
       width: "6rem",
+      align: "right",
       renderCell: (schema) => <Badge variant="outline">{schema.fieldSchema.length} fields</Badge>,
     },
     {
       id: "updated",
       label: "Updated",
       width: "8rem",
+      align: "right",
       renderCell: (schema) => (
         <RelativeTime value={schema.updatedAt} className="text-sm text-muted-foreground" />
       ),

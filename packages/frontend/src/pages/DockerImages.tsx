@@ -1,4 +1,4 @@
-import { Download, HardDrive, RefreshCw, Trash2 } from "lucide-react";
+import { Download, HardDrive, Info, MoreVertical, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -23,6 +23,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { RefreshButton } from "@/components/ui/refresh-button";
 import {
@@ -385,6 +392,7 @@ export function DockerImages({
         id: "node",
         label: "Node",
         width: "minmax(0, 1.15fr)",
+        align: "right" as const,
         renderCell: (img) => (
           <div className="min-w-0">
             <Badge variant="secondary" className={nodeBadgeClassName((img as any)._nodeColor)}>
@@ -397,6 +405,7 @@ export function DockerImages({
         id: "usage",
         label: "Usage",
         width: "6.5rem",
+        align: "right" as const,
         renderCell: (img) => {
           if (img.availability === "unavailable") {
             return (
@@ -422,6 +431,7 @@ export function DockerImages({
         id: "size",
         label: "Size",
         width: "6.25rem",
+        align: "right" as const,
         renderCell: (img) => {
           const size = img.size ?? 0;
           return (
@@ -454,33 +464,52 @@ export function DockerImages({
           const id = img.id ?? "";
           const containerCount = img.containers ?? -1;
           const canDelete = containerCount === 0;
+          const canRemove =
+            (hasScope("docker:images:delete") ||
+              hasScopedAccess(
+                `docker:images:delete:${img._nodeId}/${img.scopeResourceId ?? img.id}`
+              )) &&
+            canDelete &&
+            img.availability !== "unavailable";
+          if (!canRemove) return null;
           return (
             <div
-              className="flex items-center justify-end pr-1"
+              className="flex justify-end"
               onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
             >
-              {(hasScope("docker:images:delete") ||
-                hasScopedAccess(
-                  `docker:images:delete:${img._nodeId}/${img.scopeResourceId ?? img.id}`
-                )) &&
-                canDelete &&
-                img.availability !== "unavailable" && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon-xs"
+                    size="icon-sm"
                     pending={removingImageId === id}
-                    onClick={() => handleRemove(id, tag, img._nodeId)}
-                    title="Remove"
+                    aria-label={`${tag} actions`}
                   >
-                    {removingImageId !== id && <Trash2 className="h-3.5 w-3.5" />}
+                    <MoreVertical className="h-4 w-4" />
                   </Button>
-                )}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => openImageDetails(img)}>
+                    <Info className="h-4 w-4" />
+                    Details
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => handleRemove(id, tag, img._nodeId)}
+                    className="text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Remove
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           );
         },
       },
     ],
-    [hasScope, handleRemove, hasScopedAccess, removingImageId]
+    [hasScope, handleRemove, hasScopedAccess, openImageDetails, removingImageId]
   );
   const imageColumns = allImageColumns.filter((c) => {
     if (fixedNodeId && c.id === "node") return false;

@@ -1,38 +1,11 @@
 // Files allowed to break one UI rule, each with the reason. A stale entry fails the check.
-const SECTION_ADD_ACTION =
-  "compact add action in a Variant A dialog section header (design corrections #18, #43)";
 const DENSE_ROW_ACTION = "row action inside a dense table or list row";
 const LOG_TIMESTAMP = "log viewer: log lines show exact timestamps (design corrections #19)";
 
 export const ALLOWLIST = [
   {
     rule: "button-default-size",
-    file: "src/pages/access-lists/AccessListDialog.tsx",
-    reason: SECTION_ADD_ACTION,
-  },
-  {
-    rule: "button-default-size",
-    file: "src/pages/notifications/WebhookDialog.tsx",
-    reason: SECTION_ADD_ACTION,
-  },
-  {
-    rule: "button-default-size",
-    file: "src/pages/database-detail/PostgresColumnSchemaDialog.tsx",
-    reason: SECTION_ADD_ACTION,
-  },
-  {
-    rule: "button-default-size",
-    file: "src/components/admin/AdminUserConfigDialog.tsx",
-    reason: DENSE_ROW_ACTION,
-  },
-  {
-    rule: "button-default-size",
     file: "src/components/docker/availability/AvailabilityOperationsPanel.tsx",
-    reason: DENSE_ROW_ACTION,
-  },
-  {
-    rule: "button-default-size",
-    file: "src/pages/database-detail/DatabaseBackupsTab.tsx",
     reason: DENSE_ROW_ACTION,
   },
   {

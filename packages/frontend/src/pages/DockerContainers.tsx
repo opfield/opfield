@@ -845,6 +845,7 @@ export function DockerContainers({
       id: "image",
       label: "Image",
       width: showNodeColumn ? "22%" : "28%",
+      align: "right",
       cellContentClassName: "text-sm text-muted-foreground",
       renderCell: (container) => (
         <Badge variant="secondary" className="max-w-full font-mono">
@@ -860,6 +861,7 @@ export function DockerContainers({
             id: "node",
             label: "Node",
             width: "15%",
+            align: "right" as const,
             renderCell: (container: DockerContainerListItem) => (
               <Badge variant="secondary" className={nodeBadgeClassName(container._nodeColor)}>
                 {container._nodeName || "-"}
@@ -872,6 +874,7 @@ export function DockerContainers({
       id: "status",
       label: "Status",
       width: "8.5rem",
+      align: "right",
       renderCell: (container) => {
         if (container.availability === "unavailable") {
           return <Badge variant="secondary">Unavailable</Badge>;
@@ -887,6 +890,7 @@ export function DockerContainers({
       id: "health",
       label: "Health",
       width: "7rem",
+      align: "right",
       renderCell: (container) => {
         const status =
           container.availabilityHealthStatus ??
@@ -905,7 +909,7 @@ export function DockerContainers({
           {
             id: "actions",
             label: "Actions",
-            width: "7.5rem",
+            width: "8.5rem",
             align: "right" as const,
             cellContentClassName: "gap-1 pl-3 whitespace-nowrap",
             renderCell: (container: DockerContainerListItem) => {
@@ -935,37 +939,40 @@ export function DockerContainers({
                     <>
                       <Button
                         variant="ghost"
-                        size="icon-xs"
+                        size="icon-sm"
+                        aria-label="Stop"
                         pending={loadingAction === "stop"}
                         disabled={!!loadingAction || transitioning || unavailable}
                         onClick={() => handleStop(container)}
                         title="Stop"
                       >
-                        {loadingAction !== "stop" && <Square className="h-3.5 w-3.5" />}
+                        {loadingAction !== "stop" && <Square />}
                       </Button>
                       {lifecycleActions.canRestart && (
                         <Button
                           variant="ghost"
-                          size="icon-xs"
+                          size="icon-sm"
+                          aria-label="Restart"
                           pending={loadingAction === "restart"}
                           disabled={!!loadingAction || transitioning || unavailable}
                           onClick={() => handleRestart(container)}
                           title="Restart"
                         >
-                          {loadingAction !== "restart" && <RefreshCw className="h-3.5 w-3.5" />}
+                          {loadingAction !== "restart" && <RefreshCw />}
                         </Button>
                       )}
                     </>
                   ) : lifecycleActions.canStart ? (
                     <Button
                       variant="ghost"
-                      size="icon-xs"
+                      size="icon-sm"
+                      aria-label="Start"
                       pending={loadingAction === "start"}
                       disabled={!!loadingAction || transitioning || unavailable}
                       onClick={() => handleStart(container)}
                       title="Start"
                     >
-                      {loadingAction !== "start" && <Play className="h-3.5 w-3.5" />}
+                      {loadingAction !== "start" && <Play />}
                     </Button>
                   ) : null}
 

@@ -61,7 +61,7 @@ export function PostgresColumnSchemaDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent>
         <DialogHeader className="shrink-0">
           <DialogTitle>Column Types</DialogTitle>
         </DialogHeader>
@@ -74,12 +74,10 @@ export function PostgresColumnSchemaDialog({
               canChangeColumnTypes ? (
                 <Button
                   type="button"
-                  variant="outline"
-                  size="sm"
                   onClick={() => setNewColumnDrafts((prev) => [...prev, createNewColumnDraft()])}
                   disabled={changingColumn !== null}
                 >
-                  <Plus className="h-3.5 w-3.5" />
+                  <Plus />
                   Add column
                 </Button>
               ) : null
