@@ -23,6 +23,7 @@ import type { Node } from "@/types";
 import { PagesSettingsSection } from "./pages/PageGlobalSettings";
 import { AIConfigSection } from "./settings/AIConfigSection";
 import { AuthProvisioningSection } from "./settings/AuthProvisioningSection";
+import { CloudSection } from "./settings/CloudSection";
 import { DockerRegistriesSection } from "./settings/DockerRegistriesSection";
 import { EnvironmentSettingsSection } from "./settings/EnvironmentSettingsSection";
 import { HousekeepingSection } from "./settings/HousekeepingSection";
@@ -220,6 +221,7 @@ export function Settings() {
                   <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                     {canUpdate && <UpdateSection canUpdate={canUpdate} />}
                     <LicenseSection canManage={canManageLicense} />
+                    <CloudSection canManage={canManageLicense} />
                   </div>
                 ) : (
                   canUpdate && <UpdateSection canUpdate={canUpdate} />

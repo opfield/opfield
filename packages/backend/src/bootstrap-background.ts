@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import type { getEnv } from '@/config/env.js';
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
+import { OperationLeaseStore } from '@/db/operation-lease.js';
 import type { CommercialEditionRuntime } from '@/edition/runtime.js';
 import { ACMERenewalJob } from '@/jobs/acme-renewal.job.js';
 import { DaemonUpdateCheckJob } from '@/jobs/daemon-update-check.job.js';
@@ -19,6 +20,9 @@ import { AlertService } from '@/modules/audit/alert.service.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { SiemDeliveryService } from '@/modules/audit/siem-delivery.service.js';
 import { backupRuntime } from '@/modules/backups/backup-runtime.js';
+import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
+import { CloudLinkAgent } from '@/modules/cloud-link/cloud-link-agent.js';
+import { createCloudLinkProbe } from '@/modules/cloud-link/cloud-link-probe.js';
 import { DatabaseMonitoringService } from '@/modules/databases/database-monitoring.service.js';
 import { DiagnosticsService } from '@/modules/diagnostics/diagnostics.service.js';
 import { createGatewayAlertObserver } from '@/modules/diagnostics/diagnostics-alerts.js';
@@ -199,6 +203,15 @@ export async function initializeBackgroundServices(): Promise<void> {
   );
   container.registerInstance(DiagnosticsService, diagnosticsService);
   diagnosticsService.setObserver(createGatewayAlertObserver(notifEvaluatorService));
+  // The installation's one socket to its cloud account; started with the scheduler, on the replica holding its lease.
+  container.registerInstance(
+    CloudLinkAgent,
+    new CloudLinkAgent(
+      container.resolve(CloudLinkService),
+      new OperationLeaseStore(db),
+      createCloudLinkProbe(diagnosticsService, env.APP_VERSION)
+    )
+  );
   scheduler.registerInterval('gateway-diagnostics-sample', 60_000, () => diagnosticsService.sampleMinute());
   container
     .resolve<CommercialEditionRuntime>(TOKENS.CommercialEdition)

@@ -170,6 +170,18 @@ const NAMED_ROUTE_AUDIT_TARGETS: Array<{
     resourceType: 'license',
   },
   {
+    method: 'POST',
+    pattern: /^\/api\/system\/cloud\/connect$/,
+    action: 'cloud.connect',
+    resourceType: 'cloud-link',
+  },
+  {
+    method: 'POST',
+    pattern: /^\/api\/system\/cloud\/disconnect$/,
+    action: 'cloud.disconnect',
+    resourceType: 'cloud-link',
+  },
+  {
     method: 'PUT',
     pattern: /^\/api\/housekeeping\/config$/,
     action: 'housekeeping.config.update',

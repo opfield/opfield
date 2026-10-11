@@ -65,6 +65,7 @@ import { AVATAR_UPLOAD_BODY_MAX_BYTES } from '@/modules/auth/avatar-storage.serv
 import { getPublicAuthMethods } from '@/modules/auth/public-auth-methods.js';
 import { getProgrammaticWebSocketCredential, getSessionWebSocketCredential } from '@/modules/auth/websocket-auth.js';
 import { backupRuntime } from '@/modules/backups/backup-runtime.js';
+import { cloudLinkRoutes } from '@/modules/cloud-link/cloud-link.routes.js';
 import { databaseRouteRuntime } from '@/modules/databases/database-route-runtime.js';
 import { databaseRoutes } from '@/modules/databases/databases.routes.js';
 import { createManagedDatabaseLogStreamWSHandlers } from '@/modules/databases/managed-database-logs.ws.js';
@@ -841,6 +842,7 @@ export function createApp(): GatewayAppRuntime {
   app.route('/api/setup', setupRoutes);
   app.route('/api/finalize-setup', finalizeSetupRoutes);
   app.route('/api/system/license', licenseRoutes);
+  app.route('/api/system/cloud', cloudLinkRoutes);
   app.route('/api/system', systemRoutes);
   app.route('/api/ui', uiBootstrapRoutes);
   app.route('/api/housekeeping', housekeepingRoutes);
