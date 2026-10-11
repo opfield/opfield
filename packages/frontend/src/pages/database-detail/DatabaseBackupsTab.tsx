@@ -36,6 +36,7 @@ import {
   MANAGED_DATABASE_NAME_PATTERN,
   normalizeManagedDatabaseName,
 } from "@/lib/managed-database-name";
+import { isDatabaseBackupCandidateNode } from "@/lib/managed-database-nodes";
 import { formatBytes, formatDateTime } from "@/lib/utils";
 import { minimumManagedDatabaseMemoryMb } from "@/pages/database-detail/managed-database-capacity";
 import { api } from "@/services/api";
@@ -43,6 +44,7 @@ import { ApiRequestError } from "@/services/api-base";
 import { useAuthStore } from "@/stores/auth";
 import { useResourceFolderStore } from "@/stores/resource-folders";
 import type {
+  BackupHistoryArtifactsAction,
   BackupPolicy,
   BackupPolicyInput,
   BackupRestoreInput,
@@ -50,6 +52,7 @@ import type {
   BackupRunStatus,
 } from "@/types/backups";
 import type { DatabaseConnection } from "@/types/databases";
+import type { Node } from "@/types/nodes";
 
 const defaultLimits = {
   workspaceBytes: 20 * 1024 ** 3,
@@ -85,6 +88,218 @@ export interface BackupSelectionOption {
   label: string;
   disabledReason?: string;
   provider?: string;
+}
+
+/** Storage nodes the user may run backup jobs on: the backup API's rule (nodes:backups:execute). */
+export function backupExecutorOptions(
+  nodes: Node[],
+  hasScope: (scope: string) => boolean
+): BackupSelectionOption[] {
+  return nodes
+    .filter(
+      (node) =>
+        isDatabaseBackupCandidateNode(node) &&
+        (hasScope("nodes:backups:execute") || hasScope(`nodes:backups:execute:${node.id}`))
+    )
+    .map((node) => ({
+      id: node.id,
+      label: node.hostname,
+      disabledReason: node.status === "online" ? undefined : "Node is offline",
+    }));
+}
+
+/** History calls of one database, or of the history of deleted databases. */
+export interface BackupRunApi {
+  deleteHistory: (
+    runId: string,
+    options?: { artifacts?: BackupHistoryArtifactsAction }
+  ) => Promise<unknown>;
+  cancel: (runId: string, options: { force?: boolean }) => Promise<void>;
+}
+
+/** Remove and cancel actions of a backup history table. `runApi` must be stable (memoized). */
+export function useBackupRunActions(runApi: BackupRunApi, refresh: () => Promise<void>) {
+  const deleteHistory = useCallback(
+    async (run: BackupRun) => {
+      if (!run.manifest || run.artifactsDeletedAt) {
+        try {
+          await runApi.deleteHistory(run.id);
+          toast.success("History entry removed");
+          await refresh();
+        } catch (error) {
+          toast.error(errorMessage(error, "Failed to remove history entry"));
+        }
+        return;
+      }
+      // The backup still has files: deleting them is explicit, and a storage
+      // failure keeps the entry and offers to forget it instead.
+      const location = `${run.destinationBucket}/${run.manifest.ownedPrefix}`;
+      const outcome: { failure?: string } = {};
+      const confirmed = await confirmAction(
+        {
+          title: "Delete Backup",
+          description: `This deletes the backup files in ${location} and removes the entry from history. The backup can no longer be restored.`,
+          confirmLabel: "Delete backup and files",
+          variant: "destructive",
+        },
+        async () => {
+          try {
+            await runApi.deleteHistory(run.id, { artifacts: "delete" });
+          } catch (error) {
+            if (
+              error instanceof ApiRequestError &&
+              error.code === "BACKUP_ARTIFACT_DELETE_FAILED"
+            ) {
+              outcome.failure = error.message;
+              return;
+            }
+            toast.error(errorMessage(error, "Failed to delete backup"));
+            throw error;
+          }
+        }
+      );
+      if (!confirmed) return;
+      if (outcome.failure === undefined) {
+        toast.success("Backup deleted");
+        await refresh();
+        return;
+      }
+      const forget = await confirm({
+        title: "Backup Files Could Not Be Deleted",
+        description: `${outcome.failure} Forgetting removes the entry from history and leaves the files in ${location}.`,
+        confirmLabel: "Forget entry",
+        cancelLabel: "Keep entry",
+        variant: "destructive",
+      });
+      if (!forget) return;
+      try {
+        await runApi.deleteHistory(run.id, { artifacts: "forget" });
+        toast.success("Entry forgotten; the backup files were left in storage");
+        await refresh();
+      } catch (error) {
+        toast.error(errorMessage(error, "Failed to forget history entry"));
+      }
+    },
+    [runApi, refresh]
+  );
+  const cancel = useCallback(
+    async (run: BackupRun, force = false) => {
+      try {
+        await runApi.cancel(run.id, { force });
+        toast.success(force ? "Run ended" : "Cancellation requested");
+        await refresh();
+      } catch (error) {
+        toast.error(errorMessage(error, "Failed to request cancellation"));
+      }
+    },
+    [runApi, refresh]
+  );
+  return { deleteHistory, cancel };
+}
+
+/** Columns of a backup history table; `leadingColumns` must be stable. */
+export function useBackupRunColumns({
+  canRestore,
+  canRun,
+  canManage,
+  onRestore,
+  deleteHistory,
+  cancel,
+  leadingColumns,
+}: {
+  canRestore: boolean;
+  canRun: boolean;
+  canManage: boolean;
+  onRestore: (run: BackupRun) => void;
+  deleteHistory: (run: BackupRun) => Promise<void>;
+  cancel: (run: BackupRun, force?: boolean) => Promise<void>;
+  leadingColumns?: DataTableColumn<BackupRun>[];
+}) {
+  return useMemo<DataTableColumn<BackupRun>[]>(
+    () => [
+      ...(leadingColumns ?? []),
+      {
+        key: "created",
+        header: "Started",
+        render: (run) => <RelativeTime value={run.startedAt ?? run.createdAt} />,
+      },
+      {
+        key: "type",
+        header: "Operation",
+        render: (run) => (run.direction === "backup" ? "Backup" : "Restore"),
+      },
+      {
+        key: "status",
+        header: "Status",
+        render: (run) => (
+          <Badge variant={RUN_STATUS_BADGE[run.status].variant}>
+            {RUN_STATUS_BADGE[run.status].label}
+          </Badge>
+        ),
+      },
+      {
+        key: "details",
+        header: "Details",
+        render: (run) => (
+          <span className="text-muted-foreground">
+            {run.error ??
+              (run.status === "queued" || run.status === "running"
+                ? run.phase.replaceAll("_", " ")
+                : run.artifactsDeletedAt
+                  ? "Artifacts removed by retention"
+                  : "—")}
+          </span>
+        ),
+      },
+      {
+        key: "size",
+        header: "Size",
+        align: "right",
+        render: (run) => (Number(run.bytes) > 0 ? formatBytes(Number(run.bytes)) : "—"),
+      },
+      {
+        key: "actions",
+        header: "",
+        align: "right",
+        render: (run) => (
+          <div className="flex justify-end gap-2">
+            {run.direction === "backup" &&
+            run.status === "completed" &&
+            !run.artifactsDeletedAt &&
+            canRestore ? (
+              <Button size="sm" variant="outline" onClick={() => onRestore(run)}>
+                <RotateCcw />
+                Restore
+              </Button>
+            ) : null}
+            {canManage && !["queued", "running"].includes(run.status) ? (
+              <Button size="sm" variant="ghost" onClick={() => void deleteHistory(run)}>
+                <Trash2 />
+                {run.manifest && !run.artifactsDeletedAt ? "Delete" : "Remove"}
+              </Button>
+            ) : null}
+            {(run.status === "queued" || run.status === "running") && canRun ? (
+              run.phase === "cancelling" ? (
+                // The executor has not confirmed the cancel (for example, its node
+                // is offline). Ending the run releases the node and the schedule;
+                // the node stops the runner when it reconnects.
+                <Button size="sm" variant="ghost" onClick={() => void cancel(run, true)}>
+                  <X />
+                  Force cancel
+                </Button>
+              ) : (
+                <Button size="sm" variant="ghost" onClick={() => void cancel(run)}>
+                  <X />
+                  Cancel
+                </Button>
+              )
+            ) : null}
+          </div>
+        ),
+      },
+    ],
+    [canRestore, canRun, canManage, cancel, deleteHistory, leadingColumns, onRestore]
+  );
 }
 
 export function DatabaseBackupsTab({
@@ -139,165 +354,22 @@ export function DatabaseBackupsTab({
     const timer = window.setInterval(() => void refresh(), 5000);
     return () => window.clearInterval(timer);
   }, [runs, refresh]);
-  const deleteHistory = useCallback(
-    async (run: BackupRun) => {
-      if (!run.manifest || run.artifactsDeletedAt) {
-        try {
-          await api.deleteBackupHistory(database.id, run.id);
-          toast.success("History entry removed");
-          await refresh();
-        } catch (error) {
-          toast.error(errorMessage(error, "Failed to remove history entry"));
-        }
-        return;
-      }
-      // The backup still has files: deleting them is explicit, and a storage
-      // failure keeps the entry and offers to forget it instead.
-      const location = `${run.destinationBucket}/${run.manifest.ownedPrefix}`;
-      const outcome: { failure?: string } = {};
-      const confirmed = await confirmAction(
-        {
-          title: "Delete Backup",
-          description: `This deletes the backup files in ${location} and removes the entry from history. The backup can no longer be restored.`,
-          confirmLabel: "Delete backup and files",
-          variant: "destructive",
-        },
-        async () => {
-          try {
-            await api.deleteBackupHistory(database.id, run.id, { artifacts: "delete" });
-          } catch (error) {
-            if (
-              error instanceof ApiRequestError &&
-              error.code === "BACKUP_ARTIFACT_DELETE_FAILED"
-            ) {
-              outcome.failure = error.message;
-              return;
-            }
-            toast.error(errorMessage(error, "Failed to delete backup"));
-            throw error;
-          }
-        }
-      );
-      if (!confirmed) return;
-      if (outcome.failure === undefined) {
-        toast.success("Backup deleted");
-        await refresh();
-        return;
-      }
-      const forget = await confirm({
-        title: "Backup Files Could Not Be Deleted",
-        description: `${outcome.failure} Forgetting removes the entry from history and leaves the files in ${location}.`,
-        confirmLabel: "Forget entry",
-        cancelLabel: "Keep entry",
-        variant: "destructive",
-      });
-      if (!forget) return;
-      try {
-        await api.deleteBackupHistory(database.id, run.id, { artifacts: "forget" });
-        toast.success("Entry forgotten; the backup files were left in storage");
-        await refresh();
-      } catch (error) {
-        toast.error(errorMessage(error, "Failed to forget history entry"));
-      }
-    },
-    [database.id, refresh]
+  const runApi = useMemo<BackupRunApi>(
+    () => ({
+      deleteHistory: (runId, options) => api.deleteBackupHistory(database.id, runId, options),
+      cancel: (runId, options) => api.cancelBackup(database.id, runId, options),
+    }),
+    [database.id]
   );
-  const cancel = useCallback(
-    async (run: BackupRun, force = false) => {
-      try {
-        await api.cancelBackup(database.id, run.id, { force });
-        toast.success(force ? "Run ended" : "Cancellation requested");
-        await refresh();
-      } catch (error) {
-        toast.error(errorMessage(error, "Failed to request cancellation"));
-      }
-    },
-    [database.id, refresh]
-  );
-  const columns = useMemo<DataTableColumn<BackupRun>[]>(
-    () => [
-      {
-        key: "created",
-        header: "Started",
-        render: (run) => <RelativeTime value={run.startedAt ?? run.createdAt} />,
-      },
-      {
-        key: "type",
-        header: "Operation",
-        render: (run) => (run.direction === "backup" ? "Backup" : "Restore"),
-      },
-      {
-        key: "status",
-        header: "Status",
-        render: (run) => (
-          <Badge variant={RUN_STATUS_BADGE[run.status].variant}>
-            {RUN_STATUS_BADGE[run.status].label}
-          </Badge>
-        ),
-      },
-      {
-        key: "details",
-        header: "Details",
-        render: (run) => (
-          <span className="text-muted-foreground">
-            {run.error ??
-              (run.status === "queued" || run.status === "running"
-                ? run.phase.replaceAll("_", " ")
-                : run.artifactsDeletedAt
-                  ? "Artifacts removed by retention"
-                  : "—")}
-          </span>
-        ),
-      },
-      {
-        key: "size",
-        header: "Size",
-        align: "right",
-        render: (run) => (Number(run.bytes) > 0 ? formatBytes(Number(run.bytes)) : "—"),
-      },
-      {
-        key: "actions",
-        header: "",
-        align: "right",
-        render: (run) => (
-          <div className="flex justify-end gap-2">
-            {run.direction === "backup" &&
-            run.status === "completed" &&
-            !run.artifactsDeletedAt &&
-            canRestore ? (
-              <Button size="sm" variant="outline" onClick={() => setRestoreRun(run)}>
-                <RotateCcw />
-                Restore
-              </Button>
-            ) : null}
-            {canManage && !["queued", "running"].includes(run.status) ? (
-              <Button size="sm" variant="ghost" onClick={() => void deleteHistory(run)}>
-                <Trash2 />
-                {run.manifest && !run.artifactsDeletedAt ? "Delete" : "Remove"}
-              </Button>
-            ) : null}
-            {(run.status === "queued" || run.status === "running") && canRun ? (
-              run.phase === "cancelling" ? (
-                // The executor has not confirmed the cancel (for example, its node
-                // is offline). Ending the run releases the node and the schedule;
-                // the node stops the runner when it reconnects.
-                <Button size="sm" variant="ghost" onClick={() => void cancel(run, true)}>
-                  <X />
-                  Force cancel
-                </Button>
-              ) : (
-                <Button size="sm" variant="ghost" onClick={() => void cancel(run)}>
-                  <X />
-                  Cancel
-                </Button>
-              )
-            ) : null}
-          </div>
-        ),
-      },
-    ],
-    [canRestore, canRun, canManage, cancel, deleteHistory]
-  );
+  const { deleteHistory, cancel } = useBackupRunActions(runApi, refresh);
+  const columns = useBackupRunColumns({
+    canRestore,
+    canRun,
+    canManage,
+    onRestore: setRestoreRun,
+    deleteHistory,
+    cancel,
+  });
   const start = async (policy: BackupPolicy) => {
     try {
       await api.startBackup(database.id, policy.id);

@@ -464,11 +464,11 @@ const COMPOSITE_OPERATION_POLICIES: Record<
   manage_database_backups: {
     arguments: ['action'],
     operations: operationPolicies({
-      read: ['list_policies', 'list_runs'],
+      read: ['list_policies', 'list_runs', 'list_orphaned_runs'],
       create: ['create_policy'],
       update: ['update_policy'],
-      delete: ['delete_policy', 'delete_run'],
-      destructive: ['run', 'cancel', 'restore'],
+      delete: ['delete_policy', 'delete_run', 'delete_orphaned_run'],
+      destructive: ['run', 'cancel', 'restore', 'restore_orphaned', 'cancel_orphaned'],
     }),
   },
   manage_storage_connection: {

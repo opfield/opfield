@@ -12,7 +12,7 @@ export const BACKUP_AI_TOOLS: AIToolDefinition[] = [
     destructive: true,
     invalidateStores: [],
     description:
-      'List native backup policies/history, manage policies (config: destinationId, bucket, prefix, optional staging target, executorNodeId, schedule, timezone, retentionCount, limits, enabled), run or cancel a backup or restore run (config.force ends a run whose executor cannot confirm), restore a verified artifact into an empty target (config: executorNodeId plus newManagedDatabaseName or restoreTargetConnectionId, optional targetDatabaseName and limits; a new managed database is created in config.folderId, which needs databases:create on the Storage node or that folder, with config.storageSizeGb, cpuCores, memoryMb and swapMb as in managed database create, each defaulting to the value of the source managed instance), and delete_run to remove a finished run from history. When that backup still has files, delete_run needs config.artifacts: "delete" removes the files first (the entry is kept if that fails) and "forget" removes only the entry and leaves the files in storage; ask the user which one before calling. Runtime addresses and credentials are resolved by Gateway.',
+      'List native backup policies/history, manage policies (config: destinationId, bucket, prefix, optional staging target, executorNodeId, schedule, timezone, retentionCount, limits, enabled), run or cancel a backup or restore run (config.force ends a run whose executor cannot confirm), restore a verified artifact into an empty target (config: executorNodeId plus newManagedDatabaseName or restoreTargetConnectionId, optional targetDatabaseName and limits; a new managed database is created in config.folderId, which needs databases:create on the Storage node or that folder, with config.storageSizeGb, cpuCores, memoryMb and swapMb as in managed database create, each defaulting to the value of the source managed instance), and delete_run to remove a finished run from history. When that backup still has files, delete_run needs config.artifacts: "delete" removes the files first (the entry is kept if that fails) and "forget" removes only the entry and leaves the files in storage; ask the user which one before calling. Backups of deleted databases stay in history with their files: list_orphaned_runs lists them (each run keeps databaseConnectionName), restore_orphaned restores one into a new managed database or an empty connection (same config as restore; a new database gets the engine and version of the backup), cancel_orphaned cancels such a restore and delete_orphaned_run removes an entry (same artifacts rule as delete_run). These four take no databaseId and need the unscoped databases:backups:* scope, because deleting a database removes the grants that name it. Runtime addresses and credentials are resolved by Gateway.',
     parameters: {
       type: 'object',
       properties: {
@@ -28,15 +28,22 @@ export const BACKUP_AI_TOOLS: AIToolDefinition[] = [
             'cancel',
             'restore',
             'delete_run',
+            'list_orphaned_runs',
+            'restore_orphaned',
+            'cancel_orphaned',
+            'delete_orphaned_run',
           ],
         },
-        databaseId: { type: 'string' },
+        databaseId: {
+          type: 'string',
+          description: 'Required for every action except the *_orphaned ones, which work on deleted databases.',
+        },
         policyId: { type: 'string' },
         runId: { type: 'string' },
         config: {
           type: 'object',
           description:
-            'create_policy and update_policy: the full policy, which requires destinationId, bucket, prefix, executorNodeId, timezone, retentionCount and limits with all four fields (schedule, staging and enabled are optional). restore: requires executorNodeId plus newManagedDatabaseName or restoreTargetConnectionId (another empty connection, never the source database); limits may set any of the four fields. cancel: { force }. delete_run: { artifacts }.',
+            'create_policy and update_policy: the full policy, which requires destinationId, bucket, prefix, executorNodeId, timezone, retentionCount and limits with all four fields (schedule, staging and enabled are optional). restore and restore_orphaned: requires executorNodeId plus newManagedDatabaseName or restoreTargetConnectionId (another empty connection, never the source database); limits may set any of the four fields. cancel and cancel_orphaned: { force }. delete_run and delete_orphaned_run: { artifacts }.',
           properties: {
             destinationId: { type: 'string' },
             bucket: { type: 'string' },
@@ -96,13 +103,13 @@ export const BACKUP_AI_TOOLS: AIToolDefinition[] = [
             artifacts: {
               type: 'string',
               enum: ['delete', 'forget'],
-              description: 'delete_run only: what to do with backup files that still exist.',
+              description: 'delete_run and delete_orphaned_run: what to do with backup files that still exist.',
             },
           },
           additionalProperties: false,
         },
       },
-      required: ['action', 'databaseId'],
+      required: ['action'],
       additionalProperties: false,
     },
   },

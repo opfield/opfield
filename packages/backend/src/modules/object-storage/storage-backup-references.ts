@@ -27,8 +27,9 @@ function finishedRun() {
 }
 
 /**
- * Finished history of a deleted database. It is kept with its files, but no
- * API lists, restores or deletes it any more, so it does not keep a bucket.
+ * Finished history of a deleted database. It is kept with its files and stays
+ * restorable (the history of deleted databases), but it does not keep a bucket:
+ * deleting the bucket deletes those files and then this history.
  */
 function orphanedFinishedRun() {
   return and(isNull(backupRuns.databaseConnectionId), finishedRun());
