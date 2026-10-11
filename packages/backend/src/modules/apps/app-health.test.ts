@@ -7,6 +7,7 @@ import {
   healthFromStatus,
   withAvailabilityState,
 } from './app-health.service.js';
+import { availabilityMemberHealth } from './app-availability-overview.js';
 
 describe('app health aggregation', () => {
   it('combines member states: failing beats degraded beats healthy, empty is healthy', () => {
@@ -55,5 +56,23 @@ describe('app health aggregation', () => {
     expect(withAvailabilityState('failing', 'failing_over')).toBe('degraded');
     expect(withAvailabilityState('failing', 'no_failover')).toBe('failing');
     expect(withAvailabilityState('none', 'degraded')).toBe('none');
+  });
+
+  it('reads each set member as healthy, degraded, down or stopped', () => {
+    const now = 1_800_000_000_000;
+    const seen = new Date(now - 5_000);
+    const member = (role: string, eligible: boolean, lastReportedAt: Date | null = seen, stopped = false) => ({
+      role,
+      eligible,
+      lastReportedAt,
+      enginePosition: stopped ? { 'runtime.stopped': 'true' } : {},
+    });
+    expect(availabilityMemberHealth(member('primary', false), true, now)).toBe('healthy');
+    expect(availabilityMemberHealth(member('copy', true), false, now)).toBe('healthy');
+    expect(availabilityMemberHealth(member('copy', false), false, now)).toBe('degraded');
+    expect(availabilityMemberHealth(member('rebuilding', false), false, now)).toBe('degraded');
+    expect(availabilityMemberHealth(member('copy', true, new Date(now - 120_000)), false, now)).toBe('down');
+    expect(availabilityMemberHealth(member('fenced', false), false, now)).toBe('down');
+    expect(availabilityMemberHealth(member('copy', false, seen, true), false, now)).toBe('stopped');
   });
 });

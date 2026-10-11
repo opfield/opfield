@@ -16,6 +16,7 @@ import { NodeMonitoringService } from '@/modules/nodes/node-monitoring.service.j
 import { ObjectStorageMonitoringService } from '@/modules/object-storage/object-storage-monitoring.service.js';
 import { ProxyService } from '@/modules/proxy/proxy.service.js';
 import { visibleEnvironmentIds } from './app-access.js';
+import { availabilityOverviews } from './app-availability-overview.js';
 import { type AppHealthService, combineHealth, type MemberStatus } from './app-health.service.js';
 import type { AppMember, AppMembersReader } from './app-members.service.js';
 import type { AppsService } from './apps.service.js';
@@ -335,11 +336,18 @@ export class AppOverviewService {
           dbs.map((member) => member.id)
         )
       );
-    const series = await this.seriesFrom(
-      DatabaseMonitoringService,
-      rows.map((row) => row.id),
-      range
-    );
+    const [series, availability] = await Promise.all([
+      this.seriesFrom(
+        DatabaseMonitoringService,
+        rows.map((row) => row.id),
+        range
+      ),
+      availabilityOverviews(
+        this.db,
+        'database',
+        rows.map((row) => row.id)
+      ),
+    ]);
     return dbs.flatMap((member) => {
       const row = rows.find((item) => item.id === member.id);
       if (!row) return [];
@@ -368,6 +376,8 @@ export class AppOverviewService {
           maxConnections: num(latest.max_connections),
           connectionsHistory: points('total_connections'),
           transactionsPerSecond: num(latest.transaction_rate),
+          // On several servers: the set's state and each member's role and health (degraded is not down).
+          availability: availability.get(row.id) ?? null,
         },
       ];
     });
@@ -389,11 +399,18 @@ export class AppOverviewService {
           storages.map((member) => member.id)
         )
       );
-    const series = await this.seriesFrom(
-      ObjectStorageMonitoringService,
-      rows.map((row) => row.id),
-      range
-    );
+    const [series, availability] = await Promise.all([
+      this.seriesFrom(
+        ObjectStorageMonitoringService,
+        rows.map((row) => row.id),
+        range
+      ),
+      availabilityOverviews(
+        this.db,
+        'storage',
+        rows.map((row) => row.id)
+      ),
+    ]);
     return storages.flatMap((member) => {
       const row = rows.find((item) => item.id === member.id);
       if (!row) return [];
@@ -440,6 +457,8 @@ export class AppOverviewService {
           rxHistory: bucketSeries(rx, range),
           txBytesPerSecond: tx.at(-1)?.value ?? null,
           txHistory: bucketSeries(tx, range),
+          // On several servers: the set's state and each member's role and health (degraded is not down).
+          availability: availability.get(row.id) ?? null,
         },
       ];
     });
