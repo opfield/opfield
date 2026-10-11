@@ -32,9 +32,16 @@ func newForwarders(listen func(int, string) (net.Listener, error), bridge func(n
 // desiredForwards maps every endpoint of another server or member to the mesh
 // alias that reaches it.
 func desiredForwards(memberID string, ec EngineConfig) map[string]string {
+	return desiredForwardsGated(memberID, ec, true)
+}
+
+// desiredForwardsGated leaves out the other members' Keeper endpoints while
+// keeperToMembers is false (a manual pair's member that may hold a diverged
+// Keeper state checks its peer first, roles.go).
+func desiredForwardsGated(memberID string, ec EngineConfig, keeperToMembers bool) map[string]string {
 	out := map[string]string{}
 	for _, server := range ec.KeeperServers {
-		if server.MemberID == memberID {
+		if server.MemberID == memberID || (!keeperToMembers && server.MemberID != "") {
 			continue
 		}
 		out[ec.Endpoint(server)] = server.Alias()
@@ -135,3 +142,23 @@ func (f *forwarders) addresses() []string {
 	sort.Strings(out)
 	return out
 }
+
+// Forwarders binds endpoints in a container's network namespace and carries
+// each connection to a bridge function (used by the docker daemon for a
+// Keeper witness container on a non-member node).
+type Forwarders struct{ f *forwarders }
+
+// NewForwarders prepares forwarders over listen and bridge.
+func NewForwarders(listen func(pid int, address string) (net.Listener, error), bridge func(net.Conn, string) error, logger *slog.Logger) *Forwarders {
+	return &Forwarders{f: newForwarders(listen, bridge, logger)}
+}
+
+// Ensure binds desired (address → bridge key) for the running container; a
+// new container id drops every listener of the previous one. It returns the
+// addresses that failed.
+func (f *Forwarders) Ensure(containerID string, pid int, desired map[string]string) []string {
+	return f.f.ensure(containerID, pid, desired)
+}
+
+// Close drops every listener.
+func (f *Forwarders) Close() { f.f.close() }

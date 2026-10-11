@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -649,4 +650,38 @@ func (r *clickHouseMemberRuntime) detachProxies() {
 	for _, name := range names {
 		r.plugin.setMembers.DetachProxyPort(r.setID, name)
 	}
+}
+
+// MoveAside renames a path of the data mount to <path>.wiped-<unix> (a wiped
+// Keeper state is kept for inspection), keeping the two newest such copies.
+func (r *clickHouseMemberRuntime) MoveAside(relative string) error {
+	if relative == "" || strings.Contains(relative, "..") || strings.Contains(relative, "/") {
+		return errors.New("invalid member path")
+	}
+	record, err := r.record()
+	if err != nil {
+		return err
+	}
+	source := filepath.Join(record.MountPath, relative)
+	if err := os.Rename(source, fmt.Sprintf("%s.wiped-%d", source, time.Now().Unix())); err != nil {
+		return err
+	}
+	old, _ := filepath.Glob(source + ".wiped-*")
+	sort.Strings(old)
+	for len(old) > 2 {
+		_ = os.RemoveAll(old[0])
+		old = old[1:]
+	}
+	return nil
+}
+
+// PeerEngineState asks another member's member-control port for its engine facts.
+func (r *clickHouseMemberRuntime) PeerEngineState(ctx context.Context, memberID string) (map[string]string, bool) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	state, ok := r.plugin.setPeerState(ctx, r.setID, memberID)
+	if !ok {
+		return nil, false
+	}
+	return state.Engine, true
 }

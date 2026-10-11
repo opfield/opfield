@@ -37,9 +37,15 @@ const reconfigSettle = 5 * time.Second
 // leadershipRequestPeriod bounds the holder's Keeper leadership requests.
 const leadershipRequestPeriod = time.Minute
 
+// keeperEntry is one server of the Keeper's cluster configuration.
+type keeperEntry struct {
+	endpoint string
+	learner  bool
+}
+
 // parseKeeperConfig reads "server.<id>=<host>:<port>;<role>;<priority>" lines.
-func parseKeeperConfig(text string) (map[uint32]string, error) {
-	out := map[uint32]string{}
+func parseKeeperConfig(text string) (map[uint32]keeperEntry, error) {
+	out := map[uint32]keeperEntry{}
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -53,8 +59,8 @@ func parseKeeperConfig(text string) (map[uint32]string, error) {
 		if err != nil || id == 0 {
 			return nil, fmt.Errorf("unexpected Keeper configuration line %q", line)
 		}
-		endpoint, _, _ := strings.Cut(value, ";")
-		out[uint32(id)] = endpoint
+		parts := strings.Split(value, ";")
+		out[uint32(id)] = keeperEntry{endpoint: parts[0], learner: len(parts) > 1 && parts[1] == "learner"}
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("the Keeper configuration lists no server")
@@ -62,10 +68,13 @@ func parseKeeperConfig(text string) (map[uint32]string, error) {
 	return out, nil
 }
 
-func voterList(current map[uint32]string) string {
+// idList lists the ids of the voters (learner=false) or learners.
+func idList(current map[uint32]keeperEntry, learners bool) string {
 	ids := make([]int, 0, len(current))
-	for id := range current {
-		ids = append(ids, int(id))
+	for id, entry := range current {
+		if entry.learner == learners {
+			ids = append(ids, int(id))
+		}
 	}
 	sort.Ints(ids)
 	parts := make([]string, len(ids))
@@ -74,6 +83,8 @@ func voterList(current map[uint32]string) string {
 	}
 	return strings.Join(parts, ",")
 }
+
+func voterList(current map[uint32]keeperEntry) string { return idList(current, false) }
 
 // activation is a standby witness the holder activated while Gateway was
 // down, kept in the member's data mount until Gateway's configuration names
@@ -146,48 +157,75 @@ func (a keeperAction) command(ec EngineConfig) string {
 }
 
 // planKeeper is the holder's next reconfiguration step toward the desired
-// voters, at most one per call: a missing voter is added as soon as it is
-// reachable (a joining Keeper that is not in the leader's configuration stops
-// within seconds, P0-T02 item 7); a server that is not desired is removed
-// only once every desired voter is in the configuration and settled, never
-// this member's own Keeper.
-func planKeeper(selfID uint32, current map[uint32]string, desired []KeeperServer, reachable func(KeeperServer) bool,
-	since map[uint32]time.Duration, now time.Duration) (keeperAction, bool) {
-	missing := false
-	for _, voter := range desired {
-		if _, ok := current[voter.ID]; ok {
+// voters and learners, at most one per call:
+//   - a missing server is added as soon as it is reachable (a joining Keeper
+//     that is not in the leader's configuration stops within seconds, P0-T02
+//     item 7), unless it was removed and has not been down since (it must come
+//     back with a wiped Keeper state);
+//   - a learner that must become a voter is removed first (its member wipes
+//     its Keeper state and joins again; an in-place role change crashed Keeper
+//     25.8); a voter is never demoted in place;
+//   - a server that is not desired is removed only once every desired server
+//     is in the configuration with its role and settled, never this member's
+//     own Keeper nor the last voter.
+func planKeeper(selfID uint32, current map[uint32]keeperEntry, voters, learners []KeeperServer,
+	reachable func(KeeperServer) bool, blocked func(uint32) bool, since map[uint32]time.Duration,
+	now time.Duration) (keeperAction, bool) {
+	pending := false
+	for _, voter := range voters {
+		entry, ok := current[voter.ID]
+		switch {
+		case ok && !entry.learner:
+			continue
+		case ok && entry.learner && voter.ID != selfID:
+			return keeperAction{remove: voter.ID}, true
+		case ok:
+			pending = true
 			continue
 		}
-		missing = true
-		if reachable(voter) {
+		pending = true
+		if !blocked(voter.ID) && reachable(voter) {
 			add := voter
+			add.Role = RoleVoter
 			return keeperAction{add: &add}, true
 		}
 	}
-	if missing {
+	for _, learner := range learners {
+		if _, ok := current[learner.ID]; ok {
+			continue
+		}
+		pending = true
+		if !blocked(learner.ID) && reachable(learner) {
+			add := learner
+			return keeperAction{add: &add}, true
+		}
+	}
+	if pending {
 		return keeperAction{}, false
 	}
-	for _, voter := range desired {
-		at, ok := since[voter.ID]
+	wanted := map[uint32]bool{}
+	for _, server := range append(append([]KeeperServer(nil), voters...), learners...) {
+		wanted[server.ID] = true
+		at, ok := since[server.ID]
 		if !ok || now-at < settleAfterAdd {
 			return keeperAction{}, false
 		}
 	}
-	wanted := map[uint32]bool{}
-	for _, voter := range desired {
-		wanted[voter.ID] = true
-	}
 	ids := make([]int, 0, len(current))
-	for id := range current {
+	votersLeft := 0
+	for id, entry := range current {
 		ids = append(ids, int(id))
+		if !entry.learner {
+			votersLeft++
+		}
 	}
 	sort.Ints(ids)
 	for _, id := range ids {
 		if uint32(id) == selfID || wanted[uint32(id)] {
 			continue
 		}
-		if len(current) <= 1 {
-			break
+		if !current[uint32(id)].learner && votersLeft <= 1 {
+			continue
 		}
 		return keeperAction{remove: uint32(id)}, true
 	}

@@ -37,6 +37,12 @@ const (
 	// RoleStandby is a staged standby witness: not a voter; the holder may
 	// activate it while Gateway is down (decision 8) and then adds it.
 	RoleStandby = "standby"
+	// RoleLearner is a member's Keeper that replicates the log and serves its
+	// own member's ZooKeeper session but does not vote: the 4th and 5th data
+	// members of a set, and a manual pair's copy (its primary never waits for
+	// it). A learner becomes a voter only through a rejoin with a wiped
+	// Keeper state (an in-place role change crashed Keeper 25.8).
+	RoleLearner = "learner"
 	// RoleLeaving is a server Gateway is removing: the holder removes it from
 	// the Keeper configuration once every desired voter is in it.
 	RoleLeaving = "leaving"
@@ -175,6 +181,10 @@ func (ec EngineConfig) Validate(config memberha.Config) error {
 		case RoleVoter:
 			voters++
 		case RoleStandby, RoleLeaving:
+		case RoleLearner:
+			if server.MemberID == "" {
+				return fmt.Errorf("%s: only a member's Keeper can be a learner", owner)
+			}
 		default:
 			return fmt.Errorf("%s: unknown role %q", owner, server.Role)
 		}
@@ -254,6 +264,18 @@ func (ec EngineConfig) Server(id uint32) (KeeperServer, bool) {
 	return KeeperServer{}, false
 }
 
+// Learners are the desired learners, by id.
+func (ec EngineConfig) Learners() []KeeperServer {
+	out := []KeeperServer{}
+	for _, server := range ec.KeeperServers {
+		if server.Role == RoleLearner {
+			out = append(out, server)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
+}
+
 // Voters are the desired voters, by id.
 func (ec EngineConfig) Voters() []KeeperServer {
 	out := []KeeperServer{}
@@ -299,8 +321,28 @@ func (s KeeperServer) Priority() int {
 
 // ReconfigEntry is the "reconfig add" argument of a server.
 func (ec EngineConfig) ReconfigEntry(server KeeperServer) string {
+	if server.Role == RoleLearner {
+		return fmt.Sprintf("server.%d=%s;learner;1", server.ID, ec.Endpoint(server))
+	}
 	return fmt.Sprintf("server.%d=%s;participant;%d", server.ID, ec.Endpoint(server), server.Priority())
 }
+
+// RenderMode selects the raft list and recovery settings of the server config.
+type RenderMode int
+
+const (
+	// RenderNormal: desired voters and learners (or the bootstrap voters while
+	// the Keeper has no log), this member added as a joining server.
+	RenderNormal RenderMode = iota
+	// RenderRecovery: this member alone as a voter with force_recovery and
+	// reconfiguration off (a manual pair's assigned primary whose voter is
+	// gone: Keeper ignores a changed raft list while reconfiguration is on,
+	// and 4lw rcvr left it unresponsive in the prototype).
+	RenderRecovery
+	// RenderSoleVoter: this member alone as a voter, reconfiguration on (the
+	// restart after a recovery; the holder adds the other member again).
+	RenderSoleVoter
+)
 
 func escapeXML(value string) string {
 	var out strings.Builder
@@ -313,7 +355,12 @@ func escapeXML(value string) string {
 // replicated access storage. keeperLogEmpty: the Keeper has no log yet (the
 // raft list is then the bootstrap voters when set).
 func RenderServerConfig(config memberha.Config, ec EngineConfig, keeperLogEmpty bool) []byte {
-	raft := ec.Voters()
+	return RenderServerConfigMode(config, ec, keeperLogEmpty, RenderNormal)
+}
+
+// RenderServerConfigMode is RenderServerConfig with a raft list mode.
+func RenderServerConfigMode(config memberha.Config, ec EngineConfig, keeperLogEmpty bool, mode RenderMode) []byte {
+	raft := append(ec.Voters(), ec.Learners()...)
 	if keeperLogEmpty && len(ec.BootstrapVoters) > 0 {
 		raft = raft[:0]
 		for _, id := range ec.BootstrapVoters {
@@ -324,6 +371,10 @@ func RenderServerConfig(config memberha.Config, ec EngineConfig, keeperLogEmpty 
 		sort.Slice(raft, func(i, j int) bool { return raft[i].ID < raft[j].ID })
 	}
 	self := ec.Self()
+	if mode != RenderNormal {
+		self.Role = RoleVoter
+		raft = []KeeperServer{self}
+	}
 	inRaft := false
 	for _, server := range raft {
 		inRaft = inRaft || server.ID == self.ID
@@ -333,6 +384,7 @@ func RenderServerConfig(config memberha.Config, ec EngineConfig, keeperLogEmpty 
 		// an election alone and is added by the holder (reconfig add).
 		raft = append(raft, self)
 	}
+	sort.SliceStable(raft, func(i, j int) bool { return raft[i].ID < raft[j].ID })
 	var b strings.Builder
 	b.WriteString("<clickhouse>\n")
 	fmt.Fprintf(&b, "    <interserver_http_host>%s</interserver_http_host>\n", ec.LoopbackHost)
@@ -347,7 +399,12 @@ func RenderServerConfig(config memberha.Config, ec EngineConfig, keeperLogEmpty 
 	fmt.Fprintf(&b, "        <server_id>%d</server_id>\n", self.ID)
 	b.WriteString("        <log_storage_path>/var/lib/clickhouse/coordination/log</log_storage_path>\n")
 	b.WriteString("        <snapshot_storage_path>/var/lib/clickhouse/coordination/snapshots</snapshot_storage_path>\n")
-	b.WriteString("        <enable_reconfiguration>true</enable_reconfiguration>\n")
+	if mode == RenderRecovery {
+		b.WriteString("        <enable_reconfiguration>false</enable_reconfiguration>\n")
+		b.WriteString("        <force_recovery>true</force_recovery>\n")
+	} else {
+		b.WriteString("        <enable_reconfiguration>true</enable_reconfiguration>\n")
+	}
 	b.WriteString("        <four_letter_word_white_list>ruok,srvr,mntr,conf,isro,lgif,rqld</four_letter_word_white_list>\n")
 	b.WriteString("        <coordination_settings>\n")
 	b.WriteString("            <operation_timeout_ms>10000</operation_timeout_ms>\n")
@@ -357,6 +414,12 @@ func RenderServerConfig(config memberha.Config, ec EngineConfig, keeperLogEmpty 
 	b.WriteString("        </coordination_settings>\n")
 	b.WriteString("        <raft_configuration>\n")
 	for _, server := range raft {
+		if server.Role == RoleLearner {
+			// can_become_leader=false is how Keeper's XML names a learner.
+			fmt.Fprintf(&b, "            <server><id>%d</id><hostname>%s</hostname><port>%d</port><can_become_leader>false</can_become_leader></server>\n",
+				server.ID, ec.LoopbackHost, server.Port)
+			continue
+		}
 		fmt.Fprintf(&b, "            <server><id>%d</id><hostname>%s</hostname><port>%d</port><priority>%d</priority></server>\n",
 			server.ID, ec.LoopbackHost, server.Port, server.Priority())
 	}
