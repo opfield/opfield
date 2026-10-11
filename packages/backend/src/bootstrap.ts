@@ -43,6 +43,7 @@ import { aiRunCommercialRuntime } from '@/modules/ai/ai-run-commercial-runtime.j
 import { AppEnvLayerService } from '@/modules/apps/app-env-layer.js';
 import { AppFolderService } from '@/modules/apps/app-folders.service.js';
 import { AppMaintenanceService } from '@/modules/apps/app-maintenance.service.js';
+import { AppMaintenanceAccessService } from '@/modules/apps/app-maintenance-access.js';
 import { AppMembersReader, AppMembersService } from '@/modules/apps/app-members.service.js';
 import { AppMembershipService } from '@/modules/apps/app-membership.js';
 import { AppNodesService } from '@/modules/apps/app-nodes.service.js';
@@ -1407,6 +1408,7 @@ export async function initializeContainer(): Promise<void> {
   container.registerInstance(ProxyService, proxyService);
   const appMaintenanceService = new AppMaintenanceService(db);
   container.registerInstance(AppMaintenanceService, appMaintenanceService);
+  container.registerInstance(AppMaintenanceAccessService, new AppMaintenanceAccessService(appsService));
   proxyService.setAppOverlayHook((routeIds) => appMaintenanceService.applyModes(routeIds));
   appsService.setMaintenanceHooks(appMaintenanceService);
   appMembersService.setRouteMoveHook((routeIds) => appMaintenanceService.applyModes(routeIds));

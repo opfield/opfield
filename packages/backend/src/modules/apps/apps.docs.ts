@@ -219,3 +219,16 @@ export const patchAppSecretsRoute = appRoute({
   request: { params: EnvParams, ...jsonBody(PatchAppSecretsSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });
+
+export const AppAccessCodeBodySchema = z.object({ environmentId: z.string().uuid().optional() }).strict();
+
+export const createAppAccessCodeRoute = appRoute({
+  method: 'post',
+  path: '/{id}/maintenance-access-code',
+  tags: TAGS,
+  summary: 'Create a Maintenance Access Code for an app or environment',
+  description:
+    'One code for every route of the environment (environmentId; apps:env:manage on it) or of the whole app (no environmentId; apps:env:manage on the app) that is in maintenance on a node that supports team access. The code is for one user, valid 5 minutes, and opens each route once in a browser (Team access on the maintenance page). routeCount says how many routes it opens. Refused when no route of the scope is in maintenance.',
+  request: { params: AppParams, ...jsonBody(AppAccessCodeBodySchema) },
+  responses: okJson(UnknownDataResponseSchema),
+});

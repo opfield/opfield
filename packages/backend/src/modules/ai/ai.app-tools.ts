@@ -1,5 +1,6 @@
 import { container } from '@/container.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { AppMaintenanceAccessService } from '@/modules/apps/app-maintenance-access.js';
 import { AppMembersService } from '@/modules/apps/app-members.service.js';
 import { AppNodesService } from '@/modules/apps/app-nodes.service.js';
 import { AppVariablesService } from '@/modules/apps/app-variables.service.js';
@@ -93,6 +94,10 @@ async function manageEnvironment(service: AppsService, actor: AppActor, args: Re
     case 'delete':
       await service.deleteEnvironment(actor, appId, environmentId());
       return { success: true };
+    case 'create_access_code':
+      return container
+        .resolve(AppMaintenanceAccessService)
+        .issue(actor, appId, typeof args.environmentId === 'string' && args.environmentId ? args.environmentId : null);
     case 'list_nodes':
       return container.resolve(AppNodesService).list(actor, appId, environmentId());
     case 'allow_node':
