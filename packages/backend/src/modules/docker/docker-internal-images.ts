@@ -68,6 +68,88 @@ export function resolveDockerImageByIdentifier(images: DockerImageLike[], identi
   return prefixMatches.length === 1 ? prefixMatches[0] : null;
 }
 
+const DOCKER_HUB_HOSTS = new Set(['docker.io', 'index.docker.io', 'registry-1.docker.io']);
+
+/**
+ * A reference in the form Docker stores it, so `python:3.13-alpine`, `library/python:3.13-alpine` and
+ * `docker.io/library/python:3.13-alpine` compare equal: registry host (Docker Hub's aliases as docker.io), path
+ * (`library/` for an official image), tag (latest when neither a tag nor a digest is named) and digest.
+ */
+export function canonicalDockerReference(reference: string): {
+  repository: string;
+  tag: string | null;
+  digest: string | null;
+} {
+  const [name = '', digestPart] = reference.trim().split('@', 2);
+  const digest = digestPart && /^sha256:[0-9a-f]{64}$/i.test(digestPart) ? digestPart.toLowerCase() : null;
+  const lastSlash = name.lastIndexOf('/');
+  const lastColon = name.lastIndexOf(':');
+  const path = lastColon > lastSlash ? name.slice(0, lastColon) : name;
+  const tag = lastColon > lastSlash ? name.slice(lastColon + 1) : digest ? null : 'latest';
+  const firstSlash = path.indexOf('/');
+  const first = firstSlash >= 0 ? path.slice(0, firstSlash) : '';
+  const hasHost = first === 'localhost' || first.includes('.') || first.includes(':');
+  const host = hasHost ? (DOCKER_HUB_HOSTS.has(first.toLowerCase()) ? 'docker.io' : first.toLowerCase()) : 'docker.io';
+  let rest = hasHost ? path.slice(firstSlash + 1) : path;
+  if (host === 'docker.io' && !rest.includes('/')) rest = `library/${rest}`;
+  return { repository: `${host}/${rest}`, tag, digest };
+}
+
+function uniqueImage<T>(matches: T[]): T | null {
+  return matches.length === 1 ? matches[0]! : null;
+}
+
+/**
+ * The image a pull of `imageRef` left on the node, read from the image list after the pull. Docker stores
+ * references in its own form: Hub images without `docker.io/library/`, an image pulled by `repo:tag@digest` only as
+ * `repo@digest`. So after an exact match this compares canonical references: by digest (same repository first,
+ * then the digest alone), then by repository and tag. Last, when `existingImageIds` (the list before the pull) is
+ * known: the one new image of that repository (or without any reference). Null when it cannot be told.
+ */
+export function resolvePulledDockerImage<T extends DockerImageLike>(
+  images: T[],
+  imageRef: string,
+  existingImageIds?: ReadonlySet<string>
+): T | null {
+  const exact = resolveDockerImageByIdentifier(images, imageRef);
+  if (exact) return exact as T;
+  const requested = canonicalDockerReference(imageRef);
+  const digestsOf = (image: T) =>
+    dockerImageReferences(image)
+      .filter((reference) => reference.includes('@'))
+      .map(canonicalDockerReference);
+  const tagsOf = (image: T) =>
+    dockerImageReferences(image)
+      .filter((reference) => !reference.includes('@') && reference !== '<none>:<none>')
+      .map(canonicalDockerReference);
+  const withReference = (test: (entry: ReturnType<typeof canonicalDockerReference>) => boolean, digests: boolean) =>
+    uniqueImage(images.filter((image) => (digests ? digestsOf(image) : tagsOf(image)).some(test)));
+  if (requested.digest) {
+    const sameRepository = withReference(
+      (entry) => entry.digest === requested.digest && entry.repository === requested.repository,
+      true
+    );
+    if (sameRepository) return sameRepository;
+    const sameDigest = withReference((entry) => entry.digest === requested.digest, true);
+    if (sameDigest) return sameDigest;
+  } else {
+    const sameTag = withReference(
+      (entry) => entry.repository === requested.repository && entry.tag === requested.tag,
+      false
+    );
+    if (sameTag) return sameTag;
+  }
+  if (!existingImageIds) return null;
+  // A new image of another repository came from another pull at the same time: never take it for this one.
+  const fresh = images.filter((image) => !existingImageIds.has(dockerImageId(image)));
+  return uniqueImage(
+    fresh.filter((image) => {
+      const references = [...digestsOf(image), ...tagsOf(image)];
+      return references.length === 0 || references.some((entry) => entry.repository === requested.repository);
+    })
+  );
+}
+
 export function gatewayInternalImageKind(image: DockerImageLike): GatewayInternalImageKind | null {
   for (const reference of dockerImageReferences(image)) {
     const repository = normalizedRepository(reference);
