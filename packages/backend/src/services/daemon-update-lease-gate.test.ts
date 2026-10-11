@@ -127,7 +127,8 @@ describe('leaseUpdateBlockers', () => {
     const quiet = { since: NOW - 10_000, reportedAt: null };
     expect(leaseUpdateBlockers(view({ [policy]: ['p', 'c'] }, { p: quiet, c: quiet }), 'p', NOW).blockers).toEqual([]);
     expect(
-      leaseUpdateBlockers(view({ [policy]: ['p', 'c'] }, { p: quiet, c: { ...quiet, updating: true } }), 'p', NOW).blockers
+      leaseUpdateBlockers(view({ [policy]: ['p', 'c'] }, { p: quiet, c: { ...quiet, updating: true } }), 'p', NOW)
+        .blockers
     ).toEqual([{ memberId: 'c', policyId: policy, reason: 'updating' }]);
   });
 });

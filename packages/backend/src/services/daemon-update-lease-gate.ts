@@ -314,7 +314,8 @@ async function addAvailabilitySets(
       const fresh = !!member.lastReportedAt && now - member.lastReportedAt.getTime() <= SET_MEMBER_REPORT_FRESH_MS;
       // A report from before the node's current session describes the member before its restart.
       const connectedAt = registry.getNode(member.nodeId)?.connectedAt?.getTime() ?? null;
-      const sinceRestart = connectedAt === null || (!!member.lastReportedAt && member.lastReportedAt.getTime() >= connectedAt);
+      const sinceRestart =
+        connectedAt === null || (!!member.lastReportedAt && member.lastReportedAt.getTime() >= connectedAt);
       if (fresh && sinceRestart && member.eligible) continue;
       const policies = catchingUp.get(member.nodeId) ?? new Set<string>();
       policies.add(policyId);

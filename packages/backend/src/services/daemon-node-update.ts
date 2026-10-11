@@ -5,6 +5,7 @@ import { nodes as nodesTable } from '@/db/schema/nodes.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { isNewerVersion, parseSemver } from '@/lib/semver.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { AvailabilityMembersService } from './availability-members.service.js';
 import {
   type DaemonUpdateService,
   daemonTypeForNodeType,
@@ -12,7 +13,6 @@ import {
   NODE_UPDATE_TASK_WAIT_TIMEOUT_MS,
   NODE_UPDATE_WAITING_PHASE,
 } from './daemon-update.service.js';
-import { AvailabilityMembersService } from './availability-members.service.js';
 import type { LeaseUpdateBlocker } from './daemon-update-lease-gate.js';
 import type { DaemonUpdateRollout } from './daemon-update-rollout.service.js';
 import type { NodeDispatchService } from './node-dispatch.service.js';

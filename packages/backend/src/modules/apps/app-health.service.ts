@@ -60,7 +60,10 @@ export function healthFromStatus(status: string | null | undefined): MemberHealt
  * the set's state says whether the copies can take over. A set that lost a copy or cannot fail over is degraded, never
  * down while the primary answers; a failover in progress is degraded too (the copy takes over within seconds).
  */
-export function withAvailabilityState(health: MemberHealth, state: ManagedAvailabilityState | null | undefined): MemberHealth {
+export function withAvailabilityState(
+  health: MemberHealth,
+  state: ManagedAvailabilityState | null | undefined
+): MemberHealth {
   if (!state || state === 'healthy' || health === 'none') return health;
   if (health === 'healthy') return 'degraded';
   if (health === 'failing' && state === 'failing_over') return 'degraded';
@@ -199,7 +202,10 @@ export class AppHealthService implements AppHealthProvider {
         this.db
           .select({ id: managedDatabaseInstances.databaseConnectionId, state: managedAvailabilitySets.state })
           .from(managedAvailabilitySets)
-          .innerJoin(managedDatabaseInstances, eq(managedDatabaseInstances.id, managedAvailabilitySets.managedDatabaseId))
+          .innerJoin(
+            managedDatabaseInstances,
+            eq(managedDatabaseInstances.id, managedAvailabilitySets.managedDatabaseId)
+          )
           .where(inArray(managedDatabaseInstances.databaseConnectionId, list))
       ),
       this.rows(ids('storage'), (list) =>

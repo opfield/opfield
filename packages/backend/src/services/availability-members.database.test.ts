@@ -202,7 +202,8 @@ describe.skipIf(!url)('availability members on disposable PostgreSQL', () => {
         pendingRestartOperationId: 'op-2',
       },
     ]);
-    const [member] = (await q('select engine_position from managed_availability_members where id = $1', [memberB])).rows;
+    const [member] = (await q('select engine_position from managed_availability_members where id = $1', [memberB]))
+      .rows;
     expect(member.engine_position).toEqual({ lsn: '0/2', 'runtime.stopped': 'true', 'runtime.pendingRestart': 'op-2' });
   });
 

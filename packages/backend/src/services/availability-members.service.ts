@@ -165,7 +165,10 @@ export class AvailabilityMembersService {
         await Promise.race([
           handoff(nodeId),
           new Promise<void>((_, reject) => {
-            timer = setTimeout(() => reject(new Error('the handoff did not finish in time')), NODE_UPDATE_HANDOFF_TIMEOUT_MS);
+            timer = setTimeout(
+              () => reject(new Error('the handoff did not finish in time')),
+              NODE_UPDATE_HANDOFF_TIMEOUT_MS
+            );
             timer.unref?.();
           }),
         ]);
@@ -381,7 +384,8 @@ export class AvailabilityMembersService {
     delete position[MEMBER_RUNTIME_STOPPED_KEY];
     delete position[MEMBER_RUNTIME_PENDING_RESTART_KEY];
     if (report.stopped) position[MEMBER_RUNTIME_STOPPED_KEY] = 'true';
-    if (report.pendingRestartOperationId) position[MEMBER_RUNTIME_PENDING_RESTART_KEY] = report.pendingRestartOperationId;
+    if (report.pendingRestartOperationId)
+      position[MEMBER_RUNTIME_PENDING_RESTART_KEY] = report.pendingRestartOperationId;
     await this.db
       .update(managedAvailabilityMembers)
       .set({
