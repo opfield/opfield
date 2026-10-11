@@ -25,12 +25,13 @@ license's competition restriction. See COMMERCIAL-LICENSE.md.
 
 PRODUCT CONTINUITY
 ------------------
-The Product Continuity MIT Grant is not triggered by release age,
-inactivity, support, sales, website, or licensing-service availability.
-Its automatic terms apply only after final dissolution of a company
-rights holder and 90 days without a successor or assignee, or through
-an express voluntary MIT election. See CONTINUITY-MIT-GRANT.md for the
-complete terms.
+If Opfield stops being provided (12 consecutive months with no
+release and no license server, or an end-of-life notice) or the
+Licensor dies or can no longer act, holders of a key valid at that
+moment keep a perpetual, royalty-free license to use, self-host and
+modify for their own use the last release, including the commercial
+core, and to run it without the license server. See
+CONTINUITY-GRANT.md for the complete terms.
 
 THIRD-PARTY SOFTWARE
 --------------------

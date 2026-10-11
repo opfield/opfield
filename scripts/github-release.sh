@@ -121,7 +121,7 @@ publish_gateway() {
   local digest
   local installers_dir=release-installers
   ./scripts/stage-installers.sh "$tag" "$installers_dir"
-  local assets=(CONTINUITY-MIT-GRANT.md gateway-image.update.json "$installers_dir"/*)
+  local assets=(CONTINUITY-GRANT.md gateway-image.update.json "$installers_dir"/*)
   prepare_release "Opfield ${tag}" "Opfield release ${tag}"
   if [[ "$release_already_published" -eq 1 ]]; then
     complete_release "${assets[@]}"

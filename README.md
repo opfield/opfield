@@ -233,7 +233,7 @@ Opfield has four product plans. Paid plans apply to one Opfield installation and
 
 Opfield source is available under the [PolyForm Perimeter License 1.0.1](LICENSE.md). It permits use, modification, and redistribution for noncompeting purposes, including ordinary internal business use. A Personal, Business, or Enterprise key unlocks the corresponding paid-plan features and limits under the [Paid Key Terms](COMMERCIAL-LICENSE.md); it does not waive Perimeter's restriction on providing a product marketed as a substitute for Opfield. Competing hosted/SaaS, OEM, white-label, and resale offerings require a separate written agreement with the Licensor.
 
-Every official release also carries the [Product Continuity MIT Grant](CONTINUITY-MIT-GRANT.md), a source-continuity backstop for covered Opfield code. The grant itself is the authoritative source for its scope, conditions, exclusions, and any MIT transition.
+Every official release also carries the [Product Continuity Grant](CONTINUITY-GRANT.md): if Opfield stops being provided (12 months with no release and no license server, or an end-of-life notice) or the Licensor can no longer act, holders of a valid key keep a perpetual, royalty-free right to use, self-host and modify for their own use the last release, including the commercial core, and to run it without the license server.
 
 > [!NOTE]
 > Pricing is preliminary, does not constitute an offer, and is subject to change. Confirm current pricing and terms before purchase.

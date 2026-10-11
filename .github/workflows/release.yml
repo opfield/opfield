@@ -225,7 +225,7 @@ jobs:
           # Every installer the node setup commands of this release download, with their checksums.
           installers_dir="${RUNNER_TEMP}/installers"
           scripts/stage-installers.sh "$GITHUB_REF_NAME" "$installers_dir"
-          assets=(CONTINUITY-MIT-GRANT.md gateway-image.update.json "$installers_dir"/* "${RUNNER_TEMP}/witness-artifacts"/*)
+          assets=(CONTINUITY-GRANT.md gateway-image.update.json "$installers_dir"/* "${RUNNER_TEMP}/witness-artifacts"/*)
           gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
           uploaded=$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')
           for asset in "${assets[@]}"; do

@@ -10,8 +10,8 @@ let fixtureDir;
 let canonicalGrant;
 
 before(async () => {
-  fixtureDir = await mkdtemp(path.join(tmpdir(), 'gateway-continuity-grant-'));
-  canonicalGrant = await readFile('CONTINUITY-MIT-GRANT.md', 'utf8');
+  fixtureDir = await mkdtemp(path.join(tmpdir(), 'opfield-continuity-grant-'));
+  canonicalGrant = await readFile('CONTINUITY-GRANT.md', 'utf8');
 });
 
 after(async () => {
@@ -19,9 +19,16 @@ after(async () => {
 });
 
 async function verifyGrant(contents) {
-  const fixture = path.join(fixtureDir, 'CONTINUITY-MIT-GRANT.md');
+  const fixture = path.join(fixtureDir, 'CONTINUITY-GRANT.md');
   await writeFile(fixture, contents, 'utf8');
   return spawnSync(process.execPath, [verifier, fixture], { encoding: 'utf8' });
+}
+
+async function assertRejected(from, to) {
+  assert.ok(canonicalGrant.includes(from), `canonical grant lacks: ${from}`);
+  const result = await verifyGrant(canonicalGrant.replace(from, to));
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /does not match the canonical continuity grant digest/);
 }
 
 test('accepts the complete canonical continuity grant', async () => {
@@ -30,62 +37,22 @@ test('accepts the complete canonical continuity grant', async () => {
   assert.equal(result.status, 0, result.stderr);
 });
 
-test('rejects any change to the canonical trigger', async () => {
-  const result = await verifyGrant(
-    canonicalGrant.replace(
-      'ninety-first consecutive calendar day after a **Final Dissolution Event**',
-      'thirty-first consecutive calendar day after a **Final Dissolution Event**'
-    )
-  );
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /does not match the canonical continuity grant digest/);
+test('the inference package carries the same grant', async () => {
+  assert.equal(await readFile('packages/gateway-inference/CONTINUITY-GRANT.md', 'utf8'), canonicalGrant);
 });
 
-test('rejects removal of the pre-company-assignment boundary', async () => {
-  const result = await verifyGrant(
-    canonicalGrant.replace(
-      'The automatic transition described below is unavailable unless and until the relevant rights are owned by a Company Rights Holder.\n',
-      ''
-    )
-  );
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /does not match the canonical continuity grant digest/);
+test('rejects any change to the inactivity trigger', async () => {
+  await assertRejected('for 12 consecutive months', 'for 36 consecutive months');
 });
 
-test('rejects removal of key continuity during succession', async () => {
-  const result = await verifyGrant(
-    canonicalGrant.replace(
-      'A succession does not reduce rights already granted to users, change the conditions of this grant, terminate applicable paid-key terms, or revoke, invalidate, or deactivate any valid commercial key.\n',
-      ''
-    )
-  );
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /does not match the canonical continuity grant digest/);
+test('rejects removal of the end-of-life and incapacity triggers', async () => {
+  await assertRejected('3. the Licensor dies or is legally declared unable to act.\n', '');
 });
 
-test('rejects removal of the successor condition', async () => {
-  const result = await verifyGrant(
-    canonicalGrant.replace(
-      '- the relevant rights in the Covered Source have been transferred or assigned to a legal successor or another person or entity;\n',
-      ''
-    )
-  );
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /does not match the canonical continuity grant digest/);
+test('rejects removal of the right to run without the license server', async () => {
+  await assertRejected('- the right to run that release without the license server', '- the right to run that release');
 });
 
-test('rejects removal of a service non-trigger', async () => {
-  const result = await verifyGrant(
-    canonicalGrant.replace(
-      '- unavailability of a company website, documentation website, source repository, update service, licensing service, or any other online service, for any duration;\n',
-      ''
-    )
-  );
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /does not match the canonical continuity grant digest/);
+test('rejects removal of the commercial core from the grant', async () => {
+  await assertRejected(', including its commercial core', '');
 });
