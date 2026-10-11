@@ -136,15 +136,14 @@ Contact [support@opfield.dev](mailto:support@opfield.dev) or [Opfield on Telegra
 
 ## Product License Verification
 
-Opfield verifies paid product license keys against:
+Opfield verifies paid product license keys with the Opfield license server and finds it automatically:
+it keeps an up-to-date list of the license server's addresses and uses whichever answers. Today these are
+`https://license.opfield.dev`, `https://license.thesqlabs.com` and `https://license.wiolett.cloud`; allow them in an
+egress allowlist, together with the update host `https://get.opfield.dev`.
 
-```text
-https://license.opfield.dev
-```
-
-Releases up to 2.11 use `https://license.thesqlabs.com`, which serves the same license server and stays
-available. If `license.opfield.dev` cannot be reached at all, Opfield retries the request there, so an egress
-allowlist written for an older release keeps working; allow `license.opfield.dev` as well.
+To send license requests through an address of your own, such as an egress proxy, set `LICENSE_SERVICE_URL` in
+Opfield's `.env` (several addresses can be separated by commas) and restart Opfield. Opfield tries that address first
+and the license server's own addresses after it.
 
 Registration and activation flow:
 

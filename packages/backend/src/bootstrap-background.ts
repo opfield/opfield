@@ -57,6 +57,7 @@ import { ExternalSshService } from '@/modules/integrations/external-ssh.service.
 import { IntegrationsService } from '@/modules/integrations/integrations.service.js';
 import { LicenseService } from '@/modules/license/license.service.js';
 import { LICENSE_SCHEDULER_INTERVAL_MS } from '@/modules/license/license.types.js';
+import { LICENSE_ENDPOINTS_REFRESH_INTERVAL_MS } from '@/modules/license/license-endpoints.js';
 import { LicenseEntitlementReconcilerService } from '@/modules/license/license-entitlement-reconciler.service.js';
 import { LicenseModuleService } from '@/modules/license/license-module.service.js';
 import { LoggingClickHouseService } from '@/modules/logging/logging-clickhouse.service.js';
@@ -462,6 +463,9 @@ export async function initializeBackgroundServices(): Promise<void> {
   scheduler.registerInterval('update-check', env.UPDATE_CHECK_INTERVAL_HOURS * 3_600_000, () => updateCheckJob.run());
   setTimeout(() => void updateCheckJob.run(), 0);
   scheduler.registerInterval('license-heartbeat', LICENSE_SCHEDULER_INTERVAL_MS, () => licenseService.heartbeat());
+  scheduler.registerInterval('license-endpoints', LICENSE_ENDPOINTS_REFRESH_INTERVAL_MS, () =>
+    licenseService.refreshServiceEndpoints()
+  );
 
   const daemonUpdateCheckJob = new DaemonUpdateCheckJob(daemonUpdateService);
   scheduler.registerInterval('daemon-update-check', env.UPDATE_CHECK_INTERVAL_HOURS * 3_600_000, () =>
@@ -551,11 +555,15 @@ export async function initializeBackgroundServices(): Promise<void> {
   );
 
   setTimeout(() => {
-    licenseService.heartbeat().catch((error) => {
-      logger.warn('Initial license heartbeat failed', {
-        error: error instanceof Error ? error.message : String(error),
+    // The first heartbeat goes to the addresses the latest endpoints document names.
+    licenseService
+      .refreshServiceEndpoints()
+      .then(() => licenseService.heartbeat())
+      .catch((error) => {
+        logger.warn('Initial license heartbeat failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
       });
-    });
   }, 1000);
   setTimeout(() => {
     housekeepingService

@@ -62,6 +62,7 @@ Options:
 
 Environment:
   GATEWAY_E2E_LICENSE_KEY  Paid license key for step 6 (optional)
+  GATEWAY_E2E_LICENSE_HOSTS  License service host names to block, comma-separated (default: config/license-service.json)
 EOF
 }
 
@@ -69,10 +70,15 @@ REPO="the-square-labs/gateway"
 RAW_BASE="https://raw.githubusercontent.com/${REPO}"
 RELEASE_DOWNLOAD="https://github.com/${REPO}/releases/download"
 REAL_FEED="https://get.opfield.dev/gateway/releases"
-# The license server answers on license.opfield.dev (2.12+) and on its earlier name, which releases up to 2.11 use and
-# 2.12+ fall back to; the DNS guard blocks both, the app-container lookup checks the current one.
-LICENSE_HOST="license.opfield.dev"
-LICENSE_HOSTS="license.opfield.dev,license.thesqlabs.com"
+# Every address of the license service (config/license-service.json; --ssh passes them along): the DNS guard blocks
+# them all, the app-container lookup checks the first.
+if [[ -z "${GATEWAY_E2E_LICENSE_HOSTS:-}" && -f "${BASH_SOURCE[0]%/*}/../config/license-service.json" ]]; then
+  GATEWAY_E2E_LICENSE_HOSTS="$(python3 -c 'import json, sys, urllib.parse
+print(",".join(urllib.parse.urlsplit(u).hostname for u in json.load(open(sys.argv[1]))["endpoints"]))' \
+    "${BASH_SOURCE[0]%/*}/../config/license-service.json")"
+fi
+LICENSE_HOSTS="${GATEWAY_E2E_LICENSE_HOSTS:?run from a checkout (config/license-service.json) or set GATEWAY_E2E_LICENSE_HOSTS}"
+LICENSE_HOST="${LICENSE_HOSTS%%,*}"
 MAILPIT_IMAGE="docker.io/axllent/mailpit:v1.31.3"
 WEB_IMAGE="nginx:1.27-alpine"
 INSTALL_DIR="/opt/gateway"
@@ -168,6 +174,7 @@ parse_args() {
     [[ -f "$self" ]] || { echo "--ssh needs the script as a file" >&2; exit 2; }
     {
       [[ -n "$LICENSE_KEY" ]] && printf 'export GATEWAY_E2E_LICENSE_KEY=%q\n' "$LICENSE_KEY"
+      printf 'export GATEWAY_E2E_LICENSE_HOSTS=%q\n' "$LICENSE_HOSTS"
       cat "$self"
     } | ssh "$SSH_TARGET" "sudo -n bash -s -- $(printf '%q ' "${remote[@]}")"
     exit $?

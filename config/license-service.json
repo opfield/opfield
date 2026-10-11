@@ -1,0 +1,4 @@
+{
+  "$comment": "Built-in addresses of the license service, in the order Opfield tries them. The one list for every place that names the license service: the backend defaults (packages/backend/src/config/vendor-urls.ts, kept equal by license-endpoints.test.ts), the signed endpoints document published with each release (scripts/release/license-endpoints.mjs), the commercial core publish CI and scripts/release-upgrade-e2e.sh. Moving the license service: add the new address here, release, and keep every earlier address served.",
+  "endpoints": ["https://license.opfield.dev", "https://license.thesqlabs.com", "https://license.wiolett.cloud"]
+}

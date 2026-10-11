@@ -1,0 +1,40 @@
+name: License endpoints
+
+# Re-signs the license endpoints document (scripts/release/license-endpoints.mjs) on the latest stable release, which
+# the update Worker serves as /gateway/license-endpoints.json. Installations use a document only until it expires, so
+# this keeps it valid between releases and publishes a change to config/license-service.json on main without one.
+# Off until the repository variable LICENSE_ENDPOINTS_PUBLISH is true.
+on:
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: license-endpoints
+  cancel-in-progress: false
+
+jobs:
+  renew:
+    name: Re-sign on the latest release
+    if: ${{ vars.LICENSE_ENDPOINTS_PUBLISH == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Sign and attach
+        env:
+          UPDATE_SIGNING_PRIVATE_KEY_PEM_B64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_PEM_B64 }}
+        run: |
+          tag=$(gh release view --json tagName --jq .tagName)
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::The latest release ${tag} is not a stable Opfield release" >&2; exit 1; }
+          out="${RUNNER_TEMP}/license-endpoints/license-endpoints.json"
+          node scripts/release/license-endpoints.mjs "$out"
+          gh release upload "$tag" "$out" --clobber
+          echo "Re-signed the license endpoints document on ${tag}"

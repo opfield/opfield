@@ -99,6 +99,10 @@ const ARTIFACT_PATTERNS: Readonly<Record<string, RegExp>> = {
 const INSTALLER_ASSET_PATTERN =
 	/^(install\.sh|setup-(daemon|node|docker-node|database-node|storage-node|monitoring-node|relay-node)\.sh|gateway-daemon-installers\.sha256)$/;
 const LATEST_INSTALLER_CACHE_CONTROL = "public, max-age=300";
+// The signed list of license service addresses Opfield installations fetch daily
+// (scripts/release/license-endpoints.mjs): an asset of the latest stable release, re-signed on a schedule.
+const LICENSE_ENDPOINTS_PATH = "/gateway/license-endpoints.json";
+const LICENSE_ENDPOINTS_ASSET = "license-endpoints.json";
 
 interface GitHubRepository {
 	name: string;
@@ -764,6 +768,11 @@ export async function handleRequest(
 		return jsonResponse({ error: "invalid_artifact_path" }, 400);
 	}
 	if (installer) return handleInstaller(request, env, fetcher, installer);
+	if (pathname === LICENSE_ENDPOINTS_PATH)
+		return handleInstaller(request, env, fetcher, {
+			tag: null,
+			assetName: LICENSE_ENDPOINTS_ASSET,
+		});
 	return handleArtifact(request, env, fetcher);
 }
 

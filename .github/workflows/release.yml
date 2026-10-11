@@ -198,6 +198,15 @@ jobs:
           GIT_COMMIT_SHA: ${{ steps.tag.outputs.sha }}
         run: scripts/release/witness-artifacts.sh "$GITHUB_REF_NAME" "${RUNNER_TEMP}/witness-artifacts"
 
+      # The signed list of license service addresses (config/license-service.json) installations fetch daily; the
+      # update Worker serves it from the latest stable release and .github/workflows/license-endpoints.yml re-signs it
+      # there weekly. Off until the repository variable LICENSE_ENDPOINTS_PUBLISH is true.
+      - name: Sign the license endpoints document
+        if: ${{ vars.LICENSE_ENDPOINTS_PUBLISH == 'true' }}
+        env:
+          UPDATE_SIGNING_PRIVATE_KEY_PEM_B64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_PEM_B64 }}
+        run: node scripts/release/license-endpoints.mjs "${RUNNER_TEMP}/license-endpoints/license-endpoints.json"
+
       - name: Prepare the draft GitHub release
         env:
           RELEASE_PRERELEASE: ${{ steps.tag.outputs.prerelease }}
@@ -226,6 +235,10 @@ jobs:
           installers_dir="${RUNNER_TEMP}/installers"
           scripts/stage-installers.sh "$GITHUB_REF_NAME" "$installers_dir"
           assets=(CONTINUITY-GRANT.md gateway-image.update.json "$installers_dir"/* "${RUNNER_TEMP}/witness-artifacts"/*)
+          license_endpoints="${RUNNER_TEMP}/license-endpoints/license-endpoints.json"
+          if [[ -f "$license_endpoints" ]]; then
+            assets+=("$license_endpoints")
+          fi
           gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
           uploaded=$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')
           for asset in "${assets[@]}"; do

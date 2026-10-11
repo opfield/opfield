@@ -551,6 +551,54 @@ describe("gateway update facade", () => {
 		expect(response.headers.get("Cache-Control")).toBe("public, max-age=300");
 	});
 
+	it("serves the license endpoints document of the latest stable release under every host name", async () => {
+		const fetcher = vi.fn<typeof fetch>(async (input) =>
+			String(input).endsWith("/releases/latest")
+				? Response.json({
+						...release("v2.12.0"),
+						assets: [
+							{
+								id: 9,
+								name: "license-endpoints.json",
+								size: 2,
+								content_type: "application/json",
+							},
+						],
+					})
+				: new Response("{}"),
+		);
+		for (const host of ["get.opfield.dev", "updates.thesqlabs.com"]) {
+			fetcher.mockClear();
+			const response = await handleRequest(
+				new Request(`https://${host}/gateway/license-endpoints.json`),
+				env,
+				fetcher,
+			);
+			expect(response.status).toBe(200);
+			await expect(response.text()).resolves.toBe("{}");
+			expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+				"https://api.github.com/repos/the-square-labs/gateway/releases/latest",
+			);
+			expect(String(fetcher.mock.calls[1]?.[0])).toContain(
+				"/releases/assets/9",
+			);
+			expect(response.headers.get("Cache-Control")).toBe("public, max-age=300");
+		}
+	});
+
+	it("answers 404 while the latest release carries no license endpoints document", async () => {
+		const fetcher = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(Response.json(release("v2.12.0")));
+		const response = await handleRequest(
+			new Request("https://get.opfield.dev/gateway/license-endpoints.json"),
+			env,
+			fetcher,
+		);
+		expect(response.status).toBe(404);
+		expect(fetcher).toHaveBeenCalledOnce();
+	});
+
 	it("serves a release's node installers in the GitHub download layout", async () => {
 		const fetcher = vi
 			.fn<typeof fetch>()
