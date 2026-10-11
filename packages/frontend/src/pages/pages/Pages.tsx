@@ -1,9 +1,20 @@
-import { FolderPlus, Globe2, Plus, Settings } from "lucide-react";
+import {
+  ArrowRightLeft,
+  Copy,
+  ExternalLink,
+  FolderPlus,
+  Globe2,
+  MoreVertical,
+  Plus,
+  Settings,
+  Trash2,
+  UploadCloud,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { MoveToAppDialog } from "@/components/apps/MoveToAppDialog";
-import { MoveToAppRowMenu } from "@/components/apps/MoveToAppRowMenu";
+import { confirm } from "@/components/common/ConfirmDialog";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderedResourceList } from "@/components/common/FolderedResourceList";
@@ -12,7 +23,15 @@ import { PageTransition } from "@/components/common/PageTransition";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
 import { NORMAL_LIST_FILTER } from "@/lib/app-members";
@@ -21,6 +40,7 @@ import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import type { PageProject } from "@/types";
 import { CreatePageProjectDialog } from "./CreatePageProjectDialog";
+import { PageManualDeployDialog } from "./PageManualDeployDialog";
 import { formatPageBytes } from "./page-format";
 
 const projectColumns: ResourceListColumn<PageProject>[] = [
@@ -45,25 +65,28 @@ const projectColumns: ResourceListColumn<PageProject>[] = [
   },
   {
     id: "deployments",
-    label: "Deployments",
-    width: "20%",
-    cellContentClassName: "text-sm text-muted-foreground",
-    renderCell: (project) => project.deploymentCount,
+    label: "Releases",
+    width: "14%",
+    align: "right",
+    renderCell: (project) => <Badge variant="secondary">{project.deploymentCount}</Badge>,
   },
   {
     id: "tags",
     label: "Tags",
     width: "10%",
-    cellContentClassName: "text-sm text-muted-foreground",
-    renderCell: (project) => project.tagCount,
+    align: "right",
+    renderCell: (project) => <Badge variant="secondary">{project.tagCount}</Badge>,
   },
   {
     id: "storage",
     label: "Storage",
-    width: "14%",
-    cellContentClassName: "text-sm text-muted-foreground",
-    renderCell: (project) =>
-      `${formatPageBytes(project.storageUsedBytes)} / ${formatPageBytes(project.storageQuotaBytes)}`,
+    width: "20%",
+    align: "right",
+    renderCell: (project) => (
+      <Badge variant="secondary">
+        {`${formatPageBytes(project.storageUsedBytes)} / ${formatPageBytes(project.storageQuotaBytes)}`}
+      </Badge>
+    ),
   },
   {
     id: "updated",
@@ -83,6 +106,8 @@ export function Pages() {
   const canViewSettings = hasScope("pages:settings:view") || hasScope("pages:settings:edit");
   const canManageFolders = useCanManageSomeFolders("pages:folders:manage");
   const canEdit = hasScopedAccess("pages:edit");
+  const canDeployAny = hasScopedAccess("pages:deploy");
+  const canDeleteAny = hasScopedAccess("pages:delete");
   const [projects, setProjects] = useState<PageProject[]>(() => {
     const cached = api.getCached<{ data: PageProject[] }>("pages:projects");
     return cached?.data ?? [];
@@ -95,6 +120,7 @@ export function Pages() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [createFolderAction, setCreateFolderAction] = useState<(() => void) | null>(null);
   const [moveToAppProject, setMoveToAppProject] = useState<PageProject | null>(null);
+  const [deployProject, setDeployProject] = useState<PageProject | null>(null);
 
   const load = useCallback(async () => {
     const version = ++loadVersion.current;
@@ -144,28 +170,110 @@ export function Pages() {
     (project: PageProject) => navigate(`/pages/${project.slug}/deployments`),
     [navigate]
   );
+  const removeProject = useCallback(
+    async (project: PageProject) => {
+      const ok = await confirm({
+        title: "Delete Page Project",
+        description: `Delete ${project.name}? The Project must have no Deployments or Pages Routes.`,
+        confirmLabel: "Delete Project",
+        variant: "destructive",
+      });
+      if (!ok) return;
+      try {
+        await api.deletePageProject(project.id);
+        toast.success("Page Project deleted");
+        await load();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to delete Page Project");
+      }
+    },
+    [load]
+  );
+
   const columns = useMemo<ResourceListColumn<PageProject>[]>(
     () =>
-      canEdit
+      canEdit || canDeployAny || canDeleteAny
         ? [
             ...projectColumns,
             {
               id: "actions",
               label: "Actions",
-              width: "4.5rem",
+              width: "5rem",
               align: "right",
-              renderCell: (project) =>
-                !project.app && hasScope(`pages:edit:${project.id}`) ? (
-                  <MoveToAppRowMenu
-                    resourceLabel={project.name}
-                    onOpen={() => openProject(project)}
-                    onMoveToApp={() => setMoveToAppProject(project)}
-                  />
-                ) : null,
+              renderCell: (project) => {
+                const canDeployRow = hasScopedAccess(`pages:deploy:${project.id}`);
+                const canMoveRow = !project.app && hasScopedAccess(`pages:edit:${project.id}`);
+                // An app member's incident can hold its deletion: delete it from its page.
+                const canDeleteRow = !project.app && hasScopedAccess(`pages:delete:${project.id}`);
+                const domainUrl = project.primaryDomain
+                  ? `${window.location.protocol}//${project.primaryDomain}`
+                  : null;
+                return (
+                  // The row opens the project on click; the menu must not.
+                  <div
+                    className="flex justify-end"
+                    onClick={(event) => event.stopPropagation()}
+                    onPointerDown={(event) => event.stopPropagation()}
+                  >
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`${project.name} actions`}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {canDeployRow && (
+                          <DropdownMenuItem onClick={() => setDeployProject(project)}>
+                            <UploadCloud className="h-4 w-4" />
+                            Deploy
+                          </DropdownMenuItem>
+                        )}
+                        {domainUrl && (
+                          <DropdownMenuItem
+                            onClick={() => {
+                              void navigator.clipboard?.writeText(domainUrl);
+                              toast.success("Copied");
+                            }}
+                          >
+                            <Copy className="h-4 w-4" />
+                            Copy domain
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem onClick={() => openProject(project)}>
+                          <ExternalLink className="h-4 w-4" />
+                          Open
+                        </DropdownMenuItem>
+                        {canMoveRow && (
+                          <DropdownMenuItem onClick={() => setMoveToAppProject(project)}>
+                            <ArrowRightLeft className="h-4 w-4" />
+                            Move to app...
+                          </DropdownMenuItem>
+                        )}
+                        {canDeleteRow && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => void removeProject(project)}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete project
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                );
+              },
             },
           ]
         : projectColumns,
-    [canEdit, hasScope, openProject]
+    [canEdit, canDeployAny, canDeleteAny, hasScopedAccess, openProject, removeProject]
   );
 
   return (
@@ -292,6 +400,16 @@ export function Pages() {
           members={moveToAppProject ? [{ type: "pages", id: moveToAppProject.id }] : []}
           resourceLabel={moveToAppProject?.name ?? "the Page Project"}
           onMoved={() => void load()}
+        />
+      )}
+      {deployProject && (
+        <PageManualDeployDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setDeployProject(null);
+          }}
+          projectId={deployProject.id}
+          onUploaded={() => navigate(`/pages/${deployProject.slug}/deployments`)}
         />
       )}
       <CreatePageProjectDialog
