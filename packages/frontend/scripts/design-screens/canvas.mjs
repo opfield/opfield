@@ -140,6 +140,7 @@ const PAGES = [
       { title: "Database", match: ["database-detail", "data-database"] },
       { title: "Storage", match: ["storage", "data-storage-add-dialog"] },
       { title: "Storage detail", match: ["data-storage-overview", "data-storage"] },
+      { title: "Availability", match: ["data-availability"] },
     ],
   },
   {

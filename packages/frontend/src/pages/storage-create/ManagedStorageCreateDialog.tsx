@@ -16,6 +16,17 @@ import {
   rememberAppCreation,
   useAppEnvironmentChoice,
 } from "@/components/apps/app-create-context";
+import {
+  AvailabilityCreateSection,
+  type AvailabilityDraft,
+  type AvailabilityPreflightState,
+  availabilityInputOf,
+  EMPTY_AVAILABILITY_DRAFT,
+} from "@/components/availability-sets/AvailabilityCreateSection";
+import {
+  type AvailabilityServers,
+  AvailabilityServersSelect,
+} from "@/components/availability-sets/AvailabilityServersSelect";
 import { AnimatedHeight } from "@/components/common/AnimatedHeight";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import {
@@ -57,6 +68,7 @@ import { useAuthStore } from "@/stores/auth";
 import { handleLicenseApiError } from "@/stores/license-paywall";
 import { useResourceFolderStore } from "@/stores/resource-folders";
 import type {
+  AvailabilityPreflightInput,
   ManagedObjectStorage,
   ManagedObjectStorageCatalogEntry,
   ManagedObjectStorageCreateInput,
@@ -149,12 +161,14 @@ export function ManagedObjectStorageCreateForm({
   beforeFields,
   nodeLocked = false,
   nodeHint,
+  serversField,
 }: {
   draft: ManagedObjectStorageCreateInput;
   nodes: Node[];
   catalog: ManagedObjectStorageCatalogEntry[];
   capacity: ManagedStorageCapacity;
-  step: 1 | 2 | 3;
+  /** 1 storage, 2 resources, 3 network access; any other value shows none. */
+  step: number;
   onChange: (draft: ManagedObjectStorageCreateInput) => void;
   /** Shown first on step 1 (the App, Environment and Folder fields of the dialog). */
   beforeFields?: ReactNode;
@@ -162,6 +176,8 @@ export function ManagedObjectStorageCreateForm({
   nodeLocked?: boolean;
   /** Shown under the node field (which nodes the app environment allows). */
   nodeHint?: string | null;
+  /** Shown after the node field: one server or several (availability). */
+  serversField?: ReactNode;
 }) {
   const set = <K extends keyof ManagedObjectStorageCreateInput>(
     key: K,
@@ -234,6 +250,7 @@ export function ManagedObjectStorageCreateForm({
                 </p>
               )}
             </div>
+            {serversField}
             <div className="space-y-1.5">
               <label className="text-sm font-medium" htmlFor="managed-storage-version">
                 Engine version
@@ -252,7 +269,7 @@ export function ManagedObjectStorageCreateForm({
               </Select>
               <p className="text-xs text-muted-foreground">
                 {versions.length > 0
-                  ? `New clusters run ${engineLabel} on a single Storage node.`
+                  ? `New storage runs ${engineLabel}.`
                   : `The storage catalog lists no ${engineLabel} version yet. Refresh the page and try again.`}
               </p>
             </div>
@@ -389,9 +406,16 @@ export function ManagedStorageCreateDialog({
   const [loadedNodes, setLoadedNodes] = useState<Node[] | null>(null);
   const [loadedCatalog, setLoadedCatalog] = useState<ManagedObjectStorageCatalogEntry[]>([]);
   const catalog = catalogProp ?? loadedCatalog;
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState(1);
   const [session, setSession] = useState(0);
   const [draft, setDraft] = useState<ManagedObjectStorageCreateInput>(defaultManagedStorageDraft);
+  const [servers, setServers] = useState<AvailabilityServers>("single");
+  const [availabilityDraft, setAvailabilityDraft] =
+    useState<AvailabilityDraft>(EMPTY_AVAILABILITY_DRAFT);
+  const [availabilityCheck, setAvailabilityCheck] = useState<AvailabilityPreflightState>({
+    result: null,
+    pending: false,
+  });
   const [folderId, setFolderId] = useState("");
   const [saving, setSaving] = useState(false);
   const [provisioning, setProvisioning] = useState<{ phase: "waiting" } | null>(null);
@@ -413,6 +437,8 @@ export function ManagedStorageCreateDialog({
     if (open && !wasOpen.current) {
       setDraft(defaultManagedStorageDraft(catalogRef.current));
       setFolderId("");
+      setServers("single");
+      setAvailabilityDraft(EMPTY_AVAILABILITY_DRAFT);
       setStep(1);
       setSession((current) => current + 1);
       setProvisioning(null);
@@ -515,7 +541,16 @@ export function ManagedStorageCreateDialog({
     : isCreateFolderAllowed(folderChoices, folderId);
   const canDeploy =
     !!selectedNode && !noAllowedNode && canDeployManagedStorage(draft, versions, capacity);
-  const stepLabel = { 1: "Storage", 2: "Resources", 3: "Network access" }[step];
+  const several = servers === "several";
+  const stepCount = several ? 4 : 3;
+  const stepLabel = { 1: "Storage", 2: "Resources", 3: "Network access", 4: "Availability" }[
+    Math.min(step, stepCount) as 1 | 2 | 3 | 4
+  ];
+  const availabilityReady =
+    !!availabilityCheck.result &&
+    !availabilityCheck.pending &&
+    availabilityCheck.result.blockers.length === 0;
+  const manualPair = several && availabilityCheck.result?.mode === "manual";
   const canContinue =
     step === 1
       ? draft.name.trim().length > 0 &&
@@ -523,7 +558,20 @@ export function ManagedStorageCreateDialog({
         destinationAllowed &&
         nodes.some((node) => node.id === draft.nodeId) &&
         versions.includes(draft.version)
-      : canDeployManagedStorage({ ...draft, publishedPort: 9000 }, versions, capacity);
+      : step === 3
+        ? canDeploy
+        : canDeployManagedStorage({ ...draft, publishedPort: 9000 }, versions, capacity);
+  const createFolderId = (appContext ? placementFolderId : folderId) || null;
+  const runAvailabilityPreflight = useCallback(
+    (input: AvailabilityPreflightInput) =>
+      api.preflightAvailabilityForCreate("storage", {
+        ...input,
+        version: draft.version,
+        storageSizeGb: draft.storageSizeGb,
+        folderId: createFolderId,
+      }),
+    [createFolderId, draft.storageSizeGb, draft.version]
+  );
 
   const close = useCallback(() => {
     if (provisioning?.phase === "waiting") return;
@@ -556,9 +604,15 @@ export function ManagedStorageCreateDialog({
     try {
       created = await api.createManagedObjectStorage({
         ...draft,
-        folderId: (appContext ? placementFolderId : folderId) || null,
+        folderId: createFolderId,
+        ...(several
+          ? { availability: availabilityInputOf(draft.nodeId, availabilityDraft, "seaweedfs") }
+          : {}),
       });
       rememberAppCreation(appContext, environment);
+      if (created.availabilityError) {
+        toast.warning(`Created on one server: ${created.availabilityError}`);
+      }
       const provisioned = await waitForManagedObjectStorageReady(created.id);
       if (provisioned.status !== "ready" || !provisioned.objectStorageConnectionId) {
         onCreated?.(provisioned.id);
@@ -667,7 +721,7 @@ export function ManagedStorageCreateDialog({
           <DialogHeader>
             <DialogTitle>Deploy Managed Storage</DialogTitle>
             <DialogDescription>
-              Step {step} of 3 — {stepLabel}
+              Step {step} of {stepCount} — {stepLabel}
             </DialogDescription>
           </DialogHeader>
           <AnimatedHeight>
@@ -699,8 +753,27 @@ export function ManagedStorageCreateDialog({
                     ? allowedNodesHint(environment, nodes.length, "storage")
                     : null
                 }
+                serversField={
+                  <AvailabilityServersSelect
+                    value={servers}
+                    onChange={setServers}
+                    disabled={saving}
+                  />
+                }
               />
             )}
+            {step === 4 && several && draft.nodeId ? (
+              <AvailabilityCreateSection
+                engine="seaweedfs"
+                originNodeId={draft.nodeId}
+                nodes={nodes}
+                value={availabilityDraft}
+                onChange={setAvailabilityDraft}
+                runPreflight={runAvailabilityPreflight}
+                onPreflight={setAvailabilityCheck}
+                disabled={saving}
+              />
+            ) : null}
           </AnimatedHeight>
           <DialogFooter>
             {step === 1 ? (
@@ -716,18 +789,25 @@ export function ManagedStorageCreateDialog({
               <>
                 <Button
                   variant="outline"
-                  onClick={() => setStep((current) => (current - 1) as 1 | 2 | 3)}
+                  onClick={() => setStep((current) => Math.max(1, current - 1))}
                   disabled={saving}
                 >
                   <ArrowLeft className="h-4 w-4" /> Back
                 </Button>
-                {step === 2 ? (
-                  <Button onClick={() => setStep(3)} disabled={saving || !canContinue}>
+                {step < stepCount ? (
+                  <Button
+                    onClick={() => setStep((current) => current + 1)}
+                    disabled={saving || !canContinue}
+                  >
                     Next <ArrowRight className="h-4 w-4" />
                   </Button>
                 ) : (
-                  <Button onClick={() => void save()} pending={saving} disabled={!canDeploy}>
-                    Deploy storage
+                  <Button
+                    onClick={() => void save()}
+                    pending={saving}
+                    disabled={!canDeploy || (several && !availabilityReady)}
+                  >
+                    {manualPair ? "Create replicated pair (manual failover)" : "Deploy storage"}
                   </Button>
                 )}
               </>

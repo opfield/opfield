@@ -1,4 +1,5 @@
 import type { CA, Node, NodeInstallation, ProxyHost } from "@/types";
+import type { RelayWitnessHosting, RelayWitnessProcess } from "@/types/availability-sets";
 import type { InferenceSelfUsage } from "@/types/inference";
 import type { UpdateStatus } from "@/types/system";
 
@@ -193,6 +194,12 @@ export interface DashboardRelayInstance {
   reconnecting?: boolean;
   /** Its machine owner turned protected mode on: no console, files, commands or host diagnostics from Gateway. */
   protected?: boolean;
+  /** Whether availability witnesses may run here (admin flag and the relay's local state). */
+  witnessHosting?: RelayWitnessHosting;
+  /** The admin flag alone (newer backends). */
+  witnessHostingAllowed?: boolean;
+  /** Witness processes the relay hosts (newer backends). */
+  witnesses?: RelayWitnessProcess[];
 }
 
 /**

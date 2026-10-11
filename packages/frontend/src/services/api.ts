@@ -28,6 +28,7 @@ import type { FileEntry } from "@/types/docker";
 import { withAIStatusApi } from "./api-ai-status";
 import { withAppsApi } from "./api-apps";
 import { withAuthApi } from "./api-auth";
+import { withAvailabilitySetsApi } from "./api-availability-sets";
 import { withBackupApi } from "./api-backups";
 import { API_BASE, ApiClientBase } from "./api-base";
 import { withContainerLinksApi } from "./api-container-links";
@@ -63,7 +64,11 @@ class ApiClient extends withAppsApi(
                           withObjectStorageApi(
                             withContainerLinksApi(
                               withDatabaseApi(
-                                withPkiApi(withProxyApi(withHostingApi(ApiClientBase)))
+                                withPkiApi(
+                                  withProxyApi(
+                                    withHostingApi(withAvailabilitySetsApi(ApiClientBase))
+                                  )
+                                )
                               )
                             )
                           )

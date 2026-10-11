@@ -11,6 +11,7 @@ export type {
 } from "./ai";
 export * from "./apps";
 export type * from "./auth";
+export type * from "./availability-sets";
 export type * from "./common";
 export type * from "./container-links";
 export type * from "./dashboard";

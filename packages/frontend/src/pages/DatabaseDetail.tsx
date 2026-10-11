@@ -1,8 +1,17 @@
-import { Activity, DatabaseBackup, Puzzle, ScrollText, Table2, Terminal } from "lucide-react";
+import {
+  Activity,
+  DatabaseBackup,
+  Puzzle,
+  ScrollText,
+  ShieldCheck,
+  Table2,
+  Terminal,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { IsolatedNotice, useMemberIncidentHold } from "@/components/apps/IsolatedNotice";
+import { AvailabilityPanel } from "@/components/availability-sets/AvailabilityPanel";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
@@ -153,7 +162,7 @@ function DatabaseDetailContent({
   const canViewMonitoring = hasDatabaseScope(hasScope, "databases:view", id);
 
   const [activeTab, setActiveTab] = useUrlTab(
-    ["overview", "explorer", "console", "logs", "extensions", "backups"],
+    ["overview", "explorer", "console", "logs", "extensions", "backups", "availability"],
     "overview",
     (tab) => databaseRoute(routeSlug, tab)
   );
@@ -767,7 +776,26 @@ function DatabaseDetailContent({
                   Logs
                 </TabsTrigger>
               )}
+              {database.managed && canViewMonitoring && (
+                <TabsTrigger value="availability" className="gap-1.5">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Availability
+                </TabsTrigger>
+              )}
             </TabsList>
+          )}
+
+          {database.managed && canViewMonitoring && (
+            <TabsContent value="availability" className="space-y-4">
+              <AvailabilityPanel
+                owner={{ kind: "database", id: database.managed.id }}
+                engine={database.type}
+                resourceName={database.name}
+                originNodeId={database.managed.nodeId}
+                canManage={canEdit}
+                onChanged={() => void load()}
+              />
+            </TabsContent>
           )}
 
           {canViewBackups && (

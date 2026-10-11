@@ -1,4 +1,5 @@
 import type { AppMembershipRef } from "./apps";
+import type { AvailabilityEnableInput } from "./availability-sets";
 import type { ManagedDatabaseBindingRuntime } from "./databases";
 
 // Object Storage
@@ -69,6 +70,8 @@ export interface ManagedObjectStorage {
   objectStorageConnectionId: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Create with availability: the storage exists but availability could not be turned on. */
+  availabilityError?: string | null;
 }
 
 export interface ManagedObjectStorageCreateInput {
@@ -92,6 +95,8 @@ export interface ManagedObjectStorageCreateInput {
   tlsEnabled?: boolean;
   /** Folder of the canonical storage connection; null or omitted is the root. */
   folderId?: string | null;
+  /** Create the storage on several servers: every member node (nodeId first) and witness. */
+  availability?: AvailabilityEnableInput;
 }
 
 /** The Storage CA that signs a TLS-enabled managed cluster's S3 certificate. */

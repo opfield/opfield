@@ -1,8 +1,9 @@
-import { Activity, FolderOpen, Key } from "lucide-react";
+import { Activity, FolderOpen, Key, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { MemberIsolatedNotice, useMemberIncidentHold } from "@/components/apps/IsolatedNotice";
+import { AvailabilityPanel } from "@/components/availability-sets/AvailabilityPanel";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
 import {
@@ -120,7 +121,7 @@ function StorageDetailContent({
     canViewMonitoring && !!loadedStorageId && monitoringSettledFor !== loadedStorageId;
 
   const [activeTab, setActiveTab] = useUrlTab(
-    ["overview", "browser", "iam-keys"],
+    ["overview", "browser", "iam-keys", "availability"],
     "overview",
     (tab) => storageRoute(routeSlug, tab)
   );
@@ -432,6 +433,12 @@ function StorageDetailContent({
                 IAM Keys
               </TabsTrigger>
             )}
+            {storage.managed && engine === "seaweedfs" && canViewMonitoring && (
+              <TabsTrigger value="availability" className="gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Availability
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -467,6 +474,19 @@ function StorageDetailContent({
                 managedId={storage.managed.id}
                 engine={engine ?? undefined}
                 canManage={canManageIam}
+              />
+            </TabsContent>
+          )}
+
+          {storage.managed && engine === "seaweedfs" && canViewMonitoring && (
+            <TabsContent value="availability" className="space-y-4">
+              <AvailabilityPanel
+                owner={{ kind: "storage", id: storage.managed.id }}
+                engine="seaweedfs"
+                resourceName={storage.name}
+                originNodeId={storage.managed.nodeId}
+                canManage={canEdit}
+                onChanged={() => void load()}
               />
             </TabsContent>
           )}
