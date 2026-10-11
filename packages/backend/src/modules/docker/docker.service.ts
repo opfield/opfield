@@ -601,6 +601,7 @@ export class DockerManagementService {
 
   private envOperationContext() {
     return {
+      db: this.db,
       nodeDispatch: this.nodeDispatch,
       environmentService: this.environmentService,
       secretService: this.secretService,

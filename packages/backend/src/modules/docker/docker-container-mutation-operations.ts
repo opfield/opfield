@@ -11,6 +11,17 @@ import {
 import { grantCreatedResourcePermissions } from '@/lib/created-resource-permissions.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
+import {
+  appliedLayerKeys,
+  type ContainerLayerPlan,
+  copyContainerLayer,
+  forgetContainerLayer,
+  layerRemovals,
+  layerValues,
+  planContainerLayer,
+  recordContainerLayer,
+  renameContainerLayer,
+} from '@/modules/apps/app-container-layer.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import { assertNodeAllowsServiceCreation } from '@/modules/nodes/service-creation-lock.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
@@ -472,11 +483,15 @@ async function storedEnvBaseline(
   nodeId: string,
   containerId: string,
   storedEnv: Record<string, string>,
-  inspect?: Record<string, any>
+  inspect?: Record<string, any>,
+  /** Keys the container received from its app environment layer: never seeded as its own env. */
+  layerKeys: readonly string[] = []
 ): Promise<Record<string, string>> {
   if (Object.keys(storedEnv).length > 0) return storedEnv;
   const runtime = inspect ?? (await ctx.inspectContainer(nodeId, containerId));
-  return envListToMap(Array.isArray(runtime?.Config?.Env) ? runtime.Config.Env : []);
+  const seeded = envListToMap(Array.isArray(runtime?.Config?.Env) ? runtime.Config.Env : []);
+  for (const key of layerKeys) delete seeded[key];
+  return seeded;
 }
 
 /** User-set environment that may be persisted: never secret keys or masked placeholders. */
@@ -585,13 +600,24 @@ export async function createContainer(
     if (!options.sourceBindingId) await ctx.releaseContainerLinks?.(nodeId, requestedName, userId);
     ctx.setTransition(nodeId, requestedName, 'creating');
   }
+  // An app environment destination: its variables and secrets go to the daemon under the container's own env;
+  // only the container's own env is stored.
+  const layerPlan = await planContainerLayer(
+    ctx.db,
+    nodeId,
+    requestedName ?? null,
+    (config.folderId as string | null | undefined) ?? null
+  );
+  const daemonCreateSource = layerPlan
+    ? { ...config, env: { ...layerValues(layerPlan), ...(normalizeEnvRecord(config.env) ?? {}) } }
+    : config;
   let data: any;
   try {
     if (registryId) {
       await pullConfigImage(ctx, nodeId, config, registryId, actorScopes);
     }
     const result = await ctx.nodeDispatch.sendDockerContainerCommand(nodeId, 'create', {
-      configJson: JSON.stringify(daemonContainerCreateConfig(config)),
+      configJson: JSON.stringify(daemonContainerCreateConfig(daemonCreateSource)),
     });
     data = ctx.parseResult(result);
   } catch (err) {
@@ -645,6 +671,7 @@ export async function createContainer(
         createdName,
         config.folderId as string | null | undefined
       );
+      await recordContainerLayer(layerPlan, nodeId, createdName);
     }
     if (createdName && ctx.environmentService) {
       const env = normalizeEnvRecord(config.env);
@@ -830,6 +857,8 @@ async function removeStoppedContainer(
     deleteContainerWebhooks(ctx.db, nodeId, name),
     // Nor may it inherit the Git source (and its auto-build polling).
     detachContainerSource(ctx.db, nodeId, name, userId),
+    // Nor what it received from its app environment layer.
+    forgetContainerLayer(nodeId, name),
   ]);
   // Nor its managed database and storage links (network, credentials). After the secrets above: the link secrets
   // are gone with the container's.
@@ -928,6 +957,8 @@ export async function renameContainer(
         await ctx.environmentService.rename(nodeId, oldName, newName);
         metadataRollbacks.unshift(() => ctx.environmentService!.rename(nodeId, newName, oldName));
       }
+      await renameContainerLayer(nodeId, oldName, newName);
+      metadataRollbacks.unshift(() => renameContainerLayer(nodeId, newName, oldName));
       if (ctx.runtimeSettingsService) {
         await ctx.runtimeSettingsService.rename(nodeId, oldName, newName);
         metadataRollbacks.unshift(() => ctx.runtimeSettingsService!.rename(nodeId, newName, oldName));
@@ -1065,6 +1096,8 @@ export async function duplicateContainer(
     await ctx.environmentService?.copy(nodeId, sourceName, name);
     await ctx.runtimeSettingsService?.copy(nodeId, sourceName, name);
     await ctx.secretService?.copySecrets(nodeId, sourceName, name, userId);
+    // The copy runs the source's env: it received the source's environment layer.
+    await copyContainerLayer(nodeId, sourceName, name);
     await ctx.auditService.log({
       action: 'docker.container.duplicate',
       userId,
@@ -1165,14 +1198,22 @@ async function updateContainerOnNode(
   const storedEnv = ctx.environmentService ? await ctx.environmentService.getDecryptedMap(nodeId, name) : {};
   const secrets = ctx.secretService ? await ctx.secretService.getDecryptedMap(nodeId, name) : {};
   const secretKeys = new Set(Object.keys(secrets));
-  const envBaseline = hasEnvChange ? await storedEnvBaseline(ctx, nodeId, containerId, storedEnv, inspect) : storedEnv;
+  const layerPlan = await planContainerLayer(ctx.db, nodeId, name);
+  const envBaseline = hasEnvChange
+    ? await storedEnvBaseline(ctx, nodeId, containerId, storedEnv, inspect, appliedLayerKeys(layerPlan))
+    : storedEnv;
   const desiredUserEnv = persistableUserEnv({ ...envBaseline, ...(requestedEnv ?? {}) }, secretKeys);
   for (const key of requestedRemovals ?? []) delete desiredUserEnv[key];
-  const daemonEnv = { ...desiredUserEnv, ...secrets };
+  // App environment layer under the container's own env and secrets.
+  const daemonEnv = { ...layerValues(layerPlan), ...desiredUserEnv, ...secrets };
   if (Object.keys(daemonEnv).length > 0) config.env = daemonEnv;
   else delete config.env;
   // Never allow removing a secret key via removeEnv.
   if (requestedRemovals) config.removeEnv = requestedRemovals.filter((key) => !secretKeys.has(key));
+  const layerRemoved = layerRemovals(layerPlan, [...Object.keys(desiredUserEnv), ...secretKeys]);
+  if (layerRemoved.length > 0) {
+    config.removeEnv = [...((config.removeEnv as string[] | undefined) ?? []), ...layerRemoved];
+  }
   config = await applyPersistedDockerRuntimeSettingsToConfig(ctx.runtimeOperationContext(), nodeId, name, config);
   const hasImageChange = typeof config.tag === 'string' && config.tag.length > 0;
   if (hasImageChange) {
@@ -1234,6 +1275,7 @@ async function updateContainerOnNode(
     if (newRuntimeId) {
       await ctx.accessResourceService?.preserveContainerRuntimeId(nodeId, name, newRuntimeId);
     }
+    await recordContainerLayer(layerPlan, nodeId, name);
   } catch (err) {
     if (await leaveToTheNode(ctx, followUps, task?.id, err, nodeId, name)) {
       throw noteNodeLoss(err, { kind: 'answer-lost', taskId: task?.id });
@@ -1420,6 +1462,7 @@ export async function recreateWithConfig(
   const executeRecreate = async () => {
     // The stored env the recreate finds; it does not change it.
     let storedEnv: Record<string, string> = {};
+    let layerPlan: ContainerLayerPlan | null = null;
     let followUps: DockerEnvFollowUpGate | undefined;
     try {
       // Inject decrypted values in the task so image-changing requests can return immediately.
@@ -1436,6 +1479,16 @@ export async function recreateWithConfig(
         if (Object.keys(secrets).length > 0) {
           const existingEnv = normalizeEnvRecord(config.env) || {};
           config.env = { ...existingEnv, ...secrets };
+        }
+      }
+      // App environment layer under the container's own env and secrets; keys that left the layer are removed.
+      layerPlan = await planContainerLayer(ctx.db, nodeId, name);
+      if (layerPlan) {
+        const ownEnv = normalizeEnvRecord(config.env) || {};
+        config.env = { ...layerValues(layerPlan), ...ownEnv };
+        const removed = layerRemovals(layerPlan, Object.keys(ownEnv));
+        if (removed.length > 0) {
+          config.removeEnv = [...(Array.isArray(config.removeEnv) ? config.removeEnv.map(String) : []), ...removed];
         }
       }
       if (task?.id && ctx.taskService) {
@@ -1482,6 +1535,7 @@ export async function recreateWithConfig(
       if (newRuntimeId) {
         await ctx.accessResourceService?.preserveContainerRuntimeId(nodeId, name, newRuntimeId);
       }
+      await recordContainerLayer(layerPlan, nodeId, name);
       await ctx.auditService.log({
         action: 'docker.container.recreate',
         userId,
@@ -1689,13 +1743,23 @@ export async function updateContainerEnv(
   const storedEnv = ctx.environmentService ? await ctx.environmentService.getDecryptedMap(nodeId, name) : {};
   const secrets = ctx.secretService ? await ctx.secretService.getDecryptedMap(nodeId, name) : {};
   const secretKeys = new Set(Object.keys(secrets));
-  const envBaseline = await storedEnvBaseline(ctx, nodeId, containerId, storedEnv, runtimeInspect);
+  const layerPlan = await planContainerLayer(ctx.db, nodeId, name);
+  const envBaseline = await storedEnvBaseline(
+    ctx,
+    nodeId,
+    containerId,
+    storedEnv,
+    runtimeInspect,
+    appliedLayerKeys(layerPlan)
+  );
   const desiredUserEnv = persistableUserEnv({ ...envBaseline, ...(env ?? {}) }, secretKeys);
   for (const key of removeEnv ?? []) delete desiredUserEnv[key];
-  // Merge decrypted secrets so secrets persist across the recreate.
-  const mergedEnv = { ...desiredUserEnv, ...secrets };
+  // Merge decrypted secrets so secrets persist across the recreate; the app environment layer goes under both.
+  const mergedEnv = { ...layerValues(layerPlan), ...desiredUserEnv, ...secrets };
   // Never allow removing a secret key via removeEnv.
   if (removeEnv) removeEnv = removeEnv.filter((key) => !secretKeys.has(key));
+  const layerRemoved = layerRemovals(layerPlan, [...Object.keys(desiredUserEnv), ...secretKeys]);
+  if (layerRemoved.length > 0) removeEnv = [...(removeEnv ?? []), ...layerRemoved];
 
   // Re-check right before claiming: the stored env read above must not be
   // overwritten by a recreate that started meanwhile.
@@ -1736,6 +1800,7 @@ export async function updateContainerEnv(
       ahead.commandId
     );
     data = ctx.parseResult(result);
+    await recordContainerLayer(layerPlan, nodeId, name);
   } catch (err) {
     // The error keeps its message (the core matches on it); API callers answer it with nodeLossHttpError.
     if (await leaveToTheNode(ctx, followUps, task?.id, err, nodeId, name)) {

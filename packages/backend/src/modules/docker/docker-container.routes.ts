@@ -4,6 +4,7 @@ import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { hasScopeForResource } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { inheritedContainerLayer } from '@/modules/apps/app-container-layer.js';
 import { appForMember, parseAppListFilter, withAppMembers } from '@/modules/apps/app-membership.js';
 import { assertNotImpersonating, requireAnyScopeBase, requireScopeBase } from '@/modules/auth/auth.middleware.js';
 import { LicensePolicyService } from '@/modules/license/license-policy.service.js';
@@ -260,6 +261,18 @@ async function resolveContainerName(nodeId: string, containerId: string): Promis
   const name = (inspect?.Name ?? '').replace(/^\//, '');
   if (!name) throw new Error('Could not resolve container name');
   return name;
+}
+
+/** The app environment layer of a container, by its name on the node (null outside apps). */
+async function containerInheritedEnv(nodeId: string, containerId: string) {
+  try {
+    const name = await resolveContainerName(nodeId, containerId);
+    return name
+      ? await inheritedContainerLayer(container.resolve(TOKENS.DrizzleClient) as DrizzleClient, nodeId, name)
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /** `app` of a container detail (by its name on the node). */
@@ -814,7 +827,9 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
       const nodeId = c.req.param('nodeId')!;
       const containerId = c.req.param('containerId')!;
       const data = await service.getContainerEnv(nodeId, containerId);
-      return c.json({ data });
+      // Variables and secret keys the container gets from its app environment (shown as inherited, read-only).
+      const inherited = await containerInheritedEnv(nodeId, containerId);
+      return c.json({ data, inherited });
     }
   );
 
