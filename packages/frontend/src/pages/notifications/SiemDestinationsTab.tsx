@@ -19,17 +19,11 @@ import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
 import { api } from "@/services/api";
 import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
-import type { SiemAuthType, SiemDestination } from "@/types";
+import type { SiemDestination } from "@/types";
 import { siemDeliveryVariant } from "./notification-status";
 import { SiemDestinationDialog } from "./SiemDestinationDialog";
 
 export const SIEM_DESTINATION_CACHE_KEY = "audit:siem:destinations";
-
-const AUTH_LABEL: Record<SiemAuthType, string> = {
-  bearer: "Bearer",
-  hmac_sha256: "HMAC-SHA256",
-  custom_header: "Custom header",
-};
 
 export function SiemDestinationsTab({
   canRead,
@@ -189,6 +183,11 @@ export function SiemDestinationsTab({
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span className="text-sm font-medium">{destination.name}</span>
+          {!destination.secretConfigured && (
+            <Badge variant="destructive" size="inline">
+              Secret missing
+            </Badge>
+          )}
         </div>
       ),
     },
@@ -198,25 +197,16 @@ export function SiemDestinationsTab({
       render: (destination) => (
         <span
           title={destination.url}
-          className="block min-w-0 truncate font-mono text-sm text-muted-foreground"
+          className="block min-w-0 truncate text-sm text-muted-foreground"
         >
           {destination.url}
         </span>
       ),
     },
     {
-      id: "authentication",
-      header: "Auth",
-      render: (destination) => (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Badge variant="secondary">{AUTH_LABEL[destination.authType]}</Badge>
-          {!destination.secretConfigured && <Badge variant="destructive">Secret missing</Badge>}
-        </div>
-      ),
-    },
-    {
       id: "delivery",
       header: "Last Delivery",
+      align: "right",
       render: (destination) =>
         destination.lastDeliveryStatus ? (
           <Badge variant={siemDeliveryVariant(destination.lastDeliveryStatus)}>
@@ -229,17 +219,17 @@ export function SiemDestinationsTab({
     {
       id: "pending",
       header: "Pending",
+      align: "right",
       className: "w-24",
       cellClassName: "w-24",
-      render: (destination) => (
-        <span className="text-sm text-muted-foreground">{destination.pendingDeliveries}</span>
-      ),
+      render: (destination) => <Badge variant="secondary">{destination.pendingDeliveries}</Badge>,
     },
     {
       id: "enabled",
       header: "Active",
-      className: "w-16",
-      cellClassName: "w-16",
+      align: "right",
+      className: "w-20",
+      cellClassName: "w-20",
       render: (destination) => (
         <div onClick={(event) => event.stopPropagation()}>
           <Switch
@@ -255,10 +245,10 @@ export function SiemDestinationsTab({
     },
     {
       id: "actions",
-      header: "",
+      header: "Actions",
       align: "right",
-      className: "w-12",
-      cellClassName: "w-12",
+      className: "w-24",
+      cellClassName: "w-24",
       render: (destination) =>
         canRead ? (
           <div onClick={(event) => event.stopPropagation()}>
