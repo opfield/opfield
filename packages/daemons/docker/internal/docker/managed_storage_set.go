@@ -70,6 +70,9 @@ type managedStorageSetCommand struct {
 	// Origin: this node serves the storage as a single node now; the update
 	// turns its container into the member layout without losing data.
 	Origin bool `json:"origin,omitempty"`
+	// ImageMove: recreate this member's containers on the daemon's pinned
+	// image (a copy only; managed_storage_set_image_move.go).
+	ImageMove bool `json:"imageMove,omitempty"`
 }
 
 type managedStorageSetMember struct {
@@ -701,6 +704,9 @@ func (m *managedStorageManager) updateSetMember(ctx context.Context, record *man
 			return errors.New("the update names another availability member")
 		}
 		set.Members = input.Set.Members
+		if input.Set.ImageMove {
+			return m.moveSetMemberImage(ctx, record, input)
+		}
 	}
 	release := func() {}
 	if m.plugin != nil && m.plugin.setMembers != nil {
@@ -851,6 +857,7 @@ func (h *seaweedfsSetHost) name(role swha.Role) string {
 func (h *seaweedfsSetHost) Container(ctx context.Context, role swha.Role) (swha.ContainerInfo, error) {
 	inspect, err := h.plugin.client.cli.ContainerInspect(ctx, h.name(role), mobyclient.ContainerInspectOptions{})
 	if isNotFoundErr(err) {
+		h.storage.setImages.observe(h.initial.SetID, role, "", false)
 		return swha.ContainerInfo{}, nil
 	}
 	if err != nil {
@@ -859,6 +866,7 @@ func (h *seaweedfsSetHost) Container(ctx context.Context, role swha.Role) (swha.
 	if inspect.Container.Config == nil || inspect.Container.Config.Labels[managedStorageLabel] != h.id {
 		return swha.ContainerInfo{}, fmt.Errorf("container %s is not this storage member's", h.name(role))
 	}
+	h.storage.setImages.observe(h.initial.SetID, role, inspect.Container.Config.Image, true)
 	c := h.engine.convert(ctx, inspect.Container)
 	return swha.ContainerInfo{Exists: true, Running: c.Running && !c.Restarting, ID: c.ID, CgroupPath: c.CgroupPath, StartedAt: c.StartedAt}, nil
 }

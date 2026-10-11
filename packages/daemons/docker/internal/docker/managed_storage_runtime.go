@@ -31,6 +31,9 @@ type managedStorageManager struct {
 	// plugin reaches the availability member runtime and mesh of SeaweedFS
 	// set members (managed_storage_set.go); nil in tests.
 	plugin *DockerPlugin
+	// setImages are the images the SeaweedFS set members' containers run
+	// (their member report's imageMove).
+	setImages seaweedfsSetImages
 	// dialTargets answers relay dials while dockerd does not (B-26).
 	dialTargets    dialTargetLookups
 	logger         *slog.Logger
