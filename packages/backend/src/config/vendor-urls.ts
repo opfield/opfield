@@ -20,17 +20,17 @@ export const DEFAULT_CLOUD_PORTAL_URL = 'https://account.opfield.dev';
 /** Release feed and artifact host (the update Worker): `${UPDATES_BASE_URL}/releases`, `/<package>/<tag>/<file>`. */
 export const UPDATES_BASE_URL = 'https://get.opfield.dev/gateway';
 /**
- * Earlier names of the same update Worker. Installs up to 2.11 use them and they stay served forever. Manifests signed
- * before the move name their artifacts there, so an artifact URL under any of them is accepted for the same path.
+ * Earlier names of the same update Worker. Installs up to 2.11.5 read the feed there by default, and they stay served
+ * forever. Manifests signed before the move name their artifacts there, so an artifact URL under any of them is
+ * accepted for the same path.
  */
 export const LEGACY_UPDATES_BASE_URLS: readonly string[] = ['https://updates.thesqlabs.com/gateway'];
 /** Node installers of a release, GitHub release download layout: `/download/<tag>/<file>`, `/latest/download/<file>`. */
 export const INSTALLER_RELEASES_URL = `${UPDATES_BASE_URL}/releases`;
 /**
- * Image repositories Opfield images are published under: the opfield organization, and the earlier repository that
- * every release keeps receiving for installs up to 2.11. Releases of 2.12 sign their manifests for the earlier
- * repository (installs up to 2.11 accept only it); every 2.12 install accepts both, so a later release can sign for
- * the opfield one.
+ * Image repositories Opfield images are published under: the opfield organization, which release manifests name from
+ * 2.12, and the earlier repository, which keeps receiving every release as a mirror for installs that still name it.
+ * Installs from 2.11.5 accept both.
  */
 export const OPFIELD_IMAGE_REPOSITORY = 'ghcr.io/opfield/opfield';
 export const LEGACY_IMAGE_REPOSITORIES: readonly string[] = ['ghcr.io/the-square-labs/gateway'];

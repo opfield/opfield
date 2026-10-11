@@ -13,7 +13,7 @@ const stampedBase = /^MANIFEST_DOWNLOAD_BASE_URL="([^"]+)"$/m.exec(
   readFileSync(join(root, 'scripts/release/manifest-download-base.sh'), 'utf8')
 )?.[1];
 
-// The artifact base every install up to 2.11.4 uses (its env.ts default, not configurable per release).
+// The artifact base installs up to 2.11.5 read by default (their env.ts default, not configurable per release).
 const BASE_2_11 = 'https://updates.thesqlabs.com/gateway';
 
 const keys = generateKeyPairSync('ed25519');
@@ -42,8 +42,11 @@ function manifest(downloadUrl: string): string {
   });
 }
 
-/** The daemon manifest check of a 2.11.4 backend: downloadUrl must equal the artifact under its own base. */
-function verifyAs2114(signedManifest: string) {
+/**
+ * The daemon manifest check of a 2.11 backend on its default base. 2.11.5 accepts the artifact under every name of the
+ * update host (`acceptedDownloadUrls`, the same check as 2.12); 2.11.4 only under its own base.
+ */
+function verifyAs211(signedManifest: string, bridge: boolean) {
   const source = releaseArtifactSource(BASE_2_11, 'nginx-daemon', tag, artifactName);
   return verifyDaemonUpdateManifest(
     signedManifest,
@@ -55,6 +58,7 @@ function verifyAs2114(signedManifest: string) {
       artifactName,
       downloadUrl: source.artifactUrl,
       trustedPackagePrefix: source.trustedPrefix,
+      ...(bridge ? { acceptedDownloadUrls: source.acceptedArtifactUrls } : {}),
     },
     publicKey
   );
@@ -81,21 +85,23 @@ function verifyAs212(signedManifest: string) {
 describe('host stamped into release manifests', () => {
   const released = manifest(`${stampedBase}/nginx-daemon/${tag}/${artifactName}`);
 
-  it('is accepted by a 2.11.4 backend, which customers update from straight to 2.12', () => {
-    expect(stampedBase).toBe(BASE_2_11);
-    expect(verifyAs2114(released).downloadUrl).toBe(`${BASE_2_11}/nginx-daemon/${tag}/${artifactName}`);
+  it('is the Opfield update host', () => {
+    expect(stampedBase).toBe(UPDATES_BASE_URL);
+    expect(UPDATES_BASE_URL).toBe('https://get.opfield.dev/gateway');
+  });
+
+  it('is accepted by a 2.11.5 backend on its default base, which every 2.11 install updates through', () => {
+    expect(verifyAs211(released, true).downloadUrl).toBe(`${UPDATES_BASE_URL}/nginx-daemon/${tag}/${artifactName}`);
   });
 
   it('is accepted by 2.12 under either host name', () => {
     expect(LEGACY_UPDATES_BASE_URLS).toContain(BASE_2_11);
-    expect(verifyAs212(released).downloadUrl).toBe(`${BASE_2_11}/nginx-daemon/${tag}/${artifactName}`);
-    const onNewHost = manifest(`${UPDATES_BASE_URL}/nginx-daemon/${tag}/${artifactName}`);
-    expect(verifyAs212(onNewHost).downloadUrl).toBe(`${UPDATES_BASE_URL}/nginx-daemon/${tag}/${artifactName}`);
+    expect(verifyAs212(released).downloadUrl).toBe(`${UPDATES_BASE_URL}/nginx-daemon/${tag}/${artifactName}`);
+    const onOldHost = manifest(`${BASE_2_11}/nginx-daemon/${tag}/${artifactName}`);
+    expect(verifyAs212(onOldHost).downloadUrl).toBe(`${BASE_2_11}/nginx-daemon/${tag}/${artifactName}`);
   });
 
-  it('would be refused by 2.11.4 on the new host, which is why the stamp waits', () => {
-    expect(() => verifyAs2114(manifest(`${UPDATES_BASE_URL}/nginx-daemon/${tag}/${artifactName}`))).toThrow(
-      'Update download URL mismatch'
-    );
+  it('is refused by a 2.11.4 backend, which has to update to 2.11.5 first', () => {
+    expect(() => verifyAs211(released, false)).toThrow('Update download URL mismatch');
   });
 });

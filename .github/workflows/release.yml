@@ -22,8 +22,8 @@ concurrency:
 env:
   CI: 'true'
   # Image repositories (scripts/release/image-repositories.sh, docs/development.md). With the repository variable
-  # OPFIELD_GHCR=true ghcr.io/opfield/opfield is the primary and ghcr.io/the-square-labs/gateway, which installs up
-  # to 2.11 pull, receives every release tag with the same digest; signed manifests name GATEWAY_SIGNED_IMAGE.
+  # OPFIELD_GHCR=true ghcr.io/opfield/opfield is the primary and the one signed manifests name (GATEWAY_SIGNED_IMAGE),
+  # and ghcr.io/the-square-labs/gateway, the earlier repository, receives every release tag with the same digest.
   # GATEWAY_IMAGE, GATEWAY_IMAGE_MIRROR and GATEWAY_SIGNED_IMAGE (repository variables) override them for forks.
   # GHCR_PUSH_TOKEN (secret) is a token that can write packages in both organizations; without it the workflow
   # token is used. Keep these lines identical in image.yml.

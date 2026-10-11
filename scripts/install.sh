@@ -4,7 +4,7 @@ IFS=$'\n\t'
 
 DEFAULT_IMAGE="ghcr.io/opfield/opfield"
 # Official image repositories: the opfield organization and the earlier one every release is still published to.
-# A release's signed manifest names one of them (2.12 releases the earlier one, which installs up to 2.11 accept);
+# A release's signed manifest names one of them (ghcr.io/opfield/opfield from 2.12; earlier releases the other one);
 # unless --image or GATEWAY_IMAGE names another repository, the installer installs the one the manifest names.
 OFFICIAL_IMAGES=("ghcr.io/opfield/opfield" "ghcr.io/the-square-labs/gateway")
 DOCKER_COMPOSE_CLI_IMAGE_REF="docker.io/library/docker:27-cli@sha256:851f91d241214e7c6db86513b270d58776379aacc5eb9c4a87e5b47115e3065c"
