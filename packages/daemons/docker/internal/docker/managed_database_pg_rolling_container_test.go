@@ -304,6 +304,21 @@ func TestPostgresRollingUpdate(t *testing.T) {
 	}
 	pgctWait(t, "the updated copy replays A's write", time.Minute, func() bool { return b.count(t, "after_copy_update") == 1 })
 	t.Logf("copy updated: %s -> %s", before[:12], b.containerID(t)[:12])
+	// Gateway's rolling update waits for this report: the updated copy is an
+	// eligible copy, and the primary names it among its synchronous copies.
+	reportOf := func(m *memberha.Manager) memberha.Report {
+		for _, r := range m.Reports() {
+			if r.SetID == pgctSet {
+				return r
+			}
+		}
+		return memberha.Report{}
+	}
+	pgctWait(t, "the updated copy reports eligible and the primary confirms it synchronously", time.Minute, func() bool {
+		copyReport, primaryReport := reportOf(bm), reportOf(am)
+		return copyReport.Role == memberha.ReportRoleCopy && copyReport.Eligible &&
+			strings.Contains(primaryReport.Position["syncCopies"], pgctB)
+	})
 
 	// Planned manual switch to the changed copy: the old primary learns the
 	// new assignment first and steps down (clean stop, back as a copy), then

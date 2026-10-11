@@ -627,3 +627,38 @@ func TestManualPrimaryKeepsServingAcrossHolderWorkAndOnlyADemotionClosesIt(t *te
 		t.Fatalf("a demoted primary must stop serving: %v", log)
 	}
 }
+
+// A manual pair's copy is eligible while it streams from the primary within
+// maxLagBytes (no lease asks it): rolling changes wait on that.
+func TestManualCopyReportsEligibleWhileItStreamsWithinTheLag(t *testing.T) {
+	h := newHarness(t, ModeManual)
+	h.engine.container.Running = true
+	h.engine.status = EngineStatus{Answering: true, Streaming: true, SyncState: "async", LagBytes: 10}
+	if err := h.manager.AssignPrimary(testSet, signed(testMemberB, 1)); err != nil {
+		t.Fatal(err)
+	}
+	report := func() Report {
+		h.step(3, time.Second)
+		for _, r := range h.manager.Reports() {
+			if r.SetID == testSet {
+				return r
+			}
+		}
+		t.Fatal("no report")
+		return Report{}
+	}
+	if r := report(); r.Role != ReportRoleCopy || !r.Eligible || r.EligibilityReason != "" {
+		t.Fatalf("a streaming copy must be eligible: %+v", r)
+	}
+	h.engine.status.Streaming = false
+	if r := report(); r.Eligible || r.EligibilityReason != "not_streaming" {
+		t.Fatalf("a copy that does not stream: %+v", r)
+	}
+	h.manager.mu.Lock()
+	h.manager.members[testSet].cfg.MaxLagBytes = 5
+	h.manager.mu.Unlock()
+	h.engine.status.Streaming = true
+	if r := report(); r.Eligible || r.EligibilityReason != "behind" {
+		t.Fatalf("a copy further behind than maxLagBytes: %+v", r)
+	}
+}

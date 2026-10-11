@@ -469,6 +469,17 @@ export class AvailabilityMembersService {
     return rows.map((row) => row.nodeId);
   }
 
+  /** The copies a manual pair's primary last reported confirming synchronously (pgha `syncCopies`). */
+  private async primarySyncCopies(primaryMemberId: string): Promise<string[]> {
+    const [primary] = await this.db
+      .select({ enginePosition: managedAvailabilityMembers.enginePosition })
+      .from(managedAvailabilityMembers)
+      .where(eq(managedAvailabilityMembers.id, primaryMemberId))
+      .limit(1);
+    const value = (primary?.enginePosition as Record<string, unknown> | null | undefined)?.syncCopies;
+    return typeof value === 'string' && value ? value.split(',') : [];
+  }
+
   private async applyReport(set: AvailabilitySetRow, member: AvailabilityMemberRow, report: AvailabilityMemberReport) {
     const reportedAt = new Date(this.now());
     const position: Record<string, string> = { ...(report.position ?? {}) };
@@ -477,6 +488,12 @@ export class AvailabilityMembersService {
     if (report.stopped) position[MEMBER_RUNTIME_STOPPED_KEY] = 'true';
     if (report.pendingRestartOperationId)
       position[MEMBER_RUNTIME_PENDING_RESTART_KEY] = report.pendingRestartOperationId;
+    let syncState = normalizeSyncState(report.syncState);
+    if (set.mode === 'manual' && syncState === 'async' && set.primaryMemberId && set.primaryMemberId !== member.id) {
+      // A Postgres standby cannot see its own sync_state and a manual pair certifies nothing: the primary's report
+      // names the copies its walsenders confirm synchronously.
+      syncState = (await this.primarySyncCopies(set.primaryMemberId)).includes(member.id) ? 'sync' : 'async';
+    }
     await this.db
       .update(managedAvailabilityMembers)
       .set({
@@ -485,7 +502,7 @@ export class AvailabilityMembersService {
         eligibilityReason: report.eligibilityReason ? report.eligibilityReason.slice(0, 64) : null,
         lagBytes: report.lagBytes === undefined ? null : Number(report.lagBytes),
         lagSeconds: report.lagSeconds ?? null,
-        syncState: normalizeSyncState(report.syncState),
+        syncState,
         enginePosition: position,
         lastError: report.lastError || (copyNotStreaming(report) ? COPY_NOT_STREAMING : null),
         status: reportedStatus(member, report),

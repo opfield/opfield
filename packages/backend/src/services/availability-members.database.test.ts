@@ -257,6 +257,39 @@ describe.skipIf(!url)('availability members on disposable PostgreSQL', () => {
     expect(sent.map((entry) => entry.nodeId)).toEqual([nodeB]);
   });
 
+  it('shows a manual copy the primary confirms synchronously as sync, and eligible as its node reports it', async () => {
+    await q('update managed_availability_sets set primary_member_id = $2 where id = $1', [setId, memberA]);
+    now += 60_000;
+    const primary = {
+      setId,
+      memberId: memberA,
+      role: 'primary' as const,
+      serving: true,
+      eligible: false,
+      syncState: 'none' as const,
+      configRevision: '99',
+    };
+    const copy = {
+      setId,
+      memberId: memberB,
+      role: 'copy' as const,
+      serving: false,
+      eligible: true,
+      syncState: 'async' as const,
+      lagBytes: '0',
+      configRevision: '99',
+    };
+    await service.ingestReports(nodeA, [{ ...primary, position: { syncCopies: memberB } }]);
+    await service.ingestReports(nodeB, [copy]);
+    const row = async () =>
+      (await q('select sync_state, eligible from managed_availability_members where id = $1', [memberB])).rows[0];
+    expect(await row()).toEqual({ sync_state: 'sync', eligible: true });
+    // The primary relaxed the names (the copy stalled): async again.
+    await service.ingestReports(nodeA, [{ ...primary, position: { syncCopies: '' } }]);
+    await service.ingestReports(nodeB, [copy]);
+    expect(await row()).toEqual({ sync_state: 'async', eligible: true });
+  });
+
   it('runs the handoffs before a node with a set member updates, bounded and never failing the update', async () => {
     const handed: string[] = [];
     service.registerNodeUpdateHandoff(async (nodeId) => {
