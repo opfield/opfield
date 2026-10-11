@@ -1399,12 +1399,6 @@ export async function initializeContainer(): Promise<void> {
     new RelayPolicySigningKeyService(db, cryptoService)
   );
   container.registerInstance(AvailabilityAssignmentSigner, availabilityAssignmentSigner);
-  // Database availability sets: the commercial control plane follows set leases and signs manual assignments.
-  managedDatabaseService.setAvailabilityHost({
-    lease: availabilityLeaseService,
-    signer: availabilityAssignmentSigner,
-    settings: { relayPolicyLeaseHours: async () => (await generalSettingsService.getConfig()).relayPolicyLeaseHours },
-  });
   // Witness processes relays host for availability sets (decision 9): desired sets pushed, reports recorded.
   const relayWitnessService = new RelayWitnessService(db, nodeDispatch);
   relayWitnessService.setArtifactSource(new WitnessCatalog(env));
@@ -1414,12 +1408,21 @@ export async function initializeContainer(): Promise<void> {
   const availabilityMembers = new AvailabilityMembersService(db, nodeDispatch);
   availabilityMembers.setAssignmentSigner(container.resolve(AvailabilityAssignmentSigner));
   container.registerInstance(AvailabilityMembersService, availabilityMembers);
-  managedDatabaseService.setAvailabilityHost({ members: availabilityMembers });
+  // Database and storage availability sets run on one shared orchestration; both get the same host parts.
+  const availabilityHost = {
+    lease: availabilityLeaseService,
+    signer: availabilityAssignmentSigner,
+    settings: { relayPolicyLeaseHours: async () => (await generalSettingsService.getConfig()).relayPolicyLeaseHours },
+    members: availabilityMembers,
+    witnesses: relayWitnessService,
+    ...(relayPolicyService ? { relay: relayPolicyService } : {}),
+  };
   if (relayPolicyService) {
     relayPolicyService.setAvailabilityLeaseSource(availabilityLeaseService);
     availabilityLeaseService.setRelayPublisher(relayPolicyService);
-    managedDatabaseService.setAvailabilityHost({ relay: relayPolicyService });
   }
+  managedDatabaseService.setAvailabilityHost(availabilityHost);
+  managedStorageService.setAvailabilityHost(availabilityHost);
   const dockerAvailabilityService = commercialEdition.createDockerAvailabilityService(
     {
       db,

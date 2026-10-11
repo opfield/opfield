@@ -4,8 +4,8 @@ import type { ManagedAvailabilitySetController } from '@/modules/docker/availabi
 
 /**
  * What the commercial control plane of database and storage availability sets uses from the open-core host. Gateway's
- * bootstrap hands it over with `ManagedDatabaseService.setAvailabilityHost` (parts may arrive in several calls; the
- * service merges them).
+ * bootstrap hands it over with `ManagedDatabaseService.setAvailabilityHost` and `ManagedStorageService.setAvailabilityHost`
+ * (parts may arrive in several calls; the services merge them).
  */
 export interface ManagedAvailabilityHost {
   /** The lease host's set contract (P1-T03). */
@@ -18,6 +18,12 @@ export interface ManagedAvailabilityHost {
   relay: ManagedAvailabilityRelayPort;
   /** Settings the preflight shows (decision 18: the relay policy envelope bounds Gateway-down operation). */
   settings: { relayPolicyLeaseHours(): Promise<number> };
+  /** Witness processes relays host for sets (RelayWitnessService): pushed again after witness rows changed. */
+  witnesses: ManagedAvailabilityWitnessPort;
+}
+
+export interface ManagedAvailabilityWitnessPort {
+  syncSet(setId: string): Promise<void>;
 }
 
 export interface ManagedAvailabilityLeasePort {
