@@ -50,6 +50,14 @@ export type MemberEventListener = (
   member: AvailabilityMemberRow,
   events: AvailabilityMemberEventRecord[]
 ) => Promise<void>;
+/** Signs a manual pair's primary assignment (services/availability-assignment-signing.ts). */
+export interface PrimaryAssignmentSigner {
+  signPrimaryAssignment(input: {
+    setId: string;
+    primaryMemberId: string;
+    generation: number;
+  }): Promise<AvailabilityPrimaryAssignment>;
+}
 export type PrimaryChangedListener = (
   set: AvailabilitySetRow,
   member: AvailabilityMemberRow,
@@ -70,12 +78,28 @@ export class AvailabilityMembersService {
   private readonly primaryListeners: PrimaryChangedListener[] = [];
   private readonly lastConfigured = new Map<string, { revision: number; at: number }>();
   private readonly ingesting = new Set<string>();
+  private signer: PrimaryAssignmentSigner | null = null;
 
   constructor(
     private readonly db: DrizzleClient,
     private readonly dispatch: Pick<NodeDispatchService, 'sendAvailabilityMember'>,
     private readonly now: () => number = Date.now
   ) {}
+
+  /** Manual pairs: the signer of the primary assignment their members verify. */
+  setAssignmentSigner(signer: PrimaryAssignmentSigner): void {
+    this.signer = signer;
+  }
+
+  /** A manual pair's current primary assignment, signed; null without a primary or a signer. */
+  async signedAssignment(set: AvailabilitySetRow): Promise<AvailabilityPrimaryAssignment | null> {
+    if (set.mode !== 'manual' || !set.primaryMemberId || set.primaryGeneration <= 0 || !this.signer) return null;
+    return this.signer.signPrimaryAssignment({
+      setId: set.id,
+      primaryMemberId: set.primaryMemberId,
+      generation: set.primaryGeneration,
+    });
+  }
 
   /** Supplies the engine's own configuration of each member (`engine_config`, JSON). */
   registerEngineConfig(engine: ManagedAvailabilityEngine, provider: EngineConfigProvider): void {
@@ -132,6 +156,8 @@ export class AvailabilityMembersService {
       publishedPort: member.publishedPort ?? 0,
     };
     if (set.mode === 'automatic' && set.leasePolicyId) config.leasePolicyId = set.leasePolicyId;
+    const assignment = await this.signedAssignment(set);
+    if (assignment) config.primary = assignment;
     if (engineConfig) config.engineConfig = Buffer.from(JSON.stringify(engineConfig));
     return config;
   }
@@ -183,15 +209,17 @@ export class AvailabilityMembersService {
   }
 
   /**
-   * Sends a manual pair's primary assignment to every member (the signed message the assignment signing helper
-   * returned). Returns the members whose node did not take it.
+   * Sends a manual pair's primary assignment to every member: the given one (already signed), or the set's current
+   * one signed now. Returns the members whose node did not take it.
    */
-  async assignPrimary(setId: string, assignment: AvailabilityPrimaryAssignment): Promise<string[]> {
+  async assignPrimary(setId: string, assignment?: AvailabilityPrimaryAssignment): Promise<string[]> {
     const loaded = await this.loadSet(setId);
     if (!loaded) return [];
+    const signed = assignment ?? (await this.signedAssignment(loaded.set));
+    if (!signed) throw new Error('The availability set has no signed primary assignment to send');
     const failed: string[] = [];
     for (const member of loaded.members) {
-      const result = await this.send(member.nodeId, { assignPrimary: assignment }).catch(() => null);
+      const result = await this.send(member.nodeId, { assignPrimary: signed }).catch(() => null);
       if (!result?.success) failed.push(member.id);
     }
     return failed;

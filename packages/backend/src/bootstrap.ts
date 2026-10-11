@@ -1402,7 +1402,9 @@ export async function initializeContainer(): Promise<void> {
   relayWitnessService.setArtifactSource(new WitnessCatalog(env));
   container.registerInstance(RelayWitnessService, relayWitnessService);
   // Members of database and storage availability sets: node configuration and health-stream reports.
-  container.registerInstance(AvailabilityMembersService, new AvailabilityMembersService(db, nodeDispatch));
+  const availabilityMembers = new AvailabilityMembersService(db, nodeDispatch);
+  availabilityMembers.setAssignmentSigner(container.resolve(AvailabilityAssignmentSigner));
+  container.registerInstance(AvailabilityMembersService, availabilityMembers);
   if (relayPolicyService) {
     relayPolicyService.setAvailabilityLeaseSource(availabilityLeaseService);
     availabilityLeaseService.setRelayPublisher(relayPolicyService);
