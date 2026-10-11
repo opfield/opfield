@@ -1,5 +1,4 @@
-import { AnimatePresence, motion } from "framer-motion";
-import { Code2, Minus, Plus, RotateCcw, Table2 } from "lucide-react";
+import { FileCode2, Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
@@ -7,7 +6,6 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { PanelShell } from "@/components/common/PanelShell";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import { Button } from "@/components/ui/button";
-import { CodeEditor } from "@/components/ui/code-editor";
 import { Input } from "@/components/ui/input";
 import { useRealtime } from "@/hooks/use-realtime";
 import { listManagedDatabaseCandidateNodes } from "@/lib/managed-database-nodes";
@@ -16,6 +14,8 @@ import { useAuthStore } from "@/stores/auth";
 import { useDockerStore } from "@/stores/docker";
 import type { DockerSecret, ManagedDatabaseBindingTargetType } from "@/types";
 import { ContainerLinksSection } from "./ContainerLinksSection";
+import { EnvTextDialog, parseEnvText } from "./EnvTextDialog";
+import { LinksPanel } from "./LinksPanel";
 import {
   type ManagedDatabaseLinkDraft,
   ManagedDatabaseLinksSection,
@@ -104,9 +104,9 @@ export function EnvironmentTab({
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [originalEnv, setOriginalEnv] = useState<string[]>([]);
-  const [rawMode, setRawMode] = useState(false);
+  // "Edit as text" works on a copy in a dialog; the table stays the draft.
+  const [textEditorOpen, setTextEditorOpen] = useState(false);
   const [rawText, setRawText] = useState("");
-  const [errorLines, setErrorLines] = useState<number[]>([]);
 
   // Secrets state — edited locally, flushed to DB on recreate
   const [secretRows, setSecretRows] = useState<SecretRow[]>([]);
@@ -228,13 +228,6 @@ export function EnvironmentTab({
       const next = current.filter((entry) => !isManagedEntry(entry));
       return next.length === current.length ? current : next;
     });
-    setRawText((current) => {
-      const next = current
-        .split("\n")
-        .filter((entry) => !isManagedEntry(entry))
-        .join("\n");
-      return next === current ? current : next;
-    });
   }, [activeManagedLinkVariableNames]);
 
   const fetchEnv = useCallback(async () => {
@@ -262,7 +255,6 @@ export function EnvironmentTab({
         if (!isCurrentRequest()) return;
         setEnvVars(parsed);
         setOriginalEnv(entries);
-        setRawText(entries.join("\n"));
         setSecretRows(
           (secretsData ?? [])
             .filter((s: DockerSecret) => !s.system)
@@ -307,11 +299,9 @@ export function EnvironmentTab({
         });
         setEnvVars(parsed);
         setOriginalEnv(data ?? []);
-        setRawText((data ?? []).join("\n"));
       } else {
         setEnvVars([]);
         setOriginalEnv([]);
-        setRawText("");
       }
 
       if (canManageSecrets || canEdit) {
@@ -455,15 +445,9 @@ export function EnvironmentTab({
   }, [activeManagedLinkVariableNames]);
 
   const existingVariableNames = useMemo(() => {
-    const environmentKeys = rawMode
-      ? rawText
-          .split("\n")
-          .map((line) => line.trim().replace(/^export\s+/, ""))
-          .map((line) => line.slice(0, line.indexOf("=")).trim())
-          .filter(Boolean)
-      : envVars.map((entry) => entry.key.trim()).filter(Boolean);
+    const environmentKeys = envVars.map((entry) => entry.key.trim()).filter(Boolean);
     return [...environmentKeys, ...secretRows.map((row) => row.key.trim()).filter(Boolean)];
-  }, [envVars, rawMode, rawText, secretRows]);
+  }, [envVars, secretRows]);
 
   const handleDatabaseLinkDraftChange = useCallback((draft: ManagedDatabaseLinkDraft) => {
     setDatabaseLinkDraft(draft);
@@ -508,29 +492,19 @@ export function EnvironmentTab({
     [managedLinkVariableNames, replacementDatabaseVariableNames]
   );
 
-  useEffect(() => {
-    if (rawMode) setErrorLines(validateRaw(rawText));
-  }, [rawMode, rawText, validateRaw]);
-
-  const switchToRaw = () => {
-    const text = envVars.map((e) => `${e.key}=${e.value}`).join("\n");
-    setRawText(text);
-    setErrorLines(validateRaw(text));
-    setRawMode(true);
+  const openTextEditor = () => {
+    setRawText(visibleEnvRows.map(({ entry }) => `${entry.key}=${entry.value}`).join("\n"));
+    setTextEditorOpen(true);
   };
 
-  const switchToTable = () => {
-    const parsed = rawText
-      .split("\n")
-      .filter((l) => l.trim())
-      .map((line) => {
-        const idx = line.indexOf("=");
-        return idx >= 0
-          ? { key: line.slice(0, idx), value: line.slice(idx + 1) }
-          : { key: line, value: "" };
-      });
-    setEnvVars(parsed);
-    setRawMode(false);
+  // Apply replaces the editable rows; rows hidden while a database link takes them over stay.
+  const applyText = () => {
+    const parsed = parseEnvText(rawText);
+    setEnvVars((current) => [
+      ...current.filter((entry) => replacementDatabaseVariableNames.has(entry.key.trim())),
+      ...parsed,
+    ]);
+    setTextEditorOpen(false);
   };
 
   const updateVar = (idx: number, field: "key" | "value", val: string) => {
@@ -549,17 +523,7 @@ export function EnvironmentTab({
   const handleSave = async () => {
     // With only the links editable, a save carries link changes and no environment edits.
     if (isSaving || (disabled && (linksDisabled || hasChanges))) return;
-    const vars = rawMode
-      ? rawText
-          .split("\n")
-          .filter((l) => l.trim())
-          .map((line) => {
-            const idx = line.indexOf("=");
-            return idx >= 0
-              ? { key: line.slice(0, idx), value: line.slice(idx + 1) }
-              : { key: line, value: "" };
-          })
-      : visibleEnvRows.map(({ entry }) => entry);
+    const vars = visibleEnvRows.map(({ entry }) => entry);
 
     const savingDatabaseLinks = databaseLinkDraft.hasChanges;
     const savingStorageLinks = storageLinkDraft.hasChanges;
@@ -686,7 +650,6 @@ export function EnvironmentTab({
         }
         const entries = Object.entries(newEnv).map(([key, value]) => `${key}=${value}`);
         setOriginalEnv(entries);
-        setRawText(entries.join("\n"));
         toast.success("Environment and managed links updated");
         invalidate("containers", "tasks");
         void Promise.resolve(onRecreating?.()).catch(() => undefined);
@@ -697,7 +660,6 @@ export function EnvironmentTab({
         await onSaveServiceEnv(newEnv);
         const entries = Object.entries(newEnv).map(([key, value]) => `${key}=${value}`);
         setOriginalEnv(entries);
-        setRawText(entries.join("\n"));
         toast.success("Environment updated");
         onMutationEnd?.();
         return;
@@ -730,7 +692,6 @@ export function EnvironmentTab({
         const entries = Object.entries(newEnv).map(([key, value]) => `${key}=${value}`);
         setEnvVars(Object.entries(newEnv).map(([key, value]) => ({ key, value })));
         setOriginalEnv(entries);
-        setRawText(entries.join("\n"));
         setIsLoading(false);
         toast.success(
           savingManagedLinks || recreatesRunningContainer
@@ -780,9 +741,12 @@ export function EnvironmentTab({
   const visibleEnvRows = envVars
     .map((entry, index) => ({ entry, index }))
     .filter(({ entry }) => !replacementDatabaseVariableNames.has(entry.key.trim()));
+  // The text editor's rules: invalid, duplicate and link-owned names are marked; a name a
+  // pending link addition will take over stays applicable so the save can replace it.
+  const textErrorLines = textEditorOpen ? validateRaw(rawText) : [];
   const rawManagedOnlyErrorLines = new Set<number>();
   const rawActiveManagedErrorLines = new Set<number>();
-  if (rawMode) {
+  if (textEditorOpen) {
     const keyLines = new Map<string, number[]>();
     rawText.split("\n").forEach((line, index) => {
       const stripped = line.trim().replace(/^export\s+/, "");
@@ -808,22 +772,20 @@ export function EnvironmentTab({
   // are styled as conflicts too, but pending link additions remain saveable so
   // the confirmed save can replace the collided value.
   const allKeyLocations = new Map<string, { envIndices: number[]; secretIndices: number[] }>();
-  if (!rawMode) {
-    envVars.forEach((entry, index) => {
-      const key = entry.key.trim();
-      if (!key || replacementDatabaseVariableNames.has(key)) return;
-      const location = allKeyLocations.get(key) ?? { envIndices: [], secretIndices: [] };
-      location.envIndices.push(index);
-      allKeyLocations.set(key, location);
-    });
-    secretRows.forEach((row, index) => {
-      const key = row.key.trim();
-      if (!key || replacementDatabaseVariableNames.has(key)) return;
-      const location = allKeyLocations.get(key) ?? { envIndices: [], secretIndices: [] };
-      location.secretIndices.push(index);
-      allKeyLocations.set(key, location);
-    });
-  }
+  envVars.forEach((entry, index) => {
+    const key = entry.key.trim();
+    if (!key || replacementDatabaseVariableNames.has(key)) return;
+    const location = allKeyLocations.get(key) ?? { envIndices: [], secretIndices: [] };
+    location.envIndices.push(index);
+    allKeyLocations.set(key, location);
+  });
+  secretRows.forEach((row, index) => {
+    const key = row.key.trim();
+    if (!key || replacementDatabaseVariableNames.has(key)) return;
+    const location = allKeyLocations.get(key) ?? { envIndices: [], secretIndices: [] };
+    location.secretIndices.push(index);
+    allKeyLocations.set(key, location);
+  });
 
   const duplicateKeyIndices = new Set<number>();
   const duplicateSecretIndices = new Set<number>();
@@ -853,29 +815,23 @@ export function EnvironmentTab({
   });
 
   const hasEnvTableErrors =
-    !rawMode &&
-    (visibleEnvRows.some(
+    visibleEnvRows.some(
       ({ entry }) => !entry.key.trim() || !invalidKeyPattern.test(entry.key.trim())
-    ) ||
-      duplicateKeyIndices.size > 0);
+    ) || duplicateKeyIndices.size > 0;
   const hasSecretErrors =
-    !rawMode &&
-    (secretRows
+    secretRows
       .filter((row) => !replacementDatabaseVariableNames.has(row.key.trim()))
       .some((row) => !row.key.trim() || !invalidKeyPattern.test(row.key.trim())) ||
-      duplicateSecretIndices.size > 0);
-  const hasActiveManagedConflicts = rawMode
-    ? rawActiveManagedErrorLines.size > 0
-    : activeManagedEnvCollisionIndices.size > 0 || activeManagedSecretCollisionIndices.size > 0;
-  const hasRawStructuralErrors = errorLines.some((line) => !rawManagedOnlyErrorLines.has(line));
-  const hasErrors = rawMode
-    ? hasRawStructuralErrors || hasActiveManagedConflicts
-    : hasEnvTableErrors || hasSecretErrors || hasActiveManagedConflicts;
+    duplicateSecretIndices.size > 0;
+  const hasActiveManagedConflicts =
+    activeManagedEnvCollisionIndices.size > 0 || activeManagedSecretCollisionIndices.size > 0;
+  const hasErrors = hasEnvTableErrors || hasSecretErrors || hasActiveManagedConflicts;
+  const textBlocked =
+    textErrorLines.some((line) => !rawManagedOnlyErrorLines.has(line)) ||
+    rawActiveManagedErrorLines.size > 0;
 
   // Env changes
-  const currentEnvStr = rawMode
-    ? rawText
-    : visibleEnvRows.map(({ entry }) => `${entry.key}=${entry.value}`).join("\n");
+  const currentEnvStr = visibleEnvRows.map(({ entry }) => `${entry.key}=${entry.value}`).join("\n");
   const originalEnvStr = originalEnv
     .filter((entry) => !replacementDatabaseVariableNames.has(entry.split("=")[0]!))
     .join("\n");
@@ -889,71 +845,82 @@ export function EnvironmentTab({
   const hasCombinedChanges =
     hasChanges || databaseLinkDraft.hasChanges || storageLinkDraft.hasChanges;
 
+  const showDatabaseLinks = Boolean(
+    managedDatabaseLinksEnabled && canEdit && canManageSecrets && containerName && hasDatabaseNode
+  );
+  const showStorageLinks = Boolean(
+    managedStorageLinksEnabled && canEdit && canManageSecrets && containerName
+  );
+
   return (
-    <div
-      className={
-        rawMode ? "flex flex-col flex-1 min-h-0 gap-4" : `${flushBottom ? "" : "pb-6 "}space-y-4`
-      }
-    >
-      {managedDatabaseLinksEnabled &&
-        canEdit &&
-        canManageSecrets &&
-        containerName &&
-        hasDatabaseNode && (
-          <ManagedDatabaseLinksSection
-            ref={databaseLinksRef}
-            nodeId={nodeId}
-            targetType={databaseTargetType}
-            targetResourceId={resolvedDatabaseTargetResourceId}
-            containerName={containerName}
-            disabled={linksDisabled || isSaving || hasErrors || !canChangeManagedLinks}
-            removeDisabledReason={linkRemovalDisabledReason}
-            existingVariableNames={[...existingVariableNames, ...managedStorageVariableNames]}
-            onInitialLoadingChange={setDatabaseLinksLoading}
-            onDraftChange={handleDatabaseLinkDraftChange}
-            onSaveRequested={() => void handleSave()}
-            recreatesRunningWorkload={recreatesRunningContainer}
-          />
-        )}
+    <div className={`${flushBottom ? "" : "pb-6 "}space-y-4`}>
+      {(showDatabaseLinks || showStorageLinks || containerLinksEnabled) && (
+        <LinksPanel
+          description={
+            recreatesRunningContainer
+              ? "Private connections to managed databases, managed storage and other containers. Database and storage changes apply with Save & Recreate."
+              : "Private connections to managed databases, managed storage and other containers. Database and storage changes apply on next start."
+          }
+          onSave={() => void handleSave()}
+        >
+          {showDatabaseLinks && containerName && (
+            <ManagedDatabaseLinksSection
+              ref={databaseLinksRef}
+              nodeId={nodeId}
+              targetType={databaseTargetType}
+              targetResourceId={resolvedDatabaseTargetResourceId}
+              containerName={containerName}
+              disabled={linksDisabled || isSaving || hasErrors || !canChangeManagedLinks}
+              canAdd={canChangeManagedLinks}
+              removeDisabledReason={linkRemovalDisabledReason}
+              existingVariableNames={[...existingVariableNames, ...managedStorageVariableNames]}
+              onInitialLoadingChange={setDatabaseLinksLoading}
+              onDraftChange={handleDatabaseLinkDraftChange}
+              onSaveRequested={() => void handleSave()}
+              recreatesRunningWorkload={recreatesRunningContainer}
+            />
+          )}
 
-      {managedStorageLinksEnabled && canEdit && canManageSecrets && containerName && (
-        <ManagedStorageLinksSection
-          ref={storageLinksRef}
-          nodeId={nodeId}
-          targetType={storageTargetType!}
-          targetResourceId={resolvedStorageTargetResourceId}
-          containerName={containerName}
-          canManage={canManageManagedStorage}
-          canManageCluster={canManageStorageCluster}
-          disabled={linksDisabled || isSaving || hasErrors || !canChangeManagedLinks}
-          removeDisabledReason={linkRemovalDisabledReason}
-          existingVariableNames={[...existingVariableNames, ...managedDatabaseVariableNames]}
-          onInitialLoadingChange={setStorageLinksLoading}
-          onDraftChange={handleStorageLinkDraftChange}
-          onSaveRequested={() => void handleSave()}
-          recreatesRunningWorkload={recreatesRunningContainer}
-        />
-      )}
+          {showStorageLinks && containerName && (
+            <ManagedStorageLinksSection
+              ref={storageLinksRef}
+              nodeId={nodeId}
+              targetType={storageTargetType!}
+              targetResourceId={resolvedStorageTargetResourceId}
+              containerName={containerName}
+              canManage={canManageManagedStorage}
+              canManageCluster={canManageStorageCluster}
+              disabled={linksDisabled || isSaving || hasErrors || !canChangeManagedLinks}
+              removeDisabledReason={linkRemovalDisabledReason}
+              existingVariableNames={[...existingVariableNames, ...managedDatabaseVariableNames]}
+              onInitialLoadingChange={setStorageLinksLoading}
+              onDraftChange={handleStorageLinkDraftChange}
+              onSaveRequested={() => void handleSave()}
+              recreatesRunningWorkload={recreatesRunningContainer}
+            />
+          )}
 
-      {containerLinksEnabled && (
-        <ContainerLinksSection
-          nodeId={nodeId}
-          type={storageTargetType!}
-          resourceId={resolvedStorageTargetResourceId}
-          workloadName={containerName!}
-          canManage={canManageContainerLinks}
-          canSetEnvironment={canEdit}
-          disabled={linksDisabled || isSaving}
-          removeDisabledReason={linkRemovalDisabledReason}
-          onMutationStart={onMutationStart}
-          onMutationEnd={onMutationEnd}
-          onRecreating={onRecreating}
-        />
+          {containerLinksEnabled && (
+            <ContainerLinksSection
+              nodeId={nodeId}
+              type={storageTargetType!}
+              resourceId={resolvedStorageTargetResourceId}
+              workloadName={containerName!}
+              canManage={canManageContainerLinks}
+              canSetEnvironment={canEdit}
+              disabled={linksDisabled || isSaving}
+              removeDisabledReason={linkRemovalDisabledReason}
+              onMutationStart={onMutationStart}
+              onMutationEnd={onMutationEnd}
+              onRecreating={onRecreating}
+            />
+          )}
+        </LinksPanel>
       )}
 
       <fieldset
         disabled={disabled || isSaving}
-        className={`${rawMode ? "flex min-h-0 flex-1 flex-col" : "space-y-4"} ${disabled || isSaving ? "pointer-events-none opacity-60" : ""}`}
+        className={`space-y-4 ${disabled || isSaving ? "pointer-events-none opacity-60" : ""}`}
       >
         {canEdit && (
           <PanelShell
@@ -964,23 +931,16 @@ export function EnvironmentTab({
                 ? "Saved to deployment configuration"
                 : "Changes will recreate the container")
             }
-            className={rawMode ? "flex flex-1 flex-col min-h-0" : undefined}
-            bodyClassName={rawMode ? "flex min-h-0 flex-1 flex-col" : undefined}
             actions={
               <>
-                {canEdit && !rawMode && (
+                {canEdit && (
                   <Button variant="ghost" size="icon-sm" onClick={addVar} title="Add variable">
                     <Plus className="h-3.5 w-3.5" />
                   </Button>
                 )}
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={rawMode ? switchToTable : switchToRaw}
-                  title={rawMode ? "Table view" : "Raw view"}
-                  disabled={hasErrors}
-                >
-                  {rawMode ? <Table2 className="h-3.5 w-3.5" /> : <Code2 className="h-3.5 w-3.5" />}
+                <Button variant="ghost" onClick={openTextEditor}>
+                  <FileCode2 className="h-3.5 w-3.5" />
+                  Edit as text
                 </Button>
                 {canEdit && (
                   <Button
@@ -1002,95 +962,61 @@ export function EnvironmentTab({
               </>
             }
           >
-            <AnimatePresence mode="popLayout" initial={false}>
-              {rawMode ? (
-                <motion.div
-                  key="raw"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-                  className="flex-1 min-h-0 flex flex-col"
+            {visibleEnvRows.length > 0 && (
+              <div className="grid grid-cols-[1fr_1fr] border-b border-border bg-header text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <div className="px-3 py-2">Key</div>
+                <div className="px-3 py-2 border-l border-border">Value</div>
+              </div>
+            )}
+            <div>
+              {visibleEnvRows.map(({ entry: env, index: idx }) => (
+                <div
+                  key={idx}
+                  className="grid grid-cols-[1fr_1fr] border-b border-border last:border-b-0"
                 >
-                  <CodeEditor
-                    value={rawText}
-                    onChange={(val) => {
-                      setRawText(val);
-                      setErrorLines(validateRaw(val));
-                    }}
-                    readOnly={!canEdit}
-                    language="env"
-                    errorLines={errorLines}
-                    className="-m-px"
+                  <Input
+                    value={env.key}
+                    onChange={(e) => updateVar(idx, "key", e.target.value)}
+                    className={`h-9 border-0 rounded-none shadow-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring ${
+                      duplicateKeyIndices.has(idx) ||
+                      managedEnvCollisionIndices.has(idx) ||
+                      (env.key.trim() && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(env.key.trim()))
+                        ? "bg-destructive/10 text-destructive"
+                        : ""
+                    }`}
+                    placeholder="KEY"
                   />
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="table"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-                >
-                  {visibleEnvRows.length > 0 && (
-                    <div className="grid grid-cols-[1fr_1fr] border-b border-border bg-header text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      <div className="px-3 py-2">Key</div>
-                      <div className="px-3 py-2 border-l border-border">Value</div>
-                    </div>
-                  )}
-                  <div>
-                    {visibleEnvRows.map(({ entry: env, index: idx }) => (
-                      <div
-                        key={idx}
-                        className="grid grid-cols-[1fr_1fr] border-b border-border last:border-b-0"
-                      >
-                        <Input
-                          value={env.key}
-                          onChange={(e) => updateVar(idx, "key", e.target.value)}
-                          className={`h-9 border-0 rounded-none shadow-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring ${
-                            duplicateKeyIndices.has(idx) ||
-                            managedEnvCollisionIndices.has(idx) ||
-                            (env.key.trim() && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(env.key.trim()))
-                              ? "bg-destructive/10 text-destructive"
-                              : ""
-                          }`}
-                          placeholder="KEY"
-                        />
-                        <div className="flex items-center border-l border-border">
-                          <Input
-                            value={env.value}
-                            onChange={(e) => updateVar(idx, "value", e.target.value)}
-                            className="h-9 border-0 rounded-none shadow-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring flex-1 min-w-0"
-                            placeholder="value"
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="shrink-0 rounded-none border-l border-border"
-                            onClick={() => removeVar(idx)}
-                          >
-                            <Minus className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {visibleEnvRows.length === 0 && (
-                    <EmptyState
-                      message="No environment variables."
-                      actionLabel="Add one"
-                      onAction={addVar}
-                      embedded
+                  <div className="flex items-center border-l border-border">
+                    <Input
+                      value={env.value}
+                      onChange={(e) => updateVar(idx, "value", e.target.value)}
+                      className="h-9 border-0 rounded-none shadow-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring flex-1 min-w-0"
+                      placeholder="value"
                     />
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0 rounded-none border-l border-border"
+                      onClick={() => removeVar(idx)}
+                    >
+                      <Minus className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {visibleEnvRows.length === 0 && (
+              <EmptyState
+                message="No environment variables."
+                actionLabel="Add one"
+                onAction={addVar}
+                embedded
+              />
+            )}
           </PanelShell>
         )}
 
-        {/* Secrets section — only in table mode */}
-        {!rawMode && (canManageSecrets || canEdit) && (
+        {(canManageSecrets || canEdit) && (
           <SecretsSection
             canManageSecrets={canManageSecrets}
             onSave={!canEdit ? handleSave : undefined}
@@ -1109,6 +1035,18 @@ export function EnvironmentTab({
           />
         )}
       </fieldset>
+
+      <EnvTextDialog
+        open={textEditorOpen}
+        onOpenChange={setTextEditorOpen}
+        title="Edit environment variables"
+        description="One KEY=value per line. Apply puts them in the table; they are stored when you save."
+        value={rawText}
+        onValueChange={setRawText}
+        errorLines={textErrorLines}
+        applyDisabled={textBlocked}
+        onApply={applyText}
+      />
     </div>
   );
 }
