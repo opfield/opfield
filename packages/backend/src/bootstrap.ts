@@ -42,6 +42,7 @@ import { AIRunService } from '@/modules/ai/ai-run.service.js';
 import { aiRunCommercialRuntime } from '@/modules/ai/ai-run-commercial-runtime.js';
 import { AppEnvLayerService } from '@/modules/apps/app-env-layer.js';
 import { AppFolderService } from '@/modules/apps/app-folders.service.js';
+import { AppHealthService } from '@/modules/apps/app-health.service.js';
 import { AppMaintenanceService } from '@/modules/apps/app-maintenance.service.js';
 import { AppMaintenanceAccessService } from '@/modules/apps/app-maintenance-access.js';
 import { AppMembersReader, AppMembersService } from '@/modules/apps/app-members.service.js';
@@ -762,6 +763,9 @@ export async function initializeContainer(): Promise<void> {
   const appsService = new AppsService(db, auditService, appFolderService, appMembersReader);
   appsService.setEventBus(eventBus);
   container.registerInstance(AppsService, appsService);
+  const appHealthService = new AppHealthService(db, appMembersReader);
+  container.registerInstance(AppHealthService, appHealthService);
+  appsService.setHealthProvider(appHealthService);
   container.registerInstance(AppNodesService, new AppNodesService(db, auditService, appsService, appMembersReader));
   const appEnvLayerService = new AppEnvLayerService(db, cryptoService, appMembersReader);
   container.registerInstance(AppEnvLayerService, appEnvLayerService);
