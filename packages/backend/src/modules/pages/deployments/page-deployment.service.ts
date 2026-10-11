@@ -246,4 +246,15 @@ export class PageDeploymentService {
   ): Promise<PagePublicationLinks> {
     return commercialModuleUnavailable();
   }
+  /**
+   * App promotion: copy a ready deployment's artifact (server-side, same sha256) into a new deployment of another
+   * project and move that project's `latest` tag to it. Returns the new deployment and the sequence it replaced.
+   */
+  async promoteDeployment(
+    _sourceDeploymentId: string,
+    _targetProjectId: string,
+    _userId: string
+  ): Promise<{ deploymentId: string; sequence: number; previousSequence: number | null }> {
+    return commercialModuleUnavailable();
+  }
 }

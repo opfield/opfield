@@ -547,7 +547,7 @@ func (p *DockerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 			}
 			return values
 		}
-		values := []string{"docker_deployments_v1", "docker_gpu_v1", dockerMigrationCapability, "docker_archive_v1", "docker_port_bind_ip_v1", "generic_relay_tunnel_v1", "relay_pool_v1", relayresume.Capability, handover.Capability, "proxy_secure_links_v1", "docker_registry_proxy_v1", "docker_runtime_management_v1", "docker_managed_volumes_v1", "docker_duplicate_label_filter_v1", "docker_duplicate_env_removal_v1", TaskCommandLookupCapability}
+		values := []string{"docker_deployments_v1", "docker_gpu_v1", dockerMigrationCapability, "docker_archive_v1", "docker_port_bind_ip_v1", "generic_relay_tunnel_v1", "relay_pool_v1", relayresume.Capability, handover.Capability, "proxy_secure_links_v1", "docker_registry_proxy_v1", "docker_runtime_management_v1", "docker_managed_volumes_v1", "docker_duplicate_label_filter_v1", "docker_duplicate_env_removal_v1", TaskCommandLookupCapability, dockerNetworkIsolationCapability}
 		if p.cfg.Docker.Mode == "" && p.availability != nil {
 			values = append(values, dockerAvailabilityCapability)
 		}

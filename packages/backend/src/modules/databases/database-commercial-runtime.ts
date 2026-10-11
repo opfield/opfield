@@ -10,6 +10,7 @@ import { createChildLogger } from '@/lib/logger.js';
 import { transactionWithScopeCleanup } from '@/lib/resource-scope-cleanup.js';
 import { writeWithAllocatedSlug } from '@/lib/resource-slugs.js';
 import { buildWhere } from '@/lib/utils.js';
+import { appsHostRuntime } from '@/modules/apps/apps-host-runtime.js';
 import { getEffectiveNodeServiceAddress, getEffectivePublishedNodeIP } from '@/modules/nodes/node-service-address.js';
 
 const logger = createChildLogger('DatabaseConnectionService');
@@ -28,6 +29,8 @@ export type { default as RedisClient } from 'ioredis';
 export type { default as pg } from 'pg';
 export type { DatabaseHealthEntry } from '@/db/schema/index.js';
 export const databaseCommercialRuntime = {
+  /** Apps: node allowlist guard, `app` field and list filters (see apps-host-runtime.ts). */
+  apps: appsHostRuntime,
   asc,
   count,
   eq,

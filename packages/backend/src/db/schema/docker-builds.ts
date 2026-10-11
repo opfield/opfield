@@ -48,7 +48,7 @@ export type DockerBuildBatchStatus =
 export type DockerArtifactStatus = 'pending' | 'ready' | 'rejected' | 'deleting' | 'deleted';
 export type DockerArtifactPolicyDecision = 'pending' | 'approved' | 'rejected' | 'error';
 export type DockerArtifactPinKind = 'active' | 'rollback' | 'build_in_progress' | 'manual';
-export type DockerArtifactOwnerKind = 'build' | 'availability';
+export type DockerArtifactOwnerKind = 'build' | 'availability' | 'promotion';
 export type DockerInternalRegistryStatus =
   | 'starting'
   | 'ready'
@@ -407,7 +407,7 @@ export const dockerBuildArtifacts = pgTable(
         AND ${table.ownerKey} IS NULL
         AND ${table.sourceImageReference} IS NULL
       ) OR (
-        ${table.ownerKind} = 'availability'
+        ${table.ownerKind} IN ('availability', 'promotion')
         AND ${table.buildId} IS NULL
         AND ${table.sourceBindingId} IS NULL
         AND ${table.ownerKey} IS NOT NULL

@@ -693,4 +693,17 @@ export class DockerComposeService {
   }> {
     return commercialModuleUnavailable();
   }
+  /**
+   * App promotion: a new revision of the project from another environment's revision YAML (service images pinned by
+   * digest, build sections removed) with this project's own variables and secret keys, `promoted_from_revision_id`
+   * set, then applied. Returns the revision and the apply operation.
+   */
+  async applyPromotedRevision(
+    _nodeId: string,
+    _projectId: string,
+    _input: { sourceYaml: string; promotedFromRevisionId: string },
+    _userId: string
+  ): Promise<{ revisionId: string; revisionNumber: number; operationId: string | null }> {
+    return commercialModuleUnavailable();
+  }
 }

@@ -63,4 +63,16 @@ export class ContainerLinksService {
   async getRuntime(_linkId: string): Promise<ContainerLinkRuntimeView> {
     return commercialModuleUnavailable();
   }
+  /**
+   * App kill switch: tear the link's transport down (link network, connector, listener, relay route) and keep the row,
+   * principal and credentials with desired state `suspended`. Returns the desired state before, or null when the link
+   * is gone.
+   */
+  async suspendForIncident(_linkId: string, _userId: string | null): Promise<{ desiredState: string } | null> {
+    return commercialModuleUnavailable();
+  }
+  /** Back to `active` and reconcile. False when the link is gone (or was not suspended). */
+  async resumeFromIncident(_linkId: string, _userId: string | null): Promise<boolean> {
+    return commercialModuleUnavailable();
+  }
 }

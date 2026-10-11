@@ -27,6 +27,7 @@ import {
 } from '@/lib/openapi.js';
 import { hasScope, hasScopeForCreation, hasScopeForResource } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { appsHostRuntime } from '@/modules/apps/apps-host-runtime.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { authMiddleware, requireScopeForResource } from '@/modules/auth/auth.middleware.js';
 import { resolveLiveUser } from '@/modules/auth/live-session-user.js';
@@ -47,6 +48,8 @@ import { BackupService } from './backups.service.js';
 
 /** Existing host instances and DTO constructors shared with the private backup domain. */
 export const backupRuntime = {
+  /** Apps: node allowlist guard, `app` field and list filters (see apps-host-runtime.ts). */
+  apps: appsHostRuntime,
   OpenAPIHono,
   z,
   and,

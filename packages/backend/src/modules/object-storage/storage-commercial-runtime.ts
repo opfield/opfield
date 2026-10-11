@@ -1,5 +1,6 @@
 import { asc, count, eq, ilike, inArray, or } from 'drizzle-orm';
 import { z } from 'zod';
+import { appsHostRuntime } from '@/modules/apps/apps-host-runtime.js';
 
 export type { infer as ZodInfer } from 'zod';
 
@@ -28,6 +29,8 @@ import {
 
 /** Shared schema and resource primitives retain the host's runtime identity. */
 export const storageCommercialRuntime = {
+  /** Apps: node allowlist guard, `app` field and list filters (see apps-host-runtime.ts). */
+  apps: appsHostRuntime,
   z,
   createChildLogger,
   hasScopeForResource,

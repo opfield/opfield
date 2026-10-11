@@ -2,6 +2,7 @@ import { and, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import { domains, nodes, proxyAdditionalRoutes, proxyAdditionalSecureLinks, proxyHosts } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { proxyHostsServedByNode } from '@/modules/ingress-groups/ingress-nodes.js';
+import { effectiveMaintenance, IN_EFFECTIVE_MAINTENANCE } from './effective-maintenance.js';
 import { runImmediateProxyHealthCheck } from './proxy-health-check.js';
 import {
   proxyHostLockKey,
@@ -49,7 +50,7 @@ export class ProxyServiceReconciliation extends ProxyServiceListing {
         eq(proxyHosts.enabled, true),
         or(
           eq(proxyHosts.type, '404'),
-          eq(proxyHosts.maintenanceEnabled, true),
+          IN_EFFECTIVE_MAINTENANCE,
           and(eq(proxyHosts.type, 'proxy'), eq(proxyHosts.isSystem, false), eq(proxyHosts.rawConfigEnabled, false))
         )
       ),
@@ -498,7 +499,7 @@ export class ProxyServiceReconciliation extends ProxyServiceListing {
     await withProxyLocks([...[...applied.keys()].map(proxyHostLockKey), proxyNodeLockKey(nodeId)], async () => {
       const current = await this.db.query.proxyHosts.findMany({
         where: and(proxyHostsServedByNode(this.db, nodeId), eq(proxyHosts.enabled, true)),
-        columns: { id: true, enabled: true, maintenanceEnabled: true },
+        columns: { id: true, enabled: true, maintenanceEnabled: true, appMaintenanceMode: true },
       });
       const unchanged =
         current.length === applied.size &&
@@ -512,7 +513,7 @@ export class ProxyServiceReconciliation extends ProxyServiceListing {
       }
       // The full set of the node's routes carries their maintenance flags; the node drops the flags of other routes.
       const keepsFlags = await this.nodeKeepsMaintenanceFlags(nodeId);
-      const maintenance = new Map(current.map((host) => [host.id, host.enabled && host.maintenanceEnabled]));
+      const maintenance = new Map(current.map((host) => [host.id, host.enabled && effectiveMaintenance(host)]));
       const result = await this.nodeDispatch.fullSync(
         nodeId,
         [...applied].map(([hostId, entry]) => ({

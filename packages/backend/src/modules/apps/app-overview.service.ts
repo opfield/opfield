@@ -1,0 +1,513 @@
+import { createHash } from 'node:crypto';
+import { and, desc, eq, inArray } from 'drizzle-orm';
+import { container } from '@/container.js';
+import type { DrizzleClient } from '@/db/client.js';
+import {
+  databaseConnections,
+  objectStorageConnections,
+  pageDeployments,
+  pageProjects,
+  pageTags,
+} from '@/db/schema/index.js';
+import { createChildLogger } from '@/lib/logger.js';
+import { DatabaseMonitoringService } from '@/modules/databases/database-monitoring.service.js';
+import { DockerSnapshotService } from '@/modules/docker/docker-snapshot.service.js';
+import { NodeMonitoringService } from '@/modules/nodes/node-monitoring.service.js';
+import { ObjectStorageMonitoringService } from '@/modules/object-storage/object-storage-monitoring.service.js';
+import { ProxyService } from '@/modules/proxy/proxy.service.js';
+import { visibleEnvironmentIds } from './app-access.js';
+import { type AppHealthService, combineHealth, type MemberStatus } from './app-health.service.js';
+import type { AppMember, AppMembersReader } from './app-members.service.js';
+import type { AppsService } from './apps.service.js';
+
+const logger = createChildLogger('AppOverview');
+
+export type OverviewRange = '1h' | '24h';
+const RANGE_MS: Record<OverviewRange, number> = { '1h': 60 * 60 * 1000, '24h': 24 * 60 * 60 * 1000 };
+/** Points per series. */
+export const OVERVIEW_POINTS = 24;
+const CACHE_TTL_MS = 15_000;
+const DISK_ALERT_PERCENT = 85;
+const ERROR_ALERT_PERCENT = 2;
+
+type Point = { at: number; value: number };
+
+/**
+ * Bucket samples into OVERVIEW_POINTS points over the range ending now (mean per bucket); empty buckets are null.
+ * An empty input gives an empty series (unknown), never a row of zeros.
+ */
+export function bucketSeries(points: readonly Point[], range: OverviewRange, now = Date.now()): Array<number | null> {
+  if (points.length === 0) return [];
+  const span = RANGE_MS[range];
+  const start = now - span;
+  const width = span / OVERVIEW_POINTS;
+  const sums = new Array<number>(OVERVIEW_POINTS).fill(0);
+  const counts = new Array<number>(OVERVIEW_POINTS).fill(0);
+  for (const point of points) {
+    if (point.at < start || point.at > now || !Number.isFinite(point.value)) continue;
+    const index = Math.min(OVERVIEW_POINTS - 1, Math.floor((point.at - start) / width));
+    sums[index] += point.value;
+    counts[index] += 1;
+  }
+  if (counts.every((count) => count === 0)) return [];
+  return sums.map((sum, index) => (counts[index] ? Math.round((sum / counts[index]) * 100) / 100 : null));
+}
+
+/** Element-wise mean of series (gaps ignored). */
+export function averageSeries(series: ReadonlyArray<Array<number | null>>): Array<number | null> {
+  const present = series.filter((item) => item.length > 0);
+  if (present.length === 0) return [];
+  return Array.from({ length: OVERVIEW_POINTS }, (_, index) => {
+    const values = present.map((item) => item[index]).filter((value): value is number => value != null);
+    return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : null;
+  });
+}
+
+/** Element-wise sum of series (null + x = x; all null stays null). */
+export function sumSeries(series: ReadonlyArray<Array<number | null>>): Array<number | null> {
+  const present = series.filter((item) => item.length > 0);
+  if (present.length === 0) return [];
+  return Array.from({ length: OVERVIEW_POINTS }, (_, index) => {
+    const values = present.map((item) => item[index]).filter((value): value is number => value != null);
+    return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) * 100) / 100 : null;
+  });
+}
+
+function average(values: Array<number | null>): number | null {
+  const present = values.filter((value): value is number => value !== null);
+  return present.length ? Math.round(present.reduce((total, value) => total + value, 0) / present.length) : null;
+}
+
+function num(value: unknown): number | null {
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN;
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function familyOf(member: AppMember): string {
+  switch (member.type) {
+    case 'container':
+    case 'deployment':
+      return 'containers';
+    case 'compose':
+      return 'compose';
+    case 'database':
+      return 'databases';
+    case 'storage':
+      return 'storage';
+    case 'route':
+      return 'routes';
+    case 'pages':
+      return 'pages';
+  }
+}
+
+type Alert = { tone: 'danger' | 'warning'; title: string; detail: string; href?: string; actionLabel?: string };
+
+/**
+ * Monitoring overview of an app: per visible environment, the health of its members, issues and alerts, and
+ * 24-point series for containers, databases, storage, routes and Pages, read once per source per request and cached
+ * for 15 s per app, range and caller scopes. Only members the caller may view appear. Unknown values are null and
+ * unknown series empty.
+ */
+export class AppOverviewService {
+  private cache = new Map<string, { at: number; value: unknown }>();
+
+  constructor(
+    private readonly db: DrizzleClient,
+    private readonly apps: AppsService,
+    private readonly members: AppMembersReader,
+    private readonly health: AppHealthService
+  ) {}
+
+  async overview(scopes: readonly string[], appId: string, range: OverviewRange = '1h') {
+    const { app, envs } = await this.apps.resolveVisible(scopes, appId);
+    const envIds = visibleEnvironmentIds(
+      scopes,
+      app.id,
+      envs.map((env) => env.id)
+    );
+    const scopeHash = createHash('sha256')
+      .update([...scopes].sort().join('\n'))
+      .digest('base64url');
+    const key = `${app.id}:${range}:${scopeHash}`;
+    const cached = this.cache.get(key);
+    if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.value;
+    if (this.cache.size > 500) this.cache.clear();
+
+    const visible = await this.members.listVisibleMembers(scopes, envIds);
+    const statuses = await this.health.memberStatuses(visible);
+    const [containerSeries, databases, storages, routes, pages] = await Promise.all([
+      this.containerSeries(statuses, range),
+      this.databaseSection(visible, range),
+      this.storageSection(visible, range),
+      this.routeSection(visible, range),
+      this.pagesSection(visible),
+    ]);
+
+    const environments = envs
+      .filter((env) => envIds.includes(env.id))
+      .map((env) => {
+        const own = statuses.filter((status) => status.member.environmentId === env.id);
+        const counted = own.filter((status) => status.health !== 'none');
+        const issues = new Map<string, { family: string; state: string; count: number }>();
+        for (const status of counted) {
+          if (status.health === 'healthy') continue;
+          const family = familyOf(status.member);
+          const issueKey = `${family}:${status.health}`;
+          const entry = issues.get(issueKey) ?? { family, state: status.health, count: 0 };
+          entry.count += 1;
+          issues.set(issueKey, entry);
+        }
+        const workloads = own.filter(
+          (status) => status.member.type === 'container' || status.member.type === 'deployment'
+        );
+        const sum = (values: Array<number | null>) => {
+          const present = values.filter((value): value is number => value !== null);
+          return present.length ? Math.round(present.reduce((total, value) => total + value, 0) * 10) / 10 : null;
+        };
+        const envContainers = containerSeries.filter((entry) => entry.environmentId === env.id);
+        const envDatabases = databases.filter((entry) => entry.environmentId === env.id);
+        const envStorage = storages.filter((entry) => entry.environmentId === env.id);
+        const envRoutes = routes.filter((entry) => entry.environmentId === env.id);
+        const envPages = pages.filter((entry) => entry.environmentId === env.id);
+        const routeRps = sum(envRoutes.map((entry) => entry.requestsPerSecond));
+        const routeErrors = sum(envRoutes.map((entry) => entry.errorsPerSecond));
+        const alerts: Alert[] = [];
+        for (const status of counted.filter((item) => item.health === 'failing')) {
+          alerts.push({
+            tone: 'danger',
+            title: `${status.member.name} is failing`,
+            detail: `${familyOf(status.member)} member of ${env.name}`,
+          });
+        }
+        for (const entry of [...envDatabases, ...envStorage]) {
+          if (entry.diskPercent !== null && entry.diskPercent >= DISK_ALERT_PERCENT) {
+            alerts.push({
+              tone: 'warning',
+              title: `${entry.name} disk is ${Math.round(entry.diskPercent)}% full`,
+              detail: 'Free space or grow the volume',
+            });
+          }
+        }
+        if (routeRps && routeErrors !== null && (routeErrors / routeRps) * 100 >= ERROR_ALERT_PERCENT) {
+          alerts.push({
+            tone: 'warning',
+            title: `${Math.round((routeErrors / routeRps) * 1000) / 10}% of requests fail with 5xx`,
+            detail: `Routes of ${env.name}`,
+          });
+        }
+        return {
+          environmentId: env.id,
+          health: combineHealth(counted.map((status) => status.health)),
+          members: own.length,
+          issues: [...issues.values()],
+          alerts,
+          containers: {
+            total: workloads.length,
+            healthy: workloads.filter((status) => status.health === 'healthy').length,
+            cpuPercent: sum(workloads.map((status) => status.cpuPercent)),
+            cpuHistory: sumSeries(envContainers.map((entry) => entry.cpu)),
+            memoryBytes: sum(workloads.map((status) => status.memoryBytes)),
+            memoryLimitBytes: sum(workloads.map((status) => status.memoryLimitBytes)),
+            memoryHistory: sumSeries(envContainers.map((entry) => entry.memory)),
+            restarts: null as number | null,
+            restartsHistory: [] as Array<number | null>,
+            unhealthy: workloads.filter((status) => status.health !== 'healthy').map((status) => status.member.name),
+          },
+          databases: envDatabases.map(({ environmentId: _env, ...entry }) => entry),
+          storage: envStorage.map(({ environmentId: _env, ...entry }) => entry),
+          routes: {
+            total: own.filter((status) => status.member.type === 'route').length,
+            requestsPerSecond: routeRps,
+            requestsHistory: sumSeries(envRoutes.map((entry) => entry.requestsHistory)),
+            errorsPerSecond: routeErrors,
+            errorsHistory: sumSeries(envRoutes.map((entry) => entry.errorsHistory)),
+            latencyMs: average(envRoutes.map((entry) => entry.latencyMs)),
+            latencyHistory: averageSeries(envRoutes.map((entry) => entry.latencyHistory)),
+            trafficBytesPerSecond: sum(envRoutes.map((entry) => entry.trafficBytesPerSecond)),
+            trafficHistory: sumSeries(envRoutes.map((entry) => entry.trafficHistory)),
+          },
+          pages: envPages.map(({ environmentId: _env, ...entry }) => entry),
+          nodeIds: [...new Set(own.flatMap((status) => status.member.nodeIds))],
+        };
+      });
+
+    const value = { range, measuredAt: new Date().toISOString(), environments };
+    this.cache.set(key, { at: Date.now(), value });
+    return value;
+  }
+
+  /** CPU and memory series of each container and active deployment slot, from the stats the nodes report. */
+  private async containerSeries(statuses: readonly MemberStatus[], range: OverviewRange) {
+    const workloads = statuses.filter(
+      (status) => status.member.type === 'container' || status.member.type === 'deployment'
+    );
+    if (workloads.length === 0) return [];
+    const snapshots = container.isRegistered(DockerSnapshotService) ? container.resolve(DockerSnapshotService) : null;
+    const monitoring = container.isRegistered(NodeMonitoringService) ? container.resolve(NodeMonitoringService) : null;
+    if (!snapshots || !monitoring) return [];
+    const idsByNode = new Map<string, Map<string, string>>();
+    for (const nodeId of new Set(workloads.map((status) => status.member.nodeId!))) {
+      const list = await snapshots.getList<Array<Record<string, any>>>(nodeId, 'containers').catch(() => null);
+      const byName = new Map<string, string>();
+      for (const item of Array.isArray(list?.data) ? list.data : []) {
+        const name = String(item.name ?? item.Name ?? '').replace(/^\/+/, '');
+        const id = String(item.id ?? item.Id ?? '');
+        if (name && id) byName.set(name, id);
+      }
+      idsByNode.set(nodeId, byName);
+    }
+    return Promise.all(
+      workloads.map(async (status) => {
+        const runtimeId = status.runtimeName
+          ? idsByNode.get(status.member.nodeId!)?.get(status.runtimeName)
+          : undefined;
+        const history = runtimeId ? await monitoring.getContainerStatsHistory(runtimeId).catch(() => []) : [];
+        const at = (entry: Record<string, unknown>) => num(entry.timestamp) ?? 0;
+        return {
+          environmentId: status.member.environmentId,
+          cpu: bucketSeries(
+            history.map((entry) => ({
+              at: at(entry),
+              value: num(entry.cpuPercent ?? entry.cpu_percent) ?? Number.NaN,
+            })),
+            range
+          ),
+          memory: bucketSeries(
+            history.map((entry) => ({
+              at: at(entry),
+              value: num(entry.memoryUsageBytes ?? entry.memory_usage_bytes) ?? Number.NaN,
+            })),
+            range
+          ),
+        };
+      })
+    );
+  }
+
+  private async databaseSection(members: readonly AppMember[], range: OverviewRange) {
+    const dbs = members.filter((member) => member.type === 'database');
+    if (dbs.length === 0) return [];
+    const rows = await this.db
+      .select({
+        id: databaseConnections.id,
+        slug: databaseConnections.slug,
+        name: databaseConnections.name,
+        manualSizeLimitMb: databaseConnections.manualSizeLimitMb,
+      })
+      .from(databaseConnections)
+      .where(
+        inArray(
+          databaseConnections.id,
+          dbs.map((member) => member.id)
+        )
+      );
+    const series = await this.seriesFrom(
+      DatabaseMonitoringService,
+      rows.map((row) => row.id),
+      range
+    );
+    return dbs.flatMap((member) => {
+      const row = rows.find((item) => item.id === member.id);
+      if (!row) return [];
+      const samples = series.get(member.id) ?? [];
+      const latest = samples.at(-1)?.metrics ?? {};
+      const size = num(latest.database_size_bytes);
+      const limit = row.manualSizeLimitMb ? row.manualSizeLimitMb * 1024 * 1024 : null;
+      const points = (metric: string) =>
+        bucketSeries(
+          samples.map((sample) => ({
+            at: Date.parse(sample.timestamp),
+            value: num(sample.metrics[metric]) ?? Number.NaN,
+          })),
+          range
+        );
+      return [
+        {
+          environmentId: member.environmentId,
+          id: row.id,
+          slug: row.slug,
+          name: row.name,
+          diskBytes: size,
+          diskPercent: size !== null && limit ? Math.round((size / limit) * 1000) / 10 : null,
+          diskHistory: points('database_size_bytes'),
+          connections: num(latest.total_connections),
+          maxConnections: num(latest.max_connections),
+          connectionsHistory: points('total_connections'),
+          transactionsPerSecond: num(latest.transaction_rate),
+        },
+      ];
+    });
+  }
+
+  private async storageSection(members: readonly AppMember[], range: OverviewRange) {
+    const storages = members.filter((member) => member.type === 'storage');
+    if (storages.length === 0) return [];
+    const rows = await this.db
+      .select({
+        id: objectStorageConnections.id,
+        slug: objectStorageConnections.slug,
+        name: objectStorageConnections.name,
+      })
+      .from(objectStorageConnections)
+      .where(
+        inArray(
+          objectStorageConnections.id,
+          storages.map((member) => member.id)
+        )
+      );
+    const series = await this.seriesFrom(
+      ObjectStorageMonitoringService,
+      rows.map((row) => row.id),
+      range
+    );
+    return storages.flatMap((member) => {
+      const row = rows.find((item) => item.id === member.id);
+      if (!row) return [];
+      const samples = series.get(member.id) ?? [];
+      const latest = samples.at(-1)?.metrics ?? {};
+      const used = num(latest.disk_used_bytes);
+      const total = num(latest.disk_total_bytes);
+      const points = (metric: string) =>
+        bucketSeries(
+          samples.map((sample) => ({
+            at: Date.parse(sample.timestamp),
+            value: num(sample.metrics[metric]) ?? Number.NaN,
+          })),
+          range
+        );
+      // Network counters are cumulative: rates come from consecutive samples.
+      const rate = (metric: string) => {
+        const out: Point[] = [];
+        for (let index = 1; index < samples.length; index += 1) {
+          const previous = samples[index - 1]!;
+          const current = samples[index]!;
+          const delta = (num(current.metrics[metric]) ?? Number.NaN) - (num(previous.metrics[metric]) ?? Number.NaN);
+          const seconds = (Date.parse(current.timestamp) - Date.parse(previous.timestamp)) / 1000;
+          if (Number.isFinite(delta) && delta >= 0 && seconds > 0)
+            out.push({ at: Date.parse(current.timestamp), value: delta / seconds });
+        }
+        return out;
+      };
+      const rx = rate('network_rx_bytes');
+      const tx = rate('network_tx_bytes');
+      return [
+        {
+          environmentId: member.environmentId,
+          id: row.id,
+          slug: row.slug,
+          name: row.name,
+          diskBytes: used,
+          diskPercent: used !== null && total ? Math.round((used / total) * 1000) / 10 : null,
+          diskHistory: points('disk_used_bytes'),
+          objects: num(latest.object_count),
+          objectsHistory: points('object_count'),
+          buckets: num(latest.bucket_count),
+          rxBytesPerSecond: rx.at(-1)?.value ?? null,
+          rxHistory: bucketSeries(rx, range),
+          txBytesPerSecond: tx.at(-1)?.value ?? null,
+          txHistory: bucketSeries(tx, range),
+        },
+      ];
+    });
+  }
+
+  private async routeSection(members: readonly AppMember[], range: OverviewRange) {
+    const routes = members.filter((member) => member.type === 'route');
+    const proxy = container.isRegistered(ProxyService) ? container.resolve(ProxyService) : null;
+    if (routes.length === 0 || !proxy) return [];
+    return Promise.all(
+      routes.map(async (member) => {
+        const history = await proxy.cachedTrafficHistory(member.id).catch(() => []);
+        const latest = history.at(-1)?.traffic;
+        const errorShare = (traffic: { statusCodes: { s5xx: number }; totalRequests: number }) =>
+          traffic.totalRequests > 0 ? traffic.statusCodes.s5xx / traffic.totalRequests : 0;
+        const series = (pick: (traffic: NonNullable<typeof latest>) => number) =>
+          bucketSeries(
+            history.map((entry) => ({ at: Date.parse(entry.timestamp), value: pick(entry.traffic) })),
+            range
+          );
+        return {
+          environmentId: member.environmentId,
+          requestsPerSecond: latest ? latest.requestsPerSecond : null,
+          requestsHistory: series((traffic) => traffic.requestsPerSecond),
+          errorsPerSecond: latest ? latest.requestsPerSecond * errorShare(latest) : null,
+          errorsHistory: series((traffic) => traffic.requestsPerSecond * errorShare(traffic)),
+          latencyMs: latest ? latest.p95ResponseTime || latest.avgResponseTime || null : null,
+          latencyHistory: series((traffic) => traffic.p95ResponseTime || traffic.avgResponseTime),
+          trafficBytesPerSecond: latest ? latest.bytesPerSecond : null,
+          trafficHistory: series((traffic) => traffic.bytesPerSecond),
+        };
+      })
+    );
+  }
+
+  private async pagesSection(members: readonly AppMember[]) {
+    const projects = members.filter((member) => member.type === 'pages');
+    if (projects.length === 0) return [];
+    const ids = projects.map((member) => member.id);
+    const [rows, tags] = await Promise.all([
+      this.db
+        .select({ id: pageProjects.id, slug: pageProjects.slug, name: pageProjects.name })
+        .from(pageProjects)
+        .where(inArray(pageProjects.id, ids)),
+      this.db
+        .select({
+          projectId: pageTags.projectId,
+          deploymentId: pageTags.deploymentId,
+          createdAt: pageDeployments.createdAt,
+        })
+        .from(pageTags)
+        .innerJoin(pageDeployments, eq(pageDeployments.id, pageTags.deploymentId))
+        .where(and(inArray(pageTags.projectId, ids), eq(pageTags.name, 'latest')))
+        .orderBy(desc(pageDeployments.createdAt)),
+    ]);
+    return projects.flatMap((member) => {
+      const row = rows.find((item) => item.id === member.id);
+      if (!row) return [];
+      const tag = tags.find((item) => item.projectId === member.id);
+      return [
+        {
+          environmentId: member.environmentId,
+          id: row.id,
+          slug: row.slug,
+          name: row.name,
+          activeDeployment: tag?.deploymentId ? { id: tag.deploymentId, createdAt: tag.createdAt } : null,
+          requestsPerSecond: null as number | null,
+          requestsHistory: [] as Array<number | null>,
+        },
+      ];
+    });
+  }
+
+  /**
+   * Samples per resource over the range: the core's overview series when it provides them, else the short live
+   * history the monitoring service keeps, else nothing (no commercial core, or monitoring off).
+   */
+  private async seriesFrom(
+    service: typeof DatabaseMonitoringService | typeof ObjectStorageMonitoringService,
+    ids: readonly string[],
+    range: OverviewRange
+  ): Promise<Map<string, Array<{ timestamp: string; metrics: Record<string, number | null> }>>> {
+    const result = new Map<string, Array<{ timestamp: string; metrics: Record<string, number | null> }>>();
+    const token = service as unknown as typeof DatabaseMonitoringService;
+    if (ids.length === 0 || !container.isRegistered(token)) return result;
+    const monitoring = container.resolve(token) as unknown as {
+      getOverviewSeries(ids: readonly string[], range: OverviewRange): Promise<Record<string, any[]>>;
+      getHistory(id: string): Promise<any[]>;
+    };
+    try {
+      const series = await monitoring.getOverviewSeries(ids, range);
+      for (const id of ids) result.set(id, Array.isArray(series?.[id]) ? series[id] : []);
+      return result;
+    } catch (error) {
+      logger.debug('Overview series unavailable; using the live history', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    for (const id of ids) {
+      result.set(id, await monitoring.getHistory(id).catch(() => []));
+    }
+    return result;
+  }
+}

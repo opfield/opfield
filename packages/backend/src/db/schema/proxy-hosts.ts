@@ -87,6 +87,9 @@ export const proxyHosts = pgTable(
     enabled: boolean('enabled').notNull().default(true),
     maintenanceEnabled: boolean('maintenance_enabled').notNull().default(false),
     maintenanceStartedAt: timestamp('maintenance_started_at', { withTimezone: true }),
+    // App maintenance overlay, computed by the apps service (off|maintenance|lockdown); never written by route edits.
+    // The effective maintenance of a route is maintenanceEnabled OR this is not 'off'.
+    appMaintenanceMode: varchar('app_maintenance_mode', { length: 16 }).notNull().default('off'),
 
     // Upstream — for proxy type
     upstreamKind: proxyUpstreamKindEnum('upstream_kind').notNull().default('manual'),

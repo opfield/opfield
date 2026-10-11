@@ -165,7 +165,7 @@ export interface ManagedDatabasePendingOperation {
 }
 
 export type ManagedDatabaseOwnerSeparationState = 'legacy' | 'preparing' | 'active' | 'error';
-export type ManagedDatabaseBindingDesiredState = 'active' | 'deleted';
+export type ManagedDatabaseBindingDesiredState = 'active' | 'suspended' | 'deleted';
 export type ManagedDatabaseBindingObservedState =
   | 'legacy'
   | 'preparing'

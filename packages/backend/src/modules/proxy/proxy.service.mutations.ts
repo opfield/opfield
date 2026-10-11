@@ -4,6 +4,7 @@ import { nodes, proxyHosts } from '@/db/schema/index.js';
 import { grantCreatedResourcePermissions } from '@/lib/created-resource-permissions.js';
 import { writeWithAllocatedSlug } from '@/lib/resource-slugs.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { assertAppPlacement, filterNodesForAppFolder } from '@/modules/apps/app-placement-guard.js';
 import { requireRoutableIngressGroup } from '@/modules/ingress-groups/ingress-group-routing.js';
 import { assertNodeAllowsServiceCreation } from '@/modules/nodes/service-creation-lock.js';
 import type { PageRouteNodeMigration } from '@/modules/pages/routes/page-route.service.js';
@@ -64,6 +65,37 @@ function mapProxyHostCertificateReferenceError(error: unknown): never {
 }
 
 export abstract class ProxyServiceMutations extends ProxyServicePlacement {
+  /** Recomputes the app maintenance overlay of routes (set by the apps module). */
+  protected appOverlay?: (routeIds: string[]) => Promise<void>;
+
+  setAppOverlayHook(hook: (routeIds: string[]) => Promise<void>) {
+    this.appOverlay = hook;
+  }
+
+  /** Refuses changes to routes an app kill switch holds (409 APP_ISOLATED; set by the apps module). */
+  protected appFreeze?: (routeId: string) => Promise<void>;
+
+  setAppFreezeGuard(guard: (routeId: string) => Promise<void>) {
+    this.appFreeze = guard;
+  }
+
+  /** A route created in, or changed inside, an app environment takes the environment's maintenance overlay. */
+  protected async refreshAppOverlay(host: {
+    id: string;
+    folderId?: string | null;
+    appMaintenanceMode?: string | null;
+  }) {
+    if (!this.appOverlay || (!host.folderId && (host.appMaintenanceMode ?? 'off') === 'off')) return;
+    try {
+      await this.appOverlay([host.id]);
+    } catch (error) {
+      logger.warn('Failed to refresh the app maintenance overlay of a route', {
+        hostId: host.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   /** Every nginx node as a route destination: identity and availability only (no node details). */
   protected async loadRouteIngressNodeCandidates(): Promise<RouteIngressNodeCandidate[]> {
     const rows = await this.db
@@ -88,9 +120,14 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
    * creators without `nodes:details`. `folderId` limits the list to a route in that folder.
    */
   async listRouteIngressNodes(scopes: readonly string[], folderId?: string | null): Promise<RouteIngressNode[]> {
-    return routeIngressNodesForScopes(await this.loadRouteIngressNodeCandidates(), scopes, folderId).map(
-      toRouteIngressNode
+    const candidates = await filterNodesForAppFolder(
+      this.db,
+      'routes',
+      folderId,
+      await this.loadRouteIngressNodeCandidates(),
+      (candidate) => candidate.id
     );
+    return routeIngressNodesForScopes(candidates, scopes, folderId).map(toRouteIngressNode);
   }
 
   /**
@@ -100,7 +137,8 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
    */
   async listRouteIngressGroups(scopes: readonly string[], folderId?: string | null): Promise<RouteIngressGroup[]> {
     const candidates = await this.loadRouteIngressNodeCandidates();
-    return loadRouteIngressGroups(this.db, routeIngressNodesForScopes(candidates, scopes, folderId), scopes);
+    const allowed = await filterNodesForAppFolder(this.db, 'routes', folderId, candidates, (candidate) => candidate.id);
+    return loadRouteIngressGroups(this.db, routeIngressNodesForScopes(allowed, scopes, folderId), scopes);
   }
 
   /**
@@ -129,7 +167,16 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
       folderId: input.folderId,
       pinnedNodeId: pinned?.nodeId ?? null,
       pinnedByDomain: registered[0]?.domain,
-      candidates: pinned ? [] : await this.loadRouteIngressNodeCandidates(),
+      // In an app environment only its allowed nginx nodes are candidates.
+      candidates: pinned
+        ? []
+        : await filterNodesForAppFolder(
+            this.db,
+            'routes',
+            input.folderId,
+            await this.loadRouteIngressNodeCandidates(),
+            (candidate) => candidate.id
+          ),
     });
     return { ...resolved, ingressGroupId: null };
   }
@@ -170,6 +217,8 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
     for (const servingNodeId of placement.servingNodeIds) {
       await assertNodeAllowsServiceCreation(this.db, servingNodeId, 'nginx');
     }
+    // A route created in an app environment is served only by nodes the environment allows (every group member).
+    await assertAppPlacement(this.db, 'routes', input.folderId, placement.servingNodeIds);
     await assertRegisteredDomainsUseTarget(this.db, input.domainNames, placement);
 
     // 0b. Validate advanced config if provided
@@ -384,6 +433,8 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
       this.runImmediateHealthCheck(host.id);
     }
 
+    await this.refreshAppOverlay(host);
+
     // 7. Return created host
     return (await attachDockerUpstreamDisplay(this.db, [host]))[0]!;
   }
@@ -398,12 +449,18 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
     userId: string,
     validationOptions: ProxyValidationInput = {}
   ) {
+    await this.appFreeze?.(id);
     // Serialize the DB write and node apply with every other change to this
     // host, so the node always serves the last committed row. A move also
     // fences reconnect cleanup on the target node.
-    return withProxyLocks([proxyHostLockKey(id), input.nodeId && proxyNodeLockKey(input.nodeId)], () =>
+    const updated = await withProxyLocks([proxyHostLockKey(id), input.nodeId && proxyNodeLockKey(input.nodeId)], () =>
       this.updateProxyHostLocked(id, input, userId, validationOptions)
     );
+    // A type or raw-mode change decides whether the route can carry its environment's maintenance overlay.
+    await this.refreshAppOverlay(
+      updated as { id: string; folderId?: string | null; appMaintenanceMode?: string | null }
+    );
+    return updated;
   }
 
   private async updateProxyHostLocked(
@@ -533,6 +590,7 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
         );
       }
       await assertNodeAllowsServiceCreation(this.db, input.nodeId, 'nginx');
+      await assertAppPlacement(this.db, 'routes', existing.folderId, [input.nodeId]);
     }
     const effectiveNodeId = input.nodeId ?? existing.nodeId;
     if (!effectiveNodeId) throw new AppError(400, 'NODE_REQUIRED', 'A node must be selected for the proxy host');

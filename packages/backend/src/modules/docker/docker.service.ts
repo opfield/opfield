@@ -177,6 +177,13 @@ function secureRuntimeUnavailableMessage(status: { state?: unknown; message?: un
 const AVAILABILITY_NETWORKS_MANAGED =
   'This container is controlled by Availability: its replicas run on Gateway-managed networks on every node. Disable Availability to change its networks.';
 
+/** The app kill switch freeze as Docker container mutations see it (AppMemberFreeze). */
+export interface DockerAppFreezeGuard {
+  anyIsolationOpen(): Promise<boolean>;
+  assertContainer(nodeId: string, name: string): Promise<void>;
+  assertMayStart(nodeId: string, name: string): Promise<void>;
+}
+
 export class DockerManagementService {
   private static readonly LONG_DOCKER_OPERATION_TIMEOUT_MS = 600000; // 10 minutes
 
@@ -199,6 +206,7 @@ export class DockerManagementService {
   private eventBus?: EventBusService;
   private evaluator?: NotificationEvaluatorService;
   private migrationGuard?: DockerMigrationGuard;
+  private appFreeze?: DockerAppFreezeGuard;
   private buildRolloutGuard?: DockerBuildRolloutGuard;
   private accessResourceService?: DockerAccessResourceService;
   private networkAccessResourceService?: DockerNetworkAccessResourceService;
@@ -325,6 +333,19 @@ export class DockerManagementService {
 
   setMigrationGuard(guard: DockerMigrationGuard) {
     this.migrationGuard = guard;
+  }
+
+  /** Members of an app environment isolated by the kill switch refuse changes (set by the apps module). */
+  setAppFreezeGuard(guard: DockerAppFreezeGuard) {
+    this.appFreeze = guard;
+  }
+
+  /** 409 APP_ISOLATED for a container of an isolated app environment (the name is resolved only during incidents). */
+  private async assertNotAppFrozen(nodeId: string, containerId: string): Promise<void> {
+    if (!this.appFreeze || !(await this.appFreeze.anyIsolationOpen())) return;
+    const name = await this.resolveContainerName(nodeId, containerId);
+    await this.appFreeze.assertContainer(nodeId, name);
+    if (name !== containerId) await this.appFreeze.assertContainer(nodeId, containerId);
   }
 
   /** Makes rename and update claims (and migration admissions) exclusive across backend processes. */
@@ -538,8 +559,10 @@ export class DockerManagementService {
       auditService: this.auditService,
       eventBus: this.eventBus,
       parseResult: (result: { success: boolean; error?: string; detail?: string }) => this.parseResult(result),
-      assertContainerMutationAllowed: (nodeId: string, containerId: string) =>
-        this.assertContainerMutationAllowed(nodeId, containerId),
+      assertContainerMutationAllowed: async (nodeId: string, containerId: string) => {
+        await this.assertNotAppFrozen(nodeId, containerId);
+        await this.assertContainerMutationAllowed(nodeId, containerId);
+      },
       onNetworkCreated: async (
         nodeId: string,
         networkId: string,
@@ -601,6 +624,7 @@ export class DockerManagementService {
 
   private envOperationContext() {
     return {
+      db: this.db,
       nodeDispatch: this.nodeDispatch,
       environmentService: this.environmentService,
       secretService: this.secretService,
@@ -1482,8 +1506,12 @@ export class DockerManagementService {
     return rollbackDockerCreatedContainer(this.containerMutationContext(), nodeId, containerId, name, userId);
   }
 
-  async startContainer(nodeId: string, containerId: string, userId: string) {
+  /** `appIncident`: the app kill switch starts a host-network container it stopped (its own hold does not apply). */
+  async startContainer(nodeId: string, containerId: string, userId: string, options: { appIncident?: boolean } = {}) {
     await this.assertContainerBuildRolloutAllowed(nodeId, containerId);
+    if (!options.appIncident && this.appFreeze && (await this.appFreeze.anyIsolationOpen())) {
+      await this.appFreeze.assertMayStart(nodeId, await this.resolveContainerName(nodeId, containerId));
+    }
     if (await this.availabilityMutationCoordinator?.setRunning(nodeId, containerId, true, userId)) return;
     const containerName = await this.resolveContainerName(nodeId, containerId);
     if (await this.availabilityMutationCoordinator?.setRunning(nodeId, containerName, true, userId)) return;
@@ -1548,6 +1576,7 @@ export class DockerManagementService {
 
   async renameContainer(nodeId: string, containerId: string, newName: string, userId: string) {
     await this.assertContainerBuildRolloutAllowed(nodeId, containerId);
+    await this.assertNotAppFrozen(nodeId, containerId);
     await this.assertNotAvailabilityManaged(
       nodeId,
       containerId,
@@ -1586,6 +1615,7 @@ export class DockerManagementService {
     actorScopes: string[] = []
   ) {
     await this.assertContainerBuildRolloutAllowed(nodeId, containerId);
+    await this.assertNotAppFrozen(nodeId, containerId);
     const managed = await this.updateAvailabilityContainer(nodeId, containerId, config, userId);
     if (managed) return managed;
     await this.assertContainerMigrationAllowed(nodeId, containerId);
@@ -1698,6 +1728,7 @@ export class DockerManagementService {
 
   async liveUpdateContainer(nodeId: string, containerId: string, config: Record<string, unknown>, userId: string) {
     await this.assertContainerBuildRolloutAllowed(nodeId, containerId);
+    await this.assertNotAppFrozen(nodeId, containerId);
     if (await this.availabilityMutationCoordinator?.updateConfiguration(nodeId, containerId, config, userId)) return;
     const containerName = await this.resolveContainerName(nodeId, containerId);
     if (await this.availabilityMutationCoordinator?.updateConfiguration(nodeId, containerName, config, userId)) return;
@@ -1722,6 +1753,7 @@ export class DockerManagementService {
     }
   ) {
     await this.assertContainerBuildRolloutAllowed(nodeId, containerId);
+    await this.assertNotAppFrozen(nodeId, containerId);
     const availabilityOptions =
       options?.waitForAvailability || options?.forceAvailabilityRollout
         ? { waitForCompletion: options.waitForAvailability, forceRollout: options.forceAvailabilityRollout }
@@ -1771,6 +1803,7 @@ export class DockerManagementService {
     userId: string
   ) {
     await this.assertContainerBuildRolloutAllowed(nodeId, containerId);
+    await this.assertNotAppFrozen(nodeId, containerId);
     if (await this.availabilityMutationCoordinator?.updateEnvironment(nodeId, containerId, env, removeEnv, userId)) {
       return { availabilityManaged: true };
     }

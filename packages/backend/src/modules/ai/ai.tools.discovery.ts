@@ -202,7 +202,7 @@ export const DISCOVERY_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'find_resource',
     description:
-      'Global resource search and type-scoped listing. Use this FIRST when the user names a resource but you need its ID, nodeId, or exact type. When the user asks to list resources of a type, pass an empty query with that type, for example { query: "", types: ["docker_container"] }. It searches across readable nodes, Docker containers/images/volumes/networks, ingress routes (proxy_host resource type), Page Projects, certificates, domains, logging resources, databases, notifications, and more. Do not manually list every node and then scan each node when find_resource can search the resource type directly.',
+      'Global resource search and type-scoped listing. Use this FIRST when the user names a resource but you need its ID, nodeId, or exact type. When the user asks to list resources of a type, pass an empty query with that type, for example { query: "", types: ["docker_container"] }. It searches across readable nodes, Docker containers/images/volumes/networks, ingress routes (proxy_host resource type), Page Projects, apps, certificates, domains, logging resources, databases, notifications, and more. Members of an app carry `app` ({id, slug, name, environmentId, environmentName}). Do not manually list every node and then scan each node when find_resource can search the resource type directly.',
     parameters: {
       type: 'object',
       properties: {
@@ -216,6 +216,7 @@ export const DISCOVERY_AI_TOOLS: AIToolDefinition[] = [
           items: {
             type: 'string',
             enum: [
+              'app',
               'node',
               'proxy_host',
               'proxy_template',

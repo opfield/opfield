@@ -406,6 +406,49 @@ export const CORE_TOKEN_SCOPES = [
     desc: "Create, edit, and delete ingress groups and change their members (adding a node also needs Manage Nodes on it)",
     group: "Ingress Groups",
   },
+  // Apps
+  {
+    value: "apps:view",
+    label: "View Apps",
+    desc: "View apps, their environments, overview and activity",
+    group: "Apps",
+  },
+  {
+    value: "apps:create",
+    label: "Create Apps",
+    desc: "Create new apps",
+    group: "Apps",
+  },
+  {
+    value: "apps:edit",
+    label: "Edit Apps",
+    desc: "Rename apps, add, rename and delete environments, and move the Production marker",
+    group: "Apps",
+  },
+  {
+    value: "apps:delete",
+    label: "Delete Apps",
+    desc: "Delete apps; their resources keep running and leave the app",
+    group: "Apps",
+  },
+  {
+    value: "apps:env:manage",
+    label: "Manage App Environments",
+    desc: "Change environment variables, secrets, allowed nodes, maintenance and members",
+    group: "Apps",
+  },
+  {
+    value: "apps:promote",
+    label: "Promote App Environments",
+    desc: "Promote what runs in one environment to another",
+    group: "Apps",
+  },
+  {
+    value: "apps:operate",
+    label: "Operate Apps",
+    desc: "Shut down, start and isolate app environments and set app maintenance",
+    group: "Apps",
+  },
   // Administration
   {
     value: "admin:users",

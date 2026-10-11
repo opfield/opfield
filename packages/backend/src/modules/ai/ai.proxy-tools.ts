@@ -87,6 +87,8 @@ export async function executeProxyTool(
           enabled: a.enabled,
           healthStatus: a.healthStatus,
           nodeId: a.nodeId,
+          excludeAppMembers: a.excludeAppMembers,
+          appId: a.appId,
           page: agentPage(a.page),
           limit: agentPageLimit(a.limit),
         }),
@@ -97,8 +99,10 @@ export async function executeProxyTool(
         data: result.data.map((host: any) => compact(host)),
       };
     }
-    case 'get_route':
-      return compact(await context.proxyService.getProxyHost(a.routeId));
+    case 'get_route': {
+      const [host] = await context.proxyService.withAppField([await context.proxyService.getProxyHost(a.routeId)]);
+      return compact(host);
+    }
     case 'list_route_ingress_nodes': {
       // Mirrors GET /proxy-hosts/ingress-nodes: any proxy:create grant form, no node permission.
       const { folderId } = RouteIngressNodeListQuerySchema.parse({ folderId: a.folderId ?? undefined });
@@ -242,7 +246,10 @@ export async function executeProxyTool(
           ) {
             throw new AppError(403, 'FORBIDDEN', 'Missing route edit access for the move destination');
           }
-          await context.folderService.assertFolderExists(folderId ?? undefined);
+          await context.folderService.assertFolderChange(
+            (existing as { folderId?: string | null }).folderId ?? null,
+            folderId ?? null
+          );
         }
       }
       if (

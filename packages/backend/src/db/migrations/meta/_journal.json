@@ -1660,6 +1660,27 @@
       "when": 1792084637000,
       "tag": "0236_secure_link_loopback_slot",
       "breakpoints": true
+    },
+    {
+      "idx": 237,
+      "version": "7",
+      "when": 1792171037000,
+      "tag": "0237_apps",
+      "breakpoints": true
+    },
+    {
+      "idx": 238,
+      "version": "7",
+      "when": 1792257437000,
+      "tag": "0238_app_incidents",
+      "breakpoints": true
+    },
+    {
+      "idx": 239,
+      "version": "7",
+      "when": 1792343837000,
+      "tag": "0239_app_promotions",
+      "breakpoints": true
     }
   ]
 }

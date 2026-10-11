@@ -1,9 +1,12 @@
 import { and, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
-import { proxyHosts } from '@/db/schema/index.js';
+import { container } from '@/container.js';
+import { proxyHostFolders, proxyHosts } from '@/db/schema/index.js';
 import { buildWhere, escapeLike } from '@/lib/utils.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { type AppMemberRef, AppMembershipService, appMemberFolderCondition } from '@/modules/apps/app-membership.js';
 import { proxyHostsServedByNode } from '@/modules/ingress-groups/ingress-nodes.js';
 import type { PaginatedResponse } from '@/types.js';
+import { type AppMaintenanceMode, effectiveMaintenance } from './effective-maintenance.js';
 import type { ProxyHostListQuery } from './proxy.schemas.js';
 import { attachDockerUpstreamDisplay } from './proxy-upstream-display.js';
 
@@ -19,6 +22,14 @@ import {
 import { proxyNodeLockKey, withProxyHostLock, withProxyLocks } from './proxy-host-lock.js';
 
 export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
+  /** `app` ({id, slug, name, environmentId, environmentName} or null) on each route. */
+  async withAppField<T extends { folderId?: string | null }>(
+    hosts: T[]
+  ): Promise<Array<T & { app: AppMemberRef | null }>> {
+    if (!container.isRegistered(AppMembershipService)) return hosts.map((host) => ({ ...host, app: null }));
+    return container.resolve(AppMembershipService).annotate('routes', hosts, (host) => host.folderId);
+  }
+
   async listProxyHosts(
     query: ProxyHostListQuery,
     options?: { allowedIds?: string[] }
@@ -59,6 +70,11 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
     if (query.ingressGroupId) {
       conditions.push(eq(proxyHosts.ingressGroupId, query.ingressGroupId));
     }
+    const appFilter = appMemberFolderCondition(proxyHosts.folderId, proxyHostFolders, {
+      excludeAppMembers: query.excludeAppMembers,
+      appId: query.appId,
+    });
+    if (appFilter) conditions.push(appFilter);
 
     const where = buildWhere(conditions);
 
@@ -74,7 +90,7 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
 
     const total = Number(totalCount);
 
-    const displayEntries = await attachDockerUpstreamDisplay(this.db, entries);
+    const displayEntries = await this.withAppField(await attachDockerUpstreamDisplay(this.db, entries));
     return {
       data: displayEntries.map(({ healthHistory, rawConfig: _rc, ...rest }) => {
         let effectiveStatus = rest.rawConfigEnabled ? 'disabled' : (rest.healthStatus as string);
@@ -108,7 +124,9 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
   // Toggle enabled/disabled
   // -----------------------------------------------------------------------
 
-  async toggleProxyHost(id: string, enabled: boolean, userId: string) {
+  /** `appIncident`: the app kill switch withdraws or re-delivers the route itself (its freeze does not apply). */
+  async toggleProxyHost(id: string, enabled: boolean, userId: string, options: { appIncident?: boolean } = {}) {
+    if (!options.appIncident) await this.appFreeze?.(id);
     return withProxyHostLock(id, () => this.toggleProxyHostLocked(id, enabled, userId));
   }
 
@@ -224,7 +242,54 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
     return (await attachDockerUpstreamDisplay(this.db, [updated]))[0]!;
   }
 
+  /**
+   * Apps set a route's maintenance overlay (environment switch, app override, phase 2 incidents). The route's own
+   * switch is never touched; its nodes get the effective state like a toggle (a flag without reload where the node
+   * keeps maintenance flags). A node that cannot be reached gets it with its next resync. Returns whether it changed.
+   */
+  async setAppMaintenanceMode(id: string, mode: AppMaintenanceMode): Promise<boolean> {
+    return withProxyHostLock(id, async () => {
+      const existing = await this.db.query.proxyHosts.findFirst({ where: eq(proxyHosts.id, id) });
+      if (!existing || (existing.appMaintenanceMode ?? 'off') === mode) return false;
+      const [updated] = await this.db
+        .update(proxyHosts)
+        .set({ appMaintenanceMode: mode, updatedAt: new Date() })
+        .where(eq(proxyHosts.id, id))
+        .returning();
+      const effectiveChanged = effectiveMaintenance(existing) !== effectiveMaintenance(updated);
+      // Entering or leaving lockdown changes the rendered guard (team access in or out) even when the route stays in
+      // maintenance: it is delivered as a config change.
+      const lockdownChanged = (existing.appMaintenanceMode === 'lockdown') !== (mode === 'lockdown');
+      if (updated.enabled && (effectiveChanged || lockdownChanged)) {
+        try {
+          await this.deliverHost(updated, {
+            certOptions: { preserveLegacyOnUnsupported: true },
+            apply: { reuseActiveBundle: true },
+          });
+        } catch (error) {
+          logger.warn('App maintenance overlay not delivered now; the node gets it with its next resync', {
+            hostId: id,
+            mode,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      this.emitHost(id, 'updated', existing.domainNames?.[0], { appMaintenanceMode: mode });
+      if (effectiveChanged) this.reconcileMaintenanceAlerts(id);
+      if (effectiveChanged && !effectiveMaintenance(updated) && updated.healthCheckEnabled) {
+        this.runImmediateHealthCheck(id);
+      }
+      return true;
+    });
+  }
+
+  /** Whether a route serves the Gateway public URL (it never joins an app maintenance overlay or an app). */
+  async servesGatewayPublicUrl(host: Pick<ProxyHostRow, 'domainNames'>): Promise<boolean> {
+    return this.isGatewayPublicRoute(host);
+  }
+
   async toggleMaintenance(id: string, enabled: boolean, userId: string) {
+    await this.appFreeze?.(id);
     return withProxyHostLock(id, () => this.toggleMaintenanceLocked(id, enabled, userId));
   }
 

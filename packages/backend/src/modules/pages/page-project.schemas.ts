@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { appListQueryFields } from '@/modules/apps/app-list-query.js';
 import { NODE_APPEARANCE_COLORS } from '@/modules/nodes/nodes.schemas.js';
 
 export const PageProjectListQuerySchema = z.object({
@@ -6,6 +7,12 @@ export const PageProjectListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().trim().max(255).optional(),
   folderId: z.string().uuid().optional().nullable(),
+  ...appListQueryFields,
+});
+
+/** Placement options for a create into `folderId`: inside an app environment only the nodes it allows. */
+export const PageProjectPlacementOptionsQuerySchema = z.object({
+  folderId: z.string().uuid().optional(),
 });
 
 export const CreatePageProjectSchema = z.object({

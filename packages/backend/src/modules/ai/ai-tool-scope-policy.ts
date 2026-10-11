@@ -27,7 +27,28 @@ export function isExecutorAuthorizedDockerScope(requiredScope: string): boolean 
   return EXECUTOR_AUTHORIZED_DOCKER_SCOPE_PREFIXES.some((prefix) => requiredScope.startsWith(prefix));
 }
 
+/** App tools: any app permission reaches them; the handlers check the app or environment each call touches. */
+const APP_TOOL_SCOPES = [
+  'apps:view',
+  'apps:create',
+  'apps:edit',
+  'apps:delete',
+  'apps:env:manage',
+  'apps:promote',
+  'apps:operate',
+] as const;
+
 export const AI_TOOL_ANY_SCOPE_REQUIREMENTS: Readonly<Record<string, readonly string[]>> = {
+  list_apps: APP_TOOL_SCOPES,
+  get_app: APP_TOOL_SCOPES,
+  manage_app: APP_TOOL_SCOPES,
+  manage_app_environment: APP_TOOL_SCOPES,
+  manage_app_variables: APP_TOOL_SCOPES,
+  manage_app_members: APP_TOOL_SCOPES,
+  get_app_overview: APP_TOOL_SCOPES,
+  get_app_activity: APP_TOOL_SCOPES,
+  manage_app_incident: APP_TOOL_SCOPES,
+  promote_app_environment: APP_TOOL_SCOPES,
   manage_database_backups: [
     'databases:backups:view',
     'databases:backups:manage',
@@ -87,6 +108,7 @@ export const AI_TOOL_ANY_SCOPE_REQUIREMENTS: Readonly<Record<string, readonly st
   list_docker_builds: ['docker:containers:view', 'docker:compose:view', 'pages:view'],
   find_resource: [
     'ai:workspace:use',
+    'apps:view',
     'nodes:details',
     'proxy:view',
     'proxy:templates:view',

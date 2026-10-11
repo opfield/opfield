@@ -12,6 +12,7 @@ import { createChildLogger } from '@/lib/logger.js';
 import { hasScope } from '@/lib/permissions.js';
 import { transactionWithScopeCleanup } from '@/lib/resource-scope-cleanup.js';
 import { writeWithAllocatedSlug } from '@/lib/resource-slugs.js';
+import { appsHostRuntime } from '@/modules/apps/apps-host-runtime.js';
 import { decodeComposeServiceTarget } from '@/modules/docker/compose/compose-managed-bindings.js';
 import { assertDockerResourceScope } from '@/modules/docker/docker-access.middleware.js';
 import { resolveBindingTargetContainerIdentity } from '@/modules/docker/docker-binding-target-identity.js';
@@ -35,6 +36,8 @@ export const managedDatabaseConstructors = {
 };
 export type ManagedDatabaseConstructors = typeof managedDatabaseConstructors;
 export const managedDatabaseRuntime = {
+  /** Apps: node allowlist guard, `app` field and list filters (see apps-host-runtime.ts). */
+  apps: appsHostRuntime,
   constructors: managedDatabaseConstructors,
   createChildLogger,
   loggerManagedDatabaseService,

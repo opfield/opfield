@@ -1,3 +1,4 @@
+import { appsHostRuntime } from '@/modules/apps/apps-host-runtime.js';
 import { DockerMigrationService } from './docker-migration.service.js';
 import { DockerMigrationCoordinator } from './docker-migration-coordinator.js';
 import { DockerMigrationDispatchAdapter } from './docker-migration-dispatch.js';
@@ -58,6 +59,8 @@ import { waitForShutdownTasks } from '@/services/shutdown-coordinator.service.js
 
 const loggerDockerMigrationService = createChildLogger('DockerMigrationService');
 export const dockerMigrationCommercialRuntime = {
+  /** Apps: node allowlist guard, `app` field and list filters (see apps-host-runtime.ts). */
+  apps: appsHostRuntime,
   constructors,
   and,
   desc,

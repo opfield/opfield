@@ -1,5 +1,6 @@
 import { hasScope, hasScopeBase } from '@/lib/permissions.js';
 import { TOOL_STORE_INVALIDATION_CHANNEL_PREFIX } from '@/modules/ai/ai-tool-store-invalidation.js';
+import { hasAnyAppScope } from '@/modules/apps/app-access.js';
 import { MFA_REQUIRED_CHANNEL_PREFIX } from '@/modules/auth/mfa-events.js';
 import { userResourceChannelUserId } from '@/modules/auth/user-resource-events.js';
 import { hasAnyDockerNodeRouteAccess } from '@/modules/docker/docker-route-resolvers.js';
@@ -75,6 +76,7 @@ export function requiredScopeFor(channel: string): string | null {
   if (channel === 'node.slug.changed') return 'nodes:details';
   if (channel === 'node.changed' || channel === 'node.folder.changed') return 'nodes:details';
   if (channel === 'ingress_group.changed') return 'ingress:groups:view';
+  if (channel === 'apps') return 'apps:view';
   if (channel === 'user.changed') return 'admin:users';
   if (channel === 'audit.changed') return 'admin:audit';
   if (channel === 'siem.destination.changed' || channel === 'siem.delivery.changed') return 'audit:siem:view';
@@ -232,6 +234,10 @@ export function hasChannelAccess(scopes: string[], channel: string): boolean {
   }
   if (channel === 'node.folder.changed') {
     return hasScopeBase(scopes, 'nodes:details') || hasScopeBase(scopes, 'nodes:folders:manage');
+  }
+  if (channel === 'apps') {
+    // Only {appId, action} travels; the app requests apply the app and environment grants.
+    return hasAnyAppScope(scopes);
   }
   if (channel === 'ingress_group.changed') {
     // Only the group id travels; the list and detail requests apply the folder grants.

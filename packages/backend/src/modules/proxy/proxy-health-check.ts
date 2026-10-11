@@ -20,6 +20,7 @@ import {
 } from '@/modules/settings/outbound-webhook-request.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
+import { effectiveMaintenance, NOT_IN_EFFECTIVE_MAINTENANCE } from './effective-maintenance.js';
 import type { HealthCheckBodyMatchMode } from './proxy.service-helpers.js';
 import { matchesExpectedBody } from './proxy.service-helpers.js';
 import { loadAvailabilityRouteProbeLinks, probeSecureLinkRoute } from './proxy-secure-link-health-probe.js';
@@ -367,7 +368,7 @@ export function runImmediateProxyHealthCheck({
       const host = await db.query.proxyHosts.findFirst({
         where: eq(proxyHosts.id, hostId),
       });
-      if (!host?.enabled || !host.healthCheckEnabled || host.maintenanceEnabled) return;
+      if (!host?.enabled || !host.healthCheckEnabled || effectiveMaintenance(host)) return;
       // A route on an ingress group is probed through every member by the scheduled job (within its next tick,
       // a few seconds): one immediate sample from a single member would misstate it.
       if (host.ingressGroupId) return;
@@ -446,7 +447,7 @@ export function runImmediateProxyHealthCheck({
             eq(proxyHosts.id, hostId),
             eq(proxyHosts.enabled, true),
             eq(proxyHosts.healthCheckEnabled, true),
-            eq(proxyHosts.maintenanceEnabled, false)
+            NOT_IN_EFFECTIVE_MAINTENANCE
           )
         )
         .returning({ id: proxyHosts.id });

@@ -3,7 +3,12 @@ import { boolean, check, index, integer, pgTable, timestamp, uniqueIndex, uuid, 
 import { nodes } from './nodes.js';
 
 export type NodeHostPortProtocol = 'tcp' | 'udp';
-export type NodeHostPortOwnerKind = 'deployment' | 'deployment_replica' | 'managed_storage' | 'managed_database';
+export type NodeHostPortOwnerKind =
+  | 'deployment'
+  | 'deployment_replica'
+  | 'managed_storage'
+  | 'managed_database'
+  | 'app_incident';
 
 /**
  * One host port a Gateway-managed workload holds on its node. The partial
@@ -25,7 +30,9 @@ export type NodeHostPortOwnerKind = 'deployment' | 'deployment_replica' | 'manag
  *
  * Owner kinds: a blue/green deployment on its own node, an Availability
  * replica of one (`deployment_replica`, keyed by placement) on every other
- * node it is placed on, a managed storage cluster and a managed database.
+ * node it is placed on, a managed storage cluster and a managed database. `app_incident` (keyed by the incident item)
+ * keeps the published port of a managed database or storage whose publication an app kill switch suspended, so the
+ * same port is republished on release.
  */
 export const nodeHostPortReservations = pgTable(
   'node_host_port_reservations',
@@ -61,7 +68,7 @@ export const nodeHostPortReservations = pgTable(
     check('node_host_port_reservations_port_valid', sql`${table.hostPort} BETWEEN 1 AND 65535`),
     check(
       'node_host_port_reservations_owner_kind_valid',
-      sql`${table.ownerKind} IN ('deployment', 'deployment_replica', 'managed_storage', 'managed_database')`
+      sql`${table.ownerKind} IN ('deployment', 'deployment_replica', 'managed_storage', 'managed_database', 'app_incident')`
     ),
   ]
 );

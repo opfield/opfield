@@ -2,6 +2,7 @@ import { hasScope } from './permissions.js';
 import { FOLDER_CREATION_SCOPES, FOLDER_ONLY_SCOPABLE, RESOURCE_SCOPABLE } from './scopes.js';
 
 export type CreatedResourceFamily =
+  | 'apps'
   | 'nodes'
   | 'proxy'
   | 'pages'

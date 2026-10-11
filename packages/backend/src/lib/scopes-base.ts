@@ -111,6 +111,15 @@ export const ALL_SCOPES = [
   // Groups live in node folders: both scopes are broad or limited to a node folder (`folder/<id>`).
   'ingress:groups:view',
   'ingress:groups:manage',
+  // ── Apps ─────────────────────────────────────────────────────────
+  // Qualifiers: `<appId>` (whole app) and `env/<envId>` (view, env:manage, promote, operate); create is broad only.
+  'apps:view',
+  'apps:create',
+  'apps:edit',
+  'apps:delete',
+  'apps:env:manage',
+  'apps:promote',
+  'apps:operate',
   // ── Administration ───────────────────────────────────────────────
   'admin:users',
   'admin:users:impersonate',

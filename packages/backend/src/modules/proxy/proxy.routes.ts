@@ -130,7 +130,8 @@ proxyRoutes.openapi(getProxyHostBySlugRoute, async (c) => {
   if (!hasScope(scopes, `proxy:view:${host.id}`)) {
     throw new AppError(403, 'FORBIDDEN', `Missing required scope: proxy:view:${host.id}`);
   }
-  return c.json({ data: serializeProxyHostForBrowser(host as any, scopes, host.id) });
+  const [withApp] = await proxyService.withAppField([host as any]);
+  return c.json({ data: serializeProxyHostForBrowser(withApp, scopes, host.id) });
 });
 
 proxyRoutes.openapi({ ...getProxyHostRoute, middleware: requireScopeForResource('proxy:view', 'id') }, async (c) => {
@@ -138,7 +139,8 @@ proxyRoutes.openapi({ ...getProxyHostRoute, middleware: requireScopeForResource(
   const id = c.req.param('id')!;
   const host = await proxyService.getProxyHost(id);
   const scopes = c.get('effectiveScopes') || [];
-  return c.json({ data: serializeProxyHostForBrowser(host as any, scopes, id) });
+  const [withApp] = await proxyService.withAppField([host as any]);
+  return c.json({ data: serializeProxyHostForBrowser(withApp, scopes, id) });
 });
 
 proxyRoutes.openapi(
@@ -403,7 +405,9 @@ proxyRoutes.openapi(updateProxyHostRoute, async (c) => {
       if (!hasScope(scopes, `proxy:edit:${id}`) || !hasScopeForCreation(scopes, 'proxy:edit', input.folderId)) {
         throw new AppError(403, 'FORBIDDEN', 'Missing route edit access for the move destination');
       }
-      await container.resolve(FolderService).assertFolderExists(input.folderId ?? undefined);
+      await container
+        .resolve(FolderService)
+        .assertFolderChange((existing as { folderId?: string | null }).folderId ?? null, input.folderId ?? null);
     }
   }
   const existingPageTarget = existing.pageTarget as { projectId?: unknown; tagId?: unknown } | null | undefined;

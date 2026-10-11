@@ -1,3 +1,5 @@
+import type { DrizzleExecutor } from '@/db/client.js';
+import { appliedLayerKeys, planContainerLayer } from '@/modules/apps/app-container-layer.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import type { DockerEnvironmentService } from './docker-environment.service.js';
 import type { DockerSecretService } from './docker-secret.service.js';
@@ -6,6 +8,8 @@ import { dockerSecretEnvMatcher, dockerSecretEnvOwners } from './docker-secret-e
 type DockerDispatchResult = { success: boolean; error?: string; detail?: string };
 
 export interface DockerEnvOperationContext {
+  /** Reads what the container received from its app environment layer (never shown or seeded as its own env). */
+  db?: DrizzleExecutor;
   nodeDispatch: NodeDispatchService;
   environmentService?: DockerEnvironmentService;
   secretService?: DockerSecretService;
@@ -24,7 +28,14 @@ export async function getContainerEnv(context: DockerEnvOperationContext, nodeId
     context.secretService && name
       ? await dockerSecretEnvMatcher(context.secretService, dockerSecretEnvOwners(nodeId, inspect))
       : null;
-  const visibleEnv = carriesSecret ? allEnv.filter((entry) => !carriesSecret(entry)) : allEnv;
+  const secretFiltered = carriesSecret ? allEnv.filter((entry) => !carriesSecret(entry)) : allEnv;
+  // Keys from the app environment layer are the environment's, not the container's own env.
+  const layerKeys =
+    context.db && name ? new Set(appliedLayerKeys(await planContainerLayer(context.db, nodeId, name))) : new Set();
+  const visibleEnv =
+    layerKeys.size > 0
+      ? secretFiltered.filter((entry) => !layerKeys.has(entry.split('=')[0] ?? entry))
+      : secretFiltered;
 
   if (context.environmentService && name) {
     const storedEnv = await context.environmentService.getDecryptedMap(nodeId, name);

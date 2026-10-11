@@ -128,6 +128,31 @@ describe('Maintenance mode on a node that keeps maintenance flags', () => {
   });
 });
 
+describe('App kill switch lockdown', () => {
+  const withMode = (mode: string) => ({ ...route(false), appMaintenanceMode: mode });
+
+  it.each([
+    ['a node that keeps maintenance flags', ['proxy_maintenance_access_v1', MAINTENANCE_FLAG_CAPABILITY]],
+    ['a node without maintenance flags', ['proxy_maintenance_access_v1']],
+  ])('renders the plain maintenance page without team access on %s', async (_label, capabilities) => {
+    const harness = toggleHarness(withMode('maintenance'), withMode('lockdown'), capabilities);
+    expect(await harness.service.setAppMaintenanceMode(HOST_ID, 'lockdown')).toBe(true);
+    const [call] = harness.applyConfig.mock.calls;
+    expect(call).toBeDefined();
+    const config = call![2] as string;
+    expect(config).toContain('return 503');
+    expect(config).not.toContain('maintenance-access.sock');
+    expect(config).not.toContain(MAINTENANCE_FLAG_DIR);
+  });
+
+  it('delivers leaving lockdown back to maintenance with team access again', async () => {
+    const harness = toggleHarness(withMode('lockdown'), withMode('maintenance'), ['proxy_maintenance_access_v1']);
+    expect(await harness.service.setAppMaintenanceMode(HOST_ID, 'maintenance')).toBe(true);
+    const [call] = harness.applyConfig.mock.calls;
+    expect(call![2]).toContain('maintenance-access.sock');
+  });
+});
+
 /** The names of the directives each server block sets itself, once per occurrence. */
 function serverDirectives(config: string): string[][] {
   return parseNginxConfig(config)

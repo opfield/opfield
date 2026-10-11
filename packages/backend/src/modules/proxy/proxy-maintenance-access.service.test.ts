@@ -25,6 +25,12 @@ function harness({ supportsMaintenanceAccess = true }: { supportsMaintenanceAcce
   const values = new Map<string, string>();
   const cache = {
     set: vi.fn(async (key: string, value: unknown) => values.set(key, JSON.stringify(value))),
+    get: vi.fn(async (key: string) => (values.has(key) ? JSON.parse(values.get(key)!) : null)),
+    setIfAbsent: vi.fn(async (key: string, value: unknown) => {
+      if (values.has(key)) return false;
+      values.set(key, JSON.stringify(value));
+      return true;
+    }),
     getClient: () => ({
       getdel: vi.fn(async (key: string) => {
         const value = values.get(key) ?? null;

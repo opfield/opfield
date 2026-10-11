@@ -15,6 +15,7 @@ import { createChildLogger } from '@/lib/logger.js';
 import type { HostingAccountObservation } from '@/modules/hosting/hosting-observations.service.js';
 import { resolveIngressNodesForMany } from '@/modules/ingress-groups/ingress-nodes.js';
 import { recordNodeCapacitySample } from '@/modules/monitoring/dashboard-attention.js';
+import { effectiveMaintenance } from '@/modules/proxy/effective-maintenance.js';
 import type { CacheService, RedisClient } from '@/services/cache.service.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { NodeRegistryService } from '@/services/node-registry.service.js';
@@ -1635,7 +1636,7 @@ export class NotificationEvaluatorService {
     });
 
     for (const host of hosts) {
-      const active = host.enabled && host.maintenanceEnabled;
+      const active = host.enabled && effectiveMaintenance(host);
       await this.observeStatefulEvent(
         'proxy',
         active ? 'maintenance.active' : 'maintenance.inactive',
@@ -1670,7 +1671,7 @@ export class NotificationEvaluatorService {
 
       await this.resolveAlert(state.id, rule, 'proxy', state.resourceId, host?.domainNames?.[0] ?? state.resourceId, {
         resourceId: state.resourceId,
-        state: { current: host?.maintenanceEnabled ? 'maintenance.active' : 'maintenance.inactive' },
+        state: { current: host && effectiveMaintenance(host) ? 'maintenance.active' : 'maintenance.inactive' },
         event: { name: 'maintenance.active' },
         resolution: { reason: 'resource_inactive_deleted_or_out_of_scope' },
       });

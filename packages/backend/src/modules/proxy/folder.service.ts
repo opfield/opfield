@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import type { DrizzleClient, DrizzleExecutor, DrizzleTransaction } from '@/db/client.js';
 import { proxyHostFolders } from '@/db/schema/proxy-host-folders.js';
 import { proxyHosts } from '@/db/schema/proxy-hosts.js';
@@ -11,6 +11,7 @@ import {
   assertFolderMoveAccess,
   type FolderMoveAccess,
   folderNameKey,
+  resourceInAppError,
 } from '@/modules/resource-folders/resource-folder.service.js';
 import { assertFolderManage, type FolderManageAccess } from '@/modules/resource-folders/resource-folder-access.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
@@ -35,6 +36,9 @@ const MAX_DEPTH = 2; // 0, 1, 2 = three levels
 // ---------------------------------------------------------------------------
 
 type FolderRow = typeof proxyHostFolders.$inferSelect;
+
+/** User folders: every folder surface here leaves out the hidden folders apps own. */
+const USER_FOLDERS = isNull(proxyHostFolders.appId);
 type ProxyHostRow = typeof proxyHosts.$inferSelect;
 
 /** Compute effective health status and return a plain object (Drizzle rows are class instances) */
@@ -160,25 +164,56 @@ export class FolderService {
     });
   }
 
+  /** A user folder; hidden app folders are managed by the apps module only. */
   private async findFolder(id: string, db: DrizzleExecutor = this.db) {
-    const [folder] = await db.select().from(proxyHostFolders).where(eq(proxyHostFolders.id, id)).limit(1);
+    const [folder] = await db
+      .select()
+      .from(proxyHostFolders)
+      .where(and(USER_FOLDERS, eq(proxyHostFolders.id, id)))
+      .limit(1);
     return folder;
+  }
+
+  /**
+   * A Route update that changes its folder: a user folder only, and never out of an app (members leave an app only
+   * through Move to App).
+   */
+  async assertFolderChange(fromId: string | null, toId: string | null): Promise<void> {
+    if ((await this.hiddenFolderIds([fromId, toId])).size > 0) throw resourceInAppError();
+    if (toId && !(await this.findFolder(toId))) throw new AppError(404, 'FOLDER_NOT_FOUND', 'Folder not found');
+  }
+
+  /** IDs of the hidden app folders among `ids` (Routes there are app members). */
+  async hiddenFolderIds(ids: ReadonlyArray<string | null>): Promise<Set<string>> {
+    const unique = [...new Set(ids.filter((id): id is string => !!id))];
+    if (unique.length === 0) return new Set();
+    const rows = await this.db
+      .select({ id: proxyHostFolders.id })
+      .from(proxyHostFolders)
+      .where(and(inArray(proxyHostFolders.id, unique), isNotNull(proxyHostFolders.appId)));
+    return new Set(rows.map((row) => row.id));
   }
 
   private async nextSortOrder(parentId: string | null, db: DrizzleExecutor = this.db): Promise<number> {
     const siblings = await db
       .select({ sortOrder: proxyHostFolders.sortOrder })
       .from(proxyHostFolders)
-      .where(parentId ? eq(proxyHostFolders.parentId, parentId) : isNull(proxyHostFolders.parentId))
+      .where(and(USER_FOLDERS, parentId ? eq(proxyHostFolders.parentId, parentId) : isNull(proxyHostFolders.parentId)))
       .orderBy(desc(proxyHostFolders.sortOrder))
       .limit(1);
     return siblings.length > 0 ? siblings[0].sortOrder + 1 : 0;
   }
 
+  /**
+   * Destination check of create paths: a user folder, or the hidden folder of an app environment (a create from an
+   * app passes the environment's placement folder). An app root folder is never a destination.
+   */
   async assertFolderExists(id: string | null | undefined): Promise<void> {
     if (!id) return;
     const folder = await this.db.query.proxyHostFolders.findFirst({ where: eq(proxyHostFolders.id, id) });
-    if (!folder) throw new AppError(404, 'FOLDER_NOT_FOUND', 'Folder not found');
+    if (!folder || (folder.appId && !folder.appEnvironmentId)) {
+      throw new AppError(404, 'FOLDER_NOT_FOUND', 'Folder not found');
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -186,9 +221,7 @@ export class FolderService {
   // -----------------------------------------------------------------------
 
   async updateFolder(id: string, input: UpdateFolderInput, userId: string) {
-    const existing = await this.db.query.proxyHostFolders.findFirst({
-      where: eq(proxyHostFolders.id, id),
-    });
+    const existing = await this.findFolder(id);
     if (!existing) throw new AppError(404, 'FOLDER_NOT_FOUND', 'Folder not found');
 
     const [updated] = await this.db
@@ -246,7 +279,12 @@ export class FolderService {
       const siblings = await tx
         .select({ id: proxyHostFolders.id, name: proxyHostFolders.name })
         .from(proxyHostFolders)
-        .where(input.parentId ? eq(proxyHostFolders.parentId, input.parentId) : isNull(proxyHostFolders.parentId));
+        .where(
+          and(
+            USER_FOLDERS,
+            input.parentId ? eq(proxyHostFolders.parentId, input.parentId) : isNull(proxyHostFolders.parentId)
+          )
+        );
       const nameKey = folderNameKey(folder.name);
       if (siblings.some((sibling) => sibling.id !== id && folderNameKey(sibling.name ?? '') === nameKey)) {
         throw new AppError(
@@ -322,7 +360,7 @@ export class FolderService {
     const rows = await this.db
       .select({ id: proxyHostFolders.id, parentId: proxyHostFolders.parentId })
       .from(proxyHostFolders)
-      .where(inArray(proxyHostFolders.id, unique));
+      .where(and(USER_FOLDERS, inArray(proxyHostFolders.id, unique)));
     if (rows.length !== unique.length) throw new AppError(404, 'FOLDER_NOT_FOUND', 'Folder not found');
     return new Map(rows.map((row) => [row.id, row.parentId ?? null]));
   }
@@ -386,7 +424,7 @@ export class FolderService {
       await this.db
         .update(proxyHostFolders)
         .set({ sortOrder: item.sortOrder, updatedAt: new Date() })
-        .where(eq(proxyHostFolders.id, item.id));
+        .where(and(USER_FOLDERS, eq(proxyHostFolders.id, item.id)));
     }
 
     this.emitLayoutChanged('folders_reordered');
@@ -404,6 +442,7 @@ export class FolderService {
     const allFolders = await this.db
       .select()
       .from(proxyHostFolders)
+      .where(USER_FOLDERS)
       .orderBy(asc(proxyHostFolders.depth), asc(proxyHostFolders.sortOrder));
 
     if (options?.includeAllFolders) return this.buildTree(allFolders, []);
@@ -430,6 +469,7 @@ export class FolderService {
     const allFolders = await this.db
       .select()
       .from(proxyHostFolders)
+      .where(USER_FOLDERS)
       .orderBy(asc(proxyHostFolders.depth), asc(proxyHostFolders.sortOrder));
     const allowedFolderIds = new Set(options?.allowedFolderIds ?? []);
 
@@ -467,6 +507,10 @@ export class FolderService {
       conditions.push(ilike(sql`${proxyHosts.domainNames}::text`, `%${query.search}%`));
     }
 
+    // App members are not listed here (they appear on their app's page); the list endpoint still returns them.
+    conditions.push(
+      sql`(${proxyHosts.folderId} is null or ${proxyHosts.folderId} not in (select ${proxyHostFolders.id} from ${proxyHostFolders} where ${proxyHostFolders.appId} is not null))`
+    );
     const where = buildWhere(conditions);
 
     const hostRows = await this.db
@@ -511,19 +555,18 @@ export class FolderService {
   async moveHostsToFolder(input: MoveHostsToFolderInput, userId: string) {
     // Validate folder exists if not null
     if (input.folderId) {
-      const folder = await this.db.query.proxyHostFolders.findFirst({
-        where: eq(proxyHostFolders.id, input.folderId),
-      });
+      const folder = await this.findFolder(input.folderId);
       if (!folder) throw new AppError(404, 'FOLDER_NOT_FOUND', 'Target folder not found');
     }
 
     const selectedHosts = await this.db
-      .select({ id: proxyHosts.id, isSystem: proxyHosts.isSystem })
+      .select({ id: proxyHosts.id, isSystem: proxyHosts.isSystem, folderId: proxyHosts.folderId })
       .from(proxyHosts)
       .where(inArray(proxyHosts.id, input.hostIds));
     if (selectedHosts.some((host) => host.isSystem)) {
       throw new AppError(403, 'SYSTEM_HOST', 'System proxy hosts cannot be moved');
     }
+    if ((await this.hiddenFolderIds(selectedHosts.map((host) => host.folderId))).size > 0) throw resourceInAppError();
 
     await this.db
       .update(proxyHosts)

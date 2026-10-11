@@ -4,6 +4,8 @@ import type { DrizzleClient } from '@/db/client.js';
 import {
   accessLists,
   adminUserFolders,
+  appEnvironments,
+  apps,
   certificateAuthorities,
   certificates,
   databaseConnectionFolders,
@@ -241,7 +243,12 @@ const FOLDER_TABLES: Record<AccessFolderResourceType, any> = {
 type FolderInfo = { name: string | null; path: string | null; parentId: string | null };
 
 async function folderPaths(db: Db, table: any): Promise<Map<string, FolderInfo>> {
-  const rows = await selectRows(db, table, { id: table.id, name: table.name, parentId: table.parentId });
+  const rows = await selectRows(db, table, {
+    id: table.id,
+    name: table.name,
+    parentId: table.parentId,
+    ...(table.appId ? { appId: table.appId, appEnvironmentId: table.appEnvironmentId } : {}),
+  });
   const byId = new Map(rows.filter((row) => typeof row.id === 'string').map((row) => [row.id as string, row]));
   const result = new Map<string, FolderInfo>();
   for (const [id, row] of byId) {
@@ -253,9 +260,17 @@ async function folderPaths(db: Db, table: any): Promise<Map<string, FolderInfo>>
       names.unshift(typeof current.name === 'string' ? current.name : '?');
       current = typeof current.parentId === 'string' ? byId.get(current.parentId) : undefined;
     }
+    // A hidden app folder reads as its app and environment: the root is named like the app, the environment
+    // folder like the environment.
+    const appLabel =
+      typeof row.appId === 'string'
+        ? typeof row.appEnvironmentId === 'string'
+          ? `App ${names[0] ?? '?'} · ${names[1] ?? '?'}`
+          : `App ${names[0] ?? '?'} · every environment`
+        : null;
     result.set(id, {
-      name: typeof row.name === 'string' ? row.name : null,
-      path: names.join(' / '),
+      name: appLabel ?? (typeof row.name === 'string' ? row.name : null),
+      path: appLabel ?? names.join(' / '),
       parentId: typeof row.parentId === 'string' ? row.parentId : null,
     });
   }
@@ -402,6 +417,8 @@ async function resourceNames(db: Db, areaId: string, targets: GrantTargetSummary
         ids,
         (row) => (typeof row.remoteId === 'string' ? `${row.kind ?? 'resource'} ${row.remoteId}` : null)
       );
+    case 'apps':
+      return appScopeNames(db, ids);
     case 'integrations': {
       // Git qualifiers are `<connectorId>[/<kind>/<id>]`; name them by their connector.
       const connectorIds = ids.map((id) => id.split('/')[0]);
@@ -419,6 +436,30 @@ async function resourceNames(db: Db, areaId: string, targets: GrantTargetSummary
     default:
       return new Map();
   }
+}
+
+/** App grants are `<appId>` (whole app) or `env/<envId>`; they read as "App Shop" and "App Shop · staging". */
+async function appScopeNames(db: Db, ids: readonly string[]): Promise<Map<string, string>> {
+  const envIds = ids.filter((id) => id.startsWith('env/')).map((id) => id.slice('env/'.length));
+  const envRows = (
+    await selectRows(
+      db,
+      appEnvironments,
+      { id: appEnvironments.id, name: appEnvironments.name, appId: appEnvironments.appId },
+      envIds.filter((id) => UUID_RE.test(id))
+    )
+  ).filter((row) => typeof row.id === 'string');
+  const appIds = [...ids.filter((id) => !id.startsWith('env/')), ...envRows.map((row) => String(row.appId))];
+  const appNames = await namesById(db, apps, { id: apps.id, name: apps.name }, appIds, (row) => row.name);
+  const result = new Map<string, string>();
+  for (const id of ids) {
+    if (!id.startsWith('env/') && appNames.has(id)) result.set(id, `App ${appNames.get(id)}`);
+  }
+  for (const row of envRows) {
+    const app = appNames.get(String(row.appId));
+    if (app) result.set(`env/${row.id}`, `App ${app} · ${row.name}`);
+  }
+  return result;
 }
 
 function nodeNames(db: Db, ids: readonly string[]) {

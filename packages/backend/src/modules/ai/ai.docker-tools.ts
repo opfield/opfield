@@ -3,6 +3,7 @@ import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { getResourceScopedIds, hasScope, hasScopeBase, hasScopeForResource } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { parseAppListFilter, withDockerAppMembers } from '@/modules/apps/app-membership.js';
 import {
   ComposeAdoptInputSchema,
   ComposeCreateInputSchema,
@@ -263,15 +264,20 @@ export async function executeDockerTool(
       const canViewNode = hasDockerResourceScope(user.scopes, 'docker:containers:view', a.nodeId, '');
       return Array.isArray(containers)
         ? compactAgentList(
-            containers
-              .filter(
-                (resource: any) =>
-                  canViewNode ||
-                  (!!resource.scopeResourceId &&
-                    hasDockerResourceScope(user.scopes, 'docker:containers:view', a.nodeId, resource.scopeResourceId))
-              )
-              .filter((container: any) => dockerContainerMatchesSearch(container, a.search))
-              .map((container: any) => compactDockerContainerForAgent(container))
+            await withDockerAppMembers(
+              'container',
+              containers
+                .filter(
+                  (resource: any) =>
+                    canViewNode ||
+                    (!!resource.scopeResourceId &&
+                      hasDockerResourceScope(user.scopes, 'docker:containers:view', a.nodeId, resource.scopeResourceId))
+                )
+                .filter((container: any) => dockerContainerMatchesSearch(container, a.search))
+                .map((container: any) => compactDockerContainerForAgent(container)),
+              (row: any) => (row.name ? { nodeId: a.nodeId, resourceKey: String(row.name) } : null),
+              parseAppListFilter(a)
+            )
           )
         : containers;
     }
@@ -296,12 +302,17 @@ export async function executeDockerTool(
       const { DockerDeploymentService } = await import('@/modules/docker/docker-deployment.service.js');
       const deployments = await container.resolve(DockerDeploymentService).listSummary(a.nodeId);
       return compactAgentList(
-        deployments
-          .filter((deployment: any) =>
-            hasDockerResourceScope(user.scopes, 'docker:containers:view', a.nodeId, deployment.id)
-          )
-          .filter((deployment: any) => dockerDeploymentMatchesSearch(deployment, a.search))
-          .map((deployment: any) => compactDockerDeploymentForAgent(deployment))
+        await withDockerAppMembers(
+          'container',
+          deployments
+            .filter((deployment: any) =>
+              hasDockerResourceScope(user.scopes, 'docker:containers:view', a.nodeId, deployment.id)
+            )
+            .filter((deployment: any) => dockerDeploymentMatchesSearch(deployment, a.search))
+            .map((deployment: any) => compactDockerDeploymentForAgent(deployment)),
+          (row: any) => (row.name ? { nodeId: a.nodeId, resourceKey: String(row.name) } : null),
+          parseAppListFilter(a)
+        )
       );
     }
     case 'get_docker_deployment': {
@@ -694,8 +705,13 @@ async function manageDockerCompose(context: DockerToolContext, user: User, args:
     }
     const nodeId = optionalNonEmptyString(a.nodeId);
     const projects = await service.list(nodeId);
-    return projects.filter((project) =>
-      hasDockerResourceScope(user.scopes, 'docker:compose:view', project.nodeId, project.id)
+    return withDockerAppMembers(
+      'compose',
+      projects.filter((project) =>
+        hasDockerResourceScope(user.scopes, 'docker:compose:view', project.nodeId, project.id)
+      ),
+      (project) => ({ nodeId: project.nodeId, resourceKey: project.id }),
+      parseAppListFilter(a)
     );
   }
 

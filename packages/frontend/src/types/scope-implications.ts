@@ -4,6 +4,7 @@
 /** Required base scope -> every base scope that satisfies it (transitive, qualifier-preserving). */
 export const IMPLIED_SCOPES_BY_REQUIRED_SCOPE: Readonly<Record<string, readonly string[]>> = {
   "acl:view": ["acl:delete", "acl:edit"],
+  "apps:view": ["apps:delete", "apps:edit", "apps:env:manage", "apps:operate", "apps:promote"],
   "audit:siem:view": ["audit:siem:manage"],
   "databases:backups:view": [
     "databases:backups:manage",

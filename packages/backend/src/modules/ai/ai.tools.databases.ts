@@ -14,6 +14,8 @@ export const DATABASE_AI_TOOLS: AIToolDefinition[] = [
           description: 'Optional health status filter',
         },
         search: { type: 'string', description: 'Optional text search' },
+        excludeAppMembers: { type: 'boolean', description: 'Leave out databases that belong to an app.' },
+        appId: { type: 'string', description: 'Only databases of this app (any environment).' },
       },
     },
     destructive: false,
@@ -144,7 +146,7 @@ export const DATABASE_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_database_connection',
     description:
-      'Manage saved database connections. Operations: create, update, delete, test, reveal_credentials, health_history, monitoring. reveal_credentials returns the saved connection secret (databases:credentials:reveal; managed databases use manage_managed_database reveal_credentials instead). delete of a managed connection removes its managed instance. monitoring returns the current health and metric history. Operation-specific database scopes are enforced.',
+      'Manage saved database connections. Operations: create, update, delete, test, reveal_credentials, health_history, monitoring. reveal_credentials returns the saved connection secret (databases:credentials:reveal; managed databases use manage_managed_database reveal_credentials instead). delete of a managed connection removes its managed instance. monitoring returns the current health and metric history. Operation-specific database scopes are enforced. To create inside an app environment, pass folderId from get_app placementFolderIds.',
     parameters: {
       type: 'object',
       properties: {

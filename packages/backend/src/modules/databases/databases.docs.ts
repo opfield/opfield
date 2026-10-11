@@ -37,6 +37,7 @@ import {
   ExecuteRedisCommandSchema,
   ExecuteSqlSchema,
   InsertSqlRowSchema,
+  ManagedDatabaseListQuerySchema,
   PostgresObjectSchema,
   RedisExpireKeySchema,
   RedisGetKeyQuerySchema,
@@ -90,6 +91,7 @@ export const listManagedDatabasesRoute = appRoute({
   path: '/managed',
   tags: ['Databases'],
   summary: 'List managed database instances',
+  request: { query: ManagedDatabaseListQuerySchema },
   responses: okJson(UnknownDataResponseSchema),
 });
 

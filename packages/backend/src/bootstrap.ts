@@ -40,6 +40,27 @@ import { AIPlanService } from '@/modules/ai/ai-plan.service.js';
 import { AIProviderRuntimeService } from '@/modules/ai/ai-provider-runtime.service.js';
 import { AIRunService } from '@/modules/ai/ai-run.service.js';
 import { aiRunCommercialRuntime } from '@/modules/ai/ai-run-commercial-runtime.js';
+import { AppActivityService } from '@/modules/apps/app-activity.service.js';
+import { AppAuditTagger } from '@/modules/apps/app-audit-tagger.js';
+import { AppEnvLayerService } from '@/modules/apps/app-env-layer.js';
+import { AppFolderService } from '@/modules/apps/app-folders.service.js';
+import { AppHealthService } from '@/modules/apps/app-health.service.js';
+import { DefaultAppIncidentActions } from '@/modules/apps/app-incident-actions.js';
+import { AppIncidentRunner } from '@/modules/apps/app-incident-runner.js';
+import { AppIncidentTargetsReader } from '@/modules/apps/app-incident-targets.js';
+import { AppIncidentsRepo } from '@/modules/apps/app-incidents.repo.js';
+import { AppIncidentService } from '@/modules/apps/app-isolation.service.js';
+import { AppMaintenanceService } from '@/modules/apps/app-maintenance.service.js';
+import { AppMaintenanceAccessService } from '@/modules/apps/app-maintenance-access.js';
+import { AppMemberFreeze } from '@/modules/apps/app-member-freeze.js';
+import { AppMembersReader, AppMembersService } from '@/modules/apps/app-members.service.js';
+import { AppMembershipService } from '@/modules/apps/app-membership.js';
+import { AppNetworkIsolation } from '@/modules/apps/app-network-isolation.js';
+import { AppNodesService } from '@/modules/apps/app-nodes.service.js';
+import { AppOverviewService } from '@/modules/apps/app-overview.service.js';
+import { AppPromotionService } from '@/modules/apps/app-promotion.service.js';
+import { AppVariablesService } from '@/modules/apps/app-variables.service.js';
+import { AppsService } from '@/modules/apps/apps.service.js';
 import { AlertService } from '@/modules/audit/alert.service.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { SiemDeliveryService } from '@/modules/audit/siem-delivery.service.js';
@@ -742,6 +763,39 @@ export async function initializeContainer(): Promise<void> {
   container.registerInstance(NginxConfigGenerator, nginxConfigGenerator);
 
   const folderService = new FolderService(db, auditService);
+  const appFolderService = new AppFolderService(db);
+  container.registerInstance(AppFolderService, appFolderService);
+  const appMembershipService = new AppMembershipService(db, appFolderService);
+  container.registerInstance(AppMembershipService, appMembershipService);
+  // Membership and name indexes are cached for 10 s; every app change drops them at once.
+  eventBus.subscribe('apps', () => appMembershipService.invalidate());
+  const appMembersReader = new AppMembersReader(db, appFolderService);
+  container.registerInstance(AppMembersReader, appMembersReader);
+  const appsService = new AppsService(db, auditService, appFolderService, appMembersReader);
+  appsService.setEventBus(eventBus);
+  container.registerInstance(AppsService, appsService);
+  const appHealthService = new AppHealthService(db, appMembersReader);
+  container.registerInstance(AppHealthService, appHealthService);
+  appsService.setHealthProvider(appHealthService);
+  container.registerInstance(AppActivityService, new AppActivityService(appsService, appMembersReader, auditService));
+  const appAuditTagger = new AppAuditTagger(db, appFolderService, appMembershipService);
+  auditService.setAppTagger(appAuditTagger);
+  eventBus.subscribe('apps', () => appAuditTagger.invalidate());
+  container.registerInstance(
+    AppOverviewService,
+    new AppOverviewService(db, appsService, appMembersReader, appHealthService)
+  );
+  const appNodesService = new AppNodesService(db, auditService, appsService, appMembersReader);
+  container.registerInstance(AppNodesService, appNodesService);
+  const appEnvLayerService = new AppEnvLayerService(db, cryptoService, appMembersReader);
+  container.registerInstance(AppEnvLayerService, appEnvLayerService);
+  container.registerInstance(
+    AppVariablesService,
+    new AppVariablesService(db, auditService, cryptoService, appsService, appEnvLayerService)
+  );
+  const appMembersService = new AppMembersService(db, auditService, appFolderService, appsService);
+  appMembersService.setEventBus(eventBus);
+  container.registerInstance(AppMembersService, appMembersService);
   container.registerInstance(FolderService, folderService);
 
   const nginxTemplateService = new NginxTemplateService(db, auditService, configValidator);
@@ -1376,6 +1430,58 @@ export async function initializeContainer(): Promise<void> {
   proxyService.setWebTransportSettings(webTransportSettingsService);
   proxyMaintenanceAccessService.setRouteAccessCheck((hostId) => proxyService.maintenanceAccessOffered(hostId));
   container.registerInstance(ProxyService, proxyService);
+  const appIncidentsRepo = new AppIncidentsRepo(db);
+  container.registerInstance(AppIncidentsRepo, appIncidentsRepo);
+  const appMaintenanceService = new AppMaintenanceService(db);
+  appMaintenanceService.setIncidentsRepo(appIncidentsRepo);
+  container.registerInstance(AppMaintenanceService, appMaintenanceService);
+  container.registerInstance(AppMaintenanceAccessService, new AppMaintenanceAccessService(appsService));
+  proxyService.setAppOverlayHook((routeIds) => appMaintenanceService.applyModes(routeIds));
+  appsService.setMaintenanceHooks(appMaintenanceService);
+  appMembersService.setRouteMoveHook((routeIds) => appMaintenanceService.applyModes(routeIds));
+  // Apps shutdown and kill switch: incidents record every change with its prior state and restore it item by item;
+  // members of an isolated environment are frozen in every mutation path.
+  const appMemberFreeze = new AppMemberFreeze(db, appIncidentsRepo);
+  container.registerInstance(AppMemberFreeze, appMemberFreeze);
+  const appNetworkIsolation = new AppNetworkIsolation(db, nodeDispatch);
+  container.registerInstance(AppNetworkIsolation, appNetworkIsolation);
+  const appIncidentRunner = new AppIncidentRunner(
+    appIncidentsRepo,
+    new DefaultAppIncidentActions(db, appMaintenanceService, appNetworkIsolation),
+    {
+      changed: (incident) => {
+        appMemberFreeze.invalidate();
+        appsService.publish(incident.appId, 'incident_changed');
+      },
+    },
+    new OperationLeaseStore(db)
+  );
+  container.registerInstance(AppIncidentRunner, appIncidentRunner);
+  const appIncidentService = new AppIncidentService(
+    db,
+    appsService,
+    appIncidentsRepo,
+    new AppIncidentTargetsReader(db, appMembersReader),
+    appIncidentRunner,
+    appMemberFreeze,
+    auditService
+  );
+  container.registerInstance(AppIncidentService, appIncidentService);
+  container.registerInstance(
+    AppPromotionService,
+    new AppPromotionService(db, appsService, appMembersReader, appMemberFreeze, auditService)
+  );
+  appsService.setIncidentGuard(appIncidentService);
+  appMembersService.setIncidentCheck((environmentId) => appIncidentService.environmentHasIncident(environmentId));
+  appNodesService.setFreezeCheck((environmentId) =>
+    appMemberFreeze.assertNotFrozen({ kind: 'environment', id: environmentId })
+  );
+  proxyService.setAppFreezeGuard((routeId) => appMemberFreeze.assertNotFrozen({ kind: 'route', id: routeId }));
+  dockerManagementService.setAppFreezeGuard({
+    anyIsolationOpen: () => appMemberFreeze.anyIsolationOpen(),
+    assertContainer: (nodeId, name) => appMemberFreeze.assertNotFrozen({ kind: 'container', nodeId, name }),
+    assertMayStart: (nodeId, name) => appMemberFreeze.assertMayStart(nodeId, name),
+  });
   const dockerWorkloadResolver = new DockerWorkloadResolverService(db);
   container.registerInstance(DockerWorkloadResolverService, dockerWorkloadResolver);
   dockerHealthCheckService.setWorkloadResolver(dockerWorkloadResolver);

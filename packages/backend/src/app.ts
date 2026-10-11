@@ -48,6 +48,7 @@ import { aiRoutes } from '@/modules/ai/ai.routes.js';
 import { STORAGE_OBJECT_LINK_PATH } from '@/modules/ai/ai.storage-object-link.js';
 import { storageObjectLinkRoutes } from '@/modules/ai/ai.storage-object-link.routes.js';
 import { authenticateWSConnection, createWSHandlers } from '@/modules/ai/ai.ws.js';
+import { appsRoutes } from '@/modules/apps/apps.routes.js';
 import { alertRoutes } from '@/modules/audit/alert.routes.js';
 import { auditRoutes } from '@/modules/audit/audit.routes.js';
 import { auditExportRouteRuntime } from '@/modules/audit/audit-export-route-runtime.js';
@@ -836,6 +837,7 @@ export function createApp(): GatewayAppRuntime {
   app.route('/api/ssl-certificates', sslRoutes);
   app.route('/api/domains', domainRoutes);
   app.route('/api/ingress-groups', ingressGroupRoutes);
+  app.route('/api/apps', appsRoutes);
   app.route('/api/access-lists', accessListRoutes);
   app.route('/api/monitoring', monitoringRoutes);
   app.route('/api/setup', setupRoutes);

@@ -9,6 +9,8 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
       type: 'object',
       properties: {
         search: { type: 'string', description: 'Search by domain name' },
+        excludeAppMembers: { type: 'boolean', description: 'Leave out routes that belong to an app.' },
+        appId: { type: 'string', description: 'Only routes of this app (any environment).' },
         type: { type: 'string', enum: ['proxy', 'redirect', '404', 'raw'] },
         enabled: { type: 'boolean' },
         healthStatus: { type: 'string', enum: ['online', 'offline', 'degraded', 'unknown', 'disabled'] },
@@ -41,7 +43,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'create_route',
     description:
-      'Create an ingress route on an nginx ingress node or an ingress group. nodeId is optional: omitted, the route uses the ingress node or group its registered Gateway domains are assigned to, or the only node you may create routes on; when several qualify the call fails and lists them (list_route_ingress_nodes shows nodes and groups up front, no node permission needed). Pass ingressGroupId instead of nodeId to serve the route from every member of an ingress group (config and certificates on each member; needs ingress:groups:view on the group and the multi-node availability license feature). Needs proxy:create broadly, on the route folder (pass folderId), or on the ingress node (on every member for a group).',
+      'Create an ingress route on an nginx ingress node or an ingress group. nodeId is optional: omitted, the route uses the ingress node or group its registered Gateway domains are assigned to, or the only node you may create routes on; when several qualify the call fails and lists them (list_route_ingress_nodes shows nodes and groups up front, no node permission needed). Pass ingressGroupId instead of nodeId to serve the route from every member of an ingress group (config and certificates on each member; needs ingress:groups:view on the group and the multi-node availability license feature). Needs proxy:create broadly, on the route folder (pass folderId), or on the ingress node (on every member for a group). To create inside an app environment, pass folderId from get_app placementFolderIds.',
     parameters: {
       type: 'object',
       properties: {

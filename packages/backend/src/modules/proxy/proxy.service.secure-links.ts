@@ -473,6 +473,13 @@ export abstract class ProxyServiceSecureLinks extends ProxyServiceLifecycle {
     return [...updated];
   }
 
+  /** Cached traffic samples of a route (its Secure Link telemetry), oldest first; no node is asked. */
+  async cachedTrafficHistory(hostId: string): Promise<Array<{ timestamp: string; traffic: ProxyHostTrafficRuntime }>> {
+    return (await this.getSecureLinkRuntimeHistory(hostId)).flatMap((snapshot) =>
+      snapshot.traffic ? [{ timestamp: snapshot.timestamp, traffic: snapshot.traffic }] : []
+    );
+  }
+
   protected async getSecureLinkRuntimeHistory(hostId: string): Promise<ProxySecureLinkRuntimeSnapshot[]> {
     const current = this.secureLinkRuntimeHistory.get(hostId);
     if (current) return [...current];

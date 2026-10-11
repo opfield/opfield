@@ -15,6 +15,8 @@ import { UpdateCheckJob } from '@/jobs/update-check.job.js';
 import { logger } from '@/lib/logger.js';
 import { repairDanglingResourceScopes } from '@/lib/resource-scope-cleanup.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { AppIncidentRunner } from '@/modules/apps/app-incident-runner.js';
+import { AppMaintenanceService } from '@/modules/apps/app-maintenance.service.js';
 import { AlertService } from '@/modules/audit/alert.service.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { SiemDeliveryService } from '@/modules/audit/siem-delivery.service.js';
@@ -465,6 +467,17 @@ export async function initializeBackgroundServices(): Promise<void> {
     (nodeId) => !!nodeRegistry.getNode(nodeId)
   );
   scheduler.registerInterval('docker-task-reconcile', 5_000, () => dockerTaskReconciler.sweep());
+  // Apps shutdown / kill switch: items that could not be applied or restored are retried every 30 s and as soon as a
+  // node reconnects; routes keep the overlays open incidents hold after a restart.
+  const appIncidentRunner = container.resolve(AppIncidentRunner);
+  scheduler.registerInterval('app-incident-retry', 30_000, () => appIncidentRunner.runOpen());
+  eventBus.subscribe('node.changed', (payload) => {
+    if ((payload as { status?: string } | undefined)?.status === 'online') void appIncidentRunner.runOpen();
+  });
+  void container
+    .resolve(AppMaintenanceService)
+    .repairStaleOverlays()
+    .catch((error) => logger.warn('Repairing app maintenance overlays failed', { error }));
   eventBus.subscribe('node.changed', (payload) => {
     const event = payload as { id?: string; status?: string } | undefined;
     if (event?.status === 'online' && event.id) {

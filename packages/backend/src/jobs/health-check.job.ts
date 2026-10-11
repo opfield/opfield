@@ -6,6 +6,7 @@ import { createChildLogger } from '@/lib/logger.js';
 import { ingressHealthOf } from '@/modules/ingress-groups/ingress-health.js';
 import { resolveIngressNodesForMany } from '@/modules/ingress-groups/ingress-nodes.js';
 import type { NotificationEvaluatorService } from '@/modules/notifications/notification-evaluator.service.js';
+import { NOT_IN_EFFECTIVE_MAINTENANCE } from '@/modules/proxy/effective-maintenance.js';
 import {
   aggregateMemberOutcomes,
   type GroupRouteHealth,
@@ -184,11 +185,7 @@ export class HealthCheckJob {
   async run(): Promise<void> {
     // Query proxy hosts with health checks enabled
     const candidates = await this.db.query.proxyHosts.findMany({
-      where: and(
-        eq(proxyHosts.healthCheckEnabled, true),
-        eq(proxyHosts.enabled, true),
-        eq(proxyHosts.maintenanceEnabled, false)
-      ),
+      where: and(eq(proxyHosts.healthCheckEnabled, true), eq(proxyHosts.enabled, true), NOT_IN_EFFECTIVE_MAINTENANCE),
     });
     const hosts = candidates.filter((host) => healthCheckDue(host, Date.now()));
 
@@ -296,7 +293,7 @@ export class HealthCheckJob {
             eq(proxyHosts.id, host.id),
             eq(proxyHosts.enabled, true),
             eq(proxyHosts.healthCheckEnabled, true),
-            eq(proxyHosts.maintenanceEnabled, false)
+            NOT_IN_EFFECTIVE_MAINTENANCE
           )
         )
         .returning({ id: proxyHosts.id });
@@ -415,7 +412,7 @@ export class HealthCheckJob {
           eq(proxyHosts.id, host.id),
           eq(proxyHosts.enabled, true),
           eq(proxyHosts.healthCheckEnabled, true),
-          eq(proxyHosts.maintenanceEnabled, false)
+          NOT_IN_EFFECTIVE_MAINTENANCE
         )
       )
       .returning({ id: proxyHosts.id });
@@ -438,7 +435,7 @@ export class HealthCheckJob {
           eq(proxyHosts.id, host.id),
           eq(proxyHosts.enabled, true),
           eq(proxyHosts.healthCheckEnabled, true),
-          eq(proxyHosts.maintenanceEnabled, false)
+          NOT_IN_EFFECTIVE_MAINTENANCE
         )
       );
   }
@@ -458,7 +455,7 @@ export class HealthCheckJob {
           eq(proxyHosts.id, host.id),
           eq(proxyHosts.enabled, true),
           eq(proxyHosts.healthCheckEnabled, true),
-          eq(proxyHosts.maintenanceEnabled, false)
+          NOT_IN_EFFECTIVE_MAINTENANCE
         )
       )
       .returning({ id: proxyHosts.id });

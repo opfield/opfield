@@ -233,6 +233,13 @@ Legacy global nginx management routes under `/api/monitoring/nginx/*` are no lon
 | `nodes:folders:manage` |  |
 | `ingress:groups:view` | Node folders only (`folder/<nodeFolderId>`). View ingress groups and place routes and domains on them; node permissions do not reveal them. |
 | `ingress:groups:manage` | Node folders only (`folder/<nodeFolderId>`). Create, change, and delete ingress groups and their members; implies `ingress:groups:view`. Adding a member also needs `nodes:manage` on that node. |
+| `apps:view` | Yes: `<appId>` or `env/<envId>`. View apps, their environments, overview and activity; members still need their own view scopes. |
+| `apps:create` |  |
+| `apps:edit` | Yes: `<appId>`. Rename the app, add, rename and delete environments, move the Production marker. |
+| `apps:delete` | Yes: `<appId>`. Delete the app; members keep running and leave the app. |
+| `apps:env:manage` | Yes: `<appId>` or `env/<envId>`. Environment variables and secrets, allowed nodes, environment maintenance and access codes, moving resources in or out (with the resource's own edit scope). |
+| `apps:promote` | Yes: `<appId>` or `env/<envId>` (the target environment). |
+| `apps:operate` | Yes: `<appId>` or `env/<envId>`. Shutdown, start and isolation; the app maintenance override needs it on the app. |
 | `admin:users` |  |
 | `admin:users:impersonate` |  |
 | `admin:users:folders:manage` |  |

@@ -1,3 +1,4 @@
+import { appsHostRuntime } from '@/modules/apps/apps-host-runtime.js';
 import { DockerComposeService } from './compose/compose.service.js';
 import { DockerDeploymentService } from './docker-deployment.service.js';
 
@@ -49,6 +50,8 @@ import {
 import { requireConfiguredLicensePolicy } from '@/modules/license/license-policy.service.js';
 import { assertNodeAllowsServiceCreation } from '@/modules/nodes/service-creation-lock.js';
 export const dockerDeploymentCommercialRuntime = {
+  /** Apps: node allowlist guard, `app` field and list filters (see apps-host-runtime.ts). */
+  apps: appsHostRuntime,
   constructors,
   and,
   desc,

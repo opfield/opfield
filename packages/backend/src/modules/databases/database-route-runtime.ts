@@ -11,6 +11,7 @@ import {
   hasScopeForResource,
 } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { appsHostRuntime } from '@/modules/apps/apps-host-runtime.js';
 import {
   authMiddleware,
   rejectImpersonation,
@@ -122,6 +123,7 @@ import {
   ExecuteRedisCommandSchema,
   ExecuteSqlSchema,
   InsertSqlRowSchema,
+  ManagedDatabaseListQuerySchema,
   PostgresObjectSchema,
   RedisExpireKeySchema,
   RedisGetKeyQuerySchema,
@@ -139,6 +141,8 @@ import { ManagedDatabaseService } from './managed-databases.service.js';
 
 export type { MiddlewareHandler } from 'hono';
 export const databaseRouteRuntime = {
+  /** Apps: node allowlist guard, `app` field and list filters (see apps-host-runtime.ts). */
+  apps: appsHostRuntime,
   OpenAPIHono,
   streamSSE,
   container,
@@ -246,6 +250,7 @@ export const databaseRouteRuntime = {
   CreateManagedDatabaseSchema,
   DatabaseListQuerySchema,
   DeleteManagedDatabaseBindingSchema,
+  ManagedDatabaseListQuerySchema,
   DeletePostgresColumnSchema,
   DeleteSqlRowSchema,
   ExecutePostgresSqlSchema,

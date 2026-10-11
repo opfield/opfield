@@ -1,3 +1,4 @@
+import { appsHostRuntime } from '@/modules/apps/apps-host-runtime.js';
 import { PageArtifactStore } from './artifacts/page-artifact-store.js';
 import { PageBuildRolloutService } from './deployments/page-build-rollout.service.js';
 import { PageDeploymentService } from './deployments/page-deployment.service.js';
@@ -75,6 +76,8 @@ import { canAccessEveryPageProject, visiblePageProjectIds } from '@/modules/page
 import { PageProjectFolderService } from '@/modules/pages/page-project-folder.service.js';
 import { PAGE_RUNTIME_CONFIG_MAX_BYTES } from '@/modules/pages/runtime-config/page-runtime-config.schemas.js';
 export const pagesCommercialRuntime = {
+  /** Apps: node allowlist guard, `app` field and list filters (see apps-host-runtime.ts). */
+  apps: appsHostRuntime,
   constructors,
   and,
   asc,

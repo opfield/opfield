@@ -228,4 +228,15 @@ export class ManagedDatabaseBindingService {
   }> {
     return commercialModuleUnavailable();
   }
+  /**
+   * App kill switch: tear the binding's transport down (network, connector, relay route) and keep the row, principal
+   * and credentials with desired state `suspended`. Returns the desired state before, or null when the binding is gone.
+   */
+  async suspendForIncident(_bindingId: string, _userId: string | null): Promise<{ desiredState: string } | null> {
+    return commercialModuleUnavailable();
+  }
+  /** Back to `active` and reconcile. False when the binding is gone (or was not suspended). */
+  async resumeFromIncident(_bindingId: string, _userId: string | null): Promise<boolean> {
+    return commercialModuleUnavailable();
+  }
 }
