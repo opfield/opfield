@@ -72,6 +72,8 @@ export const updateManagedStorageRoute = appRoute({
   path: '/{id}',
   tags: [TAG],
   summary: 'Update managed object storage cluster configuration',
+  description:
+    'On several servers (availability on) every member takes the settings, and the members publish what the storage publishes.',
   request: { params: IdParamSchema, ...jsonBody(UpdateManagedStorageSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -82,7 +84,7 @@ export const deleteManagedStorageRoute = appRoute({
   tags: [TAG],
   summary: 'Delete a managed object storage cluster',
   description:
-    'Refused while backup policies or active backup runs use the storage. Finished backup history also blocks deletion (409 STORAGE_BACKUP_HISTORY_EXISTS with historyRecords and backupsWithFiles) unless backupHistory=forget confirms removing it; forgotten backups can no longer be restored or deleted through Gateway, and files stored in this managed storage are deleted with it.',
+    'Refused while backup policies or active backup runs use the storage. Finished backup history also blocks deletion (409 STORAGE_BACKUP_HISTORY_EXISTS with historyRecords and backupsWithFiles) unless backupHistory=forget confirms removing it; forgotten backups can no longer be restored or deleted through Gateway, and files stored in this managed storage are deleted with it. Storage on several servers (availability on) answers at once with `deleting: true`: availability is turned off first (every other member and its data go), then the storage is deleted.',
   request: { params: IdParamSchema, query: DeleteStorageQuerySchema },
   responses: okJson(z.object({ success: z.boolean() })),
 });
@@ -103,6 +105,8 @@ export const restartManagedStorageRoute = appRoute({
   path: '/{id}/restart',
   tags: [TAG],
   summary: 'Restart a managed object storage container',
+  description:
+    'On several servers (availability on) a rolling restart: copies first, then a planned switchover, then the old primary. Answers at once with status `updating`.',
   request: { params: IdParamSchema },
   responses: okJson(UnknownDataResponseSchema),
 });

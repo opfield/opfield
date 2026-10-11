@@ -124,7 +124,7 @@ export const updateManagedDatabaseRoute = appRoute({
   tags: ['Databases'],
   summary: 'Update managed database configuration',
   description:
-    'Changes resources, version, publication and engine settings. A database in an app environment isolated by the kill switch is refused (409 `APP_ISOLATED`).',
+    'Changes resources, version, publication and engine settings. `version` moves to a newer catalog version of the same engine: PostgreSQL within its major version (another major is a backup restored into a new database, 409 `POSTGRES_MAJOR_CHANGE`), Valkey and ClickHouse to the next catalog version (409 `MANAGED_DATABASE_VERSION_STEP`); the node recreates the container on the new image with the data kept (409 `MANAGED_DATABASE_DAEMON_UPDATE_REQUIRED` on an older node daemon). A database on several servers (availability on) takes the settings at once with status `updating` and changes its members one at a time: copies first, each until it is an eligible copy again, then a planned switchover to a changed copy when the primary must restart, then the old primary; `availability.operation` shows the rolling update, and the status goes back to `ready` (a stop part-way leaves `lastError`). TLS cannot be turned on or off there (409 `AVAILABILITY_TLS_CHANGE`); an older member daemon answers 409 `AVAILABILITY_NODE_NOT_CAPABLE`. A database in an app environment isolated by the kill switch is refused (409 `APP_ISOLATED`).',
   request: { params: IdParamSchema, ...jsonBody(UpdateManagedDatabaseSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -135,7 +135,7 @@ export const deleteManagedDatabaseRoute = appRoute({
   tags: ['Databases'],
   summary: 'Delete a managed database instance',
   description:
-    'A database in an app environment isolated by the kill switch is refused until the kill switch is turned off (409 `APP_ISOLATED`). A database of a shut-down app can be deleted; Start then skips it.',
+    'A database in an app environment isolated by the kill switch is refused until the kill switch is turned off (409 `APP_ISOLATED`). A database of a shut-down app can be deleted; Start then skips it. A database on several servers (availability on) answers at once with `deleting: true`: availability is turned off first (every other member and its data go, the primary is back on one server), then the database is deleted; links and running backups are refused first as for one server.',
   request: { params: IdParamSchema },
   responses: okJson(z.object({ success: z.boolean() })),
 });
@@ -156,6 +156,8 @@ export const restartManagedDatabaseRoute = appRoute({
   path: '/managed/{id}/restart',
   tags: ['Databases'],
   summary: 'Restart a managed database container',
+  description:
+    'On several servers (availability on) a rolling restart: copies first, each until it is an eligible copy again, then a planned switchover, then the old primary (in place, briefly unavailable, only when no copy can take over). Answers at once with status `updating`.',
   request: { params: IdParamSchema },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -187,6 +189,8 @@ export const pauseManagedDatabaseRoute = appRoute({
   path: '/managed/{id}/pause',
   tags: ['Databases'],
   summary: 'Pause a managed database container',
+  description:
+    'On several servers (availability on) the copies stop first, then the primary, which keeps its role (nothing fails over); the database reads `paused` at once.',
   request: { params: IdParamSchema },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -196,6 +200,8 @@ export const unpauseManagedDatabaseRoute = appRoute({
   path: '/managed/{id}/unpause',
   tags: ['Databases'],
   summary: 'Unpause a managed database container',
+  description:
+    'On several servers (availability on) the primary starts first, then the copies; status `updating` until every member runs, then `ready`.',
   request: { params: IdParamSchema },
   responses: okJson(UnknownDataResponseSchema),
 });
