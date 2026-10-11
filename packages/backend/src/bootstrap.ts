@@ -1465,6 +1465,7 @@ export async function initializeContainer(): Promise<void> {
         appMemberFreeze.invalidate();
         appsService.publish(incident.appId, 'incident_changed');
       },
+      released: (incident) => appIncidentService.recordReleased(incident),
     },
     new OperationLeaseStore(db)
   );
@@ -1484,20 +1485,19 @@ export async function initializeContainer(): Promise<void> {
     new AppPromotionService(db, appsService, appMembersReader, appMemberFreeze, auditService)
   );
   appsService.setIncidentGuard(appIncidentService);
-  appMembersService.setIncidentCheck((environmentId) => appIncidentService.environmentHasIncident(environmentId));
+  appMembersService.setIsolationCheck((environmentId) =>
+    appIncidentService.environmentHasIncident(environmentId, 'isolation')
+  );
   appNodesService.setFreezeCheck((environmentId) =>
     appMemberFreeze.assertNotFrozen({ kind: 'environment', id: environmentId })
   );
   proxyService.setAppFreezeGuard({
     assertRoute: (routeId) => appMemberFreeze.assertNotFrozen({ kind: 'route', id: routeId }),
-    assertRouteRemovable: (routeId) => appMemberFreeze.assertNoOpenIncident({ kind: 'route', id: routeId }),
     assertUpstream: (target) => appMemberFreeze.assertNotFrozen(target),
   });
   dockerManagementService.setAppFreezeGuard({
     anyIsolationOpen: () => appMemberFreeze.anyIsolationOpen(),
-    anyIncidentOpen: () => appMemberFreeze.anyIncidentOpen(),
     assertContainer: (nodeId, name) => appMemberFreeze.assertNotFrozen({ kind: 'container', nodeId, name }),
-    assertContainerKept: (nodeId, name) => appMemberFreeze.assertNoOpenIncident({ kind: 'container', nodeId, name }),
     assertMayStart: (nodeId, name) => appMemberFreeze.assertMayStart(nodeId, name),
     assertNetworkNotHeld: (nodeId, network) => appMemberFreeze.assertNetworkNotHeld(nodeId, network),
   });

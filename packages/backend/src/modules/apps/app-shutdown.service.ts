@@ -16,7 +16,8 @@ function routeLabel(domains: readonly string[], id: string): string {
  * What an app shutdown changes in one environment: running containers stop, deployments and Compose projects stop,
  * managed databases and storage pause, and the environment's routes and the routes of its Pages projects show the
  * maintenance page (with team access). Only what runs is recorded, so Start brings back exactly that set. While shut
- * down, members take edits but not deletes, unbinds, renames or moves (AppMemberFreeze.assertNoOpenIncident).
+ * down, members take every change (deletes, unbinds, renames, migrations and moves included): Start brings back what
+ * still exists and ends the items of deleted resources `gone` (DefaultAppIncidentActions.restore).
  */
 export function buildShutdownItems(targets: IncidentTargets, gatewayRouteIds: ReadonlySet<string>): NewIncidentItem[] {
   const items: NewIncidentItem[] = [];

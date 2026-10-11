@@ -435,11 +435,14 @@ export class AppMembersService {
     this.eventBus = bus;
   }
 
-  private incidentCheck?: (environmentId: string) => Promise<boolean>;
+  private isolationCheck?: (environmentId: string) => Promise<boolean>;
 
-  /** Whether an environment has an open shutdown or kill switch (moves in and out are refused then). */
-  setIncidentCheck(check: (environmentId: string) => Promise<boolean>) {
-    this.incidentCheck = check;
+  /**
+   * Whether the kill switch isolates an environment (moves in and out are refused then, 409 APP_ISOLATED). A shut-down
+   * environment takes moves both ways: Start still brings back what ran at shutdown wherever it sits now.
+   */
+  setIsolationCheck(check: (environmentId: string) => Promise<boolean>) {
+    this.isolationCheck = check;
   }
 
   /** Maintenance overlay recompute for routes that changed environment (set by the maintenance module). */
@@ -454,11 +457,11 @@ export class AppMembersService {
       const env = await this.apps.getEnvironment(app.id, input.target.environmentId);
       assertAppScope(actor.scopes, APP_ENV_MANAGE_SCOPE, app.id, env.id);
       target = { appId: app.id, environmentId: env.id, name: app.name, envName: env.name };
-      if (await this.incidentCheck?.(env.id)) {
+      if (await this.isolationCheck?.(env.id)) {
         throw new AppError(
           409,
-          'APP_INCIDENT_ACTIVE',
-          `${app.name} · ${env.name} is shut down or isolated; turn that off before moving resources into it`
+          'APP_ISOLATED',
+          `${app.name} · ${env.name} is isolated by the app kill switch; turn it off before moving resources into it`
         );
       }
     }
@@ -491,8 +494,8 @@ export class AppMembersService {
         refuse('FORBIDDEN', 'Missing apps:env:manage for the environment this resource leaves');
         continue;
       }
-      if (source?.environmentId && (await this.incidentCheck?.(source.environmentId))) {
-        refuse('APP_INCIDENT_ACTIVE', 'Its environment is shut down or isolated; turn that off before moving it');
+      if (source?.environmentId && (await this.isolationCheck?.(source.environmentId))) {
+        refuse('APP_ISOLATED', 'Its environment is isolated by the app kill switch; turn it off before moving it');
         continue;
       }
       const targetFolderId = target ? (targetFolders?.[family] ?? null) : null;

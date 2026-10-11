@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { container } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
-import { type AppIncident, type AppIncidentKind, users } from '@/db/schema/index.js';
+import { type AppIncident, type AppIncidentKind, appEnvironments, apps, users } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import { ProxyService } from '@/modules/proxy/proxy.service.js';
@@ -166,6 +166,15 @@ export interface IncidentView {
     /** What a restored or gone item could not put back as it was (a network that is gone, for one). */
     detail: string | null;
   }>;
+  /**
+   * Items skipped because their resource is gone (deleted meanwhile, e.g. while the app was shut down: Start does not
+   * bring those back), with the reason when known.
+   */
+  skipped: Array<{ id: string; kind: string; label: string; detail: string | null }>;
+}
+
+function itemLabel(item: { ref: unknown; itemKey: string }): string {
+  return String((item.ref as { label?: unknown }).label ?? item.itemKey);
 }
 
 /** An item's error while its change is (or should be) in effect; once restored or gone, the restore's note. */
@@ -454,16 +463,54 @@ export class AppIncidentService {
         items: incident.items.map((item) => ({
           id: item.id,
           kind: item.itemKind,
-          label: String((item.ref as { label?: unknown }).label ?? item.itemKey),
+          label: itemLabel(item),
           status: item.status,
           attempts: item.attempts,
           ...itemNotes(item),
         })),
+        skipped: incident.items
+          .filter((item) => item.status === 'gone')
+          .map((item) => ({ id: item.id, kind: item.itemKind, label: itemLabel(item), detail: item.lastError })),
       };
     });
   }
 
-  /** Delete guard for apps and environments (decision 5). */
+  /**
+   * The audit entry of a finished Start or kill switch release (the runner's `released` hook): what came back and
+   * what was skipped because it is gone (deleted while the app was shut down, for one), by name.
+   */
+  async recordReleased(incident: AppIncident): Promise<void> {
+    const items = await this.repo.items(incident.id);
+    const [names] = await this.db
+      .select({ appName: apps.name, environmentName: appEnvironments.name })
+      .from(appEnvironments)
+      .innerJoin(apps, eq(apps.id, appEnvironments.appId))
+      .where(eq(appEnvironments.id, incident.environmentId))
+      .limit(1);
+    const skipped = items
+      .filter((item) => item.status === 'gone')
+      .map((item) => ({ kind: item.itemKind, label: itemLabel(item), detail: item.lastError }));
+    await this.auditService.log({
+      userId: incident.releasedById,
+      action: incident.kind === 'isolation' ? 'app.isolation.end.completed' : 'app.start.completed',
+      resourceType: 'app_environment',
+      resourceId: incident.environmentId,
+      details: {
+        appId: incident.appId,
+        appName: names?.appName ?? null,
+        environmentName: names?.environmentName ?? null,
+        incidentId: incident.id,
+        restored: items.filter((item) => item.status === 'restored').length,
+        skipped,
+      },
+    });
+  }
+
+  /**
+   * Delete guard for apps and environments (decision 5): kept while a shutdown is open too. The incident belongs to the
+   * environment, and deleting it would leave its members stopped with no Start. Members themselves take every change
+   * while shut down.
+   */
   async assertNoActiveIncident(appId: string, environmentId?: string): Promise<void> {
     const open = await this.repo.open({ appId, environmentIds: environmentId ? [environmentId] : undefined });
     if (open.length > 0) {
@@ -475,7 +522,7 @@ export class AppIncidentService {
     }
   }
 
-  /** Whether an environment has any open incident (membership and allowlist changes are refused then). */
+  /** Whether an environment has an open incident (of a kind): the kill switch refuses membership moves then. */
   async environmentHasIncident(environmentId: string, kind?: AppIncidentKind): Promise<boolean> {
     return (await this.repo.open({ environmentIds: [environmentId], kind })).length > 0;
   }

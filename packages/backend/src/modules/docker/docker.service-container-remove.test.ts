@@ -223,49 +223,49 @@ describe('DockerManagementService.removeContainer', () => {
   });
 });
 
-describe('DockerManagementService app incident hold', () => {
-  function freezeGuard(code: string | null) {
+describe('DockerManagementService app kill switch hold', () => {
+  /** `isolated`: the container's environment is isolated by the kill switch (a shutdown holds nothing). */
+  function freezeGuard(isolated: boolean) {
     return {
-      anyIsolationOpen: vi.fn().mockResolvedValue(code === 'APP_ISOLATED'),
-      anyIncidentOpen: vi.fn().mockResolvedValue(code !== null),
-      assertContainer: vi.fn().mockResolvedValue(undefined),
-      assertContainerKept: vi.fn(async () => {
-        if (code) throw new AppError(409, code, 'Shop · production is held by an app incident');
+      anyIsolationOpen: vi.fn().mockResolvedValue(isolated),
+      assertContainer: vi.fn(async () => {
+        if (isolated) throw new AppError(409, 'APP_ISOLATED', 'Shop · production is isolated by the app kill switch');
       }),
       assertMayStart: vi.fn().mockResolvedValue(undefined),
       assertNetworkNotHeld: vi.fn().mockResolvedValue(undefined),
     };
   }
 
-  it.each([
-    'APP_ISOLATED',
-    'APP_INCIDENT_ACTIVE',
-  ])('refuses removing or renaming a member before Docker is asked (%s)', async (code) => {
+  it('refuses removing or renaming a member of an isolated environment before Docker is asked', async () => {
     const dispatch = { sendDockerContainerCommand: vi.fn().mockResolvedValue(inspectResult('exited')) };
     const { service } = createService(dispatch);
-    const guard = freezeGuard(code);
+    const guard = freezeGuard(true);
     service.setAppFreezeGuard(guard);
 
-    await expect(service.removeContainer('node-1', 'container-1', false, 'user-1')).rejects.toMatchObject({ code });
-    await expect(service.renameContainer('node-1', 'container-1', 'api-2', 'user-1')).rejects.toMatchObject({ code });
+    await expect(service.removeContainer('node-1', 'container-1', false, 'user-1')).rejects.toMatchObject({
+      code: 'APP_ISOLATED',
+    });
+    await expect(service.renameContainer('node-1', 'container-1', 'api-2', 'user-1')).rejects.toMatchObject({
+      code: 'APP_ISOLATED',
+    });
 
-    expect(guard.assertContainerKept).toHaveBeenCalledWith('node-1', 'api');
+    expect(guard.assertContainer).toHaveBeenCalledWith('node-1', 'api');
     const actions = dispatch.sendDockerContainerCommand.mock.calls.map((call) => call[1]);
     expect(actions).not.toContain('remove');
     expect(actions).not.toContain('rename');
   });
 
-  it('removes as before when no incident is open', async () => {
+  it('removes as before when no kill switch is open (a shut-down app holds nothing)', async () => {
     const answer = async (_node: string, action: string) =>
       action === 'remove' ? { success: true } : inspectResult('exited');
     const dispatch = { sendDockerContainerCommand: vi.fn().mockImplementation(answer) };
     const { service } = createService(dispatch);
-    const guard = freezeGuard(null);
+    const guard = freezeGuard(false);
     service.setAppFreezeGuard(guard);
 
     await service.removeContainer('node-1', 'container-1', false, 'user-1');
 
-    expect(guard.assertContainerKept).not.toHaveBeenCalled();
+    expect(guard.assertContainer).not.toHaveBeenCalled();
     expect(dispatch.sendDockerContainerCommand.mock.calls.map((call) => call[1])).toContain('remove');
   });
 });
