@@ -1,11 +1,16 @@
-import { and, asc, eq, inArray, isNotNull, isNull, like, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, like, ne, or, sql } from 'drizzle-orm';
 import {
+  auditLog,
   databaseConnections,
+  managedAvailabilityMembers,
+  managedAvailabilitySets,
+  managedAvailabilityWitnesses,
   managedDatabaseBindingPlacements,
   managedDatabaseBindings,
   managedDatabaseInstances,
   managedStorageBindings,
   nodes,
+  relayInstances,
 } from '@/db/schema/index.js';
 import { grantCreatedResourcePermissions } from '@/lib/created-resource-permissions.js';
 import { createChildLogger } from '@/lib/logger.js';
@@ -21,6 +26,7 @@ import { requireConfiguredLicensePolicy } from '@/modules/license/license-policy
 const loggerManagedDatabaseService = createChildLogger('ManagedDatabaseService');
 const loggerManagedDatabaseBindings = createChildLogger('ManagedDatabaseBindings');
 const loggerManagedDatabaseBindingIdentityRuntime = createChildLogger('ManagedDatabaseBindingIdentityRuntime');
+const loggerManagedDatabaseAvailability = createChildLogger('ManagedDatabaseAvailability');
 
 export type { managedDatabaseInstances } from '@/db/schema/index.js';
 export type { LicensePolicyService } from '@/modules/license/license-policy.service.js';
@@ -64,4 +70,14 @@ export const managedDatabaseRuntime = {
   decodeComposeServiceTarget,
   assertDockerResourceScope,
   resolveBindingTargetContainerIdentity,
+  // Database availability sets (commercial control plane, databases/availability).
+  managedAvailabilitySets,
+  managedAvailabilityMembers,
+  managedAvailabilityWitnesses,
+  relayInstances,
+  auditLog,
+  ne,
+  or,
+  desc,
+  loggerManagedDatabaseAvailability,
 };

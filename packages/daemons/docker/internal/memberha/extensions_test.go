@@ -321,6 +321,26 @@ func TestOnlyARetainedPrimaryIsLifted(t *testing.T) {
 	if _, err := h.manager.LiftCheck(testSet, testMemberB); err == nil {
 		t.Fatal("a lift must name this node's member")
 	}
+	// A close that fenced the holder before the voters confirmed it: with the lease closed and every other member
+	// gone, the last copy may be lifted; with another member still configured it may not.
+	h.lease.status = HolderStatus{Role: RoleNone}
+	h.lease.manifest = ManifestInfo{PolicyID: testPolicy, Closed: true}
+	if _, err := h.manager.LiftCheck(testSet, testMemberA); !errors.Is(err, ErrNotRetained) {
+		t.Fatalf("a member with another member configured must not be lifted: %v", err)
+	}
+	alone := h.manager.members[testSet].cfg
+	alone.Members = alone.Members[:1]
+	alone.ConfigRevision++
+	if err := h.manager.Configure(alone); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.manager.LiftCheck(testSet, testMemberA); err != nil {
+		t.Fatalf("the last copy under a closed lease may be lifted: %v", err)
+	}
+	h.lease.status = HolderStatus{Role: RoleHolding}
+	if _, err := h.manager.LiftCheck(testSet, testMemberA); err == nil {
+		t.Fatal("a member that still holds (the close is being confirmed) waits for its retained role")
+	}
 }
 
 func TestAHolderWhoseCloseIsNotConfirmedFencesAtItsLeaseTime(t *testing.T) {
