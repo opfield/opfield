@@ -94,6 +94,8 @@ export function leaseHolderAuditEntry(input: {
       takeoverSource: input.source,
       noticedAt: input.noticedAt.toISOString(),
       takeoverId: input.takeoverId,
+      // C-4: the lost-range estimate of a set failover at takeover.
+      ...(notice.loss ? { lossBytes: notice.loss.bytes, lossSince: notice.loss.since } : {}),
       ...subject.details,
     },
   };
