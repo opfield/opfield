@@ -7,6 +7,7 @@ import { disposableDatabase, migrateDatabase } from '@/db/migration-database.tes
 import * as schema from '@/db/schema/index.js';
 import { AppFolderService } from './app-folders.service.js';
 import type { AppIncidentActions } from './app-incident-actions.js';
+import { AppIncidentConsumerEnv } from './app-incident-consumer-env.js';
 import { AppIncidentRunner } from './app-incident-runner.js';
 import { AppIncidentTargetsReader } from './app-incident-targets.js';
 import { AppIncidentsRepo } from './app-incidents.repo.js';
@@ -280,5 +281,76 @@ describe.skipIf(!url)('app incidents on disposable PostgreSQL', () => {
     const incidents = await service.shutdown({ userId, scopes: envOnly }, app.id, [env.id]);
     await settle(incidents);
     await settle(await service.start({ userId, scopes: envOnly }, app.id, [env.id]));
+  });
+
+  it('finds the variables a link removed during the incident left on its consumer container', async () => {
+    const app = await apps.create(actor(), { name: 'Consumers' });
+    const env = app.environments[0]!;
+    const link = async (source: string, sourceType: string, alias: string, environment: Record<string, string>) =>
+      (
+        await q(
+          `insert into container_links (source_node_id, source_type, source_resource_id, target_node_id, target_type,
+             target_resource_id, target_port, alias, environment, network_name, created_by_id)
+           values ($1, $2, $3, $1, 'container', 'cache', 6379, $4, $5, $6, $7) returning id`,
+          [
+            dockerNode,
+            sourceType,
+            source,
+            alias,
+            JSON.stringify(environment),
+            `gateway-link-${randomUUID().replace(/-/g, '').slice(0, 16)}`,
+            userId,
+          ]
+        )
+      ).rows[0].id as string;
+    const removed = await link('api', 'container', 'cache', {
+      url: 'CACHE_URL',
+      host: 'CACHE_HOST',
+      port: 'CACHE_PORT',
+    });
+    const kept = await link('api', 'container', 'queue', { url: 'QUEUE_URL' });
+    const deployment = await link('dep-1', 'deployment', 'cache', { url: 'CACHE_URL' });
+    const consumers = new AppIncidentConsumerEnv(db);
+    const recorded = await consumers.record('container_link', removed);
+    expect(recorded).toEqual({
+      consumer: { nodeId: dockerNode, name: 'api', env: ['CACHE_HOST', 'CACHE_PORT', 'CACHE_URL'] },
+    });
+    await expect(consumers.record('container_link', deployment)).resolves.toEqual({});
+
+    const incident = await repo.create({
+      batchId: randomUUID(),
+      appId: app.id,
+      environmentId: env.id,
+      kind: 'isolation',
+      startedById: userId,
+    });
+    await repo.addItems(incident.id, [
+      {
+        itemKind: 'container_link',
+        itemKey: `link:${removed}`,
+        phase: 20,
+        ref: { linkId: removed },
+        priorState: { desiredState: 'active', ...recorded },
+      },
+      {
+        itemKind: 'container_link',
+        itemKey: `link:${kept}`,
+        phase: 20,
+        ref: { linkId: kept },
+        priorState: { desiredState: 'active', ...(await consumers.record('container_link', kept)) },
+      },
+    ]);
+    await expect(consumers.leftByGoneBindings(incident.id, dockerNode, 'api')).resolves.toEqual([]);
+
+    // The link goes while the container is isolated; a new link claims one of its names and one is a stored secret.
+    await q('delete from container_links where id = $1', [removed]);
+    await link('api', 'container', 'cache-2', { host: 'CACHE_HOST' });
+    await q(
+      `insert into docker_secrets (node_id, container_name, key, encrypted_value) values ($1, 'api', 'CACHE_PORT', 'x')`,
+      [dockerNode]
+    );
+    await expect(consumers.leftByGoneBindings(incident.id, dockerNode, 'api')).resolves.toEqual(['CACHE_URL']);
+    await expect(consumers.leftByGoneBindings(incident.id, dockerNode, 'web')).resolves.toEqual([]);
+    await repo.setState(incident.id, 'released', { releasedAt: new Date() });
   });
 });

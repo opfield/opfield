@@ -163,7 +163,15 @@ export interface IncidentView {
     status: string;
     attempts: number;
     lastError: string | null;
+    /** What a restored or gone item could not put back as it was (a network that is gone, for one). */
+    detail: string | null;
   }>;
+}
+
+/** An item's error while its change is (or should be) in effect; once restored or gone, the restore's note. */
+function itemNotes(item: { status: string; lastError: string | null }) {
+  const done = item.status === 'restored' || item.status === 'gone';
+  return { lastError: done ? null : item.lastError, detail: done ? item.lastError : null };
 }
 
 /**
@@ -449,7 +457,7 @@ export class AppIncidentService {
           label: String((item.ref as { label?: unknown }).label ?? item.itemKey),
           status: item.status,
           attempts: item.attempts,
-          lastError: item.lastError,
+          ...itemNotes(item),
         })),
       };
     });

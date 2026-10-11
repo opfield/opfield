@@ -102,6 +102,13 @@ func (e *fakeIsolationEngine) serve(request *http.Request) (*http.Response, erro
 			"NetworkSettings": map[string]any{"Networks": e.attached},
 		})
 		return respond(http.StatusOK, string(body))
+	case request.Method == http.MethodGet && len(parts) == 2 && parts[0] == "networks":
+		name := e.networkName(parts[1])
+		if name == "" {
+			return respond(http.StatusNotFound, `{"message":"network `+parts[1]+` not found"}`)
+		}
+		body, _ := json.Marshal(map[string]any{"Name": name, "Id": e.networks[name]})
+		return respond(http.StatusOK, string(body))
 	case request.Method == http.MethodPost && len(parts) == 3 && parts[0] == "networks":
 		var payload struct {
 			Container      string
@@ -298,7 +305,8 @@ func TestRestoreContainerNetworksConnectsWithSameSettings(t *testing.T) {
 	}
 }
 
-func TestRestoreContainerNetworksContinuesPastMissingNetwork(t *testing.T) {
+// A network removed meanwhile (with its binding or link) is gone, not failed: retrying cannot bring it back.
+func TestRestoreContainerNetworksCountsRemovedNetworksAsGone(t *testing.T) {
 	engine := newFakeIsolationEngine(t)
 	engine.attached = map[string]map[string]any{}
 	endpoints := []IsolatedEndpoint{
@@ -313,12 +321,72 @@ func TestRestoreContainerNetworksContinuesPastMissingNetwork(t *testing.T) {
 	if want := []string{"app-net", "zeta-renamed"}; !reflect.DeepEqual(result.Restored, want) {
 		t.Fatalf("restored = %v, want %v", result.Restored, want)
 	}
-	if len(result.Failed) != 1 || result.Failed[0].NetworkName != "gone-net" || result.Failed[0].NetworkID != "id-gone" ||
-		!strings.Contains(result.Failed[0].Error, "not found") {
-		t.Fatalf("failed = %+v", result.Failed)
+	if want := []string{"gone-net"}; !reflect.DeepEqual(result.Gone, want) {
+		t.Fatalf("gone = %v, want %v", result.Gone, want)
+	}
+	if len(result.Failed) != 0 || result.NetworkModeGone != "" || result.FallbackNetwork != "" {
+		t.Fatalf("result = %+v", result)
 	}
 	if _, ok := engine.attached["zeta-net"]; !ok {
 		t.Fatalf("renamed network not connected by id: %v", engine.attached)
+	}
+}
+
+// The network mode names the removed binding's network and nothing else was left: the container joins the default
+// bridge network, so Docker can start it.
+func TestRestoreContainerNetworksPutsAContainerWhoseNetworkModeIsGoneOnTheBridge(t *testing.T) {
+	engine := newFakeIsolationEngine(t)
+	engine.networkMode = "gateway-db-fedcba9876543210"
+	engine.attached = map[string]map[string]any{}
+	endpoints := []IsolatedEndpoint{{NetworkID: "id-removed", NetworkName: "gateway-db-fedcba9876543210"}}
+	result, err := engine.client().RestoreContainerNetworks(context.Background(), "app", endpoints)
+	if err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	if want := []string{"gateway-db-fedcba9876543210"}; !reflect.DeepEqual(result.Gone, want) {
+		t.Fatalf("gone = %v, want %v", result.Gone, want)
+	}
+	if len(result.Failed) != 0 || len(result.Restored) != 0 {
+		t.Fatalf("result = %+v", result)
+	}
+	if result.NetworkModeGone != "gateway-db-fedcba9876543210" || result.FallbackNetwork != "bridge" {
+		t.Fatalf("network mode gone = %q, fallback = %q", result.NetworkModeGone, result.FallbackNetwork)
+	}
+	if _, ok := engine.attached["bridge"]; !ok {
+		t.Fatalf("container not on the bridge network: %v", engine.attached)
+	}
+	detail, _ := json.Marshal(result)
+	for _, key := range []string{`"gone":["gateway-db-fedcba9876543210"]`, `"networkModeGone":"gateway-db-fedcba9876543210"`,
+		`"fallbackNetwork":"bridge"`} {
+		if !strings.Contains(string(detail), key) {
+			t.Fatalf("detail %s lacks %s", detail, key)
+		}
+	}
+}
+
+// With another network restored, a gone network mode is reported and the container stays on what it had: Docker
+// starts a container that is on a network without looking up its network mode.
+func TestRestoreContainerNetworksKeepsRestoredNetworksWhenTheNetworkModeIsGone(t *testing.T) {
+	engine := newFakeIsolationEngine(t)
+	engine.networkMode = "gateway-db-fedcba9876543210"
+	engine.attached = map[string]map[string]any{}
+	endpoints := []IsolatedEndpoint{
+		{NetworkID: "id-removed", NetworkName: "gateway-db-fedcba9876543210"},
+		{NetworkID: "id-app", NetworkName: "app-net"},
+	}
+	result, err := engine.client().RestoreContainerNetworks(context.Background(), "app", endpoints)
+	if err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	if !reflect.DeepEqual(result.Restored, []string{"app-net"}) ||
+		!reflect.DeepEqual(result.Gone, []string{"gateway-db-fedcba9876543210"}) || len(result.Failed) != 0 {
+		t.Fatalf("result = %+v", result)
+	}
+	if result.NetworkModeGone != "gateway-db-fedcba9876543210" || result.FallbackNetwork != "" {
+		t.Fatalf("network mode gone = %q, fallback = %q", result.NetworkModeGone, result.FallbackNetwork)
+	}
+	if _, ok := engine.attached["bridge"]; ok {
+		t.Fatalf("container joined the bridge network although it has app-net: %v", engine.attached)
 	}
 }
 

@@ -33,7 +33,13 @@ export interface NetworkIsolateResult {
 
 export interface NetworkRestoreResult {
   restored: string[];
+  /** Networks that no longer exist (removed with their binding or link meanwhile): skipped, never retried. */
+  gone: string[];
   failed: Array<{ networkName: string; networkId: string; error: string }>;
+  /** The container's network mode when it names a network that no longer exists. */
+  networkModeGone: string | null;
+  /** The network the container was put on because its network mode is gone and nothing else was left to restore. */
+  fallbackNetwork: string | null;
 }
 
 type IsolationDispatch = Pick<NodeDispatchService, 'isolateContainerNetworks' | 'restoreContainerNetworks'>;
@@ -81,6 +87,9 @@ export class AppNetworkIsolation {
     const detail = parseDetail(result, 'NETWORK_RESTORE_FAILED');
     return {
       restored: strings(detail.restored),
+      gone: strings(detail.gone),
+      networkModeGone: optionalStr(detail.networkModeGone),
+      fallbackNetwork: optionalStr(detail.fallbackNetwork),
       failed: Array.isArray(detail.failed)
         ? detail.failed.map((entry) => {
             const failure = record(entry);

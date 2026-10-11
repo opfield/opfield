@@ -24,10 +24,18 @@ type fakeRecreateEngine struct {
 	endpoints map[string]map[string]string
 	// startFails makes every start fail with this message.
 	startFails string
-	created    int
-	removed    []string
-	deleted    []string
-	calls      []string
+	// networkMode and attached override the inspected network mode and networks (app-net, and bind-net beside it).
+	networkMode string
+	attached    map[string]any
+	// createdModes lists the network mode of every container created.
+	createdModes []string
+	// missingMode holds the containers created on no network whose network mode names a missing network: Docker
+	// refuses to start them.
+	missingMode map[string]string
+	created     int
+	removed     []string
+	deleted     []string
+	calls       []string
 }
 
 func newFakeRecreateEngine(t *testing.T) *fakeRecreateEngine {
@@ -79,9 +87,27 @@ func (e *fakeRecreateEngine) serve(request *http.Request) (*http.Response, error
 		if _, exists := e.containers[name]; exists {
 			return respond(http.StatusConflict, `{"message":"Conflict. The container name \"/`+name+`\" is already in use"}`)
 		}
+		var body struct {
+			HostConfig struct {
+				NetworkMode string
+			}
+			NetworkingConfig struct {
+				EndpointsConfig map[string]any
+			}
+		}
+		_ = json.NewDecoder(request.Body).Decode(&body)
 		e.created++
 		id := "created-" + string(rune('0'+e.created))
 		e.containers[name] = id
+		mode := body.HostConfig.NetworkMode
+		e.createdModes = append(e.createdModes, mode)
+		if _, exists := e.endpoints[mode]; !exists && len(body.NetworkingConfig.EndpointsConfig) == 0 &&
+			mode != "bridge" && mode != "default" && mode != "host" && mode != "none" {
+			if e.missingMode == nil {
+				e.missingMode = map[string]string{}
+			}
+			e.missingMode[id] = mode
+		}
 		return respond(http.StatusCreated, `{"Id":"`+id+`"}`)
 	case parts[0] == "containers" && len(parts) >= 2:
 		name := e.nameOf(parts[1])
@@ -91,14 +117,20 @@ func (e *fakeRecreateEngine) serve(request *http.Request) (*http.Response, error
 		id := e.containers[name]
 		switch {
 		case request.Method == http.MethodGet && len(parts) == 3 && parts[2] == "json":
+			networkMode := "app-net"
+			if e.networkMode != "" {
+				networkMode = e.networkMode
+			}
+			attached := map[string]any{"app-net": map[string]any{}, "bind-net": map[string]any{}}
+			if e.attached != nil {
+				attached = e.attached
+			}
 			inspect, _ := json.Marshal(map[string]any{
 				"Id": id, "Name": "/" + name,
-				"Config":     map[string]any{"Image": "app:1", "Env": []string{"MODE=production"}},
-				"HostConfig": map[string]any{"NetworkMode": "app-net", "RestartPolicy": map[string]any{"Name": "always"}},
-				"State":      map[string]any{"Running": true, "Restarting": true, "Status": "restarting"},
-				"NetworkSettings": map[string]any{"Networks": map[string]any{
-					"app-net": map[string]any{}, "bind-net": map[string]any{},
-				}},
+				"Config":          map[string]any{"Image": "app:1", "Env": []string{"MODE=production"}},
+				"HostConfig":      map[string]any{"NetworkMode": networkMode, "RestartPolicy": map[string]any{"Name": "always"}},
+				"State":           map[string]any{"Running": true, "Restarting": true, "Status": "restarting"},
+				"NetworkSettings": map[string]any{"Networks": attached},
 			})
 			return respond(http.StatusOK, string(inspect))
 		case request.Method == http.MethodPost && len(parts) == 3 && parts[2] == "stop":
@@ -114,6 +146,10 @@ func (e *fakeRecreateEngine) serve(request *http.Request) (*http.Response, error
 			}
 			if e.startFails != "" {
 				return respond(http.StatusInternalServerError, `{"message":"`+e.startFails+`"}`)
+			}
+			if mode, missing := e.missingMode[id]; missing {
+				return respond(http.StatusNotFound,
+					`{"message":"could not find a network matching network mode `+mode+`: network `+mode+` not found"}`)
 			}
 			return respond(http.StatusNoContent, "")
 		case request.Method == http.MethodDelete && len(parts) == 2:
@@ -216,6 +252,66 @@ func TestRecreateKeepsTheRestoredContainerWhenItCannotStart(t *testing.T) {
 	}
 	if got := strings.Join(engine.removed, ","); got != "orig,created-1" {
 		t.Fatalf("removed containers = %q, want only the original and the failed replacement", got)
+	}
+}
+
+// A container on no network (the kill switch held it off its networks) whose network mode names a network removed
+// meanwhile is recreated on the default bridge network: on its old network mode Docker would refuse to start it, and
+// the restored original as well.
+func TestRecreateOfAContainerWhoseNetworkModeIsGoneUsesTheBridge(t *testing.T) {
+	engine := newFakeRecreateEngine(t)
+	engine.networkMode = "gateway-db-fedcba9876543210"
+	engine.attached = map[string]any{}
+	engine.endpoints = map[string]map[string]string{"app-net": {}}
+
+	err := engine.client().UpdateContainer(context.Background(), "app", "", nil, []string{"REDIS_URL"}, "", "running")
+	if err != nil {
+		t.Fatalf("recreate failed: %v", err)
+	}
+	if got := strings.Join(engine.createdModes, ","); got != "bridge" {
+		t.Fatalf("created network modes = %q, want one container on the bridge network", got)
+	}
+	if engine.containers["app"] != "created-1" {
+		t.Fatalf("app is %q, want the replacement", engine.containers["app"])
+	}
+}
+
+// A container on no network keeps a network mode whose network still exists.
+func TestRecreateKeepsAnExistingNetworkModeOnNoNetwork(t *testing.T) {
+	engine := newFakeRecreateEngine(t)
+	engine.networkMode = "app-net"
+	engine.attached = map[string]any{}
+	engine.endpoints = map[string]map[string]string{"app-net": {}}
+
+	if err := engine.client().UpdateContainer(context.Background(), "app", "", nil, nil, "", "running"); err != nil {
+		t.Fatalf("recreate failed: %v", err)
+	}
+	if got := strings.Join(engine.createdModes, ","); got != "app-net" {
+		t.Fatalf("created network modes = %q, want app-net", got)
+	}
+}
+
+// The network mode of a recreated container is a link network only when the container is on nothing else.
+func TestPrioritizeNetworkNamesKeepsLinkNetworksSecondary(t *testing.T) {
+	cases := []struct {
+		names []string
+		mode  string
+		want  string
+	}{
+		{[]string{"bridge", "gateway-db-0123456789abcdef"}, "bridge", "bridge"},
+		{[]string{"bridge", "gateway-db-0123456789abcdef"}, "gateway-db-0123456789abcdef", "bridge"},
+		{[]string{"app-net", "gateway-db-0123456789abcdef"}, "gateway-db-0123456789abcdef", "app-net"},
+		{[]string{"bridge", "gateway-link-0123456789abcdef", "zeta"}, "bridge", "zeta"},
+		{[]string{"alpha", "beta"}, "beta", "beta"},
+		{[]string{"bridge", "zeta"}, "bridge", "zeta"},
+		{[]string{"gateway-db-0123456789abcdef", "gateway-link-0123456789abcdef"}, "gateway-link-0123456789abcdef", "gateway-link-0123456789abcdef"},
+		{[]string{"gateway-db-0123456789abcdef"}, "bridge", "gateway-db-0123456789abcdef"},
+	}
+	for _, tc := range cases {
+		got := prioritizeNetworkNames(append([]string(nil), tc.names...), tc.mode)
+		if got[0] != tc.want || len(got) != len(tc.names) {
+			t.Fatalf("prioritizeNetworkNames(%v, %q) = %v, want %s first", tc.names, tc.mode, got, tc.want)
+		}
 	}
 }
 

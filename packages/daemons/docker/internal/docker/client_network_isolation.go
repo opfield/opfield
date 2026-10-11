@@ -52,8 +52,16 @@ type NetworkRestoreFailure struct {
 
 // NetworkRestoreResult reports network_restore per network.
 type NetworkRestoreResult struct {
-	Restored []string                `json:"restored"`
-	Failed   []NetworkRestoreFailure `json:"failed"`
+	Restored []string `json:"restored"`
+	// Gone lists the networks that no longer exist (removed with their binding or link meanwhile): skipped, never
+	// failed, since retrying cannot bring them back.
+	Gone   []string                `json:"gone"`
+	Failed []NetworkRestoreFailure `json:"failed"`
+	// NetworkModeGone is the container's network mode when it names a network that no longer exists.
+	NetworkModeGone string `json:"networkModeGone,omitempty"`
+	// FallbackNetwork is the network the container was put on because its network mode is gone and no other network
+	// was left to restore: Docker would otherwise refuse to start it.
+	FallbackNetwork string `json:"fallbackNetwork,omitempty"`
 }
 
 // IsolateContainerNetworks disconnects a container from every network it is attached to, Gateway-managed ones
@@ -92,7 +100,9 @@ func (c *Client) IsolateContainerNetworks(ctx context.Context, containerRef stri
 }
 
 // RestoreContainerNetworks connects a container to the endpoints network_isolate removed. A network the container is
-// already on counts as restored; a missing network or failed connect is reported and the rest still connect.
+// already on counts as restored; a network that no longer exists is reported gone and a failed connect failed, and
+// the rest still connect. A container whose network mode names a network that is gone keeps the networks restored;
+// with none left it joins Docker's default bridge network, so it can still start.
 func (c *Client) RestoreContainerNetworks(ctx context.Context, containerRef string, endpoints []IsolatedEndpoint) (*NetworkRestoreResult, error) {
 	insp, err := c.cli.ContainerInspect(ctx, containerRef, client.ContainerInspectOptions{})
 	if err != nil {
@@ -109,7 +119,7 @@ func (c *Client) RestoreContainerNetworks(ctx context.Context, containerRef stri
 			}
 		}
 	}
-	result := &NetworkRestoreResult{Restored: []string{}, Failed: []NetworkRestoreFailure{}}
+	result := &NetworkRestoreResult{Restored: []string{}, Gone: []string{}, Failed: []NetworkRestoreFailure{}}
 	for _, endpoint := range orderRestoreEndpoints(endpoints, currentInspectNetworkMode(&inspected)) {
 		label := endpoint.NetworkName
 		if label == "" {
@@ -125,6 +135,10 @@ func (c *Client) RestoreContainerNetworks(ctx context.Context, containerRef stri
 				result.Restored = append(result.Restored, label)
 				continue
 			}
+			if isNetworkNotFoundErr(err) {
+				result.Gone = append(result.Gone, label)
+				continue
+			}
 			result.Failed = append(result.Failed, NetworkRestoreFailure{
 				NetworkName: endpoint.NetworkName,
 				NetworkID:   endpoint.NetworkID,
@@ -134,7 +148,48 @@ func (c *Client) RestoreContainerNetworks(ctx context.Context, containerRef stri
 		}
 		result.Restored = append(result.Restored, label)
 	}
+	if err := c.restoreStartableNetworkMode(ctx, &inspected, len(attachedNames) > 0 || len(result.Restored) > 0, result); err != nil {
+		return nil, err
+	}
 	return result, nil
+}
+
+// restoreStartableNetworkMode checks the container's network mode after a restore. Docker attaches the network a
+// user-defined network mode names whenever the container starts on no network, and refuses the start when that
+// network is gone: the gone network mode is reported, and a container left on no network joins the default bridge.
+func (c *Client) restoreStartableNetworkMode(
+	ctx context.Context,
+	inspected *container.InspectResponse,
+	onNetwork bool,
+	result *NetworkRestoreResult,
+) error {
+	mode := container.NetworkMode(currentInspectNetworkMode(inspected))
+	if mode == "" || !mode.IsUserDefined() {
+		return nil
+	}
+	existing, err := c.existingNetworkNames(ctx, []string{string(mode)})
+	if err != nil {
+		return err
+	}
+	if len(existing) > 0 {
+		return nil
+	}
+	result.NetworkModeGone = string(mode)
+	if onNetwork {
+		return nil
+	}
+	if _, err := c.cli.NetworkConnect(ctx, network.NetworkBridge, client.NetworkConnectOptions{
+		Container:      inspected.ID,
+		EndpointConfig: &network.EndpointSettings{},
+	}); err != nil && !isAlreadyConnectedErr(err) {
+		result.Failed = append(result.Failed, NetworkRestoreFailure{
+			NetworkName: network.NetworkBridge,
+			Error:       err.Error(),
+		})
+		return nil
+	}
+	result.FallbackNetwork = network.NetworkBridge
+	return nil
 }
 
 // connectIsolatedEndpoint connects the container by network name, falling back to the network ID when no network of

@@ -14,6 +14,7 @@ import (
 
 	"github.com/distribution/reference"
 	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/client"
 
 	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
@@ -510,6 +511,12 @@ func (c *Client) createContainerFromInspect(
 	hostConfig.ExtraHosts = mergeManagedDatabaseExtraHosts(hostConfig.ExtraHosts, managedDatabaseHosts)
 	if len(netNames) > 0 {
 		hostConfig.NetworkMode = container.NetworkMode(netNames[0])
+	} else {
+		mode, err := c.startableNetworkMode(ctx, hostConfig.NetworkMode)
+		if err != nil {
+			return "", err
+		}
+		hostConfig.NetworkMode = mode
 	}
 	// Containers created before the workload default carry json-file without
 	// options; give them rotation. Explicit configurations are kept.
@@ -552,6 +559,24 @@ func (c *Client) createContainerFromInspect(
 	}
 
 	return createResult.ID, nil
+}
+
+// startableNetworkMode is the network mode of a container created on no network: its own, unless that names a
+// user-defined network that no longer exists (removed with a binding or link while the kill switch held the container
+// off its networks, for one). Docker attaches that network at create and start and refuses to start without it, so
+// the container gets the default bridge network instead.
+func (c *Client) startableNetworkMode(ctx context.Context, mode container.NetworkMode) (container.NetworkMode, error) {
+	if mode == "" || !mode.IsUserDefined() {
+		return mode, nil
+	}
+	existing, err := c.existingNetworkNames(ctx, []string{string(mode)})
+	if err != nil {
+		return mode, err
+	}
+	if len(existing) == 0 {
+		return container.NetworkMode(network.NetworkBridge), nil
+	}
+	return mode, nil
 }
 
 func parseRecreateExpectedRunning(state string) (*bool, error) {

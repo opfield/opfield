@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/netip"
+	"slices"
 	"sort"
 	"strings"
 
@@ -132,21 +133,30 @@ func currentInspectNetworkMode(insp *container.InspectResponse) string {
 	return strings.TrimSpace(string(insp.HostConfig.NetworkMode))
 }
 
+// prioritizeNetworkNames moves the network that becomes the container's network mode first: its current network mode
+// when the container is on it, otherwise the first user-defined network, otherwise the default bridge. A link network
+// (managed database binding, storage link, container link) is chosen only when the container is on nothing else:
+// Gateway removes a link network with its link, and a network mode that names a removed network keeps the container
+// from starting once it is on no other network.
 func prioritizeNetworkNames(netNames []string, currentMode string) []string {
 	preferred := ""
-	for _, name := range netNames {
-		if name == currentMode {
-			preferred = name
-			break
-		}
+	if currentMode != network.NetworkDefault && currentMode != network.NetworkBridge && !isLinkNetwork(currentMode) &&
+		slices.Contains(netNames, currentMode) {
+		preferred = currentMode
 	}
-	if preferred == "" || preferred == "default" || preferred == "bridge" {
+	if preferred == "" {
 		for _, name := range netNames {
-			if name != "bridge" && name != "default" {
+			if name != network.NetworkBridge && name != network.NetworkDefault && !isLinkNetwork(name) {
 				preferred = name
 				break
 			}
 		}
+	}
+	if preferred == "" && slices.Contains(netNames, network.NetworkBridge) {
+		preferred = network.NetworkBridge
+	}
+	if preferred == "" && slices.Contains(netNames, currentMode) {
+		preferred = currentMode
 	}
 	for index, name := range netNames {
 		if name == preferred && index > 0 {

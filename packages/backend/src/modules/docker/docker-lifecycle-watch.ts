@@ -1,10 +1,12 @@
 import { AppError } from '@/middleware/error-handler.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
-import { getReplacementContainerFailureMessage } from './docker-recreate-watch.js';
+import { getReplacementContainerFailureMessage, replacementReached } from './docker-recreate-watch.js';
 import { type DockerTaskService, detachDockerTask, trackDockerTask } from './docker-task.service.js';
 
 const LEGACY_TASK_STATUS_UNSUPPORTED_ERROR = 'unknown container action: task_status';
+/** The daemon has no task of the ID: it restarted since (a daemon keeps finished tasks for an hour). */
+const DAEMON_TASK_NOT_FOUND_ERROR = 'docker task not found';
 const NODE_DISCONNECTED_RE = /node (?:.* )?(?:is not connected|disconnected)/i;
 const DISCONNECTED_ERROR = 'Docker node disconnected during container operation';
 
@@ -195,8 +197,13 @@ export function watchDockerRecreateByName(
         const daemonTaskResult = await context.nodeDispatch.sendDockerContainerCommand(nodeId, 'task_status', {
           containerId: daemonTaskId,
         });
-        if (!daemonTaskResult.success && daemonTaskResult.error?.trim() === LEGACY_TASK_STATUS_UNSUPPORTED_ERROR) {
+        const daemonTaskError = daemonTaskResult.success ? '' : (daemonTaskResult.error?.trim() ?? '');
+        if (daemonTaskError === LEGACY_TASK_STATUS_UNSUPPORTED_ERROR) {
           daemonTaskStatus = 'unsupported';
+        } else if (daemonTaskError === DAEMON_TASK_NOT_FOUND_ERROR) {
+          // The daemon restarted and no longer runs the task: the containers tell how it ended. Asking again only
+          // repeated this answer until the watch timed out, with the container held meanwhile.
+          daemonTaskStatus = 'unknown';
         } else {
           const daemonTask = context.parseResult(daemonTaskResult) as Record<string, any>;
           daemonTaskStatus = String(daemonTask.status ?? '');
@@ -218,7 +225,10 @@ export function watchDockerRecreateByName(
         !daemonTaskId ||
         daemonTaskStatus === 'running' ||
         daemonTaskStatus === 'succeeded' ||
-        daemonTaskStatus === 'unsupported';
+        daemonTaskStatus === 'unsupported' ||
+        daemonTaskStatus === 'unknown';
+      // The daemon is done with the replacement: its state no longer changes by this operation.
+      const settled = daemonTaskStatus === 'succeeded' || daemonTaskStatus === 'unknown';
       if (match && canEvaluateReplacement) {
         const newId = match.id ?? match.Id;
         const state = match.state ?? match.State ?? '';
@@ -226,7 +236,7 @@ export function watchDockerRecreateByName(
         // A replacement that started and now restarts under its restart policy
         // was recreated as asked; waiting for it to stay up would hold the
         // container until the timeout.
-        const reached = state === expectedState || (expectedState === 'running' && state === 'restarting');
+        const reached = replacementReached(state, expectedState, settled);
         if (newId !== oldContainerId && reached) {
           clearInterval(poll);
           try {
@@ -252,12 +262,26 @@ export function watchDockerRecreateByName(
           return;
         }
 
-        const replacementFailure = getReplacementContainerFailureMessage(match, oldContainerId, expectedState);
+        const replacementFailure = getReplacementContainerFailureMessage(match, oldContainerId, expectedState, settled);
         if (replacementFailure) {
           clearInterval(poll);
           await context.failTask(taskId, replacementFailure, nodeId, containerName);
           return;
         }
+      }
+
+      // A daemon that restarted left the replaced container in place (the change did not apply) or no container of
+      // the name at all: either way nothing more happens on the node, so the container is released now.
+      if (daemonTaskStatus === 'unknown' && (!match || lastSeenId === oldContainerId)) {
+        clearInterval(poll);
+        if (lastSeenId === oldContainerId) await onDaemonTaskFailed?.().catch(() => undefined);
+        await context.failTask(
+          taskId,
+          'The Docker daemon restarted before the container was replaced',
+          nodeId,
+          containerName
+        );
+        return;
       }
 
       if (Date.now() - start > timeoutMs) {
