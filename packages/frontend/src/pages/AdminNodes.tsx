@@ -14,6 +14,7 @@ import type { ResourceListColumn } from "@/components/common/ResourceListLayout"
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
 import { BulkNodeUpdateDialog } from "@/components/nodes/BulkNodeUpdateDialog";
 import { NodeEnrollmentDialog } from "@/components/nodes/NodeEnrollmentDialog";
+import { ProtectedNodeBadge } from "@/components/nodes/ProtectedNodeBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +42,7 @@ import {
   nodeIconClassNames,
   nodeTypeLabel,
 } from "@/lib/node-appearance";
+import { isNodeProtected } from "@/lib/node-host-access";
 import { confirmAndDeleteNode } from "@/lib/remove-node";
 import { nodeRoute } from "@/lib/resource-routes";
 import { cn } from "@/lib/utils";
@@ -308,7 +310,9 @@ export function AdminNodes() {
         width: "13%",
         align: "center",
         renderCell: (node) =>
-          (node.type === "nginx" || node.type === "docker") && node.serviceCreationLocked ? (
+          isNodeProtected(node) ? (
+            <ProtectedNodeBadge label="PROTECTED" />
+          ) : (node.type === "nginx" || node.type === "docker") && node.serviceCreationLocked ? (
             <Badge variant="warning">LOCKED</Badge>
           ) : (
             <span className="text-muted-foreground">-</span>

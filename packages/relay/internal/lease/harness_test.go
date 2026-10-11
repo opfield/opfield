@@ -98,6 +98,10 @@ type harness struct {
 	versions  map[string]uint64
 	// retained names retained holders in the next closed manifest.
 	retained []*relayv1.LeaseRetainedSlot
+	// stateful policies carry certified holder state (v3) and are
+	// bootstrapped by bootstrap[policy].
+	stateful  map[string]bool
+	bootstrap map[string]string
 
 	mu  sync.Mutex
 	out []*relayv1.CoordinationFrame
@@ -132,6 +136,7 @@ func newHarness(t *testing.T, relayVotes bool) *harness {
 		streams: map[string]*memberStream{}, down: map[string]bool{}, relayVote: relayVotes,
 		relayFrames: map[string][]*relayv1.CoordinationFrame{},
 		manifests:   map[string]*relayv1.LeaseSignedBlock{}, versions: map[string]uint64{},
+		stateful: map[string]bool{}, bootstrap: map[string]string{},
 	}
 	h.relayClock = &laggedClock{base: h.clock}
 	h.voters = []string{relayID, "v1", "v2"}
@@ -274,7 +279,11 @@ func (h *harness) signPolicy(id string, candidates, voters []string, closed bool
 	value := &relayv1.LeaseManifest{
 		SchemaVersion: 1, PolicyId: id, ManifestVersion: h.versions[id], Slots: 1, VoterEpoch: 1, Closed: closed,
 		Mode: relayv1.LeasePolicyMode_LEASE_POLICY_MODE_FAILOVER, PartitionMode: relayv1.LeasePartitionMode_LEASE_PARTITION_MODE_STRICT,
-		LeaseTermMs: 30000, QuorumSets: []*relayv1.LeaseQuorumSet{{VoterIds: voters}},
+		LeaseTermMs: 30000, QuorumSets: []*relayv1.LeaseQuorumSet{{VoterIds: voters}}, Stateful: h.stateful[id],
+	}
+	if holder := h.bootstrap[id]; holder != "" {
+		value.BootstrapId = 1
+		value.Bootstrap = []*relayv1.LeaseBootstrapSlot{{Slot: 0, HolderId: holder}}
 	}
 	if closed {
 		value.Retained = h.retained

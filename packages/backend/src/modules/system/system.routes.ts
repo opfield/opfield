@@ -123,6 +123,22 @@ systemRoutes.post('/relay/instances/:instanceId/force-disconnect', requireScope(
   return c.json({ data: await container.resolve(RelayPoolService).getSnapshot() });
 });
 
+// Relay settings an admin changes: whether availability witnesses (database/storage sets) may run on this relay.
+systemRoutes.patch('/relay/instances/:instanceId', requireScope('admin:system'), async (c) => {
+  const user = c.get('user')!;
+  const instanceId = z.string().uuid().parse(c.req.param('instanceId'));
+  const body = z
+    .object({ witnessHostingAllowed: z.boolean() })
+    .strict()
+    .parse(await c.req.json());
+  const pool = container.resolve(RelayPoolService);
+  await pool.setWitnessHosting(instanceId, body.witnessHostingAllowed, user.id);
+  const snapshot = await pool.getSnapshot();
+  const instance = snapshot.instances.find((candidate) => candidate.id === instanceId);
+  if (!instance) throw new AppError(404, 'RELAY_INSTANCE_NOT_FOUND', 'Relay instance not found');
+  return c.json({ data: instance });
+});
+
 // Re-enrollment token for an enrolled remote relay; the relay installer run with it repairs the relay.
 systemRoutes.post('/relay/instances/:instanceId/reenroll', requireScope('admin:system'), async (c) => {
   // The single-use enrollment token outlives the impersonation session.

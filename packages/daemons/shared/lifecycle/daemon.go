@@ -62,6 +62,9 @@ type DaemonBase struct {
 	// consoleUserRefusal is set at startup when console.user names a user
 	// this daemon cannot switch to; console sessions are refused with it.
 	consoleUserRefusal string
+	// protected is set at startup when the node owner turned protected mode
+	// on in the local config (protected.go). It never changes at run time.
+	protected bool
 }
 
 // NewDaemonBase creates a new DaemonBase with the given plugin.
@@ -78,7 +81,12 @@ func NewDaemonBase(cfg *BaseConfig, cfgPath string, plugin DaemonPlugin, logger 
 		return nil, fmt.Errorf("load state: %w", err)
 	}
 
+	protected := pluginProtected(plugin)
+	if protected {
+		startupLogger.Info("protected mode is on: console, command execution, file access and host diagnostics are refused, and only official signed updates to the same or a newer release are installed")
+	}
 	return &DaemonBase{
+		protected:             protected,
 		cfg:                   cfg,
 		cfgPath:               cfgPath,
 		state:                 st,
@@ -114,7 +122,11 @@ func (d *DaemonBase) Run(ctx context.Context) error {
 
 	// Step 3: Start background cert renewal
 	go runCertRenewal(ctx, d)
-	go d.sysReporter.RunPublicIPDiscovery(ctx)
+	if !d.protected {
+		// A protected node reports no IP addresses, so it does not look its
+		// public address up either.
+		go d.sysReporter.RunPublicIPDiscovery(ctx)
+	}
 	go d.watchLauncher(ctx)
 	if relayTunnel, ok := d.plugin.(RelayTunnelPlugin); ok {
 		// The tunnel owns one process-lifetime ClientConn. It is intentionally

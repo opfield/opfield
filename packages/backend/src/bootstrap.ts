@@ -172,6 +172,7 @@ import { LoggingSettingsService } from '@/modules/logging/logging-settings.servi
 import { LoggingTokenService } from '@/modules/logging/logging-token.service.js';
 import { LoggingValidationService } from '@/modules/logging/logging-validation.service.js';
 import { ManagedWorkloadLifecycle } from '@/modules/managed-workloads/managed-workload-lifecycle.js';
+import { WitnessCatalog } from '@/modules/managed-workloads/witness-catalog.js';
 import { McpSettingsService } from '@/modules/mcp/mcp-settings.service.js';
 import { DashboardReadModelService } from '@/modules/monitoring/dashboard-read-model.service.js';
 import { MonitoringService } from '@/modules/monitoring/monitoring.service.js';
@@ -279,6 +280,7 @@ import { RelayRegistryIngressService } from '@/services/relay-registry-ingress.s
 import { RelayStartupFinalizerService } from '@/services/relay-startup-finalizer.service.js';
 import { RelaySupervisorService } from '@/services/relay-supervisor.service.js';
 import { RelayTopologyService } from '@/services/relay-topology.service.js';
+import { RelayWitnessService } from '@/services/relay-witness.service.js';
 import { ResourceSnapshotStore } from '@/services/resource-snapshot.store.js';
 import { RuntimeRestartService } from '@/services/runtime-restart.service.js';
 import { SessionService } from '@/services/session.service.js';
@@ -1388,6 +1390,10 @@ export async function initializeContainer(): Promise<void> {
     new RelayPolicySigningKeyService(db, cryptoService)
   );
   container.registerInstance(AvailabilityLeaseService, availabilityLeaseService);
+  // Witness processes relays host for availability sets (decision 9): desired sets pushed, reports recorded.
+  const relayWitnessService = new RelayWitnessService(db, nodeDispatch);
+  relayWitnessService.setArtifactSource(new WitnessCatalog(env));
+  container.registerInstance(RelayWitnessService, relayWitnessService);
   if (relayPolicyService) {
     relayPolicyService.setAvailabilityLeaseSource(availabilityLeaseService);
     availabilityLeaseService.setRelayPublisher(relayPolicyService);

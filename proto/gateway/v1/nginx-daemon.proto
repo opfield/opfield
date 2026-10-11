@@ -495,7 +495,88 @@ message GatewayCommand {
     // Relay supervisor only (relay_route_runtime_v1): the runtime of relay
     // routes as its worker counts them.
     GetRelayRouteRuntimeCommand get_relay_route_runtime = 77;
+    // Relay supervisor only (relay_witness_v1): the witness processes this
+    // relay hosts for availability sets, as the full desired set.
+    ApplyWitnessesCommand apply_witnesses = 80;
   }
+}
+
+// The witness processes a relay supervisor runs for availability sets (a
+// ClickHouse Keeper voter of a two-member set). The list is the full desired
+// set: a witness not listed is stopped and its data removed. The supervisor
+// keeps the last applied set across restarts, so witnesses keep running while
+// Gateway is down.
+message ApplyWitnessesCommand {
+  // Increases with every change for this relay; an older or equal revision
+  // than the applied one is acknowledged without changes.
+  uint64 revision = 1;
+  repeated WitnessSpec witnesses = 2;
+}
+
+message WitnessSpec {
+  // managed_availability_witnesses id.
+  string id = 1;
+  string set_id = 2;
+  // "clickhouse_keeper".
+  string kind = 3;
+  // "active" runs the process; "standby" fetches and verifies the artifact
+  // and stages the config without running it.
+  string role = 4;
+  WitnessArtifact artifact = 5;
+  // Keeper server id of this witness.
+  uint32 server_id = 6;
+  // Loopback ports of the relay-local endpoints the members reach this
+  // witness through (relaylocal range 39400-39499): Keeper client and raft.
+  uint32 client_port = 7;
+  uint32 raft_port = 8;
+  // The host the raft configuration names for this witness; "127.0.0.1"
+  // when empty. The raft listener always binds 127.0.0.1:raft_port.
+  string raft_host = 9;
+  // The other Keeper voters, each reached through a local forwarder that
+  // opens a relay-originated tunnel (RelayAdmin.DialRoute) on route_id.
+  repeated WitnessPeer peers = 10;
+  // The set's lease policy (holder-signed activation of a standby).
+  string lease_policy_id = 11;
+}
+
+message WitnessPeer {
+  uint32 server_id = 1;
+  // Loopback address (127.0.0.0/8) and port (39500-39999) the forwarder
+  // binds, exactly as the raft configuration names this peer.
+  string host = 2;
+  uint32 port = 3;
+  string route_id = 4;
+  // 0: the latest assignment of route_id in the relay's policy.
+  uint64 assignment_generation = 5;
+}
+
+message WitnessArtifact {
+  string version = 1;
+  string download_url = 2;
+  // Hex sha256 of the binary; the signed manifest (kind witness-binary,
+  // verified with the compiled update key) must name the same.
+  string sha256 = 3;
+  string signed_manifest = 4;
+  // Update component of the manifest, e.g. "witness-clickhouse-keeper".
+  string component = 5;
+}
+
+message WitnessStatus {
+  string id = 1;
+  string kind = 2;
+  string role = 3;
+  // fetching | staged | starting | running | updating | stopped | error |
+  // refused (local hosting gate).
+  string state = 4;
+  string version = 5;
+  string artifact_sha256 = 6;
+  // Keeper: leader | follower | observer | standalone; empty when unknown.
+  string keeper_role = 7;
+  uint64 last_zxid = 8;
+  string error = 9;
+  uint32 restarts = 10;
+  // Unix seconds of the last state change.
+  int64 since_unix = 11;
 }
 
 // A serialized relay.v1.ApplySnapshotRequest. Keeping the policy as opaque
@@ -558,6 +639,12 @@ message RelayRuntimeStatus {
   // The relay's acceptor and data-path gate view (relays advertising
   // availability_lease_v1). member_id is the relay instance id.
   AvailabilityLeaseReport availability_lease = 17;
+  // Witness hosting (relay_witness_v1). witness_hosting is the local gate:
+  // "allowed", "protected_needs_opt_in" (protected relay without the owner's
+  // witness opt-in) or "disabled" (this host cannot run witnesses).
+  string witness_hosting = 20;
+  repeated WitnessStatus witnesses = 21;
+  uint64 applied_witness_revision = 22;
 }
 
 message RelayAssignmentTunnelCount {
@@ -1351,6 +1438,15 @@ message AvailabilityLeaseKeyView {
   // commit of the committed ballot's proposer, Unix ms of its wall clock;
   // zero when unknown.
   int64 holder_since_unix_ms = 25;
+  // As in relay.v1 (same field numbers), stateful keys only
+  // (availability_lease_v3): whether this acceptor's memory of the key is
+  // KNOWN, the ballot it last accepted, "sha256:<hex>" of that state and of
+  // the latest commit's state. The state bytes are never reported.
+  bool stateful = 26;
+  bool state_known = 27;
+  string state_hash = 28;
+  AvailabilityLeaseBallot accepted = 29;
+  string committed_state_hash = 30;
 }
 
 message AvailabilityLeaseEvent {

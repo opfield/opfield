@@ -71,6 +71,8 @@ const TAG_PATTERNS: Readonly<Record<string, RegExp>> = {
 	"lease-watchdog": /^v\d+\.\d+\.\d+(?:-rc\.\d+)?-watchdog$/,
 	"relay-supervisor": /^v\d+\.\d+\.\d+(?:-rc\.\d+)?-relay$/,
 	"inference-core": /^v\d+\.\d+\.\d+-(?:wiolett|thesqlabs)\.\d+$/,
+	// Witness binaries (availability set Keeper voters relays run) ship as assets of the Gateway release.
+	"witness-clickhouse-keeper": /^v\d+\.\d+\.\d+(?:-rc\.\d+)?$/,
 };
 
 const ARTIFACT_PATTERNS: Readonly<Record<string, RegExp>> = {
@@ -87,6 +89,8 @@ const ARTIFACT_PATTERNS: Readonly<Record<string, RegExp>> = {
 	"relay-supervisor":
 		/^(relay-(supervisor|worker)-linux-(amd64|arm64)(\.update\.json)?|checksums\.txt)$/,
 	"inference-core": /^opencodex-image\.update\.json$/,
+	"witness-clickhouse-keeper":
+		/^witness-clickhouse-keeper-\d+(?:\.\d+){2,3}-linux-(amd64|arm64)(\.update\.json)?$/,
 };
 
 interface GitHubRepository {
@@ -198,7 +202,7 @@ function parseReleaseVersion(
 		};
 	}
 	const suffix =
-		component === "gateway"
+		component === "gateway" || component === "witness-clickhouse-keeper"
 			? ""
 			: component === "relay" || component === "relay-supervisor"
 				? "-relay"

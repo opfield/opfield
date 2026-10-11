@@ -1084,6 +1084,14 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                   });
                 });
               }
+              if (deps.relayWitness) {
+                void deps.relayWitness.ingestRuntime(instance.id, runtime).catch((error) => {
+                  logger.warn('Relay witness report was not recorded', {
+                    nodeId: activeNodeId,
+                    error: (error as Error).message,
+                  });
+                });
+              }
             } else if (msg.dockerBuildEvent) {
               const disposition = await dispatchDockerBuildEvent(activeNodeId, msg.dockerBuildEvent);
               const attempt = Number(msg.dockerBuildEvent.attempt ?? 0);

@@ -26,6 +26,7 @@ import { relayRemovableAfter } from '@/modules/nodes/relay-removal.js';
 import type { GeneralSettingsService, RelayAssignmentSpread } from '@/modules/settings/general-settings.service.js';
 import type { EventBusService } from './event-bus.service.js';
 import { type LocalRelayOutageSignal, localRelayOutagePhase, upWhenLocalRelayWentDown } from './local-relay-outage.js';
+import { NODE_PROTECTED_CAPABILITY } from './node-host-access.js';
 import type { NodeRegistryService } from './node-registry.service.js';
 import { pruneEndedAssignmentGenerations } from './relay-assignment-history.js';
 import type { RelayCertificateRenewalService, RelayCertificateStatus } from './relay-certificate-renewal.service.js';
@@ -61,6 +62,7 @@ import {
   samePlannedAssignments,
 } from './relay-topology.js';
 import type { RelayTopologyService } from './relay-topology.service.js';
+import { relayWitnessHosting } from './relay-witness-hosting.js';
 import { isShuttingDown } from './shutdown-state.js';
 
 type RelayInstanceRow = typeof relayInstances.$inferSelect;
@@ -676,6 +678,27 @@ export class RelayPoolService {
   }
 
   /** Renews one remote relay's certificate now. */
+  /**
+   * The admin flag that lets a relay host availability witnesses. Turning it off does not stop witnesses by itself:
+   * witness placement moves them away (a running Keeper witness keeps its quorum role until it is replaced).
+   */
+  async setWitnessHosting(instanceId: string, allowed: boolean, userId: string | null) {
+    const [instance] = await this.db
+      .update(relayInstances)
+      .set({ witnessHostingAllowed: allowed, updatedAt: new Date() })
+      .where(eq(relayInstances.id, instanceId))
+      .returning({ id: relayInstances.id, poolId: relayInstances.poolId });
+    if (!instance) throw new AppError(404, 'RELAY_INSTANCE_NOT_FOUND', 'Relay instance not found');
+    await this.audit.log({
+      userId,
+      action: allowed ? 'relay.instance.witness_hosting_allowed' : 'relay.instance.witness_hosting_disallowed',
+      resourceType: 'relay_instance',
+      resourceId: instance.id,
+      details: { witnessHostingAllowed: allowed },
+    });
+    this.events.publish('system.relay.health.changed', { poolId: instance.poolId, instanceId: instance.id });
+  }
+
   async renewInstanceCertificate(instanceId: string, userId: string) {
     if (!this.certificateRenewal)
       throw new AppError(409, 'RELAY_CERTIFICATE_RENEWAL_UNAVAILABLE', 'Relay certificate renewal is not configured');
@@ -1447,6 +1470,8 @@ export class RelayPoolService {
           dataPlaneFailing: dataPlaneFailing.has(instance.id),
           /** An offline remote relay: when its removal becomes possible (expired policy, 90 s silent). */
           removableAfter: instance.kind === 'remote' ? relayRemovableAfter(instance) : null,
+          /** Its machine owner turned protected mode on in the relay's local config (no host access from Gateway). */
+          protected: instance.capabilities?.features?.includes(NODE_PROTECTED_CAPABILITY) === true,
           policyTrust: policyTrust.get(instance.id) ?? null,
           certificate: certificates.get(instance.id) ?? null,
           /** Revoked routes this relay has not applied; `stale` once past the deadline. */
@@ -1457,6 +1482,8 @@ export class RelayPoolService {
            */
           reconnecting: reconnecting(instance),
           ...(reconnecting(instance) ? { state: reconnectingState(instance) } : {}),
+          /** Whether availability witnesses may run here (admin flag and the relay's local state). */
+          witnessHosting: relayWitnessHosting(instance),
         };
       }),
       staging: [...stagingByEndpoint.values()],

@@ -221,6 +221,26 @@ test('every installer completes a dry run for each profile, as root and with --u
   }
 });
 
+// Protected mode is the relay machine owner's switch: --protected (or GATEWAY_RELAY_PROTECTED=1) writes it, and the
+// installer never turns it off. Turning it off is `relay-supervisor protected off` on the machine.
+test('the relay installer writes protected mode', { skip: !linux }, () => {
+  const relayArgs = [...common, '--advertise-address', 'relay.example.com'];
+  for (const [args, env] of [
+    [[...relayArgs, '--protected'], {}],
+    [relayArgs, { GATEWAY_RELAY_PROTECTED: '1' }],
+  ]) {
+    const { status, output } = dryRun('setup-relay-node.sh', args, env);
+    assert.equal(status, 0, output);
+    assert.match(output, /protected\.enabled: true/, output);
+  }
+  const plain = dryRun('setup-relay-node.sh', relayArgs);
+  assert.equal(plain.status, 0, plain.output);
+  assert.doesNotMatch(plain.output, /protected\.enabled/, plain.output);
+  const source = readFileSync(path.join(scriptsDir, 'setup-relay-node.sh'), 'utf8');
+  assert.match(source, /relay_protected_setting \/etc\/gateway-relay-supervisor\/config\.yaml enabled; then PROTECTED=1/);
+  assert.match(source, /--protected\) PROTECTED=1/);
+});
+
 // Each environment variable an installer documents as the equivalent of an option reaches the run: a dry run gets
 // all its settings from the environment, and an invalid value is refused like the option's.
 test('the installers take their settings from the environment', { skip: !linux }, () => {

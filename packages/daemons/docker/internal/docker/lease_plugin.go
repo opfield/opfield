@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
 	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
 	"github.com/wiolett-industries/gateway/daemon-shared/state"
 	"github.com/wiolett-industries/gateway/docker-daemon/internal/lease"
@@ -178,7 +179,10 @@ func (p *DockerPlugin) leaseCapabilities() []string {
 	if p.lease == nil {
 		return nil
 	}
-	capabilities := []string{availabilityLeaseCapability}
+	// v3: this daemon accepts, persists and reports certified holder state of
+	// stateful policies (a voter or witness of a DB HA lease). Candidacy for a
+	// stateful policy additionally needs the member runtime's own capability.
+	capabilities := []string{availabilityLeaseCapability, availabilitylease.CapabilityV3}
 	if !p.lease.watchdogReady() {
 		if unavailable, _ := p.lease.watchdog.Unavailable(); unavailable {
 			capabilities = append(capabilities, watchdogMissingCapability)

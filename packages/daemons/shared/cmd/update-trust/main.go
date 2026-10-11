@@ -58,7 +58,8 @@ func keygen(args []string) {
 
 func sign(args []string) {
 	fs := flag.NewFlagSet("sign", flag.ExitOnError)
-	kind := fs.String("kind", "", "gateway-image, relay-image, or daemon-binary")
+	kind := fs.String("kind", "", "gateway-image, relay-image, daemon-binary, or witness-binary")
+	component := fs.String("component", "", "witness component (witness-binary)")
 	out := fs.String("out", "", "output signed manifest path")
 	version := fs.String("version", "", "version")
 	tag := fs.String("tag", "", "release tag")
@@ -107,6 +108,26 @@ func sign(args []string) {
 			CreatedAt:     createdAt,
 			GitCommitSHA:  *commitSHA,
 			GitPipelineID: *pipelineID,
+		}
+	case updateauth.WitnessBinaryKind:
+		required(map[string]string{
+			"--component":     *component,
+			"--version":       *version,
+			"--arch":          *arch,
+			"--artifact-name": *artifactName,
+			"--download-url":  *downloadURL,
+			"--sha256":        *sha256Hex,
+		})
+		payload = updateauth.WitnessManifestPayload{
+			Kind:         updateauth.WitnessBinaryKind,
+			Component:    *component,
+			Version:      *version,
+			Arch:         *arch,
+			ArtifactName: *artifactName,
+			DownloadURL:  *downloadURL,
+			SHA256:       strings.ToLower(*sha256Hex),
+			CreatedAt:    createdAt,
+			GitCommitSHA: *commitSHA,
 		}
 	case "gateway-image":
 		required(map[string]string{
@@ -157,7 +178,7 @@ func sign(args []string) {
 			"gitPipelineId":            *pipelineID,
 		}
 	default:
-		die("--kind must be gateway-image, relay-image, or daemon-binary")
+		die("--kind must be gateway-image, relay-image, daemon-binary, or witness-binary")
 	}
 
 	payloadBytes, err := json.Marshal(payload)

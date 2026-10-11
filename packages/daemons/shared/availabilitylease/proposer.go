@@ -12,6 +12,8 @@ type observation struct {
 	holder      string
 	reservedFor string
 	at          time.Duration
+	// accepted is the acceptor's memory of a stateful key (v3).
+	accepted *pb.LeaseAcceptedState
 }
 
 // proposerKey is the candidate/holder state of one key on this node.
@@ -58,6 +60,15 @@ type proposerKey struct {
 	// in the rank for a successor window (B-9).
 	releasedBy string
 	releasedAt time.Duration
+
+	// Stateful keys (state_proposer.go, force.go): this node's latest
+	// certified state, the transition queued on it, recent transition
+	// outcomes and an armed forced acquisition.
+	certified   *certified
+	pending     *pendingTransition
+	results     map[string]transitionResult
+	resultOrder []string
+	force       *forceState
 }
 
 func (n *Node) proposerFor(key Key) *proposerKey {
@@ -173,164 +184,6 @@ func (n *Node) tickKey(pk *proposerKey, now time.Duration, renewDue bool) {
 	}
 }
 
-func (n *Node) tickCandidate(pk *proposerKey, manifest *Manifest, now time.Duration) {
-	if manifest == nil || manifest.Closed || !manifest.isCandidate(n.id) || !n.ready[manifest.PolicyID] || pk.key.Slot >= manifest.Slots {
-		pk.role = RoleNone
-		return
-	}
-	pk.role = RoleCandidate
-	if pk.round != nil || now < pk.nextRoundAt {
-		return
-	}
-	reserved := false
-	if holder, ok := manifest.Bootstrap[pk.key.Slot]; ok && pk.bootstrapDone != manifest.BootstrapID &&
-		!(pk.commit != nil && bootstrapSatisfiedBy(manifest, pk.key, pk.commit)) {
-		if holder == n.id && !n.holdsOtherSlot(pk.key) {
-			n.startRound(pk, manifest, RoleBootstrapping, now)
-			return
-		}
-		// The named holder may have missed the manifest while the Gateway
-		// is gone; hand it over so it can acquire (A5). Keep observing to
-		// learn its commit, which lifts the reservation.
-		n.forwardOnce(holder, manifest.PolicyID)
-		reserved = true
-	}
-	// One slot per node (anti-affinity): no path acquires a slot while this
-	// node holds, recovers, fences or releases another slot of the policy,
-	// designated successor or not.
-	if n.holdsOtherSlot(pk.key) {
-		pk.designated = false
-		return
-	}
-	if pk.designated && now < pk.designatedUntil && !reserved {
-		n.startRound(pk, manifest, RoleAcquiring, now)
-		return
-	}
-	pk.designated = false
-	if pk.hasFreshCommit && pk.commitBallot.Proposer != n.id && now-pk.freshCommitAt < commitQuietPeriod {
-		pk.expiredSeen = false
-		return
-	}
-	if now >= pk.nextQueryAt {
-		n.sendQuery(pk.key)
-		pk.nextQueryAt = now + queryInterval
-	}
-	if reserved || !n.expiredOnQuorum(pk, manifest, now) {
-		pk.expiredSeen = false
-		return
-	}
-	if !pk.expiredSeen {
-		pk.expiredSeen, pk.expiredSince = true, now
-	}
-	if now >= pk.expiredSince+time.Duration(n.rank(pk, manifest))*RankStep {
-		n.startRound(pk, manifest, RoleAcquiring, now)
-	}
-}
-
-func (n *Node) sendQuery(key Key) {
-	config := n.policyConfig(key.PolicyID)
-	if config == nil {
-		return
-	}
-	for _, id := range config.memberIDs {
-		n.forwardOnce(id, key.PolicyID)
-		n.queue(id, &pb.LeaseItem{Body: &pb.LeaseItem_Query{Query: &pb.LeaseQuery{Keys: []*pb.LeaseKey{key.proto()}}}})
-	}
-}
-
-// holdsOtherSlot keeps one replica per node: it is true while this node
-// holds, acquires or fences another slot of the policy, or is the named
-// bootstrap holder of another slot (its legacy copy runs there).
-func (n *Node) holdsOtherSlot(key Key) bool {
-	if manifest := n.manifests[key.PolicyID]; manifest != nil {
-		for slot, holder := range manifest.Bootstrap {
-			if slot != key.Slot && holder == n.id {
-				if pk := n.proposers[Key{PolicyID: key.PolicyID, Slot: slot}]; pk == nil || pk.bootstrapDone != manifest.BootstrapID {
-					return true
-				}
-			}
-		}
-	}
-	for other, pk := range n.proposers {
-		if other.PolicyID == key.PolicyID && other.Slot != key.Slot {
-			switch pk.role {
-			case RoleCandidate, RoleNone:
-			default:
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// expiredOnQuorum decides whether the key looks free: a fresh FREE (or
-// reserved-for-us) observation from a majority of every quorum set; in
-// available mode every fresh observation is free and a voting relay answered.
-func (n *Node) expiredOnQuorum(pk *proposerKey, manifest *Manifest, now time.Duration) bool {
-	config := manifest.Voters
-	if config == nil {
-		return false
-	}
-	free := map[string]bool{}
-	fresh, relay := 0, false
-	for _, id := range sortedKeys(pk.obs) {
-		obs := pk.obs[id]
-		if now-obs.at > observationMaxAge || !config.isVoter(id) {
-			continue
-		}
-		fresh++
-		// Our own leftover lease counts as free for us: acceptors accept
-		// the same proposer again.
-		ok := obs.state == pb.LeaseKeyState_LEASE_KEY_STATE_FREE ||
-			(obs.state == pb.LeaseKeyState_LEASE_KEY_STATE_RESERVED && obs.reservedFor == n.id) ||
-			(obs.state == pb.LeaseKeyState_LEASE_KEY_STATE_HELD && obs.holder == n.id)
-		if ok {
-			free[id] = true
-			relay = relay || config.isRelay(id)
-		}
-	}
-	if config.quorum(free) {
-		return true
-	}
-	return manifest.Available && relay && len(free) == fresh
-}
-
-// rank is the manifest rank among candidates (D5), skipping holders of the
-// policy's other slots, which never compete for this one, and a holder that
-// just released this key (it stopped its copy and does not take it back).
-func (n *Node) rank(pk *proposerKey, manifest *Manifest) int {
-	skip := map[string]bool{}
-	for key, other := range n.proposers {
-		if key.PolicyID == pk.key.PolicyID && key.Slot != pk.key.Slot && other.commit != nil && other.hasFreshCommit {
-			skip[other.commitBallot.Proposer] = true
-		}
-	}
-	if pk.releasedBy != "" && n.clock.Now() < pk.releasedAt+SuccessorWindow {
-		skip[pk.releasedBy] = true
-	}
-	// Slot affinity: a node whose own last slot of the policy is free takes
-	// that one first, so slots do not swap between nodes after a restart.
-	penalty := 0
-	if pk.commit == nil || pk.commitBallot.Proposer != n.id {
-		for key, other := range n.proposers {
-			if key.PolicyID == pk.key.PolicyID && key.Slot != pk.key.Slot && other.commit != nil && other.commitBallot.Proposer == n.id {
-				penalty = len(manifest.Candidates)
-				break
-			}
-		}
-	}
-	rank := penalty
-	for _, id := range manifest.Candidates {
-		if id == n.id {
-			break
-		}
-		if !skip[id] {
-			rank++
-		}
-	}
-	return rank
-}
-
 func (n *Node) onStatus(from string, msg *pb.LeaseStatus, now time.Duration) {
 	key, ok := keyFromProto(msg.GetKey())
 	pk := n.proposers[key]
@@ -354,7 +207,7 @@ func (n *Node) onStatus(from string, msg *pb.LeaseStatus, now time.Duration) {
 		n.queue(from, &pb.LeaseItem{Body: &pb.LeaseItem_Commit{Commit: pk.commit}})
 	}
 	n.observeRound(pk, from, msg.GetPromised())
-	pk.obs[from] = observation{state: msg.GetState(), holder: msg.GetHolderId(), reservedFor: msg.GetReservedFor(), at: now}
+	pk.obs[from] = observation{state: msg.GetState(), holder: msg.GetHolderId(), reservedFor: msg.GetReservedFor(), at: now, accepted: msg.GetAccepted()}
 }
 
 // observeRound lets the next round go past a ballot a member of the key's
@@ -392,6 +245,7 @@ func (n *Node) observeCommit(commit *pb.LeaseCommit, direct bool, now time.Durat
 	// commit is just a number anyone can write.
 	pk.maxRound = max(pk.maxRound, ballot.Round)
 	pk.commit, pk.commitBallot = commit, ballot
+	n.supersedeForce(pk, ballot)
 	if direct {
 		pk.freshCommitAt, pk.hasFreshCommit = now, true
 	}
@@ -448,6 +302,7 @@ func (n *Node) fence(pk *proposerKey, reason FenceReason, now time.Duration) {
 	pk.round = nil
 	pk.role = RoleFencing
 	pk.fenceReason = reason
+	n.dropPending(pk, "the lease was lost ("+string(reason)+")")
 	n.emit(Event{Kind: EventFence, Key: pk.key, Ballot: pk.ballot, Reason: reason, At: now})
 }
 
@@ -528,6 +383,9 @@ func (n *Node) nextWakeup(now time.Duration) time.Duration {
 		consider(pk.recoverUntil)
 		consider(pk.release.nextAt)
 		consider(pk.designatedUntil)
+		if pk.force != nil && pk.force.outcome == ForcePending {
+			consider(pk.force.until)
+		}
 		if manifest := n.manifests[pk.key.PolicyID]; pk.expiredSeen && manifest != nil {
 			consider(pk.expiredSince + time.Duration(n.rank(pk, manifest))*RankStep)
 		}

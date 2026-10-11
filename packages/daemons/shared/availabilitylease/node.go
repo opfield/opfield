@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -75,6 +74,11 @@ type Node struct {
 	proposers map[Key]*proposerKey
 	ready     map[string]bool
 	renewAt   time.Duration
+	// Stateful policies (v3, state_*.go): application handlers per policy,
+	// holder records to persist, and the store-created marker (M1).
+	handlers     map[string]*StateHandler
+	holderDirty  map[Key]bool
+	storeCreated uint64
 
 	outbox     map[string][]*pb.LeaseItem
 	attach     map[string]map[string]bool
@@ -128,6 +132,7 @@ func NewNode(cfg Config) (*Node, error) {
 		outbox: map[string][]*pb.LeaseItem{}, attach: map[string]map[string]bool{}, dirty: map[Key]bool{},
 		dirtyOther: map[string][]byte{}, seen: map[string]struct{}{}, peers: map[string]uint64{},
 		forwarded: map[string]forwardMark{}, peerClocks: map[string]*peerClock{}, beacons: map[string]bool{},
+		handlers: map[string]*StateHandler{}, holderDirty: map[Key]bool{},
 		freezeBudget: cfg.FreezeSkewBudget, freezeDrift: cfg.FreezeDriftRate,
 	}
 	if n.freezeBudget <= 0 {
@@ -173,6 +178,7 @@ func NewNode(cfg Config) (*Node, error) {
 		n.restoreHolds(now)
 	}
 	puts := map[string][]byte{recordIncarnation: encodeUint64(n.incarnation), recordBootStamp: n.bootStamp(now)}
+	n.markStore(records, puts)
 	if err := cfg.Store.Apply(puts, nil); err != nil {
 		return nil, fmt.Errorf("persist availability lease incarnation: %w", err)
 	}
@@ -247,20 +253,13 @@ func (n *Node) restore(records map[string][]byte) error {
 			}
 		case strings.HasPrefix(name, prefixKey):
 			record, err := decodeKeyRecord(data)
-			if err != nil {
+			key, ok := parseKeyName(name, prefixKey)
+			if err != nil || !ok {
 				continue
 			}
-			rest := strings.TrimPrefix(name, prefixKey)
-			cut := strings.LastIndex(rest, "/")
-			var slot uint32
-			if cut <= 0 {
-				continue
-			}
-			if _, err := fmt.Sscanf(rest[cut+1:], "%d", &slot); err != nil {
-				continue
-			}
-			key := Key{PolicyID: rest[:cut], Slot: slot}
 			n.acceptors[key] = restoreAcceptorKey(record)
+		case strings.HasPrefix(name, prefixHolder):
+			n.restoreHolderRecord(name, data)
 		}
 	}
 	return nil
@@ -388,16 +387,17 @@ func (n *Node) queue(dest string, item *pb.LeaseItem) {
 // commitLocked persists dirty state and builds outgoing batches. If the
 // write fails nothing is sent and the node abstains, which is always safe.
 func (n *Node) commitLocked(now time.Duration) []outgoing {
-	if len(n.dirty) > 0 || len(n.dirtyOther) > 0 || len(n.deletes) > 0 {
+	if len(n.dirty) > 0 || len(n.dirtyOther) > 0 || len(n.deletes) > 0 || len(n.holderDirty) > 0 {
 		puts := n.dirtyOther
 		for key := range n.dirty {
 			if ak := n.acceptors[key]; ak != nil {
 				puts[keyRecordName(key)] = encodeKeyRecord(ak.rec)
 			}
 		}
+		n.holderPuts(puts)
 		puts[recordBootStamp] = n.bootStamp(now)
 		err := n.store.Apply(puts, n.deletes)
-		n.dirty, n.dirtyOther, n.deletes = map[Key]bool{}, map[string][]byte{}, nil
+		n.dirty, n.dirtyOther, n.deletes, n.holderDirty = map[Key]bool{}, map[string][]byte{}, nil, map[Key]bool{}
 		if err != nil {
 			n.logf("availability lease state write failed, abstaining: %v", err)
 			n.abstainUntil = max(n.abstainUntil, now+AbstainAfterStart)
@@ -469,51 +469,6 @@ func (n *Node) send(out []outgoing) {
 }
 
 func (n *Node) markDirty(key Key) { n.dirty[key] = true }
-
-// policyConfig returns the current voter set of a policy (A18).
-func (n *Node) policyConfig(policyID string) *VoterConfig {
-	if manifest := n.manifests[policyID]; manifest != nil {
-		return manifest.Voters
-	}
-	return nil
-}
-
-// configByEpoch returns a policy's voter config of an epoch, when known.
-func (n *Node) configByEpoch(policyID string, epoch uint64) *VoterConfig {
-	for _, config := range n.history[policyID] {
-		if config.Epoch == epoch {
-			return config
-		}
-	}
-	return nil
-}
-
-// rememberVoters records a policy's voter config in its bounded history.
-// It reports whether the epoch was new.
-func (n *Node) rememberVoters(config *VoterConfig) bool {
-	if config == nil || config.Epoch == 0 {
-		return false
-	}
-	list := n.history[config.PolicyID]
-	for i, known := range list {
-		if known.Epoch == config.Epoch {
-			list[i] = config
-			return false
-		}
-	}
-	list = append(list, config)
-	sort.Slice(list, func(i, j int) bool { return list[i].Epoch < list[j].Epoch })
-	for len(list) > configHistory {
-		n.deletes = append(n.deletes, votersRecordName(config.PolicyID, list[0].Epoch))
-		list = list[1:]
-	}
-	n.history[config.PolicyID] = list
-	return true
-}
-
-func votersRecordName(policyID string, epoch uint64) string {
-	return fmt.Sprintf("%s%s/%020d", prefixVoters, policyID, epoch)
-}
 
 func (n *Node) emit(event Event) { n.events = append(n.events, event) }
 
