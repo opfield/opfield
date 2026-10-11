@@ -11,7 +11,11 @@ export async function assertProxmoxSeedRuntime() {
   try {
     await execute('xorriso', ['-version'], { timeout: 5000, maxBuffer: 16 * 1024 });
   } catch {
-    throw new AppError(500, 'HOSTING_SEED_BUILD_FAILED', 'Install xorriso on the Opfield host before provisioning Proxmox VMs');
+    throw new AppError(
+      500,
+      'HOSTING_SEED_BUILD_FAILED',
+      'Install xorriso on the Opfield host before provisioning Proxmox VMs'
+    );
   }
 }
 export function proxmoxSeedFiles(input: HostingCreateRequest, mac: string) {

@@ -391,7 +391,11 @@ export class CloudLinkService {
     await this.serialized(async () => {
       const { enrollment } = await this.readStored();
       if (!enrollment) {
-        throw new CloudLinkRequestError(409, 'CLOUD_NOT_CONNECTED', 'Connect this Opfield installation to your cloud account first');
+        throw new CloudLinkRequestError(
+          409,
+          'CLOUD_NOT_CONNECTED',
+          'Connect this Opfield installation to your cloud account first'
+        );
       }
       if (enrollment.managed) {
         throw new CloudLinkRequestError(

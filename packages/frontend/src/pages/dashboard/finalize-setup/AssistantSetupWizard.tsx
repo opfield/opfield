@@ -190,8 +190,9 @@ export function AssistantSetupWizard({
           </p>
           <p>
             Choose an OAI-compatible provider when you already have an OpenAI-compatible endpoint,
-            API key, and model that should serve this Opfield installation. Opfield stores that connection for AI
-            Workspace only; it does not expose the provider as a shared model catalog.
+            API key, and model that should serve this Opfield installation. Opfield stores that
+            connection for AI Workspace only; it does not expose the provider as a shared model
+            catalog.
           </p>
           {allowGatewayInference && (
             <p>

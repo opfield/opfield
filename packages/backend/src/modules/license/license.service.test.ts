@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LEGACY_LICENSE_SERVER_URLS } from '@/config/vendor-urls.js';
 import { LicenseServerRequestError, LicenseService } from './license.service.js';
 import {
   COMMUNITY_ENTITLEMENTS,
@@ -161,6 +162,9 @@ function errorResponse(code: string, message: string, status = 409) {
   });
 }
 
+/** One request that gets no answer at all tries every address of the license server. */
+const LICENSE_SERVER_ADDRESSES = 1 + LEGACY_LICENSE_SERVER_URLS.length;
+
 function registerResponse(state = communityState()) {
   return dataResponse(
     {
@@ -305,7 +309,7 @@ describe('LicenseService', () => {
     await expect(service.authorizeCommercialUpdate('v3.0.0-rc.1')).rejects.toMatchObject({
       code: 'LICENSE_SERVER_UNAVAILABLE',
     });
-    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledTimes(LICENSE_SERVER_ADDRESSES);
   });
 
   it.each([
@@ -743,7 +747,7 @@ describe('LicenseService', () => {
 
     // The unsigned cache is replaced at the first heartbeat, even inside the interval.
     await service.heartbeat();
-    expect(offline).toHaveBeenCalledOnce();
+    expect(offline).toHaveBeenCalledTimes(LICENSE_SERVER_ADDRESSES);
     expect(db.rows.has('license:installation_token_encrypted')).toBe(true);
     expect(db.rows.has('license:key_encrypted')).toBe(true);
 
@@ -947,11 +951,11 @@ describe('LicenseService', () => {
     await service.heartbeat();
     vi.setSystemTime(new Date('2026-08-16T12:15:00.000Z'));
     await service.heartbeat();
-    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledTimes(LICENSE_SERVER_ADDRESSES);
 
     vi.setSystemTime(new Date('2026-08-16T12:30:00.001Z'));
     await service.heartbeat();
-    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(2 * LICENSE_SERVER_ADDRESSES);
   });
 
   it('attempts one online activation for a legacy encrypted Homelab key after registration', async () => {

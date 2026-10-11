@@ -8,8 +8,7 @@ export const GATEWAY_NOT_FOUND_HTML = pageShell(
   'Error 404'
 );
 
-const EXTERNAL_BRANDING_HTML =
-  'Powered by <a href="https://opfield.dev" rel="noopener noreferrer">Opfield</a>';
+const EXTERNAL_BRANDING_HTML = 'Powered by <a href="https://opfield.dev" rel="noopener noreferrer">Opfield</a>';
 
 const MAINTENANCE_ACCESS_LINK_HTML = '<a class="access" href="#access" id="maintenance-access-link">Team access</a>';
 

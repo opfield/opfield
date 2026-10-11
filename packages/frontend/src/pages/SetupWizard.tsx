@@ -435,8 +435,8 @@ export function SetupWizardPage() {
               <Loader2 className="h-5 w-5 animate-spin" /> Opfield setup is in progress
             </h2>
             <p className="text-sm text-muted-foreground">
-              Another administrator is configuring this Opfield installation. Setup access will become available
-              again if their session expires.
+              Another administrator is configuring this Opfield installation. Setup access will
+              become available again if their session expires.
             </p>
           </div>
         </AnimatedHeight>

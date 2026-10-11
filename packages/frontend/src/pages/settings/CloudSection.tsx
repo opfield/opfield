@@ -348,8 +348,10 @@ export function CloudSection({ canManage, canViewAudit }: CloudSectionProps) {
         <>
           <div className="border-b border-border p-4">
             <p className="text-sm text-muted-foreground">
-              {status.disconnectedReason ?? "Your cloud account disconnected this Opfield installation."} To
-              connect it again, create a new code on this installation's page in your cloud account.
+              {status.disconnectedReason ??
+                "Your cloud account disconnected this Opfield installation."}{" "}
+              To connect it again, create a new code on this installation's page in your cloud
+              account.
             </p>
           </div>
           <div className="divide-y divide-border border-b border-border">
@@ -368,8 +370,8 @@ export function CloudSection({ canManage, canViewAudit }: CloudSectionProps) {
           <div className="border-b border-border p-4">
             <p className="text-sm text-muted-foreground">
               A connected Opfield keeps one outbound connection to your cloud account, so the
-              account can show this installation's state and container logs. Open this installation in
-              your cloud account, press Connect, and enter the code it shows.
+              account can show this installation's state and container logs. Open this installation
+              in your cloud account, press Connect, and enter the code it shows.
             </p>
           </div>
           {codeForm}

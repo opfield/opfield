@@ -26,8 +26,8 @@ export function SetupUnlockStep({
           <LockKeyhole className="h-5 w-5" /> Welcome to Opfield
         </h2>
         <p className="text-sm text-muted-foreground">
-          This Opfield installation has not been configured yet. Enter the one-time setup code printed by the
-          installer.
+          This Opfield installation has not been configured yet. Enter the one-time setup code
+          printed by the installer.
         </p>
       </div>
       <Input
