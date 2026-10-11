@@ -66,6 +66,10 @@ type DockerPlugin struct {
 	// storage-profile daemon (set_member_runtime.go).
 	setGates   setLeaseGates
 	setMembers *memberha.Manager
+	// pgMeshLocal is the Postgres members' member mesh until the generic
+	// mesh lands (managed_database_pg_mesh.go).
+	pgMeshOnce  sync.Once
+	pgMeshLocal *pgLocalMesh
 	// restartAnnounced freezes relay registrations once the daemon told its
 	// relays it restarts (B-13); proxyTunnels are the Secure Link tunnels it
 	// serves, drained before it exits.
@@ -352,11 +356,14 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 		if err != nil {
 			return fmt.Errorf("initialize managed database storage for storage profile: %w", err)
 		}
+		p.wirePGSetHooks()
+		p.wireKVSetHooks()
 		p.databaseManager.plugin = p
 		p.storageManager, err = newManagedStorageManager(p.cfg, p.client, p.logger)
 		if err != nil {
 			return fmt.Errorf("initialize managed storage runtime: %w", err)
 		}
+		p.storageManager.plugin = p
 		// Release what interrupted deletes and older releases left behind
 		// before remounting: on a fixed loop-device pool, leaked devices would
 		// keep live instances down.
@@ -538,6 +545,7 @@ func (p *DockerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 				"managed_postgres_query_principal_v1",
 				"managed_postgres_query_writer_v1",
 				"managed_postgres_config_v1",
+				managedCapabilityValkey,
 				"managed_database_binding_principals_v2",
 				"managed_storage_v1",
 				"managed_storage_ext4_quota_v1",

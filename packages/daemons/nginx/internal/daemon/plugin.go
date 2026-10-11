@@ -543,7 +543,7 @@ func (p *NginxPlugin) CollectStats() *pb.StatsReport {
 }
 
 func (p *NginxPlugin) capabilities() []string {
-	capabilities := []string{"nginx_certificate_distribution_v2", "generic_relay_tunnel_v1", "relay_pool_v1", "proxy_secure_links_v1", "nginx_secure_link_socket_only_v1", "nginx_registry_ingress_v1", NginxSecureLinkLoopbackCapability}
+	capabilities := []string{"nginx_certificate_distribution_v2", "generic_relay_tunnel_v1", "relay_pool_v1", "proxy_secure_links_v1", "nginx_secure_link_socket_only_v1", "nginx_registry_ingress_v1", NginxSecureLinkLoopbackCapability, managedAvailabilityRoutesCapability}
 	if p.relayStreams != nil {
 		capabilities = append(capabilities, relayresume.Capability, handover.Capability)
 	}

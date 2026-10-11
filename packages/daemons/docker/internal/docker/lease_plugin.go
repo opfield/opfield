@@ -108,6 +108,11 @@ func (p *DockerPlugin) initAvailabilityLease() {
 		// is the controller before the runtime's first step.
 		if err := p.startSetMembers(runtime, integration.fence); err != nil {
 			p.logger.Warn("availability set members disabled", "error", err)
+		} else {
+			if p.databaseManager != nil {
+				p.databaseManager.restorePGMemberProxies(p.setMembers)
+			}
+			go p.serveAvailabilityControl(context.Background())
 		}
 	}
 	if _, statErr := os.Stat(integration.fence.Dir.HeartbeatPath()); statErr == nil {

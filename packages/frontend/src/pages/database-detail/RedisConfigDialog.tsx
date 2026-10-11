@@ -183,7 +183,7 @@ export function RedisConfigDialog({
     const confirmed = await confirm({
       title: "Save & Recreate",
       description:
-        "Applying Redis configuration recreates the database container and temporarily takes it offline. It usually takes about 10 seconds; managed storage is retained. Continue?",
+        "Applying the key-value store configuration recreates the database container and temporarily takes it offline. It usually takes about 10 seconds; managed storage is retained. Continue?",
       confirmLabel: "Recreate",
       variant: "default",
     });
@@ -193,11 +193,13 @@ export function RedisConfigDialog({
     setSaving(true);
     try {
       await api.updateManagedDatabase(managed.id, { redisConfig: normalized });
-      toast.success("Redis configuration updated — container recreated");
+      toast.success("Key-value store configuration updated — container recreated");
       onOpenChange(false);
       onSaved();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update Redis configuration");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update key-value store configuration"
+      );
     } finally {
       setSaving(false);
     }
@@ -207,16 +209,16 @@ export function RedisConfigDialog({
     <Dialog open={open} onOpenChange={(nextOpen) => !saving && onOpenChange(nextOpen)}>
       <DialogContent className="flex max-h-[88dvh] flex-col sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Configure Redis</DialogTitle>
+          <DialogTitle>Configure key-value store</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pr-1">
           <PanelShell
             title="Memory"
-            description="Control the Redis dataset budget and eviction behavior."
+            description="Control the dataset budget and eviction behavior."
           >
             <SettingsControlRow
               title="Dataset memory limit"
-              description="Percentage of the container memory limit available to Redis data. The remainder is reserved for Redis overhead."
+              description="Percentage of the container memory limit available to data. The remainder is reserved for server overhead."
             >
               <div className="flex w-full items-center gap-2">
                 <NumberInput
@@ -230,7 +232,7 @@ export function RedisConfigDialog({
             </SettingsControlRow>
             <SettingsControlRow
               title="Eviction policy"
-              description="Choose what Redis does when the dataset reaches its memory limit."
+              description="Choose what the key-value store does when the dataset reaches its memory limit."
             >
               <Select
                 value={draft.maxmemoryPolicy}
@@ -378,7 +380,7 @@ export function RedisConfigDialog({
           >
             <SettingsControlRow
               title="Maximum clients"
-              description="Maximum simultaneous Redis client connections."
+              description="Maximum simultaneous client connections."
             >
               <NumberInput
                 draft={draft}
@@ -441,7 +443,7 @@ export function RedisConfigDialog({
             </SettingsControlRow>
             <SettingsControlRow
               title="Active defragmentation"
-              description="Allow Redis to reclaim fragmented allocator memory in the background."
+              description="Reclaim fragmented allocator memory in the background."
             >
               <Switch
                 checked={draft.activeDefrag}

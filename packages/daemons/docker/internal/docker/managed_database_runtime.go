@@ -53,7 +53,7 @@ func (m *managedDatabaseManager) createContainer(ctx context.Context, record *ma
 // which are all chosen.
 func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, record *managedDatabaseRecord, input managedDatabaseCommand) (string, error) {
 	dataPath, port := engineDataPathAndPort(input.Type, input.TLSEnabled)
-	dataSource, err := prepareManagedDatabaseDataSource(*record, input.Type)
+	dataSource, err := prepareManagedDatabaseDataSource(*record, input)
 	if err != nil {
 		return "", err
 	}
@@ -100,7 +100,7 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 		if err := writeManagedRedisConfig(redisConfigPath, managedRedisConfigText(input)); err != nil {
 			return "", fmt.Errorf("write Redis managed config: %w", err)
 		}
-		containerCfg.Cmd = []string{"redis-server", "/run/gateway-config/redis.conf", "--dir", "/data"}
+		containerCfg.Cmd = []string{managedRedisServerCommand(input.Image), "/run/gateway-config/redis.conf", "--dir", "/data"}
 		if input.TLSEnabled {
 			containerCfg.Cmd = append(containerCfg.Cmd, "--port", "6379", "--tls-port", "6380", "--tls-cert-file", "/run/gateway-tls/cert.pem", "--tls-key-file", "/run/gateway-tls/key.pem", "--tls-ca-cert-file", "/run/gateway-tls/ca.pem", "--tls-auth-clients", "no")
 		}
@@ -197,6 +197,11 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 			hostCfg.PortBindings[nativePort] = []network.PortBinding{{HostIP: netip.MustParseAddr("0.0.0.0"), HostPort: fmt.Sprintf("%d", input.PublishedNativePort)}}
 		}
 	}
+	// A key-value store member of an availability set (managed_database_kv_member.go).
+	setNetwork, err := m.kvMemberContainer(*record, input, dataSource, containerCfg, hostCfg)
+	if err != nil {
+		return "", err
+	}
 	created, err := m.client.cli.ContainerCreate(ctx, mobyclient.ContainerCreateOptions{
 		Config:     containerCfg,
 		HostConfig: hostCfg,
@@ -207,6 +212,12 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 	})
 	if err != nil {
 		return "", fmt.Errorf("create managed database container: %w", err)
+	}
+	if setNetwork != "" {
+		if _, err := m.client.cli.NetworkConnect(ctx, setNetwork, mobyclient.NetworkConnectOptions{Container: created.ID, EndpointConfig: &network.EndpointSettings{}}); err != nil {
+			_ = m.client.RemoveContainer(ctx, created.ID, true)
+			return "", fmt.Errorf("attach the member to its availability set network: %w", err)
+		}
 	}
 	if _, err := m.client.cli.ContainerStart(ctx, created.ID, mobyclient.ContainerStartOptions{}); err != nil {
 		_ = m.client.RemoveContainer(ctx, created.ID, true)
@@ -226,12 +237,17 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 
 // Redis cannot safely use the ext4 filesystem root as /data for new
 // curated image drops privileges before opening the AOF directory.
-func prepareManagedDatabaseDataSource(record managedDatabaseRecord, engine string) (string, error) {
+//
+// A key-value store on Valkey keeps its data in its own directory: a store
+// moved from Redis is copied into it while the Redis data stays untouched in
+// redis-data until the move is verified (managed_redis_move.go).
+func prepareManagedDatabaseDataSource(record managedDatabaseRecord, input managedDatabaseCommand) (string, error) {
+	engine := input.Type
 	if engine != "redis" {
 		return record.MountPath, nil
 	}
 
-	path := filepath.Join(record.MountPath, "redis-data")
+	path := managedRedisDataPath(record, input.Image)
 	if err := os.MkdirAll(path, 0750); err != nil {
 		return "", fmt.Errorf("create Redis data directory: %w", err)
 	}
@@ -819,6 +835,14 @@ func (m *managedDatabaseManager) reconcile(ctx context.Context) error {
 			}
 		}
 		if !record.DesiredRunning {
+			continue
+		}
+		if record.AvailabilityMemberID != "" {
+			// A set member is never started here: the member runtime starts it
+			// through standby at rest. Its storage is mounted for it.
+			if err := m.ensureStorageSize(ctx, &record, record.StorageSize); err != nil {
+				m.logger.Warn("availability member storage could not be restored at startup", "id", id, "error", err)
+			}
 			continue
 		}
 		if err := m.ensureStorageSize(ctx, &record, record.StorageSize); err != nil {

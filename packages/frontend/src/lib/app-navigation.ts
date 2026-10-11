@@ -181,7 +181,7 @@ export const APP_NAVIGATION_GROUPS: readonly AppNavigationGroup[] = [
         name: "Databases",
         href: "/databases",
         icon: Database,
-        keywords: ["postgres", "postgresql", "clickhouse", "redis"],
+        keywords: ["postgres", "postgresql", "clickhouse", "redis", "valkey", "key-value"],
       },
       {
         id: "storage",

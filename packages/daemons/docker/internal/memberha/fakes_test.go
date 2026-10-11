@@ -258,6 +258,12 @@ func newHarness(t *testing.T, mode string) *harness {
 		Engine:           func(Config) (Engine, error) { return h.engine, nil },
 		Async:            func(fn func()) { h.pending = append(h.pending, fn) },
 		GatewayConnected: func() bool { return h.gateway },
+		VerifyAssignment: func(setID string, assignment Assignment) error {
+			if setID != testSet || string(assignment.Signature) != testSignature(assignment) {
+				return errors.New("bad assignment signature")
+			}
+			return nil
+		},
 		PeerState: func(context.Context, string, string) (PeerState, bool) {
 			if h.peer == nil {
 				return PeerState{}, false
@@ -315,4 +321,21 @@ func (h *harness) events() []string {
 		out = append(out, event.Kind)
 	}
 	return out
+}
+
+// testSignature stands in for Gateway's signature in tests.
+func testSignature(assignment Assignment) string {
+	return fmt.Sprintf("signed:%s:%d", assignment.PrimaryMemberID, assignment.Generation)
+}
+
+// signed is an assignment the test verifier accepts.
+func signed(primary string, generation uint64) Assignment {
+	assignment := Assignment{PrimaryMemberID: primary, Generation: generation, SigningKeyID: "test-key"}
+	assignment.Signature = []byte(testSignature(assignment))
+	return assignment
+}
+
+// peerWith is member B answering on member-control with a signed assignment.
+func peerWith(assignment Assignment) *PeerState {
+	return &PeerState{MemberID: testMemberB, Generation: assignment.Generation, Primary: assignment.PrimaryMemberID, Assignment: &assignment}
 }

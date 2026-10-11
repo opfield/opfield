@@ -246,6 +246,8 @@ import { StorageWorkloadProvider } from '@/modules/storage/storage-workload-prov
 import { StorageWorkloadStore } from '@/modules/storage/storage-workload-store.js';
 import { TokensService } from '@/modules/tokens/tokens.service.js';
 import { UIBootstrapService } from '@/modules/ui-bootstrap/ui-bootstrap.service.js';
+import { AvailabilityAssignmentSigner } from '@/services/availability-assignment-signing.js';
+import { AvailabilityMembersService } from '@/services/availability-members.service.js';
 import { CacheService, createRedisClient } from '@/services/cache.service.js';
 import { createKeeperPeerResolver } from '@/services/clickhouse-keeper-addressing.js';
 import { ConfigValidatorService } from '@/services/config-validator.service.js';
@@ -1391,14 +1393,32 @@ export async function initializeContainer(): Promise<void> {
     new RelayPolicySigningKeyService(db, cryptoService)
   );
   container.registerInstance(AvailabilityLeaseService, availabilityLeaseService);
+  // Manual pairs' primary assignments are signed with the same relay policy key (decision 6).
+  const availabilityAssignmentSigner = new AvailabilityAssignmentSigner(
+    db,
+    new RelayPolicySigningKeyService(db, cryptoService)
+  );
+  container.registerInstance(AvailabilityAssignmentSigner, availabilityAssignmentSigner);
+  // Database availability sets: the commercial control plane follows set leases and signs manual assignments.
+  managedDatabaseService.setAvailabilityHost({
+    lease: availabilityLeaseService,
+    signer: availabilityAssignmentSigner,
+    settings: { relayPolicyLeaseHours: async () => (await generalSettingsService.getConfig()).relayPolicyLeaseHours },
+  });
   // Witness processes relays host for availability sets (decision 9): desired sets pushed, reports recorded.
   const relayWitnessService = new RelayWitnessService(db, nodeDispatch);
   relayWitnessService.setArtifactSource(new WitnessCatalog(env));
   relayWitnessService.setKeeperPeerResolver(createKeeperPeerResolver(db));
   container.registerInstance(RelayWitnessService, relayWitnessService);
+  // Members of database and storage availability sets: node configuration and health-stream reports.
+  const availabilityMembers = new AvailabilityMembersService(db, nodeDispatch);
+  availabilityMembers.setAssignmentSigner(container.resolve(AvailabilityAssignmentSigner));
+  container.registerInstance(AvailabilityMembersService, availabilityMembers);
+  managedDatabaseService.setAvailabilityHost({ members: availabilityMembers });
   if (relayPolicyService) {
     relayPolicyService.setAvailabilityLeaseSource(availabilityLeaseService);
     availabilityLeaseService.setRelayPublisher(relayPolicyService);
+    managedDatabaseService.setAvailabilityHost({ relay: relayPolicyService });
   }
   const dockerAvailabilityService = commercialEdition.createDockerAvailabilityService(
     {

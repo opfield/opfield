@@ -20,11 +20,11 @@ import { GpuMonitoringSection } from "@/components/docker/GpuMonitoringSection";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { useRealtime } from "@/hooks/use-realtime";
+import { DATABASE_TYPE_LABELS } from "@/lib/database-type";
 import { formatBytes, formatUptime } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import {
-  type DatabaseType,
   type DockerBuild,
   hasGpuMetric,
   hasGpuMonitoringMetrics,
@@ -197,12 +197,6 @@ function buildMonitoringBootstrap(
 const MANAGED_DATABASE_MOUNT = /\/databases\/mounts\/([^/]+)$/;
 // Managed storage member mounts are named <storage id>-<member index>.
 const MANAGED_STORAGE_MOUNT = /\/databases\/storage\/mounts\/([^/]+)-\d+$/;
-
-const DATABASE_TYPE_LABELS: Record<DatabaseType, string> = {
-  postgres: "Postgres",
-  clickhouse: "ClickHouse",
-  redis: "Redis",
-};
 
 /**
  * Names the disk mounts of managed databases and storage on the node ("orders (Postgres)"), from the managed

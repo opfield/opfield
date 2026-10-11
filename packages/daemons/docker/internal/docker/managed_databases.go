@@ -156,6 +156,9 @@ type managedDatabaseCommand struct {
 	// (PublishedPort or PublishedNativePort is 0): the port is free only while
 	// that workload is stopped.
 	ExcludedHostPorts []uint16 `json:"excludedHostPorts,omitempty"`
+	// AcceptPendingStreamLoss lets a move to Valkey drop the pending entries
+	// of stream consumer groups (managed_redis_move.go).
+	AcceptPendingStreamLoss bool `json:"acceptPendingStreamLoss,omitempty"`
 }
 
 type managedRedisConfig struct {
@@ -272,6 +275,14 @@ type managedDatabaseRecord struct {
 	// DiskRepair is the last repair of the image's filesystem after it went
 	// read-only (see managed_disk_repair.go).
 	DiskRepair *managedDiskRepair `json:"diskRepair,omitempty"`
+	// AvailabilitySetID and AvailabilityMemberID: this database is this node's
+	// member of an availability set. The member runtime starts, stops,
+	// promotes and fences it; lifecycle commands change it live only.
+	AvailabilitySetID    string `json:"availabilitySetId,omitempty"`
+	AvailabilityMemberID string `json:"availabilityMemberId,omitempty"`
+	// AvailabilityLiftedFrom is the member this single-node database was
+	// lifted from (close or detach), so a repeated lift answers ready.
+	AvailabilityLiftedFrom string `json:"availabilityLiftedFrom,omitempty"`
 }
 
 // managedDatabaseRuntimeStats is intentionally a narrow managed-database
@@ -312,6 +323,12 @@ type managedDatabaseManager struct {
 	// nobody asked for.
 	repairs   diskRepairs
 	incidents *engineIncidents
+	// pgSets connects Postgres availability set members to the member
+	// runtime (managed_database_pg_commands.go).
+	pgSets pgSetHooks
+	// kvSets connects Valkey availability set members to the member runtime
+	// (managed_database_kv_member.go).
+	kvSets kvSetHooks
 	// plugin reaches the availability member runtime (set members are held
 	// while their container is replaced).
 	plugin *DockerPlugin
@@ -428,6 +445,12 @@ func (m *managedDatabaseManager) handle(ctx context.Context, action, id, configJ
 	if !managedDatabaseIDPattern.MatchString(id) {
 		return "", errors.New("invalid managed database id")
 	}
+	if handled, detail, err := m.kvSetHandle(ctx, action, id, configJSON); handled {
+		return detail, err
+	}
+	if handled, detail, err := m.pgSetHandle(ctx, action, id, configJSON); handled {
+		return detail, err
+	}
 	// Certificate reloads wait for the engine without the manager lock, and so
 	// does a stats sample: Docker answers it after a second CPU reading, about
 	// two seconds, which would hold up every other command on the node.
@@ -442,6 +465,19 @@ func (m *managedDatabaseManager) handle(ctx context.Context, action, id, configJ
 			return "", err
 		}
 		return m.runtimeStats(ctx, record)
+	case "move_to_valkey_preflight_v1":
+		// Read-only, so it does not wait for commands on other databases.
+		var input struct {
+			OwnerPassword string `json:"ownerPassword"`
+		}
+		if err := json.Unmarshal([]byte(configJSON), &input); err != nil {
+			return "", fmt.Errorf("parse move preflight: %w", err)
+		}
+		record, err := m.loadRecord(id)
+		if err != nil {
+			return "", err
+		}
+		return m.moveToValkeyPreflight(ctx, record, input.OwnerPassword)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()

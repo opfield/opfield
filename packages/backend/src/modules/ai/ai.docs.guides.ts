@@ -7,7 +7,7 @@ Gateway is an infrastructure control plane. It combines secure access management
 - **Access and administration**: groups, scopes, resource-scoped permissions, audit logs, OIDC/password/email-code sign-in, passkeys, API tokens, OAuth, and MCP.
 - **Traffic, Pages, and certificates**: nginx ingress nodes, proxy/redirect/404 routes, Pages Projects/Deployments/Tags, access lists, PKI, uploaded/internal/ACME certificates, and external or Cloudflare-managed domains.
 - **Compute**: Docker nodes, containers, Compose projects, images, volumes, networks, private registries, webhooks, blue/green deployments, exports/imports, and migrations.
-- **Storage, databases, and logging**: external and managed S3-compatible storage plus FTP/FTPS/SFTP connections; unified Storage nodes for managed object storage and databases; saved PostgreSQL, Redis, and ClickHouse connections; optional structured logging in managed or external ClickHouse.
+- **Storage, databases, and logging**: external and managed S3-compatible storage plus FTP/FTPS/SFTP connections; unified Storage nodes for managed object storage and databases; saved PostgreSQL, key-value (Redis protocol), and ClickHouse connections; optional structured logging in managed or external ClickHouse.
 - **Operations**: daemon and Relay Pool health, notifications, housekeeping, status pages, updates, licensing, GitLab/GitHub/generic Git/external SSH/Cloudflare integrations, and a separate Gateway Inference service.
 
 ## Availability Boundaries

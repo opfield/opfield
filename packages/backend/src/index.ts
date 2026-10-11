@@ -48,6 +48,7 @@ import { NotificationEvaluatorService } from '@/modules/notifications/notificati
 import { CAService } from '@/modules/pki/ca.service.js';
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { StatusPageService } from '@/modules/status-page/status-page.service.js';
+import { AvailabilityMembersService } from '@/services/availability-members.service.js';
 import { closeDataStoresAfterWrites } from '@/services/background-writes.js';
 import type { RedisClient } from '@/services/cache.service.js';
 import { CryptoService } from '@/services/crypto.service.js';
@@ -255,6 +256,7 @@ async function main() {
         relayPolicy,
         availabilityLease: container.resolve(AvailabilityLeaseService),
         relayWitness: container.resolve(RelayWitnessService),
+        availabilityMembers: container.resolve(AvailabilityMembersService),
       }
     );
     registry.startAcceptingConnections();

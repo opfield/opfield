@@ -23,6 +23,15 @@ type MemberState struct {
 	SelfFenced uint64 `json:"selfFenced,omitempty"`
 	// Stopped: Gateway removes the member; it stays stopped.
 	Stopped bool `json:"stopped,omitempty"`
+	// Held: this member held the primary role of the set's lease at least
+	// once (a detach before the first holder is refused afterwards, H2).
+	Held bool `json:"held,omitempty"`
+	// Detached: a detach before the first holder began (H2); the member
+	// takes no lease role any more until the daemon forgets it.
+	Detached *DetachState `json:"detached,omitempty"`
+	// Restart is a restart Gateway asked for (settings that need one, M4);
+	// cleared once it ran.
+	Restart *RestartRequest `json:"restart,omitempty"`
 	// NextEvent and Events are the durable event queue (decision 18).
 	NextEvent uint64  `json:"nextEvent"`
 	Events    []Event `json:"events,omitempty"`
@@ -119,6 +128,12 @@ const (
 	EventSteppedDown     = "stepped_down"
 	EventCertified       = "state_certified"
 	EventRetainedOnClose = "retained"
+	// Added with the engine extensions (extensions.go).
+	EventAssignmentLearned = "assignment_learned"
+	EventForceArmed        = "forced_promotion_armed"
+	EventDetached          = "detached"
+	EventRestarted         = "restarted"
+	EventRestartFailed     = "restart_failed"
 )
 
 // maxEvents bounds the unacknowledged events kept per member.
@@ -138,7 +153,10 @@ type Event struct {
 func (s *MemberState) addEvent(at time.Time, event Event) Event {
 	s.NextEvent++
 	event.Seq = s.NextEvent
-	event.AtUnixMs = at.UnixMilli()
+	if event.AtUnixMs == 0 {
+		// Engine events carry the time they happened.
+		event.AtUnixMs = at.UnixMilli()
+	}
 	s.Events = append(s.Events, event)
 	if len(s.Events) > maxEvents {
 		s.Events = s.Events[len(s.Events)-maxEvents:]

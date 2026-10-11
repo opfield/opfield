@@ -28,6 +28,11 @@ type Peer struct {
 type Assignment struct {
 	PrimaryMemberID string `json:"primaryMemberId"`
 	Generation      uint64 `json:"generation"`
+	// SigningKeyID and Signature: Gateway signs every assignment with its
+	// relay policy key (AssignmentStatement); a member accepts one, from
+	// Gateway or from its peer, only once Deps.VerifyAssignment verified it.
+	SigningKeyID string `json:"signingKeyId,omitempty"`
+	Signature    []byte `json:"signature,omitempty"`
 }
 
 // Config is what Gateway configures for this node's member of one set.

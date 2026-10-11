@@ -4,7 +4,7 @@
 
 An alert rule has:
 
-- `category`: `node`, `container`, `build`, `compose`, `proxy`, `pages`, `gateway`, `logging`, `integration`, `certificate`, `security`, `database_postgres`, `database_clickhouse`, or `database_redis`;
+- `category`: `node`, `container`, `build`, `compose`, `proxy`, `pages`, `gateway`, `logging`, `integration`, `certificate`, `security`, `database_postgres`, `database_clickhouse`, or `database_redis` (key-value stores);
 - `gateway` watches Gateway itself: threshold metrics `host_cpu`, `host_memory`, `host_disk`, `process_memory`, `event_loop_delay`, `api_error_rate`, `api_latency_p95`, `postgres_latency`, `postgres_pool_waiting`, `redis_latency`, and stateful events `postgres.unavailable`, `redis.unavailable`, `container.unhealthy`, `job.failing`, `outbound.unavailable` (Gateway lost outbound connectivity: none of the webhook hosts or two public endpoints can be reached; a built-in rule) besides the relay and license events. Proxy host health alerts explained by a firing node `offline` alert for their node, or by `outbound.unavailable` when Gateway's own probe got no answer, are folded under it: not sent separately to a webhook that gets that alert, and resolved with it. A `postgres.unavailable` alert is sent straight to its webhooks while Postgres is down and recorded once it is back;
 - `type`: `threshold` (`metric`, `operator`, `thresholdValue`, `durationSeconds`, `fireThresholdPercent`, `resolveAfterSeconds`, `resolveThresholdPercent`) or `event` (`eventPattern`);
 - `resourceIds`: the resources in scope; empty means every matching resource;

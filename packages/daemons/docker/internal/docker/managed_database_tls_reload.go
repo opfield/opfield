@@ -126,7 +126,10 @@ func (m *managedDatabaseManager) handleTLSReload(ctx context.Context, id, config
 		m.mu.Unlock()
 		return "", err
 	}
-	plan, err := m.tlsReloadPlan(ctx, &record, input, leaf, command.AllowRestart)
+	// A set member never restarts for a certificate (L1): the member runtime
+	// owns its starts; a certificate it did not load stays pending until a
+	// switchover and a member restart.
+	plan, err := m.tlsReloadPlan(ctx, &record, input, leaf, command.AllowRestart && record.AvailabilityMemberID == "")
 	if err != nil {
 		m.mu.Unlock()
 		return "", err

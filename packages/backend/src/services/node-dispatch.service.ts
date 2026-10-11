@@ -5,6 +5,7 @@ import { nodes } from '@/db/schema/index.js';
 import type { ManagedStorageEngine } from '@/db/schema/managed-storage.js';
 import type {
   ApplyWitnessesCommand,
+  AvailabilityMemberCommand,
   CommandResult,
   GatewayCommand,
   ProxyMaintenanceFlag,
@@ -27,6 +28,8 @@ const MANAGED_STORAGE_IAM_POLICY_CAPABILITY = 'managed_storage_iam_policy_v1';
 const RELAY_ROUTE_RUNTIME_CAPABILITY = 'relay_route_runtime_v1';
 /** A relay supervisor that runs witness processes for availability sets (ApplyWitnesses). */
 export const RELAY_WITNESS_CAPABILITY = 'relay_witness_v1';
+/** Storage-profile daemons that run availability set members. */
+export const MANAGED_AVAILABILITY_MEMBER_CAPABILITY = 'managed_availability_member_v1';
 
 // The background collector runs every 10s. Leave scheduler/queue headroom so a
 // sample just under ten seconds old is refreshed in the current round instead
@@ -747,6 +750,16 @@ export class NodeDispatchService {
    * Sends a relay supervisor the full desired set of its witness processes (relay_witness_v1); null when the node is
    * not connected or its supervisor does not run witnesses.
    */
+  /** Configures a storage-profile node's member of an availability set (managed_availability_member_v1). */
+  async sendAvailabilityMember(
+    nodeId: string,
+    command: AvailabilityMemberCommand,
+    timeoutMs = 30_000
+  ): Promise<CommandResult | null> {
+    if (!this.registry.hasCapability(nodeId, MANAGED_AVAILABILITY_MEMBER_CAPABILITY)) return null;
+    return this.registry.sendCommand(nodeId, { availabilityMember: command }, timeoutMs);
+  }
+
   async applyRelayWitnesses(
     nodeId: string,
     command: ApplyWitnessesCommand,
