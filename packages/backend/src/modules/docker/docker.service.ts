@@ -82,7 +82,12 @@ import {
   inspectUserContainer as inspectUserSelectedContainer,
   isGatewayInternalContainer,
 } from './docker-internal-containers.js';
-import { dockerImageId, findGatewayInternalImage, resolveDockerImageByIdentifier } from './docker-internal-images.js';
+import {
+  dockerImageId,
+  findGatewayInternalImage,
+  resolveDockerImageByIdentifier,
+  resolvePulledDockerImage,
+} from './docker-internal-images.js';
 import {
   type ContainerAction,
   type DockerLifecycleWatchContext,
@@ -519,9 +524,12 @@ export class DockerManagementService {
       eventBus: this.eventBus,
       onImagePulled: async (nodeId: string, imageRef: string, folderId: string | null | undefined, userId: string) => {
         const images = await this.listAllImages(nodeId);
-        const image = Array.isArray(images) ? resolveDockerImageByIdentifier(images, imageRef) : null;
+        const image = Array.isArray(images) ? resolvePulledDockerImage(images, imageRef, existingImageIds) : null;
         const imageId = image ? dockerImageId(image) : '';
         if (!imageId) {
+          // No image appeared with the pull: it found one the node already had, which is neither granted nor moved.
+          const known = existingImageIds;
+          if (known && Array.isArray(images) && images.every((entry) => known.has(dockerImageId(entry)))) return;
           throw new AppError(
             502,
             'DOCKER_IMAGE_PULL_IDENTITY_UNRESOLVED',

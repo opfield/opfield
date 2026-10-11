@@ -6,6 +6,8 @@ import { container } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { disposableDatabase, migrateDatabase } from '@/db/migration-database.test-helpers.js';
 import * as schema from '@/db/schema/index.js';
+import { DockerManagementService } from '@/modules/docker/docker.service.js';
+import { DockerTaskService } from '@/modules/docker/docker-task.service.js';
 import { PageDeploymentService } from '@/modules/pages/deployments/page-deployment.service.js';
 import { AppFolderService } from './app-folders.service.js';
 import { AppIncidentsRepo } from './app-incidents.repo.js';
@@ -144,5 +146,109 @@ describe.skipIf(!url)('app promotion on disposable PostgreSQL', () => {
       expect.objectContaining({ action: 'app.environment.promote', resourceId: live.id })
     );
     expect(await promotions.list(ALL, app.id, live.id)).toHaveLength(1);
+  });
+
+  it('reports a container item only once its recreate finished on the node, and fails it with the error', async () => {
+    const app = await apps.create(actor(), { name: 'Api' });
+    const live = app.environments[0]!;
+    const staging = await apps.createEnvironment(actor(), app.id, { name: 'staging' });
+    const nodeId = (
+      await q(`insert into nodes (hostname, slug, type) values ($1, $1, 'docker') returning id`, [
+        `docker-${randomUUID().slice(0, 6)}`,
+      ])
+    ).rows[0].id as string;
+    const tasks = new DockerTaskService(db);
+    container.registerInstance(DockerTaskService, tasks);
+    const digest = `sha256:${'c'.repeat(64)}`;
+    // The node takes the recreate as a task: the request returns while it still pulls and recreates.
+    const recreates: string[] = [];
+    const recreateWithConfig = vi.fn(async (node: string, name: string) => {
+      const task = await tasks.create({ nodeId: node, containerName: name, type: 'recreate' });
+      await tasks.update(task.id, { status: 'running', progress: 'Pulling image' });
+      recreates.push(task.id);
+      return { taskId: task.id, containerId: name, name };
+    });
+    container.registerInstance(DockerManagementService, {
+      inspectContainer: async () => ({ Config: { Image: `python:3.13-alpine@${digest}` }, Image: 'sha256:local' }),
+      listAllImages: async () => [],
+      recreateWithConfig,
+    } as never);
+    promotions.rolloutWait = { timeoutMs: 30_000, pollMs: 50 };
+
+    const promote = async () => {
+      const [row] = await db
+        .insert(schema.appPromotions)
+        .values({
+          appId: app.id,
+          sourceEnvironmentId: staging.id,
+          targetEnvironmentId: live.id,
+          previewDigest: 'digest',
+          startedById: userId,
+          items: [
+            {
+              pairKey: 'container:api',
+              type: 'container',
+              sourceId: 'api-staging',
+              sourceName: 'api-staging',
+              sourceNodeId: nodeId,
+              targetId: 'api',
+              targetName: 'api',
+              targetNodeId: nodeId,
+              from: 'python:3.12',
+              to: 'python:3.13-alpine',
+              status: 'pending',
+              detail: null,
+              error: null,
+              startedAt: null,
+              finishedAt: null,
+            },
+          ],
+        })
+        .returning();
+      const names = { appName: 'Api', sourceName: 'staging', targetName: 'production' };
+      void (promotions as any).run(row!.id, actor(), names);
+      return row!.id as string;
+    };
+
+    const first = await promote();
+    await vi.waitFor(async () => {
+      const current = await promotions.get(ALL, app.id, first);
+      expect(current.items[0]).toMatchObject({ status: 'running', detail: 'Waiting for api to be recreated' });
+    });
+    expect((await promotions.get(ALL, app.id, first)).status).toBe('running');
+    expect(recreateWithConfig).toHaveBeenCalledWith(
+      nodeId,
+      'api',
+      { image: `python:3.13-alpine@${digest}` },
+      userId,
+      expect.objectContaining({ waitForAvailability: true })
+    );
+    await tasks.update(recreates[0]!, { status: 'succeeded', completedAt: new Date() });
+    await vi.waitFor(async () => {
+      expect((await promotions.get(ALL, app.id, first)).status).toBe('succeeded');
+    });
+    const succeeded = await promotions.get(ALL, app.id, first);
+    expect(succeeded.items[0]).toMatchObject({ status: 'succeeded', error: null });
+    expect(succeeded.items[0]!.detail).toContain('Recreated with python:3.13-alpine');
+
+    const second = await promote();
+    await vi.waitFor(() => expect(recreates).toHaveLength(2));
+    await tasks.update(recreates[1]!, { status: 'failed', error: 'pull access denied', completedAt: new Date() });
+    await vi.waitFor(async () => {
+      expect((await promotions.get(ALL, app.id, second)).status).toBe('failed');
+    });
+    expect((await promotions.get(ALL, app.id, second)).items[0]).toMatchObject({
+      status: 'failed',
+      error: 'Recreating api failed: pull access denied',
+    });
+
+    promotions.rolloutWait = { timeoutMs: 300, pollMs: 50 };
+    const third = await promote();
+    await vi.waitFor(async () => {
+      expect((await promotions.get(ALL, app.id, third)).status).toBe('failed');
+    });
+    expect((await promotions.get(ALL, app.id, third)).items[0]!.error).toBe(
+      'api was not recreated within 1 min (Pulling image)'
+    );
   });
 });

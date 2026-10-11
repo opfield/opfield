@@ -1,4 +1,4 @@
-import { and, eq, inArray, or, type SQL, sql } from 'drizzle-orm';
+import { and, eq, getTableName, inArray, or, type SQL, sql } from 'drizzle-orm';
 import { container } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import {
@@ -54,15 +54,20 @@ export function parseAppListFilter(query: Record<string, unknown> | undefined | 
 /**
  * SQL for a list filter on a resource table whose rows sit in folders of `folderTable` (undefined: no filter):
  * `appId` keeps the members of that app, `excludeAppMembers` drops every app member.
+ *
+ * The folder subquery names its table and columns as plain identifiers under its own alias: the relational query
+ * builder (`db.query.<table>.findMany`) rewrites every column object in a where clause to the outer table's alias,
+ * which turned `proxy_host_folders.app_id` into `"proxyHosts"."app_id"`.
  */
 export function appMemberFolderCondition(folderColumn: any, folderTable: any, filter: AppListFilter): SQL | undefined {
+  if (!filter.appId && !filter.excludeAppMembers) return undefined;
+  const alias = sql.identifier('app_member_folders');
+  const folderIds = sql`select ${alias}.${sql.identifier(folderTable.id.name)} from ${sql.identifier(getTableName(folderTable))} ${alias}`;
+  const folderAppId = sql`${alias}.${sql.identifier(folderTable.appId.name)}`;
   if (filter.appId) {
-    return sql`${folderColumn} in (select ${folderTable.id} from ${folderTable} where ${folderTable.appId} = ${filter.appId})`;
+    return sql`${folderColumn} in (${folderIds} where ${folderAppId} = ${filter.appId})`;
   }
-  if (filter.excludeAppMembers) {
-    return sql`(${folderColumn} is null or ${folderColumn} not in (select ${folderTable.id} from ${folderTable} where ${folderTable.appId} is not null))`;
-  }
-  return undefined;
+  return sql`(${folderColumn} is null or ${folderColumn} not in (${folderIds} where ${folderAppId} is not null))`;
 }
 
 /** Query-string boolean (`true`/`1`); zod's coerce turns "false" into true. */

@@ -155,7 +155,7 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'get_app_overview',
     description:
-      'Monitoring overview of an app: per environment you may view, health, issues (failing or degraded members per type), alerts, and 24-point series over range 1h or 24h for containers (CPU, memory, unhealthy names), databases (disk, connections), storage (disk, buckets, RX/TX), routes (requests, 5xx, latency, traffic) and Pages, plus the nodes the members run on. Only members you may view count; unknown values are null.',
+      'Monitoring overview of an app: per environment you may view, health, issues (failing or degraded members per type), alerts (tone destructive for a failing member, warning for a nearly full disk or 5xx errors), and 24-point series over range 1h or 24h for containers (CPU, memory, unhealthy names), databases (disk, connections), storage (disk, buckets, RX/TX), routes (requests, 5xx, latency, traffic) and Pages, plus the nodes the members run on. Only members you may view count; unknown values are null.',
     parameters: {
       type: 'object',
       properties: {

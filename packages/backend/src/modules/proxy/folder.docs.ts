@@ -29,6 +29,8 @@ export const groupedProxyHostsRoute = appRoute({
   path: '/grouped',
   tags: ['Route Folders'],
   summary: 'List grouped ingress routes and folders',
+  description:
+    'User folders with their routes, plus routes outside any folder. Routes that belong to an app are left out; with appId, only the routes of that app come back, flat in ungroupedHosts with their app field, and folders is empty.',
   request: { query: GroupedHostsQuerySchema },
   responses: okJson(UnknownDataResponseSchema),
 });

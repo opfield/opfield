@@ -26,6 +26,7 @@ import { DockerManagementService } from '@/modules/docker/docker.service.js';
 import { DockerDeploymentService } from '@/modules/docker/docker-deployment.service.js';
 import { DockerInternalRegistryService } from '@/modules/docker/docker-registry-internal.service.js';
 import { DockerSnapshotService } from '@/modules/docker/docker-snapshot.service.js';
+import { DockerTaskService } from '@/modules/docker/docker-task.service.js';
 import { PageDeploymentService } from '@/modules/pages/deployments/page-deployment.service.js';
 import { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import { RelayRegistryService } from '@/services/relay-registry.service.js';
@@ -40,6 +41,37 @@ const logger = createChildLogger('AppPromotion');
 /** The internal registry address every node pulls Git artifacts from. */
 const INTERNAL_REGISTRY = '127.0.0.1:5443/';
 const DIGEST_RE = /sha256:[0-9a-f]{64}/;
+/**
+ * Longest a container item waits for its recreate to finish: beyond the recreate's own watch (the long Docker
+ * operation limit of 10 minutes plus 30 seconds for a pull and recreate the node runs as a task).
+ */
+const CONTAINER_ROLLOUT_TIMEOUT_MS = 12 * 60_000;
+
+/**
+ * Why a container item did not roll out, from the recreate task it waited for (null: the target runs the new
+ * container). A task still pending or running after the wait counts as a failure, never as success.
+ */
+export function containerRolloutError(
+  task: { status: string; error?: string | null; progress?: string | null } | null,
+  targetName: string,
+  timeoutMs: number
+): AppError | null {
+  if (!task) return new AppError(502, 'PROMOTION_RECREATE_UNKNOWN', `The recreate task of ${targetName} is gone`);
+  if (task.status === 'succeeded' || task.status === 'completed') return null;
+  if (task.status === 'pending' || task.status === 'running') {
+    const minutes = Math.max(1, Math.round(timeoutMs / 60_000));
+    return new AppError(
+      504,
+      'PROMOTION_RECREATE_TIMEOUT',
+      `${targetName} was not recreated within ${minutes} min${task.progress ? ` (${task.progress})` : ''}`
+    );
+  }
+  return new AppError(
+    502,
+    'PROMOTION_RECREATE_FAILED',
+    `Recreating ${targetName} failed: ${task.error || `the task ended ${task.status}`}`
+  );
+}
 
 /** What runs in a container: the pullable reference, its digest and what the dialog shows. */
 export interface RunningImage {
@@ -185,6 +217,8 @@ function errorMessage(error: unknown): string {
  */
 export class AppPromotionService {
   private readonly running = new Set<string>();
+  /** How long and how often a container item reads its recreate task (tests shorten it). */
+  rolloutWait = { timeoutMs: CONTAINER_ROLLOUT_TIMEOUT_MS, pollMs: 2000 };
 
   constructor(
     private readonly db: DrizzleClient,
@@ -647,7 +681,11 @@ export class AppPromotionService {
         items[index] = { ...item, status: 'running', startedAt: new Date().toISOString() };
         await this.saveItems(promotionId, items);
         try {
-          const detail = await this.promoteItem(item, actor);
+          const detail = await this.promoteItem(item, actor, async (progress) => {
+            items[index] = { ...items[index]!, detail: progress };
+            await this.saveItems(promotionId, items);
+            this.apps.publish(row.appId, 'promotion_progress');
+          });
           items[index] = { ...items[index]!, status: 'succeeded', detail, finishedAt: new Date().toISOString() };
         } catch (error) {
           items[index] = {
@@ -707,8 +745,15 @@ export class AppPromotionService {
     await this.db.update(appPromotions).set({ items }).where(eq(appPromotions.id, promotionId));
   }
 
-  /** Runs one item; returns what happened for the summary. Re-reads what runs now (no stale image is deployed). */
-  private async promoteItem(item: AppPromotionItemRecord, actor: AppActor): Promise<string> {
+  /**
+   * Runs one item; returns what happened for the summary. Re-reads what runs now (no stale image is deployed). An item
+   * returns only once its rollout finished; `progress` shows what it waits for meanwhile.
+   */
+  private async promoteItem(
+    item: AppPromotionItemRecord,
+    actor: AppActor,
+    progress: (detail: string) => Promise<void> = async () => undefined
+  ): Promise<string> {
     switch (item.type) {
       case 'container': {
         if (!item.sourceNodeId)
@@ -726,7 +771,7 @@ export class AppPromotionService {
           `${targetNodeId}:${item.targetId}`,
           actor
         );
-        await this.resolve(DockerManagementService)!.recreateWithConfig(
+        const recreate = await this.resolve(DockerManagementService)!.recreateWithConfig(
           targetNodeId,
           item.targetId,
           { image: ref.image },
@@ -734,8 +779,11 @@ export class AppPromotionService {
           {
             actorScopes: [...actor.scopes],
             skipImagePull: ref.local,
+            // A highly available container rolls out through its availability policy: wait for that rollout.
+            waitForAvailability: true,
           }
         );
+        await this.waitForRecreate(recreate, item.targetName, progress);
         if (ref.pin) await this.pinArtifact(ref.pin, ownerKey, actor.userId);
         return `Recreated with ${displayImage(image)}${image.build ? ` (commit ${image.build.commitSha.slice(0, 7)}, not rebuilt)` : ''}`;
       }
@@ -820,6 +868,26 @@ export class AppPromotionService {
         return `Artifact ${shortDigest(`sha256:${active.artifactSha256}`)} from #${active.sequence} is active (deployment #${result.sequence}${result.previousSequence ? `, was #${result.previousSequence}` : ''})`;
       }
     }
+  }
+
+  /**
+   * Waits for the recreate task the node runs (it may pull first and recreate minutes after the request returned):
+   * the item succeeds only once the target runs the new container, and fails with the task's error otherwise. A
+   * rollout through the availability policy was already awaited and returns no task.
+   */
+  private async waitForRecreate(
+    result: unknown,
+    targetName: string,
+    progress: (detail: string) => Promise<void>
+  ): Promise<void> {
+    const taskId = result && typeof result === 'object' ? (result as { taskId?: unknown }).taskId : undefined;
+    if (typeof taskId !== 'string' || !taskId) return;
+    const tasks = this.resolve(DockerTaskService);
+    if (!tasks) return;
+    await progress(`Waiting for ${targetName} to be recreated`).catch(() => undefined);
+    const { timeoutMs, pollMs } = this.rolloutWait;
+    const error = containerRolloutError(await tasks.waitForEnd(taskId, timeoutMs, pollMs), targetName, timeoutMs);
+    if (error) throw error;
   }
 
   /**

@@ -6,6 +6,7 @@ import { createChildLogger } from '@/lib/logger.js';
 import { announceResourceScopeChanges, removeDanglingResourceScopes } from '@/lib/resource-scope-cleanup.js';
 import { buildWhere } from '@/lib/utils.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { appMemberFolderCondition, withAppMembers } from '@/modules/apps/app-membership.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import {
   assertFolderMoveAccess,
@@ -477,6 +478,7 @@ export class FolderService {
     const conditions = [eq(proxyHosts.isSystem, false)];
     if (options?.allowedHostIds) {
       if (options.allowedHostIds.length === 0) {
+        if (query.appId) return { folders: [], ungroupedHosts: [], totalHosts: 0 };
         const emptyTree = this.buildTree(allFolders, []);
         return {
           folders: options.includeAllFolders
@@ -507,10 +509,14 @@ export class FolderService {
       conditions.push(ilike(sql`${proxyHosts.domainNames}::text`, `%${query.search}%`));
     }
 
-    // App members are not listed here (they appear on their app's page); the list endpoint still returns them.
-    conditions.push(
-      sql`(${proxyHosts.folderId} is null or ${proxyHosts.folderId} not in (select ${proxyHostFolders.id} from ${proxyHostFolders} where ${proxyHostFolders.appId} is not null))`
+    // Without `appId`, app members are not listed here (they appear on their app's page). With `appId`, only that
+    // app's routes: they sit in the app's hidden folders, so they come back flat in `ungroupedHosts` with their `app`.
+    const appFilter = appMemberFolderCondition(
+      proxyHosts.folderId,
+      proxyHostFolders,
+      query.appId ? { appId: query.appId } : { excludeAppMembers: true }
     );
+    if (appFilter) conditions.push(appFilter);
     const where = buildWhere(conditions);
 
     const hostRows = await this.db
@@ -519,6 +525,10 @@ export class FolderService {
       .where(where)
       .orderBy(asc(proxyHosts.sortOrder), desc(proxyHosts.createdAt));
     const allHosts = await attachDockerUpstreamDisplay(this.db, hostRows);
+    if (query.appId) {
+      const members = await withAppMembers('routes', allHosts.map(toPlainHost), { appId: query.appId });
+      return { folders: [], ungroupedHosts: members as any, totalHosts: members.length };
+    }
 
     // 3. Group hosts by folderId
     const hostsByFolder = new Map<string | null, ProxyHostRow[]>();

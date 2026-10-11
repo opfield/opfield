@@ -241,7 +241,7 @@ export const getAppOverviewRoute = appRoute({
   tags: TAGS,
   summary: 'App monitoring overview',
   description:
-    'Per environment the caller may view: health, member count, issues (failing or degraded members per type), alerts, and 24-point series over the range (1h or 24h) for containers (CPU, memory, unhealthy names), databases (disk, connections, transactions), storage (disk, objects, buckets, RX/TX), routes (requests, 5xx, p95 latency, traffic) and Pages (active deployment), plus the nodes the members run on. Only members the caller may view count; unknown values are null and unknown series empty. Cached for 15 seconds.',
+    'Per environment the caller may view: health, member count, issues (failing or degraded members per type), alerts ({tone: destructive for a failing member or warning for a nearly full disk or 5xx errors, title, detail}), and 24-point series over the range (1h or 24h) for containers (CPU, memory, unhealthy names), databases (disk, connections, transactions), storage (disk, objects, buckets, RX/TX), routes (requests, 5xx, p95 latency, traffic) and Pages (active deployment), plus the nodes the members run on. Only members the caller may view count; unknown values are null and unknown series empty. Cached for 15 seconds.',
   request: { params: AppParams, query: AppOverviewQuerySchema },
   responses: okJson(UnknownDataResponseSchema),
 });

@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { EmptyState } from "@/components/common/EmptyState";
-import { Notice, NoticeAction } from "@/components/common/Notice";
+import { Notice, NoticeAction, noticeTone } from "@/components/common/Notice";
 import { PanelShell } from "@/components/common/PanelShell";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +30,7 @@ import { api } from "@/services/api";
 import type {
   AppDetail,
   AppEnvironmentDetail,
+  AppOverviewAlert,
   AppOverviewEnvironment,
   AppOverviewIssue,
 } from "@/types";
@@ -135,32 +136,7 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
     <div className="space-y-6 pb-6">
       <EnvironmentsPanel envs={envs} productionName={production.env.name} />
 
-      <Section title="Alerts">
-        {alerts.length > 0 ? (
-          <div className="space-y-2">
-            {alerts.map((alert) => (
-              <Notice
-                key={`${alert.env}:${alert.title}`}
-                tone={alert.tone}
-                title={`${alert.env} · ${alert.title}`}
-                actions={
-                  alert.href ? (
-                    <NoticeAction tone={alert.tone} to={alert.href}>
-                      {alert.actionLabel ?? "Open"}
-                    </NoticeAction>
-                  ) : undefined
-                }
-              >
-                {alert.detail}
-              </Notice>
-            ))}
-          </div>
-        ) : (
-          <Notice tone="success" title="No open alerts">
-            Every member of every environment is healthy.
-          </Notice>
-        )}
-      </Section>
+      <OverviewAlerts alerts={alerts} />
 
       {containerTotal > 0 && (
         <Section title={`Containers · ${containerTotal}`}>
@@ -395,6 +371,41 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
         </Section>
       )}
     </div>
+  );
+}
+
+/** The Alerts section: one notice per alert of every environment, or "No open alerts". */
+export function OverviewAlerts({ alerts }: { alerts: Array<AppOverviewAlert & { env: string }> }) {
+  return (
+    <Section title="Alerts">
+      {alerts.length > 0 ? (
+        <div className="space-y-2">
+          {alerts.map((alert) => {
+            const tone = noticeTone(alert.tone);
+            return (
+              <Notice
+                key={`${alert.env}:${alert.title}`}
+                tone={tone}
+                title={`${alert.env} · ${alert.title}`}
+                actions={
+                  alert.href ? (
+                    <NoticeAction tone={tone} to={alert.href}>
+                      {alert.actionLabel ?? "Open"}
+                    </NoticeAction>
+                  ) : undefined
+                }
+              >
+                {alert.detail}
+              </Notice>
+            );
+          })}
+        </div>
+      ) : (
+        <Notice tone="success" title="No open alerts">
+          Every member of every environment is healthy.
+        </Notice>
+      )}
+    </Section>
   );
 }
 

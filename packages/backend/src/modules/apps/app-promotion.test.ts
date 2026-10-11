@@ -3,6 +3,7 @@ import { parse as parseYaml } from 'yaml';
 import type { AppMember } from './app-members.service.js';
 import {
   AppPromotionService,
+  containerRolloutError,
   diffDocuments,
   displayImage,
   parseImageReference,
@@ -167,5 +168,27 @@ describe('Compose promotion', () => {
       { path: 'services.indexer.environment.BATCH_SIZE', from: '500', to: '1000' },
       { path: 'services.indexer.environment.MODE', from: null, to: 'x' },
     ]);
+  });
+});
+
+describe('Container rollout', () => {
+  const ten = 10 * 60_000;
+
+  it('succeeds only on a finished recreate task', () => {
+    expect(containerRolloutError({ status: 'succeeded' }, 'api', ten)).toBe(null);
+    expect(containerRolloutError({ status: 'completed' }, 'api', ten)).toBe(null);
+  });
+
+  it('fails with the task error, on a task still running after the wait, and on a missing task', () => {
+    expect(containerRolloutError({ status: 'failed', error: 'pull access denied' }, 'api', ten)).toMatchObject({
+      code: 'PROMOTION_RECREATE_FAILED',
+      message: 'Recreating api failed: pull access denied',
+    });
+    expect(containerRolloutError({ status: 'running', progress: 'Pulling image' }, 'api', ten)).toMatchObject({
+      code: 'PROMOTION_RECREATE_TIMEOUT',
+      message: 'api was not recreated within 10 min (Pulling image)',
+    });
+    expect(containerRolloutError({ status: 'pending' }, 'api', ten)?.code).toBe('PROMOTION_RECREATE_TIMEOUT');
+    expect(containerRolloutError(null, 'api', ten)?.code).toBe('PROMOTION_RECREATE_UNKNOWN');
   });
 });

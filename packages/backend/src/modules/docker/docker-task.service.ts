@@ -143,6 +143,20 @@ export class DockerTaskService {
     return publicDockerTask(row);
   }
 
+  /**
+   * Waits until the task ends (any status besides pending or running) or `timeoutMs` passes, reading it every
+   * `pollMs`. Returns the last row read: still active after the timeout, null when the task is gone.
+   */
+  async waitForEnd(id: string, timeoutMs: number, pollMs = 2000): Promise<PublicDockerTask | null> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const [row] = await this.db.select().from(dockerTasks).where(eq(dockerTasks.id, id)).limit(1);
+      if (!row) return null;
+      if (endsTask(row.status) || Date.now() >= deadline) return publicDockerTask(row);
+      await new Promise((resolve) => setTimeout(resolve, Math.min(pollMs, Math.max(0, deadline - Date.now()))));
+    }
+  }
+
   async forceCancel(id: string) {
     await this.markStaleActiveTasksFailed();
     const [existing] = await this.db.select().from(dockerTasks).where(eq(dockerTasks.id, id)).limit(1);

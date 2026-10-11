@@ -2,7 +2,7 @@ import type { DockerTaskTracking } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { type DockerTaskFollowUpTrigger, TASK_COMMAND_LOOKUP_CAPABILITY } from './docker-env-follow-ups.js';
-import { resolveDockerImageByIdentifier } from './docker-internal-images.js';
+import { resolvePulledDockerImage } from './docker-internal-images.js';
 import type { ContainerAction, DockerLifecycleWatchContext } from './docker-lifecycle-watch.js';
 import { getReplacementContainerFailureMessage } from './docker-recreate-watch.js';
 import type { DockerTaskRow, DockerTaskService } from './docker-task.service.js';
@@ -179,7 +179,7 @@ export class DockerTaskReconciler {
     const images = ctx.parseResult(
       await ctx.nodeDispatch.sendDockerImageCommand(task.nodeId, 'list', {}, QUERY_TIMEOUT_MS)
     );
-    if (Array.isArray(images) && resolveDockerImageByIdentifier(images, tracking.imageRef)) return succeeded;
+    if (Array.isArray(images) && resolvePulledDockerImage(images, tracking.imageRef)) return succeeded;
     if (reported === 'unknown') {
       return {
         status: 'failed',
