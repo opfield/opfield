@@ -214,10 +214,16 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
             clientSecret: { type: 'string', description: 'Omit to keep the saved client secret.' },
             redirectUri: { type: 'string' },
             scopes: { type: 'string' },
+            displayName: {
+              type: ['string', 'null'],
+              description:
+                'Name on the sign-in button ("Sign in with <name>"); null or empty shows "Sign in with SSO". Omit to keep it.',
+            },
           },
           required: ['issuer', 'clientId', 'redirectUri'],
           additionalProperties: false,
-          description: 'OIDC/SSO identity provider. Requires admin:system.',
+          description:
+            'OIDC/SSO identity provider. Requires admin:system. Another issuer is refused (LAST_ADMIN_SIGN_IN) when no administrator could sign in afterwards.',
         },
         logging: {
           type: 'object',

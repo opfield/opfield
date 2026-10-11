@@ -21,11 +21,15 @@ import { AppMaintenanceService } from '@/modules/apps/app-maintenance.service.js
 import { AlertService } from '@/modules/audit/alert.service.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { SiemDeliveryService } from '@/modules/audit/siem-delivery.service.js';
+import { AuthService } from '@/modules/auth/auth.service.js';
+import { AuthSettingsService } from '@/modules/auth/auth.settings.service.js';
+import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
 import { backupRuntime } from '@/modules/backups/backup-runtime.js';
 import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
 import { createCloudLinkActions } from '@/modules/cloud-link/cloud-link-actions.js';
 import { CloudLinkAgent } from '@/modules/cloud-link/cloud-link-agent.js';
 import { CloudLinkEnrollFile, createEnrollFileLicense } from '@/modules/cloud-link/cloud-link-enroll-file.js';
+import { CloudManagedSso } from '@/modules/cloud-link/cloud-link-managed-sso.js';
 import { createCloudLinkProbe } from '@/modules/cloud-link/cloud-link-probe.js';
 import { DatabaseMonitoringService } from '@/modules/databases/database-monitoring.service.js';
 import { DiagnosticsService } from '@/modules/diagnostics/diagnostics.service.js';
@@ -62,6 +66,7 @@ import { LicenseModuleService } from '@/modules/license/license-module.service.j
 import { LoggingClickHouseService } from '@/modules/logging/logging-clickhouse.service.js';
 import { LoggingEnvironmentService } from '@/modules/logging/logging-environment.service.js';
 import { LoggingMaintenanceService } from '@/modules/logging/logging-maintenance.service.js';
+import { McpSettingsService } from '@/modules/mcp/mcp-settings.service.js';
 import { NODE_MONITORING_CADENCE_MS } from '@/modules/nodes/node-monitoring.service.js';
 import {
   GatewayOutboundMonitor,
@@ -72,11 +77,14 @@ import { NotificationDeliveryService } from '@/modules/notifications/notificatio
 import { NotificationDispatcherService } from '@/modules/notifications/notification-dispatcher.service.js';
 import { NotificationEvaluatorService } from '@/modules/notifications/notification-evaluator.service.js';
 import { NotificationWebhookService } from '@/modules/notifications/notification-webhook.service.js';
+import { FinalizeSetupService } from '@/modules/onboarding/finalize-setup.service.js';
 import { TemplatesService } from '@/modules/pki/templates.service.js';
 import { AdditionalRouteService } from '@/modules/proxy/additional-route.service.js';
 import { NginxTemplateService } from '@/modules/proxy/nginx-template.service.js';
 import { ProxyService } from '@/modules/proxy/proxy.service.js';
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
+import { SetupAccessService } from '@/modules/setup/setup-access.service.js';
+import { SetupTokenPolicyService } from '@/modules/setup/setup-token-policy.js';
 import { InternalCertificateRenewalService } from '@/modules/ssl/internal-cert-renewal.service.js';
 import { SSLService } from '@/modules/ssl/ssl.service.js';
 import { CacheService, type RedisClient } from '@/services/cache.service.js';
@@ -106,6 +114,8 @@ import {
   SystemCertificateRenewalService,
 } from '@/services/system-certificate-renewal.service.js';
 import { UpdateService } from '@/services/update.service.js';
+import { WebIdentityService } from '@/services/web-identity.service.js';
+import { WebTransportSettingsService } from '@/services/web-transport-settings.service.js';
 
 export async function initializeBackgroundServices(): Promise<void> {
   const env = container.resolve<ReturnType<typeof getEnv>>(TOKENS.Env);
@@ -218,14 +228,35 @@ export async function initializeBackgroundServices(): Promise<void> {
     )
   );
   // A managed installation enrols itself from the code its provisioning left in the app container.
-  container.registerInstance(
-    CloudLinkEnrollFile,
-    new CloudLinkEnrollFile(
-      container.resolve(CloudLinkService),
-      new OperationLeaseStore(db),
-      createEnrollFileLicense(licenseService, container.resolve(LicenseModuleService))
-    )
+  const cloudEnrollFile = new CloudLinkEnrollFile(
+    container.resolve(CloudLinkService),
+    new OperationLeaseStore(db),
+    createEnrollFileLicense(licenseService, container.resolve(LicenseModuleService))
   );
+  // ... and comes up signed in with the Opfield account when the file carries the account's client and owner.
+  cloudEnrollFile.setManagedSso(
+    new CloudManagedSso({
+      db,
+      oidcSettings: container.resolve(OidcSettingsService),
+      authSettings: container.resolve(AuthSettingsService),
+      generalSettings: container.resolve(GeneralSettingsService),
+      setupPolicy: container.resolve(SetupTokenPolicyService),
+      finalizeSetup: container.resolve(FinalizeSetupService),
+      invalidateOidc: () => container.resolve(AuthService).invalidateOidcConfiguration(),
+      refreshIdentities: async () => {
+        await container.resolve(GatewayIdentityRenewalService).refreshGrpcIdentity();
+        if ((await container.resolve(WebTransportSettingsService).getConfig()).tlsEnabled) {
+          await container.resolve(WebIdentityService).refresh();
+        }
+      },
+      closeSetupAccess: () => container.resolve(SetupAccessService).invalidate(),
+      enableMcpServer: async () => {
+        await container.resolve(McpSettingsService).updateConfig({ serverEnabled: true });
+      },
+      audit: (details) => container.resolve(CloudLinkService).recordManagedSso(details),
+    })
+  );
+  container.registerInstance(CloudLinkEnrollFile, cloudEnrollFile);
   scheduler.registerInterval('gateway-diagnostics-sample', 60_000, () => diagnosticsService.sampleMinute());
   container
     .resolve<CommercialEditionRuntime>(TOKENS.CommercialEdition)

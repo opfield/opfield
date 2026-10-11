@@ -1,11 +1,13 @@
 import { isIP } from 'node:net';
-import { container } from '@/container.js';
+import { container, TOKENS } from '@/container.js';
+import type { DrizzleClient } from '@/db/client.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { hasScope, isScopeSubset } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { UpdateAuthProvisioningSettingsInput } from '@/modules/admin/admin.schemas.js';
 import { findIdentityTrustChanges } from '@/modules/admin/identity-trust-settings.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
+import { assertAdminSignInRemains } from '@/modules/auth/admin-sign-in-guard.js';
 import { AuthService } from '@/modules/auth/auth.service.js';
 import { AuthSettingsService } from '@/modules/auth/auth.settings.service.js';
 import { AuthMailService } from '@/modules/auth/auth-mail.service.js';
@@ -158,6 +160,8 @@ export async function readGatewaySettings(
       clientSecretLast4: null,
       redirectUri: null,
       scopes: 'openid email profile',
+      displayName: null,
+      opfieldAccount: false,
     },
     logging: {
       mode: 'disabled' as const,
@@ -244,6 +248,12 @@ export async function updateGatewaySettings(
         await authMailService.sendTestEmail(input.smtp.testRecipient, input.smtp.testEmailKind);
     }
     if (input.oidc) {
+      // Another issuer unbinds every account bound to the current one: at least one administrator must still be
+      // able to sign in afterwards (the owner of a managed installation signs in with the Opfield account).
+      await assertAdminSignInRemains(container.resolve<DrizzleClient>(TOKENS.DrizzleClient), {
+        issuer: input.oidc.issuer,
+        methods: input.methods,
+      });
       await oidcSettingsService.saveConfig(input.oidc);
       container.resolve(AuthService).invalidateOidcConfiguration();
     }

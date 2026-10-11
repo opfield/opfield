@@ -41,6 +41,8 @@ export const CLOUD_AUDIT_ACTIONS = {
   disconnect: 'cloud.disconnect',
   disconnectedByAccount: 'cloud.disconnected_by_account',
   enrollFile: 'cloud.enroll_file',
+  /** A step of the Opfield account sign-in of a managed installation (provider, owner, setup, secrets). */
+  managedSso: 'cloud.managed_sso',
   remoteManagement: 'cloud.remote_management',
   request: 'cloud.request',
 } as const;
@@ -382,6 +384,12 @@ export class CloudLinkService {
     return access.managed || access.enabled;
   }
 
+  /** Whether the installation is a managed cloud VM (enrolled from its provisioning file). */
+  async managedByCloud(): Promise<boolean> {
+    const { enrollment } = await this.readStored();
+    return enrollment?.managed === true;
+  }
+
   /** The "Allow remote management" switch. A managed cloud VM has none: the cloud manages it. */
   async setRemoteManagement(
     enabled: boolean,
@@ -455,6 +463,11 @@ export class CloudLinkService {
   /** An outcome of the enrolment file other than a successful connect, which `connect` audits itself. */
   async recordEnrollFileEvent(details: Record<string, unknown>): Promise<void> {
     await this.writeAudit(CLOUD_AUDIT_ACTIONS.enrollFile, null, null, details);
+  }
+
+  /** A step of the Opfield account sign-in set up from the enrolment file or the portal; never a secret. */
+  async recordManagedSso(details: Record<string, unknown>): Promise<void> {
+    await this.writeAudit(CLOUD_AUDIT_ACTIONS.managedSso, null, null, details);
   }
 
   /** The open coalescing windows of this process when it holds the link (repeats not written yet). */

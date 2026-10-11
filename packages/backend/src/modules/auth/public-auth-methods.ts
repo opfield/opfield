@@ -9,6 +9,10 @@ export interface PublicAuthMethods {
   emailOtp: boolean;
   passkeyLogin: boolean;
   demoEmailOtp?: true;
+  /** Name on the OIDC button ("Sign in with <name>"); null for the plain "Sign in with SSO". */
+  oidcDisplayName?: string | null;
+  /** The OIDC provider is the Opfield account of a managed installation. */
+  oidcOpfieldAccount?: boolean;
 }
 
 export async function getPublicAuthMethods(): Promise<PublicAuthMethods> {
@@ -20,9 +24,12 @@ export async function getPublicAuthMethods(): Promise<PublicAuthMethods> {
     container.resolve(AuthSettingsService).getConfig(),
     container.resolve(OidcSettingsService).getPublicConfig(),
   ]);
+  const oidcEnabled = methods.oidc && oidc.configured;
 
   return {
     ...methods,
-    oidc: methods.oidc && oidc.configured,
+    oidc: oidcEnabled,
+    oidcDisplayName: oidcEnabled ? (oidc.displayName ?? null) : null,
+    oidcOpfieldAccount: oidcEnabled && oidc.opfieldAccount === true,
   };
 }

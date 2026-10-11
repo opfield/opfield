@@ -720,6 +720,8 @@ export function AuthProvisioningSection({
         description={
           identityTrustLocked ? (
             <IdentityTrustHint />
+          ) : settings.oidc?.opfieldAccount ? (
+            "Sign-in with the Opfield account this installation was provisioned with. Client secret is stored encrypted"
           ) : settings.oidc?.configured ? (
             "Client secret is stored encrypted"
           ) : (
@@ -740,6 +742,21 @@ export function AuthProvisioningSection({
         dirty={oidcHasChanges}
       >
         <div className="divide-y divide-border">
+          <SettingsControlRow
+            title="Display name"
+            description="Shown on the sign-in button as Sign in with this name."
+            help="Leave empty to show Sign in with SSO. The provider a managed installation was provisioned with is named Opfield account."
+          >
+            <Input
+              value={oidcDraft.displayName}
+              placeholder="SSO"
+              maxLength={64}
+              disabled={!canEditIdentityTrust || isSavingOidc}
+              onChange={(event) =>
+                setOidcDraft((current) => ({ ...current, displayName: event.target.value }))
+              }
+            />
+          </SettingsControlRow>
           <SettingsControlRow
             title="Issuer URL"
             description="OpenID Connect issuer used for discovery."

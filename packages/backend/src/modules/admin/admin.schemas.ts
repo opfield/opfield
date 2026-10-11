@@ -147,6 +147,7 @@ export const UpdateAuthProvisioningSettingsSchema = z.object({
       clientSecret: z.string().min(1).max(4096).optional(),
       redirectUri: z.string().trim().url().max(2048),
       scopes: z.string().trim().min(1).max(1024).optional(),
+      displayName: z.string().trim().max(64).nullable().optional(),
     })
     .optional(),
   mcpServerEnabled: z.boolean().optional(),

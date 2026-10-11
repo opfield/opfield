@@ -149,6 +149,7 @@ export class AuthService {
   private avatarStorageService?: AvatarStorageService;
 
   private oidcConfig: client.Configuration | null = null;
+  private oidcConfigKey: string | null = null;
 
   constructor(
     @inject(TOKENS.DrizzleClient) private readonly db: DrizzleClient,
@@ -187,17 +188,22 @@ export class AuthService {
   }
 
   private async getOIDCConfig(): Promise<client.Configuration> {
-    if (this.oidcConfig) {
-      return this.oidcConfig;
-    }
-
+    // Without stored settings (an embedded or test configuration) there is nothing a cached configuration could lag.
+    if (!this.oidcSettingsService && this.oidcConfig) return this.oidcConfig;
     const runtime = (await this.oidcSettingsService?.getRuntimeConfig()) ?? null;
     if (!runtime) {
       throw new AppError(503, 'OIDC_NOT_CONFIGURED', 'OIDC is not configured');
     }
+    // The configuration is read on every sign-in, so a client another replica saved (or the account portal rotated)
+    // is used at once rather than after this replica restarts.
+    const key = JSON.stringify([runtime.issuer, runtime.clientId, runtime.clientSecret]);
+    if (this.oidcConfig && this.oidcConfigKey === key) {
+      return this.oidcConfig;
+    }
 
     try {
       this.oidcConfig = await client.discovery(new URL(runtime.issuer), runtime.clientId, runtime.clientSecret);
+      this.oidcConfigKey = key;
 
       logger.info('OIDC configuration discovered', {
         issuer: runtime.issuer,
@@ -586,6 +592,7 @@ export class AuthService {
 
   invalidateOidcConfiguration(): void {
     this.oidcConfig = null;
+    this.oidcConfigKey = null;
   }
 
   private async requireVerifiedEmailForNonBootstrap(data: NormalizedOidcClaims): Promise<void> {
