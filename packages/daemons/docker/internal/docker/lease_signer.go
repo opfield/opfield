@@ -67,6 +67,14 @@ func (k *identityKeys) InitialSigner() availabilitylease.Signer {
 	return availabilitylease.ECDSASigner{Key: k.signing}
 }
 
+// SigningSigner is the key the node signs lease frames with now (holder
+// statements use it, so relays verify them against the manifest's key).
+func (k *identityKeys) SigningSigner() availabilitylease.Signer {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return availabilitylease.ECDSASigner{Key: k.signing}
+}
+
 // reload reads the key file when it changed.
 func (k *identityKeys) reload() (crypto.Signer, error) {
 	k.mu.Lock()

@@ -106,7 +106,7 @@ func (m *managedDatabaseManager) update(ctx context.Context, record *managedData
 		}
 	}
 	if requiresRecreate {
-		if err := m.recreateContainer(ctx, record, input); err != nil {
+		if err := m.recreateClickHouseAware(ctx, record, input); err != nil {
 			return err
 		}
 	} else {
@@ -366,7 +366,8 @@ func managedDatabaseContainerSettingsChanged(record managedDatabaseRecord, input
 		input.TLSEnabled != record.TLSEnabled ||
 		(input.PublishTCP != (record.PublishedPort != 0)) ||
 		(record.Type == "clickhouse" && (clickHouseConfigHash(input.ClickhouseConfig) != record.ClickhouseConfigHash ||
-			record.ClickhouseRuntimeProfileVersion != clickHouseRuntimeProfileVersion))
+			record.ClickhouseRuntimeProfileVersion != clickHouseRuntimeProfileVersion)) ||
+		clickHouseAvailabilityChanged(record, input)
 }
 
 func portBindingNeedsPinning(bindings network.PortMap, containerPort network.Port, expected uint16) bool {
@@ -382,7 +383,8 @@ func (m *managedDatabaseManager) publicationNeedsPinning(
 	record managedDatabaseRecord,
 	input managedDatabaseCommand,
 ) (bool, error) {
-	if !input.PublishTCP {
+	if !input.PublishTCP || (record.clickHouseAvailabilityMember() && clickHouseAvailabilitySetID(input) != "") {
+		// A set member's published ports are its member proxy's.
 		return false, nil
 	}
 	inspect, err := m.client.cli.ContainerInspect(ctx, record.ContainerID, mobyclient.ContainerInspectOptions{})
@@ -664,6 +666,9 @@ func (m *managedDatabaseManager) create(ctx context.Context, id string, input ma
 func validateManagedDatabaseInput(input managedDatabaseCommand) error {
 	if input.Type != "postgres" && input.Type != "redis" && input.Type != "clickhouse" {
 		return errors.New("unsupported managed database type")
+	}
+	if input.ClickhouseAvailability != nil && input.Type != "clickhouse" {
+		return errors.New("availability members of this command are supported only for ClickHouse")
 	}
 	if input.Type == "redis" && input.OwnerUsername != "default" {
 		return errors.New("Redis owner username must be default")

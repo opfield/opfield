@@ -20,6 +20,7 @@ import (
 	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
 	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
 	"github.com/wiolett-industries/gateway/daemon-shared/updateauth"
+	"github.com/wiolett-industries/gateway/daemon-shared/witnessactivation"
 	"github.com/wiolett-industries/gateway/relay-supervisor/internal/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -475,13 +476,16 @@ func TestKeeperConfigAndProbe(t *testing.T) {
 	for _, want := range []string{
 		"<listen_host>127.0.0.1</listen_host>", "<tcp_port>39410</tcp_port>", "<server_id>3</server_id>",
 		"<enable_reconfiguration>true</enable_reconfiguration>",
-		"<id>3</id>\n                <hostname>127.0.2.3</hostname>\n                <port>39411</port>",
-		"<id>1</id>\n                <hostname>127.0.1.1</hostname>\n                <port>39501</port>",
+		"<id>3</id>\n                <hostname>127.0.2.3</hostname>\n                <port>39411</port>\n                <priority>1</priority>",
+		"<id>1</id>\n                <hostname>127.0.1.1</hostname>\n                <port>39501</port>\n                <priority>3</priority>",
 		"<log_storage_path>/var/lib/gateway-relay-witness/data/w1/coordination/log</log_storage_path>",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("keeper config lacks %q:\n%s", want, text)
 		}
+	}
+	if strings.Contains(text, "can_become_leader") {
+		t.Errorf("can_become_leader=false makes a learner that does not vote:\n%s", text)
 	}
 	probe, err := parseKeeperSrvr("ClickHouse Keeper version: v25.3.1\nLatency min/avg/max: 0/0/0\nZxid: 0x1a2b\nMode: follower\nNode count: 4\n")
 	if err != nil || probe.role != "follower" || probe.zxid != 0x1a2b {
@@ -647,5 +651,87 @@ func TestApplyWitnessesCommandAndProtectedGate(t *testing.T) {
 	}
 	if got := protected.witnessHosting(); got != WitnessHostingProtectedNeedsOptIn && got != WitnessHostingDisabled {
 		t.Fatalf("protected without opt-in reports %q", got)
+	}
+}
+
+// Gateway down: the set's lease holder activates a staged standby over its
+// raft port; the relay worker checks the holder statement, the standby runs
+// as an active witness on the same port, survives a restart, and Gateway's
+// later set (standby made active) ends the local activation.
+func TestStandbyWitnessActivationByTheHolder(t *testing.T) {
+	h := newWitnessHarness(t)
+	listened := []string{}
+	h.manager.listen = func(_, address string) (net.Listener, error) {
+		listened = append(listened, address)
+		return &fakeListener{closed: make(chan struct{})}, nil
+	}
+	var verified []string
+	h.manager.verify = func(_ context.Context, policyID string, slot uint32, domain string, payload, signature []byte) (string, error) {
+		if string(signature) != "holder-signature" || domain != witnessactivation.Domain || slot != 0 {
+			return "", errors.New("not the committed holder")
+		}
+		verified = append(verified, policyID+":"+string(payload))
+		return "node-a", nil
+	}
+	const witnessID = "11111111-1111-4111-8111-111111111111"
+	const setID = "22222222-2222-4222-8222-222222222222"
+	const policyID = "33333333-3333-4333-8333-333333333333"
+	spec := keeperSpec(witnessID, "25.3.1", 39410)
+	spec.Role, spec.SetId, spec.LeasePolicyId = witnessRoleStandby, setID, policyID
+	h.rt.healthy[spec.GetArtifact().GetSha256()] = true
+	h.apply(1, spec)
+	h.pass(0)
+	h.pass(0)
+	if status := h.status(witnessID); status.GetState() != witnessStateStaged || len(listened) != 1 || listened[0] != "127.0.0.1:39411" {
+		t.Fatalf("staged standby: %v, listened %v", status, listened)
+	}
+	request := witnessactivation.Request{Version: 1, WitnessID: witnessID, SetID: setID, LeasePolicyID: policyID,
+		HolderNodeID: "node-a", IssuedAtUnixMs: h.now.UnixMilli(), Signature: []byte("holder-signature")}
+	forged := request
+	forged.Signature = []byte("someone else")
+	if err := h.manager.activate(witnessID, forged); err == nil {
+		t.Fatal("a statement the worker refused activated the standby")
+	}
+	wrongSet := request
+	wrongSet.SetID = "44444444-4444-4444-8444-444444444444"
+	if err := h.manager.activate(witnessID, wrongSet); err == nil {
+		t.Fatal("a request for another set activated the standby")
+	}
+	otherHolder := request
+	otherHolder.HolderNodeID = "node-b"
+	if err := h.manager.activate(witnessID, otherHolder); err == nil {
+		t.Fatal("a request naming another holder than the signer was accepted")
+	}
+	if err := h.manager.activate(witnessID, request); err != nil {
+		t.Fatal(err)
+	}
+	if len(verified) != 2 {
+		t.Fatalf("verified %v", verified)
+	}
+	h.pass(0)
+	h.pass(time.Second)
+	if status := h.status(witnessID); status.GetState() != witnessStateRunning || status.GetRole() != witnessRoleActive {
+		t.Fatalf("activated standby: %v", status)
+	}
+	// A supervisor restart keeps running it.
+	restarted := newWitnessManager(h.manager.dir, h.manager.workRoot, nil, func() string { return WitnessHostingAllowed }, h.rt)
+	if err := restarted.load(); err != nil {
+		t.Fatal(err)
+	}
+	restarted.mu.Lock()
+	role := restarted.effectiveRoleLocked(witnessID, witnessRoleStandby)
+	restarted.mu.Unlock()
+	if role != witnessRoleActive {
+		t.Fatal("activation lost on restart")
+	}
+	// Gateway makes it active itself: the local activation is dropped.
+	active := keeperSpec(witnessID, "25.3.1", 39410)
+	active.SetId, active.LeasePolicyId = setID, policyID
+	h.apply(2, active)
+	h.manager.mu.Lock()
+	still := h.manager.activated[witnessID]
+	h.manager.mu.Unlock()
+	if still {
+		t.Fatal("activation kept after Gateway adopted it")
 	}
 }

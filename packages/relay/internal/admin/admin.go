@@ -53,6 +53,16 @@ type LeaseReporter interface {
 	Report() *relayv1.AvailabilityLeaseReport
 }
 
+// HolderStatementVerifier checks holder statements of stateful lease keys
+// (availabilitylease.Node.VerifyHolderStatement).
+type HolderStatementVerifier interface {
+	VerifyHolderStatement(key availabilitylease.Key, domain string, payload, signature []byte) (string, error)
+}
+
+// HolderStatementCapability: the relay verifies holder statements for its
+// supervisor (VerifyHolderStatement).
+const HolderStatementCapability = "relay_holder_statement_v1"
+
 // SetLeaseReporter adds the availability lease view and capability to health.
 func (s *Service) SetLeaseReporter(reporter LeaseReporter) { s.lease = reporter }
 
@@ -142,7 +152,7 @@ func healthCapabilities(mode relayv1.RelayMode, availabilityLease bool) []string
 		capabilities = append(capabilities, policy.TrustResetCapability)
 	}
 	if availabilityLease {
-		capabilities = append(capabilities, AvailabilityLeaseCapability, availabilitylease.CapabilityV3)
+		capabilities = append(capabilities, AvailabilityLeaseCapability, availabilitylease.CapabilityV3, HolderStatementCapability)
 	}
 	return capabilities
 }
@@ -255,6 +265,25 @@ func (s *Service) DialRoute(stream relayv1.RelayAdmin_DialRouteServer) error {
 		return err
 	}
 	return s.broker.DialRoute(stream)
+}
+
+// VerifyHolderStatement checks a holder statement for the relay supervisor
+// (activation of a staged standby Keeper witness). Only the admin identity may
+// call it.
+func (s *Service) VerifyHolderStatement(ctx context.Context, request *relayv1.VerifyHolderStatementRequest) (*relayv1.VerifyHolderStatementResponse, error) {
+	if err := s.authorize(ctx); err != nil {
+		return nil, err
+	}
+	verifier, ok := s.lease.(HolderStatementVerifier)
+	if s.lease == nil || !ok {
+		return nil, status.Error(codes.FailedPrecondition, "this relay does not run the availability lease")
+	}
+	holder, err := verifier.VerifyHolderStatement(availabilitylease.Key{PolicyID: request.GetPolicyId(), Slot: request.GetSlot()},
+		request.GetDomain(), request.GetPayload(), request.GetSignature())
+	if err != nil {
+		return nil, status.Error(codes.PermissionDenied, err.Error())
+	}
+	return &relayv1.VerifyHolderStatementResponse{HolderId: holder}, nil
 }
 
 func (s *Service) SetDrain(ctx context.Context, request *relayv1.SetDrainRequest) (*relayv1.SetDrainResponse, error) {

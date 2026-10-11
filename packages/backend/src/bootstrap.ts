@@ -249,6 +249,7 @@ import { UIBootstrapService } from '@/modules/ui-bootstrap/ui-bootstrap.service.
 import { AvailabilityAssignmentSigner } from '@/services/availability-assignment-signing.js';
 import { AvailabilityMembersService } from '@/services/availability-members.service.js';
 import { CacheService, createRedisClient } from '@/services/cache.service.js';
+import { createKeeperPeerResolver } from '@/services/clickhouse-keeper-addressing.js';
 import { ConfigValidatorService } from '@/services/config-validator.service.js';
 import { CryptoService } from '@/services/crypto.service.js';
 import { scheduleQueuedDaemonUpdateResume } from '@/services/daemon-node-update.js';
@@ -1407,6 +1408,7 @@ export async function initializeContainer(): Promise<void> {
   // Witness processes relays host for availability sets (decision 9): desired sets pushed, reports recorded.
   const relayWitnessService = new RelayWitnessService(db, nodeDispatch);
   relayWitnessService.setArtifactSource(new WitnessCatalog(env));
+  relayWitnessService.setKeeperPeerResolver(createKeeperPeerResolver(db));
   container.registerInstance(RelayWitnessService, relayWitnessService);
   // Members of database and storage availability sets: node configuration and health-stream reports.
   const availabilityMembers = new AvailabilityMembersService(db, nodeDispatch);

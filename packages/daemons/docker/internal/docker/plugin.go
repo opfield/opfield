@@ -358,6 +358,7 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 		}
 		p.wirePGSetHooks()
 		p.wireKVSetHooks()
+		p.databaseManager.plugin = p
 		p.storageManager, err = newManagedStorageManager(p.cfg, p.client, p.logger)
 		if err != nil {
 			return fmt.Errorf("initialize managed storage runtime: %w", err)

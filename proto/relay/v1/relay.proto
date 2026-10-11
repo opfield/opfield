@@ -41,6 +41,12 @@ service RelayAdmin {
   // dialled, under their target endpoint's lease gate and session limits.
   // Relays advertise relay_dial_route_v1.
   rpc DialRoute(stream TunnelFrame) returns (stream TunnelFrame);
+  // Checks a holder statement: signed by the holder this relay's latest
+  // verified commit of the stateful lease key names, with that holder's
+  // identity key from the adopted manifest (the supervisor activates a staged
+  // standby Keeper witness only on such a request). Relays advertise
+  // relay_holder_statement_v1.
+  rpc VerifyHolderStatement(VerifyHolderStatementRequest) returns (VerifyHolderStatementResponse);
 }
 
 message SignedGrant {
@@ -362,6 +368,20 @@ message SetDrainRequest {
 message SetDrainResponse {
   bool draining = 1;
   uint64 disconnected_tunnels = 2;
+}
+
+message VerifyHolderStatementRequest {
+  string policy_id = 1;
+  uint32 slot = 2;
+  // Must start with "gateway-availability-holder/".
+  string domain = 3;
+  bytes payload = 4;
+  bytes signature = 5;
+}
+
+message VerifyHolderStatementResponse {
+  // The committed holder that signed the statement.
+  string holder_id = 1;
 }
 
 // ---------------------------------------------------------------------------
