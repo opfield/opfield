@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -376,7 +377,8 @@ func TestEventsSurviveARestartUntilGatewayAcknowledgesThem(t *testing.T) {
 }
 
 func TestTheProxyAdmitsOnlyWhileTheMemberServesAndClosesSessionsAfter(t *testing.T) {
-	admit := true
+	var admit atomic.Bool
+	admit.Store(true)
 	backend, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -391,7 +393,7 @@ func TestTheProxyAdmitsOnlyWhileTheMemberServesAndClosesSessionsAfter(t *testing
 			go func() { _, _ = io.Copy(conn, conn) }()
 		}
 	}()
-	proxy := NewProxy("127.0.0.1:0", func() bool { return admit }, func(ctx context.Context) (net.Conn, error) {
+	proxy := NewProxy("127.0.0.1:0", admit.Load, func(ctx context.Context) (net.Conn, error) {
 		var dialer net.Dialer
 		return dialer.DialContext(ctx, "tcp", backend.Addr().String())
 	}, nil)
@@ -412,7 +414,7 @@ func TestTheProxyAdmitsOnlyWhileTheMemberServesAndClosesSessionsAfter(t *testing
 	if _, err := io.ReadFull(client, buffer); err != nil || string(buffer) != "ping" {
 		t.Fatalf("echo through the admitting proxy = %q, %v", buffer, err)
 	}
-	admit = false
+	admit.Store(false)
 	_ = client.SetReadDeadline(time.Now().Add(2 * time.Second))
 	if _, err := client.Read(buffer); err == nil {
 		t.Fatal("a session must be closed once the member stops serving")
@@ -459,5 +461,134 @@ func TestReportsTellWhetherACopyCouldTakeOverAndReplicatesSynchronously(t *testi
 	h.lease.observed.State.Holder = testNodeA
 	if report = h.manager.Reports()[0]; report.Eligible {
 		t.Fatalf("the holder is not evaluated as a copy: %+v", report)
+	}
+}
+
+// promotedPrimary is a manual pair whose member A was assigned and promoted
+// (Gateway's assignment, the engine running writable).
+func promotedPrimary(t *testing.T) *harness {
+	t.Helper()
+	h := newHarness(t, ModeManual)
+	h.engine.container.Running = true
+	h.engine.status = EngineStatus{Answering: true}
+	if err := h.manager.AssignPrimary(testSet, signed(testMemberA, 1)); err != nil {
+		t.Fatal(err)
+	}
+	h.step(5, time.Second)
+	if log := h.calls.take(); indexOf(log, "engine.promote") < 0 {
+		t.Fatalf("the assigned primary must promote: %v", log)
+	}
+	return h
+}
+
+// The self-fence counts from the last command that arrived from Gateway, not
+// from a control session that is dead without knowing it yet: it fires at
+// its 30 s bound, inside Gateway's 45 s rule.
+func TestManualPrimarySelfFencesThirtySecondsAfterTheLastGatewayCommand(t *testing.T) {
+	h := promotedPrimary(t)
+	lastCommand := h.clock.now
+	h.manager.deps.GatewayContactAt = func() time.Duration { return lastCommand }
+	h.gateway = true // the session still looks up
+	h.step(28, time.Second)
+	if log := h.calls.take(); indexOf(log, "engine.kill") >= 0 {
+		t.Fatalf("no fence before the bound: %v", log)
+	}
+	h.step(3, time.Second)
+	if log := h.calls.take(); indexOf(log, "engine.kill") < 0 {
+		t.Fatalf("the primary must fence at 30 s after the last command: %v", log)
+	}
+	if fencedAt := h.clock.now - lastCommand; fencedAt > selfFenceAfter+2*time.Second {
+		t.Fatalf("fenced %v after the last command", fencedAt)
+	}
+}
+
+// A primary that self-fenced never promotes itself when contact returns: it
+// stays read-only until Gateway or the peer confirmed the newest assignment
+// still names it, and a newer one naming the copy keeps it a copy.
+func TestASelfFencedPrimaryWaitsForAConfirmedAssignment(t *testing.T) {
+	h := promotedPrimary(t)
+	h.gateway = false
+	h.step(35, time.Second)
+	if log := h.calls.take(); indexOf(log, "engine.kill") < 0 {
+		t.Fatalf("the isolated primary must fence: %v", log)
+	}
+	// Gateway reaches the node again, without an assignment yet.
+	h.manager.deps.GatewayContactAt = func() time.Duration { return h.clock.now }
+	h.step(20, time.Second)
+	if log := h.calls.take(); indexOf(log, "engine.promote") >= 0 {
+		t.Fatalf("a fenced primary must not promote on contact alone: %v", log)
+	}
+	// Gateway sends the current assignment again: it names A, A serves again.
+	if err := h.manager.AssignPrimary(testSet, signed(testMemberA, 1)); err != nil {
+		t.Fatal(err)
+	}
+	h.step(5, time.Second)
+	if log := h.calls.take(); indexOf(log, "engine.promote") < 0 {
+		t.Fatalf("a confirmed assignment ends the fence: %v", log)
+	}
+}
+
+func TestASelfFencedPrimaryStaysACopyUnderANewerAssignment(t *testing.T) {
+	h := promotedPrimary(t)
+	h.gateway = false
+	h.step(35, time.Second)
+	h.calls.take()
+	h.manager.deps.GatewayContactAt = func() time.Duration { return h.clock.now }
+	if err := h.manager.AssignPrimary(testSet, signed(testMemberB, 2)); err != nil {
+		t.Fatal(err)
+	}
+	h.step(20, time.Second)
+	if log := h.calls.take(); indexOf(log, "engine.promote") >= 0 {
+		t.Fatalf("the copy was promoted meanwhile: the old primary must stay a copy: %v", log)
+	}
+}
+
+// After a restart the stored assignment is not enough to promote: the member
+// waits for Gateway or its peer.
+func TestARestartedManualPrimaryPromotesOnlyAfterConfirmation(t *testing.T) {
+	h := promotedPrimary(t)
+	h.engine.status = EngineStatus{Answering: true} // the engine came back read-only
+	reloaded, err := NewManager(h.manager.deps, h.manager.store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.manager = reloaded
+	h.step(10, time.Second)
+	if log := h.calls.take(); indexOf(log, "engine.promote") >= 0 {
+		t.Fatalf("a restarted member must not promote from its stored assignment alone: %v", log)
+	}
+	h.peer = peerWith(signed(testMemberA, 1))
+	h.step(10, time.Second)
+	if log := h.calls.take(); indexOf(log, "engine.promote") < 0 {
+		t.Fatalf("the peer's confirmation lets it promote: %v", log)
+	}
+}
+
+// Forgetting a member (lift, removal, set deleted) lets the node release what
+// it kept for the set, every published port included.
+func TestForgetReleasesTheSet(t *testing.T) {
+	h := newHarness(t, ModeAutomatic)
+	var released []string
+	h.manager.deps.Forgotten = func(setID string) { released = append(released, setID) }
+	if err := h.manager.AttachProxyPort(testSet, "native", "127.0.0.1:0", func(context.Context) (net.Conn, error) {
+		return nil, io.EOF
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.manager.Forget(testSet); err != nil {
+		t.Fatal(err)
+	}
+	if len(released) != 1 || released[0] != testSet {
+		t.Fatalf("released = %v", released)
+	}
+	h.manager.mu.Lock()
+	left := len(h.manager.proxies)
+	h.manager.mu.Unlock()
+	if left != 0 {
+		t.Fatalf("%d published ports of the forgotten set remain", left)
+	}
+	// Idempotent: a set the node does not know is released again.
+	if err := h.manager.Forget(testSet); err != nil || len(released) != 2 {
+		t.Fatalf("a repeated forget = %v, released %v", err, released)
 	}
 }

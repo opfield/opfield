@@ -115,6 +115,15 @@ type Host interface {
 	Logger() *slog.Logger
 }
 
+// ACLMarker is a host that remembers, across restarts, that this member
+// mirrored the primary's ACL list once (Valkey saves the mirrored list to its
+// ACL file, so it survives the restart too). Without it a set whose members
+// all restarted had no eligible member and no holder.
+type ACLMarker interface {
+	ACLMirrored() bool
+	MarkACLMirrored() error
+}
+
 // Engine is one member's Valkey engine.
 type Engine struct {
 	host Host
@@ -130,6 +139,9 @@ type Engine struct {
 	gateOpen  bool
 	aclSynced time.Time
 	aclErr    string
+	// aclMirroredBefore: an earlier process of this member mirrored the ACL
+	// list (ACLMarker).
+	aclMirroredBefore bool
 	// noCopiesSince: the primary had no online copy since then (zero: it has one).
 	noCopiesSince time.Time
 	lastFloorCert time.Duration
@@ -149,6 +161,9 @@ func New(host Host) (*Engine, error) {
 		logger = slog.Default()
 	}
 	e := &Engine{host: host, log: logger.With("set_id", cfg.SetID, "member_id", cfg.MemberID)}
+	if marker, ok := host.(ACLMarker); ok {
+		e.aclMirroredBefore = marker.ACLMirrored()
+	}
 	host.SetLocalPrimary(e.dialLocalPrimary)
 	host.Expose(Exposures())
 	return e, nil
@@ -248,7 +263,7 @@ func (e *Engine) Status(ctx context.Context) (memberha.EngineStatus, error) {
 	} else {
 		e.replicas, e.gateOpen, e.noCopiesSince = nil, false, time.Time{}
 	}
-	aclSynced := !e.aclSynced.IsZero()
+	aclSynced := !e.aclSynced.IsZero() || e.aclMirroredBefore
 	e.mu.Unlock()
 	status.Position["role"] = role
 	status.Position["replid"] = info["master_replid"]
@@ -345,7 +360,10 @@ func (e *Engine) Eligible(input memberha.EligibilityInput, _ memberha.EngineStat
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.aclSynced.IsZero() {
+	// The previous holder's ACL list is the set's (it was the primary); a member
+	// that mirrored it in an earlier process kept it in its ACL file.
+	previousHolder := input.PreviousHolder != "" && input.PreviousHolder == e.host.Config().NodeID && !input.PreviousReleased
+	if e.aclSynced.IsZero() && !e.aclMirroredBefore && !previousHolder {
 		return false, "acl_not_mirrored"
 	}
 	if value.ReplID != "" && e.replID != value.ReplID && e.replID2 != value.ReplID {
@@ -554,8 +572,14 @@ func (e *Engine) MirrorACL(ctx context.Context) error {
 		}
 	}
 	e.mu.Lock()
+	first := e.aclSynced.IsZero() && !e.aclMirroredBefore
 	e.aclSynced = time.Now()
 	e.mu.Unlock()
+	if marker, ok := e.host.(ACLMarker); ok && first {
+		if err := marker.MarkACLMirrored(); err != nil {
+			e.log.Warn("could not remember that the Valkey ACL list was mirrored", "error", err)
+		}
+	}
 	return nil
 }
 

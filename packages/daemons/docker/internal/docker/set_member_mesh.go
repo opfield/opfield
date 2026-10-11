@@ -90,6 +90,9 @@ type setMesh struct {
 	// warned: routes (set id + alias) whose failed open was logged as a
 	// warning; later failures of the same route log at info.
 	warned map[string]struct{}
+	// bindErrors: sets whose alias listener could not bind (the member cannot
+	// reach its peers; its report says so).
+	bindErrors map[string]string
 }
 
 // setMesh is the plugin's member mesh.
@@ -155,6 +158,11 @@ func (s *setMesh) Ensure(ctx context.Context, setID string) (string, error) {
 		subnet, err := allocateLinkSubnet(pool, used)
 		if err != nil {
 			return "", err
+		}
+		if s.boundIn(subnet) {
+			// A listener of an earlier set still holds an address of it.
+			used = append(used, subnet)
+			continue
 		}
 		base := subnet.Addr().As4()
 		base[3]++
@@ -246,12 +254,84 @@ func (s *setMesh) Gateway(setID string) (netip.Addr, bool) {
 	return s.sets[setID].gateway, true
 }
 
+// boundIn reports whether a mesh listener is bound to an address of subnet.
+func (s *setMesh) boundIn(subnet netip.Prefix) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, entry := range s.sets {
+		for _, l := range entry.listeners {
+			if subnet.Contains(l.address) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// BindError is why a listener of the set's member mesh could not bind (""
+// when every exposed alias listens or none was tried yet).
+func (s *setMesh) BindError(setID string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.bindErrors[setID]
+}
+
+func (s *setMesh) setBindError(setID, message string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if message == "" || s.sets[setID] == nil {
+		delete(s.bindErrors, setID)
+		return
+	}
+	if s.bindErrors == nil {
+		s.bindErrors = map[string]string{}
+	}
+	s.bindErrors[setID] = message
+}
+
+// releaseOrphans releases the member mesh of every set network on this node
+// whose set has no member here and no database or storage record (a set
+// deleted while the daemon was down, or by an older daemon that kept it).
+func (s *setMesh) releaseOrphans(ctx context.Context, members func() []string) {
+	if s.plugin == nil || s.plugin.client == nil {
+		return
+	}
+	networks, err := s.plugin.client.cli.NetworkList(ctx, mobyclient.NetworkListOptions{
+		Filters: mobyclient.Filters{}.Add("label", "wiolett.gateway.managed="+setMeshNetworkLabel),
+	})
+	if err != nil {
+		s.plugin.logger.Warn("availability set networks could not be listed", "error", err)
+		return
+	}
+	keep := map[string]bool{}
+	for _, id := range members() {
+		keep[setMeshNetworkName(id)] = true
+	}
+	inUse, known := s.plugin.availabilitySetsOfRecords()
+	if !known {
+		// Without the records it cannot tell which networks a member still needs.
+		return
+	}
+	for _, id := range inUse {
+		keep[setMeshNetworkName(id)] = true
+	}
+	for _, item := range networks.Items {
+		setID := item.Labels["wiolett.gateway.availability-set"]
+		if keep[item.Name] || !uuidLike(setID) || setMeshNetworkName(setID) != item.Name {
+			continue
+		}
+		s.plugin.logger.Info("releasing the member mesh of an availability set this node no longer belongs to", "set_id", setID)
+		s.Release(ctx, setID)
+	}
+}
+
 // Release closes the set's listeners and connections and removes its network
-// (best effort: containers still attached keep it).
+// (best effort: containers still attached keep it). Idempotent.
 func (s *setMesh) Release(ctx context.Context, setID string) {
 	s.mu.Lock()
 	entry := s.sets[setID]
 	delete(s.sets, setID)
+	delete(s.bindErrors, setID)
 	s.mu.Unlock()
 	if entry != nil {
 		for _, l := range entry.listeners {
@@ -293,7 +373,21 @@ func (s *setMesh) refresh(setID string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), setMeshInspectWait)
 	defer cancel()
 	gateway, exists, err := s.inspect(ctx, setMeshNetworkName(setID))
-	if err != nil || !exists {
+	if err != nil {
+		return false
+	}
+	if !exists {
+		// The network is gone: its listeners must not keep its addresses (a
+		// later set's network may get the same subnet).
+		s.mu.Lock()
+		if entry := s.sets[setID]; entry != nil {
+			for key, l := range entry.listeners {
+				_ = l.listener.Close()
+				delete(entry.listeners, key)
+			}
+			entry.gateway = netip.Addr{}
+		}
+		s.mu.Unlock()
 		return false
 	}
 	s.mu.Lock()
@@ -352,10 +446,12 @@ func (s *setMesh) reconcile() {
 			}
 		}
 		s.mu.Unlock()
+		failed := ""
 		for _, spec := range missing {
 			address := net.JoinHostPort(gateway.String(), strconv.Itoa(int(spec.port)))
 			listener, err := s.listen(address)
 			if err != nil {
+				failed = fmt.Sprintf("the member mesh listener for %s could not bind %s: %v", spec.alias, address, err)
 				if s.plugin != nil && s.plugin.logger != nil {
 					s.plugin.logger.Warn("availability set mesh listener could not bind; retrying", "set_id", setID,
 						"alias", spec.alias, "address", address, "error", err)
@@ -374,6 +470,7 @@ func (s *setMesh) reconcile() {
 			s.mu.Unlock()
 			go netaccept.Serve(listener, nil, func(conn net.Conn) { s.serve(setID, spec, conn) })
 		}
+		s.setBindError(setID, failed)
 	}
 }
 
@@ -515,4 +612,43 @@ func uuidLike(value string) bool {
 		}
 	}
 	return true
+}
+
+// availabilitySetsOfRecords are the sets the node's database and storage
+// records belong to (a member being created has its record before the runtime
+// configures it).
+func (p *DockerPlugin) availabilitySetsOfRecords() ([]string, bool) {
+	var out []string
+	if p.databaseManager == nil && p.storageManager == nil {
+		return nil, false
+	}
+	if m := p.databaseManager; m != nil {
+		m.mu.Lock()
+		records, unreadable, err := m.records()
+		m.mu.Unlock()
+		if err != nil || len(unreadable) > 0 {
+			return nil, false
+		}
+		for _, record := range records {
+			for _, id := range []string{record.AvailabilitySetID, record.ClickhouseAvailabilitySetID} {
+				if id != "" {
+					out = append(out, id)
+				}
+			}
+		}
+	}
+	if m := p.storageManager; m != nil {
+		m.mu.Lock()
+		records, unreadable, err := m.records()
+		m.mu.Unlock()
+		if err != nil || len(unreadable) > 0 {
+			return nil, false
+		}
+		for _, record := range records {
+			if record.Set != nil && record.Set.SetID != "" {
+				out = append(out, record.Set.SetID)
+			}
+		}
+	}
+	return out, true
 }

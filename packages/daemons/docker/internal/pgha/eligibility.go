@@ -23,6 +23,7 @@ const (
 	ReasonLagAboveBound       = "lag_above_bound"
 	ReasonPreviousDataReplace = "previous_holder_data_replaced"
 	ReasonRebuildNeeded       = "rebuild_needed"
+	ReasonOtherCluster        = "other_database_cluster"
 )
 
 // viewData is one snapshot of the member for the eligibility callback.
@@ -39,6 +40,7 @@ type viewData struct {
 	dataEpoch     uint64
 	heldDataEpoch uint64
 	needsRebuild  bool
+	systemID      string
 }
 
 func (e *Engine) viewLocked() viewData {
@@ -47,7 +49,7 @@ func (e *Engine) viewLocked() viewData {
 		config: e.cfg, inRecovery: st.InRecovery, timeline: st.Timeline, position: st.Position(), replay: st.ReplayLSN,
 		flush: st.FlushLSN, progress: e.standby.progress, history: append([]TimelineEntry(nil), e.obs.history...),
 		historyOK: e.obs.historyOK, dataEpoch: e.state.DataEpoch, heldDataEpoch: e.state.HeldDataEpoch,
-		needsRebuild: e.state.NeedsRebuild,
+		needsRebuild: e.state.NeedsRebuild, systemID: st.SystemID,
 	}
 }
 
@@ -67,6 +69,11 @@ func (v viewData) evaluate(in memberha.EligibilityInput) (bool, string) {
 	value, err := DecodeValue(in.Adopted.Value)
 	if err != nil {
 		return false, ReasonUndecodable
+	}
+	if value.SystemID != "" && v.systemID != "" && value.SystemID != v.systemID {
+		// Another database cluster (a fresh initdb): it holds none of the
+		// primary's data and is rebuilt from it.
+		return false, ReasonOtherCluster
 	}
 	memberID := v.config.MemberID
 	previousReason := ""

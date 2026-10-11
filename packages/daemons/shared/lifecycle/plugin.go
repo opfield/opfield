@@ -122,6 +122,13 @@ type RegistrationRefreshPlugin interface {
 	RegistrationChanged() <-chan struct{}
 }
 
+// GatewayContactPlugin is implemented by plugins that track when Gateway last reached the daemon: every command
+// received on the control stream (Gateway asks the nodes of manual availability pairs for a report every few
+// seconds) is a contact; a manual pair's primary self-fences when it had none for its bound.
+type GatewayContactPlugin interface {
+	NoteGatewayContact()
+}
+
 // HealthRefreshPlugin is implemented by plugins whose health report can change between the periodic reports in a
 // way the gateway should see at once (a container that exited on its own): each signal sends a report now.
 type HealthRefreshPlugin interface {

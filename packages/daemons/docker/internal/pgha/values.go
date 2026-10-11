@@ -19,7 +19,7 @@ func (e *Engine) BootstrapValue(memberha.EngineStatus) ([]byte, error) {
 		return nil, errNotObserved
 	}
 	parent, switchLSN := parentOf(e.obs.history)
-	value := Value{Timeline: st.Timeline, ParentTimeline: parent, SwitchLSN: switchLSN, Durability: e.cfg.Durability}
+	value := Value{Timeline: st.Timeline, ParentTimeline: parent, SwitchLSN: switchLSN, Durability: e.cfg.Durability, SystemID: st.SystemID}
 	if value.Synchronous() {
 		value.Degraded = len(e.cfg.ActiveOthers()) > 0
 	} else {
@@ -119,6 +119,9 @@ func (e *Engine) PromotedValue(certified []byte, _ memberha.EngineStatus) ([]byt
 	next.Timeline, next.ParentTimeline, next.SwitchLSN = st.Timeline, parent, switchLSN
 	next.SyncSet = without(value.SyncSet, e.cfg.MemberID)
 	next.Final = nil
+	if next.SystemID == "" {
+		next.SystemID = st.SystemID
+	}
 	if next.Synchronous() {
 		next.Degraded = len(next.SyncSet) == 0 && len(e.cfg.ActiveOthers()) > 0
 	} else {

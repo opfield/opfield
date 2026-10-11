@@ -197,3 +197,55 @@ func TestDialPeerOnlyWhileThePrimary(t *testing.T) {
 		t.Fatal("unknown port")
 	}
 }
+
+type markerHost struct {
+	stubHost
+	mirrored bool
+	marks    int
+}
+
+func (h *markerHost) ACLMirrored() bool { return h.mirrored }
+func (h *markerHost) MarkACLMirrored() error {
+	h.mirrored = true
+	h.marks++
+	return nil
+}
+
+// After every member restarted, a set still gets a holder: the previous holder
+// holds the set's ACL list, and a copy that mirrored it in an earlier process
+// kept it in its ACL file.
+func TestARestartedSetStillHasAnEligibleMember(t *testing.T) {
+	cfg := memberha.Config{SetID: testSet, MemberID: testSelf, NodeID: "node-a", Engine: "valkey",
+		Mode: memberha.ModeAutomatic, LeasePolicyID: testPolicy, MaxLagBytes: 1000,
+		EngineConfig: []byte(`{"replicationPassword":"0123456789abcdef0123"}`),
+		Members:      []memberha.Peer{{MemberID: testSelf, NodeID: "node-a"}, {MemberID: testPeer, NodeID: "node-b", MemberIndex: 1}}}
+	value := Value{ReplID: "new", OffsetFloor: 5000}
+	in := func(previous string) memberha.EligibilityInput {
+		return memberha.EligibilityInput{Adopted: memberha.HolderState{Value: certified(t, value)}, PreviousHolder: previous}
+	}
+	prime := func(engine *Engine) {
+		engine.mu.Lock()
+		engine.role, engine.replID, engine.offset = "slave", "new", 5000
+		engine.mu.Unlock()
+	}
+	fresh := &markerHost{stubHost: stubHost{cfg: cfg}}
+	engine, err := New(fresh)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prime(engine)
+	if ok, reason := engine.Eligible(in("node-b"), memberha.EngineStatus{}); ok || reason != "acl_not_mirrored" {
+		t.Fatalf("a copy that never mirrored: %v %s", ok, reason)
+	}
+	if ok, reason := engine.Eligible(in("node-a"), memberha.EngineStatus{}); !ok {
+		t.Fatalf("the previous holder holds the set's ACL list: %s", reason)
+	}
+	restarted, err := New(&markerHost{stubHost: stubHost{cfg: cfg}, mirrored: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	prime(restarted)
+	if ok, reason := restarted.Eligible(in("node-b"), memberha.EngineStatus{}); !ok {
+		t.Fatalf("a copy that mirrored before its restart: %s", reason)
+	}
+}

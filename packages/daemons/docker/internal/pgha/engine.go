@@ -97,6 +97,9 @@ type holderRuntime struct {
 const (
 	divergenceRewind  = "diverged"
 	divergenceWALGone = "wal_removed"
+	// divergenceOtherCluster: the copy's cluster is not a copy of the
+	// primary's (another system identifier); only a rebuild makes it one.
+	divergenceOtherCluster = "other_cluster"
 )
 
 var (
@@ -257,13 +260,16 @@ var (
 		"is not in this server's history",
 	}
 	walRemovedMarker = "has already been removed"
-	diskFullMarker   = "No space left on device"
+	// walreceiver.c: the primary belongs to another database cluster.
+	otherClusterMarker = "database system identifier differs"
+	diskFullMarker     = "No space left on device"
 )
 
 type logMarkers struct {
 	cancelledWaits int
 	diverged       bool
 	walRemoved     bool
+	otherCluster   bool
 	diskFull       bool
 	detail         string
 }
@@ -278,6 +284,10 @@ func (l *logMarkers) scan(text string) {
 			l.cancelledWaits++
 			return
 		}
+	}
+	if strings.Contains(text, otherClusterMarker) {
+		l.otherCluster, l.detail = true, trimLog(text)
+		return
 	}
 	for _, marker := range divergenceMarkers {
 		if strings.Contains(text, marker) {
@@ -355,6 +365,9 @@ func (e *Engine) absorbLocked(s sample, markers logMarkers, now time.Duration) {
 	if markers.walRemoved {
 		e.standby.divergence, e.standby.divergenceDetail = divergenceWALGone, markers.detail
 	}
+	if markers.otherCluster {
+		e.standby.divergence, e.standby.divergenceDetail = divergenceOtherCluster, markers.detail
+	}
 	if markers.diskFull {
 		e.standby.diskFullAt, e.standby.diskFullDetail = now, markers.detail
 	}
@@ -369,7 +382,7 @@ func (e *Engine) absorbLocked(s sample, markers logMarkers, now time.Duration) {
 		// shared part of the old timeline for a moment each time before the
 		// fork is found again: a "streaming" sample whose log still reports
 		// the divergence does not reset the rejoin clock.
-		if st.ReceiverStatus == "streaming" && !markers.diverged && !markers.walRemoved {
+		if st.ReceiverStatus == "streaming" && !markers.diverged && !markers.walRemoved && !markers.otherCluster {
 			e.standby.notStreamingSince = 0
 			e.standby.divergence, e.standby.divergenceDetail = "", ""
 		} else if e.standby.notStreamingSince == 0 {
@@ -403,6 +416,11 @@ func (e *Engine) engineStatusLocked(now time.Duration) memberha.EngineStatus {
 		return out
 	}
 	out.Position = map[string]string{"timeline": strconv.FormatUint(uint64(st.Timeline), 10)}
+	if st.SystemID != "" {
+		// Gateway compares the members' clusters (a planned switchover never
+		// promotes another cluster).
+		out.Position["systemId"] = st.SystemID
+	}
 	if st.InRecovery {
 		position := st.Position()
 		out.Position["lsn"] = position.String()
