@@ -70,7 +70,10 @@ export async function availabilityOverviews(
       ? await db
           .select({ connectionId: managedDatabaseInstances.databaseConnectionId, set: managedAvailabilitySets })
           .from(managedAvailabilitySets)
-          .innerJoin(managedDatabaseInstances, eq(managedDatabaseInstances.id, managedAvailabilitySets.managedDatabaseId))
+          .innerJoin(
+            managedDatabaseInstances,
+            eq(managedDatabaseInstances.id, managedAvailabilitySets.managedDatabaseId)
+          )
           .where(inArray(managedDatabaseInstances.databaseConnectionId, [...connectionIds]))
       : await db
           .select({ connectionId: managedStorageClusters.objectStorageConnectionId, set: managedAvailabilitySets })

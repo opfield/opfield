@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { availabilityMemberHealth } from './app-availability-overview.js';
 import {
   combineHealth,
   composeHealth,
@@ -7,7 +8,6 @@ import {
   healthFromStatus,
   withAvailabilityState,
 } from './app-health.service.js';
-import { availabilityMemberHealth } from './app-availability-overview.js';
 
 describe('app health aggregation', () => {
   it('combines member states: failing beats degraded beats healthy, empty is healthy', () => {
