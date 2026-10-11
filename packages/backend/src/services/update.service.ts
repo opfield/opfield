@@ -218,7 +218,10 @@ export interface RelayPoolUpdateRuntime {
   dispatchWorkerUpdate(nodeId: string, artifact: TrustedDaemonUpdateArtifact): Promise<void>;
   prepareSupervisorUpdate(version: string, arch: string): Promise<TrustedDaemonUpdateArtifact>;
   /** Resolves once the node accepted the update command; `failed` tells when the command then answers failure. */
-  dispatchSupervisorUpdate(nodeId: string, artifact: TrustedDaemonUpdateArtifact): Promise<DispatchedUpdate | void>;
+  dispatchSupervisorUpdate(
+    nodeId: string,
+    artifact: TrustedDaemonUpdateArtifact
+  ): Promise<DispatchedUpdate | undefined>;
 }
 
 /** An update command the node accepted. */
