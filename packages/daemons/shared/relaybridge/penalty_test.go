@@ -264,3 +264,88 @@ func TestHeldOpensDoNotLengthenOrEndTheDemotion(t *testing.T) {
 		t.Fatalf("held back after the demotion ran out: %v", err)
 	}
 }
+
+// Stand 2.12 N-1 as a model: a new assignment generation re-paths 100 streams over ten routes of three classes while
+// the local relay reserves its capacity for databases, the other relay does not serve the routes under the new
+// generation yet, and new connections retry every 150 ms for 3 s. Only the proxy class was learned before; the registry
+// routes and the database route are learned from their first answer. The demoted relay takes about one open per second
+// per class it refuses, plus the first open of each route, and every database open goes and is admitted.
+func TestGenerationChangeWithManyMovingStreamsStaysPaced(t *testing.T) {
+	start := time.Unix(1000, 0)
+	now := start
+	penalties := &RelayPenalties{now: func() time.Time { return now }}
+	classOf := func(route int) string {
+		switch {
+		case route == 9:
+			return "database"
+		case route >= 6:
+			return "registry"
+		}
+		return "proxy"
+	}
+	routeKey := func(route int) string { return fmt.Sprintf("owner/route-%d", route) }
+	answer := func(route int) error {
+		if classOf(route) == "database" {
+			return nil
+		}
+		return status.Error(codes.ResourceExhausted, "relay adaptive admission rejected "+classOf(route)+" tunnel: database_reserve")
+	}
+	penalties.Opened(nil, "relay-local", routeKey(0), answer(0))
+
+	type mover struct {
+		route   int
+		next    time.Time
+		backoff time.Duration
+		until   time.Time
+	}
+	var movers []*mover
+	for stream := range 100 {
+		// Re-paths spread over 5 s, then backoff 250 ms doubling to 2 s within the planned budget.
+		movers = append(movers, &mover{route: stream % 10, next: start.Add(time.Duration(stream) * 50 * time.Millisecond),
+			backoff: 250 * time.Millisecond, until: start.Add(30 * time.Second)})
+	}
+	for connection := range 420 {
+		// A new connection every 50 ms on a proxy route, retried every 150 ms for 3 s.
+		opened := start.Add(time.Duration(connection) * 50 * time.Millisecond)
+		movers = append(movers, &mover{route: 1 + connection%5, next: opened, until: opened.Add(3 * time.Second)})
+	}
+	reached := map[string]int{}
+	databaseHeld := 0
+	end := start.Add(21 * time.Second)
+	for ; now.Before(end); now = now.Add(10 * time.Millisecond) {
+		for _, m := range movers {
+			if now.Before(m.next) || !now.Before(m.until) {
+				continue
+			}
+			route := routeKey(m.route)
+			if err := penalties.HoldDemoted("relay-local", route); err != nil {
+				if classOf(m.route) == "database" {
+					databaseHeld++
+				}
+				penalties.Opened(nil, "relay-local", route, err)
+			} else {
+				reached[classOf(m.route)]++
+				penalties.Opened(nil, "relay-local", route, answer(m.route))
+			}
+			if m.backoff == 0 {
+				m.next = now.Add(150 * time.Millisecond)
+				continue
+			}
+			m.next = now.Add(m.backoff)
+			m.backoff = min(m.backoff*2, 2*time.Second)
+		}
+	}
+	if databaseHeld != 0 {
+		t.Fatalf("%d database opens were held back", databaseHeld)
+	}
+	if reached["database"] == 0 {
+		t.Fatal("no database open reached the relay that admits them")
+	}
+	// Each class: the first open of each route not learned yet (proxy routes 1-5, registry 6-8), then one a second.
+	if reached["proxy"] > 5+22 || reached["registry"] > 3+22 {
+		t.Fatalf("the demoted relay took %d proxy and %d registry opens in 21 s", reached["proxy"], reached["registry"])
+	}
+	if !penalties.Demoted("relay-local") {
+		t.Fatal("database opens or the generation change ended the demotion")
+	}
+}

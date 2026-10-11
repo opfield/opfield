@@ -7,6 +7,9 @@
  *   the workload behind the endpoint serves is decided by the lease at run time and never by placement: a standby
  *   member refuses every probe until a takeover, and failing its placement for that would keep the pool degraded for
  *   as long as it stands by. A relay without lease coordination is the exception: it can never admit lease traffic.
+ *   A refusal for the relay's admission pressure or a session limit is decided later still, after the target's
+ *   registration: it proves the path as well, and a load that passes by itself must not fail the placement (stand 2.12
+ *   N-1).
  * - A transient condition proves nothing about the placement either: the daemon was busy, a node or the local relay
  *   was briefly unreachable, or a Gateway restart interrupted the preparation. Such a generation is rolled back as
  *   not attempted and retried shortly, instead of being recorded as a failure.
@@ -18,10 +21,11 @@ export function relayPoolErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-const GATED_REFUSAL = /availability lease gate closed|target endpoint is dormant/i;
+const GATED_REFUSAL =
+  /availability lease gate closed|target endpoint is dormant|relay adaptive admission rejected \w+ tunnel: (hard_pressure|database_reserve|fair_share)|relay (route|endpoint) session capacity reached/i;
 const LEASE_COORDINATION_MISSING = /lease gate closed: lease coordination is not running/i;
 
-/** A source probe refused only because the Availability lease holds the member's traffic back. */
+/** A source probe refused only after the relay authorized its path: the Availability lease gate, pressure, a limit. */
 export function isGatedProbeRefusal(error: unknown): boolean {
   const message = relayPoolErrorMessage(error);
   return GATED_REFUSAL.test(message) && !LEASE_COORDINATION_MISSING.test(message);
