@@ -18,6 +18,7 @@ import { DockerComposeService } from '@/modules/docker/compose/compose.service.j
 import { ContainerLinksService } from '@/modules/docker/container-links/container-links.service.js';
 import { DockerManagementService } from '@/modules/docker/docker.service.js';
 import { DockerDeploymentService } from '@/modules/docker/docker-deployment.service.js';
+import { DockerSnapshotReconciler } from '@/modules/docker/docker-snapshot-reconciler.service.js';
 import { ProxyService } from '@/modules/proxy/proxy.service.js';
 import { ProxySecureLinkService } from '@/modules/proxy/proxy-secure-link.service.js';
 import { ManagedStorageService } from '@/modules/storage/managed-storage.service.js';
@@ -454,8 +455,9 @@ export class DefaultAppIncidentActions implements AppIncidentActions {
    */
   private async isolateContainer(item: AppIncidentItem, userId: string | null): Promise<IncidentActionOutcome> {
     const ref = item.ref as { nodeId: string; name: string };
-    const state = await this.containerState(ref.nodeId, ref.name);
-    if (state === null) return { status: 'gone' };
+    const status = await this.containerStatus(ref.nodeId, ref.name);
+    if (status === null) return { status: 'gone' };
+    const { state } = status;
     try {
       const result = await this.network.isolate(ref.nodeId, ref.name);
       const previous = item.priorState as { endpoints?: IsolatedEndpoint[] } | null;
@@ -463,12 +465,15 @@ export class DefaultAppIncidentActions implements AppIncidentActions {
       for (const endpoint of result.endpoints) {
         if (!endpoints.some((known) => known.networkName === endpoint.networkName)) endpoints.push(endpoint);
       }
+      await this.refreshSnapshot(ref.nodeId, [ref.name, status.id]);
       return { status: 'applied', priorState: { networkMode: result.networkMode, endpoints } };
     } catch (error) {
       if ((error as { code?: string })?.code !== 'HOST_NETWORK') throw error;
       const wasRunning = (item.priorState as { wasRunning?: boolean } | null)?.wasRunning ?? state === 'running';
-      if (state === 'running')
+      if (state === 'running') {
         await this.docker().stopContainer(ref.nodeId, ref.name, undefined, userId ?? SYSTEM_ACTOR);
+        await this.refreshSnapshot(ref.nodeId, [ref.name, status.id]);
+      }
       return { status: 'applied', priorState: { hostNetwork: true, wasRunning } };
     }
   }
@@ -486,15 +491,18 @@ export class DefaultAppIncidentActions implements AppIncidentActions {
       wasRunning?: boolean;
       endpoints?: IsolatedEndpoint[];
     };
-    const state = await this.containerState(ref.nodeId, ref.name);
-    if (state === null) return { status: 'gone' };
+    const status = await this.containerStatus(ref.nodeId, ref.name);
+    if (status === null) return { status: 'gone' };
     const notes: string[] = [];
     if (prior.hostNetwork) {
-      if (prior.wasRunning && state !== 'running') {
+      if (prior.wasRunning && status.state !== 'running') {
         await this.docker().startContainer(ref.nodeId, ref.name, userId ?? SYSTEM_ACTOR, { appIncident: true });
+        await this.refreshSnapshot(ref.nodeId, [ref.name, status.id]);
       }
     } else if ((prior.endpoints ?? []).length > 0) {
       const result = await this.network.restore(ref.nodeId, ref.name, prior.endpoints!);
+      // Read back before anything can fail below: the networks a partial restore put back show at once as well.
+      await this.refreshSnapshot(ref.nodeId, [ref.name, status.id]);
       const { gone, failed } = splitGoneNetworks(result);
       if (failed.length > 0) {
         throw new Error(
@@ -535,18 +543,38 @@ export class DefaultAppIncidentActions implements AppIncidentActions {
     return [`Removed ${left.join(', ')} left by removed bindings`];
   }
 
+  /**
+   * Reads a container back into Gateway's snapshot now, as a lifecycle request does before it answers: the container
+   * list and its detail (under its name and runtime ID, the keys pages read it by; open pages get the
+   * docker.snapshot.changed event) show what isolation or its release did at once, not after the periodic reconcile.
+   * A failed read is left to that reconcile.
+   */
+  private async refreshSnapshot(nodeId: string, keys: readonly string[]): Promise<void> {
+    try {
+      await this.resolve(DockerSnapshotReconciler).refreshContainerNow(nodeId, keys);
+    } catch {
+      // The periodic reconcile reads it back.
+    }
+  }
+
   /** `running`, another Docker state, or null when the container does not exist (asked live, not from a snapshot). */
   private async containerState(nodeId: string, name: string): Promise<string | null> {
+    return (await this.containerStatus(nodeId, name))?.state ?? null;
+  }
+
+  /** The container's state (as `containerState`) and runtime ID, or null when it does not exist. */
+  private async containerStatus(nodeId: string, name: string): Promise<{ state: string; id: string } | null> {
     try {
       const data = (await this.docker().inspectContainer(nodeId, name)) as Record<string, any> | null;
       if (!data) return null;
+      const id = String(data.Id ?? data.id ?? '');
       const state = data.State ?? data.state;
-      if (typeof state === 'string') return state.toLowerCase();
+      if (typeof state === 'string') return { state: state.toLowerCase(), id };
       if (state && typeof state === 'object') {
-        if (state.Running === true || state.running === true) return 'running';
-        return String(state.Status ?? state.status ?? 'exited').toLowerCase();
+        if (state.Running === true || state.running === true) return { state: 'running', id };
+        return { state: String(state.Status ?? state.status ?? 'exited').toLowerCase(), id };
       }
-      return 'exited';
+      return { state: 'exited', id };
     } catch (error) {
       if (isNotFound(error) || /no such container|not found/i.test(String((error as Error)?.message ?? ''))) {
         return null;

@@ -3,6 +3,7 @@ import { container } from '@/container.js';
 import type { AppIncidentItem } from '@/db/schema/index.js';
 import { ManagedDatabaseBindingService } from '@/modules/databases/managed-database-bindings.service.js';
 import { DockerManagementService } from '@/modules/docker/docker.service.js';
+import { DockerSnapshotReconciler } from '@/modules/docker/docker-snapshot-reconciler.service.js';
 import { DefaultAppIncidentActions, networkRestoreNotes, splitGoneNetworks } from './app-incident-actions.js';
 import type { AppIncidentConsumerEnv } from './app-incident-consumer-env.js';
 import type { NetworkRestoreResult } from './app-network-isolation.js';
@@ -47,14 +48,22 @@ function setup(
   const docker = {
     inspectContainer: vi.fn(async () => {
       lastEnv = envs.shift() ?? lastEnv;
-      return { State: { Running: true, Status: 'running' }, Config: { Env: lastEnv } };
+      return { Id: 'runtime-1', State: { Running: true, Status: 'running' }, Config: { Env: lastEnv } };
     }),
     updateContainerEnv: vi.fn(async () => ({ taskId: 'task-1' })),
     getContainerTransition: vi.fn().mockReturnValueOnce('updating').mockReturnValue(undefined),
     startContainer: vi.fn(),
   };
   container.registerInstance(DockerManagementService, docker as unknown as DockerManagementService);
-  const network = { restore: vi.fn(async () => options.restore ?? restoreResult()) };
+  const snapshots = { refreshContainerNow: vi.fn(async () => undefined) };
+  container.registerInstance(DockerSnapshotReconciler, snapshots as unknown as DockerSnapshotReconciler);
+  const network = {
+    restore: vi.fn(async () => options.restore ?? restoreResult()),
+    isolate: vi.fn(async () => ({
+      networkMode: 'bridge',
+      endpoints: [{ networkId: 'id-bridge', networkName: 'bridge' }],
+    })),
+  };
   const consumerEnv = {
     record: vi.fn(async () => ({ consumer: { nodeId: 'n1', name: 'api', env: ['REDIS_URL'] } })),
     leftByGoneBindings: vi.fn(async () => options.leftByGoneBindings ?? []),
@@ -70,7 +79,7 @@ function setup(
     timeoutMs: 1_000,
     pollMs: 1,
   };
-  return { actions, docker, network, consumerEnv, maintenance };
+  return { actions, docker, network, consumerEnv, maintenance, snapshots };
 }
 
 const ISOLATED = item({
@@ -186,6 +195,42 @@ describe('Kill switch release of a container', () => {
     const { actions, docker } = setup({ restore: restoreResult({ restored: ['bridge'] }) });
     await expect(actions.restore(ISOLATED, CONTEXT)).resolves.toEqual({ status: 'restored' });
     expect(docker.updateContainerEnv).not.toHaveBeenCalled();
+  });
+});
+
+describe('Container snapshot after isolation and release', () => {
+  it('reads a released container back at once, so its detail shows the restored networks', async () => {
+    const { actions, network, snapshots } = setup({ restore: restoreResult({ restored: ['bridge'] }) });
+    await expect(actions.restore(ISOLATED, CONTEXT)).resolves.toEqual({ status: 'restored' });
+    expect(snapshots.refreshContainerNow).toHaveBeenCalledWith('n1', ['api', 'runtime-1']);
+    expect(snapshots.refreshContainerNow.mock.invocationCallOrder[0]).toBeGreaterThan(
+      network.restore.mock.invocationCallOrder[0]!
+    );
+  });
+
+  it('reads back the networks a partial restore put back before the item fails', async () => {
+    const { actions, snapshots } = setup({
+      restore: restoreResult({
+        restored: ['gateway-db-fbde43aa00000000'],
+        failed: [{ networkName: 'bridge', networkId: 'id-bridge', error: 'endpoint is busy' }],
+      }),
+    });
+    await expect(actions.restore(ISOLATED, CONTEXT)).rejects.toThrow('Networks not restored');
+    expect(snapshots.refreshContainerNow).toHaveBeenCalledWith('n1', ['api', 'runtime-1']);
+  });
+
+  it('reads an isolated container back at once, so its detail shows no networks', async () => {
+    const { actions, network, snapshots } = setup();
+    const isolating = item({ status: 'pending', priorState: null });
+    await expect(actions.apply(isolating, CONTEXT)).resolves.toMatchObject({ status: 'applied' });
+    expect(network.isolate).toHaveBeenCalledWith('n1', 'api');
+    expect(snapshots.refreshContainerNow).toHaveBeenCalledWith('n1', ['api', 'runtime-1']);
+  });
+
+  it('still restores when the read-back is not available', async () => {
+    const { actions, snapshots } = setup({ restore: restoreResult({ restored: ['bridge'] }) });
+    snapshots.refreshContainerNow.mockRejectedValueOnce(new Error('snapshot store down'));
+    await expect(actions.restore(ISOLATED, CONTEXT)).resolves.toEqual({ status: 'restored' });
   });
 });
 
