@@ -9856,8 +9856,17 @@ type AvailabilityLeaseKeyView struct {
 	// commit of the committed ballot's proposer, Unix ms of its wall clock;
 	// zero when unknown.
 	HolderSinceUnixMs int64 `protobuf:"varint,25,opt,name=holder_since_unix_ms,json=holderSinceUnixMs,proto3" json:"holder_since_unix_ms,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// As in relay.v1 (same field numbers), stateful keys only
+	// (availability_lease_v3): whether this acceptor's memory of the key is
+	// KNOWN, the ballot it last accepted, "sha256:<hex>" of that state and of
+	// the latest commit's state. The state bytes are never reported.
+	Stateful           bool                     `protobuf:"varint,26,opt,name=stateful,proto3" json:"stateful,omitempty"`
+	StateKnown         bool                     `protobuf:"varint,27,opt,name=state_known,json=stateKnown,proto3" json:"state_known,omitempty"`
+	StateHash          string                   `protobuf:"bytes,28,opt,name=state_hash,json=stateHash,proto3" json:"state_hash,omitempty"`
+	Accepted           *AvailabilityLeaseBallot `protobuf:"bytes,29,opt,name=accepted,proto3" json:"accepted,omitempty"`
+	CommittedStateHash string                   `protobuf:"bytes,30,opt,name=committed_state_hash,json=committedStateHash,proto3" json:"committed_state_hash,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *AvailabilityLeaseKeyView) Reset() {
@@ -9979,6 +9988,41 @@ func (x *AvailabilityLeaseKeyView) GetHolderSinceUnixMs() int64 {
 		return x.HolderSinceUnixMs
 	}
 	return 0
+}
+
+func (x *AvailabilityLeaseKeyView) GetStateful() bool {
+	if x != nil {
+		return x.Stateful
+	}
+	return false
+}
+
+func (x *AvailabilityLeaseKeyView) GetStateKnown() bool {
+	if x != nil {
+		return x.StateKnown
+	}
+	return false
+}
+
+func (x *AvailabilityLeaseKeyView) GetStateHash() string {
+	if x != nil {
+		return x.StateHash
+	}
+	return ""
+}
+
+func (x *AvailabilityLeaseKeyView) GetAccepted() *AvailabilityLeaseBallot {
+	if x != nil {
+		return x.Accepted
+	}
+	return nil
+}
+
+func (x *AvailabilityLeaseKeyView) GetCommittedStateHash() string {
+	if x != nil {
+		return x.CommittedStateHash
+	}
+	return ""
 }
 
 type AvailabilityLeaseEvent struct {
@@ -14152,7 +14196,7 @@ const file_gateway_v1_nginx_daemon_proto_rawDesc = "" +
 	"\x14placement_generation\x18\b \x01(\x04R\x13placementGeneration\x12\x1a\n" +
 	"\bretained\x18\t \x01(\bR\bretained\x12+\n" +
 	"\x12held_since_unix_ms\x18\n" +
-	" \x01(\x03R\x0fheldSinceUnixMs\"\xa0\x04\n" +
+	" \x01(\x03R\x0fheldSinceUnixMs\"\xef\x05\n" +
 	"\x18AvailabilityLeaseKeyView\x12\x1b\n" +
 	"\tpolicy_id\x18\x01 \x01(\tR\bpolicyId\x12\x12\n" +
 	"\x04slot\x18\x02 \x01(\rR\x04slot\x12\x14\n" +
@@ -14168,7 +14212,14 @@ const file_gateway_v1_nginx_daemon_proto_rawDesc = "" +
 	"\x0egate_holder_id\x18\x14 \x01(\tR\fgateHolderId\x12D\n" +
 	"\vgate_ballot\x18\x15 \x01(\v2#.gateway.v1.AvailabilityLeaseBallotR\n" +
 	"gateBallot\x12/\n" +
-	"\x14holder_since_unix_ms\x18\x19 \x01(\x03R\x11holderSinceUnixMs\"\xf3\x01\n" +
+	"\x14holder_since_unix_ms\x18\x19 \x01(\x03R\x11holderSinceUnixMs\x12\x1a\n" +
+	"\bstateful\x18\x1a \x01(\bR\bstateful\x12\x1f\n" +
+	"\vstate_known\x18\x1b \x01(\bR\n" +
+	"stateKnown\x12\x1d\n" +
+	"\n" +
+	"state_hash\x18\x1c \x01(\tR\tstateHash\x12?\n" +
+	"\baccepted\x18\x1d \x01(\v2#.gateway.v1.AvailabilityLeaseBallotR\baccepted\x120\n" +
+	"\x14committed_state_hash\x18\x1e \x01(\tR\x12committedStateHash\"\xf3\x01\n" +
 	"\x16AvailabilityLeaseEvent\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x1b\n" +
 	"\tpolicy_id\x18\x02 \x01(\tR\bpolicyId\x12\x12\n" +
@@ -14815,42 +14866,43 @@ var file_gateway_v1_nginx_daemon_proto_depIdxs = []int32{
 	101, // 133: gateway.v1.AvailabilityLeaseKeyView.promised:type_name -> gateway.v1.AvailabilityLeaseBallot
 	101, // 134: gateway.v1.AvailabilityLeaseKeyView.committed:type_name -> gateway.v1.AvailabilityLeaseBallot
 	101, // 135: gateway.v1.AvailabilityLeaseKeyView.gate_ballot:type_name -> gateway.v1.AvailabilityLeaseBallot
-	101, // 136: gateway.v1.AvailabilityLeaseEvent.ballot:type_name -> gateway.v1.AvailabilityLeaseBallot
-	150, // 137: gateway.v1.DockerBuildCommand.build_args:type_name -> gateway.v1.DockerBuildCommand.BuildArgsEntry
-	151, // 138: gateway.v1.DockerBuildCommand.build_secrets:type_name -> gateway.v1.DockerBuildCommand.BuildSecretsEntry
-	114, // 139: gateway.v1.SyncDockerRegistryBindingsCommand.bindings:type_name -> gateway.v1.DockerRegistryBinding
-	118, // 140: gateway.v1.DockerConfigPushCommand.registries:type_name -> gateway.v1.RegistryConfig
-	125, // 141: gateway.v1.LogStreamMessage.subscribe_ack:type_name -> gateway.v1.LogSubscribeAck
-	126, // 142: gateway.v1.LogStreamMessage.entry:type_name -> gateway.v1.LogEntry
-	128, // 143: gateway.v1.LogStreamControl.subscribe:type_name -> gateway.v1.LogSubscribe
-	129, // 144: gateway.v1.LogStreamControl.unsubscribe:type_name -> gateway.v1.LogUnsubscribe
-	137, // 145: gateway.v1.MigrationTransferMessage.hello:type_name -> gateway.v1.MigrationTransferHello
-	140, // 146: gateway.v1.MigrationTransferMessage.chunk:type_name -> gateway.v1.MigrationArtifactChunk
-	141, // 147: gateway.v1.MigrationTransferMessage.ack:type_name -> gateway.v1.MigrationArtifactAck
-	142, // 148: gateway.v1.MigrationTransferMessage.error:type_name -> gateway.v1.MigrationArtifactError
-	138, // 149: gateway.v1.MigrationTransferControl.read:type_name -> gateway.v1.MigrationArtifactRead
-	139, // 150: gateway.v1.MigrationTransferControl.write:type_name -> gateway.v1.MigrationArtifactWrite
-	140, // 151: gateway.v1.MigrationTransferControl.chunk:type_name -> gateway.v1.MigrationArtifactChunk
-	141, // 152: gateway.v1.MigrationTransferControl.ack:type_name -> gateway.v1.MigrationArtifactAck
-	142, // 153: gateway.v1.MigrationTransferControl.error:type_name -> gateway.v1.MigrationArtifactError
-	143, // 154: gateway.v1.MigrationTransferControl.heartbeat:type_name -> gateway.v1.MigrationHeartbeat
-	2,   // 155: gateway.v1.NodeEnrollment.Enroll:input_type -> gateway.v1.EnrollRequest
-	4,   // 156: gateway.v1.NodeEnrollment.RenewCertificate:input_type -> gateway.v1.RenewCertRequest
-	8,   // 157: gateway.v1.NodeControl.CommandStream:input_type -> gateway.v1.DaemonMessage
-	6,   // 158: gateway.v1.MaintenanceAccess.Redeem:input_type -> gateway.v1.MaintenanceAccessRedeemRequest
-	135, // 159: gateway.v1.MigrationTransfer.Transfer:input_type -> gateway.v1.MigrationTransferMessage
-	124, // 160: gateway.v1.LogStream.StreamLogs:input_type -> gateway.v1.LogStreamMessage
-	3,   // 161: gateway.v1.NodeEnrollment.Enroll:output_type -> gateway.v1.EnrollResponse
-	5,   // 162: gateway.v1.NodeEnrollment.RenewCertificate:output_type -> gateway.v1.RenewCertResponse
-	23,  // 163: gateway.v1.NodeControl.CommandStream:output_type -> gateway.v1.GatewayCommand
-	7,   // 164: gateway.v1.MaintenanceAccess.Redeem:output_type -> gateway.v1.MaintenanceAccessReply
-	136, // 165: gateway.v1.MigrationTransfer.Transfer:output_type -> gateway.v1.MigrationTransferControl
-	127, // 166: gateway.v1.LogStream.StreamLogs:output_type -> gateway.v1.LogStreamControl
-	161, // [161:167] is the sub-list for method output_type
-	155, // [155:161] is the sub-list for method input_type
-	155, // [155:155] is the sub-list for extension type_name
-	155, // [155:155] is the sub-list for extension extendee
-	0,   // [0:155] is the sub-list for field type_name
+	101, // 136: gateway.v1.AvailabilityLeaseKeyView.accepted:type_name -> gateway.v1.AvailabilityLeaseBallot
+	101, // 137: gateway.v1.AvailabilityLeaseEvent.ballot:type_name -> gateway.v1.AvailabilityLeaseBallot
+	150, // 138: gateway.v1.DockerBuildCommand.build_args:type_name -> gateway.v1.DockerBuildCommand.BuildArgsEntry
+	151, // 139: gateway.v1.DockerBuildCommand.build_secrets:type_name -> gateway.v1.DockerBuildCommand.BuildSecretsEntry
+	114, // 140: gateway.v1.SyncDockerRegistryBindingsCommand.bindings:type_name -> gateway.v1.DockerRegistryBinding
+	118, // 141: gateway.v1.DockerConfigPushCommand.registries:type_name -> gateway.v1.RegistryConfig
+	125, // 142: gateway.v1.LogStreamMessage.subscribe_ack:type_name -> gateway.v1.LogSubscribeAck
+	126, // 143: gateway.v1.LogStreamMessage.entry:type_name -> gateway.v1.LogEntry
+	128, // 144: gateway.v1.LogStreamControl.subscribe:type_name -> gateway.v1.LogSubscribe
+	129, // 145: gateway.v1.LogStreamControl.unsubscribe:type_name -> gateway.v1.LogUnsubscribe
+	137, // 146: gateway.v1.MigrationTransferMessage.hello:type_name -> gateway.v1.MigrationTransferHello
+	140, // 147: gateway.v1.MigrationTransferMessage.chunk:type_name -> gateway.v1.MigrationArtifactChunk
+	141, // 148: gateway.v1.MigrationTransferMessage.ack:type_name -> gateway.v1.MigrationArtifactAck
+	142, // 149: gateway.v1.MigrationTransferMessage.error:type_name -> gateway.v1.MigrationArtifactError
+	138, // 150: gateway.v1.MigrationTransferControl.read:type_name -> gateway.v1.MigrationArtifactRead
+	139, // 151: gateway.v1.MigrationTransferControl.write:type_name -> gateway.v1.MigrationArtifactWrite
+	140, // 152: gateway.v1.MigrationTransferControl.chunk:type_name -> gateway.v1.MigrationArtifactChunk
+	141, // 153: gateway.v1.MigrationTransferControl.ack:type_name -> gateway.v1.MigrationArtifactAck
+	142, // 154: gateway.v1.MigrationTransferControl.error:type_name -> gateway.v1.MigrationArtifactError
+	143, // 155: gateway.v1.MigrationTransferControl.heartbeat:type_name -> gateway.v1.MigrationHeartbeat
+	2,   // 156: gateway.v1.NodeEnrollment.Enroll:input_type -> gateway.v1.EnrollRequest
+	4,   // 157: gateway.v1.NodeEnrollment.RenewCertificate:input_type -> gateway.v1.RenewCertRequest
+	8,   // 158: gateway.v1.NodeControl.CommandStream:input_type -> gateway.v1.DaemonMessage
+	6,   // 159: gateway.v1.MaintenanceAccess.Redeem:input_type -> gateway.v1.MaintenanceAccessRedeemRequest
+	135, // 160: gateway.v1.MigrationTransfer.Transfer:input_type -> gateway.v1.MigrationTransferMessage
+	124, // 161: gateway.v1.LogStream.StreamLogs:input_type -> gateway.v1.LogStreamMessage
+	3,   // 162: gateway.v1.NodeEnrollment.Enroll:output_type -> gateway.v1.EnrollResponse
+	5,   // 163: gateway.v1.NodeEnrollment.RenewCertificate:output_type -> gateway.v1.RenewCertResponse
+	23,  // 164: gateway.v1.NodeControl.CommandStream:output_type -> gateway.v1.GatewayCommand
+	7,   // 165: gateway.v1.MaintenanceAccess.Redeem:output_type -> gateway.v1.MaintenanceAccessReply
+	136, // 166: gateway.v1.MigrationTransfer.Transfer:output_type -> gateway.v1.MigrationTransferControl
+	127, // 167: gateway.v1.LogStream.StreamLogs:output_type -> gateway.v1.LogStreamControl
+	162, // [162:168] is the sub-list for method output_type
+	156, // [156:162] is the sub-list for method input_type
+	156, // [156:156] is the sub-list for extension type_name
+	156, // [156:156] is the sub-list for extension extendee
+	0,   // [0:156] is the sub-list for field type_name
 }
 
 func init() { file_gateway_v1_nginx_daemon_proto_init() }

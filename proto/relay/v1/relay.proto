@@ -34,6 +34,13 @@ service RelayAdmin {
   rpc ReloadIdentity(ReloadIdentityRequest) returns (ReloadIdentityResponse);
   rpc CommitIdentityRotation(CommitIdentityRotationRequest) returns (CommitIdentityRotationResponse);
   rpc SetDrain(SetDrainRequest) returns (SetDrainResponse);
+  // Opens a tunnel with this relay itself as the origin (a witness process
+  // the relay supervisor runs reaching availability set members). The first
+  // frame is dial; then the stream carries data like OpenTunnel. Only routes
+  // whose source is this relay instance (source_kind relay_instance) are
+  // dialled, under their target endpoint's lease gate and session limits.
+  // Relays advertise relay_dial_route_v1.
+  rpc DialRoute(stream TunnelFrame) returns (stream TunnelFrame);
 }
 
 message SignedGrant {
@@ -116,10 +123,17 @@ message TunnelFrame {
     TunnelHalfClose half_close = 5;
     TunnelClose close = 6;
     RelayError error = 7;
+    // RelayAdmin.DialRoute only: the route to dial.
+    DialRoute dial = 8;
   }
 }
 
 message OpenTunnel { SignedGrant grant = 1; }
+message DialRoute {
+  string route_id = 1;
+  // 0 dials the route of the policy without assignment scope.
+  uint64 assignment_generation = 2;
+}
 message AcceptTunnel { string accept_token = 1; }
 message TunnelReady { uint32 max_frame_bytes = 1; }
 message TunnelData { bytes data = 1; }
@@ -164,6 +178,11 @@ message EndpointPolicy {
   // the relay admits the registration and its tunnels only while its lease
   // gate is open for subject_id (A2.4, A8, A11). Empty keeps legacy admission.
   string lease_policy_id = 10;
+  // Relay-local endpoint (subject_kind relay_instance, subject_id this
+  // relay's instance id): the relay serves tunnels to it itself, by dialling
+  // 127.0.0.1:relay_local_port, a port of the witness range (39400-39499).
+  // No daemon registers it. Relays advertise relay_local_endpoints_v1.
+  uint32 relay_local_port = 11;
 }
 
 message RoutePolicy {

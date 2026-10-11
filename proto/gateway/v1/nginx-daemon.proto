@@ -1351,6 +1351,15 @@ message AvailabilityLeaseKeyView {
   // commit of the committed ballot's proposer, Unix ms of its wall clock;
   // zero when unknown.
   int64 holder_since_unix_ms = 25;
+  // As in relay.v1 (same field numbers), stateful keys only
+  // (availability_lease_v3): whether this acceptor's memory of the key is
+  // KNOWN, the ballot it last accepted, "sha256:<hex>" of that state and of
+  // the latest commit's state. The state bytes are never reported.
+  bool stateful = 26;
+  bool state_known = 27;
+  string state_hash = 28;
+  AvailabilityLeaseBallot accepted = 29;
+  string committed_state_hash = 30;
 }
 
 message AvailabilityLeaseEvent {

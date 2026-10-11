@@ -22,6 +22,7 @@ const (
 	refusalDraining       = "draining"
 	refusalLeaseGate      = "lease_gate"
 	refusalLocalService   = "local_service"
+	refusalRelayLocal     = "relay_local"
 	refusalNotRegistered  = "not_registered"
 	refusalRestarting     = "restarting"
 	refusalDormant        = "dormant"
