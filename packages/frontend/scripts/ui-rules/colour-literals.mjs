@@ -32,17 +32,20 @@ const TOKEN_FILES = new Set([
 ]);
 
 /**
- * The only exceptions: the brand (logo) colour in browser and OS metadata, which cannot read CSS
- * tokens. Keyed by file, with the exact literal allowed there.
+ * The only exceptions: the brand (logo) colours in browser and OS metadata and in the SVG favicon
+ * (logo artwork, like the PNG icons), which cannot read CSS tokens. Keyed by file, with the exact
+ * literals allowed there.
  */
 const BRAND_EXCEPTIONS = new Map([
-  [path.join(frontendRoot, "index.html"), ["#3b3d87"]],
-  [path.join(frontendRoot, "login.html"), ["#3b3d87"]],
-  [path.join(frontendRoot, "public/site.webmanifest"), ["#3b3d87", "#f3f2ef"]],
-  [path.join(frontendRoot, "public/browserconfig.xml"), ["#3b3d87"]],
-  [path.join(packagesRoot, "status-page/index.html"), ["#3b3d87"]],
-  [path.join(packagesRoot, "status-page/public/site.webmanifest"), ["#3b3d87", "#f3f2ef"]],
-  [path.join(packagesRoot, "status-page/public/browserconfig.xml"), ["#3b3d87"]],
+  [path.join(frontendRoot, "index.html"), ["#141414"]],
+  [path.join(frontendRoot, "login.html"), ["#141414"]],
+  [path.join(frontendRoot, "public/site.webmanifest"), ["#141414", "#f3f2ef"]],
+  [path.join(frontendRoot, "public/browserconfig.xml"), ["#141414"]],
+  [path.join(packagesRoot, "status-page/index.html"), ["#141414"]],
+  [path.join(packagesRoot, "status-page/public/site.webmanifest"), ["#141414", "#f3f2ef"]],
+  [path.join(packagesRoot, "status-page/public/browserconfig.xml"), ["#141414"]],
+  [path.join(frontendRoot, "public/favicon.svg"), ["#141414", "#f3f2ef"]],
+  [path.join(packagesRoot, "status-page/public/favicon.svg"), ["#141414", "#f3f2ef"]],
 ]);
 
 const HUES =
