@@ -84,6 +84,11 @@ func (m *managedDatabaseManager) startStoppedEngine(ctx context.Context, id, con
 	if !record.DesiredRunning || record.Deleting || record.ContainerID == "" || (containerID != "" && containerID != record.ContainerID) {
 		return nil
 	}
+	if record.AvailabilityMemberID != "" {
+		// The member runtime starts a set member, always through standby at
+		// rest.
+		return nil
+	}
 	// A disk being repaired (or whose repair failed) keeps its engine stopped;
 	// the disk watch starts it once the disk is repaired.
 	if m.repairs.running(id) || record.DiskRepair.blocksEngine() {

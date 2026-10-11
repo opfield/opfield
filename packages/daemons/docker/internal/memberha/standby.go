@@ -79,12 +79,19 @@ func (m *Manager) copyStepLocked(mem *member, now time.Duration, primaryKnown bo
 		return
 	}
 	if !obs.container.Running {
+		if m.stoppedNeedsRejoinLocked(mem, now, primaryKnown) {
+			return
+		}
 		m.startStandbyLocked(mem, now)
 		return
 	}
-	if obs.status.Answering && obs.status.NeedsRejoin && primaryKnown && now >= mem.standby.nextRejoinAt {
-		m.rejoinLocked(mem)
+	if obs.status.Answering && obs.status.NeedsRejoin {
+		if primaryKnown && now >= mem.standby.nextRejoinAt {
+			m.rejoinLocked(mem)
+		}
+		return
 	}
+	m.copyExtrasLocked(mem, now)
 }
 
 // startStandbyLocked brings the member up as a read-only copy: standby at

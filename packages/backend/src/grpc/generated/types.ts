@@ -1444,6 +1444,11 @@ export interface AvailabilityPrimaryAssignment {
   setId: string;
   primaryMemberId: string;
   generation: string;
+  /** Gateway's relay policy key signature (see the proto). */
+  signingKeyId?: string;
+  signature?: Buffer;
+  /** Policy keys the daemon trusts directly (Gateway only). */
+  policyKeys?: AvailabilityLeasePolicyKey[];
 }
 
 export interface AvailabilityMemberConfig {

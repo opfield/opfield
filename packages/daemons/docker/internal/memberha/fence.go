@@ -144,9 +144,27 @@ func (m *Manager) Switchover(setID, successorMemberID, operationID string) error
 		return errors.New("the successor is no other member of the set")
 	}
 	status := m.deps.Lease.HolderStatus(mem.cfg.Key())
-	if status.Role != RoleHolding || mem.busy {
-		return errors.New("this member does not hold the primary role (or is busy)")
+	if status.Role != RoleHolding {
+		return errors.New("this member does not hold the primary role")
 	}
+	if prep, ok := mem.engine.(SwitchoverPreparer); ok {
+		// The engine prepares the handoff on the lease loop first (the
+		// successor becomes the certified sync member); the holder path
+		// runs the release once SwitchoverReady says so.
+		return m.stageSwitchoverLocked(mem, prep, successor, operationID)
+	}
+	if mem.busy {
+		return errors.New("this member is busy")
+	}
+	m.runSwitchoverLocked(mem, successor, operationID)
+	return nil
+}
+
+// runSwitchoverLocked runs the handoff: serving closed, the engine stops
+// writes and lets the successor catch up, a clean stop, standby at rest, the
+// record deleted, then the release to the successor.
+func (m *Manager) runSwitchoverLocked(mem *member, successor Peer, operationID string) {
+	successorMemberID := successor.MemberID
 	key := mem.cfg.Key()
 	containerID := mem.obs.container.ID
 	m.closeServingLocked(mem)
@@ -179,5 +197,4 @@ func (m *Manager) Switchover(setID, successorMemberID, operationID string) error
 				Detail: map[string]string{"successorMemberId": successorMemberID}})
 		}
 	})
-	return nil
 }

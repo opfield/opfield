@@ -87,6 +87,8 @@ func TestTheMemberControlPortAnswersWithThePrimaryAssignment(t *testing.T) {
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Engine: func(memberha.Config) (memberha.Engine, error) { return nil, nil },
 		Async:  func(func()) {},
+		// The signature itself is checked by the lease keychain (managed_database_pg_test.go).
+		VerifyAssignment: func(string, memberha.Assignment) error { return nil },
 	}, store)
 	if err != nil {
 		t.Fatal(err)
@@ -98,7 +100,7 @@ func TestTheMemberControlPortAnswersWithThePrimaryAssignment(t *testing.T) {
 	if err := manager.Configure(config); err != nil {
 		t.Fatal(err)
 	}
-	if err := manager.AssignPrimary(testSetID, memberha.Assignment{PrimaryMemberID: testMemberA, Generation: 7}); err != nil {
+	if err := manager.AssignPrimary(testSetID, memberha.Assignment{PrimaryMemberID: testMemberA, Generation: 7, SigningKeyID: "k1", Signature: []byte("signed")}); err != nil {
 		t.Fatal(err)
 	}
 	adapter := setMemberRuntimeAdapter{manager: manager}
@@ -121,5 +123,8 @@ func TestTheMemberControlPortAnswersWithThePrimaryAssignment(t *testing.T) {
 	var state memberha.PeerState
 	if err := json.Unmarshal(line, &state); err != nil || state.Generation != 7 || state.Primary != testMemberA {
 		t.Fatalf("peer state = %+v, %v", state, err)
+	}
+	if state.Assignment == nil || string(state.Assignment.Signature) != "signed" || state.Assignment.SigningKeyID != "k1" {
+		t.Fatalf("the peer line must carry the signed assignment: %+v", state.Assignment)
 	}
 }
