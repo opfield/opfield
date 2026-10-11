@@ -116,6 +116,12 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
   manage_license: operationPolicies({ external: ['activate', 'activate_module', 'check'], delete: ['clear'] }),
   manage_cloud: operationPolicies({ external: ['connect'], update: ['set_remote_management'], delete: ['disconnect'] }),
   manage_gateway_diagnostics: operationPolicies({ read: ['snapshot', 'history', 'requests', 'jobs', 'logs'] }),
+  manage_configuration_export: operationPolicies({
+    read: ['estimate', 'progress', 'move_status'],
+    execute: ['export'],
+    update: ['announce_move'],
+    delete: ['withdraw_move'],
+  }),
   manage_housekeeping: operationPolicies({
     read: ['get_config', 'get_stats', 'get_history'],
     update: ['update_config'],

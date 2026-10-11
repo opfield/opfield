@@ -1998,3 +1998,34 @@ test('a fresh monitoring install records its token, so a new token is refused af
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('install.sh --restore reads the export version and refuses what it cannot restore', async () => {
+  const work = await mkdtemp(path.join(tmpdir(), 'install-restore-'));
+  try {
+    const run = (file, extra = []) =>
+      spawnSync(
+        'bash',
+        [path.join(scriptsDir, 'install.sh'), '--dry-run', '--install-dir', path.join(work, 'opt'), '--restore', file, ...extra],
+        { encoding: 'utf8', timeout: 30_000, input: '', env: { ...process.env, TERM: 'dumb' } }
+      );
+    const zip = path.join(work, 'backup.zip');
+    await writeFile(zip, 'PK\u0003\u0004 not an export');
+    const notExport = run(zip);
+    assert.notEqual(notExport.status, 0);
+    assert.match(notExport.stdout + notExport.stderr, /is not an Opfield configuration export/);
+
+    const header = (version) =>
+      `OPFIELD-EXPORT/1\n${JSON.stringify({ format: 1, gatewayVersion: version, schemaMigration: 'x' })}\n\u0001\u0002binary`;
+    const development = path.join(work, 'dev.opfield-export');
+    await writeFile(development, header('local-20261011120000'));
+    const refused = run(development);
+    assert.notEqual(refused.status, 0);
+    assert.match(refused.stdout + refused.stderr, /made by a development build \(local-20261011120000\)/);
+
+    const missing = run(path.join(work, 'missing.opfield-export'));
+    assert.notEqual(missing.status, 0);
+    assert.match(missing.stdout + missing.stderr, /Cannot read the export file/);
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+});

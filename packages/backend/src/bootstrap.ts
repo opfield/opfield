@@ -77,6 +77,10 @@ import { MfaService } from '@/modules/auth/mfa.service.js';
 import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
 import { PasskeyService } from '@/modules/auth/passkey.service.js';
 import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
+import { ConfigurationExportService } from '@/modules/configuration-transfer/configuration-export.service.js';
+import { GatewayMoveService } from '@/modules/configuration-transfer/gateway-move.service.js';
+import { completeConfigurationRestore } from '@/modules/configuration-transfer/restore-startup.js';
+import { SetupRestoreService } from '@/modules/configuration-transfer/setup-restore.service.js';
 import { databaseCommercialRuntime } from '@/modules/databases/database-commercial-runtime.js';
 import { DatabaseFolderService } from '@/modules/databases/database-folders.service.js';
 import { DatabaseMonitoringService } from '@/modules/databases/database-monitoring.service.js';
@@ -442,6 +446,13 @@ export async function initializeContainer(): Promise<void> {
   auditService.setEventBus(eventBus);
   container.registerInstance(AuditService, auditService);
   container.resolve(CloudLinkService).setAuditService(auditService);
+  if (env.NODE_ENV === 'production') {
+    // After a configuration restore: the address entered for this host applies before the listener
+    // certificates are checked below, so they are issued for it.
+    await completeConfigurationRestore(generalSettingsService, auditService).catch((error) =>
+      logger.error('Could not complete the configuration restore', { error })
+    );
+  }
 
   const avatarStorageService = new AvatarStorageService(resolveAvatarStorageDir(env.NODE_ENV));
   await avatarStorageService.initialize();
@@ -2113,6 +2124,7 @@ export async function initializeContainer(): Promise<void> {
     logger.error('Failed to recover interrupted internal registry maintenance', { error });
   });
   container.registerInstance(DockerService, dockerService);
+  container.registerInstance(SetupRestoreService, new SetupRestoreService(dockerService));
   container.resolve(ExternalSshService).setDockerService(dockerService);
 
   // Managed inference core lifecycle (OpenCodex container on this host).
@@ -2206,6 +2218,21 @@ export async function initializeContainer(): Promise<void> {
 
   const loggingSettingsService = new LoggingSettingsService(db, cryptoService);
   container.registerInstance(LoggingSettingsService, loggingSettingsService);
+  container.registerInstance(
+    ConfigurationExportService,
+    new ConfigurationExportService(
+      dockerService,
+      generalSettingsService,
+      loggingSettingsService,
+      licenseService,
+      auditService
+    )
+  );
+  const gatewayMoveService = new GatewayMoveService(db, nodeRegistry, generalSettingsService);
+  container.registerInstance(GatewayMoveService, gatewayMoveService);
+  await gatewayMoveService
+    .initialize()
+    .catch((error) => logger.error('Could not resume the announced Opfield address', { error }));
   const loggingClickHouseService = commercialEdition.createLogging(
     'LoggingClickHouseService',
     [],

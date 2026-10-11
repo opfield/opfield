@@ -139,6 +139,31 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
     invalidateStores: [],
   },
   {
+    name: 'manage_configuration_export',
+    description:
+      'Export this Opfield installation for a move to another host, and tell nodes the new address. operation: estimate (sizes of the database, Opfield files, internal registry and managed logs, and what the new host keeps instead), export (passphrase of at least 12 characters, includeRegistry, includeLogs: returns a one-time link valid 15 minutes and a curl command that saves the encrypted .opfield-export file; the database snapshot is consistent and nothing stops; the file holds the master key, every CA key and all secrets, so keep it and the passphrase apart), progress (exportId), move_status (the address nodes were told and which nodes keep it), announce_move (address host:port nodes and relays switch to once this installation stays unreachable for 10 minutes and the restored one answers; tell them before shutting this one down), withdraw_move. A restore runs in the setup wizard of a fresh installation or with install.sh --restore, not through this tool.',
+    parameters: {
+      type: 'object',
+      properties: {
+        operation: {
+          type: 'string',
+          enum: ['estimate', 'export', 'progress', 'move_status', 'announce_move', 'withdraw_move'],
+          description: 'Configuration export operation to perform.',
+        },
+        passphrase: { type: 'string', description: 'export: passphrase that encrypts the file (12+ characters).' },
+        includeRegistry: { type: 'boolean', description: 'export: include the internal registry images.' },
+        includeLogs: { type: 'boolean', description: 'export: include the logs of the Opfield-managed ClickHouse.' },
+        exportId: { type: 'string', description: 'progress: the export to report.' },
+        address: { type: 'string', description: 'announce_move: host:port of the new Opfield (default port 9443).' },
+      },
+      required: ['operation'],
+    },
+    destructive: true,
+    category: 'Maintenance',
+    requiredScope: 'admin:system',
+    invalidateStores: [],
+  },
+  {
     name: 'get_gateway_settings',
     description:
       'Read every Opfield settings section: sign-in methods, password policy and MFA grace, OIDC provisioning and provider, SMTP (secrets masked), logging backend, MCP server, web TLS transport, general settings (public URL, update channel, relay tuning, features), network security, outbound webhook policy, and environment settings with their defaults.',

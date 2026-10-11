@@ -296,7 +296,7 @@ The future [plugin system](plugins.md) is unfinished Opfield core infrastructure
 
 ## Opfield Configuration Transfer
 
-Export of Opfield's own configuration for transfer to another Opfield instance is **expected in 2.12**. It is planned for all four product plans. This planned workflow is distinct from existing container archive export/import and manual backup of Opfield's database, persistent volumes, and encryption keys; it is not currently available.
+An Opfield installation can move to another host on every plan. **Settings > General > Configuration export** writes one encrypted file with the database (a consistent snapshot; nothing stops), the master key, every CA and relay signing key, Opfield's files and, when chosen, the internal registry images and managed logs. A fresh installation of the same version restores it in the setup wizard (**Restore from an export**) or with `install.sh --restore <file>`, keeps the installation ID and license, and asks for the new address. When the address changes, Opfield tells enrolled nodes and relays the new one before the old host is shut down. API `/api/system/configuration-export`, MCP `manage_configuration_export`, scope `admin:system`. See [Moving Opfield to another host](configuration-transfer.md). This is separate from container archive export/import and from database backups.
 
 ## Nodes And Monitoring
 

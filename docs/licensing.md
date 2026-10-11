@@ -46,7 +46,7 @@ Entitlements schema version 5 is current. It adds storage connections, external 
 | AI Workspace Chat | Ready, opt-in | ✅ | ✅ | ✅ | ✅ |
 | Opfield Inference | Ready, opt-in | ✅ | ✅ | ✅ | ✅ |
 | Automated Installation and Signed Updates | Ready | ✅ | ✅ | ✅ | ✅ |
-| Opfield Configuration Export for Transfer to Another Instance | Expected in 2.12 | ✅ | ✅ | ✅ | ✅ |
+| Opfield Configuration Export for Transfer to Another Instance | Ready | ✅ | ✅ | ✅ | ✅ |
 | Managed Nodes | Plan limit | 25 | Unlimited | Unlimited | Unlimited |
 | Users | Plan limit | 3 | Unlimited | Unlimited | Unlimited |
 | Custom Permission Groups | Plan limit | 1 | Unlimited | Unlimited | Unlimited |

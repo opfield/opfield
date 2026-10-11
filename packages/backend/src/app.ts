@@ -67,6 +67,12 @@ import { getPublicAuthMethods } from '@/modules/auth/public-auth-methods.js';
 import { getProgrammaticWebSocketCredential, getSessionWebSocketCredential } from '@/modules/auth/websocket-auth.js';
 import { backupRuntime } from '@/modules/backups/backup-runtime.js';
 import { cloudLinkRoutes } from '@/modules/cloud-link/cloud-link.routes.js';
+import {
+  configurationExportLinkRoutes,
+  configurationExportRoutes,
+} from '@/modules/configuration-transfer/configuration-export.routes.js';
+import { CONFIGURATION_EXPORT_LINK_PATH } from '@/modules/configuration-transfer/configuration-export.service.js';
+import { SETUP_RESTORE_CHUNK_MAX_BYTES } from '@/modules/configuration-transfer/setup-restore.service.js';
 import { databaseRouteRuntime } from '@/modules/databases/database-route-runtime.js';
 import { databaseRoutes } from '@/modules/databases/databases.routes.js';
 import { createManagedDatabaseLogStreamWSHandlers } from '@/modules/databases/managed-database-logs.ws.js';
@@ -666,6 +672,8 @@ export function createApp(): GatewayAppRuntime {
   app.use('/api/pages-deploy/uploads/:id/chunks', requestBodyLimit(PAGE_UPLOAD_CHUNK_MAX_BYTES));
   // An object upload streams the file into storage: it takes the file upload limit, not the JSON body limit.
   app.use('/api/object-storage/:id/objects/upload', objectUploadBodyLimit());
+  // A restore upload chunk is raw file bytes, up to its own limit.
+  app.use('/api/setup/wizard/restore/archive', requestBodyLimit(SETUP_RESTORE_CHUNK_MAX_BYTES + 1024));
   app.use('/api/setup/*', setupApiDisabledMiddleware);
   app.use(
     '/api/*',
@@ -678,6 +686,7 @@ export function createApp(): GatewayAppRuntime {
         OBJECT_STORAGE_UPLOAD_PATH.test(path) ||
         // One-time transfer links stream a whole file; their handlers enforce their own size limits.
         ONE_TIME_LINK_TOKEN_PATH.test(path) ||
+        path === '/api/setup/wizard/restore/archive' ||
         DOCKER_ARCHIVE_IMPORT_PATH.test(path) ||
         isInferenceDataPlanePath(path)
     )
@@ -845,6 +854,7 @@ export function createApp(): GatewayAppRuntime {
   app.route('/api/finalize-setup', finalizeSetupRoutes);
   app.route('/api/system/license', licenseRoutes);
   app.route('/api/system/cloud', cloudLinkRoutes);
+  app.route('/api/system/configuration-export', configurationExportRoutes);
   app.route('/api/system', systemRoutes);
   app.route('/api/ui', uiBootstrapRoutes);
   app.route('/api/housekeeping', housekeepingRoutes);
@@ -858,6 +868,7 @@ export function createApp(): GatewayAppRuntime {
   app.route(PAGE_UPLOAD_LINK_PATH, pageUploadLinkRoutes);
   app.route(DOCKER_ARCHIVE_LINK_PATH, dockerArchiveLinkRoutes);
   app.route(STORAGE_OBJECT_LINK_PATH, storageObjectLinkRoutes);
+  app.route(CONFIGURATION_EXPORT_LINK_PATH, configurationExportLinkRoutes);
 
   if (container.isRegistered(TOKENS.CommercialEdition)) {
     container.resolve<CommercialEditionRuntime>(TOKENS.CommercialEdition).registerRoutes({

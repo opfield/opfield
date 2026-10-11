@@ -75,6 +75,7 @@ For flags, non-interactive installs, custom SSL, OIDC details, updates, and node
 |------|------|
 | Understand what Opfield can manage | [Capabilities](docs/capabilities.md) |
 | Install Opfield | [Installation guide](docs/installation.md) |
+| Move Opfield to another host | [Configuration export and restore](docs/configuration-transfer.md) |
 | Add Ingress, Docker, Build Worker, Storage, Monitoring, or Relay nodes | [Nodes and daemons](docs/nodes.md) |
 | Run Storage nodes, storage connections, and database backups | [Storage and backups](docs/storage-and-backups.md) |
 | Export or import Docker containers with or without an embedded image | [GWCA container archives](docs/docker-container-archives.md) |

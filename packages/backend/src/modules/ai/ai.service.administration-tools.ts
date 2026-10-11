@@ -32,7 +32,10 @@ import {
   updateAdminUserGroups,
 } from '@/modules/admin/admin-user-actions.js';
 import { readGatewaySettings, updateGatewaySettings } from '@/modules/admin/gateway-settings.js';
+import { AuditService } from '@/modules/audit/audit.service.js';
 import { CloudLinkRequestError, CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
+import { ConfigurationExportService } from '@/modules/configuration-transfer/configuration-export.service.js';
+import { GatewayMoveService } from '@/modules/configuration-transfer/gateway-move.service.js';
 import { DiagnosticsService } from '@/modules/diagnostics/diagnostics.service.js';
 import { HousekeepingConfigUpdateSchema } from '@/modules/housekeeping/housekeeping.docs.js';
 import { toLicenseAppError } from '@/modules/license/license.errors.js';
@@ -59,6 +62,58 @@ import { AI_TOOLS } from './ai.tools.js';
 import { AIConversationService } from './ai-conversation.service.js';
 
 export abstract class AIServiceAdministrationTools extends AIServiceInteractionTools {
+  /** manage_configuration_export: the same service and checks as /api/system/configuration-export. */
+  private async executeConfigurationExportTool(user: User, a: Record<string, any>): Promise<unknown> {
+    const exports = container.resolve(ConfigurationExportService);
+    const move = container.resolve(GatewayMoveService);
+    switch (a.operation) {
+      case 'estimate':
+        return exports.estimate();
+      case 'export': {
+        if (typeof a.passphrase !== 'string') throw new Error('passphrase is required');
+        const prepared = await exports.prepare(user.id, {
+          passphrase: a.passphrase,
+          includeRegistry: a.includeRegistry === true,
+          includeLogs: a.includeLogs === true,
+        });
+        return {
+          exportId: prepared.export.id,
+          filename: prepared.export.filename,
+          estimatedBytes: prepared.export.estimatedBytes,
+          downloadUrl: prepared.downloadUrl,
+          expiresAt: prepared.expiresAt,
+          command: `curl -fSL -o ${prepared.export.filename} '${prepared.downloadUrl}'`,
+          note: 'The link works once. Keep the file and the passphrase apart: together they open every secret of this installation.',
+        };
+      }
+      case 'progress':
+        return exports.progress(requiredId(a.exportId, 'exportId'), user.id);
+      case 'move_status':
+        return move.status();
+      case 'announce_move':
+      case 'withdraw_move': {
+        const address = a.operation === 'announce_move' ? String(a.address ?? '') : null;
+        if (address !== null && !address.trim()) throw new Error('address is required');
+        const status = await move.announce(address, user.id);
+        await container.resolve(AuditService).log({
+          userId: user.id,
+          action: address ? 'system.gateway_move_announced' : 'system.gateway_move_withdrawn',
+          resourceType: 'system',
+          details: {
+            address: status.announcement?.address ?? null,
+            told: status.nodes.filter((node) => node.state === 'told').length,
+            notTold: status.nodes
+              .filter((node) => node.state !== 'told')
+              .map((node) => ({ name: node.name, state: node.state })),
+          },
+        });
+        return status;
+      }
+      default:
+        throw new Error('Unsupported configuration export operation');
+    }
+  }
+
   protected async executeAdministrationTool(
     user: User,
     toolName: string,
@@ -326,6 +381,8 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
           throw error instanceof CloudLinkRequestError ? new AppError(error.status, error.code, error.message) : error;
         }
       }
+      case 'manage_configuration_export':
+        return this.executeConfigurationExportTool(user, a);
       case 'manage_gateway_diagnostics': {
         const service = container.resolve(DiagnosticsService);
         const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : undefined);
