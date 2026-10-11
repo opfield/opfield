@@ -139,6 +139,8 @@ export interface DaemonUpdateManifestExpectation {
   artifactName: string;
   downloadUrl: string;
   trustedPackagePrefix: string;
+  /** The same artifact under the update host's other names (a signed manifest may name any of them). */
+  acceptedDownloadUrls?: readonly string[];
 }
 
 export interface GatewayImageManifestExpectation {
@@ -163,9 +165,10 @@ export interface OpenCodexImageManifestExpectation {
 
 export function verifyDaemonUpdateManifest(
   signedManifest: string,
-  expected: DaemonUpdateManifestExpectation
+  expected: DaemonUpdateManifestExpectation,
+  publicKey: string | Buffer = UPDATE_SIGNING_PUBLIC_KEY_PEM
 ): TrustedDaemonUpdateArtifact {
-  const payload = verifySignedPayload<DaemonUpdateManifestPayload>(signedManifest);
+  const payload = verifySignedPayload<DaemonUpdateManifestPayload>(signedManifest, publicKey);
   if (payload.kind !== 'daemon-binary') throw new UpdateArtifactTrustError('Update manifest kind is not daemon-binary');
   if (payload.daemonType !== expected.daemonType) throw new UpdateArtifactTrustError('Update daemon type mismatch');
   if (payload.version !== expected.version) throw new UpdateArtifactTrustError('Update version mismatch');
@@ -173,8 +176,13 @@ export function verifyDaemonUpdateManifest(
   if (payload.arch !== expected.arch) throw new UpdateArtifactTrustError('Update architecture mismatch');
   if (payload.artifactName !== expected.artifactName)
     throw new UpdateArtifactTrustError('Update artifact name mismatch');
-  if (payload.downloadUrl !== expected.downloadUrl) throw new UpdateArtifactTrustError('Update download URL mismatch');
-  if (!isTrustedHttpsUrl(payload.downloadUrl, expected.trustedPackagePrefix)) {
+  if (payload.downloadUrl === expected.downloadUrl) {
+    if (!isTrustedHttpsUrl(payload.downloadUrl, expected.trustedPackagePrefix)) {
+      throw new UpdateArtifactTrustError('Update download URL is not trusted');
+    }
+  } else if (!expected.acceptedDownloadUrls?.includes(payload.downloadUrl)) {
+    throw new UpdateArtifactTrustError('Update download URL mismatch');
+  } else if (!payload.downloadUrl.startsWith('https://')) {
     throw new UpdateArtifactTrustError('Update download URL is not trusted');
   }
   if (!SHA256_RE.test(payload.sha256)) throw new UpdateArtifactTrustError('Update checksum is invalid');
@@ -292,7 +300,7 @@ export function verifyOpenCodexImageManifest(
     throw new UpdateArtifactTrustError('OpenCodex update tag mismatch');
   }
   if (payload.image !== expected.image) throw new UpdateArtifactTrustError('OpenCodex update image mismatch');
-  if (!/^\d+\.\d+\.\d+-(?:wiolett|thesqlabs)\.\d+$/.test(payload.version)) {
+  if (!/^\d+\.\d+\.\d+-(?:wiolett|thesqlabs|opfield)\.\d+$/.test(payload.version)) {
     throw new UpdateArtifactTrustError('OpenCodex update version is not a Good Gateway release');
   }
   if (!DIGEST_RE.test(payload.digest)) throw new UpdateArtifactTrustError('OpenCodex update digest is invalid');

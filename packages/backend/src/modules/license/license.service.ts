@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import os from 'node:os';
 import { eq, inArray } from 'drizzle-orm';
 import type { Env } from '@/config/env.js';
+import { LICENSE_SERVICE_URLS } from '@/config/vendor-urls.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { settings } from '@/db/schema/settings.js';
 import { type CommercialUpdateGrant, commercialVersionKey } from '@/edition/prepare-update.js';
@@ -19,7 +20,6 @@ import {
   LICENSE_OFFLINE_GRACE_DAYS,
   LICENSE_PAID_HEARTBEAT_INTERVAL_MS,
   LICENSE_PLAN_GRACE_HOURS,
-  LICENSE_SERVER_URL,
   LICENSE_SUPPORTED_ENTITLEMENTS_VERSIONS,
   type LicenseEntitlements,
   type LicensePlan,
@@ -60,6 +60,12 @@ type PaidPlan = Exclude<LicensePlan, 'community'>;
 interface StoredSettings {
   get<T>(key: string, fallback: T): T;
 }
+
+/** One address of the license service gets this long to answer a call before the next one is tried. */
+const LICENSE_REQUEST_TIMEOUT_MS = 8_000;
+/** A private core file download: this long for the response to start on one address, then the whole download. */
+const LICENSE_FILE_RESPONSE_TIMEOUT_MS = 15_000;
+const LICENSE_FILE_DOWNLOAD_TIMEOUT_MS = 10 * 60_000;
 
 const PLAN_RANK: Record<LicensePlan, number> = { community: 0, personal: 1, business: 2, enterprise: 3 };
 const UNVERIFIED_STATE_MESSAGE = 'License state is not signed by the license server';
@@ -109,7 +115,19 @@ function isLicenseServerUnreachable(error: unknown): error is LicenseServerReque
   );
 }
 
+/** The license service answers every call with `{ data }` or `{ error: { code, message } }`. */
+function isLicenseServiceEnvelope(
+  value: unknown
+): value is LicenseServerEnvelope<unknown> | LicenseServerErrorEnvelope {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  if ('data' in value) return true;
+  const error = (value as { error?: unknown }).error;
+  return Boolean(error) && typeof error === 'object' && typeof (error as { code?: unknown }).code === 'string';
+}
+
 export class LicenseService {
+  /** The license service address that answered last; it is tried first. */
+  private answeredEndpoint: string | null = null;
   private registrationPromise: Promise<RegistrationCredential> | null = null;
   private installationIdPromise: Promise<string> | null = null;
   private syncQueue: Promise<void> = Promise.resolve();
@@ -325,18 +343,12 @@ export class LicenseService {
       edition: 'commercial',
       signedManifest: result.signedManifest,
       readFile: (path, releaseId) =>
-        this.fetcher(`${LICENSE_SERVER_URL}/api/v1/releases/file`, {
-          method: 'POST',
-          redirect: 'error',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            installationToken: credential.token,
-            hostVersion,
-            releaseId,
-            path,
-            entitlementsVersion: LICENSE_ENTITLEMENTS_VERSION,
-          }),
-          signal: AbortSignal.timeout(10 * 60_000),
+        this.downloadFile('/api/v1/releases/file', {
+          installationToken: credential.token,
+          hostVersion,
+          releaseId,
+          path,
+          entitlementsVersion: LICENSE_ENTITLEMENTS_VERSION,
         }),
     };
   }
@@ -513,35 +525,94 @@ export class LicenseService {
     return nonce;
   }
 
+  /** The license service addresses in the order to try them: the one that answered last first. */
+  private serviceEndpoints(): string[] {
+    const answered = this.answeredEndpoint;
+    return answered
+      ? [answered, ...LICENSE_SERVICE_URLS.filter((endpoint) => endpoint !== answered)]
+      : [...LICENSE_SERVICE_URLS];
+  }
+
+  /**
+   * Sends a call to the license service: to each of its addresses in order until one answers as the license service
+   * does, with a JSON envelope. No response, a timeout, or a response that is not the license service's (a proxy error
+   * page, a parked domain) moves on to the next address; an answer, a refusal included, is final and is never retried
+   * elsewhere.
+   */
   private async post<T>(path: string, body: Record<string, unknown>): Promise<T> {
-    let response: Response;
-    try {
-      response = await this.fetcher(`${LICENSE_SERVER_URL}${path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(10_000),
-      });
-    } catch {
-      throw new LicenseServerRequestError(503, 'LICENSE_SERVER_UNAVAILABLE', 'License server is unavailable');
+    const payloadBody = JSON.stringify(body);
+    for (const endpoint of this.serviceEndpoints()) {
+      let response: Response;
+      let payload: unknown;
+      try {
+        response = await this.fetcher(`${endpoint}${path}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payloadBody,
+          signal: AbortSignal.timeout(LICENSE_REQUEST_TIMEOUT_MS),
+        });
+        payload = await response.json().catch(() => null);
+      } catch {
+        continue;
+      }
+      if (!isLicenseServiceEnvelope(payload)) continue;
+      this.answeredEndpoint = endpoint;
+      if (!response.ok) {
+        const serverError = 'error' in payload ? payload.error : null;
+        throw new LicenseServerRequestError(
+          response.status,
+          serverError?.code ?? 'LICENSE_SERVER_ERROR',
+          serverError?.message ?? `License server returned HTTP ${response.status}`,
+          serverError?.details
+        );
+      }
+      if (!('data' in payload)) throw new Error('License server returned an invalid response');
+      return payload.data as T;
     }
-    const payload = (await response.json().catch(() => null)) as
-      | LicenseServerEnvelope<T>
-      | LicenseServerErrorEnvelope
-      | null;
-    if (!response.ok) {
-      const serverError = payload && 'error' in payload ? payload.error : null;
-      throw new LicenseServerRequestError(
-        response.status,
-        serverError?.code ?? 'LICENSE_SERVER_ERROR',
-        serverError?.message ?? `License server returned HTTP ${response.status}`,
-        serverError?.details
-      );
+    throw new LicenseServerRequestError(503, 'LICENSE_SERVER_UNAVAILABLE', 'License server is unavailable');
+  }
+
+  /**
+   * A private core file, over the same addresses as {@link post}: a download that starts, or a JSON refusal, is the
+   * answer. When no address answers, the last HTTP response is returned for the caller to reject.
+   */
+  private async downloadFile(path: string, body: Record<string, unknown>): Promise<Response> {
+    const payloadBody = JSON.stringify(body);
+    let lastResponse: Response | null = null;
+    for (const endpoint of this.serviceEndpoints()) {
+      const started = new AbortController();
+      const timer = setTimeout(() => started.abort(), LICENSE_FILE_RESPONSE_TIMEOUT_MS);
+      let response: Response | undefined;
+      try {
+        response = await this.fetcher(`${endpoint}${path}`, {
+          method: 'POST',
+          redirect: 'error',
+          headers: { 'Content-Type': 'application/json' },
+          body: payloadBody,
+          signal: AbortSignal.any([started.signal, AbortSignal.timeout(LICENSE_FILE_DOWNLOAD_TIMEOUT_MS)]),
+        });
+      } catch {
+        continue;
+      } finally {
+        clearTimeout(timer);
+      }
+      if (!response) continue;
+      if (response.ok) {
+        this.answeredEndpoint = endpoint;
+        return response;
+      }
+      const payload = await response
+        .clone()
+        .json()
+        .catch(() => null);
+      if (isLicenseServiceEnvelope(payload)) {
+        this.answeredEndpoint = endpoint;
+        return response;
+      }
+      lastResponse = response;
     }
-    if (!payload || !('data' in payload)) {
-      throw new Error('License server returned an invalid response');
-    }
-    return payload.data;
+    if (lastResponse) return lastResponse;
+    throw new LicenseServerRequestError(503, 'LICENSE_SERVER_UNAVAILABLE', 'License server is unavailable');
   }
 
   private createBinding(purpose: LicenseAttestationPurpose): LicenseRequestBinding {
@@ -887,7 +958,7 @@ export class LicenseService {
       activeInstallationId: cached.activeInstallationId,
       activeInstallationName: cached.activeInstallationName,
       errorMessage: cached.errorMessage,
-      serverUrl: LICENSE_SERVER_URL,
+      serverUrl: this.answeredEndpoint ?? LICENSE_SERVICE_URLS[0],
     };
   }
 

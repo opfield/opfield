@@ -1,3 +1,5 @@
+import { ALTERNATE_UPDATES_BASE_URLS, UPDATES_BASE_URL } from '@/config/vendor-urls.js';
+
 export interface ReleaseRecord {
   tag_name: string;
   description?: unknown;
@@ -10,6 +12,11 @@ export interface ReleaseArtifactSource {
   artifactUrl: string;
   manifestUrl: string;
   trustedPrefix: string;
+  /**
+   * The artifact's URL under every name of the update host (the configured base first). A signed manifest may name
+   * the artifact under any of them; they serve the same files.
+   */
+  acceptedArtifactUrls: string[];
 }
 
 export interface ReleaseFileSource {
@@ -43,10 +50,12 @@ export function releaseArtifactSource(
 ): ReleaseArtifactSource {
   const artifact = releaseFileSource(artifactBaseUrl, packageName, tag, artifactName);
   const manifest = releaseFileSource(artifactBaseUrl, packageName, tag, `${artifactName}.update.json`);
+  const bases = [artifactBaseUrl, UPDATES_BASE_URL, ...ALTERNATE_UPDATES_BASE_URLS].map(trimTrailingSlashes);
   return {
     artifactUrl: artifact.url,
     manifestUrl: manifest.url,
     trustedPrefix: artifact.trustedPrefix,
+    acceptedArtifactUrls: [...new Set(bases)].map((base) => releaseArtifactUrl(base, packageName, tag, artifactName)),
   };
 }
 

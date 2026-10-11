@@ -4,6 +4,7 @@ import { appRoute, jsonBody, okJson, openApiValidationHook } from '@/lib/openapi
 import { authMiddleware, requireAccountScope, requireScope } from '@/modules/auth/auth.middleware.js';
 import type { AppEnv } from '@/types.js';
 import { inferenceCoreOperationSchema, inferenceCoreStatusSchema } from './inference-core.contract.js';
+import { OPENCODEX_VERSION_RE } from './inference-core.manifest.js';
 import { InferenceCoreRuntimeService } from './inference-core-runtime.service.js';
 
 /**
@@ -24,7 +25,7 @@ export const coreVersionInputSchema = z
   .object({
     version: z
       .string()
-      .regex(/^\d+\.\d+\.\d+-(?:wiolett|thesqlabs)\.\d+$/)
+      .regex(OPENCODEX_VERSION_RE)
       .optional()
       .openapi({ description: 'Target core version (defaults to the latest published release)' }),
   })
@@ -52,7 +53,7 @@ export const coreUpdateInputSchema = z
   .object({
     version: z
       .string()
-      .regex(/^\d+\.\d+\.\d+-(?:wiolett|thesqlabs)\.\d+$/)
+      .regex(OPENCODEX_VERSION_RE)
       .openapi({ description: 'Target core version from the release channel' }),
   })
   .strict();

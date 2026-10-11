@@ -18,6 +18,13 @@ import (
 // trust anchor whichever registry serves it.
 const thirdPartyMirrorRepository = "ghcr.io/the-square-labs/gateway"
 
+// thirdPartyAlternateMirrorRepositories hold the same mirror under other
+// official names (releases from 2.12 publish it under ghcr.io/opfield/opfield
+// too). A reference under one of them is accepted as the mirror of its
+// upstream image and pulled as named, with thirdPartyMirrorRepository and the
+// upstream reference as its fallbacks.
+var thirdPartyAlternateMirrorRepositories = []string{"ghcr.io/opfield/opfield"}
+
 var thirdPartyImageReferencePattern = regexp.MustCompile(`^([a-z0-9.-]+\.[a-z]+(?::[0-9]+)?/[a-z0-9._/-]+)@(sha256:[a-f0-9]{64})$`)
 
 // thirdPartyMirroredImages is the allow-list of upstream references the release
@@ -65,6 +72,10 @@ var thirdPartyMirroredImages = map[string]struct{}{
 // allow-listed upstream reference. The mirror name is the last path segment
 // of the upstream repository.
 func thirdPartyMirrorReference(upstream string) (string, bool) {
+	return thirdPartyMirrorReferenceIn(thirdPartyMirrorRepository, upstream)
+}
+
+func thirdPartyMirrorReferenceIn(repository, upstream string) (string, bool) {
 	if _, ok := thirdPartyMirroredImages[upstream]; !ok {
 		return "", false
 	}
@@ -72,20 +83,22 @@ func thirdPartyMirrorReference(upstream string) (string, bool) {
 	if match == nil {
 		return "", false
 	}
-	repository := match[1]
-	name := repository[strings.LastIndex(repository, "/")+1:]
-	return thirdPartyMirrorRepository + "/" + name + "@" + match[2], true
+	name := match[1][strings.LastIndex(match[1], "/")+1:]
+	return repository + "/" + name + "@" + match[2], true
 }
 
-// thirdPartyUpstreamReference maps a GHCR mirror reference back to the
-// allow-listed upstream reference with the same name and digest.
+// thirdPartyUpstreamReference maps a GHCR mirror reference, under the mirror
+// repository or one of its alternate names, back to the allow-listed upstream
+// reference with the same name and digest.
 func thirdPartyUpstreamReference(mirror string) (string, bool) {
-	if !strings.HasPrefix(mirror, thirdPartyMirrorRepository+"/") {
-		return "", false
-	}
-	for upstream := range thirdPartyMirroredImages {
-		if candidate, ok := thirdPartyMirrorReference(upstream); ok && candidate == mirror {
-			return upstream, true
+	for _, repository := range append([]string{thirdPartyMirrorRepository}, thirdPartyAlternateMirrorRepositories...) {
+		if !strings.HasPrefix(mirror, repository+"/") {
+			continue
+		}
+		for upstream := range thirdPartyMirroredImages {
+			if candidate, ok := thirdPartyMirrorReferenceIn(repository, upstream); ok && candidate == mirror {
+				return upstream, true
+			}
 		}
 	}
 	return "", false
@@ -93,22 +106,28 @@ func thirdPartyUpstreamReference(mirror string) (string, bool) {
 
 // thirdPartyImageCandidates returns the references to try, in order, for one
 // digest-pinned image: the GHCR mirror first and the upstream reference as the
-// fallback when the image is allow-listed, otherwise the reference alone.
+// fallback when the image is allow-listed, otherwise the reference alone. A
+// reference under an alternate mirror name is tried first, as named.
 func thirdPartyImageCandidates(reference string) []string {
 	upstream := reference
 	if mapped, ok := thirdPartyUpstreamReference(reference); ok {
 		upstream = mapped
 	}
-	if mirror, ok := thirdPartyMirrorReference(upstream); ok {
-		return []string{mirror, upstream}
+	mirror, ok := thirdPartyMirrorReference(upstream)
+	if !ok {
+		return []string{reference}
 	}
-	return []string{reference}
+	if reference != upstream && reference != mirror {
+		return []string{reference, mirror, upstream}
+	}
+	return []string{mirror, upstream}
 }
 
-// isThirdPartyMirrorOf reports whether candidate is the GHCR mirror of upstream.
+// isThirdPartyMirrorOf reports whether candidate is the GHCR mirror of
+// upstream, under the mirror repository or one of its alternate names.
 func isThirdPartyMirrorOf(candidate, upstream string) bool {
-	mirror, ok := thirdPartyMirrorReference(upstream)
-	return ok && candidate == mirror
+	mapped, ok := thirdPartyUpstreamReference(candidate)
+	return ok && mapped == upstream
 }
 
 // thirdPartyImagePullError reports that no candidate registry could provide a

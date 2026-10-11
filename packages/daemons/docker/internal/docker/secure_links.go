@@ -63,7 +63,7 @@ var secureLinkConnectorSlots = [3]struct{ name, socket string }{
 }
 
 var immutableConnectorImagePattern = regexp.MustCompile(`^.+@sha256:[0-9a-f]{64}$`)
-var officialConnectorReleaseTagPattern = regexp.MustCompile(`^ghcr\.io/the-square-labs/gateway/secure-link-connector:v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?-relay$`)
+var officialConnectorReleaseTagPattern = regexp.MustCompile(`^ghcr\.io/(?:the-square-labs/gateway|opfield/opfield)/secure-link-connector:v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?-relay$`)
 var proxySecureLinkIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)
 var errSecureLinkTargetUnavailable = errors.New("target container is unavailable")
 

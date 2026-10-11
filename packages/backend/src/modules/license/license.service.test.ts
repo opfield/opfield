@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LICENSE_SERVICE_URLS } from '@/config/vendor-urls.js';
 import { LicenseServerRequestError, LicenseService } from './license.service.js';
 import {
   COMMUNITY_ENTITLEMENTS,
@@ -161,6 +162,9 @@ function errorResponse(code: string, message: string, status = 409) {
   });
 }
 
+/** One call that gets no answer at all tries every address of the license service. */
+const LICENSE_SERVICE_ADDRESSES = LICENSE_SERVICE_URLS.length;
+
 function registerResponse(state = communityState()) {
   return dataResponse(
     {
@@ -305,7 +309,7 @@ describe('LicenseService', () => {
     await expect(service.authorizeCommercialUpdate('v3.0.0-rc.1')).rejects.toMatchObject({
       code: 'LICENSE_SERVER_UNAVAILABLE',
     });
-    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledTimes(LICENSE_SERVICE_ADDRESSES);
   });
 
   it.each([
@@ -447,7 +451,7 @@ describe('LicenseService', () => {
 
     expect(fetcher).toHaveBeenCalledOnce();
     const [url, request] = fetcher.mock.calls[0]!;
-    expect(url).toBe('https://license.thesqlabs.com/api/v1/installations/register');
+    expect(url).toBe('https://license.opfield.dev/api/v1/installations/register');
     const body = JSON.parse(request.body);
     expect(body).toMatchObject({
       installationName: 'gateway.example.com',
@@ -716,7 +720,7 @@ describe('LicenseService', () => {
 
     // The unsigned cache is replaced at the first heartbeat, even inside the interval.
     await service.heartbeat();
-    expect(offline).toHaveBeenCalledOnce();
+    expect(offline).toHaveBeenCalledTimes(LICENSE_SERVICE_ADDRESSES);
     expect(db.rows.has('license:installation_token_encrypted')).toBe(true);
     expect(db.rows.has('license:key_encrypted')).toBe(true);
 
@@ -920,11 +924,11 @@ describe('LicenseService', () => {
     await service.heartbeat();
     vi.setSystemTime(new Date('2026-08-16T12:15:00.000Z'));
     await service.heartbeat();
-    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledTimes(LICENSE_SERVICE_ADDRESSES);
 
     vi.setSystemTime(new Date('2026-08-16T12:30:00.001Z'));
     await service.heartbeat();
-    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(2 * LICENSE_SERVICE_ADDRESSES);
   });
 
   it('attempts one online activation for a legacy encrypted Homelab key after registration', async () => {
@@ -1328,5 +1332,82 @@ describe('LicenseService signed states', () => {
     await service.checkNow();
 
     await expect(service.getStatus()).resolves.toMatchObject({ status: 'valid', plan: 'business', graceUntil: null });
+  });
+});
+
+describe('LicenseService addresses', () => {
+  const ADDRESSES = ['https://license.opfield.dev', 'https://license.thesqlabs.com', 'https://license.wiolett.cloud'];
+  const hosts = (fetcher: ReturnType<typeof vi.fn>) => fetcher.mock.calls.map(([url]) => new URL(url).origin);
+
+  it('tries license.opfield.dev, license.thesqlabs.com and license.wiolett.cloud in order', async () => {
+    const fetcher = vi.fn().mockRejectedValue(new Error('offline'));
+    const service = createService(createDb(), fetcher);
+    await service.heartbeat();
+    expect(hosts(fetcher)).toEqual(ADDRESSES);
+  });
+
+  it('moves on when an address gives no answer and keeps using the one that answered', async () => {
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('getaddrinfo ENOTFOUND license.opfield.dev'))
+      .mockImplementation(() => registerResponse());
+    const service = createService(createDb(), fetcher);
+
+    await service.heartbeat();
+    expect(hosts(fetcher)).toEqual(ADDRESSES.slice(0, 2));
+    await expect(service.getStatus()).resolves.toMatchObject({ serverUrl: 'https://license.thesqlabs.com' });
+
+    fetcher.mockClear();
+    fetcher.mockImplementation(() => dataResponse(communityState()));
+    await service.checkNow();
+    expect(hosts(fetcher)[0]).toBe('https://license.thesqlabs.com');
+  });
+
+  it('moves on past a response that is not the license service (a proxy error page)', async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('<html>502 Bad Gateway</html>', { status: 502 }))
+      .mockResolvedValueOnce(new Response('parked', { status: 200 }))
+      .mockImplementation(() => registerResponse());
+    const service = createService(createDb(), fetcher);
+    await service.heartbeat();
+    expect(hosts(fetcher)).toEqual(ADDRESSES);
+    await expect(service.getStatus()).resolves.toMatchObject({
+      registrationStatus: 'registered',
+      serverUrl: 'https://license.wiolett.cloud',
+    });
+  });
+
+  it('takes a refusal from the license service as final', async () => {
+    const db = createDb();
+    db.rows.set('license:installation_token_encrypted', createCrypto().encryptString('installation-secret'));
+    const fetcher = vi
+      .fn()
+      .mockImplementation(() => errorResponse('UPDATE_NOT_ALLOWED', 'Not for this installation', 403));
+    const service = createService(db, fetcher);
+    await expect(service.authorizeCommercialUpdate('v3.0.0-rc.1')).rejects.toMatchObject({
+      code: 'UPDATE_NOT_ALLOWED',
+    });
+    expect(hosts(fetcher)).toEqual([ADDRESSES[0]]);
+  });
+
+  it('downloads a private core file from the next address when one does not answer', async () => {
+    const db = createDb();
+    db.rows.set('license:installation_token_encrypted', createCrypto().encryptString('installation-secret'));
+    const fetcher = vi
+      .fn()
+      .mockImplementationOnce(() => dataResponse({ state: paidState('personal'), signedManifest: 'signed-release' }))
+      .mockRejectedValueOnce(new Error('connection reset'))
+      .mockResolvedValueOnce(new Response('core-bytes'));
+    const service = createService(db, fetcher);
+    const grant = await service.authorizeCommercialUpdate('v3.0.0-rc.1');
+    if (grant.edition !== 'commercial') throw new Error('Expected private grant');
+    const response = await grant.readFile('backend/index.cjs', 'a'.repeat(64));
+    await expect(response.text()).resolves.toBe('core-bytes');
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      `${ADDRESSES[0]}/api/v1/releases/authorize`,
+      `${ADDRESSES[0]}/api/v1/releases/file`,
+      `${ADDRESSES[1]}/api/v1/releases/file`,
+    ]);
   });
 });

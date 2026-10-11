@@ -10,9 +10,14 @@ import { INFERENCE_CORE_PROTOCOL_MAJOR } from './inference-core.contract.js';
  * signature-verified before any Docker mutation is considered.
  */
 
-// Releases were tagged `-wiolett.N` up to 2.25.0; newer ones use `-thesqlabs.N`. Installed
-// legacy versions must stay valid and comparable, so both suffixes are accepted.
-export const OPENCODEX_RELEASE_TAG_RE = /^v\d+\.\d+\.\d+-(?:wiolett|thesqlabs)\.\d+$/;
+// Release lines in the order they replaced each other: `-wiolett.N` up to 2.25.0, then `-thesqlabs.N`, then
+// `-opfield.N` (published from ghcr.io/opfield/inference-core). Installed versions of every line must stay valid and
+// comparable, so all three suffixes are accepted.
+export const OPENCODEX_RELEASE_LINES = ['wiolett', 'thesqlabs', 'opfield'] as const;
+export type OpenCodexReleaseLine = (typeof OPENCODEX_RELEASE_LINES)[number];
+/** A core version without the leading `v`, as signed manifests and the API carry it. */
+export const OPENCODEX_VERSION_RE = /^\d+\.\d+\.\d+-(?:wiolett|thesqlabs|opfield)\.\d+$/;
+export const OPENCODEX_RELEASE_TAG_RE = /^v\d+\.\d+\.\d+-(?:wiolett|thesqlabs|opfield)\.\d+$/;
 
 /** Fetch the newest published OpenCodex core tag, or null when none exist yet. */
 export async function fetchLatestOpenCodexTag(releasesApiUrl: string): Promise<string | null> {
@@ -31,8 +36,8 @@ export async function fetchLatestOpenCodexTag(releasesApiUrl: string): Promise<s
 }
 
 /**
- * Compare `1.2.3-thesqlabs.4` style versions: semver first, then the release line
- * (`thesqlabs` supersedes legacy `wiolett` on the same base), then the build number.
+ * Compare `1.2.3-thesqlabs.4` style versions: semver first, then the release line (on the same base a later line
+ * supersedes an earlier one: wiolett < thesqlabs < opfield), then the build number.
  */
 export function compareOpenCodexVersions(a: string, b: string): number {
   const parsedA = parseOpenCodexVersion(a);
@@ -40,16 +45,18 @@ export function compareOpenCodexVersions(a: string, b: string): number {
   if (!parsedA || !parsedB) return 0;
   const semverOrder = compareSemver(parsedA.base, parsedB.base);
   if (semverOrder !== 0) return semverOrder;
-  if (parsedA.line !== parsedB.line) return parsedA.line === 'thesqlabs' ? 1 : -1;
+  if (parsedA.line !== parsedB.line) {
+    return OPENCODEX_RELEASE_LINES.indexOf(parsedA.line) - OPENCODEX_RELEASE_LINES.indexOf(parsedB.line);
+  }
   return parsedA.build - parsedB.build;
 }
 
 export function parseOpenCodexVersion(
   version: string
-): { base: string; line: 'wiolett' | 'thesqlabs'; build: number } | null {
-  const match = /^v?(\d+\.\d+\.\d+)-(wiolett|thesqlabs)\.(\d+)$/.exec(version);
+): { base: string; line: OpenCodexReleaseLine; build: number } | null {
+  const match = /^v?(\d+\.\d+\.\d+)-(wiolett|thesqlabs|opfield)\.(\d+)$/.exec(version);
   if (!match || !parseSemver(match[1])) return null;
-  return { base: match[1], line: match[2] as 'wiolett' | 'thesqlabs', build: Number(match[3]) };
+  return { base: match[1], line: match[2] as OpenCodexReleaseLine, build: Number(match[3]) };
 }
 
 /**
@@ -64,7 +71,11 @@ export async function fetchOpenCodexImageManifest(
   publicKey?: string | Buffer
 ): Promise<TrustedOpenCodexImageArtifact> {
   if (!OPENCODEX_RELEASE_TAG_RE.test(tag)) {
-    throw new AppError(400, 'INVALID_CORE_VERSION', `Core release tag must match vX.Y.Z-thesqlabs.N, got "${tag}"`);
+    throw new AppError(
+      400,
+      'INVALID_CORE_VERSION',
+      `Core release tag must match vX.Y.Z-thesqlabs.N or vX.Y.Z-opfield.N, got "${tag}"`
+    );
   }
   const source = releaseFileSource(artifactBaseUrl, 'inference-core', tag, 'opencodex-image.update.json');
   const response = await fetch(source.url, {
