@@ -242,7 +242,7 @@ export function PostgresColumnSchemaDialog({
             )}
           </PanelShell>
         ) : (
-          <div className="rounded-md border border-border px-4 py-8 text-center text-sm text-muted-foreground">
+          <div className="border border-border px-4 py-8 text-center text-sm text-muted-foreground">
             No table metadata loaded.
           </div>
         )}

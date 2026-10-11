@@ -771,7 +771,7 @@ export function AIChatSurface({ active = true, onClose, onEnterLiteMode }: AICha
           </p>
           <QuickActionChips onSelect={handleQuickAction} context={context} />
           {recentConversations.length > 0 && (
-            <div className="mt-4 w-full max-w-[340px] rounded-md overflow-clip border border-border">
+            <div className="mt-4 w-full max-w-[340px] border border-border">
               <div className="border-b border-border px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Recent
               </div>

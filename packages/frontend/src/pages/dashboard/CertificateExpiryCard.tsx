@@ -23,7 +23,7 @@ export function CertificateExpiryCard({ expiringItems: visible }: CertificateExp
   if (visible.length === 0) return null;
 
   return (
-    <div className="rounded-lg overflow-clip border border-warning/60 bg-card">
+    <div className="border border-warning/60 bg-card">
       <SectionHeader
         title="Expiring Soon"
         actions={<Badge variant="warning-solid">{visible.length}</Badge>}

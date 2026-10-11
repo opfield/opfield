@@ -1765,7 +1765,7 @@ export function DockerContainerDetail({
         {buildRolloutReason && !composeManaged && (
           <div
             role="status"
-            className="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 p-3 text-sm"
+            className="flex items-center gap-2 border border-primary/20 bg-primary/5 p-3 text-sm"
           >
             <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
             <p>
@@ -1776,7 +1776,7 @@ export function DockerContainerDetail({
         )}
 
         {composeManaged && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/20 bg-primary/5 p-3 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border border-primary/20 bg-primary/5 p-3 text-sm">
             <div>
               <p className="font-medium">Managed by Compose project {composeProjectName}</p>
               <p className="text-muted-foreground">

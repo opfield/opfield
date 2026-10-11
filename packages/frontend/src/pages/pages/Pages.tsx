@@ -176,7 +176,7 @@ export function Pages() {
           <div className="flex items-center gap-3">
             <LiteModeBackButton />
             <div>
-              <h1 className="font-display text-2xl font-semibold">Pages</h1>
+              <h1 className="font-display text-2xl font-bold">Pages</h1>
               <p className="text-sm text-muted-foreground">
                 {projects.length} project{projects.length === 1 ? "" : "s"}
               </p>

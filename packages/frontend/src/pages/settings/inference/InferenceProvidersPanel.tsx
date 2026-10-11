@@ -679,7 +679,7 @@ function ProviderDragOverlayRow({
 }) {
   return (
     <div
-      className="max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-border bg-card shadow-pop"
+      className="max-w-[calc(100vw-2rem)] overflow-hidden border border-border bg-card shadow-lg"
       style={{ width: width ?? 860 }}
     >
       <table className="w-full table-fixed text-sm">

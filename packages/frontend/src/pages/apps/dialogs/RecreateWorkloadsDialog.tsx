@@ -266,7 +266,7 @@ export function RecreateWorkloadsDialog({
               {notFinishedNote(queued, deferred)}
             </Notice>
           ) : null}
-          <div className="rounded-md overflow-clip border border-border">
+          <div className="border border-border">
             {(shown ?? []).map((workload, index) => {
               const state = STATE_BADGE[states[index] ?? "waiting"];
               const detail =

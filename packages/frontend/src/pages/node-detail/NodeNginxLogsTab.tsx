@@ -377,7 +377,7 @@ export function NodeNginxLogsTab({ nodeId, nodeStatus }: NodeNginxLogsTabProps) 
 
   if (nodeStatus !== "online") {
     return (
-      <div className="rounded-lg overflow-clip border border-border bg-card">
+      <div className="border border-border bg-card">
         <EmptyState message="Node is offline - nginx logs unavailable" embedded />
       </div>
     );

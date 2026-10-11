@@ -423,7 +423,7 @@ export function LogsTab({ hostId }: { hostId: string }) {
           </DialogHeader>
           {selectedLog && (
             <div className="min-w-0 space-y-4">
-              <div className="min-w-0 divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
+              <div className="min-w-0 divide-y divide-border overflow-hidden border border-border bg-card">
                 {[
                   ["Time", selectedLog.timestamp],
                   ["Type", selectedLog.logType || "-"],
@@ -451,7 +451,7 @@ export function LogsTab({ hostId }: { hostId: string }) {
               </div>
               <div className="min-w-0 space-y-1.5">
                 <div className="text-sm text-muted-foreground">Raw</div>
-                <pre className="max-h-64 min-w-0 overflow-auto whitespace-pre-wrap break-all rounded-md border border-border bg-muted/30 p-3 font-mono text-xs leading-5 text-foreground">
+                <pre className="max-h-64 min-w-0 overflow-auto whitespace-pre-wrap break-all border border-border bg-muted/30 p-3 font-mono text-xs leading-5 text-foreground">
                   {selectedLog.raw || "-"}
                 </pre>
               </div>

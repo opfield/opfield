@@ -64,16 +64,16 @@ export function PinnedNodeCard({ node, liveHealth, healthHistory }: PinnedNodeCa
   const diskWarn = warnStyle(diskWarning, { left: !memoryWarning, right: true });
 
   return (
-    <div className="grid grid-cols-4 rounded-lg border border-border bg-card overflow-visible">
+    <div className="grid grid-cols-4 border border-border bg-card overflow-visible">
       {/* Node info — clickable, navigates to node detail */}
       <Link
         to={nodeRoute(node.slug)}
-        className="rounded-l-lg border-r border-border p-4 space-y-2 overflow-hidden cursor-pointer hover:bg-accent transition-colors"
+        className="border-r border-border p-4 space-y-2 overflow-hidden cursor-pointer hover:bg-accent transition-colors"
       >
         <p className="text-xs text-muted-foreground truncate">
           {node.hostname}, {nodeTypeLabel(node.type)}
         </p>
-        <p className="font-display text-xl font-semibold truncate">
+        <p className="font-display text-xl font-bold truncate">
           {node.displayName || node.hostname}
         </p>
         <div className="flex items-center gap-2">
@@ -94,7 +94,7 @@ export function PinnedNodeCard({ node, liveHealth, healthHistory }: PinnedNodeCa
         icon={Cpu}
         progress={{ percent: cpuPercent, color: cpuWarn.progressColor }}
         valueColor={cpuWarn.valueColor}
-        className="rounded-none border-0 border-r border-border"
+        className="border-0 border-r border-border"
         style={cpuWarn.style}
       />
       <MetricCard
@@ -108,7 +108,7 @@ export function PinnedNodeCard({ node, liveHealth, healthHistory }: PinnedNodeCa
             : undefined
         }
         valueColor={memWarn.valueColor}
-        className="rounded-none border-0 border-r border-border"
+        className="border-0 border-r border-border"
         style={memWarn.style}
       />
       <MetricCard
@@ -122,7 +122,7 @@ export function PinnedNodeCard({ node, liveHealth, healthHistory }: PinnedNodeCa
             : undefined
         }
         valueColor={diskWarn.valueColor}
-        className="rounded-l-none border-0"
+        className="border-0"
         style={diskWarn.style}
       />
     </div>

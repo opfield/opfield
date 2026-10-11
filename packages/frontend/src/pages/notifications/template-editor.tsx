@@ -329,7 +329,7 @@ export const TemplateEditor = React.forwardRef<
   return (
     <div
       ref={containerRef}
-      className="overflow-hidden rounded-md border border-input bg-background"
+      className="overflow-hidden border border-input bg-background"
       style={{ minHeight }}
     />
   );

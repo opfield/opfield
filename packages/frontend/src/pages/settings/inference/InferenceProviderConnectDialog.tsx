@@ -310,7 +310,7 @@ export function InferenceProviderConnectDialog({
         <AnimatedHeight>
           <motion.div key={contentKey} {...STEP_ANIMATION}>
             {!oauth && (
-              <div className="rounded-md overflow-clip border border-border">
+              <div className="border border-border">
                 <SettingsControlRow title="Provider">
                   <Select
                     value={providerId}
@@ -390,7 +390,7 @@ export function InferenceProviderConnectDialog({
               </div>
             )}
             {oauth && (
-              <div className="space-y-3 rounded-md border border-border p-4">
+              <div className="space-y-3 border border-border p-4">
                 {oauth.completionMode === "device_poll" ? (
                   <>
                     <p className="text-sm">
@@ -438,7 +438,7 @@ export function InferenceProviderConnectDialog({
                       </a>
                     </Button>
                     <form
-                      className="flex min-w-0 rounded-md overflow-hidden border border-input bg-background"
+                      className="flex min-w-0 border border-input bg-background"
                       onSubmit={(event) => {
                         event.preventDefault();
                         void completeCallback();

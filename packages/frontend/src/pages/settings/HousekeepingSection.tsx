@@ -338,7 +338,7 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
                     type="number"
                     aria-label="Maximum structured log rows"
                     min={1000}
-                    className="w-[4.25rem] rounded-md border border-input bg-background px-1 text-center text-xs text-foreground tabular-nums outline-none focus:border-primary disabled:opacity-50"
+                    className="w-[4.25rem] border border-input bg-background px-1 text-center text-xs text-foreground tabular-nums outline-none focus:border-primary disabled:opacity-50"
                     value={hkConfig.structuredLogs.maxRows || ""}
                     disabled={!hkConfig.structuredLogs.enabled || controlsDisabled}
                     onChange={(event) =>
@@ -357,7 +357,7 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
                     aria-label="Maximum structured log size in GiB"
                     min={0.001}
                     step={0.25}
-                    className="w-8 rounded-md border border-input bg-background px-1 text-center text-xs text-foreground tabular-nums outline-none focus:border-primary disabled:opacity-50"
+                    className="w-8 border border-input bg-background px-1 text-center text-xs text-foreground tabular-nums outline-none focus:border-primary disabled:opacity-50"
                     value={
                       hkConfig.structuredLogs.maxSizeBytes > 0
                         ? Number((hkConfig.structuredLogs.maxSizeBytes / 1024 ** 3).toFixed(3))
@@ -407,7 +407,7 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
                     aria-label="Maximum ClickHouse internal log size in MiB"
                     min={1}
                     step={64}
-                    className="w-12 rounded-md border border-input bg-background px-1 text-center text-xs text-foreground tabular-nums outline-none focus:border-primary disabled:opacity-50"
+                    className="w-12 border border-input bg-background px-1 text-center text-xs text-foreground tabular-nums outline-none focus:border-primary disabled:opacity-50"
                     value={
                       hkConfig.clickHouseInternals.maxSizeBytes > 0
                         ? Math.round(hkConfig.clickHouseInternals.maxSizeBytes / 1024 ** 2)
@@ -700,7 +700,7 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
           <DialogHeader>
             <DialogTitle>Run History</DialogTitle>
           </DialogHeader>
-          <div className="min-w-0 rounded-md overflow-clip border border-border">
+          <div className="min-w-0 border border-border">
             <SimpleTable
               columns={historyColumns}
               rows={hkHistory}

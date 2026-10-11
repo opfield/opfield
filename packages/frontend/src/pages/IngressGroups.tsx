@@ -160,7 +160,7 @@ export function IngressGroups() {
               onReset={() => setSearch("")}
             />
             {filteredGroups.length > 0 ? (
-              <div className="rounded-lg overflow-clip border border-border bg-card">
+              <div className="border border-border bg-card">
                 <SimpleTable
                   columns={columns}
                   rows={filteredGroups}

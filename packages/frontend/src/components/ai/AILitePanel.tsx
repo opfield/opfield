@@ -766,7 +766,7 @@ export function AILitePanel({ onOpenMobileMenu }: { onOpenMobileMenu?: () => voi
 
       <div className="mx-auto w-full max-w-3xl shrink-0 px-4 pb-4">
         {activeQuestion ? (
-          <div className="rounded-md overflow-clip border border-border bg-background">
+          <div className="border border-border bg-background">
             {questionsTotal > 1 && (
               <div className="border-b border-border bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
                 Question {questionIndex} of {questionsTotal}
@@ -775,7 +775,7 @@ export function AILitePanel({ onOpenMobileMenu }: { onOpenMobileMenu?: () => voi
             <QuestionBlock toolCall={activeQuestion} onAnswer={answerQuestion} />
           </div>
         ) : showPlanDecision ? (
-          <div className="rounded-md overflow-clip border border-border bg-background">
+          <div className="border border-border bg-background">
             <AIPlanDecision
               onImplement={() => decidePlan("implement")}
               onRefine={() => decidePlan("refine")}
@@ -785,7 +785,7 @@ export function AILitePanel({ onOpenMobileMenu }: { onOpenMobileMenu?: () => voi
         ) : activeApproval ? (
           <ApprovalBlock toolCall={activeApproval} onApprove={approveTool} onReject={rejectTool} />
         ) : conversationBlock ? (
-          <div className="rounded-md overflow-clip border border-border bg-background">
+          <div className="border border-border bg-background">
             <AIConversationBlockedBlock
               block={conversationBlock}
               onNewChat={handleNewChat}

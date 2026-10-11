@@ -516,9 +516,7 @@ function GitConnectorPanel({
               }}
             />
           ) : provider === "github" && authMode === "oauth" && !editingConnector ? (
-            <div
-              className={githubOAuthActive ? "" : "rounded-md overflow-clip border border-border"}
-            >
+            <div className={githubOAuthActive ? "" : "border border-border"}>
               {!githubOAuthActive ? (
                 <SettingsControlRow
                   title="Connector name"
@@ -652,7 +650,7 @@ function GitConnectorPanel({
                       description="Gateway validates the token without storing it until you save."
                       controlsClassName="sm:min-w-[22rem] sm:max-w-none"
                     >
-                      <div className="flex w-full min-w-0 rounded-md overflow-hidden border border-input bg-background">
+                      <div className="flex w-full min-w-0 border border-input bg-background">
                         <Input
                           type="password"
                           value={form.token}
@@ -710,7 +708,7 @@ function GitConnectorPanel({
                       description="Test the credential against the first configured repository before saving."
                       controlsClassName="sm:min-w-[22rem] sm:max-w-none"
                     >
-                      <div className="flex w-full min-w-0 rounded-md overflow-hidden border border-input bg-background">
+                      <div className="flex w-full min-w-0 border border-input bg-background">
                         <Input
                           type="password"
                           value={form.token}
@@ -832,7 +830,7 @@ function GitConnectorRow({
       onClick={onOpen}
     >
       <div className="flex min-w-0 items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-muted">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-border bg-muted">
           <Icon className="h-4 w-4 text-muted-foreground" />
         </div>
         <div className="min-w-0">

@@ -306,7 +306,7 @@ export function SiemDestinationsTab({
   return (
     <div className="space-y-4">
       {initialLoading && destinations.length === 0 ? null : destinations.length > 0 ? (
-        <div className="rounded-lg overflow-clip border border-border bg-card">
+        <div className="border border-border bg-card">
           <SimpleTable
             columns={columns}
             rows={destinations}

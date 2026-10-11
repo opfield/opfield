@@ -124,7 +124,7 @@ export function InferenceQuotaStatus({
     return (
       <div
         role="status"
-        className={cn("rounded-md border border-border bg-muted/40 px-3 py-3", exhaustedClassName)}
+        className={cn("border border-border bg-muted/40 px-3 py-3", exhaustedClassName)}
       >
         <div className="flex min-w-0 items-center gap-3">
           <TriangleAlert className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -146,7 +146,7 @@ export function InferenceQuotaStatus({
   return (
     <div
       role="status"
-      className="mb-2 flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground"
+      className="mb-2 flex items-start gap-2 border border-border bg-muted/30 px-3 py-2 text-sm text-foreground"
     >
       <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <span>

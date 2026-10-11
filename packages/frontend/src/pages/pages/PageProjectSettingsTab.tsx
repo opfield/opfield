@@ -200,7 +200,7 @@ export function PageProjectSettingsDialog({
                     type="button"
                     aria-label={`${option.label} color`}
                     className={cn(
-                      "aspect-square w-full rounded-md border border-border",
+                      "aspect-square w-full border border-border",
                       option.swatchClassName,
                       appearanceColor === option.value && "border-foreground"
                     )}

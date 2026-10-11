@@ -98,7 +98,7 @@ export function DockerMoveToFolderDialog({
             Select a destination folder or move to root (ungrouped).
           </DialogDescription>
         </DialogHeader>
-        <div className="rounded-md overflow-clip border border-border">
+        <div className="border border-border">
           <button
             type="button"
             className={cn(

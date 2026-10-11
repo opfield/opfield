@@ -26,7 +26,7 @@ export function CopyValueField({
   return (
     <div className={cn("space-y-1.5", className)}>
       {showLabel ? <p className="text-xs text-muted-foreground">{label}</p> : null}
-      <div className="flex min-w-0 overflow-hidden rounded-md border border-input bg-background">
+      <div className="flex min-w-0 border border-input bg-background">
         <div
           className={cn(
             "flex h-9 min-w-0 flex-1 items-center px-3 text-sm text-foreground",

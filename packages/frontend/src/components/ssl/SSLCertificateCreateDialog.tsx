@@ -506,7 +506,7 @@ export function SSLCertificateCreateDialog({
                                     opacity: { duration: 0.12 },
                                     y: { duration: 0.12, ease: [0.25, 0.1, 0.25, 1] },
                                   }}
-                                  className="flex rounded-md overflow-hidden border border-input bg-background"
+                                  className="flex border border-input bg-background"
                                 >
                                   <DomainAutocompleteInput
                                     registeredOnly

@@ -128,7 +128,7 @@ export function AIPlanBlock({
   if (!plan.revisionId || !plan.goal) return null;
   return (
     <div className={cn("space-y-2", className)}>
-      <div className="rounded-md overflow-clip border border-border bg-muted/30">
+      <div className="border border-border bg-muted/30">
         <div className="border-b border-border bg-muted/50 px-4 py-3">
           <div className="flex items-center gap-2">
             <ListChecks className="h-4 w-4 text-link" />
@@ -147,7 +147,7 @@ export function AIPlanBlock({
               <div key={step.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                 <span
                   className={cn(
-                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-border text-xs",
+                    "flex h-5 w-5 shrink-0 items-center justify-center border border-border text-xs",
                     (step.status === "completed" || step.status === "skipped") &&
                       "border-primary bg-primary text-primary-foreground"
                   )}
@@ -171,7 +171,7 @@ export function AIPlanBlock({
         )}
       </div>
       {!collapsed && (
-        <div className="divide-y divide-border rounded-lg overflow-hidden border border-border bg-muted/30">
+        <div className="divide-y divide-border border border-border bg-muted/30">
           <PlanDetails label="Research">
             {plan.research.map((item) => (
               <div key={`${item.title}:${item.summary}`}>
@@ -306,7 +306,7 @@ export function AIPlanProgress({
   return (
     <div
       className={cn(
-        "flex w-full items-center gap-2 rounded-md border border-border bg-primary/5 px-2.5 py-1.5",
+        "flex w-full items-center gap-2 border border-border bg-primary/5 px-2.5 py-1.5",
         className
       )}
     >
@@ -390,12 +390,7 @@ export function AIQueuedMessages({
 }: AIQueuedMessagesProps) {
   if (items.length === 0) return null;
   return (
-    <div
-      className={cn(
-        "divide-y divide-border rounded-lg overflow-hidden border border-border bg-background",
-        className
-      )}
-    >
+    <div className={cn("divide-y divide-border border border-border bg-background", className)}>
       {items.map((item) => (
         <div key={item.id} className="flex min-h-11 items-center gap-2 px-3 py-2">
           <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
@@ -683,7 +678,7 @@ export function AIComposer({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6 }}
             className={cn(
-              "absolute bottom-full left-0 right-0 z-10 -mb-px rounded-t-md border border-border bg-background shadow-pop",
+              "absolute bottom-full left-0 right-0 z-10 -mb-px border border-border bg-background shadow-md",
               slashPaletteClassName
             )}
           >
@@ -716,7 +711,7 @@ export function AIComposer({
       {!inferenceQuota.exhausted && (
         <div
           className={cn(
-            "flex flex-col rounded-md overflow-clip border border-border bg-muted/30 transition-colors",
+            "flex flex-col border border-border bg-muted/30 transition-colors",
             surfaceClassName
           )}
         >

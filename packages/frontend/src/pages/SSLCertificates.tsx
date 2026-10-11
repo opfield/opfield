@@ -1046,7 +1046,7 @@ export function SSLCertificates() {
             <DialogTitle>Renewing Certificate</DialogTitle>
             <DialogDescription>{renewingCert?.name}</DialogDescription>
           </DialogHeader>
-          <div className="flex items-start gap-4 rounded-md border border-border bg-muted/20 px-4 py-4">
+          <div className="flex items-start gap-4 border border-border bg-muted/20 px-4 py-4">
             <RefreshCw className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-muted-foreground" />
             <div className="min-w-0 space-y-1">
               <p className="text-sm font-medium text-foreground">

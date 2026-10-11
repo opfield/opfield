@@ -259,12 +259,11 @@
   --font-sans: "Onest Variable", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   --font-display: "Sora Variable", "Onest Variable", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
-  /* Border radius: tags 6 px, controls 10 px, cards and dialogs 14 px, buttons are pills. */
-  --radius: 6px;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 14px;
+  /* Border radius */
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
 
   /* Animations */
   --animate-accordion-down: accordion-down 0.2s ease-out;
@@ -537,26 +536,6 @@
   --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8984' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
 }
 
-/* Popovers, menus and dialogs float on one soft drop (the landing's); everything else is flat.
-   Warm and light on paper, deep on graphite. */
-:root {
-  --pop-shadow: 0 24px 60px -24px rgb(60 52 40 / 0.28);
-}
-@media (prefers-color-scheme: dark) {
-  :root:not(.light) {
-    --pop-shadow: 0 24px 60px -24px rgb(0 0 0 / 0.55);
-  }
-}
-.light {
-  --pop-shadow: 0 24px 60px -24px rgb(60 52 40 / 0.28);
-}
-.dark {
-  --pop-shadow: 0 24px 60px -24px rgb(0 0 0 / 0.55);
-}
-@utility shadow-pop {
-  box-shadow: var(--pop-shadow);
-}
-
 /* Markdown (typography plugin) on the console tokens, so assistant answers and release notes use the
    same warm neutrals in both themes. Unlayered, so it wins over prose and prose-invert. */
 .prose {
@@ -590,15 +569,11 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-input);
-  background-clip: padding-box;
-  border: 2px solid transparent;
-  border-radius: 9999px;
+  background: var(--color-border);
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-muted-foreground);
-  background-clip: padding-box;
 }
 
 /* Hide textarea resize grip (white dot in bottom-right corner) */

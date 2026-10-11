@@ -782,7 +782,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
   ];
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-3 text-sm">
+      <div className="flex flex-wrap items-center gap-3 border border-border bg-card p-3 text-sm">
         <span className="font-medium">Relay Pool</span>
         <Badge
           variant={

@@ -1181,7 +1181,7 @@ function FileContextMenu({
 
   return (
     <div
-      className={`dropdown-content fixed z-50 min-w-60 origin-top-left rounded-md border bg-popover p-1 text-popover-foreground shadow-pop transition duration-100 ease-out ${
+      className={`dropdown-content fixed z-50 min-w-60 origin-top-left border bg-popover p-1 text-popover-foreground shadow-sm transition duration-100 ease-out ${
         visible ? "scale-100 opacity-100" : "scale-95 opacity-0"
       }`}
       style={menuStyle}

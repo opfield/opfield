@@ -216,7 +216,7 @@ export function MoveToAppDialog({
             Select an app for {resourceLabel} or take it out of apps.
           </DialogDescription>
         </DialogHeader>
-        <div className="rounded-md overflow-clip border border-border">
+        <div className="border border-border">
           <MoveDestinationRow
             label="No app"
             strong

@@ -586,7 +586,7 @@ export function StepCustomExtensions({
       </p>
       <div className="space-y-3">
         {customExtensions.map((ext, i) => (
-          <div key={i} className="rounded-md border border-border p-3 space-y-2">
+          <div key={i} className="border border-border p-3 space-y-2">
             <div className="flex items-center gap-2">
               <Input
                 value={ext.oid}

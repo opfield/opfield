@@ -462,7 +462,7 @@ export function SqlExplorer({
       ) : loadingSchemas || loadingTables ? (
         // A schema switch keeps a panel-sized frame while its tables load.
         <div
-          className="min-h-40 rounded-lg overflow-clip border border-border bg-card"
+          className="min-h-40 border border-border bg-card"
           aria-busy="true"
           aria-label="Loading database explorer"
         />

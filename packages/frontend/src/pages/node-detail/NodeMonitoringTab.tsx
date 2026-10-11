@@ -391,7 +391,7 @@ export function NodeMonitoringTab({
 
   if (nodeStatus !== "online") {
     return (
-      <div className="flex flex-col items-center gap-2 py-16 rounded-lg border border-border bg-card">
+      <div className="flex flex-col items-center gap-2 py-16 border border-border bg-card">
         <p className="text-muted-foreground">Node is offline — monitoring unavailable</p>
       </div>
     );
@@ -399,7 +399,7 @@ export function NodeMonitoringTab({
 
   if (!latest) {
     return (
-      <div className="flex flex-col items-center gap-2 py-16 rounded-lg border border-border bg-card">
+      <div className="flex flex-col items-center gap-2 py-16 border border-border bg-card">
         <p className="text-muted-foreground">
           Waiting for the first monitoring sample from this node
         </p>
@@ -438,7 +438,7 @@ export function NodeMonitoringTab({
     <div className="space-y-4">
       {/* Nginx Process Info Bar — nginx nodes only */}
       {nodeType === "nginx" && health && (
-        <div className="flex flex-wrap items-center gap-3 p-3 rounded-lg border border-border bg-card text-sm">
+        <div className="flex flex-wrap items-center gap-3 p-3 border border-border bg-card text-sm">
           <span className="font-medium">nginx/{health.nginxVersion || "unknown"}</span>
           <Badge variant={health.nginxRunning ? "success" : "destructive"}>
             {health.nginxRunning ? "Running" : "Stopped"}

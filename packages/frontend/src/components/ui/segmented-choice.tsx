@@ -68,7 +68,7 @@ export function SegmentedChoice<T extends string>({
       aria-disabled={disabled || undefined}
       className={cn(
         "flex shrink-0",
-        flush ? "self-stretch" : "w-fit overflow-hidden rounded-md border border-border",
+        flush ? "self-stretch" : "w-fit border border-border",
         disabled && "opacity-50",
         className
       )}

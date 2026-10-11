@@ -106,7 +106,7 @@ function AdditionalLinkRuntimeSection({ link }: { link: ProxyAdditionalSecureLin
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-3 text-sm">
+      <div className="flex flex-wrap items-center gap-3 border border-border bg-card p-3 text-sm">
         <span className="font-medium">{link.name}</span>
         <Badge
           variant={
@@ -228,7 +228,7 @@ function AdditionalLinkRuntimeSection({ link }: { link: ProxyAdditionalSecureLin
           </div>
         </>
       ) : (
-        <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
+        <div className="border border-border bg-card p-4 text-sm text-muted-foreground">
           {link.lastError || "Route telemetry is not available yet."}
         </div>
       )}
@@ -346,7 +346,7 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-3 text-sm">
+      <div className="flex flex-wrap items-center gap-3 border border-border bg-card p-3 text-sm">
         <span className="font-medium">Host ↔ daemon Secure Link</span>
         <Badge
           variant={healthy ? "success" : link.state === "provisioning" ? "warning" : "destructive"}
@@ -593,7 +593,7 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
             />
           </div>
         ) : (
-          <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
+          <div className="border border-border bg-card p-4 text-sm text-muted-foreground">
             Per-host HTTP telemetry is unavailable. Update or reconnect the source Nginx daemon.
           </div>
         )}

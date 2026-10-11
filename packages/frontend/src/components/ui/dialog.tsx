@@ -211,7 +211,7 @@ const DialogContentPanel = React.forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          "dialog-content relative z-50 grid w-full gap-4 rounded-t-lg border bg-background p-6 shadow-pop outline-none sm:rounded-lg",
+          "dialog-content relative z-50 grid w-full gap-4 border bg-background p-6 shadow-lg outline-none",
           "max-h-[85dvh] max-w-none overflow-y-auto",
           "sm:mx-auto sm:my-auto sm:max-h-none sm:overflow-visible sm:max-w-lg",
           className
@@ -243,7 +243,7 @@ const DialogContentPanel = React.forwardRef<
       <DialogPrimitive.Content
         ref={setPanelRef}
         className={cn(
-          "dialog-content relative z-50 flex w-full max-w-none flex-col overflow-hidden rounded-t-lg border bg-background p-0 shadow-pop outline-none sm:rounded-lg",
+          "dialog-content relative z-50 flex w-full max-w-none flex-col border bg-background p-0 shadow-lg outline-none",
           "max-h-[85dvh]",
           "sm:mx-auto sm:my-auto sm:max-w-lg",
           fitViewport ? "sm:max-h-[min(95dvh,900px)]" : "sm:max-h-none",

@@ -129,7 +129,7 @@ export function AddRow({ types, actions }: { types: TypeDef[]; actions: TabActio
   if (types.length === 0) return null;
   const importable = types.find((type) => type.importFamily);
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-4 py-3">
+    <div className="flex flex-wrap items-center gap-2 border border-border bg-card px-4 py-3">
       <span className="mr-2 text-sm text-muted-foreground">Not in the app yet:</span>
       {types.map((type) => (
         <Button key={type.key} variant="outline" onClick={() => actions.onCreate(type.createType)}>

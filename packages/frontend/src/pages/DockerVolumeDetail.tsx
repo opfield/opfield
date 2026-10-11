@@ -734,7 +734,7 @@ export function DockerVolumeDetail({
           />
 
           {composeManaged && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/20 bg-primary/5 p-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 border border-primary/20 bg-primary/5 p-3 text-sm">
               <div>
                 <p className="font-medium">Managed by Compose project {composeProjectName}</p>
                 <p className="text-muted-foreground">

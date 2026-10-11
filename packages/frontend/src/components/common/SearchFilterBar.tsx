@@ -83,7 +83,7 @@ export function SearchFilterBar({
               transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
               className="overflow-hidden"
             >
-              <div className="flex flex-wrap gap-3 rounded-lg border border-border bg-card p-3 mt-2">
+              <div className="flex flex-wrap gap-3 border border-border bg-card p-3 mt-2">
                 {filters}
               </div>
             </motion.div>

@@ -114,7 +114,7 @@ export function GitHubDeviceFlow({
 
   return (
     <DeviceFlowTransition stateKey="pending">
-      <div className="space-y-3 rounded-md border border-border p-4">
+      <div className="space-y-3 border border-border p-4">
         <p className="text-sm">
           Complete authorization in the GitHub window. Gateway checks the status automatically.
         </p>

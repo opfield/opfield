@@ -319,7 +319,7 @@ function SandboxOutputBody({
 }) {
   useContentLoading(loading);
   return (
-    <div className="rounded-md overflow-clip border border-border">
+    <div className="border border-border">
       <div className="border-b border-border px-4 py-3">
         <p className="truncate font-mono text-xs text-muted-foreground">{jobLabel}</p>
       </div>

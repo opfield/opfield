@@ -438,7 +438,7 @@ export function ComposeProjectEditor({
   if (compactRevision && editing) {
     return (
       <div className="flex min-h-0 flex-col gap-4">
-        <div className="h-[min(56dvh,560px)] min-h-80 overflow-hidden rounded-md border border-border">
+        <div className="h-[min(56dvh,560px)] min-h-80 overflow-hidden border border-border">
           <CodeEditor
             value={yaml}
             onChange={setYaml}

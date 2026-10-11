@@ -45,7 +45,7 @@ function WarningList({ issues }: { issues: DockerMigrationIssue[] }) {
           {issues.length}
         </Badge>
       </div>
-      <div className="divide-y divide-border rounded-lg overflow-hidden border border-border">
+      <div className="divide-y divide-border border border-border">
         {issues.map((issue) => (
           <div key={`${issue.code}:${issue.message}`} className="px-4 py-3">
             <p className="text-sm">{issue.message}</p>
@@ -150,7 +150,7 @@ function MigrationProgress({ migration }: { migration: DockerMigration }) {
 
   return (
     <div className="space-y-5">
-      <div className="divide-y divide-border rounded-lg overflow-hidden border border-border">
+      <div className="divide-y divide-border border border-border">
         <DetailRow
           label="Status"
           value={<Badge variant={statusVariant}>{formatLabel(migration.status)}</Badge>}
@@ -212,7 +212,7 @@ function PreflightReview({ preflight }: { preflight: DockerMigrationPreflight })
 
       <section className="space-y-2">
         <h3 className="text-sm font-semibold">Migration plan</h3>
-        <div className="divide-y divide-border rounded-lg overflow-hidden border border-border">
+        <div className="divide-y divide-border border border-border">
           <DetailRow label="Source state" value={formatLabel(preflight.sourceState)} />
           {preflight.capacity ? (
             <DetailRow
@@ -249,7 +249,7 @@ function PreflightReview({ preflight }: { preflight: DockerMigrationPreflight })
             <AlertTriangle className="h-4 w-4 text-warning-foreground" />
             <h3 className="text-sm font-semibold">Removed from source after verification</h3>
           </div>
-          <div className="divide-y divide-border rounded-lg overflow-hidden border border-border">
+          <div className="divide-y divide-border border border-border">
             {preflight.deletionPlan?.map((item) => (
               <DetailRow
                 key={`${item.type}:${item.name}`}

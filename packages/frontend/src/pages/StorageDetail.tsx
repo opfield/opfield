@@ -455,7 +455,7 @@ function StorageDetailContent({
           {canRead && (
             <TabsContent value="browser" className="space-y-4">
               {browserDisabled ? (
-                <div className="rounded-lg border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+                <div className="border border-border bg-card p-8 text-center text-sm text-muted-foreground">
                   Object browser is unavailable while the storage is offline.
                 </div>
               ) : (
@@ -501,7 +501,7 @@ function StorageDetailContent({
               The credentials Gateway uses to reach this storage, decrypted for viewing.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-lg border border-border bg-card overflow-hidden">
+          <div className="border border-border bg-card overflow-hidden">
             <ContentLoading loading={loadingCredentials} />
             {loadingCredentials ? null : (
               <pre className="overflow-x-auto p-4 text-sm whitespace-pre-wrap">

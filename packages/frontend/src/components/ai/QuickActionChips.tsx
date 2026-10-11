@@ -118,7 +118,7 @@ export function QuickActionChips({ onSelect, context }: QuickActionChipsProps) {
           type="button"
           onClick={() => onSelect(action.prompt)}
           disabled={inferenceQuota.exhausted}
-          className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+          className="border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
         >
           {action.label}
         </button>

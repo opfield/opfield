@@ -18,7 +18,7 @@ export function PinnedProxyCard({ proxy }: PinnedProxyCardProps) {
   return (
     <Link
       to={proxyHostRoute(proxy.slug)}
-      className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 hover:bg-accent transition-colors"
+      className="flex items-center justify-between border border-border bg-card px-4 py-3 hover:bg-accent transition-colors"
     >
       <div className="flex items-center gap-3 min-w-0">
         <Globe className="h-4 w-4 text-muted-foreground shrink-0" />

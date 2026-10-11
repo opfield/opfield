@@ -7,8 +7,6 @@
     "Onest Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: var(--sp-page);
   color: var(--sp-ink);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
   scrollbar-gutter: stable;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -60,7 +58,7 @@ body {
   margin: 16px 0 16px;
   font-family: "Sora Variable", "Onest Variable", ui-sans-serif, system-ui, sans-serif;
   font-size: clamp(2rem, 6vw, 4.5rem);
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1;
   letter-spacing: 0;
 }
@@ -87,9 +85,7 @@ footer,
 }
 
 .panel {
-  overflow: hidden;
   border: 1px solid var(--sp-line);
-  border-radius: 14px;
   background: var(--sp-panel);
 }
 
@@ -143,7 +139,6 @@ footer,
   flex: 1 1 0;
   height: 26px;
   min-width: 2px;
-  border-radius: 1px;
 }
 
 .bar-success {
@@ -199,7 +194,6 @@ footer,
   height: 20px;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
   background: var(--sp-chip);
   color: var(--sp-soft);
   font-size: 0.72rem;
@@ -248,7 +242,6 @@ footer,
   align-items: center;
   min-height: 28px;
   padding: 5px 9px;
-  border-radius: 6px;
   font-size: 0.72rem;
   font-weight: 600;
   line-height: 1;
@@ -352,7 +345,6 @@ footer,
   align-items: center;
   min-height: 26px;
   padding: 5px 8px;
-  border-radius: 6px;
   font-size: 0.76rem;
   font-weight: 500;
 }

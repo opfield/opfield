@@ -26,7 +26,7 @@ export function EditableStringList({
   const remove = (index: number) => onChange(rows.filter((_, rowIndex) => rowIndex !== index));
 
   return (
-    <div className="w-full rounded-md border border-input bg-background">
+    <div className="w-full border border-input bg-background">
       <AnimatePresence initial={false} mode="popLayout">
         {rows.map((value, index) => (
           <motion.div

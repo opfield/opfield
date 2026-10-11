@@ -1062,7 +1062,7 @@ export function AlertDialog({
                     }}
                   />
                   <div
-                    className={`rounded-md overflow-clip border border-border transition-opacity ${scopeEnabled ? "" : "opacity-40 pointer-events-none"}`}
+                    className={`border border-border transition-opacity ${scopeEnabled ? "" : "opacity-40 pointer-events-none"}`}
                   >
                     <ScopeSearchFilter
                       search={resourceSearch}
@@ -1161,7 +1161,7 @@ export function AlertDialog({
                       No webhooks configured. Create a webhook first.
                     </p>
                   ) : (
-                    <div className="rounded-md overflow-clip border border-border">
+                    <div className="border border-border">
                       <ScopeSearchFilter
                         search={webhookSearch}
                         onSearchChange={setWebhookSearch}

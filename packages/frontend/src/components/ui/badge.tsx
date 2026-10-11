@@ -4,7 +4,7 @@ import { Children } from "react";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex max-w-full min-w-0 shrink items-center rounded-sm justify-center overflow-hidden text-ellipsis whitespace-nowrap py-0 text-2xs font-semibold uppercase tracking-wider leading-none [&>*]:max-w-full [&>*]:min-w-0 [&>*]:overflow-hidden [&>*]:text-ellipsis [&>*]:whitespace-nowrap",
+  "inline-flex max-w-full min-w-0 shrink items-center justify-center overflow-hidden text-ellipsis whitespace-nowrap py-0 text-2xs font-semibold uppercase tracking-wider leading-none [&>*]:max-w-full [&>*]:min-w-0 [&>*]:overflow-hidden [&>*]:text-ellipsis [&>*]:whitespace-nowrap",
   {
     variants: {
       variant: {

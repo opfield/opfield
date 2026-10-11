@@ -209,7 +209,7 @@ export function NodeSetupWizard({
         </FinalizeSetupCompletion>
       ) : enrollment ? (
         <div className="space-y-4">
-          <div className="rounded-md border border-border p-4">
+          <div className="border border-border p-4">
             <p className="text-sm font-medium">Run this command on the target host</p>
             <p className="mt-1 text-xs text-muted-foreground">
               Keep this wizard open. Gateway checks the node automatically every few seconds.

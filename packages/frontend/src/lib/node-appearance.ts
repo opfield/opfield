@@ -103,7 +103,7 @@ export function nodeIconClassNames(color: NodeAppearanceColor | null | undefined
   const option = getNodeAppearanceColor(color);
   return {
     wrapper: cn(
-      "flex h-10 w-10 shrink-0 items-center justify-center rounded-md",
+      "flex h-10 w-10 shrink-0 items-center justify-center",
       option ? option.iconBackgroundClassName : "bg-muted"
     ),
     icon: option?.iconClassName ?? "text-muted-foreground",

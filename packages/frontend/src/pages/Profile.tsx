@@ -460,7 +460,7 @@ export function Profile() {
                       </p>
                     </div>
                     {/* Segmented theme switch, styled like the tab list. */}
-                    <div className="flex w-fit shrink-0 gap-0 rounded-md overflow-clip border border-border">
+                    <div className="flex w-fit shrink-0 gap-0 border border-border">
                       {(["light", "dark", "system"] as const).map((value) => (
                         <button
                           key={value}
@@ -682,7 +682,7 @@ function SessionDeviceIcon({
   return (
     <span
       className={cn(
-        "flex h-10 w-10 shrink-0 items-center justify-center rounded-md",
+        "flex h-10 w-10 shrink-0 items-center justify-center",
         inverted ? "bg-card" : "bg-muted"
       )}
       title={label}
@@ -1041,7 +1041,7 @@ function LocalAccountSecurityPanel() {
           <DialogDescription>
             Passkeys can sign you in and satisfy Gateway multi-factor authentication.
           </DialogDescription>
-          <div className="rounded-md overflow-clip border border-border">
+          <div className="border border-border">
             <Input
               value={passkeysSearch}
               onChange={(event) => setPasskeysSearch(event.target.value)}
@@ -1287,7 +1287,7 @@ function LocalAccountSecurityPanel() {
             <CopyButton
               value={recoveryCodes?.join("\n") ?? ""}
               label="recovery codes"
-              className="rounded-full border border-border bg-background hover:bg-accent hover:text-accent-foreground"
+              className="border border-border bg-background hover:bg-accent hover:text-accent-foreground"
             />
             <Button
               variant="outline"

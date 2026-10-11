@@ -636,7 +636,7 @@ export function DockerComposeProjectDetail() {
       width: "minmax(180px, 1fr)",
       render: (service) => (
         <span className="inline-flex items-center gap-2 font-medium">
-          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-muted">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
             <Boxes className="h-4 w-4 text-muted-foreground" />
           </span>
           {service.name}
@@ -817,7 +817,7 @@ export function DockerComposeProjectDetail() {
         const Icon = operationIcon(operation.action);
         return (
           <span className="inline-flex items-center gap-2 font-medium">
-            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-muted">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
               <Icon className="h-4 w-4 text-muted-foreground" />
             </span>
             {operation.action.replaceAll("_", " ")}
@@ -867,7 +867,7 @@ export function DockerComposeProjectDetail() {
         const Icon = operationIcon(operation.action);
         return (
           <span className="inline-flex items-center gap-2 font-medium">
-            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-muted">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
               <Icon className="h-4 w-4 text-muted-foreground" />
             </span>
             {operation.action.replaceAll("_", " ")}
@@ -1477,7 +1477,7 @@ export function DockerComposeProjectDetail() {
               Reapply an immutable revision or remove an inactive revision.
             </DialogDescription>
           </DialogHeader>
-          <div className="overflow-hidden rounded-md border border-border">
+          <div className="overflow-hidden border border-border">
             <DataTable
               columns={revisionColumns}
               data={inactiveRevisions}
@@ -1563,7 +1563,7 @@ export function DockerComposeProjectDetail() {
             </DialogDescription>
           </DialogHeader>
           {selectedOperation && (
-            <div className="divide-y divide-border rounded-lg overflow-hidden border border-border">
+            <div className="divide-y divide-border border border-border">
               <DetailRow label="Action" value={selectedOperation.action.replaceAll("_", " ")} />
               <DetailRow
                 label="Status"

@@ -8,9 +8,9 @@ export function OAuthError() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md rounded-lg border border-border bg-card p-5">
+      <div className="w-full max-w-md border border-border bg-card p-5">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-warning/40 bg-warning/15 text-warning-foreground">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-warning/40 bg-warning/15 text-warning-foreground">
             <AlertTriangle className="h-5 w-5" />
           </div>
           <div>

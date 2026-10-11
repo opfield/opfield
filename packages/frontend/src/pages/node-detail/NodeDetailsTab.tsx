@@ -560,7 +560,7 @@ export function NodeDetailsTab({
             { label: "Total", count: dockerCounts.containers },
           ].map((item) => (
             <div key={item.label} className="p-4 text-center">
-              <p className="font-display text-2xl font-semibold">
+              <p className="font-display text-2xl font-bold">
                 {dockerResources[0].canView ? (item.count ?? "—") : "—"}
               </p>
               <p className="text-xs text-muted-foreground mt-1">{item.label}</p>

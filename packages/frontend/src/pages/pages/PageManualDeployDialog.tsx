@@ -190,7 +190,7 @@ export function PageManualDeployDialog({
               aria-labelledby="page-build-label"
               className={cn(
                 // The standard control height, like Input and Select; the pickers sit inside it.
-                "flex h-9 min-w-0 items-stretch rounded-md overflow-hidden border bg-background",
+                "flex h-9 min-w-0 items-stretch border bg-background",
                 sourceError ? "border-destructive" : "border-input"
               )}
             >

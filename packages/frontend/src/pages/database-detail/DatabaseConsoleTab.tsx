@@ -311,7 +311,7 @@ export function DatabaseConsoleTab({ database }: { database: DatabaseConnection 
   }, []);
 
   return (
-    <div className="rounded-lg border border-border bg-card overflow-hidden flex flex-col flex-1 min-h-0">
+    <div className="border border-border bg-card overflow-hidden flex flex-col flex-1 min-h-0">
       <div className="flex items-center justify-between gap-4 px-4 py-3 bg-card border-b border-border shrink-0">
         <div>
           <h3 className="text-sm font-semibold">
@@ -407,7 +407,7 @@ export function DatabaseConsoleTab({ database }: { database: DatabaseConnection 
           <DialogHeader>
             <DialogTitle>Query History</DialogTitle>
           </DialogHeader>
-          <div className="overflow-x-auto rounded-md border border-border">
+          <div className="overflow-x-auto border border-border">
             {history.length > 0 ? (
               history.map((entry) => (
                 <button

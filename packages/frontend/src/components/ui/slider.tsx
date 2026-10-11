@@ -105,10 +105,7 @@ export const Slider = React.forwardRef<
         onPointerCancel={stopDragging}
         onKeyDown={handleKeyDown}
       >
-        <div
-          data-slider-track=""
-          className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted"
-        >
+        <div data-slider-track="" className="relative h-1.5 w-full overflow-hidden bg-muted">
           <div
             data-slider-range=""
             className="absolute inset-y-0 left-0 bg-primary"
@@ -117,7 +114,7 @@ export const Slider = React.forwardRef<
         </div>
         <div
           data-slider-thumb=""
-          className="pointer-events-none absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary bg-background shadow-sm group-focus-visible:ring-1 group-focus-visible:ring-ring"
+          className="pointer-events-none absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 border border-primary bg-background shadow-sm group-focus-visible:ring-1 group-focus-visible:ring-ring"
           style={{ left: `${percentage}%` }}
         />
       </div>

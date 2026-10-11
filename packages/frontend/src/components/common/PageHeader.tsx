@@ -28,7 +28,7 @@ export function PageHeader({
         {leading}
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            <h1 className="truncate font-display text-2xl font-semibold">{title}</h1>
+            <h1 className="truncate font-display text-2xl font-bold">{title}</h1>
             {badges}
           </div>
           {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}

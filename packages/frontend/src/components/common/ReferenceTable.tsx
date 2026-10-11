@@ -28,7 +28,7 @@ export function ReferenceTable({
   return (
     <div className={cn("space-y-2", className)}>
       {title ? <h4 className="text-sm font-medium">{title}</h4> : null}
-      <div className="overflow-hidden rounded-lg border border-border">
+      <div className="overflow-hidden border border-border">
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-border bg-header">

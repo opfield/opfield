@@ -377,7 +377,7 @@ export function DockerNetworks({
         width: "minmax(0, 1.35fr)",
         renderCell: (net) => (
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex items-center justify-center h-8 w-8 rounded-md bg-muted shrink-0">
+            <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-muted shrink-0">
               <Network className="h-4 w-4 text-muted-foreground" />
             </div>
             <div className="flex-1 min-w-0">
@@ -773,7 +773,7 @@ export function DockerNetworks({
           </DialogHeader>
           {selectedNetwork && (
             <div className="min-w-0 space-y-4">
-              <div className="min-w-0 divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
+              <div className="min-w-0 divide-y divide-border overflow-hidden border border-border bg-card">
                 {[
                   ["Name", selectedNetwork.name],
                   ["Network ID", selectedNetwork.id],

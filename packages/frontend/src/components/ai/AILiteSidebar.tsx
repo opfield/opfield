@@ -744,7 +744,7 @@ export function AILiteSidebar({
                 readOnly
                 onClick={() => openPalette(true)}
                 style={{ height: 44 }}
-                className="cursor-pointer rounded-none border-0 pl-9 text-sm focus-visible:outline-none focus-visible:ring-0"
+                className="cursor-pointer border-0 pl-9 text-sm focus-visible:outline-none focus-visible:ring-0"
               />
               <span className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 text-xs tracking-widest text-muted-foreground md:inline">
                 ⌘K

@@ -383,7 +383,7 @@ export function AIMessage({
             </div>
           )}
           {message.scenario ? (
-            <div className="w-full rounded-md border border-primary/35 bg-primary px-3 py-2.5 text-primary-foreground">
+            <div className="w-full border border-primary/35 bg-primary px-3 py-2.5 text-primary-foreground">
               <div className="flex items-start gap-2.5">
                 <ScenarioIcon className="mt-0.5 h-4 w-4 shrink-0" />
                 <div className="min-w-0">
@@ -537,7 +537,7 @@ export function AIMessage({
 
         {/* Text content */}
         {hasContent && (
-          <div className="prose dark:prose-invert !max-w-none break-words text-sm prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-pre:my-2 prose-table:my-0 prose-code:text-xs prose-pre:text-xs prose-pre:rounded-md prose-code:rounded-sm prose-code:before:content-none prose-code:after:content-none [&>*:first-child]:!mt-0 [&>*:last-child]:!mb-0">
+          <div className="prose dark:prose-invert !max-w-none break-words text-sm prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-pre:my-2 prose-table:my-0 prose-code:text-xs prose-pre:text-xs prose-pre:rounded-none prose-code:rounded-none prose-code:before:content-none prose-code:after:content-none [&>*:first-child]:!mt-0 [&>*:last-child]:!mb-0">
             <Markdown
               remarkPlugins={[remarkGfm]}
               rehypePlugins={revealRehypePlugins}
@@ -656,7 +656,7 @@ function ArtifactAttachmentCard({ artifact }: { artifact: ArtifactAttachment }) 
   };
 
   return (
-    <div className="group relative aspect-square w-28 overflow-hidden rounded-md border border-border bg-muted transition-colors hover:border-foreground hover:bg-muted/80">
+    <div className="group relative aspect-square w-28 overflow-hidden border border-border bg-muted transition-colors hover:border-foreground hover:bg-muted/80">
       <button
         type="button"
         onClick={openPreview}
@@ -901,10 +901,7 @@ export function AIActivityIndicator({ label }: { label: string }) {
 
 const markdownComponents = {
   pre: ({ children, ...props }: React.HTMLAttributes<HTMLPreElement>) => (
-    <pre
-      className="overflow-x-auto rounded-md border border-border bg-muted p-2 text-foreground"
-      {...props}
-    >
+    <pre className="overflow-x-auto border border-border bg-muted p-2 text-foreground" {...props}>
       {children}
     </pre>
   ),
@@ -924,7 +921,7 @@ const markdownComponents = {
     );
   },
   table: ({ children, ...props }: React.HTMLAttributes<HTMLTableElement>) => (
-    <div className="my-3 overflow-x-auto rounded-md border border-border bg-background">
+    <div className="my-3 overflow-x-auto border border-border bg-background">
       <table
         className="min-w-full text-sm [&_th]:bg-muted [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-medium [&_th]:text-muted-foreground [&_td]:px-2 [&_td]:py-1.5 [&_td]:border-t [&_td]:border-border"
         {...props}

@@ -464,7 +464,7 @@ export function SiemDeliveryLogTab({
                 </ValueTile>
               </div>
               {detail.payload && (
-                <div className="rounded-lg overflow-clip border border-border bg-card">
+                <div className="border border-border bg-card">
                   <div className="border-b border-border px-4 py-3">
                     <h3 className="text-sm font-medium">Exported event</h3>
                   </div>
@@ -474,7 +474,7 @@ export function SiemDeliveryLogTab({
                 </div>
               )}
               {detail.error && (
-                <div className="rounded-lg overflow-clip border border-border bg-card">
+                <div className="border border-border bg-card">
                   <div className="border-b border-border px-4 py-3">
                     <h3 className="text-sm font-medium">Delivery error</h3>
                   </div>

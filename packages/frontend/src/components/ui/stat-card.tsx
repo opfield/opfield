@@ -42,10 +42,7 @@ export function StatCard({
 }: StatCardProps) {
   return (
     <div
-      className={cn(
-        "rounded-lg border border-border bg-card flex flex-col overflow-hidden",
-        className
-      )}
+      className={cn("border border-border bg-card flex flex-col overflow-hidden", className)}
       style={style}
     >
       <div className="flex-1 space-y-2 p-4">
@@ -69,7 +66,7 @@ export function StatCard({
         <p
           className={cn(
             appearance === "dashboard" ? "text-2xl" : "text-xl",
-            "font-display font-semibold",
+            "font-display font-bold",
             valueClassName
           )}
           style={valueColor ? { color: valueColor } : undefined}
