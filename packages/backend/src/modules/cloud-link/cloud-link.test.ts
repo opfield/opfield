@@ -40,11 +40,12 @@ describe('cloud link', () => {
       setupLink: async () => {
         throw new Error('already set up');
       },
-      nodeToken: async (name) => ({
+      nodeToken: async ({ name }) => ({
         token: 'gwn_token',
         expiresAt: '2026-10-12T10:00:00Z',
         command: `curl … ${name ?? 'Node'}`,
         nodeId: 'n1',
+        kind: 'nginx',
       }),
       updateStatus: async () => ({
         current: 'v2.11.4',
@@ -145,12 +146,13 @@ describe('cloud link', () => {
       setupLink: async () => {
         throw new Error('already set up');
       },
-      nodeToken: async (name?: string) => ({
+      nodeToken: vi.fn(async ({ name, kind }: { name?: string; kind?: string }) => ({
         token: 'gwn_token',
         expiresAt: '2026-10-12T10:00:00Z',
         command: `curl -fsSL … --name ${name ?? 'Node'}`,
         nodeId: 'n1',
-      }),
+        kind: kind ?? 'nginx',
+      })),
       updateStatus: async () => ({
         current: 'v2.11.4',
         latest: 'v2.11.5',
@@ -170,8 +172,30 @@ describe('cloud link', () => {
     ).resolves.toEqual({
       id: 'n',
       ok: true,
-      data: { token: 'gwn_token', expiresAt: '2026-10-12T10:00:00Z', command: 'curl -fsSL … --name edge-1' },
+      data: {
+        token: 'gwn_token',
+        expiresAt: '2026-10-12T10:00:00Z',
+        command: 'curl -fsSL … --name edge-1',
+        kind: 'nginx',
+      },
     });
+    await expect(
+      answerCloudRequest(probe, { id: 'n2', type: 'node-token', params: { kind: 'databases' } })
+    ).resolves.toMatchObject({ ok: true, data: { kind: 'storage' } });
+    await expect(
+      answerCloudRequest(probe, { id: 'n3', type: 'node-token', params: { kind: 'bastion' } })
+    ).resolves.toMatchObject({ ok: false });
+    await expect(
+      answerCloudRequest(probe, { id: 'n4', type: 'node-token', params: { kind: 'relay' } })
+    ).resolves.toMatchObject({ ok: false });
+    await expect(
+      answerCloudRequest(probe, {
+        id: 'n5',
+        type: 'node-token',
+        params: { kind: 'relay', address: 'relay.example.test', port: 9443 },
+      })
+    ).resolves.toMatchObject({ ok: true, data: { kind: 'relay' } });
+    expect(probe.nodeToken).toHaveBeenLastCalledWith({ kind: 'relay', address: 'relay.example.test', port: 9443 });
     await expect(answerCloudRequest(probe, { id: 'u', type: 'update-status', params: {} })).resolves.toMatchObject({
       ok: true,
       data: { current: 'v2.11.4', latest: 'v2.11.5', available: true, updating: false },

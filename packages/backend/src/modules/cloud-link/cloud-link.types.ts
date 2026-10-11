@@ -77,6 +77,8 @@ export interface CloudRequestAudit {
   /** `name` of a node-token request, `version` of an update request. */
   name?: string;
   version?: string;
+  /** `kind` of a node-token request. */
+  kind?: string;
   ok: boolean;
   error?: string;
   /** Size of the JSON answer sent back, in bytes (all repeats together in a summary). */
@@ -150,12 +152,33 @@ export interface CloudLogLine {
   line: string;
 }
 
+/** Node types Nodes → Add node offers, by their identifiers. */
+export const CLOUD_NODE_KINDS = ['nginx', 'docker', 'builder', 'storage', 'monitoring', 'relay'] as const;
+export type CloudNodeKind = (typeof CLOUD_NODE_KINDS)[number];
+export const DEFAULT_CLOUD_NODE_KIND: CloudNodeKind = 'nginx';
+export const DEFAULT_RELAY_SERVICE_PORT = 9443;
+
+/** The kind a node-token request names; `databases` is the former name of `storage`, as Add node reads it. */
+export function resolveCloudNodeKind(kind: unknown): CloudNodeKind | null {
+  if (kind === undefined || kind === null || kind === '') return DEFAULT_CLOUD_NODE_KIND;
+  if (typeof kind !== 'string') return null;
+  const value = kind.trim().toLowerCase();
+  if (value === 'databases') return 'storage';
+  return (CLOUD_NODE_KINDS as readonly string[]).includes(value) ? (value as CloudNodeKind) : null;
+}
+
 /** What the cloud account may do over the link besides reading. */
 export interface CloudLinkActions {
   /** A new first-admin setup code; fails with "already set up" once an admin exists. */
   setupLink(): Promise<{ code: string; expiresAt: string }>;
   /** A one-time node enrolment token and the install command, as Nodes → Add node produces. */
-  nodeToken(name?: string): Promise<{ token: string; expiresAt: string; command: string; nodeId: string }>;
+  nodeToken(options: {
+    name?: string;
+    kind?: string;
+    /** Relay only: the address and port it advertises, as Add node asks for them. */
+    address?: string;
+    port?: number;
+  }): Promise<{ token: string; expiresAt: string; command: string; nodeId: string; kind: CloudNodeKind }>;
   updateStatus(): Promise<{
     current: string;
     latest: string | null;

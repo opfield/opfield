@@ -10,7 +10,12 @@ import { SetupAccessService } from '@/modules/setup/setup-access.service.js';
 import { SetupTokenPolicyService } from '@/modules/setup/setup-token-policy.js';
 import { EventBusService } from '@/services/event-bus.service.js';
 import { UpdateService } from '@/services/update.service.js';
-import type { CloudLinkActions } from './cloud-link.types.js';
+import {
+  CLOUD_NODE_KINDS,
+  type CloudLinkActions,
+  DEFAULT_RELAY_SERVICE_PORT,
+  resolveCloudNodeKind,
+} from './cloud-link.types.js';
 
 const logger = createChildLogger('CloudLinkActions');
 
@@ -32,10 +37,24 @@ export function createCloudLinkActions(): CloudLinkActions {
       return { code: generated.code, expiresAt: generated.expiresAt };
     },
 
-    async nodeToken(name) {
-      const displayName = name?.trim().slice(0, MAX_NODE_NAME_LENGTH) || DEFAULT_NODE_NAME;
-      // The defaults of Nodes → Add node: an nginx node, created pending at the root, enrolled by its setup command.
-      const input = CreateNodeSchema.parse({ type: 'nginx', hostname: 'pending', displayName, folderId: null });
+    async nodeToken(options) {
+      const kind = resolveCloudNodeKind(options.kind);
+      if (!kind) throw new Error(`Unknown node kind; use one of ${CLOUD_NODE_KINDS.join(', ')}`);
+      const displayName = options.name?.trim().slice(0, MAX_NODE_NAME_LENGTH) || DEFAULT_NODE_NAME;
+      // As Nodes → Add node creates it: pending at the root, enrolled by its setup command; a relay also advertises
+      // its address and port.
+      const input = CreateNodeSchema.parse({
+        type: kind,
+        hostname: 'pending',
+        displayName,
+        folderId: null,
+        ...(kind === 'relay'
+          ? {
+              serviceAddresses: [options.address?.trim() ?? ''],
+              servicePort: options.port ?? DEFAULT_RELAY_SERVICE_PORT,
+            }
+          : {}),
+      });
       const created = await container.resolve(NodesService).create(input, CLOUD_LINK_ACTOR);
       const installation = await enrollmentInstallation(created, await publicUrlFallbackGateway());
       const target =
@@ -46,6 +65,7 @@ export function createCloudLinkActions(): CloudLinkActions {
         expiresAt: created.enrollmentTokenExpiresAt,
         command: target.curl,
         nodeId: created.node.id,
+        kind,
       };
     },
 

@@ -1,9 +1,11 @@
 import {
   CLOUD_LOG_TAIL_DEFAULT,
   CLOUD_LOG_TAIL_MAX,
+  CLOUD_NODE_KINDS,
   type CloudAnswer,
   type CloudLinkProbe,
   type CloudRequest,
+  resolveCloudNodeKind,
 } from './cloud-link.types.js';
 
 const MAX_REQUEST_ID_LENGTH = 200;
@@ -61,11 +63,33 @@ export async function answerCloudRequest(probe: CloudLinkProbe, request: CloudRe
       case 'setup-link':
         return { id: request.id, ok: true, data: await probe.setupLink() };
       case 'node-token': {
-        const { name } = request.params;
+        const { name, kind, address, port } = request.params;
         if (name !== undefined && name !== null && typeof name !== 'string') {
           return { id: request.id, ok: false, error: 'params.name is the name of the node' };
         }
-        const { nodeId: _nodeId, ...data } = await probe.nodeToken(name ?? undefined);
+        const resolved = resolveCloudNodeKind(kind);
+        if (!resolved) {
+          return { id: request.id, ok: false, error: `params.kind is one of ${CLOUD_NODE_KINDS.join(', ')}` };
+        }
+        if (address !== undefined && address !== null && typeof address !== 'string') {
+          return { id: request.id, ok: false, error: 'params.address is the address a relay advertises' };
+        }
+        if (port !== undefined && port !== null && (typeof port !== 'number' || !Number.isInteger(port))) {
+          return { id: request.id, ok: false, error: 'params.port is the port a relay listens on' };
+        }
+        if (resolved === 'relay' && !address?.trim()) {
+          return {
+            id: request.id,
+            ok: false,
+            error: 'A relay node needs params.address, the reachable IP or hostname it advertises',
+          };
+        }
+        const { nodeId: _nodeId, ...data } = await probe.nodeToken({
+          kind: resolved,
+          ...(name ? { name } : {}),
+          ...(resolved === 'relay' && address ? { address: address.trim() } : {}),
+          ...(resolved === 'relay' && typeof port === 'number' ? { port } : {}),
+        });
         return { id: request.id, ok: true, data };
       }
       case 'update-status':
