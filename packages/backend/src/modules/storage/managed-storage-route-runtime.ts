@@ -3,15 +3,9 @@ import { container } from '@/container.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
 import { getResourceScopedIds, hasScope, hasScopeBase, hasScopeForCreation } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
-import { AuditService } from '@/modules/audit/audit.service.js';
 import { authMiddleware, rejectImpersonation, requireScopeBase } from '@/modules/auth/auth.middleware.js';
-import { AvailabilityLeaseService } from '@/modules/docker/availability/lease/availability-lease.service.js';
 import { RenewManagedCertificateSchema } from '@/modules/managed-workloads/certificate-renewal.docs.js';
 import { ObjectStorageFolderService } from '@/modules/object-storage/object-storage-folders.service.js';
-import { AvailabilityMembersService } from '@/services/availability-members.service.js';
-import { NodeDispatchService } from '@/services/node-dispatch.service.js';
-import { NodeRegistryService } from '@/services/node-registry.service.js';
-import { RelayPolicyService } from '@/services/relay-policy.service.js';
 import {
   createManagedStorageAccessKeyRoute,
   createManagedStorageBindingRoute,
@@ -98,11 +92,4 @@ export const managedStorageRouteRuntime = {
   MoveManagedStorageBindingSchema,
   ImportManagedStorageAccessKeysSchema,
   RehomeManagedStorageBackupHistorySchema,
-  // Storage availability sets (commercial storage/availability).
-  AvailabilityLeaseService,
-  AvailabilityMembersService,
-  AuditService,
-  NodeDispatchService,
-  NodeRegistryService,
-  RelayPolicyService,
 };
