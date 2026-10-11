@@ -539,17 +539,17 @@ export function DashboardLayout() {
         switch (e.key) {
           case "h":
             e.preventDefault();
-            navigate("/proxy-hosts/new");
+            navigate("/routes/new");
             break;
           case "s":
             e.preventDefault();
-            navigate("/ssl-certificates");
+            navigate("/certificates");
             useUIStore.getState().openModal("createSSLCert");
             break;
           case "r":
             e.preventDefault();
             if (!features.pkiEnabled) break;
-            navigate("/cas");
+            navigate("/certificates/authorities");
             useUIStore.getState().openModal("createCA");
             break;
         }

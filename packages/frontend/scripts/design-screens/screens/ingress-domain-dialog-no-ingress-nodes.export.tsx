@@ -11,7 +11,7 @@ it("ingress-domain-dialog-no-ingress-nodes", async () => {
     id: "ingress-domain-dialog-no-ingress-nodes",
     title: "Domain · No Ingress Nodes",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     handlers: [
       http.get("*/api/domains/nginx-nodes", () =>
         wrapped({

@@ -11,7 +11,7 @@ it("ingress-domain-dialog-no-public-address", async () => {
     id: "ingress-domain-dialog-no-public-address",
     title: "Domain · No Public Ingress Addresses",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     handlers: [
       http.get("*/api/domains/nginx-nodes", () =>
         wrapped({

@@ -9,7 +9,7 @@ it("ingress-dialog-access-list-delete", async () => {
     id: "ingress-dialog-access-list-delete",
     title: "Access Lists · Delete Access List",
     group: "Ingress",
-    route: "/access-lists",
+    route: "/routes/access-lists",
     handlers: [...accessListHandlers(), ...backgroundPrewarmHandlers()],
     ready: async () => {
       await screen.findByText("Support portal");

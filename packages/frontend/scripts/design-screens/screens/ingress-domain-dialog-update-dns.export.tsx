@@ -10,7 +10,7 @@ it("ingress-domain-dialog-update-dns", async () => {
     id: "ingress-domain-dialog-update-dns",
     title: "Domain · Update Cloudflare DNS?",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     handlers: [...domainDetailHandlers(), ...domainsHandlers(), ...backgroundPrewarmHandlers()],
     ready: async () => {
       await screen.findByText("grafana.example.com");

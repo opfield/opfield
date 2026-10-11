@@ -11,7 +11,7 @@ it("ingress-domain-details-checking", async () => {
     id: "ingress-domain-details-checking",
     title: "Domain · Details (checking DNS)",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     height: 1000,
     handlers: [
       ...pendingDnsCheckHandlers(),

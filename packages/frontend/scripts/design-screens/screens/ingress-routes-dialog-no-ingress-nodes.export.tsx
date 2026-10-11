@@ -12,7 +12,7 @@ it("ingress-routes-dialog-no-ingress-nodes", async () => {
     title: "Routes · No Ingress Nodes",
     group: "Ingress",
     // Add Route checks for an Ingress node first; this installation has none connected.
-    route: "/proxy-hosts/new",
+    route: "/routes/new",
     handlers: [
       http.get("*/api/nodes", ({ request }) => {
         if (new URL(request.url).searchParams.get("type") !== "nginx") return;

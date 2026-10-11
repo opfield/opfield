@@ -18,7 +18,7 @@ it("ingress-routes-new-2-redirect", async () => {
     id: "ingress-routes-new-2-redirect",
     title: "Create Route · Redirect",
     group: "Ingress",
-    route: "/proxy-hosts/new",
+    route: "/routes/new",
     handlers: [...routeHandlers(), ...backgroundPrewarmHandlers()],
     height: 1000,
     before: expandRouteFolders,

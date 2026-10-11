@@ -241,8 +241,11 @@ export function SidebarContent({
                         className={cn(
                           // The button's own hover stays; the active fill fades like the expanded items'.
                           "transition-[color,background-color,box-shadow] shadow-[inset_0_0_0_100vmax_transparent]",
-                          isSidebarNavigationActive(location.pathname, item.href) &&
-                            SIDEBAR_ITEM_FILL
+                          isSidebarNavigationActive(
+                            location.pathname,
+                            item.href,
+                            item.activePaths
+                          ) && SIDEBAR_ITEM_FILL
                         )}
                         onClick={() => navigate(item.href)}
                       >
@@ -437,7 +440,11 @@ export function SidebarContent({
                       </p>
                     )}
                     {group.items.map((item) => {
-                      const isActive = isSidebarNavigationActive(location.pathname, item.href);
+                      const isActive = isSidebarNavigationActive(
+                        location.pathname,
+                        item.href,
+                        item.activePaths
+                      );
                       const navigationAttention = navigationAttentionForItem(
                         dashboardBootstrap,
                         item.id

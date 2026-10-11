@@ -16,7 +16,7 @@ it("certs-dialog-ssl-acme-http", async () => {
     id: "certs-dialog-ssl-acme-http",
     title: "Add SSL Certificate · Let's Encrypt via HTTP",
     group: "Certificates",
-    route: "/ssl-certificates",
+    route: "/certificates",
     handlers: [
       ...sslHandlers(),
       ...domainsHandlers(),

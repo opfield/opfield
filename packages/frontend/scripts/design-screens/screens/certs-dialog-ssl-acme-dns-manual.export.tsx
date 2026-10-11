@@ -16,7 +16,7 @@ it("certs-dialog-ssl-acme-dns-manual", async () => {
     id: "certs-dialog-ssl-acme-dns-manual",
     title: "Add SSL Certificate · Let's Encrypt via manual DNS",
     group: "Certificates",
-    route: "/ssl-certificates",
+    route: "/certificates",
     handlers: [
       ...sslHandlers(),
       ...domainsHandlers(),

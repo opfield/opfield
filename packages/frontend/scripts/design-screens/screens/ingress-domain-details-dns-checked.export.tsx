@@ -11,7 +11,7 @@ it("ingress-domain-details-dns-checked", async () => {
     id: "ingress-domain-details-dns-checked",
     title: "Domain · Details (first DNS check)",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     height: 1000,
     handlers: [...domainDetailHandlers(), ...domainsHandlers(), ...backgroundPrewarmHandlers()],
     before: () => expandFolders("domain", [DOMAIN_FOLDER_STAGING]),

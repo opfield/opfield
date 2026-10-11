@@ -9,7 +9,7 @@ it("ingress-domain-dialog-delete-mapping", async () => {
     id: "ingress-domain-dialog-delete-mapping",
     title: "Domain · Delete Domain Mapping",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     handlers: [...domainsHandlers(), ...backgroundPrewarmHandlers()],
     ready: async () => {
       await screen.findByText("grafana.example.com");

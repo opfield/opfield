@@ -8,7 +8,7 @@ it("ingress-routes", async () => {
     id: "ingress-routes",
     title: "Routes",
     group: "Ingress",
-    route: "/proxy-hosts",
+    route: "/routes",
     handlers: routeHandlers(),
     before: expandRouteFolders,
     ready: async () => {

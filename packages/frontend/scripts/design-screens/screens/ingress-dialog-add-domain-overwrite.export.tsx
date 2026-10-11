@@ -10,7 +10,7 @@ it("ingress-dialog-add-domain-overwrite", async () => {
     id: "ingress-dialog-add-domain-overwrite",
     title: "Add Domain · Overwrite Cloudflare DNS",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     height: 1000,
     handlers: [
       ...addDomainPreviewHandlers("conflict"),

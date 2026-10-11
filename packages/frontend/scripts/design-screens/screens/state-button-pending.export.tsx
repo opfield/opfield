@@ -16,7 +16,7 @@ it("state-button-pending", async () => {
     id: "state-button-pending",
     title: "Button · pending",
     group: "States",
-    route: "/proxy-hosts/new",
+    route: "/routes/new",
     // POST /api/proxy-hosts never answers, so Create stays pending.
     handlers: routeHandlers({ createRoute: () => new Promise<Response>(() => {}) }),
     before: expandRouteFolders,

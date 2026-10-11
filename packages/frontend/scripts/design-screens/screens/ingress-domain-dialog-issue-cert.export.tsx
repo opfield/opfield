@@ -28,7 +28,7 @@ it("ingress-domain-dialog-issue-cert", async () => {
     id: "ingress-domain-dialog-issue-cert",
     title: "Domain · Issue Certificate",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     handlers: [...domainDetailHandlers(), ...domainsHandlers(), ...backgroundPrewarmHandlers()],
     before: () => {
       addBillingDomain();

@@ -10,7 +10,7 @@ it("ingress-domain-dialog-keep-external", async () => {
     id: "ingress-domain-dialog-keep-external",
     title: "Domain · Keep External DNS?",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     handlers: [...domainDetailHandlers(), ...domainsHandlers(), ...backgroundPrewarmHandlers()],
     ready: async () => {
       await screen.findByText("grafana.example.com");

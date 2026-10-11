@@ -10,7 +10,7 @@ it("ingress-domain-details", async () => {
     id: "ingress-domain-details",
     title: "Domain · Details",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     height: 1000,
     handlers: [...domainDetailHandlers(), ...domainsHandlers(), ...backgroundPrewarmHandlers()],
     ready: async () => {

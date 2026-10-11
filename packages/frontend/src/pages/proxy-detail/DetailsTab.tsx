@@ -143,7 +143,7 @@ export function DetailsTab({ host }: { host: ProxyHost }) {
             value={
               <div className="flex flex-wrap justify-end gap-1">
                 {host.domainNames.map((d) => (
-                  <Link key={d} to={`/domains?domain=${encodeURIComponent(d)}`} title={d}>
+                  <Link key={d} to={`/routes/domains?domain=${encodeURIComponent(d)}`} title={d}>
                     <Badge variant="info">{d}</Badge>
                   </Link>
                 ))}
@@ -205,7 +205,7 @@ export function DetailsTab({ host }: { host: ProxyHost }) {
           <DetailRow
             label="Name"
             value={
-              <Link to={`/ssl-certificates?certificate=${host.sslCertificate.id}`}>
+              <Link to={`/certificates?certificate=${host.sslCertificate.id}`}>
                 <Badge variant="info">{host.sslCertificate.name}</Badge>
               </Link>
             }

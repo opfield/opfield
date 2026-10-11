@@ -9,7 +9,7 @@ it("certs-dialog-template-7-policies", async () => {
     id: "certs-dialog-template-7-policies",
     title: "Create Template · Policies",
     group: "Certificates",
-    route: "/templates/pki",
+    route: "/certificates/templates",
     handlers: [...pkiHandlers(), ...backgroundPrewarmHandlers()],
     height: 1100,
     before: preparePkiLists,

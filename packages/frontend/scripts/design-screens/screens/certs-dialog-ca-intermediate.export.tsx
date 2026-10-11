@@ -9,7 +9,7 @@ it("certs-dialog-ca-intermediate", async () => {
     id: "certs-dialog-ca-intermediate",
     title: "Create Intermediate CA · Filled",
     group: "Certificates",
-    route: "/cas",
+    route: "/certificates/authorities",
     handlers: [...pkiHandlers(), ...backgroundPrewarmHandlers()],
     before: preparePkiLists,
     ready: async () => {
