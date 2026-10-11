@@ -122,11 +122,14 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_app_variables',
     description:
-      'Environment variables and secrets of an app environment (apps:env:manage on it). Every container, deployment and Compose project of the environment receives them on its next create, recreate, deploy or apply; nothing restarts on save. Precedence, lowest first: image ENV, environment variables, environment secrets, the workload own environment, the workload own secrets. get returns variables with values, secret keys only (never values) and pendingWorkloads (workloads still running older values; recreate or redeploy them one at a time to apply). set_variables (variables [{key, value}]) replaces the full set of plain variables. set_secrets (secrets {KEY: value}) adds or replaces secrets. delete_secrets (keys [KEY]). Keys: ^[A-Za-z_][A-Za-z0-9_]*$, at most 200 per environment, values up to 32 KiB; a key is a variable or a secret, not both.',
+      'Environment variables and secrets of an app environment (apps:env:manage on it). Every container, deployment and Compose project of the environment receives them on its next create, recreate, deploy or apply; nothing restarts on save. Precedence, lowest first: image ENV, environment variables, environment secrets, the workload own environment, the workload own secrets. get returns variables with values, secret keys only (never values) and pendingWorkloads (workloads still running older values; recreate or redeploy them one at a time to apply). A container recreate is only queued on its node and answers a taskId: workload_task (taskId) reads that task (status pending, running, succeeded or failed with its error); the workload runs the new values only once it is succeeded. set_variables (variables [{key, value}]) replaces the full set of plain variables. set_secrets (secrets {KEY: value}) adds or replaces secrets. delete_secrets (keys [KEY]). Keys: ^[A-Za-z_][A-Za-z0-9_]*$, at most 200 per environment, values up to 32 KiB; a key is a variable or a secret, not both.',
     parameters: {
       type: 'object',
       properties: {
-        operation: { type: 'string', enum: ['get', 'set_variables', 'set_secrets', 'delete_secrets'] },
+        operation: {
+          type: 'string',
+          enum: ['get', 'set_variables', 'set_secrets', 'delete_secrets', 'workload_task'],
+        },
         appId: { type: 'string', description: 'App id or slug.' },
         environmentId: { type: 'string', description: 'Environment id.' },
         variables: {
@@ -144,6 +147,7 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
           additionalProperties: { type: 'string' },
         },
         keys: { type: 'array', items: { type: 'string' }, description: 'delete_secrets: secret keys.' },
+        taskId: { type: 'string', description: 'workload_task: the taskId a container recreate answered.' },
       },
       required: ['operation', 'appId', 'environmentId'],
     },

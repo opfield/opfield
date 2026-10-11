@@ -6,10 +6,12 @@ import type { DrizzleClient } from '@/db/client.js';
 import { disposableDatabase, migrateDatabase } from '@/db/migration-database.test-helpers.js';
 import * as schema from '@/db/schema/index.js';
 import { executeAppTool } from '@/modules/ai/ai.app-tools.js';
+import { DockerTaskService } from '@/modules/docker/docker-task.service.js';
 import { CryptoService } from '@/services/crypto.service.js';
 import { AppEnvLayerService, layerOwnerKey } from './app-env-layer.js';
 import { AppFolderService } from './app-folders.service.js';
 import { AppMembersReader } from './app-members.service.js';
+import { AppMembershipService } from './app-membership.js';
 import { AppVariablesService } from './app-variables.service.js';
 import { AppsService } from './apps.service.js';
 
@@ -134,5 +136,54 @@ describe.skipIf(!url)('app environment variables on disposable PostgreSQL', () =
     expect((await variables.get(actor(), app.id, env.id)).pendingWorkloads).toEqual([]);
     await variables.setVariables(actor(), app.id, env.id, [{ key: 'LOG_LEVEL', value: 'info' }]);
     expect((await variables.get(actor(), app.id, env.id)).pendingWorkloads).toHaveLength(1);
+  });
+
+  it('reads the recreate task of a container of the environment, and nothing else', async () => {
+    container.registerInstance(AppMembershipService, new AppMembershipService(db, new AppFolderService(db)));
+    const tasks = new DockerTaskService(db);
+    container.registerInstance(DockerTaskService, tasks);
+    const app = await apps.create(actor(), { name: 'Tasks' });
+    const env = app.environments[0];
+    const staging = await apps.createEnvironment(actor(), app.id, { name: 'staging' });
+    const docker = (await q(`insert into nodes (hostname, slug, type) values ('d2', 'd2', 'docker') returning id`))
+      .rows[0].id;
+    await q(
+      `insert into docker_container_folder_assignments (node_id, resource_type, resource_key, folder_id) values ($1, 'container', 'tasks-web', $2)`,
+      [docker, env.placementFolderIds.containers]
+    );
+    const recreate = await tasks.create({ nodeId: docker, containerName: 'tasks-web', type: 'recreate' });
+    await tasks.update(recreate.id, { status: 'running', progress: 'Pulling image' });
+    const outside = await tasks.create({ nodeId: docker, containerName: 'elsewhere', type: 'recreate' });
+
+    // Accepted by the node is not finished: the task says where it is.
+    expect(await variables.workloadTask(actor(), app.id, env.id, recreate.id)).toMatchObject({
+      id: recreate.id,
+      type: 'recreate',
+      status: 'running',
+      progress: 'Pulling image',
+      error: null,
+    });
+    await tasks.update(recreate.id, { status: 'failed', error: 'pull access denied', completedAt: new Date() });
+    const viaTool = await executeAppTool({ id: userId, scopes: ALL } as never, 'manage_app_variables', {
+      operation: 'workload_task',
+      appId: app.id,
+      environmentId: env.id,
+      taskId: recreate.id,
+    });
+    expect(viaTool).toMatchObject({ status: 'failed', error: 'pull access denied' });
+
+    for (const [environmentId, taskId] of [
+      [env.id, outside.id],
+      [staging.id, recreate.id],
+      [env.id, '00000000-0000-4000-8000-000000000000'],
+    ]) {
+      await expect(variables.workloadTask(actor(), app.id, environmentId, taskId)).rejects.toMatchObject({
+        statusCode: 404,
+        code: 'APP_WORKLOAD_TASK_NOT_FOUND',
+      });
+    }
+    await expect(variables.workloadTask(actor(['apps:view']), app.id, env.id, recreate.id)).rejects.toMatchObject({
+      statusCode: 403,
+    });
   });
 });

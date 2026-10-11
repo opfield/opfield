@@ -1,7 +1,12 @@
 import { container } from '@/container.js';
 import { type AppsRouter, appActor } from './app-route-helpers.js';
 import { AppVariablesService } from './app-variables.service.js';
-import { getAppVariablesRoute, patchAppSecretsRoute, setAppVariablesRoute } from './apps.docs.js';
+import {
+  getAppVariablesRoute,
+  getAppWorkloadTaskRoute,
+  patchAppSecretsRoute,
+  setAppVariablesRoute,
+} from './apps.docs.js';
 import { PatchAppSecretsSchema, SetAppVariablesSchema } from './apps.schemas.js';
 
 export function registerAppVariablesRoutes(router: AppsRouter): void {
@@ -17,6 +22,13 @@ export function registerAppVariablesRoutes(router: AppsRouter): void {
     const data = await container
       .resolve(AppVariablesService)
       .setVariables(appActor(c), c.req.param('id')!, c.req.param('envId')!, variables);
+    return c.json({ data });
+  });
+
+  router.openapi(getAppWorkloadTaskRoute, async (c) => {
+    const data = await container
+      .resolve(AppVariablesService)
+      .workloadTask(appActor(c), c.req.param('id')!, c.req.param('envId')!, c.req.param('taskId')!);
     return c.json({ data });
   });
 

@@ -1,6 +1,8 @@
 // "Save and recreate N workloads": a rolling recreate, one workload at a time, with each one's
 // status; it stops at the first failure and reports it. Containers are recreated, deployments
-// redeployed (their normal rollout), Compose projects applied.
+// redeployed (their normal rollout), Compose projects applied. A row is done only when its
+// workload runs the new values: a container recreate is queued on its node, so the row follows
+// its task until it ends.
 import { useEffect, useRef, useState } from "react";
 import { Notice } from "@/components/common/Notice";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
@@ -17,11 +19,11 @@ import {
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { createClientUuid } from "@/lib/client-id";
 import { api } from "@/services/api";
-import type { AppPendingWorkload, DockerComposeOperation } from "@/types";
+import type { AppPendingWorkload, AppWorkloadTask, DockerComposeOperation } from "@/types";
 import { plural } from "../app-shared";
 import { APP_DIALOG_WIDTH } from "./AppNameDialog";
 
-type RowState = "waiting" | "running" | "done" | "failed" | "skipped";
+type RowState = "waiting" | "running" | "done" | "failed" | "skipped" | "queued" | "deferred";
 
 const STATE_BADGE: Record<
   RowState,
@@ -32,6 +34,8 @@ const STATE_BADGE: Record<
   done: { variant: "success", label: "Done" },
   failed: { variant: "destructive", label: "Failed" },
   skipped: { variant: "secondary", label: "Not started" },
+  queued: { variant: "secondary", label: "Rolling out" },
+  deferred: { variant: "secondary", label: "On next start" },
 };
 
 const KIND_LABEL: Record<AppPendingWorkload["kind"], string> = {
@@ -42,8 +46,44 @@ const KIND_LABEL: Record<AppPendingWorkload["kind"], string> = {
 
 const COMPOSE_POLL_MS = 2000;
 const COMPOSE_TIMEOUT_MS = 15 * 60_000;
+export const TASK_POLL_MS = 2000;
+const TASK_TIMEOUT_MS = 15 * 60_000;
 
 const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+/** How a row ended: recreated, handed to its availability policy, or saved for its next start. */
+type Outcome = "done" | "queued" | "deferred";
+
+interface RecreateContext {
+  appId: string;
+  environmentId: string;
+  cancelled: () => boolean;
+  /** The node's progress of the running row (pulling, recreating). */
+  onProgress: (progress: string | null) => void;
+  pollMs: number;
+}
+
+/** Follows a container's recreate task until it ends; throws its error when it failed. */
+export async function waitForWorkloadTask(
+  appId: string,
+  environmentId: string,
+  taskId: string,
+  onProgress: (progress: string | null) => void,
+  pollMs = TASK_POLL_MS,
+  timeoutMs = TASK_TIMEOUT_MS
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const task: AppWorkloadTask = await api.getAppWorkloadTask(appId, environmentId, taskId);
+    if (task.status === "succeeded") return;
+    if (task.status === "failed") throw new Error(task.error || "The recreate failed on the node");
+    onProgress(task.progress);
+    if (Date.now() > deadline) {
+      throw new Error("The recreate did not finish in 15 minutes; the node may still run it");
+    }
+    await sleep(pollMs);
+  }
+}
 
 async function waitForComposeOperation(
   nodeId: string,
@@ -65,40 +105,83 @@ async function waitForComposeOperation(
   }
 }
 
-async function recreate(workload: AppPendingWorkload, cancelled: () => boolean): Promise<void> {
+async function recreate(workload: AppPendingWorkload, context: RecreateContext): Promise<Outcome> {
   const nodeId = workload.nodeId ?? "";
   if (!nodeId) throw new Error("The workload's node is unknown");
   switch (workload.kind) {
-    case "container":
-      await api.recreateWithConfig(nodeId, workload.id, {});
-      return;
-    case "deployment":
-      await api.deployDockerDeployment(nodeId, workload.id, {});
-      return;
+    case "container": {
+      const result = await api.recreateWithConfig(nodeId, workload.id, {});
+      // A highly available container rolls out through its policy, which this dialog cannot follow.
+      if (result.availabilityManaged) return "queued";
+      const taskId = typeof result.taskId === "string" ? result.taskId : null;
+      if (taskId) {
+        await waitForWorkloadTask(
+          context.appId,
+          context.environmentId,
+          taskId,
+          context.onProgress,
+          context.pollMs
+        );
+      }
+      return "done";
+    }
+    case "deployment": {
+      const result = await api.deployDockerDeployment(nodeId, workload.id, {});
+      // A stopped deployment keeps the new configuration and rolls it out when it is started.
+      return (result as { deploymentDeferred?: boolean }).deploymentDeferred ? "deferred" : "done";
+    }
     case "compose": {
       const operation = await api.startDockerComposeOperation(nodeId, workload.id, "apply", {
         idempotencyKey: createClientUuid(),
       });
-      await waitForComposeOperation(nodeId, workload.id, operation, cancelled);
-      return;
+      await waitForComposeOperation(nodeId, workload.id, operation, context.cancelled);
+      return "done";
     }
   }
 }
 
+/** What the rows Gateway could not follow to their end are waiting for. */
+function notFinishedNote(queued: number, deferred: number): string {
+  const notes: string[] = [];
+  if (queued > 0) {
+    notes.push(
+      queued === 1
+        ? "1 workload rolls out through its availability policy"
+        : `${queued} workloads roll out through their availability policy`
+    );
+  }
+  if (deferred > 0) {
+    notes.push(
+      deferred === 1
+        ? "1 stopped deployment gets the values when started"
+        : `${deferred} stopped deployments get the values when started`
+    );
+  }
+  return `${notes.join("; ")}.`;
+}
+
 export function RecreateWorkloadsDialog({
+  appId,
+  environmentId,
   environmentName,
   workloads,
   onClose,
   onFinished,
+  pollMs = TASK_POLL_MS,
 }: {
+  appId: string;
+  environmentId: string;
   environmentName: string;
   /** Non-null opens the dialog and starts the run. */
   workloads: AppPendingWorkload[] | null;
   onClose: () => void;
   onFinished: () => void;
+  /** How often a running container recreate is read. */
+  pollMs?: number;
 }) {
   const shown = useRetainedDialogValue(workloads, workloads !== null);
   const [states, setStates] = useState<RowState[]>([]);
+  const [progress, setProgress] = useState<{ index: number; text: string | null } | null>(null);
   const [failure, setFailure] = useState<{ name: string; message: string } | null>(null);
   const [running, setRunning] = useState(false);
   const cancelledRef = useRef(false);
@@ -119,9 +202,17 @@ export function RecreateWorkloadsDialog({
         const workload = workloads[index]!;
         set(index, "running");
         try {
-          await recreate(workload, () => cancelledRef.current);
-          set(index, "done");
+          const outcome = await recreate(workload, {
+            appId,
+            environmentId,
+            cancelled: () => cancelledRef.current,
+            onProgress: (text) => setProgress({ index, text }),
+            pollMs,
+          });
+          setProgress(null);
+          set(index, outcome);
         } catch (error) {
+          setProgress(null);
           set(index, "failed");
           setStates((current) => current.map((value, i) => (i > index ? "skipped" : value)));
           setFailure({
@@ -138,10 +229,13 @@ export function RecreateWorkloadsDialog({
     return () => {
       cancelledRef.current = true;
     };
-  }, [workloads]);
+  }, [workloads, appId, environmentId, pollMs]);
 
   const done = states.filter((state) => state === "done").length;
+  const queued = states.filter((state) => state === "queued").length;
+  const deferred = states.filter((state) => state === "deferred").length;
   const total = shown?.length ?? 0;
+  const finished = !running && !failure && total > 0 && done + queued + deferred === total;
 
   return (
     <Dialog
@@ -163,19 +257,31 @@ export function RecreateWorkloadsDialog({
             <Notice tone="destructive" title={`${failure.name} failed; the rest was not started`}>
               {failure.message}
             </Notice>
-          ) : !running && total > 0 && done === total ? (
+          ) : finished && done === total ? (
             <Notice tone="success" title={`${plural(total, "workload")} recreated`}>
               Every workload of {environmentName} runs the current values.
+            </Notice>
+          ) : finished ? (
+            <Notice tone="info" title={`${plural(done, "workload")} recreated`}>
+              {notFinishedNote(queued, deferred)}
             </Notice>
           ) : null}
           <div className="border border-border">
             {(shown ?? []).map((workload, index) => {
               const state = STATE_BADGE[states[index] ?? "waiting"];
+              const detail =
+                states[index] === "failed"
+                  ? failure?.message
+                  : progress?.index === index
+                    ? progress.text
+                    : null;
               return (
                 <SettingsControlRow
                   key={`${workload.kind}:${workload.id}`}
                   title={workload.name}
-                  description={KIND_LABEL[workload.kind]}
+                  description={
+                    detail ? `${KIND_LABEL[workload.kind]} · ${detail}` : KIND_LABEL[workload.kind]
+                  }
                 >
                   <Badge variant={state.variant} size="inline">
                     {state.label}

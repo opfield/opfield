@@ -19,6 +19,7 @@ import type {
   AppSummary,
   AppUpdateInput,
   AppVariables,
+  AppWorkloadTask,
   DatabaseConnection,
   ObjectStorageConnection,
   PageProject,
@@ -131,6 +132,19 @@ export function withAppsApi<TBase extends ApiClientBaseConstructor>(Base: TBase)
       return this.unwrapData(
         this.request<{ data: AppVariables }>(
           `/apps/${seg(appId)}/environments/${seg(envId)}/variables`
+        )
+      );
+    }
+
+    /** A recreate task of a container of the environment (apps:env:manage, no docker:tasks). */
+    async getAppWorkloadTask(
+      appId: string,
+      envId: string,
+      taskId: string
+    ): Promise<AppWorkloadTask> {
+      return this.unwrapData(
+        this.request<{ data: AppWorkloadTask }>(
+          `/apps/${seg(appId)}/environments/${seg(envId)}/workload-tasks/${seg(taskId)}`
         )
       );
     }

@@ -359,6 +359,8 @@ export function VariablesPanel({
         description={`Encrypted values for every container of ${env.name}`}
       />
       <RecreateWorkloadsDialog
+        appId={app.id}
+        environmentId={env.id}
         environmentName={env.name}
         workloads={recreating}
         onClose={() => setRecreating(null)}

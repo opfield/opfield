@@ -172,6 +172,16 @@ export interface AppVariables {
   pendingWorkloads: AppPendingWorkload[];
 }
 
+/** The node's task for a workload recreate; the workload runs the new values once it succeeded. */
+export interface AppWorkloadTask {
+  id: string;
+  type: string;
+  status: "pending" | "running" | "succeeded" | "failed";
+  progress: string | null;
+  error: string | null;
+  completedAt: string | null;
+}
+
 export interface AppSecretsPatch {
   set: Record<string, string>;
   delete: string[];

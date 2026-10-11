@@ -17,7 +17,7 @@ An app groups resources of several types into environments (production, staging,
 - Deleting an environment or an app leaves its members running at the top level of their lists.
 
 ## Environment variables and secrets
-- manage_app_variables: variables (values readable by managers) and secrets (write-only) every container, deployment and Compose project of the environment receives on its next create, recreate, deploy or apply. Nothing restarts on save; get lists pendingWorkloads still running older values. Precedence, lowest first: image ENV, environment variables, environment secrets, the workload's own env, the workload's own secrets.
+- manage_app_variables: variables (values readable by managers) and secrets (write-only) every container, deployment and Compose project of the environment receives on its next create, recreate, deploy or apply. Nothing restarts on save; get lists pendingWorkloads still running older values. A container recreate is only queued (it answers a taskId): follow it with manage_app_variables workload_task until succeeded or failed before reporting it done. Precedence, lowest first: image ENV, environment variables, environment secrets, the workload's own env, the workload's own secrets.
 
 ## Maintenance
 - manage_app_environment set_maintenance puts every proxy route of the environment in maintenance; manage_app update maintenanceOverride does it for every environment. Each route keeps its own maintenance switch: turning the overlay off restores exactly what each route had. Routes show appMaintenanceMode.

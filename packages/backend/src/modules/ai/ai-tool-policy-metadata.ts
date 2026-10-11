@@ -86,7 +86,7 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
     execute: ['shutdown', 'start', 'isolate', 'release'],
   }),
   manage_app_variables: operationPolicies({
-    read: ['get'],
+    read: ['get', 'workload_task'],
     update: ['set_variables', 'set_secrets'],
     delete: ['delete_secrets'],
   }),

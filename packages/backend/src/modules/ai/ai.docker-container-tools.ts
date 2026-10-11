@@ -87,6 +87,34 @@ export async function assertDockerContainerRecreateAccess(
   return inspected;
 }
 
+/**
+ * What a container recreate answers an agent: the node runs it as a task after the call returns, so it is reported
+ * as queued with its taskId (not as done), and how to follow it.
+ */
+export function recreateQueuedAnswer(data: unknown) {
+  const taskId =
+    data && typeof data === 'object' && typeof (data as { taskId?: unknown }).taskId === 'string'
+      ? (data as { taskId: string }).taskId
+      : null;
+  if ((data as { availabilityManaged?: unknown } | null)?.availabilityManaged) {
+    return {
+      success: true,
+      status: 'queued',
+      message: 'Container recreate queued as a rollout of its availability policy; it has not finished yet',
+      data,
+    };
+  }
+  return {
+    success: true,
+    status: 'queued',
+    taskId,
+    message: taskId
+      ? `Container recreate queued on the node as task ${taskId}; it has not finished yet. Read the task (manage_app_variables workload_task for a container of an app environment, or the Docker task tools) until it is succeeded or failed.`
+      : 'Container recreate queued on the node; it has not finished yet',
+    data,
+  };
+}
+
 /** Mirrors the container recreate, update, live-update, top, stats-history, GPU usage, image-cleanup and archive-plan routes. */
 export async function manageDockerContainerTool(
   dockerService: DockerManagementService,
@@ -112,7 +140,7 @@ export async function manageDockerContainerTool(
         },
         (message) => dockerService.recordNodeLostTask(nodeId, containerId, 'recreate', message)
       );
-      return { success: true, message: 'Container recreate accepted', data };
+      return recreateQueuedAnswer(data);
     }
     case 'live_update': {
       const containerId = requiredToolString(args.containerId, 'containerId');
