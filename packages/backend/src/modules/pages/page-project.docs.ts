@@ -19,6 +19,7 @@ import {
   CreatePageProjectSchema,
   MigratePageProjectSchema,
   PageProjectListQuerySchema,
+  PageProjectPlacementOptionsQuerySchema,
   UpdatePageProjectSchema,
 } from './page-project.schemas.js';
 
@@ -118,6 +119,7 @@ export const listPageProjectPlacementOptionsRoute = appRoute({
   path: '/placement-options',
   tags,
   summary: 'List eligible Page Project placement nodes',
+  request: { query: PageProjectPlacementOptionsQuerySchema },
   responses: okJson(UnknownDataResponseSchema),
 });
 

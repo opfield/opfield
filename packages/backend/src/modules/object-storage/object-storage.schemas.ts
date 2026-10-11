@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { appListQueryFields } from '@/modules/apps/app-list-query.js';
 
 const nameSchema = z.string().trim().min(1).max(255);
 const optionalTextSchema = z.string().trim().max(10_000).optional().nullable();
@@ -64,6 +65,7 @@ export const ObjectStorageListQuerySchema = z.object({
   search: z.string().trim().optional(),
   provider: StorageProviderSchema.optional(),
   healthStatus: z.enum(['online', 'offline', 'degraded', 'unknown']).optional(),
+  ...appListQueryFields,
 });
 
 const FILE_PROTOCOLS: ReadonlySet<string> = new Set(['ftp', 'ftps', 'sftp']);

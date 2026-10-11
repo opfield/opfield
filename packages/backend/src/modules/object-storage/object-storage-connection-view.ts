@@ -1,4 +1,5 @@
 import type { ManagedStorageClusterRow, ObjectStorageHealthEntry } from '@/db/schema/index.js';
+import type { AppMemberRef } from '@/modules/apps/app-membership.js';
 import type { StorageProvider } from './object-storage.schemas.js';
 import { type FileProtocolProvider, isFileProtocolProvider } from './object-storage-protocol.js';
 
@@ -95,6 +96,8 @@ export interface ObjectStorageConnectionView {
   lastError: string | null;
   healthHistory?: ObjectStorageHealthEntry[];
   folderId: string | null;
+  /** The app and environment the connection belongs to (null outside apps); set on lists and details. */
+  app?: AppMemberRef | null;
   sortOrder: number;
   hasStoredSecret: boolean;
   hasStoredSessionToken: boolean;

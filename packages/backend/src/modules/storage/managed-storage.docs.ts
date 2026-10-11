@@ -22,6 +22,7 @@ import {
   CreateManagedStorageSchema,
   DeleteManagedStorageBindingSchema,
   ImportManagedStorageAccessKeysSchema,
+  ManagedStorageListQuerySchema,
   MoveManagedStorageBindingSchema,
   RehomeManagedStorageBackupHistorySchema,
   UpdateManagedStorageSchema,
@@ -44,6 +45,7 @@ export const listManagedStorageRoute = appRoute({
   path: '/',
   tags: [TAG],
   summary: 'List managed object storage clusters',
+  request: { query: ManagedStorageListQuerySchema },
   responses: okJson(UnknownDataResponseSchema),
 });
 

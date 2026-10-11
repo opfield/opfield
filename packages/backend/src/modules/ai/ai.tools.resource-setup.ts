@@ -132,6 +132,11 @@ export const RESOURCE_SETUP_AI_TOOLS: AIToolDefinition[] = [
         },
         search: { type: 'string' },
         folderId: { type: 'string' },
+        excludeAppMembers: {
+          type: 'boolean',
+          description: 'project_list: leave out Projects that belong to an app.',
+        },
+        appId: { type: 'string', description: 'project_list: only Projects of this app (any environment).' },
         name: { type: 'string' },
         description: { type: 'string' },
         nodeId: { type: 'string' },
@@ -335,6 +340,8 @@ export const RESOURCE_SETUP_AI_TOOLS: AIToolDefinition[] = [
         type: { type: 'string', enum: ['postgres', 'redis', 'clickhouse'] },
         version: { type: 'string', description: 'Exact version returned by catalog.' },
         nodeId: { type: 'string', description: 'Database node ID for create, or optional list filter.' },
+        excludeAppMembers: { type: 'boolean', description: 'list: leave out databases that belong to an app.' },
+        appId: { type: 'string', description: 'list: only databases of this app (any environment).' },
         storageSizeGb: {
           type: 'number',
           description: 'Disk in GB, 0.1 to 16384 with at most one decimal place; an update can only grow it.',

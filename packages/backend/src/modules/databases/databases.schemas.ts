@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { appListQueryFields } from '@/modules/apps/app-list-query.js';
 
 const nameSchema = z.string().trim().min(1).max(255);
 const optionalTextSchema = z.string().trim().max(10_000).optional().nullable();
@@ -68,6 +69,7 @@ export const DatabaseListQuerySchema = z.object({
   search: z.string().trim().optional(),
   type: z.enum(['postgres', 'redis', 'clickhouse']).optional(),
   healthStatus: z.enum(['online', 'offline', 'degraded', 'unknown']).optional(),
+  ...appListQueryFields,
 });
 
 const managedDatabaseTypeSchema = z.enum(['postgres', 'redis', 'clickhouse']);
@@ -114,6 +116,7 @@ export const ManagedPostgresConfigSchema = z.object({
 export const ManagedDatabaseListQuerySchema = z.object({
   nodeId: z.string().uuid().optional(),
   type: managedDatabaseTypeSchema.optional(),
+  ...appListQueryFields,
 });
 
 const STORAGE_SIZE_GB_RULE = 'Storage size is in GB from 0.1 to 16384 with at most one decimal place';
