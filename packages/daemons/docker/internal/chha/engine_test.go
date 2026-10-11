@@ -232,6 +232,15 @@ func TestForwardersAndPeers(t *testing.T) {
 	if len(rt.listening) != 8 {
 		t.Fatalf("listen calls %d", len(rt.listening))
 	}
+	// So is the same container started again (a new process).
+	e.fw.ensure("c2", 3, desired)
+	if len(rt.listening) != 12 {
+		t.Fatalf("listen calls after a restart %d", len(rt.listening))
+	}
+	e.fw.ensure("c2", 3, desired)
+	if len(rt.listening) != 12 {
+		t.Fatalf("a pass over the same process bound again: %d", len(rt.listening))
+	}
 	e.fw.close()
 	if len(e.fw.addresses()) != 0 {
 		t.Fatal("close kept listeners")
