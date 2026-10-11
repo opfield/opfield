@@ -152,7 +152,7 @@ The interface never shows half-loaded content and nothing jumps after it appears
 
 The voice is plain, technical and brief: name the object and what happened. No exclamation marks, no emoji, no "please", no apologies.
 
-- **Page titles** are the object in the plural or the resource's own name: "Routes", "Dashboard", "api.example.com". **Descriptions** are one line without a period: "Route incoming domain traffic to services", "Opfield and PKI infrastructure overview".
+- **Page titles** are the object in the plural or the resource's own name: "Routes", "Dashboard", "api.example.com". **Descriptions** are one line without a period: "Route incoming domain traffic to services", "Routes, certificates and nodes at a glance".
 - **Dialog titles** name the action and the object; resource actions are in Title Case, the majority form: "Add Node", "Remove Volume", "Revoke CA". Descriptions are sentences.
 - **Buttons** are verbs: "Save", "Create", "Remove", "Add Route". Confirm buttons repeat the verb of the title ("Revoke CA"), never "OK" or "Yes".
 - **Confirmations** state the consequence: \`Remove volume "pgdata"? Any data stored in this volume will be permanently lost.\` Add "This action cannot be undone." only when it is true.

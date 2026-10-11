@@ -624,7 +624,7 @@ export function Dashboard() {
           className="mb-4"
           leading={<LiteModeBackButton />}
           title="Dashboard"
-          description="Opfield and PKI infrastructure overview"
+          description="Routes, certificates and nodes at a glance"
         />
         <div className="space-y-6">
           {license?.status === "expired_grace" ? (
