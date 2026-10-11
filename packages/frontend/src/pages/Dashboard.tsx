@@ -646,7 +646,7 @@ export function Dashboard() {
               role="alert"
               title="TLS certificate distribution needs attention"
               actions={
-                <NoticeAction tone="destructive" to="/ssl-certificates">
+                <NoticeAction tone="destructive" to="/certificates">
                   View certificates
                 </NoticeAction>
               }
@@ -665,7 +665,7 @@ export function Dashboard() {
               }
               actions={
                 pkiEnabled && hasScopedAccess("pki:cert:view") ? (
-                  <NoticeAction tone="warning" to="/certificates?status=expired">
+                  <NoticeAction tone="warning" to="/certificates/pki?status=expired">
                     View expired certificates
                   </NoticeAction>
                 ) : null

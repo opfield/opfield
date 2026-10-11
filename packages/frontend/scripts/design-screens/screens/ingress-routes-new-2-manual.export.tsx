@@ -18,7 +18,7 @@ it("ingress-routes-new-2-manual", async () => {
     id: "ingress-routes-new-2-manual",
     title: "Create Route · Manual address",
     group: "Ingress",
-    route: "/proxy-hosts/new",
+    route: "/routes/new",
     handlers: [...routeHandlers(), ...backgroundPrewarmHandlers()],
     height: 1100,
     before: expandRouteFolders,

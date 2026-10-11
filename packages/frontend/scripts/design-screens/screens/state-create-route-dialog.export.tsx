@@ -10,7 +10,7 @@ it("state-create-route-dialog", async () => {
     title: "Create Route dialog",
     group: "States",
     // The Add Route entrypoint: the list page with the dialog opened on arrival.
-    route: "/proxy-hosts/new",
+    route: "/routes/new",
     handlers: routeHandlers(),
     before: expandRouteFolders,
     ready: async () => {

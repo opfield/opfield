@@ -9,7 +9,7 @@ it("ingress-routes-dialog-create-folder", async () => {
     id: "ingress-routes-dialog-create-folder",
     title: "Routes · Create Folder",
     group: "Ingress",
-    route: "/proxy-hosts",
+    route: "/routes",
     handlers: routeHandlers(),
     before: expandRouteFolders,
     ready: async () => {

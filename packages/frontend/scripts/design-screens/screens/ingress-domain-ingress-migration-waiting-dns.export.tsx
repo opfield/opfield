@@ -10,7 +10,7 @@ it("ingress-domain-ingress-migration-waiting-dns", async () => {
     id: "ingress-domain-ingress-migration-waiting-dns",
     title: "Domain · Move Ingress (waiting for DNS)",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     handlers: [...domainDetailHandlers(), ...domainsHandlers(), ...backgroundPrewarmHandlers()],
     before: startDocsMigration,
     ready: async () => {

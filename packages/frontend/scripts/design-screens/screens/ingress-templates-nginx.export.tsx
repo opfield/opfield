@@ -11,7 +11,7 @@ it("ingress-templates-nginx", async () => {
     id: "ingress-templates-nginx",
     title: "Templates · Nginx Config",
     group: "Ingress",
-    route: "/templates/nginx",
+    route: "/routes/templates",
     before: prepareNginxTemplateList,
     handlers: [...nginxTemplateHandlers(), ...backgroundPrewarmHandlers()],
     ready: async () => {

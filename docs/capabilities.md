@@ -43,7 +43,7 @@ Nginx integration:
 
 ### Ingress Groups
 
-An ingress group is a set of nginx ingress nodes, normally one per site, that serve the same Routes, Domains, and Pages Routes. Ingress groups are available on Business and Enterprise; a group that exists keeps serving without the entitlement, and removing members or deleting the group is always allowed. Manage them under **Ingress > Ingress Groups**, through `/api/ingress-groups`, or with the `manage_ingress_group` AI Workspace and MCP tool.
+An ingress group is a set of nginx ingress nodes, normally one per site, that serve the same Routes, Domains, and Pages Routes. Ingress groups are available on Business and Enterprise; a group that exists keeps serving without the entitlement, and removing members or deleting the group is always allowed. Manage them under **Routes > Ingress Groups**, through `/api/ingress-groups`, or with the `manage_ingress_group` AI Workspace and MCP tool.
 
 - Every member renders all routes of the group itself and keeps its own replica of every certificate, access list, and Pages artifact plus its own Secure Link sources, so a member keeps serving while Opfield or another member is down. A reconciler repairs missing or stale configs and certificate replicas every minute and when a member reconnects.
 - Members are nginx nodes whose daemon advertises `ingress_group_v1` (the nginx daemon from 2.11), listed in site-preference order. A member is `joining` while it receives the group's configuration and is not yet published in DNS, `active` once it serves and is published, and `draining` while it is being removed: it keeps serving until no public name of the group resolves to it and the DNS TTL has passed (at most 24 hours), unless the removal is forced.

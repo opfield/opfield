@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderedResourceList } from "@/components/common/FolderedResourceList";
+import { HubTabs } from "@/components/common/HubTabs";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
@@ -571,6 +572,7 @@ export function Domains() {
             </ResponsiveHeaderActions>
           }
         />
+        <HubTabs />
 
         <FolderedResourceList<Domain>
           resourceType="domain"

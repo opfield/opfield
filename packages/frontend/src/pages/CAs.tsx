@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { CACreateDialog } from "@/components/ca/CACreateDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderedResourceList } from "@/components/common/FolderedResourceList";
+import { HubTabs } from "@/components/common/HubTabs";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
@@ -259,6 +260,7 @@ export function CAs() {
             </ResponsiveHeaderActions>
           }
         />
+        <HubTabs />
 
         <FolderedResourceList<CAListItem>
           resourceType="pki-ca"

@@ -13,7 +13,7 @@ it("certs-dialog-issue-4-issued", async () => {
     id: "certs-dialog-issue-4-issued",
     title: "Issue Certificate · Issued",
     group: "Certificates",
-    route: "/certificates",
+    route: "/certificates/pki",
     handlers: [...issueHandlers(), ...pkiHandlers(), ...backgroundPrewarmHandlers()],
     before: preparePkiLists,
     ready: async () => {

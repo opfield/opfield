@@ -11,7 +11,7 @@ it("ingress-domain-dialog-configure-cloudflare", async () => {
     id: "ingress-domain-dialog-configure-cloudflare",
     title: "Domain · Configure Cloudflare DNS",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     handlers: [
       // No Cloudflare connector is set up yet.
       http.get("*/api/integrations/cloudflare/connectors", () => wrapped([])),

@@ -5,6 +5,7 @@ import { CertificateIssueDialog } from "@/components/certificates/CertificateIss
 import { IssuingCABadge } from "@/components/certificates/IssuingCABadge";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderedResourceList } from "@/components/common/FolderedResourceList";
+import { HubTabs } from "@/components/common/HubTabs";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
@@ -241,6 +242,7 @@ export function Certificates() {
             </ResponsiveHeaderActions>
           }
         />
+        <HubTabs />
 
         <FolderedResourceList<Certificate>
           resourceType="pki-certificate"

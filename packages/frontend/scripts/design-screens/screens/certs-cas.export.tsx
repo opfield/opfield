@@ -8,7 +8,7 @@ it("certs-cas", async () => {
     id: "certs-cas",
     title: "Certificate Authorities",
     group: "Certificates",
-    route: "/cas",
+    route: "/certificates/authorities",
     handlers: [...pkiHandlers(), ...backgroundPrewarmHandlers()],
     before: preparePkiLists,
     ready: async () => {

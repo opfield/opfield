@@ -8,7 +8,7 @@ it("certs-ssl-certificates", async () => {
     id: "certs-ssl-certificates",
     title: "SSL certificates",
     group: "Certificates",
-    route: "/ssl-certificates",
+    route: "/certificates",
     handlers: [...sslHandlers(), ...domainsHandlers()],
     ready: async () => {
       await screen.findByText("grafana.example.com", { selector: "p.font-medium" });

@@ -7,6 +7,7 @@ import { MoveToAppDialog } from "@/components/apps/MoveToAppDialog";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderCreateDialog } from "@/components/common/FolderCreateDialog";
+import { HubTabs } from "@/components/common/HubTabs";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { MoveToFolderDialog } from "@/components/common/MoveToFolderDialog";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -668,6 +669,7 @@ export function ProxyHosts({
             </ResponsiveHeaderActions>
           }
         />
+        <HubTabs />
 
         <ResourceListForm<FolderTreeNode, ProxyHost>
           columns={columns}
@@ -865,7 +867,7 @@ export function ProxyHosts({
         open={createDialogOpen}
         onOpenChange={(open) => {
           setCreateDialogOpen(open);
-          if (!open && initialCreateDialogOpen) navigate("/proxy-hosts", { replace: true });
+          if (!open && initialCreateDialogOpen) navigate("/routes", { replace: true });
         }}
         onSuccess={(_, host) => {
           fetchGroupedHosts();
@@ -877,7 +879,7 @@ export function ProxyHosts({
         onOpenChange={(open) => {
           if (open) return;
           setNginxNodeRequiredOpen(false);
-          if (initialCreateDialogOpen) navigate("/proxy-hosts", { replace: true });
+          if (initialCreateDialogOpen) navigate("/routes", { replace: true });
         }}
       >
         <DialogContent className="sm:max-w-md">
@@ -893,7 +895,7 @@ export function ProxyHosts({
               variant="outline"
               onClick={() => {
                 setNginxNodeRequiredOpen(false);
-                if (initialCreateDialogOpen) navigate("/proxy-hosts", { replace: true });
+                if (initialCreateDialogOpen) navigate("/routes", { replace: true });
               }}
             >
               Close

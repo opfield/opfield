@@ -15,7 +15,7 @@ it("ingress-routes-new-2-pages-disabled", async () => {
     id: "ingress-routes-new-2-pages-disabled",
     title: "Create Route · Pages disabled",
     group: "Ingress",
-    route: "/proxy-hosts/new",
+    route: "/routes/new",
     handlers: [
       // The Pages feature is switched off in Settings → Features.
       http.get("*/api/ui/bootstrap", () =>

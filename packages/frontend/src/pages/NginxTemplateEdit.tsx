@@ -81,7 +81,7 @@ export function NginxTemplateEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isNew = !id;
-  const backHref = "/templates/nginx";
+  const backHref = "/routes/templates";
 
   const [isLoading, setIsLoading] = useState(!isNew);
   const [isSaving, setIsSaving] = useState(false);

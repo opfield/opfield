@@ -14,7 +14,7 @@ it("ingress-templates-nginx-dialog-preview", async () => {
     id: "ingress-templates-nginx-dialog-preview",
     title: "Templates · Nginx Config · Built-in preview",
     group: "Ingress",
-    route: "/templates/nginx",
+    route: "/routes/templates",
     before: prepareNginxTemplateList,
     handlers: [
       ...nginxTemplateStateHandlers(),

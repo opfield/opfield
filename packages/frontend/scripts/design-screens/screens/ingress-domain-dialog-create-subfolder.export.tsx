@@ -9,7 +9,7 @@ it("ingress-domain-dialog-create-subfolder", async () => {
     id: "ingress-domain-dialog-create-subfolder",
     title: "Domains · Create Subfolder",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     handlers: [...domainsHandlers(), ...backgroundPrewarmHandlers()],
     ready: async () => {
       await screen.findByText("grafana.example.com");

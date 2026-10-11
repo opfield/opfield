@@ -19,7 +19,10 @@ export function CertificateAuthoritiesCard({ cas, hasScope }: CertificateAuthori
     <PanelShell
       title="Certificate Authorities"
       actions={
-        <Link to="/cas" className="text-sm text-muted-foreground hover:text-foreground">
+        <Link
+          to="/certificates/authorities"
+          className="text-sm text-muted-foreground hover:text-foreground"
+        >
           View all
         </Link>
       }

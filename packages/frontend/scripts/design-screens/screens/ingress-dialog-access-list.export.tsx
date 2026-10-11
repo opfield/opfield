@@ -10,7 +10,7 @@ it("ingress-dialog-access-list", async () => {
     id: "ingress-dialog-access-list",
     title: "Edit Access List dialog",
     group: "Ingress",
-    route: "/access-lists",
+    route: "/routes/access-lists",
     handlers: [...accessListHandlers(), ...backgroundPrewarmHandlers()],
     height: 1000,
     ready: async () => {

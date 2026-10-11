@@ -15,7 +15,7 @@ it("ingress-routes-new-1-entrypoint", async () => {
     id: "ingress-routes-new-1-entrypoint",
     title: "Create Route · Entrypoint",
     group: "Ingress",
-    route: "/proxy-hosts/new",
+    route: "/routes/new",
     handlers: [...routeHandlers(), ...backgroundPrewarmHandlers()],
     before: expandRouteFolders,
     ready: async () => {

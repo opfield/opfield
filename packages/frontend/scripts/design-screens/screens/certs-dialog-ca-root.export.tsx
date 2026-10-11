@@ -9,7 +9,7 @@ it("certs-dialog-ca-root", async () => {
     id: "certs-dialog-ca-root",
     title: "Create Root CA · Filled",
     group: "Certificates",
-    route: "/cas",
+    route: "/certificates/authorities",
     handlers: [...pkiHandlers(), ...backgroundPrewarmHandlers()],
     before: preparePkiLists,
     ready: async () => {

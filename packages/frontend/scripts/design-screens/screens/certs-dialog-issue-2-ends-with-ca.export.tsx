@@ -9,7 +9,7 @@ it("certs-dialog-issue-2-ends-with-ca", async () => {
     id: "certs-dialog-issue-2-ends-with-ca",
     title: "Issue Certificate · Ends with the CA",
     group: "Certificates",
-    route: "/certificates",
+    route: "/certificates/pki",
     handlers: [...pkiHandlers(), ...backgroundPrewarmHandlers()],
     before: preparePkiLists,
     ready: async () => {

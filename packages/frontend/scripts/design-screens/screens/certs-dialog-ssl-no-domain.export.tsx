@@ -11,7 +11,7 @@ it("certs-dialog-ssl-no-domain", async () => {
     id: "certs-dialog-ssl-no-domain",
     title: "Add SSL Certificate · No domain yet",
     group: "Certificates",
-    route: "/ssl-certificates",
+    route: "/certificates",
     handlers: [
       ...noDomainHandlers(),
       ...sslHandlers(),

@@ -10,7 +10,7 @@ it("ingress-domain-details-external", async () => {
     id: "ingress-domain-details-external",
     title: "Domain · Details (external DNS)",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     height: 1000,
     handlers: [...domainDetailHandlers(), ...domainsHandlers(), ...backgroundPrewarmHandlers()],
     ready: async () => {

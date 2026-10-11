@@ -6,6 +6,7 @@ import { confirm } from "@/components/common/ConfirmDialog";
 import { DetailRow } from "@/components/common/DetailRow";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderedResourceList } from "@/components/common/FolderedResourceList";
+import { HubTabs } from "@/components/common/HubTabs";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
@@ -775,6 +776,7 @@ export function SSLCertificates() {
             </ResponsiveHeaderActions>
           }
         />
+        <HubTabs />
 
         <FolderedResourceList<SSLCertificate>
           resourceType="ssl-certificate"
@@ -907,7 +909,7 @@ export function SSLCertificates() {
               Continue manually
             </Button>
             <Button asChild>
-              <Link to="/domains" onClick={() => setDomainRequiredOpen(false)}>
+              <Link to="/routes/domains" onClick={() => setDomainRequiredOpen(false)}>
                 Open Domains <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>

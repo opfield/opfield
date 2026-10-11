@@ -17,7 +17,7 @@ it("certs-dialog-ssl-cloudflare-required", async () => {
     id: "certs-dialog-ssl-cloudflare-required",
     title: "Add SSL Certificate · Cloudflare not configured",
     group: "Certificates",
-    route: "/ssl-certificates",
+    route: "/certificates",
     handlers: [
       ...noCloudflareHandlers(),
       ...sslHandlers(),

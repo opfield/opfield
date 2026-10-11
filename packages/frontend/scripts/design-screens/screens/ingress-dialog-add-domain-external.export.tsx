@@ -12,7 +12,7 @@ it("ingress-dialog-add-domain-external", async () => {
     id: "ingress-dialog-add-domain-external",
     title: "Add Domain · External DNS",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     handlers: [
       // Without a Cloudflare connector the operator continues with external DNS.
       http.get("*/api/integrations/cloudflare/connectors", () => wrapped([])),

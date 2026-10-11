@@ -1,4 +1,5 @@
 import { useLocation } from "react-router-dom";
+import { legacyPathForPath } from "@/lib/navigation-hubs";
 import { useAIStore } from "@/stores/ai";
 import { useAuthStore } from "@/stores/auth";
 import type { PageContext, QuickAction } from "@/types/ai";
@@ -48,7 +49,7 @@ const QUICK_ACTIONS: Record<string, QuickAction[]> = {
     { label: "DNS status", prompt: "Show the DNS verification status of all domains" },
     { label: "Add domain", prompt: "Help me register a new domain" },
   ],
-  "/templates": [
+  "/templates/pki": [
     { label: "List templates", prompt: "Show all certificate templates" },
     { label: "Create template", prompt: "Help me create a new certificate template" },
   ],
@@ -91,10 +92,10 @@ export function QuickActionChips({ onSelect, context }: QuickActionChipsProps) {
   const canViewInferenceUsage = useAuthStore((state) => state.hasScope("feat:ai:use"));
   const inferenceQuota = useInferenceQuotaSnapshot(gatewayInferenceMode && canViewInferenceUsage);
 
+  // Keys are the page URLs from before Routes and Certificates had tabs.
+  const pathname = legacyPathForPath(location.pathname);
   const routeActions =
-    QUICK_ACTIONS[location.pathname] ||
-    QUICK_ACTIONS[location.pathname.replace(/\/[^/]+$/, "")] ||
-    DEFAULT_ACTIONS;
+    QUICK_ACTIONS[pathname] || QUICK_ACTIONS[pathname.replace(/\/[^/]+$/, "")] || DEFAULT_ACTIONS;
   const resourceActions: QuickAction[] = context?.label
     ? [
         {

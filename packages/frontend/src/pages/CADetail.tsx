@@ -97,7 +97,7 @@ export function CADetail() {
     }
     if (ev?.id === id && ev.action === "deleted") {
       toast.info("Certificate Authority was deleted");
-      navigate("/cas");
+      navigate("/certificates/authorities");
     }
   });
 
@@ -252,7 +252,7 @@ export function CADetail() {
     <PageTransition>
       <div className="h-full overflow-y-auto p-6 space-y-6">
         <PageHeader
-          leading={<PageBackButton onClick={() => navigate("/cas")} />}
+          leading={<PageBackButton onClick={() => navigate("/certificates/authorities")} />}
           title={ca.commonName}
           badges={
             <>
@@ -410,7 +410,7 @@ export function CADetail() {
               description="Leaf certificates issued and signed by this CA."
               actions={
                 <Link
-                  to="/certificates"
+                  to="/certificates/pki"
                   className="text-sm text-muted-foreground hover:text-foreground"
                 >
                   View all
@@ -430,7 +430,7 @@ export function CADetail() {
                   {...(!ca.isSystem && canIssueCertificate
                     ? {
                         actionLabel: "Issue one",
-                        actionHref: `/certificates?ca=${ca.id}`,
+                        actionHref: `/certificates/pki?ca=${ca.id}`,
                       }
                     : {})}
                 />

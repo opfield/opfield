@@ -10,7 +10,7 @@ it("ingress-domain-ingress-migration", async () => {
     id: "ingress-domain-ingress-migration",
     title: "Domain · Move Ingress",
     group: "Ingress",
-    route: "/domains",
+    route: "/routes/domains",
     handlers: [...domainDetailHandlers(), ...domainsHandlers(), ...backgroundPrewarmHandlers()],
     ready: async () => {
       await screen.findByText("grafana.example.com");
