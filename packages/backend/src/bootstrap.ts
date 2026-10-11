@@ -281,6 +281,7 @@ import { RelayStartupFinalizerService } from '@/services/relay-startup-finalizer
 import { RelaySupervisorService } from '@/services/relay-supervisor.service.js';
 import { RelayTopologyService } from '@/services/relay-topology.service.js';
 import { RelayWitnessService } from '@/services/relay-witness.service.js';
+import { AvailabilityAssignmentSigner } from '@/services/availability-assignment-signing.js';
 import { ResourceSnapshotStore } from '@/services/resource-snapshot.store.js';
 import { RuntimeRestartService } from '@/services/runtime-restart.service.js';
 import { SessionService } from '@/services/session.service.js';
@@ -1390,6 +1391,11 @@ export async function initializeContainer(): Promise<void> {
     new RelayPolicySigningKeyService(db, cryptoService)
   );
   container.registerInstance(AvailabilityLeaseService, availabilityLeaseService);
+  // Manual pairs' primary assignments are signed with the same relay policy key (decision 6).
+  container.registerInstance(
+    AvailabilityAssignmentSigner,
+    new AvailabilityAssignmentSigner(db, new RelayPolicySigningKeyService(db, cryptoService))
+  );
   // Witness processes relays host for availability sets (decision 9): desired sets pushed, reports recorded.
   const relayWitnessService = new RelayWitnessService(db, nodeDispatch);
   relayWitnessService.setArtifactSource(new WitnessCatalog(env));
