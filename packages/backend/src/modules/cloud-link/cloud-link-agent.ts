@@ -16,6 +16,8 @@ import {
   type CloudAnswer,
   type CloudCredentials,
   type CloudLinkProbe,
+  type CloudRequest,
+  type CloudRequestAudit,
   type CloudSocketState,
   type CloudSocketStatus,
 } from './cloud-link.types.js';
@@ -46,6 +48,27 @@ export function cloudAgentSocketUrl(portalUrl: string): string {
 function rejectedStatusOf(error: Error): number | null {
   const match = /Unexpected server response: (\d{3})/.exec(error.message);
   return match ? Number(match[1]) : null;
+}
+
+/** The audit details of one served request: what was asked, and how it was answered. */
+export function cloudRequestAudit(
+  request: CloudRequest,
+  answer: CloudAnswer,
+  resultBytes: number,
+  durationMs: number
+): CloudRequestAudit {
+  const { service, tail, since } = request.params;
+  return {
+    requestId: request.id,
+    type: request.type.slice(0, 64),
+    ...(typeof service === 'string' ? { service: service.slice(0, 128) } : {}),
+    ...(typeof tail === 'number' && Number.isFinite(tail) ? { tail } : {}),
+    ...(typeof since === 'string' && since ? { since: since.slice(0, 64) } : {}),
+    ok: answer.ok,
+    ...(answer.ok ? {} : { error: answer.error.slice(0, 500) }),
+    resultBytes,
+    durationMs: Math.round(durationMs),
+  };
 }
 
 function sameCredentials(a: CloudCredentials, b: CloudCredentials): boolean {
@@ -308,37 +331,46 @@ export class CloudLinkAgent {
     else socket.terminate();
   }
 
-  private async handleRequest(
-    socket: WebSocket,
-    request: { id: string; type: string; params: Record<string, unknown> }
-  ) {
+  private async handleRequest(socket: WebSocket, request: CloudRequest) {
+    const agentId = this.credentials?.agentId;
+    const startedAt = performance.now();
+    let answer: CloudAnswer;
     if (this.inFlight >= CLOUD_MAX_CONCURRENT_REQUESTS) {
-      this.send(socket, { id: request.id, ok: false, error: 'The installation is busy answering other requests' });
-      return;
+      answer = { id: request.id, ok: false, error: 'The installation is busy answering other requests' };
+    } else {
+      this.inFlight += 1;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        answer = await Promise.race<CloudAnswer>([
+          answerCloudRequest(this.probe, request),
+          new Promise<CloudAnswer>((resolve) => {
+            timer = setTimeout(
+              () => resolve({ id: request.id, ok: false, error: 'The installation did not finish reading in time' }),
+              CLOUD_REQUEST_TIMEOUT_MS
+            );
+          }),
+        ]);
+      } finally {
+        clearTimeout(timer);
+        this.inFlight -= 1;
+      }
     }
-    this.inFlight += 1;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    try {
-      const answer = await Promise.race<CloudAnswer>([
-        answerCloudRequest(this.probe, request),
-        new Promise<CloudAnswer>((resolve) => {
-          timer = setTimeout(
-            () => resolve({ id: request.id, ok: false, error: 'The installation did not finish reading in time' }),
-            CLOUD_REQUEST_TIMEOUT_MS
-          );
-        }),
-      ]);
-      this.send(socket, answer);
-    } finally {
-      clearTimeout(timer);
-      this.inFlight -= 1;
+    const resultBytes = this.send(socket, answer);
+    if (agentId) {
+      void this.service
+        .recordRequest(agentId, cloudRequestAudit(request, answer, resultBytes, performance.now() - startedAt))
+        .catch(() => undefined);
     }
   }
 
-  private send(socket: WebSocket, message: unknown): void {
-    if (socket.readyState !== WebSocket.OPEN) return;
-    socket.send(JSON.stringify(message), (error) => {
+  /** Sends one JSON frame; returns its size in bytes (also when the socket closed meanwhile and it was not sent). */
+  private send(socket: WebSocket, message: unknown): number {
+    const text = JSON.stringify(message);
+    const bytes = Buffer.byteLength(text);
+    if (socket.readyState !== WebSocket.OPEN) return bytes;
+    socket.send(text, (error) => {
       if (error) logger.debug('Could not send on the cloud link socket', { error: error.message });
     });
+    return bytes;
   }
 }

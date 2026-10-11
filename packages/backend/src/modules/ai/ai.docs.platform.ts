@@ -47,6 +47,7 @@ Never weaken callback, network, or webhook restrictions without explaining the r
 - \`get_cloud_status\` reads whether this Gateway is connected to a cloud account: the account email, portal URL, connected since and the socket state (online, connecting, reconnecting with its last error), or when and why the account disconnected it.
 - \`manage_cloud({ operation: "connect", code })\` connects with the single-use \`CLD-XXXX-XXXX\` code from the installation's page in the cloud account (valid 10 minutes). Connecting again replaces the previous connection. Treat the code as a secret and never repeat it in chat.
 - \`manage_cloud({ operation: "disconnect" })\` revokes the connection at the account and forgets it here. If the account cannot be reached the connection is still forgotten here and the result carries a \`warning\`: tell the user to disconnect the installation in the cloud account too.
+- Every connect, disconnect, disconnect by the account and each request the account sends over the socket has its own audit entry (resource type \`cloud-link\`, actions \`cloud.connect\`, \`cloud.disconnect\`, \`cloud.disconnected_by_account\`, \`cloud.request\` with the request type, service, tail/since, request id, result and result size); \`get_cloud_status\` also returns the 5 latest requests.
 - A connected Gateway keeps one outbound socket to the account, which reads this Gateway's host state, its own containers and their logs through it. Uses the license scopes: license:view to read, license:manage to change.
 
 ## Gateway And Daemon Updates

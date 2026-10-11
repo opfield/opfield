@@ -435,6 +435,7 @@ export async function initializeContainer(): Promise<void> {
   const auditService = commercialEdition.createAuditService(AuditService, [db, siemOutboxService]);
   auditService.setEventBus(eventBus);
   container.registerInstance(AuditService, auditService);
+  container.resolve(CloudLinkService).setAuditService(auditService);
 
   const avatarStorageService = new AvatarStorageService(resolveAvatarStorageDir(env.NODE_ENV));
   await avatarStorageService.initialize();
