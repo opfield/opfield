@@ -774,9 +774,18 @@ func TestNodeKeeperWitnessMeshContainer(t *testing.T) {
 	a, b := members[0], members[1]
 
 	// 1. Keeper quorum over the mesh: the members serve, the witness takes part.
+	// Keeper serves before the server's HTTP port listens: wait for both, Promote queries the server.
+	answers := func(m *mwMember) bool {
+		qctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := m.Query(qctx, "SELECT 1")
+		return err == nil
+	}
 	mwWaitFor(t, "Keeper quorum on both members and the witness", 3*time.Minute, func() (bool, string) {
 		ma, mb, mw := mode(a), mode(b), mwKeeperMode(witnessAddress())
-		return mwServing(ma) && mwServing(mb) && mwServing(mw), ma + "/" + mb + "/witness " + mw
+		ready := answers(a) && answers(b)
+		return ready && mwServing(ma) && mwServing(mb) && mwServing(mw),
+			fmt.Sprintf("%s/%s/witness %s, servers answer %t", ma, mb, mw, ready)
 	})
 
 	// 2. a is the holder: it asks its Keeper to lead when it follows (HolderWork's rqld), the witness follows.
