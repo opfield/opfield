@@ -120,8 +120,10 @@ describe('update artifact trust', () => {
 
     expect(() => verifyDaemonUpdateManifest(daemonManifest, expected)).toThrow('Update download URL mismatch');
     expect(
-      verifyDaemonUpdateManifest(daemonManifest, { ...expected, acceptedDownloadUrls: [expected.downloadUrl, daemonUrl] })
-        .downloadUrl
+      verifyDaemonUpdateManifest(daemonManifest, {
+        ...expected,
+        acceptedDownloadUrls: [expected.downloadUrl, daemonUrl],
+      }).downloadUrl
     ).toBe(daemonUrl);
   });
 

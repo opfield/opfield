@@ -1,16 +1,11 @@
-English | [Русский](README.ru.md) | [中文](README.cn.md)
-
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/opfield-lockup-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="docs/assets/brand/opfield-lockup-light.png">
-    <img src="docs/assets/brand/opfield-lockup-light.png" width="360" alt="Opfield">
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/opfield-banner-dark.svg">
+    <img src=".github/assets/opfield-banner-light.svg" alt="Opfield: run your fleet from one field." width="880">
   </picture>
 </p>
 
-# Opfield
-
-AI-first but not AI-dependent infrastructure control plane for nginx ingress, Docker workloads, certificates, databases, logs, monitoring, status pages, and automation.
+English | [Русский](README.ru.md) | [中文](README.cn.md)
 
 **Documentation:** [docs.opfield.dev](https://docs.opfield.dev)
 
