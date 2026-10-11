@@ -301,7 +301,8 @@ func startMember(t *testing.T, root string, mesh *ctMesh, memberID string, index
 			args = append(args, "--network-alias", swha.FilerHost(memberID), "-v", filepath.Join(dir, "data")+":/data")
 			cmd = seaweedfsSetFilerCommand(record, *record.Set)
 		case swha.RoleMaster:
-			args = append(args, "--tmpfs", seaweedfsSetMasterDataDir+":uid=1000,mode=0700")
+			// The product's tmpfs (owned by the runtime user), not one of the test's own.
+			args = append(args, "--tmpfs", seaweedfsSetMasterDataDir+":"+seaweedfsSetMasterTmpfs()[seaweedfsSetMasterDataDir])
 			cmd = seaweedfsSetMasterCommand(record)
 		}
 		args = append(args, image)
