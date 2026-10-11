@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import {
+  AVAILABILITY_SET_CHANNEL,
+  hasAvailabilitySetEventAccess,
   hasChannelAccess,
   hasHostingSnapshotEventAccess,
   hasIntegrationConnectorEventAccess,
@@ -146,5 +148,20 @@ describe('integration connector events', () => {
     expect(hasIntegrationConnectorEventAccess(scopes, { id: C, provider: 'gitlab' })).toBe(false);
     expect(hasIntegrationConnectorEventAccess(scopes, { provider: 'github' })).toBe(false);
     expect(hasIntegrationConnectorEventAccess(scopes, { id: 'x', provider: 'unknown' })).toBe(false);
+  });
+});
+
+describe('availability set event channel access', () => {
+  it('lets viewers of every database or storage subscribe and receive the events of their kind only', () => {
+    expect(hasChannelAccess(['databases:view'], AVAILABILITY_SET_CHANNEL)).toBe(true);
+    expect(hasChannelAccess(['storage:view:connection'], AVAILABILITY_SET_CHANNEL)).toBe(true);
+    expect(hasChannelAccess(['nodes:details'], AVAILABILITY_SET_CHANNEL)).toBe(false);
+    const database = { setId: 'set', ownerKind: 'managed_database', ownerId: 'db', action: 'lease_failover' };
+    const storage = { ...database, ownerKind: 'managed_storage', ownerId: 'storage' };
+    expect(hasAvailabilitySetEventAccess(['databases:view'], database)).toBe(true);
+    expect(hasAvailabilitySetEventAccess(['databases:view'], storage)).toBe(false);
+    expect(hasAvailabilitySetEventAccess(['storage:view'], storage)).toBe(true);
+    // A grant on single resources cannot be matched to a set event (it names the managed id): no delivery.
+    expect(hasAvailabilitySetEventAccess(['databases:view:connection'], database)).toBe(false);
   });
 });

@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import { appListQueryFields } from '@/modules/apps/app-list-query.js';
+import {
+  ManagedAvailabilityEnableSchema,
+  ManagedAvailabilityPreflightSchema,
+} from '@/modules/databases/databases.schemas.js';
 
 const managedStorageNameSchema = z.string().trim().min(1).max(255);
 // DTO validation is shared; the installed storage provider checks its private
@@ -72,6 +76,11 @@ export const CreateManagedStorageSchema = z
     // create regardless of this field, since the loopback leg is only ever
     // served over HTTPS.
     relayEnabled: z.boolean().optional(),
+    /**
+     * Create the storage on several servers (availability): the extra servers (nodeId is the first one), witnesses,
+     * a replicated pair without automatic failover (`manual`). SeaweedFS replicates synchronously only.
+     */
+    availability: ManagedAvailabilityEnableSchema.optional(),
   })
   .superRefine((value, ctx) => {
     if (value.memberNodeIds !== undefined && value.memberNodeIds.length > 1) {
@@ -82,6 +91,17 @@ export const CreateManagedStorageSchema = z
       });
     }
   });
+
+/**
+ * Preflight of the create form: the storage does not exist yet. `nodeId` is the server it is created on (default: the
+ * first of `nodeIds`); `nodeIds` may list it too.
+ */
+export const ManagedStorageAvailabilityCreatePreflightSchema = ManagedAvailabilityPreflightSchema.extend({
+  nodeId: z.string().uuid().optional(),
+  folderId: z.string().uuid().nullable().optional(),
+  publishS3: z.boolean().optional(),
+  publishedPort: z.number().int().min(1).max(65535).optional(),
+}).strict();
 
 export const UpdateManagedStorageSchema = z
   .object({

@@ -350,6 +350,20 @@ export function AlertDialog({
         return;
       }
 
+      if (category === "managed_storage") {
+        // Availability alerts of managed storage are keyed by its storage connection.
+        const clusters = await api.listManagedObjectStorages();
+        if (resourceLoadTokenRef.current !== loadToken) return;
+        setAvailableResources(
+          clusters.flatMap((cluster) =>
+            cluster.objectStorageConnectionId
+              ? [{ id: cluster.objectStorageConnectionId, label: cluster.name }]
+              : []
+          )
+        );
+        return;
+      }
+
       if (
         category === "database_postgres" ||
         category === "database_clickhouse" ||

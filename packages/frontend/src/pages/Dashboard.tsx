@@ -50,6 +50,7 @@ import { InviteUsersSetupWizard } from "./dashboard/finalize-setup/InviteUsersSe
 import { MfaSetupWizard } from "./dashboard/finalize-setup/MfaSetupWizard";
 import { NodeSetupWizard } from "./dashboard/finalize-setup/NodeSetupWizard";
 import { HealthOverviewCard } from "./dashboard/HealthOverviewCard";
+import { ManagedAvailabilityNotice } from "./dashboard/ManagedAvailabilityNotice";
 import { ManagedCertificatesNotice } from "./dashboard/ManagedCertificatesNotice";
 import { NodesCard } from "./dashboard/NodesCard";
 import { PinnedNodeCard } from "./dashboard/PinnedNodeCard";
@@ -673,6 +674,8 @@ export function Dashboard() {
               <p>Reissue the ones still in use, then revoke the expired ones.</p>
             </Notice>
           )}
+
+          <ManagedAvailabilityNotice items={dashboardBootstrap?.managedAvailability ?? []} />
 
           <ManagedCertificatesNotice certificates={dashboardBootstrap?.managedCertificates ?? []} />
 

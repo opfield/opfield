@@ -54,6 +54,10 @@ import {
   listAllPages,
 } from './dashboard-read-model.service.js';
 import { getNginxLogHistory, logRelay, type RelayedLogEntry } from './log-relay.service.js';
+import {
+  availabilityAttentionSeverity,
+  visibleManagedAvailabilityAttention,
+} from './managed-availability-attention.js';
 import { visibleManagedCertificateAttention } from './managed-certificate-attention.js';
 import {
   dashboardBootstrapRoute,
@@ -504,6 +508,14 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
           // Optional card: a failing summary must not take the dashboard down.
           .catch(() => [])
       : Promise.resolve([]);
+  // Databases and storage on several servers that need a look (no automatic failover, a manual pair's primary
+  // gone, witness lost, degraded, a failover in the last day), limited to the resources the viewer may see.
+  const managedAvailabilityPromise =
+    hasScopeBase(scopes, 'storage:view') || canViewDatabases
+      ? visibleManagedAvailabilityAttention(container.resolve(TOKENS.DrizzleClient) as DrizzleClient, scopes)
+          // Optional card: a failing summary must not take the dashboard down.
+          .catch(() => [])
+      : Promise.resolve([]);
   // Only failures of certificates the viewer can open: the notice sends them to the certificate list.
   const tlsRepairFailuresPromise = canViewSsl
     ? container
@@ -667,6 +679,7 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
     daemonUpdates,
     dockerNavigationHealth,
     managedCertificates,
+    managedAvailability,
     license,
     statusPageIncidents,
   ] = await Promise.all([
@@ -691,6 +704,7 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
     daemonUpdatesPromise,
     dockerNavigationHealthPromise,
     managedCertificatesPromise,
+    managedAvailabilityPromise,
     licensePromise,
     statusPageIncidentsPromise,
   ]);
@@ -798,6 +812,15 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
     ...(expiring.length > 0
       ? [{ id: 'certificate-expiry', severity: 'warning' as const, count: expiring.length }]
       : []),
+    ...(managedAvailability.length > 0
+      ? [
+          {
+            id: 'managed-availability',
+            severity: availabilityAttentionSeverity(managedAvailability),
+            count: managedAvailability.length,
+          },
+        ]
+      : []),
     ...(managedCertificates.length > 0
       ? [{ id: 'managed-certificates', severity: 'warning' as const, count: managedCertificates.length }]
       : []),
@@ -877,6 +900,7 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
       inviteUserMethods,
       relay,
       managedCertificates,
+      managedAvailability,
       pinned: {
         dashboard: {
           nodes: resolveByIds(dashboardPinNodeIds, visibleNodes),

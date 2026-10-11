@@ -37,6 +37,7 @@ import {
   ExecuteRedisCommandSchema,
   ExecuteSqlSchema,
   InsertSqlRowSchema,
+  ManagedDatabaseAvailabilityCreatePreflightSchema,
   ManagedDatabaseListQuerySchema,
   MoveManagedDatabaseToValkeySchema,
   PostgresObjectSchema,
@@ -50,6 +51,7 @@ import {
   UpdatePostgresColumnTypeSchema,
   UpdateSqlRowSchema,
 } from './databases.schemas.js';
+import { availabilityRouteDocs } from './managed-availability.docs.js';
 
 const PostgresTableQuerySchema = BrowsePostgresRowsQuerySchema.pick({ schema: true, table: true });
 const PostgresInsertRowSchema = PostgresTableQuerySchema.extend({
@@ -696,4 +698,16 @@ export const executeRedisCommandRoute = appRoute({
   summary: 'Execute a Redis command on a key-value store',
   request: { params: IdParamSchema, ...jsonBody(ExecuteRedisCommandSchema) },
   responses: okJson(UnknownDataResponseSchema),
+});
+
+/** Database availability (one database on several servers), served by the commercial edition. */
+export const databaseAvailabilityRoutes = availabilityRouteDocs({
+  base: '/managed/{id}',
+  createPreflightPath: '/managed/availability/preflight',
+  createPreflightSchema: ManagedDatabaseAvailabilityCreatePreflightSchema,
+  tag: 'Databases',
+  noun: 'database',
+  viewScope: 'databases:view',
+  editScope: 'databases:edit',
+  createScope: 'databases:create',
 });

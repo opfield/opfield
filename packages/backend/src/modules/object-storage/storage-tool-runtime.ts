@@ -2,6 +2,15 @@ import { container } from '@/container.js';
 import { hasScope, hasScopeBase, hasScopeForCreation } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { directResourceIdsForScopes } from '@/modules/ai/ai.service-helpers.js';
+import {
+  ManagedAvailabilityAddMemberSchema,
+  ManagedAvailabilityDisableSchema,
+  ManagedAvailabilityEnableSchema,
+  ManagedAvailabilityEventsQuerySchema,
+  ManagedAvailabilityMakePrimarySchema,
+  ManagedAvailabilityPreflightSchema,
+  ManagedAvailabilitySettingsSchema,
+} from '@/modules/databases/databases.schemas.js';
 import { decodeComposeServiceTarget } from '@/modules/docker/compose/compose-managed-bindings.js';
 import { assertDockerResourceScope } from '@/modules/docker/docker-access.middleware.js';
 import { hasDockerResourceScope } from '@/modules/docker/docker-access-resource.service.js';
@@ -28,6 +37,7 @@ import {
   CreateManagedStorageSchema,
   DeleteManagedStorageBindingSchema,
   ImportManagedStorageAccessKeysSchema,
+  ManagedStorageAvailabilityCreatePreflightSchema,
   ManagedStorageListQuerySchema,
   MoveManagedStorageBindingSchema,
   RehomeManagedStorageBackupHistorySchema,
@@ -82,4 +92,13 @@ export const storageToolRuntime = {
   StartStorageCopyJobSchema,
   StorageCopyJobIdSchema,
   StorageCopyJobListQuerySchema,
+  // Availability of managed storage (storage on several servers).
+  ManagedStorageAvailabilityCreatePreflightSchema,
+  ManagedAvailabilityAddMemberSchema,
+  ManagedAvailabilityDisableSchema,
+  ManagedAvailabilityEnableSchema,
+  ManagedAvailabilityEventsQuerySchema,
+  ManagedAvailabilityMakePrimarySchema,
+  ManagedAvailabilityPreflightSchema,
+  ManagedAvailabilitySettingsSchema,
 };

@@ -42,6 +42,15 @@ const EVENT_RESOLVE_TEXT: Record<string, (name: string) => string> = {
   'database_clickhouse:health.degraded': (name) => `Database ${name} is healthy again`,
   'database_redis:health.offline': (name) => `Database ${name} is back online`,
   'database_redis:health.degraded': (name) => `Database ${name} is healthy again`,
+  ...Object.fromEntries(
+    (['database_postgres', 'database_clickhouse', 'database_redis', 'managed_storage'] as const).flatMap((category) => {
+      const noun = category === 'managed_storage' ? 'Storage' : 'Database';
+      return [
+        [`${category}:availability.degraded`, (name: string) => `${noun} ${name} runs on all its servers again`],
+        [`${category}:availability.no_failover`, (name: string) => `${noun} ${name} can fail over again`],
+      ];
+    })
+  ),
 };
 
 function categoryOf(rule: { category?: string | null }) {

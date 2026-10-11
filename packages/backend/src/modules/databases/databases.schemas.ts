@@ -145,6 +145,8 @@ export const ManagedAvailabilityPreflightSchema = z
     nodeIds: z.array(z.string().uuid()).min(1).max(5),
     witness: ManagedAvailabilityWitnessSchema.nullable().optional(),
     durability: z.enum(['synchronous', 'asynchronous']).nullable().optional(),
+    /** A replicated pair without automatic failover (exactly two servers), even when witnesses exist. */
+    manual: z.boolean().optional(),
   })
   .strict();
 
@@ -164,8 +166,18 @@ export const ManagedAvailabilitySettingsSchema = z
       .min(64 * 1024)
       .max(1024 * 1024 * 1024)
       .optional(),
+    /** Lease witnesses of a set with automatic failover (null: Gateway picks them). */
+    witness: ManagedAvailabilityWitnessSchema.nullable().optional(),
   })
   .strict();
+
+/** Turning availability off keeps the primary; naming it guards against a switch meanwhile. */
+export const ManagedAvailabilityDisableSchema = z.object({ keepMemberId: z.string().uuid().optional() }).strict();
+
+export const ManagedAvailabilityEventsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
 
 export const ManagedAvailabilityAddMemberSchema = z
   .object({ nodeId: z.string().uuid(), priority: z.number().int().min(0).max(98).optional() })
@@ -174,6 +186,15 @@ export const ManagedAvailabilityAddMemberSchema = z
 export const ManagedAvailabilityMakePrimarySchema = z
   .object({ memberId: z.string().uuid(), acceptDataLoss: z.boolean().optional() })
   .strict();
+
+/** Preflight of the create form: the database does not exist yet; `nodeIds` are all its servers. */
+export const ManagedDatabaseAvailabilityCreatePreflightSchema = ManagedAvailabilityPreflightSchema.extend({
+  type: managedDatabaseTypeSchema,
+  version: managedDatabaseVersionSchema,
+  tlsEnabled: z.boolean().optional(),
+  storageSizeGb: z.number().finite().positive().optional(),
+  folderId: z.string().uuid().nullable().optional(),
+}).strict();
 
 export const CreateManagedDatabaseSchema = z
   .object({
@@ -532,6 +553,7 @@ export type ManagedDatabaseListQuery = z.infer<typeof ManagedDatabaseListQuerySc
 export type CreateManagedDatabaseInput = z.infer<typeof CreateManagedDatabaseSchema>;
 export type UpdateManagedDatabaseInput = z.infer<typeof UpdateManagedDatabaseSchema>;
 export type ManagedAvailabilityEnableInput = z.infer<typeof ManagedAvailabilityEnableSchema>;
+export type ManagedAvailabilityPreflightInput = z.infer<typeof ManagedAvailabilityPreflightSchema>;
 export type ManagedAvailabilitySettingsInput = z.infer<typeof ManagedAvailabilitySettingsSchema>;
 export type CreateManagedDatabaseBindingInput = z.infer<typeof CreateManagedDatabaseBindingSchema>;
 

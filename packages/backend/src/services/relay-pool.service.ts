@@ -65,6 +65,7 @@ import {
 } from './relay-topology.js';
 import type { RelayTopologyService } from './relay-topology.service.js';
 import { relayWitnessHosting } from './relay-witness-hosting.js';
+import { listRelayWitnesses, type RelayWitnessListing } from './relay-witness-listing.js';
 import { isShuttingDown } from './shutdown-state.js';
 
 type RelayInstanceRow = typeof relayInstances.$inferSelect;
@@ -1245,6 +1246,10 @@ export class RelayPoolService {
           .orderBy(relayEndpointAssignmentGenerations.endpointId, desc(relayEndpointAssignmentGenerations.generation)),
       ]);
     const instances = persistedInstances.filter(isEnrolledRelayInstance);
+    const witnesses = await listRelayWitnesses(this.db).catch((error) => {
+      logger.warn('Relay witnesses are not listed', { error: String(error) });
+      return new Map<string, RelayWitnessListing[]>();
+    });
     const effectiveSpreads = await this.resolveEffectiveSpreads(endpoints, generalSettings.relay.assignmentSpread);
     const assignmentsByGeneration = new Map<string, typeof assignments>();
     for (const assignment of assignments) {
@@ -1491,6 +1496,10 @@ export class RelayPoolService {
           ...(reconnecting(instance) ? { state: reconnectingState(instance) } : {}),
           /** Whether availability witnesses may run here (admin flag and the relay's local state). */
           witnessHosting: relayWitnessHosting(instance),
+          /** The admin flag alone (witnessHosting also reflects what the relay reports). */
+          witnessHostingAllowed: instance.witnessHostingAllowed,
+          /** Availability witnesses placed on this relay (lease voters and Keeper witness processes). */
+          witnesses: witnesses.get(instance.id) ?? [],
         };
       }),
       staging: [...stagingByEndpoint.values()],

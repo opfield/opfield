@@ -33,6 +33,11 @@ import { CreateAdditionalSecureLinkSchema, parseRetargetAdditionalSecureLink } f
 import { ProxyService } from '@/modules/proxy/proxy.service.js';
 import type { User } from '@/types.js';
 import {
+  MANAGED_DATABASE_AVAILABILITY_CHANGE_OPERATIONS,
+  MANAGED_DATABASE_AVAILABILITY_OPERATIONS,
+  manageManagedDatabaseAvailability,
+} from './ai.database-availability-tools.js';
+import {
   ensureManagedDatabaseScopes,
   MANAGED_DATABASE_ACCESS_OPERATIONS,
   manageManagedDatabaseAccess,
@@ -190,9 +195,17 @@ async function manageManagedDatabase(user: User, args: Record<string, unknown>) 
   // LICENSE ENFORCEMENT: same classes as the /api/databases routes. Existing managed
   // databases stay viewable, operable, and deletable after the license grace period.
   const policy = container.resolve(LicensePolicyService);
-  if (MANAGED_DATABASE_CHANGE_OPERATIONS.has(operation)) await policy.requireFeature('external-database-connections');
-  else await policy.requireFeatureForExistingRuntime('external-database-connections');
+  if (
+    MANAGED_DATABASE_CHANGE_OPERATIONS.has(operation) ||
+    MANAGED_DATABASE_AVAILABILITY_CHANGE_OPERATIONS.has(operation)
+  ) {
+    await policy.requireFeature('external-database-connections');
+  } else await policy.requireFeatureForExistingRuntime('external-database-connections');
   if (MANAGED_DATABASE_ACCESS_OPERATIONS.has(operation)) return manageManagedDatabaseAccess(user, operation, args);
+  // Availability: the service checks multi-node availability once per operation, as for the REST routes.
+  if (MANAGED_DATABASE_AVAILABILITY_OPERATIONS.has(operation)) {
+    return manageManagedDatabaseAvailability(user, operation, args);
+  }
   const service = container.resolve(ManagedDatabaseService);
   const bindings = container.resolve(ManagedDatabaseBindingService);
 
@@ -219,8 +232,11 @@ async function manageManagedDatabase(user: User, args: Record<string, unknown>) 
   }
   if (operation === 'create') {
     const input = CreateManagedDatabaseSchema.parse(args);
-    if (!hasScopeForCreation(user.scopes, 'databases:create', input.folderId, input.nodeId)) {
-      throw new AppError(403, 'FORBIDDEN', 'Missing databases:create permission for the selected destination');
+    // A database created on several servers needs the grant on each of them (as POST /databases/managed).
+    for (const nodeId of new Set([input.nodeId, ...(input.availability?.nodeIds ?? [])])) {
+      if (!hasScopeForCreation(user.scopes, 'databases:create', input.folderId, nodeId)) {
+        throw new AppError(403, 'FORBIDDEN', 'Missing databases:create permission for the selected destination');
+      }
     }
     await container.resolve(DatabaseFolderService).assertFolderExists(input.folderId);
     return service.create(input, user.id);

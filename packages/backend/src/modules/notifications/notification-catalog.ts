@@ -44,7 +44,8 @@ export type AlertCategory =
   | 'security'
   | 'database_postgres'
   | 'database_clickhouse'
-  | 'database_redis';
+  | 'database_redis'
+  | 'managed_storage';
 
 export interface MetricDefinition {
   id: string;
@@ -92,6 +93,69 @@ const GPU_NODE_METRIC_IDS = new Set([
 export function isPerDeviceNodeMetric(metric: string): boolean {
   return GPU_NODE_METRIC_IDS.has(metric);
 }
+
+/**
+ * Availability of a managed database or managed storage on several servers (one set): failovers and switches, the set
+ * state (degraded, no automatic failover, restored) and member, sync and witness events. Events the servers queued
+ * while Gateway was down arrive late; `{{details.occurred_at}}` is when they happened.
+ */
+const AVAILABILITY_EVENTS: EventDefinition[] = [
+  { id: 'availability.failover', label: 'Failover Happened', defaultSeverity: 'warning' },
+  { id: 'availability.switchover', label: 'Primary Switched', defaultSeverity: 'info' },
+  {
+    id: 'availability.forced_promotion',
+    label: 'Copy Made Primary With Possible Data Loss',
+    defaultSeverity: 'critical',
+  },
+  { id: 'availability.degraded', label: 'Availability Degraded', defaultSeverity: 'warning', supportsThreshold: true },
+  {
+    id: 'availability.no_failover',
+    label: 'No Automatic Failover Possible',
+    defaultSeverity: 'critical',
+    supportsThreshold: true,
+  },
+  {
+    id: 'availability.restored',
+    label: 'Availability Restored',
+    defaultSeverity: 'info',
+    supportsThreshold: true,
+    recovery: true,
+  },
+  { id: 'availability.member_offline', label: 'Server Not Reporting', defaultSeverity: 'warning' },
+  { id: 'availability.sync_degraded', label: 'Copy No Longer Synchronous', defaultSeverity: 'warning' },
+  { id: 'availability.sync_far', label: 'Synchronous Servers Now Far Apart', defaultSeverity: 'warning' },
+  { id: 'availability.witness_lost', label: 'Witness Lost', defaultSeverity: 'warning' },
+  { id: 'availability.witness_moved', label: 'Witness Moved', defaultSeverity: 'info' },
+  { id: 'availability.fenced', label: 'Server Stopped Taking Writes', defaultSeverity: 'warning' },
+  { id: 'availability.rejoined', label: 'Copy Rejoined', defaultSeverity: 'info' },
+  { id: 'availability.rebuilt', label: 'Copy Rebuilt', defaultSeverity: 'info' },
+  { id: 'availability.cancelled_sync_wait', label: 'Commit Wait Cancelled By Client', defaultSeverity: 'warning' },
+];
+
+/** Replication metrics of a database on several servers (the worst copy; the round trip between the servers). */
+const AVAILABILITY_METRICS: MetricDefinition[] = [
+  {
+    id: 'replication_lag_bytes',
+    label: 'Replication Lag (bytes)',
+    unit: 'bytes',
+    defaultOperator: '>',
+    defaultValue: 1_048_576,
+  },
+  {
+    id: 'replication_lag_seconds',
+    label: 'Replication Lag (seconds)',
+    unit: 's',
+    defaultOperator: '>',
+    defaultValue: 10,
+  },
+  { id: 'rtt_ms', label: 'Round Trip Between Servers (ms)', unit: 'ms', defaultOperator: '>', defaultValue: 10 },
+];
+
+const AVAILABILITY_VARIABLES = [
+  { name: '{{details.reason}}', description: 'Availability: why the state changed' },
+  { name: '{{details.member_id}}', description: 'Availability: the server (member) concerned' },
+  { name: '{{details.occurred_at}}', description: 'Availability: when it happened (also for events replayed later)' },
+];
 
 export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
@@ -659,6 +723,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
         defaultOperator: '>',
         defaultValue: 1024,
       },
+      ...AVAILABILITY_METRICS,
     ],
     events: [
       { id: 'created', label: 'Managed Database Created', defaultSeverity: 'info' },
@@ -687,6 +752,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
         defaultSeverity: 'critical',
         supportsThreshold: true,
       },
+      ...AVAILABILITY_EVENTS,
     ],
     variables: [
       { name: '{{resource.name}}', description: 'Database connection name' },
@@ -697,6 +763,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       { name: '{{metric.threshold}}', description: 'Configured threshold' },
       { name: '{{metric.operator}}', description: 'Comparison operator' },
       { name: '{{health.status}}', description: 'Health status' },
+      ...AVAILABILITY_VARIABLES,
     ],
   },
   {
@@ -720,6 +787,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
         defaultValue: 10_240,
       },
       { id: 'pending_mutations', label: 'Pending Mutations', unit: '', defaultOperator: '>', defaultValue: 5 },
+      ...AVAILABILITY_METRICS,
     ],
     events: [
       { id: 'created', label: 'Managed Database Created', defaultSeverity: 'info' },
@@ -748,6 +816,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
         defaultSeverity: 'critical',
         supportsThreshold: true,
       },
+      ...AVAILABILITY_EVENTS,
     ],
     variables: [
       { name: '{{resource.name}}', description: 'Database connection name' },
@@ -758,6 +827,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       { name: '{{metric.threshold}}', description: 'Configured threshold' },
       { name: '{{metric.operator}}', description: 'Comparison operator' },
       { name: '{{health.status}}', description: 'Health status' },
+      ...AVAILABILITY_VARIABLES,
     ],
   },
   {
@@ -766,6 +836,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     metrics: [
       { id: 'latency_ms', label: 'Latency (ms)', unit: 'ms', defaultOperator: '>', defaultValue: 1000 },
       { id: 'memory_pct', label: 'Memory Usage (%)', unit: '%', defaultOperator: '>', defaultValue: 90 },
+      ...AVAILABILITY_METRICS,
     ],
     events: [
       { id: 'created', label: 'Managed Database Created', defaultSeverity: 'info' },
@@ -794,6 +865,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
         defaultSeverity: 'critical',
         supportsThreshold: true,
       },
+      ...AVAILABILITY_EVENTS,
     ],
     variables: [
       { name: '{{resource.name}}', description: 'Database connection name' },
@@ -804,6 +876,19 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       { name: '{{metric.threshold}}', description: 'Configured threshold' },
       { name: '{{metric.operator}}', description: 'Comparison operator' },
       { name: '{{health.status}}', description: 'Health status' },
+      ...AVAILABILITY_VARIABLES,
+    ],
+  },
+  {
+    id: 'managed_storage',
+    label: 'Managed Storage',
+    metrics: [],
+    events: AVAILABILITY_EVENTS,
+    variables: [
+      { name: '{{resource.name}}', description: 'Storage name' },
+      { name: '{{resource.id}}', description: 'Storage connection ID' },
+      { name: '{{resource.key}}', description: 'Internal alert resource key' },
+      ...AVAILABILITY_VARIABLES,
     ],
   },
 ];

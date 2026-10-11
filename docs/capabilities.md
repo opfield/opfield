@@ -241,7 +241,7 @@ Credential reveal and query execution are intentionally separate permissions. Us
 
 ## Storage
 
-Gateway supports external storage connections and managed SeaweedFS object storage on Storage nodes. Managed storage is single-node and private by default; workload links use the shared secure-link connector of the workload's Docker node with bucket-scoped credentials, and a public S3 listener requires explicit publication. Existing managed MinIO clusters keep running as a legacy engine; new clusters use SeaweedFS.
+Gateway supports external storage connections and managed SeaweedFS object storage on Storage nodes. Managed storage runs on one server unless it is made available on several (see [Databases And Storage On Several Servers](#databases-and-storage-on-several-servers)) and is private by default; workload links use the shared secure-link connector of the workload's Docker node with bucket-scoped credentials, and a public S3 listener requires explicit publication. Existing managed MinIO clusters keep running as a legacy engine; new clusters use SeaweedFS.
 
 Supported connection types:
 
@@ -252,6 +252,41 @@ Supported connection types:
 - SFTP.
 
 Managed database backups and restores use configured Storage resources. Gateway keeps credentials and link-injected secrets masked outside their dedicated reveal flows.
+
+## Databases And Storage On Several Servers
+
+On Business and Enterprise, a managed PostgreSQL database, key-value store, ClickHouse database or SeaweedFS storage can run on 2 to 5 Storage nodes, each on its own host. One server is the primary and takes all reads and writes; the others are copies that follow it. Links, bindings and Gateway's own tools always reach the primary. Copies serve only failover and backups, not reads.
+
+Turn it on when you create the database or storage (**Availability** in the create form) or later from its page (**Make available**). The preflight shows what you get before anything changes: the mode, the voters and witnesses, the measured round trip between the servers, the durability and what a failover can lose. Turning it on for an existing resource restarts it once; it keeps its data and serves from its server while the copies are filled.
+
+- **Automatic failover** needs a majority of voters on separate hosts: the data servers plus witnesses. A witness is a relay that an administrator allowed to host witnesses (**Settings > General**, the relay's **Allow witnesses**, `PATCH /api/system/relay/instances/{id}`), or a Docker node on another host. A protected relay hosts witnesses only after its owner allowed database witnesses in the relay's local configuration. With two servers Gateway uses one or three witnesses, so one data server, or one data server and one witness, can fail.
+- **Two servers without a witness host** make a replicated pair without automatic failover. Switch to the copy by hand with **Make this copy primary**. The primary stops taking writes when it can reach neither Gateway nor its copy for 30 seconds, so two primaries never take writes.
+- **Failover works without Gateway.** The servers and relays decide who is primary among themselves, for as long as the relays' signed policy is valid (the relay policy lease, 72 hours by default; the preflight offers 7 days). Events that happened meanwhile reach Gateway when it is back and keep the time they happened, in the audit log and in alerts. Backups wait for Gateway, as they are scheduled by it.
+
+What an unplanned failover can lose ("acknowledged" means the client got a success):
+
+| Engine and state | What a failover can lose |
+|---|---|
+| PostgreSQL, synchronous, healthy | Nothing acknowledged. A commit whose client gave up waiting for it can be lost if the primary dies within about 5 seconds; Gateway records it. |
+| PostgreSQL, synchronous, copy fallen behind | No automatic failover. A copy that stops confirming for 10 seconds is dropped from synchronous replication and writes go on; a manual switch then loses the writes since then, and Gateway shows the time and an estimate. |
+| PostgreSQL, asynchronous | Up to the lag limit (1 MiB by default) plus about 1 second of writes. A copy further behind cannot take over. |
+| Key-value store (asynchronous only) | Up to the lag limit (1 MiB by default, usually under 1 second). |
+| SeaweedFS objects | Nothing while both copies are writable: each write is acknowledged after both servers stored it. While a server is down for more than 10 seconds, new objects are stored once until it returns, and are lost only if the remaining server's disk is lost. |
+| SeaweedFS object and bucket metadata | Up to about 1 second of changes. |
+| ClickHouse, near servers (quorum inserts) | Nothing acknowledged while healthy. |
+| ClickHouse, far or degraded | Inserts the copy had not fetched yet; they come back when the old server returns with its disk. |
+
+Durability is synchronous by default when the servers are near (round trip up to 10 ms) and asynchronous when they are far; change it on the page. Synchronous on far servers makes every commit wait for the round trip. Gateway measures the round trip every 10 minutes and alerts when a synchronous set became far, without changing it.
+
+**Make this copy primary** is a planned switch without loss when the primary serves and the copy is up to date. When the primary is gone or the copy is behind, the switch can lose recent writes: it asks you to confirm the estimate first (API and MCP: `acceptDataLoss: true`). The old primary comes back as a copy.
+
+While a resource runs on several servers, changing its settings, restarting, pausing and deleting it are refused (`AVAILABILITY_ENABLED`); turn availability off first. Turning it off keeps the primary as the single server and removes the copies.
+
+Alerts: the database categories and the **Managed storage** category offer failover, switch, degraded, no automatic failover, restored, server not reporting, copy no longer synchronous, servers now far apart, witness lost or moved, and rejoin and rebuild events, and the metrics replication lag (bytes, seconds) and round trip. The page lists the same events, and the Dashboard shows a notice while a set cannot fail over, a replicated pair's primary does not report, a witness is lost, a set is degraded, or for a day after a failover.
+
+After the license grace period, everything that runs keeps running: failover, fencing, copies rejoining, **Make this copy primary**, rebuilding a copy, removing a server, turning availability off and witness moves. Turning it on, adding a server and changing settings are refused until the license is renewed.
+
+API: `/api/databases/managed/{id}/availability` and `/api/managed-storage/{id}/availability` (preflight, turn on, settings, members, make-primary, rebuild, events, turn off); scope: the resource's edit scope (`databases:edit`, `storage:edit`), view scope for reads. MCP: the availability operations of `manage_managed_database` and `manage_managed_storage`, and `set_witness_hosting` of `manage_relay_pool`.
 
 ## Planned Host Access And CLI
 
