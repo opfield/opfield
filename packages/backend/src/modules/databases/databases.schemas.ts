@@ -129,6 +129,49 @@ const managedDatabaseStorageSizeGbSchema = z
   .max(16_384, STORAGE_SIZE_GB_RULE)
   .refine((value) => Math.abs(value * 10 - Math.round(value * 10)) < 1e-9, { message: STORAGE_SIZE_GB_RULE });
 
+/** Availability set input (database availability): member nodes, witness choice and durability. */
+export const ManagedAvailabilityWitnessSchema = z
+  .object({
+    relayIds: z.array(z.string().uuid()).max(5).optional(),
+    nodeId: z.string().uuid().optional(),
+  })
+  .strict();
+
+export const ManagedAvailabilityPreflightSchema = z
+  .object({
+    nodeIds: z.array(z.string().uuid()).min(1).max(5),
+    witness: ManagedAvailabilityWitnessSchema.nullable().optional(),
+    durability: z.enum(['synchronous', 'asynchronous']).nullable().optional(),
+  })
+  .strict();
+
+export const ManagedAvailabilityEnableSchema = ManagedAvailabilityPreflightSchema.extend({
+  priorityMode: z.boolean().optional(),
+}).strict();
+
+export const ManagedAvailabilitySettingsSchema = z
+  .object({
+    durability: z.enum(['synchronous', 'asynchronous']).optional(),
+    priorityMode: z.boolean().optional(),
+    failbackDelaySeconds: z.number().int().min(0).max(3600).optional(),
+    syncDegradeAfterSeconds: z.number().int().min(2).max(300).optional(),
+    maxLagBytes: z
+      .number()
+      .int()
+      .min(64 * 1024)
+      .max(1024 * 1024 * 1024)
+      .optional(),
+  })
+  .strict();
+
+export const ManagedAvailabilityAddMemberSchema = z
+  .object({ nodeId: z.string().uuid(), priority: z.number().int().min(0).max(98).optional() })
+  .strict();
+
+export const ManagedAvailabilityMakePrimarySchema = z
+  .object({ memberId: z.string().uuid(), acceptDataLoss: z.boolean().optional() })
+  .strict();
+
 export const CreateManagedDatabaseSchema = z
   .object({
     name: managedDatabaseNameSchema,
@@ -160,6 +203,8 @@ export const CreateManagedDatabaseSchema = z
     clickhouseConfigXml: z.string().trim().min(1).max(32_768).optional(),
     redisConfig: ManagedRedisConfigSchema.optional(),
     postgresConfig: ManagedPostgresConfigSchema.optional(),
+    /** Create the database as an availability set: the extra member nodes (nodeId is the first member). */
+    availability: ManagedAvailabilityEnableSchema.optional(),
   })
   .superRefine((value, context) => {
     if (value.type === 'clickhouse' && value.memoryMb < minimumClickHouseMemoryMb) {
@@ -483,6 +528,8 @@ export type UpdateDatabaseConnectionInput = z.infer<typeof UpdateDatabaseConnect
 export type ManagedDatabaseListQuery = z.infer<typeof ManagedDatabaseListQuerySchema>;
 export type CreateManagedDatabaseInput = z.infer<typeof CreateManagedDatabaseSchema>;
 export type UpdateManagedDatabaseInput = z.infer<typeof UpdateManagedDatabaseSchema>;
+export type ManagedAvailabilityEnableInput = z.infer<typeof ManagedAvailabilityEnableSchema>;
+export type ManagedAvailabilitySettingsInput = z.infer<typeof ManagedAvailabilitySettingsSchema>;
 export type CreateManagedDatabaseBindingInput = z.infer<typeof CreateManagedDatabaseBindingSchema>;
 
 /** POST /databases/managed/{id}/move-to-valkey. The body is optional. */

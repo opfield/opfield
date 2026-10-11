@@ -542,10 +542,23 @@ func (m *Manager) LiftCheck(setID, memberID string) (primaryRunning bool, err er
 		}
 		return primaryRunning, nil
 	}
-	if role := m.deps.Lease.HolderStatus(mem.cfg.Key()).Role; role != RoleRetained {
-		return false, fmt.Errorf("%w (lease role %s)", ErrNotRetained, role)
+	role := m.deps.Lease.HolderStatus(mem.cfg.Key()).Role
+	if role == RoleRetained {
+		return primaryRunning, nil
 	}
-	return primaryRunning, nil
+	// The close ran out before the voters confirmed it to this member (it fenced as for a lease loss), or the
+	// policy already went back to legacy: with the lease closed (or gone) and every other member removed, nobody
+	// can acquire or serve any more, so this member, the data's last copy, may be lifted (it is promoted again).
+	manifest, hasManifest := m.deps.Lease.ManifestInfo(mem.cfg.LeasePolicyID)
+	closed := !hasManifest || manifest.Closed
+	switch role {
+	case RoleHolding, RoleRecovering, RoleAcquiring, RoleBootstrapping, RoleReleasing:
+		closed = false
+	}
+	if closed && len(mem.cfg.Others()) == 0 {
+		return primaryRunning, nil
+	}
+	return false, fmt.Errorf("%w (lease role %s)", ErrNotRetained, role)
 }
 
 // ----- restarts (settings that need one, M4) -----------------------------

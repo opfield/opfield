@@ -16,6 +16,7 @@ import type {
   UpdateManagedDatabaseInput,
 } from './databases.schemas.js';
 import type { DatabaseConnectionService } from './databases.service.js';
+import type { ManagedAvailabilityHost } from './managed-database-availability.types.js';
 import type {
   ManagedDatabaseLogOptions,
   ManagedDatabaseLogTarget,
@@ -35,6 +36,8 @@ export class ManagedDatabaseService {
   setLicensePolicyService(_service: LicensePolicyService): void {}
   setEventBus(_bus: EventBusService): void {}
   setCertificateRenewal(_renewal: SystemCertificateRenewalService): void {}
+  /** Database availability sets: the open-core host parts the commercial control plane uses (merged per call). */
+  setAvailabilityHost(_host: Partial<ManagedAvailabilityHost>): void {}
   async getCertificateStatus(_id: string): Promise<CertificateRenewalStatusView> {
     return commercialModuleUnavailable();
   }

@@ -37,7 +37,12 @@ describe('primary assignment signing', () => {
         }),
       }),
     };
-    const keys = { signPayload: vi.fn(async (payload: Buffer) => ({ signingKeyId: 'k1', signature: sign(null, payload, privateKey) })) };
+    const keys = {
+      signPayload: vi.fn(async (payload: Buffer) => ({
+        signingKeyId: 'k1',
+        signature: sign(null, payload, privateKey),
+      })),
+    };
     const signer = new AvailabilityAssignmentSigner(db as never, keys);
     const assignment = await signer.signPrimaryAssignment(input);
     expect(assignment.generation).toBe('7');
