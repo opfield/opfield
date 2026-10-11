@@ -1,4 +1,13 @@
-import { DatabaseBackup, History, Pause, Play, RotateCcw, Trash2, X } from "lucide-react";
+import {
+  CalendarCheck,
+  CalendarOff,
+  DatabaseBackup,
+  History,
+  Play,
+  RotateCcw,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { confirm, confirmAction } from "@/components/common/ConfirmDialog";
@@ -259,43 +268,67 @@ export function useBackupRunColumns({
       },
       {
         key: "actions",
-        header: "",
+        header: "Actions",
         align: "right",
-        render: (run) => (
-          <div className="flex justify-end gap-2">
-            {run.direction === "backup" &&
-            run.status === "completed" &&
-            !run.artifactsDeletedAt &&
-            canRestore ? (
-              <Button size="sm" variant="outline" onClick={() => onRestore(run)}>
-                <RotateCcw />
-                Restore
-              </Button>
-            ) : null}
-            {canManage && !["queued", "running"].includes(run.status) ? (
-              <Button size="sm" variant="ghost" onClick={() => void deleteHistory(run)}>
-                <Trash2 />
-                {run.manifest && !run.artifactsDeletedAt ? "Delete" : "Remove"}
-              </Button>
-            ) : null}
-            {(run.status === "queued" || run.status === "running") && canRun ? (
-              run.phase === "cancelling" ? (
-                // The executor has not confirmed the cancel (for example, its node
-                // is offline). Ending the run releases the node and the schedule;
-                // the node stops the runner when it reconnects.
-                <Button size="sm" variant="ghost" onClick={() => void cancel(run, true)}>
-                  <X />
-                  Force cancel
+        width: "7rem",
+        render: (run) => {
+          const removeLabel = run.manifest && !run.artifactsDeletedAt ? "Delete" : "Remove";
+          return (
+            <div className="flex justify-end gap-1">
+              {run.direction === "backup" &&
+              run.status === "completed" &&
+              !run.artifactsDeletedAt &&
+              canRestore ? (
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label="Restore"
+                  title="Restore"
+                  onClick={() => onRestore(run)}
+                >
+                  <RotateCcw />
                 </Button>
-              ) : (
-                <Button size="sm" variant="ghost" onClick={() => void cancel(run)}>
-                  <X />
-                  Cancel
+              ) : null}
+              {(run.status === "queued" || run.status === "running") && canRun ? (
+                run.phase === "cancelling" ? (
+                  // The executor has not confirmed the cancel (for example, its node
+                  // is offline). Ending the run releases the node and the schedule;
+                  // the node stops the runner when it reconnects.
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label="Force cancel"
+                    title="Force cancel"
+                    onClick={() => void cancel(run, true)}
+                  >
+                    <X />
+                  </Button>
+                ) : (
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label="Cancel"
+                    title="Cancel"
+                    onClick={() => void cancel(run)}
+                  >
+                    <X />
+                  </Button>
+                )
+              ) : null}
+              {canManage && !["queued", "running"].includes(run.status) ? (
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label={removeLabel}
+                  title={removeLabel}
+                  onClick={() => void deleteHistory(run)}
+                >
+                  <Trash2 />
                 </Button>
-              )
-            ) : null}
-          </div>
-        ),
+              ) : null}
+            </div>
+          );
+        },
       },
     ],
     [canRestore, canRun, canManage, cancel, deleteHistory, leadingColumns, onRestore]
@@ -428,31 +461,39 @@ export function DatabaseBackupsTab({
               }
               description={`${destinationLabel(policy)} / ${policy.bucket}${policy.prefix ? ` / ${policy.prefix}` : ""} · keeps ${policy.retentionCount} backup${policy.retentionCount === 1 ? "" : "s"}${policy.schedule && !policy.enabled ? " · schedule disabled" : ""}${policy.lastError ? ` · ${policy.lastError}` : ""}`}
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 {canManage && policy.schedule ? (
                   <Button
                     variant="ghost"
-                    size="sm"
+                    size="icon-sm"
+                    aria-label={policy.enabled ? "Disable schedule" : "Enable schedule"}
+                    title={policy.enabled ? "Disable schedule" : "Enable schedule"}
                     onClick={() => void setScheduleEnabled(policy, !policy.enabled)}
                   >
-                    {policy.enabled ? <Pause /> : <Play />}
-                    {policy.enabled ? "Disable schedule" : "Enable schedule"}
+                    {policy.enabled ? <CalendarOff /> : <CalendarCheck />}
                   </Button>
                 ) : null}
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Run now"
+                  title="Run now"
+                  disabled={!canRun}
+                  onClick={() => void start(policy)}
+                >
+                  <Play />
+                </Button>
                 {canManage ? (
                   <Button
-                    size="icon"
                     variant="ghost"
+                    size="icon-sm"
                     aria-label="Delete backup policy"
+                    title="Delete backup policy"
                     onClick={() => void removePolicy(policy)}
                   >
                     <Trash2 />
                   </Button>
                 ) : null}
-                <Button size="sm" disabled={!canRun} onClick={() => void start(policy)}>
-                  <Play />
-                  Run now
-                </Button>
               </div>
             </SettingsControlRow>
           ))
