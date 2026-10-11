@@ -426,3 +426,38 @@ func TestTheProxyAdmitsOnlyWhileTheMemberServesAndClosesSessionsAfter(t *testing
 		refused.Close()
 	}
 }
+
+// A copy reports whether it could take the primary role over now, under the
+// latest verified commit (the lease asks only when it acquires), and its sync
+// state from the certified synchronous set (a standby cannot see its own).
+func TestReportsTellWhetherACopyCouldTakeOverAndReplicatesSynchronously(t *testing.T) {
+	h := newHarness(t, ModeAutomatic)
+	h.engine.container.Running = true
+	h.engine.status = EngineStatus{Answering: true, SyncState: "async"}
+	h.step(3, time.Second)
+	report := h.manager.Reports()[0]
+	if report.Eligible || report.SyncState != "async" {
+		t.Fatalf("without a commit the report keeps what the lease last answered: %+v", report)
+	}
+	h.lease.observed = &CertifiedState{State: HolderState{Holder: testNodeB, Value: []byte("sync-set")}}
+	report = h.manager.Reports()[0]
+	if !report.Eligible || report.SyncState != "sync" {
+		t.Fatalf("a streaming copy in the certified sync set reports eligible and sync: %+v", report)
+	}
+	h.lease.observed.State.Value = []byte("other")
+	if report = h.manager.Reports()[0]; report.SyncState != "async" {
+		t.Fatalf("a copy outside the sync set reports async: %+v", report)
+	}
+	h.watchdog.present = false
+	h.step(1, time.Second)
+	if report = h.manager.Reports()[0]; report.Eligible || report.EligibilityReason != "watchdog_not_fresh" {
+		t.Fatalf("the shared rules apply to the reported eligibility: %+v", report)
+	}
+	// The holder reports what the lease answered it, not a copy's evaluation.
+	h.watchdog.present = true
+	h.holding(h.clock.now + time.Minute)
+	h.lease.observed.State.Holder = testNodeA
+	if report = h.manager.Reports()[0]; report.Eligible {
+		t.Fatalf("the holder is not evaluated as a copy: %+v", report)
+	}
+}

@@ -174,3 +174,21 @@ func parentOf(history []TimelineEntry) (uint32, LSN) {
 	last := history[len(history)-1]
 	return last.Timeline, last.SwitchLSN
 }
+
+// CertifiedSyncState is the replication this streaming standby reports: sync
+// while the certified state names it in the synchronous set (the primary's
+// pg_stat_replication then shows it sync), async otherwise. A standby cannot
+// see its own sync_state.
+func (e *Engine) CertifiedSyncState(certified []byte) (string, bool) {
+	value, err := DecodeValue(certified)
+	if err != nil {
+		return "", false
+	}
+	e.mu.Lock()
+	memberID := e.cfg.MemberID
+	e.mu.Unlock()
+	if value.Synchronous() && value.InSyncSet(memberID) {
+		return "sync", true
+	}
+	return "async", true
+}
