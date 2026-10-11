@@ -157,7 +157,7 @@ export function MoveToFolderDialog<TFolder extends MoveToFolderNode>({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <div className="border border-border">
+        <div className="rounded-md overflow-clip border border-border">
           <MoveDestinationRow
             label={root.label}
             strong

@@ -493,19 +493,19 @@ const editorGutterBorderTheme = EditorView.theme({
 
 const highlightStyles = syntaxHighlighting(
   HighlightStyle.define([
-    { tag: tags.keyword, color: "#c678dd" },
-    { tag: tags.string, color: "#98c379" },
-    { tag: tags.number, color: "#d19a66" },
-    { tag: tags.comment, color: "#5c6370", fontStyle: "italic" },
-    { tag: tags.variableName, color: "#e06c75" },
-    { tag: tags.atom, color: "#d19a66" },
-    { tag: tags.propertyName, color: "#61afef" },
-    { tag: tags.operator, color: "#56b6c2" },
-    { tag: tags.brace, color: "#e5c07b" },
+    { tag: tags.keyword, color: "var(--color-hue-violet)" },
+    { tag: tags.string, color: "var(--color-hue-green)" },
+    { tag: tags.number, color: "var(--color-hue-orange)" },
+    { tag: tags.comment, color: "var(--color-muted-foreground)", fontStyle: "italic" },
+    { tag: tags.variableName, color: "var(--color-hue-red)" },
+    { tag: tags.atom, color: "var(--color-hue-orange)" },
+    { tag: tags.propertyName, color: "var(--color-hue-blue)" },
+    { tag: tags.operator, color: "var(--color-hue-cyan)" },
+    { tag: tags.brace, color: "var(--color-hue-amber)" },
     {
       tag: tags.meta,
-      color: "#e5c07b",
-      backgroundColor: "rgba(229, 192, 123, 0.06)",
+      color: "var(--color-hue-amber)",
+      backgroundColor: "color-mix(in srgb, var(--color-hue-amber) 8%, transparent)",
       borderRadius: "2px",
     },
   ])
@@ -517,10 +517,10 @@ const highlightStyles = syntaxHighlighting(
 
 const errorLineTheme = EditorView.baseTheme({
   ".cm-errorLine": {
-    backgroundColor: "rgba(239, 68, 68, 0.15) !important",
+    backgroundColor: "color-mix(in srgb, var(--color-destructive) 15%, transparent) !important",
   },
   ".cm-inlineError": {
-    backgroundColor: "rgba(239, 68, 68, 0.68)",
+    backgroundColor: "color-mix(in srgb, var(--color-destructive) 60%, transparent)",
     borderRadius: "2px",
   },
 });

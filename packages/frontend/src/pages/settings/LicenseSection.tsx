@@ -305,7 +305,7 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
           </DialogHeader>
           {status.hasKey && (
             <div className="space-y-3">
-              <div className="border border-border bg-card">
+              <div className="rounded-lg overflow-clip border border-border bg-card">
                 <LicenseSummary status={status} />
                 <div className="divide-y divide-border -mb-px [&>*:last-child]:border-b [&>*:last-child]:border-border">
                   <DetailRow label="Key" value={<LicenseKeyValue last4={status.keyLast4} />} />

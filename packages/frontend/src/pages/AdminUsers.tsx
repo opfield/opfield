@@ -863,7 +863,7 @@ function AdminUsersContent({
           <p className="text-sm text-muted-foreground">
             Restoring an account keeps it blocked. Its old sessions and tokens are not restored.
           </p>
-          <div className="border border-border">
+          <div className="rounded-md overflow-clip border border-border">
             <ContentLoading loading={!deletedUsersLoaded} />
             <Input
               value={deletedUsersSearch}

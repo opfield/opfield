@@ -193,7 +193,7 @@ export function AccessLists() {
         {/* Table */}
         <ContentLoading loading={initialLoading && accessLists.length === 0} />
         {initialLoading && accessLists.length === 0 ? null : accessLists.length > 0 ? (
-          <div className="border border-border bg-card">
+          <div className="rounded-lg overflow-clip border border-border bg-card">
             <SimpleTable
               columns={accessListColumns}
               rows={accessLists}

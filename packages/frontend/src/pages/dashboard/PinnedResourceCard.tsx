@@ -18,7 +18,7 @@ type DockerResource = DashboardBootstrapPinnedResources["dockerResources"][numbe
 /** A pinned card behind a Dashboard attention notice gets the warning border of the Expiring Soon card. */
 function pinnedCardClass(attention: boolean): string {
   return cn(
-    "flex items-center justify-between border bg-card px-4 py-3 transition-colors hover:bg-accent",
+    "flex items-center justify-between rounded-lg border bg-card px-4 py-3 transition-colors hover:bg-accent",
     attention ? "border-warning/60" : "border-border"
   );
 }

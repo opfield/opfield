@@ -454,7 +454,7 @@ export function GwcaImportDialog({
                 />
                 <div
                   className={cn(
-                    "flex h-11 min-w-0 border bg-background",
+                    "flex h-11 min-w-0 rounded-md overflow-hidden border bg-background",
                     planError ? "border-destructive" : "border-input"
                   )}
                 >

@@ -47,7 +47,7 @@ export function DeliveryStatusIcon({
   state: "delivered" | "failed" | "pending" | "in-progress" | "skipped";
 }) {
   return (
-    <span className="flex h-8 w-8 items-center justify-center bg-muted">
+    <span className="flex h-8 w-8 items-center justify-center rounded-md bg-muted">
       {state === "delivered" ? (
         <CheckCircle2 className="h-4 w-4 text-success-text" />
       ) : state === "failed" ? (

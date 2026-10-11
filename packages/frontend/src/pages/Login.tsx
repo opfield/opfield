@@ -416,7 +416,7 @@ export function LoginPage({
           <section className="space-y-3">
             <h2 className="text-center text-lg font-semibold">Set a new password</h2>
             {resetProfile && (
-              <div className="flex items-center gap-4 border border-border p-4 text-left">
+              <div className="flex items-center gap-4 rounded-md border border-border p-4 text-left">
                 <Avatar className="h-10 w-10 shrink-0">
                   <AvatarImage src={resetProfile.avatarUrl ?? undefined} />
                   <AvatarFallback className="text-sm">
@@ -440,7 +440,7 @@ export function LoginPage({
                   if (resetPassword.length >= 8 && !busy) void completePasswordReset();
                 }}
               >
-                <div className="flex border border-input bg-background">
+                <div className="flex rounded-md overflow-hidden border border-input bg-background">
                   <Input
                     type={showResetPassword ? "text" : "password"}
                     value={resetPassword}

@@ -353,7 +353,7 @@ export function CloudflareIntegrationsSection() {
                   Required Cloudflare token permissions: Zone:Read plus DNS:Read and DNS:Edit for
                   the zones Gateway should manage.
                 </p>
-                <div className="flex min-w-0 border border-input bg-background">
+                <div className="flex min-w-0 rounded-md overflow-hidden border border-input bg-background">
                   <Input
                     value={form.token}
                     disabled={!canManage}
@@ -544,7 +544,7 @@ function CloudflareConnectorRow({
       onClick={onOpen}
     >
       <div className="flex min-w-0 items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-border bg-muted">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-muted">
           <Cloud className="h-4 w-4 text-muted-foreground" />
         </div>
         <div className="min-w-0">

@@ -147,7 +147,7 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
               icon={Cpu}
               history={sumSeries(containers.map((c) => c.cpuHistory))}
               sparklineMax={100}
-              color="#3b82f6"
+              color="var(--color-hue-blue)"
               subtitle={plural(containerTotal, "container")}
             />
             <StatCard
@@ -155,7 +155,7 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
               value={formatBytes(memory)}
               icon={MemoryStick}
               history={sumSeries(containers.map((c) => c.memoryHistory))}
-              color="#8b5cf6"
+              color="var(--color-hue-violet)"
               progress={memoryLimit > 0 ? { percent: (memory / memoryLimit) * 100 } : undefined}
               subtitle={
                 memoryLimit > 0
@@ -168,7 +168,7 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
               value={String(restarts)}
               icon={RotateCcw}
               history={sumSeries(containers.map((c) => c.restartsHistory))}
-              color={restarts === 0 ? "#64748b" : "#ef4444"}
+              color={restarts === 0 ? "var(--color-hue-slate)" : "var(--color-hue-red)"}
               subtitle="last hour"
             />
             <StatCard
@@ -220,7 +220,7 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
                     ? env.name
                     : `${env.name} · ${Math.round(db.diskPercent)}% used`
                 }
-                color={DATABASE_COLORS.database_size_bytes ?? "#0ea5e9"}
+                color={DATABASE_COLORS.database_size_bytes ?? "var(--color-hue-cyan)"}
               />,
               <StatCard
                 key={`${db.id}-connections`}
@@ -244,7 +244,7 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
                     ? env.name
                     : `${env.name} · ${rate(db.transactionsPerSecond, "tx")}`
                 }
-                color={DATABASE_COLORS.total_connections ?? "#0891b2"}
+                color={DATABASE_COLORS.total_connections ?? "var(--color-hue-cyan)"}
               />,
             ])}
           </CardRow>
@@ -302,7 +302,7 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
               )}
               icon={Globe}
               history={sumSeries(routes.map((r) => r.requestsHistory))}
-              color="#22c55e"
+              color="var(--color-hue-green)"
               subtitle={plural(routeTotal, "route")}
             />
             <StatCard
@@ -313,7 +313,7 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
               )}
               icon={TriangleAlert}
               history={sumSeries(routes.map((r) => r.errorsHistory))}
-              color="#ef4444"
+              color="var(--color-hue-red)"
               subtitle="HTTP 5xx"
             />
             <StatCard
@@ -321,7 +321,7 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
               value={latencies.length > 0 ? `${Math.round(Math.max(...latencies))} ms` : "—"}
               icon={Activity}
               history={routes.find((r) => r.latencyHistory.length > 0)?.latencyHistory ?? []}
-              color="#ec4899"
+              color="var(--color-hue-pink)"
               subtitle="slowest environment"
             />
             <StatCard
@@ -329,7 +329,7 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
               value={bytesRate(routes.reduce((sum, r) => sum + r.trafficBytesPerSecond, 0))}
               icon={ArrowDownToLine}
               history={sumSeries(routes.map((r) => r.trafficHistory))}
-              color="#06b6d4"
+              color="var(--color-hue-cyan)"
             />
           </CardRow>
         </Section>
@@ -353,7 +353,7 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
                 value={page.requestsPerSecond === null ? "—" : rate(page.requestsPerSecond, "req")}
                 icon={Globe}
                 history={page.requestsHistory}
-                color="#22c55e"
+                color="var(--color-hue-green)"
                 subtitle={env.name}
               />,
             ])}

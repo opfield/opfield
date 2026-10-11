@@ -837,11 +837,11 @@ function DatabaseDetailContent({
                   onToggleFocus={() => setExplorerFocused((current) => !current)}
                 />
               ) : explorerDisabled ? (
-                <div className="border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+                <div className="rounded-lg border border-border bg-card p-8 text-center text-sm text-muted-foreground">
                   Explorer is unavailable while the database is offline or paused.
                 </div>
               ) : (
-                <div className="border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+                <div className="rounded-lg border border-border bg-card p-8 text-center text-sm text-muted-foreground">
                   Explorer is not available for this database provider.
                 </div>
               )}

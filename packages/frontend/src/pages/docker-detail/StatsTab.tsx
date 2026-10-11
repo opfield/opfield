@@ -432,7 +432,7 @@ export function StatsTab({
               icon={Cpu}
               history={cpuHist}
               sparklineMax={100}
-              color="#3b82f6"
+              color="var(--color-hue-blue)"
               progress={current ? { percent: cpuPercent } : undefined}
             />
             <StatCard
@@ -441,7 +441,7 @@ export function StatsTab({
               icon={MemoryStick}
               history={memHist}
               sparklineMax={memoryAvailable ? memLimit || undefined : undefined}
-              color="#8b5cf6"
+              color="var(--color-hue-violet)"
               progress={memoryAvailable && memLimit > 0 ? { percent: memPercent } : undefined}
               subtitle={
                 memoryAvailable
@@ -456,28 +456,28 @@ export function StatsTab({
               value={current ? formatBytes(netRx) : "N/A"}
               icon={ArrowDownToLine}
               history={netRxHist}
-              color="#22c55e"
+              color="var(--color-hue-green)"
             />
             <StatCard
               label="Network TX"
               value={current ? formatBytes(netTx) : "N/A"}
               icon={ArrowUpFromLine}
               history={netTxHist}
-              color="#f59e0b"
+              color="var(--color-hue-amber)"
             />
             <StatCard
               label="Disk Read"
               value={current ? formatBytes(blockRead) : "N/A"}
               icon={HardDrive}
               history={diskReadHist}
-              color="#06b6d4"
+              color="var(--color-hue-cyan)"
             />
             <StatCard
               label="Disk Write"
               value={current ? formatBytes(blockWrite) : "N/A"}
               icon={HardDrive}
               history={diskWriteHist}
-              color="#f43f5e"
+              color="var(--color-hue-pink)"
             />
             <StatCard
               label="PIDs"
@@ -489,9 +489,9 @@ export function StatsTab({
               subtitle={
                 current && pidsLimit ? `${pidsPercent.toFixed(0)}% of ${pidsLimit}` : undefined
               }
-              color="#64748b"
+              color="var(--color-hue-slate)"
             />
-            <StatCard label="Uptime" value={uptime} icon={Clock} color="#a855f7" />
+            <StatCard label="Uptime" value={uptime} icon={Clock} color="var(--color-hue-violet)" />
           </div>
 
           {sharedGpuDevices.map((gpu, index) => (

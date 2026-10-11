@@ -68,7 +68,9 @@ export function ResourceListForm<TFolder, TItem>({
       <SearchFilterBar
         {...search}
         className={embedded ? "border-b border-border" : undefined}
-        inputClassName={embedded ? "h-12 border-0 shadow-none focus-visible:ring-inset" : undefined}
+        inputClassName={
+          embedded ? "h-12 rounded-none border-0 shadow-none focus-visible:ring-inset" : undefined
+        }
       />
       {afterSearch}
       {showLoading ? (

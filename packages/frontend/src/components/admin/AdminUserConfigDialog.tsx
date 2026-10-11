@@ -320,7 +320,7 @@ export function AdminUserConfigDialog({
                     <p className="text-sm font-medium">Name</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">Used throughout Gateway.</p>
                   </div>
-                  <div className="flex w-full border border-input bg-background sm:w-72 sm:shrink-0">
+                  <div className="flex w-full rounded-md overflow-hidden border border-input bg-background sm:w-72 sm:shrink-0">
                     <Input
                       value={name}
                       onChange={(event) => {
@@ -487,7 +487,7 @@ export function AdminUserConfigDialog({
           <p className="text-sm text-muted-foreground">
             Browser sessions currently authorized for this account.
           </p>
-          <div className="border border-border">
+          <div className="rounded-md overflow-clip border border-border">
             <div className="max-h-[min(25rem,48dvh)] divide-y divide-border overflow-y-auto overscroll-contain">
               {sessions.map((session) => (
                 <div

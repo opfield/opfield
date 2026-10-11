@@ -107,7 +107,7 @@ export function DockerBuildsTable({
       width: "minmax(14rem,1.6fr)",
       render: (build) => (
         <span className="flex min-w-0 items-center gap-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center bg-muted">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
             <GitBranch className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           </span>
           <span className="min-w-0">

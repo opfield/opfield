@@ -28,7 +28,7 @@ export function ResourceListFrame({
   innerClassName,
 }: ResourceListFrameProps) {
   return (
-    <div className={cn("overflow-x-auto border border-border bg-card", className)}>
+    <div className={cn("overflow-x-auto rounded-lg border border-border bg-card", className)}>
       <div className={cn("w-full", innerClassName)} style={{ minWidth }}>
         {children}
       </div>
@@ -112,7 +112,7 @@ export const ResourceListRow = forwardRef<HTMLTableRowElement, ResourceListRowPr
       className={cn(
         "transition-colors border-b border-border select-none",
         isOverlay
-          ? "bg-card shadow-lg border border-border"
+          ? "bg-card shadow-pop rounded-lg border border-border"
           : interactive
             ? "cursor-pointer hover:bg-accent"
             : "cursor-default opacity-80",

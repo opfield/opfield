@@ -9,10 +9,10 @@ type MetricHistory = (
 ) => number[];
 
 function gpuColor(vendor: string) {
-  if (vendor === "nvidia") return "#76b900";
-  if (vendor === "amd") return "#ef4444";
-  if (vendor === "intel") return "#3b82f6";
-  return "#64748b";
+  if (vendor === "nvidia") return "var(--color-hue-green)";
+  if (vendor === "amd") return "var(--color-hue-red)";
+  if (vendor === "intel") return "var(--color-hue-blue)";
+  return "var(--color-hue-slate)";
 }
 
 export function gpuTemperatureProgressPercent(temperatureCelsius: number | undefined) {
@@ -78,8 +78,10 @@ export function GpuMonitoringSection({
           icon={MemoryStick}
           history={history("memory_used_bytes", (device) => device.memoryUsedBytes)}
           sparklineMax={vramAvailable ? gpu.memoryTotalBytes : undefined}
-          color="#8b5cf6"
-          progress={vramAvailable ? { percent: vramPercent, color: "#8b5cf6" } : undefined}
+          color="var(--color-hue-violet)"
+          progress={
+            vramAvailable ? { percent: vramPercent, color: "var(--color-hue-violet)" } : undefined
+          }
           subtitle={
             vramAvailable
               ? `${vramPercent.toFixed(1)}% of ${formatBytes(gpu.memoryTotalBytes ?? 0)}`
@@ -94,9 +96,11 @@ export function GpuMonitoringSection({
           icon={Thermometer}
           history={history("temperature_celsius", (device) => device.temperatureCelsius)}
           sparklineMax={100}
-          color="#f97316"
+          color="var(--color-hue-orange)"
           progress={
-            temperatureAvailable ? { percent: temperaturePercent, color: "#f97316" } : undefined
+            temperatureAvailable
+              ? { percent: temperaturePercent, color: "var(--color-hue-orange)" }
+              : undefined
           }
           subtitle={
             temperatureAvailable
@@ -110,8 +114,10 @@ export function GpuMonitoringSection({
           icon={Zap}
           history={history("power_watts", (device) => device.powerWatts)}
           sparklineMax={powerAvailable ? gpu.powerLimitWatts : undefined}
-          color="#f59e0b"
-          progress={powerAvailable ? { percent: powerPercent, color: "#f59e0b" } : undefined}
+          color="var(--color-hue-amber)"
+          progress={
+            powerAvailable ? { percent: powerPercent, color: "var(--color-hue-amber)" } : undefined
+          }
           subtitle={
             powerAvailable
               ? `${powerPercent.toFixed(1)}% of ${(gpu.powerLimitWatts ?? 0).toFixed(1)} W`

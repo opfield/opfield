@@ -254,7 +254,7 @@ export function OAuthConsent() {
   if (error) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <div className="w-full max-w-md border border-border bg-card p-5">
+        <div className="w-full max-w-md rounded-lg border border-border bg-card p-5">
           <h1 className="text-lg font-semibold text-foreground">OAuth authorization failed</h1>
           <p className="mt-2 text-sm text-muted-foreground">{error}</p>
         </div>
@@ -276,9 +276,9 @@ export function OAuthConsent() {
           sandbox=""
           aria-hidden="true"
         />
-        <div className="w-full max-w-md border border-border bg-card p-5">
+        <div className="w-full max-w-md rounded-lg border border-border bg-card p-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center border border-border bg-muted">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-muted">
               {result.kind === "approved" ? (
                 <Check className="h-5 w-5 text-foreground" />
               ) : (
@@ -324,7 +324,7 @@ export function OAuthConsent() {
       >
         <div className="flex min-h-full items-center justify-center">
           <div
-            className="flex w-full max-w-2xl flex-col border border-border bg-card"
+            className="flex w-full max-w-2xl flex-col rounded-lg overflow-clip border border-border bg-card"
             data-oauth-consent-card=""
           >
             <div className="border-b border-border p-5">
@@ -354,7 +354,7 @@ export function OAuthConsent() {
             <div className="flex flex-col divide-y divide-border" data-oauth-consent-body="">
               <section className="p-5">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center border border-border bg-muted text-sm font-semibold">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-muted text-sm font-semibold">
                     {(preview.account.name || preview.account.email).slice(0, 1).toUpperCase()}
                   </div>
                   <div className="min-w-0">

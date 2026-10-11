@@ -330,7 +330,7 @@ export function DockerVolumes({
         width: "minmax(0, 1.35fr)",
         renderCell: (v) => (
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-muted shrink-0">
+            <div className="flex items-center justify-center h-8 w-8 rounded-md bg-muted shrink-0">
               <Database className="h-4 w-4 text-muted-foreground" />
             </div>
             <div className="flex-1 min-w-0">

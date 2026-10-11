@@ -47,7 +47,7 @@ export function AIButton({ iconOnly = false, showLabel = false }: AIButtonProps)
     return (
       <Button
         variant="ghost"
-        className={`h-auto w-full justify-start gap-2 bg-sidebar-accent px-3 py-2 text-sidebar-accent-foreground/80 hover:bg-muted hover:text-sidebar-accent-foreground ${
+        className={`h-auto w-full justify-start gap-2 rounded-md bg-sidebar-accent px-3 py-2 text-sidebar-accent-foreground/80 hover:bg-muted hover:text-sidebar-accent-foreground ${
           aiPanelOpen ? "text-primary" : ""
         }`}
         onClick={handleClick}

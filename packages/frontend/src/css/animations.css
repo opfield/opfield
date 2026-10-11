@@ -192,30 +192,30 @@
 .tooltip-content[data-state="delayed-open"] { animation-name: tooltip-show; }
 .tooltip-content[data-state="closed"] { animation-name: tooltip-hide; }
 
-/* Sonner toast styling */
+/* Sonner toast styling: a graphite panel in both themes (the landing's raised surface). */
 [data-sonner-toaster],
 [data-sonner-toaster][data-sonner-theme='light'],
 [data-sonner-toaster][data-sonner-theme='dark'] {
   z-index: 1000 !important;
   pointer-events: auto !important;
-  --normal-bg: #27272a !important;
-  --normal-border: #3f3f46 !important;
-  --normal-text: #fafafa !important;
-  --border-radius: 0 !important;
-  --success-bg: #27272a !important;
-  --success-border: #3f3f46 !important;
-  --success-text: #fafafa !important;
-  --error-bg: #27272a !important;
-  --error-border: #3f3f46 !important;
-  --error-text: #fafafa !important;
-  --info-bg: #27272a !important;
-  --info-border: #3f3f46 !important;
-  --info-text: #fafafa !important;
-  --warning-bg: #27272a !important;
-  --warning-border: #3f3f46 !important;
-  --warning-text: #fafafa !important;
+  --normal-bg: #232322 !important;
+  --normal-border: #3d3d3a !important;
+  --normal-text: #f3f2ef !important;
+  --border-radius: var(--radius-lg) !important;
+  --success-bg: #232322 !important;
+  --success-border: #3d3d3a !important;
+  --success-text: #f3f2ef !important;
+  --error-bg: #232322 !important;
+  --error-border: #3d3d3a !important;
+  --error-text: #f3f2ef !important;
+  --info-bg: #232322 !important;
+  --info-border: #3d3d3a !important;
+  --info-text: #f3f2ef !important;
+  --warning-bg: #232322 !important;
+  --warning-border: #3d3d3a !important;
+  --warning-text: #f3f2ef !important;
 }
-[data-sonner-toast] { border-radius: 0 !important; pointer-events: auto !important; }
+[data-sonner-toast] { border-radius: var(--radius-lg) !important; box-shadow: var(--pop-shadow) !important; pointer-events: auto !important; }
 [data-sonner-toast] [data-content] { min-width: 0; }
 [data-sonner-toast] [data-title],
 [data-sonner-toast] [data-description] {
@@ -229,12 +229,12 @@
   -webkit-line-clamp: 3;
   line-clamp: 3;
 }
-[data-sonner-toast] [data-description] { color: #a1a1aa; }
+[data-sonner-toast] [data-description] { color: #a9a8a3; }
 [data-sonner-toast] [data-close-button] {
-  background: #27272a !important; border-color: #3f3f46 !important; color: #a1a1aa !important; border-radius: 0 !important;
+  background: #232322 !important; border-color: #3d3d3a !important; color: #a9a8a3 !important; border-radius: 9999px !important;
 }
 [data-sonner-toast] [data-close-button]:hover {
-  background: #3f3f46 !important; border-color: #52525b !important; color: #fafafa !important;
+  background: #2b2b29 !important; border-color: #4a4945 !important; color: #f3f2ef !important;
 }
 
 /* The button that opened a dialog whose data is still loading: a spinner takes

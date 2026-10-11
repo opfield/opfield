@@ -381,7 +381,7 @@ export function InferenceUsersTable({
           onReset={() => setSearch("")}
           placeholder="Search users..."
           className="border-b border-border"
-          inputClassName="h-12 border-0 shadow-none focus-visible:ring-inset"
+          inputClassName="h-12 rounded-none border-0 shadow-none focus-visible:ring-inset"
         />
         <DataTable
           columns={columns}

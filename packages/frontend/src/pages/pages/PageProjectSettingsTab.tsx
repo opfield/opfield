@@ -185,9 +185,13 @@ export function PageProjectSettingsDialog({
                   aria-label="Default color"
                   className={cn(
                     "aspect-square w-full border border-border bg-muted",
-                    appearanceColor === null && "border-white"
+                    appearanceColor === null && "border-foreground"
                   )}
-                  style={appearanceColor === null ? { borderColor: "#fff" } : undefined}
+                  style={
+                    appearanceColor === null
+                      ? { borderColor: "var(--color-foreground)" }
+                      : undefined
+                  }
                   onClick={() => setAppearanceColor(null)}
                 />
                 {NODE_APPEARANCE_COLOR_OPTIONS.map((option) => (
@@ -196,11 +200,15 @@ export function PageProjectSettingsDialog({
                     type="button"
                     aria-label={`${option.label} color`}
                     className={cn(
-                      "aspect-square w-full border border-border",
+                      "aspect-square w-full rounded-md border border-border",
                       option.swatchClassName,
-                      appearanceColor === option.value && "border-white"
+                      appearanceColor === option.value && "border-foreground"
                     )}
-                    style={appearanceColor === option.value ? { borderColor: "#fff" } : undefined}
+                    style={
+                      appearanceColor === option.value
+                        ? { borderColor: "var(--color-foreground)" }
+                        : undefined
+                    }
                     onClick={() => setAppearanceColor(option.value)}
                   />
                 ))}

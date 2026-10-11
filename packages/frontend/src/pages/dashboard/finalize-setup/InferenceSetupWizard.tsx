@@ -456,7 +456,7 @@ export function InferenceSetupWizard({
             users.
           </Notice>
         ) : ready ? (
-          <div className="border border-border p-4 text-sm text-muted-foreground">
+          <div className="rounded-md border border-border p-4 text-sm text-muted-foreground">
             Gateway has{" "}
             {models.filter((model) => model.enabled && model.defaultAccessAllowed).length}{" "}
             selectable model

@@ -230,7 +230,7 @@ export function WebhooksTab({
   return (
     <div className="space-y-4">
       {initialLoading && visibleWebhooks.length === 0 ? null : visibleWebhooks.length > 0 ? (
-        <div className="border border-border bg-card">
+        <div className="rounded-lg overflow-clip border border-border bg-card">
           <SimpleTable
             columns={columns}
             rows={visibleWebhooks}

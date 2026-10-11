@@ -46,7 +46,7 @@ export function DockerLogViewport<T>({
       emptyState={emptyState}
       className={cn(
         "min-h-0 overflow-auto bg-card py-4",
-        bordered && "border border-border",
+        bordered && "rounded-md overflow-clip border border-border",
         className
       )}
     />

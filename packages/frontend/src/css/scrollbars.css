@@ -1,7 +1,7 @@
 .dashboard-scrollbar ::-webkit-scrollbar, .dashboard-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
 .dashboard-scrollbar ::-webkit-scrollbar-track, .dashboard-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.dashboard-scrollbar ::-webkit-scrollbar-thumb, .dashboard-scrollbar::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 0; }
-.dashboard-scrollbar ::-webkit-scrollbar-thumb:hover, .dashboard-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--color-muted-foreground); }
+.dashboard-scrollbar ::-webkit-scrollbar-thumb, .dashboard-scrollbar::-webkit-scrollbar-thumb { background: var(--color-input); background-clip: padding-box; border: 1px solid transparent; border-radius: 9999px; }
+.dashboard-scrollbar ::-webkit-scrollbar-thumb:hover, .dashboard-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--color-muted-foreground); background-clip: padding-box; }
 .dashboard-scrollbar ::-webkit-scrollbar-corner, .dashboard-scrollbar::-webkit-scrollbar-corner { background: var(--color-card); }
 
 ::-webkit-scrollbar-corner { background: transparent; }

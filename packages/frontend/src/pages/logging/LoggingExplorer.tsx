@@ -366,7 +366,7 @@ export function LoggingExplorer({
               </Button>
             )}
             {showSuggestions && (
-              <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-30 overflow-hidden border border-border bg-popover shadow-md">
+              <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-30 overflow-hidden rounded-md border border-border bg-popover shadow-pop">
                 {suggestions.map((suggestion, index) => (
                   // Suggestion rows are list options; the input keeps focus and keyboard control.
                   <button

@@ -108,7 +108,7 @@ export function InferenceHarnessDialog({
               copyValue={codexSetupCopyCommand}
               codeClassName="min-h-0"
             />
-            <div className="border border-border p-3">
+            <div className="rounded-md border border-border p-3">
               <p className="text-sm font-medium">Codex Desktop requires extra setup</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 Sign in to an OpenAI account through Codex’s normal login flow first. Codex Desktop
@@ -132,7 +132,7 @@ export function InferenceHarnessDialog({
               copyValue={claudeCodeSetupCopyCommand}
               codeClassName="min-h-0"
             />
-            <div className="border border-border p-3">
+            <div className="rounded-md border border-border p-3">
               <p className="text-sm font-medium">Claude Code CLI only</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 Claude Desktop and the Claude Code VS Code extension use separate configuration

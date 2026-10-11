@@ -25,7 +25,7 @@ export function BlockedPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="flex flex-col items-center gap-4 max-w-sm text-center">
-        <div className="h-12 w-12 flex items-center justify-center border border-destructive/30 bg-destructive/5">
+        <div className="h-12 w-12 flex items-center justify-center rounded-md border border-destructive/30 bg-destructive/5">
           <Ban className="h-6 w-6 text-destructive" />
         </div>
         <h2 className="text-lg font-semibold text-foreground">Access Blocked</h2>

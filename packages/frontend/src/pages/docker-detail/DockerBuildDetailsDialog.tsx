@@ -168,7 +168,7 @@ export function DockerBuildDetailsDialog({
           <DialogDescription>{build?.repositoryFullPath}</DialogDescription>
         </DialogHeader>
         {build && (
-          <div className="divide-y divide-border overflow-hidden border border-border bg-card">
+          <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
             <MetaRow label="Status" header>
               <Badge variant={DOCKER_BUILD_STATUS_VARIANT[build.status]}>
                 {build.status.replaceAll("_", " ")}

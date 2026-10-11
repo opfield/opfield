@@ -1280,7 +1280,7 @@ export function AdminNodeDetail({
           <div className={usesFillLayout ? "relative flex flex-col flex-1 min-h-0" : "relative"}>
             {nonInteractiveWhileUpdating && (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/85 backdrop-blur-sm">
-                <div className="border border-border bg-card px-6 py-4 text-center">
+                <div className="rounded-lg border border-border bg-card px-6 py-4 text-center">
                   <p className="text-sm font-medium">Node daemon update in progress</p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Interactive node actions are locked until the update completes.
@@ -1463,7 +1463,7 @@ export function AdminNodeDetail({
                     aria-label="Default color"
                     disabled={!canRenameNode}
                     className={cn(
-                      "aspect-square w-full border border-border bg-muted",
+                      "aspect-square w-full rounded-md border border-border bg-muted",
                       appearanceColor === null && "border-foreground"
                     )}
                     onClick={() => setAppearanceColor(null)}
@@ -1475,7 +1475,7 @@ export function AdminNodeDetail({
                       aria-label={`${option.label} color`}
                       disabled={!canRenameNode}
                       className={cn(
-                        "aspect-square w-full border border-border",
+                        "aspect-square w-full rounded-md border border-border",
                         option.swatchClassName,
                         appearanceColor === option.value && "border-foreground"
                       )}
@@ -1499,7 +1499,7 @@ export function AdminNodeDetail({
                 node.type === "nginx") && (
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Service Addresses</label>
-                  <div className="w-full border border-input bg-background">
+                  <div className="w-full rounded-md border border-input bg-background">
                     <AnimatePresence initial={false} mode="popLayout">
                       {serviceAddressRows.map((row, index) => (
                         <motion.div

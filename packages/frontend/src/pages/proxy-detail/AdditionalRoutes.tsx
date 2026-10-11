@@ -684,7 +684,7 @@ export function AdditionalRoutesPanel({
               Additional Nginx directives inside {advancedRoute?.path ?? "this location"}.
             </DialogDescription>
           </DialogHeader>
-          <div className="h-80 min-h-0 border border-border">
+          <div className="h-80 min-h-0 rounded-md overflow-clip border border-border">
             <CodeEditor
               value={advancedConfig}
               onChange={setAdvancedConfig}

@@ -490,7 +490,7 @@ function AdminGroupsContent({
           : null;
         return (
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center bg-muted">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
               {group.isBuiltin ? (
                 <ShieldCheck className="h-4 w-4 text-primary" />
               ) : (

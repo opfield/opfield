@@ -136,8 +136,8 @@ const cmTheme = EditorView.theme({
   "&.cm-focused": { outline: "1px solid var(--color-ring)", outlineOffset: "-1px" },
   ".cm-line": { padding: "0 12px" },
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--color-foreground)" },
-  ".cm-hbs-var": { color: "#c084fc !important", fontWeight: "600" },
-  ".cm-hbs-helper": { color: "#60a5fa !important", fontWeight: "600" },
+  ".cm-hbs-var": { color: "var(--color-hue-violet) !important", fontWeight: "600" },
+  ".cm-hbs-helper": { color: "var(--color-hue-blue) !important", fontWeight: "600" },
 });
 
 export interface TemplateEditorHandle {
@@ -329,7 +329,7 @@ export const TemplateEditor = React.forwardRef<
   return (
     <div
       ref={containerRef}
-      className="overflow-hidden border border-input bg-background"
+      className="overflow-hidden rounded-md border border-input bg-background"
       style={{ minHeight }}
     />
   );

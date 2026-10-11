@@ -35,7 +35,7 @@ function CredentialField({
   return (
     <div className="space-y-1.5">
       <label className="text-sm font-medium">{label}</label>
-      <div className="flex border border-input bg-background">
+      <div className="flex rounded-md overflow-hidden border border-input bg-background">
         <Input
           aria-label={label}
           readOnly
@@ -296,7 +296,7 @@ export function StorageCredentialsDialog({
               )}
             </>
           ) : (
-            <div className="border border-border bg-card p-6 text-sm text-muted-foreground">
+            <div className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">
               Credentials are hidden.
             </div>
           )}

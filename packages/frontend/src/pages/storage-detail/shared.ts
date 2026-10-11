@@ -9,14 +9,14 @@ export const HEALTH_BADGE: Record<string, "success" | "secondary" | "warning" | 
 };
 
 export const METRIC_COLORS: Record<string, string> = {
-  latency_ms: "#f97316",
-  bucket_count: "#2563eb",
-  cpu_pct: "#8b5cf6",
-  memory_used_bytes: "#10b981",
-  disk_used_bytes: "#0ea5e9",
-  swap_used_bytes: "#f59e0b",
-  network_rx_bytes: "#06b6d4",
-  network_tx_bytes: "#ec4899",
+  latency_ms: "var(--color-hue-orange)",
+  bucket_count: "var(--color-hue-blue)",
+  cpu_pct: "var(--color-hue-violet)",
+  memory_used_bytes: "var(--color-hue-green)",
+  disk_used_bytes: "var(--color-hue-cyan)",
+  swap_used_bytes: "var(--color-hue-amber)",
+  network_rx_bytes: "var(--color-hue-cyan)",
+  network_tx_bytes: "var(--color-hue-pink)",
 };
 
 export const PROVIDER_LABELS: Record<ObjectStorageConnection["provider"], string> = {

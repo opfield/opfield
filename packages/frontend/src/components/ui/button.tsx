@@ -21,14 +21,14 @@ const buttonVariants = cva(
         quiet: "text-muted-foreground hover:text-foreground",
       },
       size: {
-        default: "h-9 px-4 py-2",
+        default: "h-9 rounded-full px-4 py-2",
         // Every size keeps the same text size; smaller buttons are only lower.
-        sm: "h-8 px-3",
-        lg: "h-10 px-8",
-        icon: "h-9 w-9 shrink-0 aspect-square",
-        "icon-lg": "h-10 w-10 shrink-0 aspect-square",
-        "icon-sm": "h-8 w-8 shrink-0 aspect-square",
-        "icon-xs": "h-7 w-7 shrink-0 aspect-square",
+        sm: "h-8 rounded-full px-3",
+        lg: "h-10 rounded-full px-8",
+        icon: "h-9 w-9 shrink-0 aspect-square rounded-md",
+        "icon-lg": "h-10 w-10 shrink-0 aspect-square rounded-md",
+        "icon-sm": "h-8 w-8 shrink-0 aspect-square rounded-md",
+        "icon-xs": "h-7 w-7 shrink-0 aspect-square rounded-md",
         // No box of its own: sits in running text at the surrounding font size.
         inline: "h-auto gap-1 p-0 text-[length:inherit]",
       },

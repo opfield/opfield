@@ -105,7 +105,7 @@ function TaskTypeLabel({ type }: { type: string }) {
   const Icon = TASK_TYPE_ICONS[type] ?? ListTodo;
   return (
     <span className="inline-flex min-w-0 items-center gap-2 whitespace-nowrap font-medium">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
         <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
       </span>
       <span className="truncate">{type}</span>
@@ -555,7 +555,7 @@ export function DockerTasks({ embedded }: { embedded?: boolean } = {}) {
           </DialogHeader>
           {selectedTask && (
             <div className="min-w-0">
-              <div className="border border-border bg-card divide-y divide-border overflow-hidden">
+              <div className="rounded-lg border border-border bg-card divide-y divide-border overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 min-w-0">
                   <span className="text-sm text-muted-foreground shrink-0">Type</span>
                   <span className="text-sm font-medium truncate ml-4 min-w-0">

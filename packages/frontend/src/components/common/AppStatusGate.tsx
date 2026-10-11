@@ -97,7 +97,7 @@ function StatusScreen({
       <div className="w-full max-w-sm text-center">
         <div
           className={cn(
-            "mx-auto mb-4 flex h-12 w-12 items-center justify-center border",
+            "mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-md border",
             STATUS_SCREEN_ICON_TONES[appearance][tone]
           )}
         >
@@ -290,7 +290,7 @@ function GatewayUpdateWaitingScreen({ operation }: { operation: GatewayUpdateOpe
     >
       <ul
         aria-label="Running operations"
-        className="mt-5 divide-y divide-[color:var(--restart-page-line)] border border-[color:var(--restart-page-line)] text-left text-sm"
+        className="mt-5 divide-y divide-[color:var(--restart-page-line)] rounded-lg overflow-hidden border border-[color:var(--restart-page-line)] text-left text-sm"
       >
         {operation.operations.map((item) => (
           <li key={item.kind} className="flex items-center justify-between gap-4 px-3 py-2">
@@ -618,7 +618,7 @@ function GatewayUpdateErrorScreen() {
             : "Gateway could not start the update."
       }
     >
-      <p className="mt-4 border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+      <p className="mt-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
         {error.message}
       </p>
       <div className="mt-8 space-y-3">

@@ -116,7 +116,7 @@ export function HousekeepingCard({
               <span>keep</span>
               <input
                 type="number"
-                className="w-10 border border-input bg-background px-1 text-center text-xs text-foreground tabular-nums outline-none focus:border-primary disabled:opacity-50"
+                className="w-10 rounded-md border border-input bg-background px-1 text-center text-xs text-foreground tabular-nums outline-none focus:border-primary disabled:opacity-50"
                 min={1}
                 max={365}
                 value={localDays}

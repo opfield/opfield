@@ -148,7 +148,7 @@ export function SidebarPinnedResources({
 
   const linkClass = (active: boolean) =>
     cn(
-      "flex items-center gap-3 overflow-hidden whitespace-nowrap px-3 py-2 text-sm",
+      "flex items-center gap-3 overflow-hidden whitespace-nowrap rounded-md px-3 py-2 text-sm",
       SIDEBAR_ITEM_FADE,
       active
         ? cn(SIDEBAR_ITEM_FILL, "font-medium text-sidebar-accent-foreground")

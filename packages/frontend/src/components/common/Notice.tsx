@@ -57,7 +57,7 @@ export function Notice({
   const toneClasses = TONE_CLASSES[safeTone];
   const Icon = icon ?? TONE_ICONS[safeTone];
   return (
-    <div className={cn("border bg-card", toneClasses.border, className)} {...props}>
+    <div className={cn("rounded-lg border bg-card", toneClasses.border, className)} {...props}>
       <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <Icon className={cn("h-4 w-4 shrink-0", toneClasses.text)} aria-hidden="true" />

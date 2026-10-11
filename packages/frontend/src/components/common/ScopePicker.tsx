@@ -143,7 +143,7 @@ export function ScopePicker({
           )}
         </div>
       )}
-      <div className="flex min-h-0 flex-col border border-border">
+      <div className="flex min-h-0 flex-col rounded-md overflow-clip border border-border">
         <ScopeSearchFilter
           search={search}
           onSearchChange={setSearch}

@@ -111,7 +111,7 @@ export function LoggingTokenPanel({
             {tokens.map((token) => (
               <div key={token.id} className="flex items-center justify-between gap-4 p-4">
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-border bg-muted">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-muted">
                     <Key className="h-4 w-4 text-muted-foreground" />
                   </div>
                   <div className="min-w-0">

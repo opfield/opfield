@@ -734,7 +734,7 @@ export function DockerVolumeDetail({
           />
 
           {composeManaged && (
-            <div className="flex flex-wrap items-center justify-between gap-3 border border-primary/20 bg-primary/5 p-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/20 bg-primary/5 p-3 text-sm">
               <div>
                 <p className="font-medium">Managed by Compose project {composeProjectName}</p>
                 <p className="text-muted-foreground">
@@ -792,7 +792,7 @@ export function DockerVolumeDetail({
                     }
                     icon={Hash}
                     history={metricHistory.inodes.length ? metricHistory.inodes : [0]}
-                    color="#8b5cf6"
+                    color="var(--color-hue-violet)"
                     sparklineMax={metrics?.totalInodes ?? undefined}
                     subtitle={
                       isDiskImage
@@ -809,7 +809,7 @@ export function DockerVolumeDetail({
                     }
                     icon={Boxes}
                     history={metricHistory.attachments.length ? metricHistory.attachments : [0]}
-                    color="#22c55e"
+                    color="var(--color-hue-green)"
                     subtitle="Running containers only"
                   />
                 </div>

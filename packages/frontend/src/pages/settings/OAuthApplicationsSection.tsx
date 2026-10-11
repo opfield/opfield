@@ -304,7 +304,7 @@ export function OAuthApplicationsSection({
                 onClick={() => openDetails(authorization)}
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-border bg-muted">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-muted">
                     {safeHttpUrl(authorization.logoUri) ? (
                       <img
                         src={safeHttpUrl(authorization.logoUri)!}
@@ -381,7 +381,7 @@ export function OAuthApplicationsSection({
             <div className="space-y-4">
               <ReportLoading loading={resourceListsLoading} />
               <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-border bg-muted">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-muted">
                   {selectedLogoUri ? (
                     <img src={selectedLogoUri} alt="" className="h-full w-full object-cover" />
                   ) : (
@@ -490,7 +490,7 @@ export function OAuthApplicationsSection({
 
 function InfoItem({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="border border-border p-3">
+    <div className="rounded-md border border-border p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-1 text-sm text-foreground">{value}</p>
     </div>

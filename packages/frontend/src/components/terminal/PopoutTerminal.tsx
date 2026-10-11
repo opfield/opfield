@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
+import { terminalAnsiPalette } from "@/lib/terminal-theme";
 import { useUIStore } from "@/stores/ui";
 import { encodeTerminalInput } from "./terminal-encoding";
 import { TerminalOutputNormalizer } from "./terminal-output";
@@ -70,14 +71,15 @@ export function PopoutTerminal({ wsFactory, channelKey, title }: PopoutTerminalP
   const getTerminalTheme = useCallback(() => {
     const style = getComputedStyle(document.documentElement);
     return {
-      background: style.getPropertyValue("--color-card").trim() || "#141414",
-      foreground: style.getPropertyValue("--color-card-foreground").trim() || "#e0e0e0",
-      cursor: style.getPropertyValue("--color-primary").trim() || "#ffffff",
-      cursorAccent: style.getPropertyValue("--color-primary-foreground").trim() || "#0e0e0e",
+      background: style.getPropertyValue("--color-card").trim() || "#1a1a19",
+      foreground: style.getPropertyValue("--color-card-foreground").trim() || "#f3f2ef",
+      cursor: style.getPropertyValue("--color-primary").trim() || "#f3f2ef",
+      cursorAccent: style.getPropertyValue("--color-primary-foreground").trim() || "#141414",
+      ...terminalAnsiPalette(style),
       selectionBackground:
-        resolvedTheme === "light" ? "rgba(26, 26, 26, 0.18)" : "rgba(255, 255, 255, 0.22)",
+        resolvedTheme === "light" ? "rgba(20, 20, 20, 0.18)" : "rgba(243, 242, 239, 0.22)",
       selectionInactiveBackground:
-        resolvedTheme === "light" ? "rgba(26, 26, 26, 0.12)" : "rgba(255, 255, 255, 0.14)",
+        resolvedTheme === "light" ? "rgba(20, 20, 20, 0.12)" : "rgba(243, 242, 239, 0.14)",
     };
   }, [resolvedTheme]);
 

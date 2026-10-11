@@ -604,7 +604,7 @@ export function AvailabilitySection({
                 return (
                   <label
                     key={node.id}
-                    className="flex min-w-0 items-center gap-2 border border-border px-3 py-2 text-sm"
+                    className="flex min-w-0 items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
                   >
                     <input
                       type="checkbox"

@@ -127,7 +127,7 @@ export function NodeLogsTab({ nodeId, nodeStatus }: NodeLogsTabProps) {
 
   if (nodeStatus !== "online") {
     return (
-      <div className="flex flex-col items-center gap-2 py-16 border border-border bg-card">
+      <div className="flex flex-col items-center gap-2 py-16 rounded-lg border border-border bg-card">
         <p className="text-muted-foreground">Node is offline — daemon logs unavailable</p>
       </div>
     );

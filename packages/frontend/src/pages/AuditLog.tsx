@@ -1009,7 +1009,7 @@ export function AuditLog({
                   </ValueTile>
                 )}
               </div>
-              <div className="border border-border bg-card">
+              <div className="rounded-lg overflow-clip border border-border bg-card">
                 <div className="border-b border-border px-4 py-3">
                   <h3 className="text-sm font-medium">Details</h3>
                 </div>

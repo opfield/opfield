@@ -56,7 +56,7 @@ const NumericInput = React.forwardRef<HTMLInputElement, NumericInputProps>(
         max={max}
         aria-invalid={isInvalid || undefined}
         className={cn(
-          "flex h-9 w-full border bg-background px-3 py-1 text-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-50",
+          "flex h-9 w-full rounded-md overflow-hidden border bg-background px-3 py-1 text-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-50",
           isInvalid
             ? "border-destructive focus-visible:border-destructive focus-visible:ring-0"
             : "border-input focus-visible:ring-ring",

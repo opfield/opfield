@@ -144,7 +144,7 @@ function ToolAccessList({
 
   return (
     <div className="min-w-0 space-y-2">
-      <div className="overflow-hidden border border-border">
+      <div className="overflow-hidden rounded-md border border-border">
         <Input
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}

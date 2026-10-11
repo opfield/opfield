@@ -30,7 +30,7 @@ export function EmptyState({
     <div
       className={cn(
         "flex w-full flex-col items-center justify-center gap-2 bg-card text-center",
-        embedded ? "px-4 py-8" : "border border-border px-6 py-12"
+        embedded ? "px-4 py-8" : "rounded-lg border border-border px-6 py-12"
       )}
     >
       <p className="text-sm text-muted-foreground">

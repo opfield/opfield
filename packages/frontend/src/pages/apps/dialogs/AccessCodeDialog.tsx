@@ -42,7 +42,7 @@ export function AccessCodeDialog({
             in maintenance once each and expires in 5 minutes.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex min-w-0 border border-input bg-background">
+        <div className="flex min-w-0 rounded-md overflow-hidden border border-input bg-background">
           <Input
             value={shown?.code ?? ""}
             readOnly

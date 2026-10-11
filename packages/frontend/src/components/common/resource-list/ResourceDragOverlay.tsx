@@ -26,7 +26,7 @@ export function ResourceDragOverlay<TFolder, TItem>({
   return (
     <DndDragOverlay>
       {folder ? (
-        <div className="flex min-w-80 items-center gap-2 border border-border bg-card px-3 py-2 shadow-lg opacity-95">
+        <div className="flex min-w-80 items-center gap-2 rounded-md border border-border bg-card px-3 py-2 shadow-pop opacity-95">
           <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
           {folderConfig.isFolderSystem?.(folder) && (
             <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -39,7 +39,7 @@ export function ResourceDragOverlay<TFolder, TItem>({
         </div>
       ) : item ? (
         <table
-          className="w-full border border-border bg-card shadow-lg opacity-95"
+          className="w-full overflow-hidden rounded-lg border border-border bg-card shadow-pop opacity-95"
           style={{ tableLayout: "fixed" }}
         >
           <colgroup>

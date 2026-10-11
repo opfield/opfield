@@ -138,7 +138,7 @@ export function MfaSetupWizard({
             <CopyButton
               value={recoveryCodes.join("\n")}
               label="recovery codes"
-              className="border border-border bg-background hover:bg-accent hover:text-accent-foreground"
+              className="rounded-full border border-border bg-background hover:bg-accent hover:text-accent-foreground"
             />
             <Button onClick={() => setScreen("complete")} disabled={saving}>
               <Check /> I saved these codes

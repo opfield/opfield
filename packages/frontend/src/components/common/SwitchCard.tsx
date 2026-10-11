@@ -34,7 +34,7 @@ export function SwitchCard({
   return (
     <label
       className={cn(
-        "block cursor-pointer space-y-1.5 border border-border p-3 transition-colors hover:bg-accent/50",
+        "block cursor-pointer space-y-1.5 rounded-md border border-border p-3 transition-colors hover:bg-accent/50",
         "has-[:disabled]:cursor-default has-[:disabled]:hover:bg-transparent",
         className
       )}

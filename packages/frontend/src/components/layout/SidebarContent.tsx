@@ -416,7 +416,7 @@ export function SidebarContent({
                 readOnly
                 onClick={() => openPalette(true)}
                 style={{ height: 44 }}
-                className="pl-9 text-sm border-0 focus-visible:ring-0 focus-visible:outline-none cursor-pointer"
+                className="rounded-none pl-9 text-sm border-0 focus-visible:ring-0 focus-visible:outline-none cursor-pointer"
               />
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs tracking-widest text-muted-foreground hidden md:inline">
                 ⌘K
@@ -449,7 +449,7 @@ export function SidebarContent({
                           to={item.href}
                           onClick={onNavigate}
                           className={cn(
-                            "flex items-center gap-3 px-3 py-2 text-sm whitespace-nowrap overflow-hidden",
+                            "flex items-center gap-3 rounded-md px-3 py-2 text-sm whitespace-nowrap overflow-hidden",
                             SIDEBAR_ITEM_FADE,
                             isActive
                               ? cn(SIDEBAR_ITEM_FILL, "text-sidebar-accent-foreground font-medium")
@@ -493,7 +493,11 @@ export function SidebarContent({
             {showRelayUpdate && (
               <>
                 <div className="px-2 py-2">
-                  <Button asChild variant="secondary" className="w-full justify-start px-3">
+                  <Button
+                    asChild
+                    variant="secondary"
+                    className="w-full justify-start rounded-md px-3"
+                  >
                     <Link to="/settings/relay" onClick={onNavigate}>
                       <RotateCw className={cn("h-4 w-4 shrink-0", RELAY_UPDATE_ICON_CLASS)} />
                       <span className="truncate">{relayUpdateLabel}</span>
@@ -508,7 +512,11 @@ export function SidebarContent({
             {updateAvailable && hasScope("admin:update") && showUpdateNotifications && (
               <>
                 <div className="px-2 py-2">
-                  <Button asChild variant="warning" className="w-full justify-start px-3">
+                  <Button
+                    asChild
+                    variant="warning"
+                    className="w-full justify-start rounded-md px-3"
+                  >
                     <Link
                       to="/settings/general"
                       state={{ scrollTarget: "system-updates" }}
@@ -527,7 +535,7 @@ export function SidebarContent({
               <>
                 <div className="px-2 py-2">
                   <Button
-                    className="w-full justify-start px-3"
+                    className="w-full justify-start rounded-md px-3"
                     onClick={() => void handleStopImpersonating()}
                     pending={stoppingImpersonation}
                   >
@@ -551,7 +559,7 @@ export function SidebarContent({
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    className="flex h-auto w-full items-center justify-start gap-2 px-1 py-1.5"
+                    className="flex h-auto w-full items-center justify-start gap-2 rounded-md px-1 py-1.5"
                   >
                     <Avatar className="h-7 w-7 shrink-0">
                       <AvatarImage src={user?.avatarUrl ?? undefined} />

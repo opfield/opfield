@@ -19,7 +19,7 @@ const PopoverContent = React.forwardRef<
       sideOffset={sideOffset}
       className={cn(
         // Fades like dropdown menus and selects (css/animations.css).
-        "dropdown-content z-50 min-w-32 border border-border bg-popover p-4 text-popover-foreground shadow-md outline-none",
+        "dropdown-content z-50 min-w-32 rounded-md border border-border bg-popover p-4 text-popover-foreground shadow-pop outline-none",
         className
       )}
       {...props}

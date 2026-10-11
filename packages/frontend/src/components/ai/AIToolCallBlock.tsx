@@ -235,7 +235,7 @@ export function AIToolCallBlock({ toolCall, compactSummary }: AIToolCallBlockPro
               {compactMetadataText && (
                 <p className="mb-1 text-xs text-muted-foreground">{compactMetadataText}</p>
               )}
-              <div className="prose dark:prose-invert !max-w-none break-words text-sm prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-pre:my-2 prose-table:my-0 prose-code:text-xs prose-pre:text-xs prose-pre:rounded-none prose-code:rounded-none prose-code:before:content-none prose-code:after:content-none [&>*:first-child]:!mt-0 [&>*:last-child]:!mb-0">
+              <div className="prose dark:prose-invert !max-w-none break-words text-sm prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-pre:my-2 prose-table:my-0 prose-code:text-xs prose-pre:text-xs prose-pre:rounded-md prose-code:rounded-sm prose-code:before:content-none prose-code:after:content-none [&>*:first-child]:!mt-0 [&>*:last-child]:!mb-0">
                 <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
                   {compactSummaryText}
                 </Markdown>
@@ -281,7 +281,7 @@ export function AIToolCallBlock({ toolCall, compactSummary }: AIToolCallBlockPro
                 </Button>
               </div>
               {toolOutputArtifact.preview && (
-                <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap border border-border bg-background p-2 text-xs">
+                <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background p-2 text-xs">
                   {toolOutputArtifact.preview}
                 </pre>
               )}
@@ -319,7 +319,10 @@ function setToolCallExpanded(toolCallKey: string, expanded: boolean): void {
 
 const compactMarkdownComponents = {
   pre: ({ children, ...props }: React.HTMLAttributes<HTMLPreElement>) => (
-    <pre className="overflow-x-auto border border-border bg-muted p-2 text-foreground" {...props}>
+    <pre
+      className="overflow-x-auto rounded-md border border-border bg-muted p-2 text-foreground"
+      {...props}
+    >
       {children}
     </pre>
   ),
@@ -339,7 +342,7 @@ const compactMarkdownComponents = {
     );
   },
   table: ({ children, ...props }: React.HTMLAttributes<HTMLTableElement>) => (
-    <div className="my-3 overflow-x-auto border border-border bg-background">
+    <div className="my-3 overflow-x-auto rounded-md border border-border bg-background">
       <table
         className="min-w-full text-sm [&_th]:bg-muted [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-medium [&_th]:text-muted-foreground [&_td]:px-2 [&_td]:py-1.5 [&_td]:border-t [&_td]:border-border"
         {...props}
@@ -426,7 +429,7 @@ export function ApprovalBlock({
       : "This action requires your approval";
 
   return (
-    <div className="flex items-center gap-3 border border-warning bg-muted/30 px-3 py-2">
+    <div className="flex items-center gap-3 rounded-md border border-warning bg-muted/30 px-3 py-2">
       <span className="min-w-0 flex-1 text-sm text-foreground">{label}</span>
       <div className="flex shrink-0 items-center gap-2">
         <Button variant="ghost" disabled={isSending} onClick={() => onReject?.(toolCall.id)}>
@@ -480,7 +483,7 @@ export function QuestionBlock({
   if (isAnswered) {
     const answer = (safeToolCall.result as { answer?: string })?.answer;
     return (
-      <div className="border border-border bg-muted/30 my-1.5 px-3 py-2">
+      <div className="rounded-md border border-border bg-muted/30 my-1.5 px-3 py-2">
         <p className="text-sm text-muted-foreground">{question}</p>
         {answer && <p className="text-sm mt-1">→ {answer}</p>}
       </div>
@@ -490,7 +493,7 @@ export function QuestionBlock({
   // Not yet active (e.g. still processing on backend)
   if (status !== "awaiting_approval" && status !== "running") {
     return (
-      <div className="border border-border bg-muted/30 my-1.5 px-3 py-2">
+      <div className="rounded-md border border-border bg-muted/30 my-1.5 px-3 py-2">
         <p className="text-sm text-muted-foreground">{question}</p>
         <p className="mt-1 text-xs text-muted-foreground">
           <span className="thinking-shimmer">Waiting</span>

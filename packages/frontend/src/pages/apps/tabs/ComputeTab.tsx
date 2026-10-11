@@ -171,7 +171,7 @@ export function ComputeTab({
       width: "28%",
       renderCell: (row) => (
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
             {row.kind === "deployment" ? (
               <GitBranch className="h-4 w-4 text-muted-foreground" />
             ) : (
@@ -324,7 +324,7 @@ export function ComputeTab({
         >
           <ResourceListCell>
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
                 <Boxes className="h-4 w-4 text-muted-foreground" />
               </div>
               <div className="min-w-0">

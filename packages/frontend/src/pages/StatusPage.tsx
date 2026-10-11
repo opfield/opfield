@@ -578,7 +578,7 @@ export function StatusPage() {
         />
 
         {!config.enabled && !loading && (
-          <div className="border border-border bg-card p-4">
+          <div className="rounded-lg border border-border bg-card p-4">
             <p className="text-sm font-medium">Status page is disabled</p>
             <p className="mt-1 text-xs text-muted-foreground">
               Enable it and configure the domain in Settings before publishing services or
@@ -996,7 +996,7 @@ function IncidentsTab({
             >
               <div
                 className={cn(
-                  "border border-l-4 border-border bg-card",
+                  "rounded-lg overflow-clip border border-l-4 border-border bg-card",
                   incident.status === "active" && incidentSeverityBorderClass(incident.severity)
                 )}
               >
@@ -1087,7 +1087,7 @@ function IncidentsTab({
                       affected.map((service) => (
                         <span
                           key={service.id}
-                          className="border border-border bg-muted px-2 py-1 text-xs text-muted-foreground"
+                          className="rounded-md border border-border bg-muted px-2 py-1 text-xs text-muted-foreground"
                         >
                           {service.publicName}
                         </span>

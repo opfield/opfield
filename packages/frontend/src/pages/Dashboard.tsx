@@ -218,7 +218,7 @@ export function RelayHealthNotice({
           {isAdmin ? <DialogDescription>{copy.description}</DialogDescription> : null}
 
           {isAdmin ? (
-            <div className="border border-border bg-muted/40">
+            <div className="rounded-md overflow-clip border border-border bg-muted/40">
               <table className="w-full table-fixed text-sm">
                 <tbody className="divide-y divide-border">
                   {diagnostics.map((diagnostic) => (
@@ -594,7 +594,7 @@ export function Dashboard() {
       <PageTransition>
         <div className="flex h-full min-h-[24rem] items-center justify-center p-6">
           <div className="max-w-sm space-y-4 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center border border-destructive/30 bg-destructive/5">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md border border-destructive/30 bg-destructive/5">
               <AlertTriangle className="h-6 w-6 text-destructive" />
             </div>
             <div className="space-y-1">

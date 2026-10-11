@@ -746,7 +746,7 @@ export function NodeSnapshotsTab({
             <DialogDescription>VM snapshot information.</DialogDescription>
           </DialogHeader>
           {details && (
-            <div className="divide-y divide-border border border-border">
+            <div className="divide-y divide-border rounded-lg overflow-hidden border border-border">
               <DetailRow label="Name" value={<span className="break-all">{details.name}</span>} />
               <DetailRow
                 label="Status"

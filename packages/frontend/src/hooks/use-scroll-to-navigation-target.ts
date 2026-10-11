@@ -56,10 +56,12 @@ function setRippleColor(target: HTMLElement) {
     );
     target.style.setProperty(
       "--navigation-target-ripple-color",
-      normalizedCssColor(borderColor) === defaultBorderColor ? "#fff" : borderColor
+      normalizedCssColor(borderColor) === defaultBorderColor
+        ? "var(--color-foreground)"
+        : borderColor
     );
   } else {
-    target.style.setProperty("--navigation-target-ripple-color", "#fff");
+    target.style.setProperty("--navigation-target-ripple-color", "var(--color-foreground)");
   }
 }
 

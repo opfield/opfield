@@ -128,7 +128,7 @@ export function InferenceTokensSection({ canManage }: { canManage: boolean }) {
                 className="flex items-center justify-between gap-3 p-4 transition-colors hover:bg-accent/50 sm:gap-4"
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-border bg-muted">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-muted">
                     <KeyRound className="h-4 w-4 text-muted-foreground" />
                   </div>
                   <div className="min-w-0">
