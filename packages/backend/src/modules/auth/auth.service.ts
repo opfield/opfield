@@ -140,6 +140,7 @@ function isCustomAvatarUrl(value: string | null | undefined): boolean {
 interface OIDCState {
   codeVerifier: string;
   state: string;
+  nonce?: string;
   returnTo?: string;
 }
 
@@ -335,10 +336,12 @@ export class AuthService {
     const codeVerifier = client.randomPKCECodeVerifier();
     const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier);
     const state = client.randomState();
+    const nonce = client.randomNonce();
 
     const oidcState: OIDCState = {
       codeVerifier,
       state,
+      nonce,
       returnTo,
     };
 
@@ -350,6 +353,7 @@ export class AuthService {
       code_challenge: codeChallenge,
       code_challenge_method: 'S256',
       state,
+      nonce,
     };
 
     const authorizationUrl = client.buildAuthorizationUrl(config, parameters);
@@ -384,6 +388,7 @@ export class AuthService {
       const tokens = await client.authorizationCodeGrant(config, new URL(callbackUrl), {
         pkceCodeVerifier: oidcState.codeVerifier,
         expectedState: state,
+        expectedNonce: oidcState.nonce,
       });
 
       const normalizedClaims = normalizeOidcClaims(

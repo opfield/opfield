@@ -274,8 +274,9 @@ const callbackRoute = createRoute({
   summary: 'OIDC callback',
   request: {
     query: z.object({
-      code: z.string(),
-      state: z.string(),
+      // An error response from the provider carries no code, and may carry no state.
+      code: z.string().optional(),
+      state: z.string().optional(),
       error: z.string().optional(),
       error_description: z.string().optional(),
     }),
@@ -301,6 +302,10 @@ authRoutes.openapi(callbackRoute, async (c) => {
       details: { error, errorDescription: error_description || null },
     });
     return c.json({ code: 'AUTH_ERROR', message: error_description || error }, 400);
+  }
+
+  if (!state || !c.req.valid('query').code) {
+    return c.json({ code: 'AUTH_ERROR', message: 'The sign-in response has no code or state' }, 400);
   }
 
   if (!oidcStateMatchesBinding(state, stateBinding)) {
