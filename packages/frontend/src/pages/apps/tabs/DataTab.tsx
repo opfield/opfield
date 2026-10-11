@@ -6,6 +6,7 @@ import { RelativeTime } from "@/components/common/RelativeTime";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { databaseTypeLabel } from "@/lib/database-type";
 import { nodeIconClassNames } from "@/lib/node-appearance";
 import { databaseRoute, storageRoute } from "@/lib/resource-routes";
 import { parseResourceTag, resourceTagBadgeProps } from "@/lib/resource-tags";
@@ -134,7 +135,7 @@ export function DataTab({
       label: "Tags",
       width: "30%",
       align: "right",
-      renderCell: (row) => <TagSummary tags={row.tags} type={row.type} />,
+      renderCell: (row) => <TagSummary tags={row.tags} type={databaseTypeLabel(row.type)} />,
     },
     {
       id: "lastCheck",

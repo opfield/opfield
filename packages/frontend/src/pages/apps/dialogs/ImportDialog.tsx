@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
+import { databaseTypeLabel } from "@/lib/database-type";
 import { api } from "@/services/api";
 import type { AppDetail, AppMemberFamily, AppPlaceMemberInput, AppPlaceRefusal } from "@/types";
 import { COMPOSE_PROJECT_LABEL } from "../app-resources";
@@ -96,7 +97,7 @@ async function loadCandidates(family: AppMemberFamily): Promise<Candidate[]> {
         key: row.id,
         member: { type: "database", id: row.id },
         name: row.name,
-        kind: `${row.type === "postgres" ? "Postgres" : row.type === "redis" ? "Redis" : "ClickHouse"}${row.managed ? " · managed" : ""}`,
+        kind: `${databaseTypeLabel(row.type)}${row.managed ? " · managed" : ""}`,
         nodeId: row.managed?.nodeId ?? null,
         app: row.app ?? null,
       }));
