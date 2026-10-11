@@ -193,6 +193,24 @@ describe('evaluateCertificateRenewal', () => {
     });
   });
 
+  it('renews a set member leaf without clientAuth (issued while the database ran on one server)', () => {
+    const member = { ...desired, requiredExtKeyUsage: ['serverAuth', 'clientAuth'] };
+    expect(
+      evaluateCertificateRenewal({ ...leaf({ issuedDaysAgo: 10 }), extKeyUsage: ['serverAuth'] }, member, now)
+    ).toMatchObject({ due: true, reason: 'usage_missing' });
+    expect(
+      evaluateCertificateRenewal(
+        { ...leaf({ issuedDaysAgo: 10 }), extKeyUsage: ['serverAuth', 'clientAuth'] },
+        member,
+        now
+      ).due
+    ).toBe(false);
+    // A single-node database requires no client usage.
+    expect(
+      evaluateCertificateRenewal({ ...leaf({ issuedDaysAgo: 10 }), extKeyUsage: ['serverAuth'] }, desired, now).due
+    ).toBe(false);
+  });
+
   it('renews when a required name is missing (pre-rc.8 storage without loopback names)', () => {
     const result = evaluateCertificateRenewal(leaf({ issuedDaysAgo: 10, sans: ['10.0.0.5'] }), desired, now);
     expect(result).toMatchObject({ due: true, reason: 'names_missing', urgent: false });

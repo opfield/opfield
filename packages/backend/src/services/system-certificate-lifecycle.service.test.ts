@@ -88,6 +88,44 @@ describe('SystemCertificateLifecycleService staged (pending) leaves', () => {
     expect(bind).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ serialNumber: 'bb02' }));
   });
 
+  it('issues a leaf with the usages its owner needs and replaces a staged leaf that lacks them', async () => {
+    const pending = {
+      id: 'pending-cert',
+      serialNumber: 'bb02',
+      certificatePem: 'pem',
+      notAfter: new Date(Date.now() + 300 * 24 * 60 * 60 * 1000),
+      status: 'active',
+      extKeyUsage: ['serverAuth'],
+    };
+    const { db } = makeDb({ reusable: [pending], txSelects: [[]] });
+    const certService = {
+      issueCertificate: vi.fn().mockResolvedValue({
+        certificate: { id: 'new-cert', serialNumber: 'bb03', notAfter: new Date(), certificatePem: 'pem' },
+        privateKeyPem: 'key',
+      }),
+      getCertificatePrivateKey: vi.fn().mockResolvedValue('same-key'),
+    };
+    const service = new SystemCertificateLifecycleService(db as any, certService as any, {} as any);
+    const usages = ['serverAuth', 'clientAuth'];
+
+    const issued = await service.issuePending(
+      input,
+      'system-user',
+      { type: 'managed_database', id: 'db-1' },
+      undefined,
+      {
+        extKeyUsage: usages,
+      }
+    );
+
+    expect(issued.certificate.id).toBe('new-cert');
+    expect(certService.issueCertificate).toHaveBeenCalledWith(
+      input,
+      'system-user',
+      expect.objectContaining({ extKeyUsage: usages })
+    );
+  });
+
   it('promotes the staged leaf and supersedes the previous current leaf in the same transaction', async () => {
     const pending = {
       id: 'pending-cert',
