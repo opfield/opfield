@@ -1,10 +1,11 @@
 // An environment's own page: variables, secrets, maintenance for all its routes and its node
 // allowlist (canvas section "envs": env-live, env-staging, env-live-maintenance, env-allow-node,
-// env-live-overridden, env-access-code). Promote arrives with Phase 2.
+// env-live-overridden, env-access-code) and Promote (env-promote, env-promote-summary).
 import { ChevronRight, KeyRound, Plus, RefreshCw, Server, Wrench } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import { IsolatedNotice } from "@/components/apps/IsolatedNotice";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -35,6 +36,7 @@ import {
 } from "./app-shared";
 import { AccessCodeDialog, type AccessCodeState } from "./dialogs/AccessCodeDialog";
 import { AllowNodeDialog } from "./dialogs/AllowNodeDialog";
+import { PromotePanel } from "./env/PromotePanel";
 import { VariablesPanel } from "./env/VariablesPanel";
 import { useAppDetail } from "./use-app";
 import { nodeDisplayName, useNodeIndex } from "./use-node-index";
@@ -257,6 +259,8 @@ function EnvironmentContent({
           }
         />
 
+        <IsolatedNotice app={app} environmentIds={[env.id]} onChanged={() => void refresh()} />
+
         {canManage && <VariablesPanel app={app} env={env} version={version} />}
 
         <PanelShell
@@ -316,6 +320,7 @@ function EnvironmentContent({
             />
           )}
         </PanelShell>
+        <PromotePanel app={app} env={env} />
       </div>
 
       <AllowNodeDialog
