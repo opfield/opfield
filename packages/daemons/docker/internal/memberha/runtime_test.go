@@ -592,3 +592,38 @@ func TestForgetReleasesTheSet(t *testing.T) {
 		t.Fatalf("a repeated forget = %v, released %v", err, released)
 	}
 }
+
+// B-F1: the manual primary's holder work every few seconds and the observation
+// right after it never close its published port or its sessions; only a real
+// demotion does.
+func TestManualPrimaryKeepsServingAcrossHolderWorkAndOnlyADemotionClosesIt(t *testing.T) {
+	h, ext := newExtHarness(t, ModeManual)
+	h.engine.container.Running = true
+	h.engine.status = EngineStatus{Answering: true}
+	if err := h.manager.AssignPrimary(testSet, signed(testMemberA, 1)); err != nil {
+		t.Fatal(err)
+	}
+	h.step(5, time.Second)
+	if log := h.calls.take(); indexOf(log, "endpoints true") < 0 || !h.manager.ProxyAdmits(testSet) {
+		t.Fatalf("the assigned primary must serve: %v", log)
+	}
+	ext.holderWork = 1 << 20
+	for tick := 0; tick < 200; tick++ {
+		h.step(1, 500*time.Millisecond)
+		if !h.manager.ProxyAdmits(testSet) {
+			t.Fatalf("tick %d: the serving primary stopped admitting while only its holder work ran", tick)
+		}
+	}
+	if log := h.calls.take(); indexOf(log, "engine.holder_work") < 0 || indexOf(log, "endpoints false") >= 0 {
+		t.Fatalf("holder work must run without closing serving: %v", log)
+	}
+	// A newer assignment naming the other member: a real demotion closes it.
+	ext.holderWork = 0
+	if err := h.manager.AssignPrimary(testSet, signed(testMemberB, 2)); err != nil {
+		t.Fatal(err)
+	}
+	h.step(3, time.Second)
+	if log := h.calls.take(); indexOf(log, "endpoints false") < 0 || h.manager.ProxyAdmits(testSet) {
+		t.Fatalf("a demoted primary must stop serving: %v", log)
+	}
+}
