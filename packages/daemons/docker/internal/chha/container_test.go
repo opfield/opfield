@@ -475,10 +475,16 @@ func TestContainerPairFailoverAndWitness(t *testing.T) {
 	witnessForwarders := h.startWitness("kw", 1001, 39433)
 	defer witnessForwarders.close()
 
-	// 1. Keeper quorum over the loopback endpoints; a data member leads.
+	// 1. Keeper quorum over the loopback endpoints; a data member leads. The witness may win the first election
+	// when it starts before the members' Keepers (timing); the holder then asks its Keeper to lead (rqld), as the
+	// member runtime does in HolderWork.
+	started := time.Now()
 	waitFor(t, "Keeper quorum on both members", 90*time.Second, func() (bool, string) {
 		s1, s2 := status(t, e1), status(t, e2)
 		m1, m2 := s1.Position[posKeeper], s2.Position[posKeeper]
+		if keeperServing(m1) && keeperServing(m2) && m1 != "leader" && m2 != "leader" {
+			e1.requestLeadership(ctx, time.Minute+time.Since(started))
+		}
 		return keeperServing(m1) && keeperServing(m2) && (m1 == "leader" || m2 == "leader"), m1 + "/" + m2 + " " + s1.Detail + s2.Detail
 	})
 	waitFor(t, "the witness follows", 2*time.Minute, func() (bool, string) {
