@@ -459,7 +459,7 @@ function DatabasesContent({
         id: "lastCheck",
         label: "Last Check",
         width: "14%",
-        align: "center",
+        align: "right",
         renderCell: (row) => (
           <Badge variant="outline">
             <RelativeTime value={row.lastHealthCheckAt} fallback="Never" />
@@ -470,7 +470,7 @@ function DatabasesContent({
         id: "health",
         label: "Health",
         width: "14%",
-        align: "center",
+        align: "right",
         renderCell: (row) => {
           const node = row.managed ? databaseNodeById.get(row.managed.nodeId) : undefined;
           if (node && (node.status !== "online" || !node.isConnected)) {
