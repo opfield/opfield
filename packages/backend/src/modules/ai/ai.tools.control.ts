@@ -46,14 +46,19 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_cloud',
     description:
-      "Connect this Gateway to a cloud account or disconnect it. operation must be connect or disconnect. connect requires code, the single-use CLD-XXXX-XXXX code from the installation's page in the cloud account (valid 10 minutes); connecting again replaces the previous connection. disconnect revokes the connection at the account and forgets it here; when the account cannot be reached it is forgotten here anyway and the result carries a warning.",
+      'Connect this Gateway to a cloud account or disconnect it. operation must be connect, disconnect or set_remote_management. connect requires code, the single-use CLD-XXXX-XXXX code from the installation\'s page in the cloud account (valid 10 minutes); connecting again replaces the previous connection. disconnect revokes the connection at the account and forgets it here; when the account cannot be reached it is forgotten here anyway and the result carries a warning. set_remote_management requires enabled: it turns "Allow remote management" on or off (off by default; a managed cloud VM is always managed by the cloud and has no switch). Reads (state, logs, services, update status) need no switch.',
     parameters: {
       type: 'object',
       properties: {
         operation: {
           type: 'string',
-          enum: ['connect', 'disconnect'],
+          enum: ['connect', 'disconnect', 'set_remote_management'],
           description: 'Cloud operation to perform.',
+        },
+        enabled: {
+          type: 'boolean',
+          description:
+            'For set_remote_management: whether the cloud account may create node enrolment tokens, start Gateway updates and issue first-admin setup codes.',
         },
         code: { type: 'string', description: 'Connection code for connect, for example CLD-7K3M-Q9TX.' },
       },

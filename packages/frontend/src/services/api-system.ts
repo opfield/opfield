@@ -200,6 +200,15 @@ export function withSystemApi<TBase extends ApiClientBaseConstructor>(Base: TBas
       );
     }
 
+    async setCloudRemoteManagement(enabled: boolean): Promise<CloudLinkStatusView> {
+      return this.unwrapData(
+        this.request<{ data: CloudLinkStatusView }>("/system/cloud/remote-management", {
+          method: "POST",
+          body: JSON.stringify({ enabled }),
+        })
+      );
+    }
+
     async disconnectCloud(): Promise<CloudLinkStatusView> {
       return this.unwrapData(
         this.request<{ data: CloudLinkStatusView }>("/system/cloud/disconnect", { method: "POST" })

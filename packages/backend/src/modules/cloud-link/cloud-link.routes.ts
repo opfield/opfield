@@ -4,7 +4,14 @@ import { openApiValidationHook } from '@/lib/openapi.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { authMiddleware, requireScope } from '@/modules/auth/auth.middleware.js';
 import type { AppEnv } from '@/types.js';
-import { ConnectCloudSchema, cloudStatusRoute, connectCloudRoute, disconnectCloudRoute } from './cloud-link.docs.js';
+import {
+  CloudRemoteManagementSchema,
+  ConnectCloudSchema,
+  cloudRemoteManagementRoute,
+  cloudStatusRoute,
+  connectCloudRoute,
+  disconnectCloudRoute,
+} from './cloud-link.docs.js';
 import { CloudLinkRequestError, CloudLinkService } from './cloud-link.service.js';
 
 export const cloudLinkRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
@@ -35,6 +42,19 @@ cloudLinkRoutes.openapi({ ...disconnectCloudRoute, middleware: requireScope('lic
   try {
     return c.json({
       data: await container.resolve(CloudLinkService).disconnect({ userId: c.get('user')?.id ?? null }),
+    });
+  } catch (error) {
+    throw toAppError(error);
+  }
+});
+
+cloudLinkRoutes.openapi({ ...cloudRemoteManagementRoute, middleware: requireScope('license:manage') }, async (c) => {
+  const body = CloudRemoteManagementSchema.parse(await c.req.json());
+  try {
+    return c.json({
+      data: await container
+        .resolve(CloudLinkService)
+        .setRemoteManagement(body.enabled, { userId: c.get('user')?.id ?? null }),
     });
   } catch (error) {
     throw toAppError(error);

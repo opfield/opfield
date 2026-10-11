@@ -69,7 +69,7 @@ export function cloudRequestAudit(
     ...(typeof version === 'string' && version ? { version: version.slice(0, 64) } : {}),
     ...(typeof kind === 'string' && kind ? { kind: kind.slice(0, 32) } : {}),
     ok: answer.ok,
-    ...(answer.ok ? {} : { error: answer.error.slice(0, 500) }),
+    ...(answer.ok ? {} : { error: answer.error.slice(0, 500), ...(answer.code ? { errorCode: answer.code } : {}) }),
     resultBytes,
     durationMs: Math.round(durationMs),
   };
@@ -355,7 +355,7 @@ export class CloudLinkAgent {
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
         answer = await Promise.race<CloudAnswer>([
-          answerCloudRequest(this.probe, request),
+          answerCloudRequest(this.probe, request, this.service),
           new Promise<CloudAnswer>((resolve) => {
             timer = setTimeout(
               () => resolve({ id: request.id, ok: false, error: 'The installation did not finish reading in time' }),

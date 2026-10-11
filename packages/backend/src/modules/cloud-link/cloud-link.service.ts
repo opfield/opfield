@@ -15,11 +15,13 @@ import {
   type CloudCredentials,
   type CloudDisconnectResult,
   type CloudLinkStatusView,
+  type CloudRemoteManagement,
   type CloudRequestAudit,
   type CloudRequestSummary,
   type CloudSocketStatus,
   type StoredCloudDisconnect,
   type StoredCloudEnrollment,
+  type StoredRemoteManagement,
 } from './cloud-link.types.js';
 import type { CloudRequestWindowView } from './cloud-link-request-audit.js';
 
@@ -27,6 +29,7 @@ const logger = createChildLogger('CloudLink');
 
 const SETTINGS_KEYS = {
   enrollment: 'cloud:enrollment',
+  remoteManagement: 'cloud:remote_management',
   disconnect: 'cloud:disconnected',
 } as const;
 /** The socket state of the replica that holds the link, for the status a request on any replica reads. */
@@ -38,6 +41,7 @@ export const CLOUD_AUDIT_ACTIONS = {
   disconnect: 'cloud.disconnect',
   disconnectedByAccount: 'cloud.disconnected_by_account',
   enrollFile: 'cloud.enroll_file',
+  remoteManagement: 'cloud.remote_management',
   request: 'cloud.request',
 } as const;
 export const CLOUD_AUDIT_RESOURCE_TYPE = 'cloud-link';
@@ -173,6 +177,7 @@ export class CloudLinkService {
           : { state: 'connecting', since: null, lastError: null },
         disconnectedAt: null,
         disconnectedReason: null,
+        remoteManagement: await this.remoteManagementFor(enrollment),
         recentRequests: await this.recentRequests(enrollment.agentId),
       };
     }
@@ -185,6 +190,7 @@ export class CloudLinkService {
         socket: null,
         disconnectedAt: stored.disconnect.disconnectedAt,
         disconnectedReason: stored.disconnect.reason,
+        remoteManagement: null,
         recentRequests: [],
       };
     }
@@ -196,6 +202,7 @@ export class CloudLinkService {
       socket: null,
       disconnectedAt: null,
       disconnectedReason: null,
+      remoteManagement: null,
       recentRequests: [],
     };
   }
@@ -228,7 +235,7 @@ export class CloudLinkService {
           'Enter the code exactly as your cloud account shows it, for example CLD-7K3M-Q9TX'
         );
       }
-      await this.enroll(normalized, portalUrl, (enrolled) => {
+      await this.enroll(normalized, portalUrl, source === 'enroll-file', (enrolled) => {
         agentId = enrolled.agentId;
         accountEmail = enrolled.accountEmail || null;
       });
@@ -259,6 +266,7 @@ export class CloudLinkService {
   private async enroll(
     normalized: string,
     portalUrl: string,
+    managed: boolean,
     onEnrolled: (enrollment: StoredCloudEnrollment) => void
   ): Promise<void> {
     await this.serialized(async () => {
@@ -283,8 +291,11 @@ export class CloudLinkService {
         portalUrl: this.acceptedPortalUrl(enrolled.portalUrl, portalUrl),
         accountEmail: enrolled.accountEmail,
         enrolledAt: new Date().toISOString(),
+        ...(managed ? { managed: true } : {}),
       };
       await this.setSetting(SETTINGS_KEYS.enrollment, enrollment);
+      // A new agent starts with remote management off; a managed VM is managed by the cloud anyway.
+      await this.deleteSetting(SETTINGS_KEYS.remoteManagement);
       await this.deleteSetting(SETTINGS_KEYS.disconnect);
       onEnrolled(enrollment);
       logger.info('Installation connected to the cloud account', { agentId: enrollment.agentId });
@@ -315,6 +326,7 @@ export class CloudLinkService {
         }
       }
       await this.deleteSetting(SETTINGS_KEYS.enrollment);
+      await this.deleteSetting(SETTINGS_KEYS.remoteManagement);
       await this.deleteSetting(SETTINGS_KEYS.disconnect);
       await this.publishSocketStatus(null);
       logger.info('Installation disconnected from the cloud account', { confirmed: !warning });
@@ -346,6 +358,7 @@ export class CloudLinkService {
       };
       await this.setSetting(SETTINGS_KEYS.disconnect, disconnect);
       await this.deleteSetting(SETTINGS_KEYS.enrollment);
+      await this.deleteSetting(SETTINGS_KEYS.remoteManagement);
       await this.publishSocketStatus(null);
       changed = true;
       logger.warn('The cloud account disconnected this installation', { agentId });
@@ -356,6 +369,66 @@ export class CloudLinkService {
       });
     });
     if (changed) this.notify();
+  }
+
+  /**
+   * Whether the cloud account may run privileged requests (node tokens, updates, setup codes): the installation is a
+   * managed cloud VM, or an admin turned on "Allow remote management" for the current agent.
+   */
+  async privilegedAllowed(): Promise<boolean> {
+    const { enrollment } = await this.readStored();
+    if (!enrollment) return false;
+    const access = await this.remoteManagementFor(enrollment);
+    return access.managed || access.enabled;
+  }
+
+  /** The "Allow remote management" switch. A managed cloud VM has none: the cloud manages it. */
+  async setRemoteManagement(
+    enabled: boolean,
+    actor: { userId: string | null } = { userId: null }
+  ): Promise<CloudLinkStatusView> {
+    let audit: { agentId: string; previous: boolean } | null = null;
+    await this.serialized(async () => {
+      const { enrollment } = await this.readStored();
+      if (!enrollment) {
+        throw new CloudLinkRequestError(409, 'CLOUD_NOT_CONNECTED', 'Connect this Gateway to your cloud account first');
+      }
+      if (enrollment.managed) {
+        throw new CloudLinkRequestError(
+          409,
+          'CLOUD_MANAGED',
+          'This Gateway is managed by the cloud; remote management cannot be turned off'
+        );
+      }
+      const previous = (await this.remoteManagementFor(enrollment)).enabled;
+      const stored: StoredRemoteManagement = {
+        enabled,
+        changedAt: new Date().toISOString(),
+        changedBy: actor.userId,
+        agentId: enrollment.agentId,
+      };
+      await this.setSetting(SETTINGS_KEYS.remoteManagement, stored);
+      audit = { agentId: enrollment.agentId, previous };
+    });
+    const changed = audit as { agentId: string; previous: boolean } | null;
+    if (changed) {
+      await this.writeAudit(CLOUD_AUDIT_ACTIONS.remoteManagement, actor.userId, changed.agentId, {
+        enabled,
+        previous: changed.previous,
+      });
+    }
+    return this.getStatus();
+  }
+
+  private async remoteManagementFor(enrollment: StoredCloudEnrollment): Promise<CloudRemoteManagement> {
+    if (enrollment.managed) return { managed: true, enabled: true };
+    const [row] = await this.db
+      .select({ value: settings.value })
+      .from(settings)
+      .where(eq(settings.key, SETTINGS_KEYS.remoteManagement))
+      .limit(1);
+    const stored = row?.value as StoredRemoteManagement | undefined;
+    return { managed: false, enabled: stored?.enabled === true && stored.agentId === enrollment.agentId };
   }
 
   /** Whether an agent is enrolled (the account may still refuse it). */

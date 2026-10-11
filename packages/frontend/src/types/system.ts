@@ -112,6 +112,8 @@ export interface CloudLinkStatusView {
   socket: { state: CloudSocketState; since: string | null; lastError: string | null } | null;
   disconnectedAt: string | null;
   disconnectedReason: string | null;
+  /** Connected only: a managed cloud VM, or the admin's "Allow remote management" switch. */
+  remoteManagement: { managed: boolean; enabled: boolean } | null;
   /** The latest requests the cloud account sent over the link, newest first. */
   recentRequests: CloudRequestSummary[];
   /** Set by a disconnect the cloud account could not confirm. */

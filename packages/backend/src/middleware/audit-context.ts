@@ -177,6 +177,12 @@ const NAMED_ROUTE_AUDIT_TARGETS: Array<{
   },
   {
     method: 'POST',
+    pattern: /^\/api\/system\/cloud\/remote-management$/,
+    action: 'cloud.remote_management',
+    resourceType: 'cloud-link',
+  },
+  {
+    method: 'POST',
     pattern: /^\/api\/system\/cloud\/disconnect$/,
     action: 'cloud.disconnect',
     resourceType: 'cloud-link',

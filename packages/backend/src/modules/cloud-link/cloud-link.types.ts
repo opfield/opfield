@@ -26,6 +26,17 @@ export interface StoredCloudEnrollment {
   portalUrl: string;
   accountEmail: string;
   enrolledAt: string;
+  /** Enrolled automatically from the provisioning file of a managed cloud VM. */
+  managed?: boolean;
+}
+
+/** The admin's "Allow remote management" switch; reset whenever the enrolment changes. */
+export interface StoredRemoteManagement {
+  enabled: boolean;
+  changedAt: string;
+  changedBy: string | null;
+  /** The agent the switch was turned on for. */
+  agentId: string;
 }
 
 /** Left behind when the account revoked the agent (a 401 on the socket). */
@@ -63,6 +74,8 @@ export interface CloudLinkStatusView {
   socket: { state: CloudSocketState; since: string | null; lastError: string | null } | null;
   disconnectedAt: string | null;
   disconnectedReason: string | null;
+  /** Connected only: who may run privileged requests (node tokens, updates, setup codes). */
+  remoteManagement: CloudRemoteManagement | null;
   /** The latest portal requests the link served (connected only), newest first. */
   recentRequests: CloudRequestSummary[];
 }
@@ -81,6 +94,8 @@ export interface CloudRequestAudit {
   kind?: string;
   ok: boolean;
   error?: string;
+  /** Machine-readable reason of a refusal, such as REMOTE_MANAGEMENT_OFF. */
+  errorCode?: string;
   /** Size of the JSON answer sent back, in bytes (all repeats together in a summary). */
   resultBytes: number;
   durationMs?: number;
@@ -124,7 +139,28 @@ export interface CloudRequest {
   params: Record<string, unknown>;
 }
 
-export type CloudAnswer = { id: string; ok: true; data: unknown } | { id: string; ok: false; error: string };
+export type CloudAnswer =
+  | { id: string; ok: true; data: unknown }
+  | { id: string; ok: false; error: string; code?: string };
+
+/** Request kinds that act on the installation; they need remote management (see CloudLinkAccess). */
+export const CLOUD_PRIVILEGED_REQUEST_TYPES: ReadonlySet<string> = new Set(['node-token', 'update', 'setup-link']);
+export const REMOTE_MANAGEMENT_OFF = {
+  code: 'REMOTE_MANAGEMENT_OFF',
+  error: 'Remote management is off on this installation',
+} as const;
+
+/** Whether the cloud account may run privileged requests: a managed cloud VM, or the admin allowed it. */
+export interface CloudLinkAccess {
+  privilegedAllowed(): Promise<boolean>;
+}
+
+export interface CloudRemoteManagement {
+  /** Enrolled automatically as a managed cloud VM: always managed by the cloud. */
+  managed: boolean;
+  /** The admin's "Allow remote management" switch (off by default). */
+  enabled: boolean;
+}
 
 export interface CloudServiceState {
   name: string;

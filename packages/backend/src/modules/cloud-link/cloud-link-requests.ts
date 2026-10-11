@@ -2,9 +2,12 @@ import {
   CLOUD_LOG_TAIL_DEFAULT,
   CLOUD_LOG_TAIL_MAX,
   CLOUD_NODE_KINDS,
+  CLOUD_PRIVILEGED_REQUEST_TYPES,
   type CloudAnswer,
+  type CloudLinkAccess,
   type CloudLinkProbe,
   type CloudRequest,
+  REMOTE_MANAGEMENT_OFF,
   resolveCloudNodeKind,
 } from './cloud-link.types.js';
 
@@ -35,8 +38,16 @@ function errorMessage(error: unknown): string {
 }
 
 /** Answers one portal request with what the probe reads; never throws. */
-export async function answerCloudRequest(probe: CloudLinkProbe, request: CloudRequest): Promise<CloudAnswer> {
+export async function answerCloudRequest(
+  probe: CloudLinkProbe,
+  request: CloudRequest,
+  access: CloudLinkAccess
+): Promise<CloudAnswer> {
   try {
+    // Reads are allowed once connected; actions need a managed cloud VM or "Allow remote management".
+    if (CLOUD_PRIVILEGED_REQUEST_TYPES.has(request.type) && !(await access.privilegedAllowed())) {
+      return { id: request.id, ok: false, ...REMOTE_MANAGEMENT_OFF };
+    }
     switch (request.type) {
       case 'state':
         return { id: request.id, ok: true, data: await probe.state() };

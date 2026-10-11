@@ -313,6 +313,12 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
             }
             case 'disconnect':
               return await service.disconnect({ userId: user.id });
+            case 'set_remote_management': {
+              if (typeof a.enabled !== 'boolean') {
+                throw new AppError(400, 'INVALID_INPUT', 'enabled must be true or false');
+              }
+              return await service.setRemoteManagement(a.enabled, { userId: user.id });
+            }
             default:
               throw new Error('Unsupported cloud operation');
           }

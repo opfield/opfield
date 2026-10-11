@@ -10,6 +10,7 @@ import { useContentLoading } from "@/components/common/reveal-gate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { formatBytes } from "@/lib/utils";
 import { api } from "@/services/api";
 import type { CloudLinkStatusView, CloudRequestSummary, CloudSocketState } from "@/types";
@@ -42,6 +43,45 @@ function PortalLink({ url }: { url: string }) {
         {url.replace(/^https?:\/\//, "")}
       </a>
     </Button>
+  );
+}
+
+const REMOTE_MANAGEMENT_HINT =
+  "Lets your cloud account create node enrolment tokens, start Gateway updates and issue a first-admin setup code. Reading state and logs needs no permission.";
+
+function RemoteManagementRow({
+  remoteManagement,
+  canManage,
+  saving,
+  onChange,
+}: {
+  remoteManagement: { managed: boolean; enabled: boolean };
+  canManage: boolean;
+  saving: boolean;
+  onChange: (enabled: boolean) => void;
+}) {
+  return (
+    <div className="space-y-1 px-4 py-3">
+      <div className="flex min-h-6 items-center justify-between gap-4">
+        <span id="cloud-remote-management-label" className="text-sm text-muted-foreground">
+          Allow remote management
+        </span>
+        {remoteManagement.managed ? (
+          <Badge variant="info">Managed by the cloud</Badge>
+        ) : (
+          <Switch
+            checked={remoteManagement.enabled}
+            onChange={onChange}
+            disabled={!canManage || saving}
+            ariaLabelledBy="cloud-remote-management-label"
+            ariaDescribedBy="cloud-remote-management-hint"
+          />
+        )}
+      </div>
+      <p id="cloud-remote-management-hint" className="text-xs text-muted-foreground">
+        {REMOTE_MANAGEMENT_HINT}
+      </p>
+    </div>
   );
 }
 
@@ -124,6 +164,7 @@ export function CloudSection({ canManage, canViewAudit }: CloudSectionProps) {
   const [code, setCode] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [savingRemoteManagement, setSavingRemoteManagement] = useState(false);
 
   const applyStatus = useCallback((next: CloudLinkStatusView) => {
     const { warning: _warning, ...view } = next;
@@ -175,6 +216,18 @@ export function CloudSection({ canManage, canViewAudit }: CloudSectionProps) {
       toast.error(err instanceof Error ? err.message : "Failed to connect to your cloud account");
     } finally {
       setConnecting(false);
+    }
+  };
+
+  const handleRemoteManagement = async (enabled: boolean) => {
+    setSavingRemoteManagement(true);
+    try {
+      applyStatus(await api.setCloudRemoteManagement(enabled));
+      toast.success(enabled ? "Remote management allowed" : "Remote management turned off");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to change remote management");
+    } finally {
+      setSavingRemoteManagement(false);
     }
   };
 
@@ -278,6 +331,14 @@ export function CloudSection({ canManage, canViewAudit }: CloudSectionProps) {
           />
           {status.socket?.state === "reconnecting" && status.socket.lastError && (
             <DetailRow label="Last error" value={status.socket.lastError} />
+          )}
+          {status.remoteManagement && (
+            <RemoteManagementRow
+              remoteManagement={status.remoteManagement}
+              canManage={canManage}
+              saving={savingRemoteManagement}
+              onChange={(enabled) => void handleRemoteManagement(enabled)}
+            />
           )}
           <RecentRequests requests={status.recentRequests} canViewAudit={canViewAudit} />
         </div>
