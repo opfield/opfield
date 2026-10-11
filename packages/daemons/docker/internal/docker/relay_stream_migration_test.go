@@ -55,6 +55,8 @@ type miniRelay struct {
 	hold atomic.Pointer[openHold]
 	// opens counts the source opens that reached the relay, refused or not.
 	opens atomic.Int64
+	// routeOpens counts the source opens per route that found their target registered.
+	routeOpens map[string]int
 }
 
 // openHold keeps source opens waiting until release closes; err, when set, is the answer they get then.
@@ -73,7 +75,7 @@ func startMiniRelay(t *testing.T, id string, routes map[string]string) *miniRela
 		t.Fatal(err)
 	}
 	relay := &miniRelay{id: id, listener: listener, routes: routes, targets: map[string]chan *relayv1.IncomingTunnel{},
-		pending: map[string]chan *acceptedTunnel{}, force: make(chan struct{})}
+		pending: map[string]chan *acceptedTunnel{}, force: make(chan struct{}), routeOpens: map[string]int{}}
 	relay.server = grpc.NewServer()
 	relayv1.RegisterTunnelBrokerServer(relay.server, relay)
 	go relay.server.Serve(listener)
@@ -159,6 +161,9 @@ func (r *miniRelay) OpenTunnel(stream relayv1.TunnelBroker_OpenTunnelServer) err
 	token := fmt.Sprintf("%s-%d", r.id, r.sessions)
 	accepted := make(chan *acceptedTunnel, 1)
 	r.pending[token] = accepted
+	if incoming != nil {
+		r.routeOpens[routeID]++
+	}
 	r.mu.Unlock()
 	if incoming == nil {
 		return status.Error(codes.Unavailable, "target endpoint is not registered")
