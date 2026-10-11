@@ -347,6 +347,58 @@ export function samePlannedAssignments(
 }
 
 /**
+ * Whether the planned relays are the generation's relays without some that drain, each other one in its role.
+ * Placement then keeps the generation: a drained relay stays in it, draining there (its streams move off, it takes no
+ * new tunnel), and the workload's streams on the other relays stay where they are. A new generation re-pathed every one
+ * of them onto a new grant on the same relay, when the relay drained and again when it was resumed, though it carried
+ * none of them (stand 2.12 R-5). Resumed, the relay serves in the generation again and nothing moves.
+ */
+export function onlyDrainedRelaysLeave(
+  assignments: ReadonlyArray<{ relayInstanceId: string; role: string }>,
+  planned: ReadonlyArray<{ instance: { id: string }; role: RelayAssignmentRole }>,
+  instances: ReadonlyArray<{ id: string; state: string }>
+): boolean {
+  if (!planned.length || planned.length >= assignments.length) return false;
+  const roles = new Map(assignments.map(({ relayInstanceId, role }) => [relayInstanceId, role]));
+  if (!planned.every(({ instance, role }) => roles.get(instance.id) === role)) return false;
+  const kept = new Set(planned.map(({ instance }) => instance.id));
+  const states = new Map(instances.map(({ id, state }) => [id, state]));
+  return assignments.every(
+    ({ relayInstanceId }) => kept.has(relayInstanceId) || states.get(relayInstanceId) === 'draining'
+  );
+}
+
+/**
+ * The assignments a drained relay keeps in active generations next to other relays (onlyDrainedRelaysLeave). They do
+ * not hold up its removal: the other relays of each generation serve the workload, and removal deletes them with the
+ * relay once it carries no tunnel.
+ */
+export function parkedDrainedAssignmentIds(
+  instance: { id: string; state: string },
+  assignments: ReadonlyArray<{ id: string; assignmentGenerationId: string; relayInstanceId: string }>,
+  generations: ReadonlyArray<{ id: string; state: string }>
+): Set<string> {
+  if (instance.state !== 'draining') return new Set();
+  const active = new Set(generations.filter(({ state }) => state === 'active').map(({ id }) => id));
+  const shared = new Set(
+    assignments
+      .filter(
+        ({ relayInstanceId, assignmentGenerationId }) =>
+          relayInstanceId !== instance.id && active.has(assignmentGenerationId)
+      )
+      .map(({ assignmentGenerationId }) => assignmentGenerationId)
+  );
+  return new Set(
+    assignments
+      .filter(
+        ({ relayInstanceId, assignmentGenerationId }) =>
+          relayInstanceId === instance.id && shared.has(assignmentGenerationId)
+      )
+      .map(({ id }) => id)
+  );
+}
+
+/**
  * A remote relay whose control stream ended stays in placement this long, where it already serves:
  * otherwise a control stream that drops and comes back moves every endpoint twice, through two
  * generations. Its data plane is judged apart (relayDataPlaneFailures). The time the local relay

@@ -36,6 +36,7 @@ import type { GrpcIdentityService } from '@/services/grpc-identity.service.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import type { NodeRegistryService } from '@/services/node-registry.service.js';
 import { bumpRelayPolicyRevision } from '@/services/relay-policy-reconciler.js';
+import { parkedDrainedAssignmentIds } from '@/services/relay-topology.js';
 import type { SystemCertificateLifecycleService } from '@/services/system-certificate-lifecycle.service.js';
 import { createNodeEnrollmentToken, nodeEnrollmentTokenExpiresAt } from './node-enrollment-token.js';
 import {
@@ -758,8 +759,12 @@ export class NodesService {
     if (node.type === 'relay') {
       [relayInstance] = await this.db.select().from(relayInstances).where(eq(relayInstances.nodeId, id)).limit(1);
       if (relayInstance) {
-        const activeAssignments = await this.db
-          .select({ id: relayEndpointAssignments.id })
+        const liveAssignments = await this.db
+          .select({
+            id: relayEndpointAssignments.id,
+            assignmentGenerationId: relayEndpointAssignments.assignmentGenerationId,
+            state: relayEndpointAssignmentGenerations.state,
+          })
           .from(relayEndpointAssignments)
           .innerJoin(
             relayEndpointAssignmentGenerations,
@@ -771,6 +776,24 @@ export class NodesService {
               inArray(relayEndpointAssignmentGenerations.state, ['active', 'staging', 'draining'])
             )
           );
+        // A drained relay's assignments next to other relays in active generations go with it (validateRelayRemoval).
+        const generationIds = [...new Set(liveAssignments.map(({ assignmentGenerationId }) => assignmentGenerationId))];
+        const parked =
+          relayInstance.state === 'draining' && generationIds.length
+            ? parkedDrainedAssignmentIds(
+                relayInstance,
+                await this.db
+                  .select({
+                    id: relayEndpointAssignments.id,
+                    assignmentGenerationId: relayEndpointAssignments.assignmentGenerationId,
+                    relayInstanceId: relayEndpointAssignments.relayInstanceId,
+                  })
+                  .from(relayEndpointAssignments)
+                  .where(inArray(relayEndpointAssignments.assignmentGenerationId, generationIds)),
+                liveAssignments.map(({ assignmentGenerationId, state }) => ({ id: assignmentGenerationId, state }))
+              )
+            : new Set<string>();
+        const activeAssignments = liveAssignments.filter(({ id }) => !parked.has(id));
         const disconnectedOfflineRelay =
           node.status === 'offline' && relayInstance.state === 'offline' && !this.registry.getNode(id);
         if (activeAssignments.length && !disconnectedOfflineRelay) {

@@ -101,7 +101,7 @@ func (p *Plugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 		NodeId: nodeID, Hostname: hostname, DaemonVersion: lifecycle.Version,
 		CpuModel: cpuModel, CpuCores: int32(cpuCores), Architecture: sysmetrics.GetArchitecture(),
 		KernelVersion: sysmetrics.GetKernelVersion(), DaemonType: "relay",
-		Capabilities: append([]string{relayPoolCapability, relayRouteRuntimeCapability}, p.protectedCapabilities()...),
+		Capabilities: append([]string{relayPoolCapability, relayRouteRuntimeCapability}, p.protectedRegistrationCapabilities()...),
 	}
 	if state != nil {
 		register.HostIdentityId = state.HostIdentityID

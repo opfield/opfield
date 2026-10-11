@@ -210,6 +210,12 @@ func (p *DockerPlugin) relaySourceDialer(tag relaySourceTag) relayresume.Dialer 
 				candidate.GetAssignmentGeneration() == request.FromGeneration {
 				return relayresume.OpenedPath{}, relayresume.ErrStay
 			}
+			// A relay demoted for its admission pressure takes what it refused only at a paced rate: every moving
+			// stream's attempts would otherwise reach it (a policy change re-paths all of them at once).
+			if held := p.relayPenalties.HoldDemoted(router.targetID, route); held != nil {
+				err = held
+				continue
+			}
 			tunnel, openErr := router.openSourceWithin(candidate.GetGrant(), relayresume.OpenTimeout)
 			p.recordRelayOpen(router.targetID, route, openErr)
 			if openErr != nil {

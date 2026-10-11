@@ -1426,6 +1426,11 @@ func (p *NginxPlugin) openProxySecureLinkOnTunnel(ownerKind, linkID string, conn
 		failure.transport = relayTransportError(err)
 		return failure
 	}
+	// A relay demoted for its admission pressure takes what it refused only at a paced rate: the connection's
+	// retries (secureLinkTransientRetry) would otherwise reach it on every pass while another relay is not ready.
+	if err := p.relayPenalties.HoldDemoted(tunnel.targetID, route); err != nil {
+		return openFailure(err), failedWith("admission", err)
+	}
 	stream, err := tunnel.client.OpenTunnel(ctx)
 	if err != nil {
 		return openFailure(err), failedWith("open", err)

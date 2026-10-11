@@ -125,6 +125,42 @@ func (c *commandClock) expired(cmd *pb.GatewayCommand, now time.Time) bool {
 	return ok && remaining < 0
 }
 
+// buildRegistration returns the registration the session sends: the plugin's
+// message plus the markers the shared lifecycle owns (protected mode, disabled
+// host access, launcher features). Each capability is listed once, even when
+// the plugin already reports one the lifecycle adds (the relay supervisor
+// reports protected mode in its runtime status too).
+func (d *DaemonBase) buildRegistration() *pb.RegisterMessage {
+	regMsg := d.plugin.BuildRegisterMessage(d.state.NodeID)
+	protectRegistration(d.protected, regMsg)
+	regMsg.Capabilities = append(regMsg.Capabilities, protectedCapabilities(d.protected)...)
+	regMsg.Capabilities = append(regMsg.Capabilities, d.cfg.hostAccessCapabilities()...)
+	if d.consoleUserRefusal != "" {
+		regMsg.Capabilities = append(regMsg.Capabilities, NodeConsoleUserUnavailableCapability)
+	}
+	regMsg.Capabilities = append(regMsg.Capabilities, CommandResultsResentCapability)
+	launcher := LauncherFeatures()
+	regMsg.Capabilities = append(regMsg.Capabilities, launcher.Capabilities()...)
+	regMsg.Capabilities = uniqueCapabilities(regMsg.Capabilities)
+	regMsg.LauncherVersion = launcher.Version
+	return regMsg
+}
+
+// uniqueCapabilities drops repeated capabilities, keeping the first
+// occurrence of each in order.
+func uniqueCapabilities(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	unique := values[:0]
+	for _, value := range values {
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		unique = append(unique, value)
+	}
+	return unique
+}
+
 // runSession connects to the gateway, registers, and runs the command loop.
 func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error {
 	// Enable log streaming by default — backend can disable via SetDaemonLogStream command
@@ -139,17 +175,7 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 	writer := stream.NewWriter(cmdStream)
 
 	// Send registration message
-	regMsg := d.plugin.BuildRegisterMessage(d.state.NodeID)
-	protectRegistration(d.protected, regMsg)
-	regMsg.Capabilities = append(regMsg.Capabilities, protectedCapabilities(d.protected)...)
-	regMsg.Capabilities = append(regMsg.Capabilities, d.cfg.hostAccessCapabilities()...)
-	if d.consoleUserRefusal != "" {
-		regMsg.Capabilities = append(regMsg.Capabilities, NodeConsoleUserUnavailableCapability)
-	}
-	regMsg.Capabilities = append(regMsg.Capabilities, CommandResultsResentCapability)
-	launcher := LauncherFeatures()
-	regMsg.Capabilities = append(regMsg.Capabilities, launcher.Capabilities()...)
-	regMsg.LauncherVersion = launcher.Version
+	regMsg := d.buildRegistration()
 	if err := writer.Send(&pb.DaemonMessage{
 		Payload: &pb.DaemonMessage_Register{Register: regMsg},
 	}); err != nil {

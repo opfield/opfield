@@ -54,6 +54,8 @@ import {
   type EndpointLatencyPath,
   includeRemoteRelay,
   inDisconnectGrace,
+  onlyDrainedRelaysLeave,
+  parkedDrainedAssignmentIds,
   type PlannedRelayAssignment,
   placementInstances,
   RELAY_RETURN_HOLD_MS,
@@ -1293,6 +1295,8 @@ export class RelayPoolService {
             const selectedIds = planned.map(({ instance }) => instance.id);
             if (!selectedIds.length) return [];
             if (active && samePlannedAssignments(current, planned)) return [];
+            // A drained relay stays in the active generation, draining there (onlyDrainedRelaysLeave).
+            if (active && onlyDrainedRelaysLeave(current, planned, instances)) return [];
             const participants = new Set(selectedIds);
             for (const retained of generations.filter(
               (generation) => generation.endpointId === endpoint.id && ['active', 'draining'].includes(generation.state)
@@ -1432,6 +1436,8 @@ export class RelayPoolService {
             activeAssignments += 1;
           }
         }
+        // A drained relay's assignments next to other relays in active generations do not hold up its removal.
+        const parked = parkedDrainedAssignmentIds(instance, assignments, generations);
         return {
           ...instance,
           activeAssignments,
@@ -1439,7 +1445,7 @@ export class RelayPoolService {
             (count, generation) =>
               count +
               (assignmentsByGeneration.get(generation.id) ?? []).filter(
-                (assignment) => assignment.relayInstanceId === instance.id
+                (assignment) => assignment.relayInstanceId === instance.id && !parked.has(assignment.id)
               ).length,
             0
           ),
@@ -1790,6 +1796,9 @@ export class RelayPoolService {
         );
         const selectedIds = planned.map(({ instance }) => instance.id);
         if (!selectedIds.length || samePlannedAssignments(activeAssignments, planned)) continue;
+        // Only drained relays leave: the active generation stays, each drained relay draining in it, so no stream on
+        // the other relays moves, and a resume moves nothing either (onlyDrainedRelaysLeave).
+        if (active && onlyDrainedRelaysLeave(activeAssignments, planned, candidates)) continue;
         const participantIds = new Set([
           ...selectedIds,
           ...retainedAssignments.map(({ relayInstanceId }) => relayInstanceId),

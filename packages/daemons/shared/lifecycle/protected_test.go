@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	"github.com/wiolett-industries/gateway/daemon-shared/state"
 	"github.com/wiolett-industries/gateway/daemon-shared/stream"
 	"github.com/wiolett-industries/gateway/daemon-shared/sysmetrics"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -215,5 +216,43 @@ func TestDaemonBaseRefusesProtectedDowngradeOnly(t *testing.T) {
 	}
 	if refusal := (&DaemonBase{}).protectedUpdateRefusal("v2.11.4"); refusal != "" {
 		t.Fatalf("unprotected daemon refused a downgrade: %s", refusal)
+	}
+}
+
+// protectedMarkerPlugin reports the protected marker in its own registration,
+// as the relay supervisor did.
+type protectedMarkerPlugin struct {
+	protectedTestPlugin
+}
+
+func (p *protectedMarkerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
+	return &pb.RegisterMessage{NodeId: nodeID, Capabilities: []string{"relay_pool_v1", NodeProtectedCapability, NodeConsoleDisabledCapability}}
+}
+
+func TestProtectedRegistrationListsEachCapabilityOnce(t *testing.T) {
+	disabled := false
+	d := &DaemonBase{
+		plugin:    &protectedMarkerPlugin{protectedTestPlugin{protected: true}},
+		protected: true,
+		cfg:       &BaseConfig{Console: ConsoleConfig{Enabled: &disabled}},
+		state:     &state.State{NodeID: "node-1"},
+	}
+	register := d.buildRegistration()
+	counts := map[string]int{}
+	for _, capability := range register.Capabilities {
+		counts[capability]++
+	}
+	for capability, count := range counts {
+		if count != 1 {
+			t.Fatalf("registration lists %s %d times: %v", capability, count, register.Capabilities)
+		}
+	}
+	for _, want := range []string{"relay_pool_v1", NodeProtectedCapability, NodeConsoleDisabledCapability, NodeFilesDisabledCapability, CommandResultsResentCapability} {
+		if counts[want] != 1 {
+			t.Fatalf("registration lacks %s: %v", want, register.Capabilities)
+		}
+	}
+	if register.Capabilities[0] != "relay_pool_v1" {
+		t.Fatalf("registration reordered the plugin's capabilities: %v", register.Capabilities)
 	}
 }

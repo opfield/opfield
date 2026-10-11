@@ -446,6 +446,11 @@ func (m *dockerRegistryProxyManager) openRelayConnection(ctx context.Context, bi
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
+		// A relay demoted for its admission pressure takes what it refused only at a paced rate (pulls retry).
+		if held := m.plugin.relayPenalties.HoldDemoted(candidate.GetRelayInstanceId(), route); held != nil {
+			refusal = held
+			continue
+		}
 		tunnel, err := router.openSource(candidate.GetGrant())
 		m.plugin.recordRelayOpen(candidate.GetRelayInstanceId(), route, err)
 		if err != nil {

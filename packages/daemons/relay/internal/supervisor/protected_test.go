@@ -53,8 +53,10 @@ func TestProtectedModeComesFromTheLocalConfig(t *testing.T) {
 		t.Fatal("protected.enabled: true did not turn protected mode on")
 	}
 	register := protected.BuildRegisterMessage("node-1")
-	if !slices.Contains(register.Capabilities, lifecycle.NodeProtectedCapability) {
-		t.Fatalf("protected relay registration lacks %s: %v", lifecycle.NodeProtectedCapability, register.Capabilities)
+	// The shared lifecycle adds the protected marker to the registration of
+	// every protected node; the relay listing it as well sent it twice.
+	if slices.Contains(register.Capabilities, lifecycle.NodeProtectedCapability) {
+		t.Fatalf("relay registration repeats %s the shared lifecycle adds: %v", lifecycle.NodeProtectedCapability, register.Capabilities)
 	}
 	if slices.Contains(register.Capabilities, RelayProtectedWitnessAllowedCapability) {
 		t.Fatal("database witness must be off by default on a protected relay")

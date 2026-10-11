@@ -180,6 +180,12 @@ func (p *NginxPlugin) dialRelayStreamPath(ctx context.Context, ownerKind, linkID
 			candidate.GetAssignmentGeneration() == request.FromGeneration && p.relayLaneConnected(request.FromRelay) {
 			return relayresume.OpenedPath{}, relayresume.ErrStay
 		}
+		// A relay demoted for its admission pressure takes what it refused only at a paced rate: every moving
+		// stream's attempts would otherwise reach it (a policy change re-paths all of them at once).
+		if err := p.relayPenalties.HoldDemoted(candidate.GetRelayInstanceId(), route); err != nil {
+			lastErr = err
+			continue
+		}
 		tunnel := p.selectRelayTunnel(candidate.GetRelayInstanceId())
 		if tunnel == nil {
 			continue

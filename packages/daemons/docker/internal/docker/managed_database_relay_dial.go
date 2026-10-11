@@ -270,11 +270,18 @@ func verifyManagedPostgresLinkCertificate(peers []*x509.Certificate, roots *x509
 	return nil
 }
 
+// errRelayClientLeftEarly: the relay client ended the tunnel before it sent
+// a byte. Its own client went away while the tunnel opened (it gave up
+// waiting for a relay to take the connection); nothing failed on this side.
+var errRelayClientLeftEarly = errors.New("relay client closed before its PostgreSQL startup packet")
+
 // relayStreamReader reads relay data frames as a byte stream; bytes beyond
 // the requested length stay in pending for the caller to forward.
 type relayStreamReader struct {
 	stream  relayFrameStream
 	pending []byte
+	// received is set once the client sent any data.
+	received bool
 }
 
 func (r *relayStreamReader) readFull(n int) ([]byte, error) {
@@ -283,10 +290,14 @@ func (r *relayStreamReader) readFull(n int) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read relay client: %w", err)
 		}
+		if !r.received && (frame.GetHalfClose() != nil || frame.GetClose() != nil) {
+			return nil, errRelayClientLeftEarly
+		}
 		data := frame.GetData()
 		if data == nil || len(data.Data) == 0 || len(data.Data) > databaseTunnelMaxChunkBytes {
 			return nil, errors.New("relay client closed before its PostgreSQL startup packet")
 		}
+		r.received = true
 		r.pending = append(r.pending, data.Data...)
 	}
 	out := append([]byte(nil), r.pending[:n]...)
