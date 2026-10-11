@@ -26,6 +26,7 @@ import {
   ManagedStorageLinksSection,
   type ManagedStorageLinksSectionHandle,
 } from "./ManagedStorageLinksSection";
+import { readReplacedContainer } from "./replaced-container";
 import { type SecretRow, SecretsSection } from "./SecretsSection";
 
 const EMPTY_DATABASE_LINK_DRAFT: ManagedDatabaseLinkDraft = {
@@ -273,12 +274,25 @@ export function EnvironmentTab({
         return;
       }
 
-      const [data, secretsData] = await Promise.all([
-        canEdit ? api.getContainerEnv(nodeId, targetContainerId) : Promise.resolve([]),
-        canManageSecrets || canEdit
-          ? api.listDockerSecrets(nodeId, targetContainerId)
-          : Promise.resolve([]),
-      ]);
+      // Right after a recreate the tab can still hold the replaced container's ID: the replacement is read quietly
+      // by the container's name until the page switches to its ID.
+      const {
+        value: [data, secretsData],
+      } = await readReplacedContainer(
+        targetContainerId,
+        containerName,
+        (readContainerId) =>
+          Promise.all([
+            canEdit ? api.getContainerEnv(nodeId, readContainerId) : Promise.resolve([]),
+            canManageSecrets || canEdit
+              ? api.listDockerSecrets(nodeId, readContainerId)
+              : Promise.resolve([]),
+          ]),
+        async (name) => {
+          const replacement = await api.inspectContainerByName(nodeId, name, true);
+          return String(replacement.Id ?? replacement.id ?? "") || undefined;
+        }
+      );
       if (!isCurrentRequest()) return;
 
       if (canEdit) {
@@ -319,7 +333,16 @@ export function EnvironmentTab({
     } finally {
       if (isCurrentRequest()) setIsLoading(false);
     }
-  }, [canEdit, canManageSecrets, nodeId, isServiceEnv, serviceEnvSignature, secretApi, disabled]);
+  }, [
+    canEdit,
+    canManageSecrets,
+    containerName,
+    nodeId,
+    isServiceEnv,
+    serviceEnvSignature,
+    secretApi,
+    disabled,
+  ]);
 
   useEffect(() => {
     envContainerIdRef.current = containerId;
