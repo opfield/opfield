@@ -63,6 +63,13 @@ func TestStorageProfileRoutesAvailabilityCommands(t *testing.T) {
 			t.Fatalf("%s: member command refused: %+v", mode, member)
 		}
 
+		// Every daemon profile takes the daemon log stream toggle (Gateway sends it on every connect).
+		logs := plugin.HandleCommand(&pb.GatewayCommand{Payload: &pb.GatewayCommand_SetDaemonLogStream{
+			SetDaemonLogStream: &pb.SetDaemonLogStreamCommand{Enabled: false, MinLevel: "info"}}})
+		if !logs.Success || logs.Error != "" {
+			t.Fatalf("%s: daemon log stream command refused: %+v", mode, logs)
+		}
+
 		for name, cmd := range map[string]*pb.GatewayCommand{
 			"container": {Payload: &pb.GatewayCommand_DockerContainer{DockerContainer: &pb.DockerContainerCommand{Action: "start", ContainerId: "c1"}}},
 			"availability": {Payload: &pb.GatewayCommand_DockerAvailability{

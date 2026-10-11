@@ -82,9 +82,11 @@ func (p *DockerPlugin) HandleCommand(cmd *pb.GatewayCommand) *pb.CommandResult {
 			if err := p.handleAvailabilityMember(payload.AvailabilityMember); err != nil {
 				result.Success, result.Error = false, err.Error()
 			}
+		case *pb.GatewayCommand_SetDaemonLogStream:
+			stream.SetDaemonLogStreaming(payload.SetDaemonLogStream.Enabled, payload.SetDaemonLogStream.MinLevel)
 		default:
 			result.Success = false
-			result.Error = "storage-profile daemon accepts only docker_database, docker_storage, docker_backup and availability commands"
+			result.Error = "storage-profile daemon accepts only docker_database, docker_storage, docker_backup, availability and daemon log stream commands"
 		}
 		return result
 	}
