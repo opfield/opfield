@@ -65,6 +65,9 @@ export const relayPoolUpdateStepStateEnum = pgEnum('relay_pool_update_step_state
   'skipped',
 ]);
 
+/** A relay supervisor's local witness hosting state (decision 9 of the database availability plan). */
+export type RelayWitnessHostingLocal = 'allowed' | 'protected_needs_opt_in' | 'disabled';
+
 export interface RelayInstanceCapabilities {
   protocolMajor: number;
   features: string[];
@@ -367,6 +370,13 @@ export const relayInstances = pgTable(
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     health: jsonb('health').$type<RelayInstanceHealth>(),
     desiredArtifact: jsonb('desired_artifact').$type<RelayArtifactDescriptor>(),
+    /** Admin opt-in: this relay may host availability witnesses (lease voter, ClickHouse Keeper witness). */
+    witnessHostingAllowed: boolean('witness_hosting_allowed').notNull().default(false),
+    /**
+     * What the relay supervisor last reported about local witness hosting: allowed, protected_needs_opt_in (a protected
+     * relay without the local opt-in file) or disabled. Null until a supervisor that knows witnesses reported.
+     */
+    witnessHostingLocal: varchar('witness_hosting_local', { length: 32 }).$type<RelayWitnessHostingLocal>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

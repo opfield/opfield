@@ -5,6 +5,8 @@ import {
   availabilityLeaseKeyRotations,
   availabilityLeaseMembers,
   dockerAvailabilityLeaseState,
+  dockerAvailabilityPolicies,
+  leasePolicies,
 } from '@/db/schema/index.js';
 import { LEASE_CLUSTER_ID, MAX_KEY_ROTATION_LINKS } from './lease-constants.js';
 
@@ -55,8 +57,28 @@ export async function loadLeaseKeyRotations(db: Executor): Promise<LeaseKeyRotat
     .slice(-MAX_KEY_ROTATION_LINKS);
 }
 
-/** Lease state of a policy, created in legacy on first use. */
+/**
+ * Registers an Availability policy in the lease policy registry under its own id (the migration registered the ones
+ * that existed then). A no-op for registered ids and for ids that are no Availability policy.
+ */
+export async function registerAvailabilityLeasePolicy(db: Executor, policyId: string): Promise<void> {
+  await db.execute(sql`
+    INSERT INTO ${leasePolicies} (id, kind, resource_id, stateful, docker_availability_policy_id, created_at)
+    SELECT ${dockerAvailabilityPolicies.id}, 'docker_availability', ${dockerAvailabilityPolicies.id}, false,
+      ${dockerAvailabilityPolicies.id}, ${dockerAvailabilityPolicies.createdAt}
+    FROM ${dockerAvailabilityPolicies}
+    WHERE ${dockerAvailabilityPolicies.id} = ${policyId}
+    ON CONFLICT (id) DO NOTHING`);
+}
+
+/** Lease state of a policy, created in legacy on first use (an Availability policy is registered first). */
 export async function ensureLeaseState(db: Executor, policyId: string): Promise<LeaseStateRow> {
+  const [registered] = await db
+    .select({ id: leasePolicies.id })
+    .from(leasePolicies)
+    .where(eq(leasePolicies.id, policyId))
+    .limit(1);
+  if (!registered) await registerAvailabilityLeasePolicy(db, policyId);
   await db.insert(dockerAvailabilityLeaseState).values({ policyId }).onConflictDoNothing();
   const [row] = await db
     .select()

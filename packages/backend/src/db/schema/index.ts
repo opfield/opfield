@@ -51,6 +51,7 @@ export * from './integration-connectors.js';
 export * from './logging.js';
 export * from './logging-environment-folders.js';
 export * from './logging-schema-folders.js';
+export * from './managed-availability.js';
 export * from './managed-storage.js';
 export * from './nginx-certificate-distribution.js';
 export * from './nginx-template-folders.js';
