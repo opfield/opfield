@@ -73,7 +73,9 @@ export function PinnedNodeCard({ node, liveHealth, healthHistory }: PinnedNodeCa
         <p className="text-xs text-muted-foreground truncate">
           {node.hostname}, {nodeTypeLabel(node.type)}
         </p>
-        <p className="text-xl font-bold truncate">{node.displayName || node.hostname}</p>
+        <p className="font-display text-xl font-bold truncate">
+          {node.displayName || node.hostname}
+        </p>
         <div className="flex items-center gap-2">
           <HealthBars
             history={resolvedHealthHistory}

@@ -132,7 +132,7 @@ function AdditionalLinkRuntimeSection({ link }: { link: ProxyAdditionalSecureLin
               value={unknown ? "—" : counter(runtime.activeStreams).toLocaleString()}
               icon={Activity}
               history={activeHistory}
-              color="#3b82f6"
+              color="var(--color-hue-blue)"
               subtitle={unknown ? RELAY_UNKNOWN : "Current streams on this binding"}
             />
             <StatCard
@@ -140,7 +140,7 @@ function AdditionalLinkRuntimeSection({ link }: { link: ProxyAdditionalSecureLin
               value={unknown ? "—" : `${latest(openedRateHistory).toFixed(1)}/s`}
               icon={Zap}
               history={openedRateHistory}
-              color="#06b6d4"
+              color="var(--color-hue-cyan)"
               subtitle={
                 unknown
                   ? RELAY_UNKNOWN
@@ -152,7 +152,7 @@ function AdditionalLinkRuntimeSection({ link }: { link: ProxyAdditionalSecureLin
               value={unknown ? "—" : `${formatBytes(latest(sourceToTargetRateHistory))}/s`}
               icon={ArrowUpFromLine}
               history={sourceToTargetRateHistory}
-              color="#8b5cf6"
+              color="var(--color-hue-violet)"
               subtitle={
                 unknown
                   ? RELAY_UNKNOWN
@@ -164,7 +164,7 @@ function AdditionalLinkRuntimeSection({ link }: { link: ProxyAdditionalSecureLin
               value={unknown ? "—" : `${formatBytes(latest(targetToSourceRateHistory))}/s`}
               icon={ArrowDownToLine}
               history={targetToSourceRateHistory}
-              color="#ec4899"
+              color="var(--color-hue-pink)"
               subtitle={
                 unknown
                   ? RELAY_UNKNOWN
@@ -184,10 +184,11 @@ function AdditionalLinkRuntimeSection({ link }: { link: ProxyAdditionalSecureLin
                   ? undefined
                   : {
                       percent: successPercent,
-                      color: successPercent >= 99 ? "#22c55e" : "#f59e0b",
+                      color:
+                        successPercent >= 99 ? "var(--color-hue-green)" : "var(--color-hue-amber)",
                     }
               }
-              color="#22c55e"
+              color="var(--color-hue-green)"
               subtitle={
                 unknown
                   ? RELAY_UNKNOWN
@@ -199,7 +200,7 @@ function AdditionalLinkRuntimeSection({ link }: { link: ProxyAdditionalSecureLin
               value={unknown ? "—" : duration(counter(runtime.setupLatencyP95Ms))}
               icon={Timer}
               history={history.map((sample) => counter(sample.runtime?.setupLatencyP95Ms))}
-              color="#f59e0b"
+              color="var(--color-hue-amber)"
               subtitle={unknown ? RELAY_UNKNOWN : "OpenTunnel to both peers ready"}
             />
             <StatCard
@@ -207,7 +208,7 @@ function AdditionalLinkRuntimeSection({ link }: { link: ProxyAdditionalSecureLin
               value={unknown ? "—" : duration(counter(runtime.averageDurationMs))}
               icon={Clock3}
               history={history.map((sample) => counter(sample.runtime?.averageDurationMs))}
-              color="#a855f7"
+              color="var(--color-hue-violet)"
               subtitle={unknown ? RELAY_UNKNOWN : `${completed.toLocaleString()} completed streams`}
             />
             <StatCard
@@ -215,7 +216,7 @@ function AdditionalLinkRuntimeSection({ link }: { link: ProxyAdditionalSecureLin
               value={unknown ? "—" : counter(runtime.throttledTotal).toLocaleString()}
               icon={Ban}
               history={throttledRateHistory}
-              color="#ef4444"
+              color="var(--color-hue-red)"
               subtitle={
                 unknown
                   ? RELAY_UNKNOWN
@@ -384,7 +385,7 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
             value={unknown ? "—" : String(runtime?.activeStreams ?? 0)}
             icon={Activity}
             history={activeHistory}
-            color="#3b82f6"
+            color="var(--color-hue-blue)"
             subtitle={unknown ? RELAY_UNKNOWN : "Current streams on this route"}
           />
           <StatCard
@@ -392,7 +393,7 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
             value={unknown ? "—" : `${latest(openedRateHistory).toFixed(1)}/s`}
             icon={Zap}
             history={openedRateHistory}
-            color="#06b6d4"
+            color="var(--color-hue-cyan)"
             subtitle={
               unknown
                 ? RELAY_UNKNOWN
@@ -404,7 +405,7 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
             value={unknown ? "—" : `${formatBytes(latest(sourceToTargetRateHistory))}/s`}
             icon={ArrowUpFromLine}
             history={sourceToTargetRateHistory}
-            color="#8b5cf6"
+            color="var(--color-hue-violet)"
             subtitle={
               unknown
                 ? RELAY_UNKNOWN
@@ -416,7 +417,7 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
             value={unknown ? "—" : `${formatBytes(latest(targetToSourceRateHistory))}/s`}
             icon={ArrowDownToLine}
             history={targetToSourceRateHistory}
-            color="#ec4899"
+            color="var(--color-hue-pink)"
             subtitle={
               unknown
                 ? RELAY_UNKNOWN
@@ -440,10 +441,11 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
                 ? undefined
                 : {
                     percent: successPercent,
-                    color: successPercent >= 99 ? "#22c55e" : "#f59e0b",
+                    color:
+                      successPercent >= 99 ? "var(--color-hue-green)" : "var(--color-hue-amber)",
                   }
             }
-            color="#22c55e"
+            color="var(--color-hue-green)"
             subtitle={
               unknown
                 ? RELAY_UNKNOWN
@@ -455,7 +457,7 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
             value={unknown ? "—" : duration(runtime?.setupLatencyP95Ms ?? 0)}
             icon={Timer}
             history={history.map((sample) => counter(sample.runtime?.setupLatencyP95Ms))}
-            color="#f59e0b"
+            color="var(--color-hue-amber)"
             subtitle={unknown ? RELAY_UNKNOWN : "OpenTunnel to both peers ready"}
           />
           <StatCard
@@ -463,7 +465,7 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
             value={unknown ? "—" : duration(runtime?.averageDurationMs ?? 0)}
             icon={Clock3}
             history={history.map((sample) => counter(sample.runtime?.averageDurationMs))}
-            color="#a855f7"
+            color="var(--color-hue-violet)"
             subtitle={unknown ? RELAY_UNKNOWN : `${completed.toLocaleString()} completed streams`}
           />
           <StatCard
@@ -471,7 +473,7 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
             value={unknown ? "—" : counter(runtime?.throttledTotal).toLocaleString()}
             icon={Ban}
             history={throttledRateHistory}
-            color="#ef4444"
+            color="var(--color-hue-red)"
             subtitle={
               unknown
                 ? RELAY_UNKNOWN
@@ -495,7 +497,7 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
               value={`${counter(traffic.requestsPerSecond).toFixed(1)}/s`}
               icon={Network}
               history={history.map((sample) => counter(sample.traffic?.requestsPerSecond))}
-              color="#3b82f6"
+              color="var(--color-hue-blue)"
               subtitle={`${counter(traffic.totalRequests).toLocaleString()} in ${counter(traffic.windowSeconds)}s window`}
             />
             <StatCard
@@ -517,9 +519,10 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
               sparklineMax={100}
               progress={{
                 percent: httpSuccessPercent,
-                color: httpSuccessPercent >= 99 ? "#22c55e" : "#f59e0b",
+                color:
+                  httpSuccessPercent >= 99 ? "var(--color-hue-green)" : "var(--color-hue-amber)",
               }}
-              color="#22c55e"
+              color="var(--color-hue-green)"
               subtitle={`${statusCodes.s2xx.toLocaleString()} successful responses`}
             />
             <StatCard
@@ -527,7 +530,7 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
               value={duration(counter(traffic.p95ResponseTime) * 1000)}
               icon={Timer}
               history={history.map((sample) => counter(sample.traffic?.p95ResponseTime) * 1000)}
-              color="#8b5cf6"
+              color="var(--color-hue-violet)"
               subtitle={`${duration(counter(traffic.avgResponseTime) * 1000)} average`}
             />
             <StatCard
@@ -535,7 +538,7 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
               value={`${formatBytes(counter(traffic.bytesPerSecond))}/s`}
               icon={ArrowDownToLine}
               history={history.map((sample) => counter(sample.traffic?.bytesPerSecond))}
-              color="#ec4899"
+              color="var(--color-hue-pink)"
               subtitle={`${formatBytes(counter(traffic.totalBytes))} in current window`}
             />
             <StatCard
@@ -543,7 +546,7 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
               value={statusCodes.s4xx.toLocaleString()}
               icon={X}
               history={history.map((sample) => counter(sample.traffic?.statusCodes?.s4xx))}
-              color="#f59e0b"
+              color="var(--color-hue-amber)"
               subtitle={`${counter(traffic.windowSeconds)}s rolling window`}
             />
             <StatCard
@@ -551,7 +554,7 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
               value={statusCodes.s5xx.toLocaleString()}
               icon={X}
               history={history.map((sample) => counter(sample.traffic?.statusCodes?.s5xx))}
-              color="#ef4444"
+              color="var(--color-hue-red)"
               subtitle={`${counter(traffic.windowSeconds)}s rolling window`}
             />
             <StatCard
@@ -564,11 +567,12 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
                 link.rateLimit?.enabled
                   ? {
                       percent: clientLimitPercent,
-                      color: clientLimitPercent >= 90 ? "#ef4444" : "#06b6d4",
+                      color:
+                        clientLimitPercent >= 90 ? "var(--color-hue-red)" : "var(--color-hue-cyan)",
                     }
                   : undefined
               }
-              color="#06b6d4"
+              color="var(--color-hue-cyan)"
               subtitle={
                 link.rateLimit?.enabled
                   ? `of ${rateLimitRps.toLocaleString()} r/s per-IP limit`
@@ -581,7 +585,7 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
                 traffic.lastRequestAt ? formatRelativeDate(traffic.lastRequestAt) : "No traffic"
               }
               icon={Clock3}
-              color="#64748b"
+              color="var(--color-hue-slate)"
               valueClassName="text-base"
               subtitle={
                 traffic.sampleTruncated ? "High-volume sampled window" : "Complete rolling window"

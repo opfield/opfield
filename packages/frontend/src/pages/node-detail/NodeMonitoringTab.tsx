@@ -467,7 +467,7 @@ export function NodeMonitoringTab({
             icon={Cpu}
             history={cpuHist}
             sparklineMax={100}
-            color="#3b82f6"
+            color="var(--color-hue-blue)"
             progress={{ percent: health?.cpuPercent ?? 0 }}
             subtitle={`Load: ${fixed(health?.loadAverage1m, 2)} / ${fixed(health?.loadAverage5m, 2)} / ${fixed(health?.loadAverage15m, 2)}`}
           />
@@ -477,7 +477,7 @@ export function NodeMonitoringTab({
             icon={MemoryStick}
             history={memHist}
             sparklineMax={health?.systemMemoryTotalBytes}
-            color="#8b5cf6"
+            color="var(--color-hue-violet)"
             progress={{
               percent:
                 health && health.systemMemoryTotalBytes > 0
@@ -494,13 +494,13 @@ export function NodeMonitoringTab({
             icon={MemoryStick}
             history={history.map((h) => h.health?.swapUsedBytes ?? 0)}
             sparklineMax={health?.swapTotalBytes}
-            color="#d946ef"
+            color="var(--color-hue-pink)"
             progress={{
               percent:
                 health && health.swapTotalBytes > 0
                   ? (health.swapUsedBytes / health.swapTotalBytes) * 100
                   : 0,
-              color: "#d946ef",
+              color: "var(--color-hue-pink)",
             }}
             subtitle={
               health && health.swapTotalBytes > 0
@@ -518,7 +518,7 @@ export function NodeMonitoringTab({
                 return rm?.usagePercent ?? 0;
               })}
               sparklineMax={100}
-              color="#f97316"
+              color="var(--color-hue-orange)"
               progress={{ percent: finiteNumber(rootMount.usagePercent) }}
               subtitle={`${formatBytes(rootMount.usedBytes)} / ${formatBytes(rootMount.totalBytes)}`}
             />
@@ -541,7 +541,7 @@ export function NodeMonitoringTab({
                 value={String(buildActivity.running)}
                 icon={Activity}
                 history={buildActivity.runningHistory}
-                color="#3b82f6"
+                color="var(--color-hue-blue)"
                 subtitle={`Across ${buildActivity.recentCount} recent jobs`}
               />
               <StatCard
@@ -553,7 +553,7 @@ export function NodeMonitoringTab({
                 }
                 icon={Clock3}
                 history={buildActivity.durationHistory}
-                color="#8b5cf6"
+                color="var(--color-hue-violet)"
                 subtitle="Recent completed jobs"
               />
               <StatCard
@@ -566,7 +566,7 @@ export function NodeMonitoringTab({
                 icon={CircleCheckBig}
                 history={buildActivity.successRateHistory}
                 sparklineMax={100}
-                color="#22c55e"
+                color="var(--color-hue-green)"
                 progress={{ percent: buildActivity.successRate ?? 0 }}
                 subtitle="Succeeded vs failed"
               />
@@ -575,7 +575,7 @@ export function NodeMonitoringTab({
                 value={buildActivity.vulnerabilities.toLocaleString()}
                 icon={ShieldAlert}
                 history={buildActivity.vulnerabilityHistory}
-                color="#f59e0b"
+                color="var(--color-hue-amber)"
                 subtitle="Recent scan results"
               />
             </div>
@@ -602,42 +602,42 @@ export function NodeMonitoringTab({
               value={String(latest.traffic.statusCodes.s2xx)}
               icon={Check}
               history={toRollingDelta(history.map((h) => h.traffic?.statusCodes.s2xx ?? 0))}
-              color="#22c55e"
+              color="var(--color-hue-green)"
             />
             <StatCard
               label="3xx Redirect"
               value={String(latest.traffic.statusCodes.s3xx)}
               icon={Activity}
               history={toRollingDelta(history.map((h) => h.traffic?.statusCodes.s3xx ?? 0))}
-              color="#3b82f6"
+              color="var(--color-hue-blue)"
             />
             <StatCard
               label="4xx Client Err"
               value={String(latest.traffic.statusCodes.s4xx)}
               icon={X}
               history={toRollingDelta(history.map((h) => h.traffic?.statusCodes.s4xx ?? 0))}
-              color="#f59e0b"
+              color="var(--color-hue-amber)"
             />
             <StatCard
               label="5xx Server Err"
               value={String(latest.traffic.statusCodes.s5xx)}
               icon={X}
               history={toRollingDelta(history.map((h) => h.traffic?.statusCodes.s5xx ?? 0))}
-              color="#ef4444"
+              color="var(--color-hue-red)"
             />
             <StatCard
               label="Avg Response"
               value={`${fixed(finiteNumber(latest.traffic.avgResponseTime) * 1000, 0)}ms`}
               icon={Activity}
               history={history.map((h) => (h.traffic?.avgResponseTime ?? 0) * 1000)}
-              color="#8b5cf6"
+              color="var(--color-hue-violet)"
             />
             <StatCard
               label="p95 Response"
               value={`${fixed(finiteNumber(latest.traffic.p95ResponseTime) * 1000, 0)}ms`}
               icon={Activity}
               history={history.map((h) => (h.traffic?.p95ResponseTime ?? 0) * 1000)}
-              color="#ec4899"
+              color="var(--color-hue-pink)"
             />
           </div>
         </div>
@@ -653,28 +653,28 @@ export function NodeMonitoringTab({
               value={String(stats?.activeConnections ?? 0)}
               icon={Activity}
               history={activeConnHist}
-              color="#3b82f6"
+              color="var(--color-hue-blue)"
             />
             <StatCard
               label="Reading"
               value={String(stats?.reading ?? 0)}
               icon={ArrowDownToLine}
               history={readingHist}
-              color="#22c55e"
+              color="var(--color-hue-green)"
             />
             <StatCard
               label="Writing"
               value={String(stats?.writing ?? 0)}
               icon={ArrowUpFromLine}
               history={writingHist}
-              color="#f59e0b"
+              color="var(--color-hue-amber)"
             />
             <StatCard
               label="Waiting"
               value={String(stats?.waiting ?? 0)}
               icon={Server}
               history={waitingHist}
-              color="#6b7280"
+              color="var(--color-hue-slate)"
             />
           </div>
         </div>
@@ -689,7 +689,7 @@ export function NodeMonitoringTab({
             value={`${formatBytes(health?.diskReadBytes ?? 0)} / ${formatBytes(health?.diskWriteBytes ?? 0)}`}
             icon={HardDrive}
             history={diskReadHist}
-            color="#f97316"
+            color="var(--color-hue-orange)"
             subtitle="Read / Write delta"
           />
           {primaryIface ? (
@@ -698,11 +698,17 @@ export function NodeMonitoringTab({
               value={`${formatBytes(primaryIface.rxBytes)} / ${formatBytes(primaryIface.txBytes)}`}
               icon={Wifi}
               history={rxHist}
-              color="#06b6d4"
+              color="var(--color-hue-cyan)"
               subtitle={`${primaryIface.name} Rx / Tx`}
             />
           ) : (
-            <StatCard label="Network I/O" value="N/A" icon={Wifi} history={[]} color="#6b7280" />
+            <StatCard
+              label="Network I/O"
+              value="N/A"
+              icon={Wifi}
+              history={[]}
+              color="var(--color-hue-slate)"
+            />
           )}
         </div>
       </div>
@@ -717,7 +723,7 @@ export function NodeMonitoringTab({
               value={(stats.accepts ?? 0).toLocaleString()}
               icon={Activity}
               history={toRollingDelta(history.map((h) => h.stats?.accepts ?? 0))}
-              color="#22c55e"
+              color="var(--color-hue-green)"
               subtitle="delta per poll"
             />
             <StatCard
@@ -725,7 +731,7 @@ export function NodeMonitoringTab({
               value={(stats.handled ?? 0).toLocaleString()}
               icon={Activity}
               history={toRollingDelta(history.map((h) => h.stats?.handled ?? 0))}
-              color="#3b82f6"
+              color="var(--color-hue-blue)"
               subtitle="delta per poll"
             />
             <StatCard
@@ -733,7 +739,7 @@ export function NodeMonitoringTab({
               value={(stats.requests ?? 0).toLocaleString()}
               icon={Activity}
               history={toRollingDelta(history.map((h) => h.stats?.requests ?? 0))}
-              color="#8b5cf6"
+              color="var(--color-hue-violet)"
               subtitle="delta per poll"
             />
           </div>
@@ -755,7 +761,7 @@ export function NodeMonitoringTab({
                   value={`${fixed(mount.usagePercent, 1)}%`}
                   icon={HardDrive}
                   history={[]}
-                  color="#f97316"
+                  color="var(--color-hue-orange)"
                   progress={{ percent: finiteNumber(mount.usagePercent) }}
                   subtitle={managedLabel ? usage : `${usage} (${mount.device})`}
                   footnote={managedLabel ? `${mount.mountPoint} (${mount.device})` : undefined}

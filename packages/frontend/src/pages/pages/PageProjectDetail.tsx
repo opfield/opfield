@@ -468,7 +468,7 @@ export function PageProjectDetail({
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <PageBackButton onClick={() => navigate("/pages")} label="Back to Pages" />
             <div className="min-w-0">
-              <h1 className="min-w-0 truncate text-2xl font-bold">{project.name}</h1>
+              <h1 className="min-w-0 truncate font-display text-2xl font-bold">{project.name}</h1>
               <p className="truncate text-sm text-muted-foreground">
                 {project.slug}
                 {project.description ? ` · ${project.description}` : ""}

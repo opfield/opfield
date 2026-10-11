@@ -362,11 +362,11 @@ export function AvatarCropDialog({
                 }}
               />
             )}
-            <div className="pointer-events-none absolute inset-0 border-[3px] border-background/80 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.4)]" />
-            <div className="pointer-events-none absolute inset-x-0 top-1/3 border-t border-white/25" />
-            <div className="pointer-events-none absolute inset-x-0 top-2/3 border-t border-white/25" />
-            <div className="pointer-events-none absolute inset-y-0 left-1/3 border-l border-white/25" />
-            <div className="pointer-events-none absolute inset-y-0 left-2/3 border-l border-white/25" />
+            <div className="pointer-events-none absolute inset-0 border-[3px] border-background/80 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-scrim)_40%,transparent)]" />
+            <div className="pointer-events-none absolute inset-x-0 top-1/3 border-t border-on-scrim/25" />
+            <div className="pointer-events-none absolute inset-x-0 top-2/3 border-t border-on-scrim/25" />
+            <div className="pointer-events-none absolute inset-y-0 left-1/3 border-l border-on-scrim/25" />
+            <div className="pointer-events-none absolute inset-y-0 left-2/3 border-l border-on-scrim/25" />
           </div>
 
           <div className="px-2">

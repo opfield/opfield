@@ -174,7 +174,7 @@ export function MfaSetupWizard({
         // The screen opens once the setup secret has arrived.
         totp && (
           <div className="space-y-4">
-            <div className="flex justify-center bg-white p-4">
+            <div className="flex justify-center bg-qr p-4">
               <QRCodeSVG
                 value={totp.uri}
                 size={176}

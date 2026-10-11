@@ -362,6 +362,9 @@ export function writeCanvas() {
   const screensDir = path.join(canvasDir, "screens");
   fs.mkdirSync(screensDir, { recursive: true });
   fs.copyFileSync(path.join(outDir, "gateway.css"), path.join(screensDir, "gateway.css"));
+  for (const file of fs.readdirSync(outDir)) {
+    if (file.endsWith(".woff2")) fs.copyFileSync(path.join(outDir, file), path.join(screensDir, file));
+  }
 
   const warnings = [];
   const copied = new Set();

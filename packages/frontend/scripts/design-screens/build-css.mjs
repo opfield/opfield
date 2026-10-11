@@ -14,6 +14,8 @@ const tmpDir = path.join(outDir, ".css-build");
 export async function buildCss() {
   await build({
     root: frontendRoot,
+    // Relative asset URLs, so the fonts load next to gateway.css wherever the canvas is served.
+    base: "./",
     configFile: false,
     logLevel: "warn",
     plugins: [tailwindcss()],
@@ -31,6 +33,9 @@ export async function buildCss() {
   const css = fs.readFileSync(path.join(tmpDir, "gateway.css"), "utf8");
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, "gateway.css"), css);
+  for (const file of fs.readdirSync(tmpDir)) {
+    if (file.endsWith(".woff2")) fs.copyFileSync(path.join(tmpDir, file), path.join(outDir, file));
+  }
   fs.rmSync(tmpDir, { recursive: true, force: true });
   return css.length;
 }

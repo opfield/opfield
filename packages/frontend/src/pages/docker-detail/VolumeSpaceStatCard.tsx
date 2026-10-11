@@ -29,7 +29,7 @@ export function VolumeSpaceStatCard({
       }
       icon={HardDrive}
       history={history.length ? history : [0]}
-      color="#3b82f6"
+      color="var(--color-hue-blue)"
       sparklineMax={metrics?.capacityBytes ?? undefined}
       progress={
         metrics?.usedBytes != null && metrics.capacityBytes

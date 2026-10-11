@@ -177,7 +177,7 @@ function runtimeCards(runtime: ManagedDatabaseBindingRuntime, history: RuntimeSa
         value={streamCounters ? "—" : counter(runtime.activeStreams).toLocaleString()}
         icon={Activity}
         history={activeHistory}
-        color="#3b82f6"
+        color="var(--color-hue-blue)"
         subtitle={
           streamCounters
             ? RELAY_UNKNOWN
@@ -193,7 +193,7 @@ function runtimeCards(runtime: ManagedDatabaseBindingRuntime, history: RuntimeSa
         value={streamCounters ? "—" : `${latest(openedRateHistory).toFixed(1)}/s`}
         icon={Zap}
         history={openedRateHistory}
-        color="#06b6d4"
+        color="var(--color-hue-cyan)"
         subtitle={
           streamCounters
             ? RELAY_UNKNOWN
@@ -205,7 +205,7 @@ function runtimeCards(runtime: ManagedDatabaseBindingRuntime, history: RuntimeSa
         value={streamCounters ? "—" : `${formatBytes(latest(sourceToTargetRateHistory))}/s`}
         icon={ArrowUpFromLine}
         history={sourceToTargetRateHistory}
-        color="#8b5cf6"
+        color="var(--color-hue-violet)"
         subtitle={
           streamCounters
             ? RELAY_UNKNOWN
@@ -217,7 +217,7 @@ function runtimeCards(runtime: ManagedDatabaseBindingRuntime, history: RuntimeSa
         value={streamCounters ? "—" : `${formatBytes(latest(targetToSourceRateHistory))}/s`}
         icon={ArrowDownToLine}
         history={targetToSourceRateHistory}
-        color="#ec4899"
+        color="var(--color-hue-pink)"
         subtitle={
           streamCounters
             ? RELAY_UNKNOWN
@@ -235,10 +235,10 @@ function runtimeCards(runtime: ManagedDatabaseBindingRuntime, history: RuntimeSa
             ? undefined
             : {
                 percent: successPercent,
-                color: successPercent >= 99 ? "#22c55e" : "#f59e0b",
+                color: successPercent >= 99 ? "var(--color-hue-green)" : "var(--color-hue-amber)",
               }
         }
-        color="#22c55e"
+        color="var(--color-hue-green)"
         subtitle={
           relayCounters
             ? RELAY_UNKNOWN
@@ -250,7 +250,7 @@ function runtimeCards(runtime: ManagedDatabaseBindingRuntime, history: RuntimeSa
         value={relayCounters ? "—" : duration(counter(runtime.setupLatencyP95Ms))}
         icon={Timer}
         history={history.map((sample) => counter(sample.runtime.setupLatencyP95Ms))}
-        color="#f59e0b"
+        color="var(--color-hue-amber)"
         subtitle={relayCounters ? RELAY_UNKNOWN : "OpenTunnel to both peers ready"}
       />
       <StatCard
@@ -258,7 +258,7 @@ function runtimeCards(runtime: ManagedDatabaseBindingRuntime, history: RuntimeSa
         value={relayCounters ? "—" : duration(counter(runtime.averageDurationMs))}
         icon={Clock3}
         history={history.map((sample) => counter(sample.runtime.averageDurationMs))}
-        color="#a855f7"
+        color="var(--color-hue-violet)"
         subtitle={relayCounters ? RELAY_UNKNOWN : `${completed.toLocaleString()} completed streams`}
       />
       <StatCard
@@ -266,7 +266,7 @@ function runtimeCards(runtime: ManagedDatabaseBindingRuntime, history: RuntimeSa
         value={relayCounters ? "—" : counter(runtime.throttledTotal).toLocaleString()}
         icon={Ban}
         history={throttledRateHistory}
-        color="#ef4444"
+        color="var(--color-hue-red)"
         subtitle={
           relayCounters
             ? RELAY_UNKNOWN

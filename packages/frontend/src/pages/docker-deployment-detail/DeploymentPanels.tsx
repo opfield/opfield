@@ -260,7 +260,7 @@ export function DeploymentSlots({
             <PanelShell
               key={slot.slot}
               title={`${slot.slot[0].toUpperCase()}${slot.slot.slice(1)} slot`}
-              className={slot.slot === activeSlot ? "border-white" : undefined}
+              className={slot.slot === activeSlot ? "border-foreground" : undefined}
               headerClassName="min-h-[4.25rem]"
               actions={
                 canManage && slot.slot !== activeSlot ? (
@@ -302,7 +302,11 @@ export function DeploymentSlots({
                 />
                 <div
                   className="grid grid-cols-[6rem_minmax(0,1fr)] items-start gap-4 border-b border-border px-4 py-3 md:grid-cols-[8rem_minmax(0,1fr)]"
-                  style={slot.slot === activeSlot ? { borderBottomColor: "#fff" } : undefined}
+                  style={
+                    slot.slot === activeSlot
+                      ? { borderBottomColor: "var(--color-foreground)" }
+                      : undefined
+                  }
                 >
                   <span className="pt-0.5 text-sm text-muted-foreground">Image</span>
                   <span className="min-w-0 max-w-full justify-self-end text-right text-sm">

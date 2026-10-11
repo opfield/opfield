@@ -66,7 +66,7 @@ export function StatCard({
         <p
           className={cn(
             appearance === "dashboard" ? "text-2xl" : "text-xl",
-            "font-bold",
+            "font-display font-bold",
             valueClassName
           )}
           style={valueColor ? { color: valueColor } : undefined}

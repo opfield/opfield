@@ -420,7 +420,7 @@ export function InferenceUsageOverviewCards({ usage }: { usage: InferenceUsageOv
         value={`$${(totals.apiMicrodollars / 1_000_000).toFixed(2)}`}
         icon={CircleDollarSign}
         history={usage.dailyUsage.map((row) => row.apiMicrodollars / 1_000_000)}
-        color="#22c55e"
+        color="var(--color-hue-green)"
         subtitle={subtitle}
         appearance="dashboard"
       />
@@ -429,7 +429,7 @@ export function InferenceUsageOverviewCards({ usage }: { usage: InferenceUsageOv
         value={totals.tokens.toLocaleString()}
         icon={Sigma}
         history={usage.dailyUsage.map((row) => row.tokens)}
-        color="#3b82f6"
+        color="var(--color-hue-blue)"
         subtitle={subtitle}
         appearance="dashboard"
       />
@@ -438,7 +438,7 @@ export function InferenceUsageOverviewCards({ usage }: { usage: InferenceUsageOv
         value={Math.round(totals.credits).toLocaleString()}
         icon={Gauge}
         history={usage.dailyUsage.map((row) => row.credits)}
-        color="#8b5cf6"
+        color="var(--color-hue-violet)"
         subtitle={subtitle}
         appearance="dashboard"
       />
@@ -447,7 +447,7 @@ export function InferenceUsageOverviewCards({ usage }: { usage: InferenceUsageOv
         value={totals.requests.toLocaleString()}
         icon={Server}
         history={usage.dailyUsage.map((row) => row.requests)}
-        color="#f59e0b"
+        color="var(--color-hue-amber)"
         subtitle={subtitle}
         appearance="dashboard"
       />

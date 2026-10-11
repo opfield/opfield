@@ -654,7 +654,7 @@ export function LoginPage({
                     <p className="text-sm text-muted-foreground">
                       Scan this QR code with your authenticator app, then enter the generated code.
                     </p>
-                    <div className="flex justify-center bg-white p-4">
+                    <div className="flex justify-center bg-qr p-4">
                       <QRCodeSVG
                         value={pendingEnrollment.uri}
                         size={176}

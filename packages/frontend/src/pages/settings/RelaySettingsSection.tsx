@@ -515,7 +515,8 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
   const memoryRss = metric(status?.memoryRssBytes);
   const fdLimit = metric(status?.fileDescriptorLimit);
   const openFDs = metric(status?.openFileDescriptors);
-  const pressureColor = status?.admissionState === "normal" ? "#22c55e" : "#f59e0b";
+  const pressureColor =
+    status?.admissionState === "normal" ? "var(--color-hue-green)" : "var(--color-hue-amber)";
   const persistedRelay = settings.generalSettings.relay;
   const persistedDataLanes = persistedRelay?.dataLanes ?? 4;
   const persistedReadChunkBytes = persistedRelay?.readChunkBytes ?? 32 * 1024;
@@ -928,7 +929,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
             value={metric(status?.activeTunnels).toLocaleString()}
             icon={Activity}
             history={history.map((sample) => metric(sample.activeTunnels))}
-            color="#3b82f6"
+            color="var(--color-hue-blue)"
             subtitle="Current logical streams"
           />
           <StatCard
@@ -936,7 +937,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
             value={metric(status?.activeProxyTunnels).toLocaleString()}
             icon={Network}
             history={history.map((sample) => metric(sample.activeProxyTunnels))}
-            color="#06b6d4"
+            color="var(--color-hue-cyan)"
             subtitle="Secure Link traffic"
           />
           <StatCard
@@ -944,7 +945,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
             value={metric(status?.activeDatabaseTunnels).toLocaleString()}
             icon={Database}
             history={history.map((sample) => metric(sample.activeDatabaseTunnels))}
-            color="#8b5cf6"
+            color="var(--color-hue-violet)"
             subtitle="Gateway and binding streams"
           />
           <StatCard
@@ -952,7 +953,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
             value={metric(status?.registeredEndpoints).toLocaleString()}
             icon={Waypoints}
             history={history.map((sample) => metric(sample.registeredEndpoints))}
-            color="#22c55e"
+            color="var(--color-hue-green)"
             subtitle="Available relay targets"
           />
         </div>
@@ -967,7 +968,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
             icon={Cpu}
             history={history.map((sample) => metric(sample.cpuPressurePercent))}
             sparklineMax={100}
-            color="#3b82f6"
+            color="var(--color-hue-blue)"
             progress={{ percent: metric(status?.cpuPressurePercent) }}
             subtitle="Relay process across available CPUs"
           />
@@ -977,7 +978,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
             icon={MemoryStick}
             history={history.map((sample) => metric(sample.memoryRssBytes))}
             sparklineMax={memoryLimit || undefined}
-            color="#8b5cf6"
+            color="var(--color-hue-violet)"
             progress={memoryLimit > 0 ? { percent: percent(memoryRss, memoryLimit) } : undefined}
             subtitle={
               memoryLimit > 0
@@ -991,7 +992,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
             icon={Server}
             history={history.map((sample) => metric(sample.openFileDescriptors))}
             sparklineMax={fdLimit || undefined}
-            color="#f97316"
+            color="var(--color-hue-orange)"
             progress={fdLimit > 0 ? { percent: percent(openFDs, fdLimit) } : undefined}
             subtitle={
               fdLimit > 0 ? `of ${fdLimit.toLocaleString()} process limit` : "Limit unavailable"
@@ -1018,7 +1019,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
             value={metric(status?.throttledProxyTotal).toLocaleString()}
             icon={Ban}
             history={history.map((sample) => metric(sample.throttledProxyTotal))}
-            color="#f59e0b"
+            color="var(--color-hue-amber)"
             subtitle="Cumulative rejected proxy streams"
           />
           <StatCard
@@ -1026,21 +1027,21 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
             value={metric(status?.throttledDatabaseTotal).toLocaleString()}
             icon={Cable}
             history={history.map((sample) => metric(sample.throttledDatabaseTotal))}
-            color="#ef4444"
+            color="var(--color-hue-red)"
             subtitle="Only at the hard safety cutoff"
           />
           <StatCard
             label="Data lanes"
             value={String(persistedDataLanes)}
             icon={Network}
-            color="#06b6d4"
+            color="var(--color-hue-cyan)"
             subtitle="Persistent HTTP/2 lanes per daemon"
           />
           <StatCard
             label="Read buffer"
             value={`${Math.round(persistedReadChunkBytes / 1024)} KiB`}
             icon={Activity}
-            color="#a855f7"
+            color="var(--color-hue-violet)"
             subtitle="Pooled per-stream read chunk"
           />
         </div>

@@ -10,32 +10,33 @@ interface TextSegment {
   text: string;
 }
 
+// The 16 ANSI colours follow the theme (index.css --color-ansi-*).
 const BASIC_COLORS = [
-  "#000000",
-  "#cd3131",
-  "#0dbc79",
-  "#e5e510",
-  "#2472c8",
-  "#bc3fbc",
-  "#11a8cd",
-  "#e5e5e5",
+  "var(--color-ansi-black)",
+  "var(--color-ansi-red)",
+  "var(--color-ansi-green)",
+  "var(--color-ansi-yellow)",
+  "var(--color-ansi-blue)",
+  "var(--color-ansi-magenta)",
+  "var(--color-ansi-cyan)",
+  "var(--color-ansi-white)",
 ] as const;
 
 const BRIGHT_COLORS = [
-  "#666666",
-  "#f14c4c",
-  "#23d18b",
-  "#f5f543",
-  "#3b8eea",
-  "#d670d6",
-  "#29b8db",
-  "#ffffff",
+  "var(--color-ansi-bright-black)",
+  "var(--color-ansi-bright-red)",
+  "var(--color-ansi-bright-green)",
+  "var(--color-ansi-bright-yellow)",
+  "var(--color-ansi-bright-blue)",
+  "var(--color-ansi-bright-magenta)",
+  "var(--color-ansi-bright-cyan)",
+  "var(--color-ansi-bright-white)",
 ] as const;
 
 const ESC = "\u001b";
 
 function xtermColor(index: number): string {
-  if (index < 0) return "#000000";
+  if (index < 0) return BASIC_COLORS[0];
   if (index < 8) return BASIC_COLORS[index] ?? BASIC_COLORS[0];
   if (index < 16) return BRIGHT_COLORS[index - 8] ?? BRIGHT_COLORS[0];
   if (index < 232) {

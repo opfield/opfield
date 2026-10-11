@@ -167,6 +167,23 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/**
+ * The stand-alone HTML export's stylesheet, in the console's current theme colours (read from the
+ * theme tokens at export time; a token that cannot be read leaves the browser default).
+ */
+function auditExportStyle(): string {
+  const style = typeof document === "undefined" ? null : getComputedStyle(document.documentElement);
+  const token = (name: string) => style?.getPropertyValue(name).trim() ?? "";
+  const declare = (property: string, value: string) => (value ? `${property}:${value};` : "");
+  const border = token("--color-border");
+  return [
+    `body{font-family:system-ui,sans-serif;${declare("background", token("--color-background"))}${declare("color", token("--color-foreground"))}}`,
+    "table{border-collapse:collapse;width:100%}",
+    `th,td{border:1px solid${border ? ` ${border}` : ""};padding:6px;text-align:left;vertical-align:top}`,
+    `th{${declare("background", token("--color-header"))}}`,
+  ].join("");
+}
+
 function formatHtmlAuditExport(entries: AuditLogEntry[]): string {
   const head = AUDIT_EXPORT_HEADERS.map((header) => `<th>${escapeHtml(header)}</th>`).join("");
   const body = entries
@@ -177,7 +194,7 @@ function formatHtmlAuditExport(entries: AuditLogEntry[]): string {
           .join("")}</tr>`
     )
     .join("");
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Gateway Audit Log</title><style>body{font-family:system-ui,sans-serif;background:#111;color:#eee}table{border-collapse:collapse;width:100%}th,td{border:1px solid #444;padding:6px;text-align:left;vertical-align:top}th{background:#222}</style></head><body><h1>Gateway Audit Log</h1><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Gateway Audit Log</title><style>${auditExportStyle()}</style></head><body><h1>Gateway Audit Log</h1><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></body></html>`;
 }
 
 export function formatAuditExport(

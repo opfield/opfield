@@ -4,7 +4,7 @@
   "description": "Infrastructure control plane",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
+  "background_color": "#f3f2ef",
   "theme_color": "#3b3d87",
   "icons": [
     {

@@ -1,6 +1,7 @@
 import { ExternalLink, Terminal } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { terminalTheme } from "@/lib/terminal-theme";
 import { useUIStore } from "@/stores/ui";
 import { encodeTerminalInput } from "./terminal-encoding";
 import { TerminalOutputNormalizer } from "./terminal-output";
@@ -114,18 +115,10 @@ export function TerminalConsole({
     }, 3000);
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: The theme tokens are read from the document; a new callback on a theme switch re-applies them.
   const getTerminalTheme = useCallback(() => {
     const style = getComputedStyle(document.documentElement);
-    return {
-      background: style.getPropertyValue("--color-card").trim() || "#141414",
-      foreground: style.getPropertyValue("--color-card-foreground").trim() || "#e0e0e0",
-      cursor: style.getPropertyValue("--color-primary").trim() || "#ffffff",
-      cursorAccent: style.getPropertyValue("--color-primary-foreground").trim() || "#0e0e0e",
-      selectionBackground:
-        resolvedTheme === "light" ? "rgba(26, 26, 26, 0.18)" : "rgba(255, 255, 255, 0.22)",
-      selectionInactiveBackground:
-        resolvedTheme === "light" ? "rgba(26, 26, 26, 0.12)" : "rgba(255, 255, 255, 0.14)",
-    };
+    return terminalTheme(style);
   }, [resolvedTheme]);
 
   const connect = useCallback(async () => {

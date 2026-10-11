@@ -20,7 +20,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "dialog-overlay fixed inset-0 z-50 bg-black/50 overflow-hidden flex items-end sm:items-start justify-center sm:overflow-y-auto sm:py-12",
+      "dialog-overlay fixed inset-0 z-50 bg-scrim/50 overflow-hidden flex items-end sm:items-start justify-center sm:overflow-y-auto sm:py-12",
       className
     )}
     {...props}
@@ -237,7 +237,7 @@ const DialogContentPanel = React.forwardRef<
           aria-label="Loading"
           className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center"
         >
-          <Loader2 className="h-6 w-6 animate-spin text-white/80" />
+          <Loader2 className="h-6 w-6 animate-spin text-on-scrim/80" />
         </div>
       ) : null}
       <DialogPrimitive.Content
