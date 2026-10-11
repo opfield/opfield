@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
-import type { DrizzleClient } from '@/db/client.js';
 import { container } from '@/container.js';
+import type { DrizzleClient } from '@/db/client.js';
 import { appEnvironmentVariables } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
