@@ -40,18 +40,25 @@ func (p *Plugin) ProtectedCommandAllowed(cmd *pb.GatewayCommand) bool {
 	return false
 }
 
-// protectedCapabilities are the markers the relay adds to its registration
-// and runtime status in protected mode (the shared lifecycle adds
-// lifecycle.NodeProtectedCapability to the registration itself).
+// protectedCapabilities are the markers the relay adds to its runtime status
+// in protected mode.
 func (p *Plugin) protectedCapabilities() []string {
 	if !p.cfg.Protected.Enabled {
 		return nil
 	}
-	values := []string{lifecycle.NodeProtectedCapability}
-	if p.cfg.Protected.AllowDatabaseWitness {
-		values = append(values, RelayProtectedWitnessAllowedCapability)
+	return append([]string{lifecycle.NodeProtectedCapability}, p.protectedRegistrationCapabilities()...)
+}
+
+// protectedRegistrationCapabilities are the markers the relay adds to its
+// registration in protected mode. The shared lifecycle adds
+// lifecycle.NodeProtectedCapability (and the disabled host access markers) to
+// every registration of a protected node itself, so the relay does not list
+// it again.
+func (p *Plugin) protectedRegistrationCapabilities() []string {
+	if !p.cfg.Protected.Enabled || !p.cfg.Protected.AllowDatabaseWitness {
+		return nil
 	}
-	return values
+	return []string{RelayProtectedWitnessAllowedCapability}
 }
 
 // protectedPolicyRefusal returns why a protected relay refuses a policy, or
