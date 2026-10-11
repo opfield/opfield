@@ -379,6 +379,42 @@ func (p *DockerPlugin) handleContainerCommand(cmd *pb.DockerContainerCommand, re
 		data, _ := json.Marshal(task)
 		result.Detail = string(data)
 
+	case "network_isolate":
+		if cmd.ContainerId == "" {
+			result.Success = false
+			result.Error = "container_id is required for network_isolate"
+			return
+		}
+		isolated, err := p.client.IsolateContainerNetworks(ctx, cmd.ContainerId)
+		if err != nil {
+			result.Success = false
+			result.Error = err.Error()
+			return
+		}
+		data, _ := json.Marshal(isolated)
+		result.Detail = string(data)
+
+	case "network_restore":
+		if cmd.ContainerId == "" {
+			result.Success = false
+			result.Error = "container_id is required for network_restore"
+			return
+		}
+		endpoints, err := decodeNetworkRestoreEndpoints(cmd.ConfigJson)
+		if err != nil {
+			result.Success = false
+			result.Error = err.Error()
+			return
+		}
+		restored, err := p.client.RestoreContainerNetworks(ctx, cmd.ContainerId, endpoints)
+		if err != nil {
+			result.Success = false
+			result.Error = err.Error()
+			return
+		}
+		data, _ := json.Marshal(restored)
+		result.Detail = string(data)
+
 	default:
 		result.Success = false
 		result.Error = fmt.Sprintf("unknown container action: %s", cmd.Action)

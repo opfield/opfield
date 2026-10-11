@@ -1178,6 +1178,34 @@ export class NodeDispatchService {
     );
   }
 
+  /** Disconnects a container from all its networks (docker_network_isolation_v1); Detail lists what was removed. */
+  async isolateContainerNetworks(nodeId: string, container: string): Promise<CommandResult> {
+    await this.assertGenericDockerNode(nodeId);
+    await this.assertNodeMutable(nodeId);
+    return this.registry.sendCommand(
+      nodeId,
+      { dockerContainer: { action: 'network_isolate', containerId: container } as any },
+      60_000
+    );
+  }
+
+  /** Reconnects a container to the endpoints network_isolate removed; Detail reports each network. */
+  async restoreContainerNetworks(nodeId: string, container: string, endpoints: unknown[]): Promise<CommandResult> {
+    await this.assertGenericDockerNode(nodeId);
+    await this.assertNodeMutable(nodeId);
+    return this.registry.sendCommand(
+      nodeId,
+      {
+        dockerContainer: {
+          action: 'network_restore',
+          containerId: container,
+          configJson: JSON.stringify({ endpoints }),
+        } as any,
+      },
+      60_000
+    );
+  }
+
   async sendDockerImageCommand(
     nodeId: string,
     action: string,
