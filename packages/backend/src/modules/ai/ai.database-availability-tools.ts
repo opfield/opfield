@@ -73,8 +73,7 @@ export async function manageManagedDatabaseAvailability(
         throw new AppError(403, 'FORBIDDEN', 'Missing databases:create permission for a selected node');
       }
     }
-    const { folderId: _folderId, ...preflight } = parsed;
-    return service.availabilityPreflightForCreate(preflight);
+    return service.availabilityPreflightForCreate(parsed);
   }
   const databaseId = requiredString(args.databaseId);
   if (operation === 'availability' || operation === 'availability_events') {

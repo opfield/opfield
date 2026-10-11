@@ -21,6 +21,10 @@ const AvailabilityMemberSchema = z.object({
   nodeName: z.string().nullable(),
   priority: z.number().int(),
   role: z.string().openapi({ description: 'primary | copy | rebuilding | fenced | unknown' }),
+  previousPrimary: z.boolean().openapi({
+    description:
+      'It still reports itself primary but lost the role in a failover (role shows unknown until it reports)',
+  }),
   eligible: z.boolean().openapi({ description: 'Whether this copy may take over now' }),
   eligibilityReason: z.string().nullable(),
   lagBytes: z.number().nullable(),
@@ -41,9 +45,10 @@ export const AvailabilityViewSchema = z
       description:
         'automatic | manual. `manual`: a replicated pair without automatic failover (no witness host); make a copy primary by hand',
     }),
-    state: z
-      .string()
-      .openapi({ description: 'converting | healthy | degraded | no_failover | failing_over | closing | error' }),
+    state: z.string().openapi({
+      description:
+        'converting | healthy | degraded | no_failover | failing_over | closing | error | paused (the resource is paused)',
+    }),
     stateReason: z
       .object({ code: z.string(), message: z.string().optional(), since: z.string().optional() })
       .passthrough()

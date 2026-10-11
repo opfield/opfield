@@ -271,6 +271,13 @@ describe.skipIf(!url)('availability set leases on disposable PostgreSQL', () => 
 
   it('audits a failover once on the database, dated at the takeover, and tells the set controller', async () => {
     controller.holderChanged.mockClear();
+    // C-4: the members' last reports give the lost-range estimate at takeover.
+    const lastPrimaryReport = new Date('2026-10-12T10:00:00.000Z');
+    await q('update managed_availability_members set lag_bytes = 4096 where id = $1', [memberIds[1]]);
+    await q('update managed_availability_members set last_reported_at = $2 where id = $1', [
+      memberIds[0],
+      lastPrimaryReport,
+    ]);
     await at(1_000, async () => {
       await service.ingestDaemonReport(nodeIds[0]!, 'databases', report(nodeIds[0]!, { epoch: '1' }));
       await service.ingestDaemonReport(nodeIds[1]!, 'databases', holding(nodeIds[1]!, 5, 1));
@@ -285,7 +292,14 @@ describe.skipIf(!url)('availability set leases on disposable PostgreSQL', () => 
         action: 'availability.failover',
         resourceType: 'managed_database',
         resourceId: databaseId,
-        details: expect.objectContaining({ fromNodeId: nodeIds[0], toNodeId: nodeIds[1], setId, leasePolicyId }),
+        details: expect.objectContaining({
+          fromNodeId: nodeIds[0],
+          toNodeId: nodeIds[1],
+          setId,
+          leasePolicyId,
+          lossBytes: 4096,
+          lossSince: lastPrimaryReport.toISOString(),
+        }),
       })
     );
     expect(await service.observeSet(setId)).toMatchObject({ holderMemberId: memberIds[1] });

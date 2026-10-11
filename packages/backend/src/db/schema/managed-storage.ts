@@ -65,6 +65,8 @@ export interface ManagedStorageRuntimeConfig {
 export interface ManagedStoragePendingOperation {
   id: string;
   action: 'create' | 'update' | 'restart' | 'delete';
+  /** An update an availability set operation started (its members' payload): that operation's id. */
+  availabilityOperationId?: string;
   /**
    * An update that changes the S3 publication: the publication before it. Its
    * ports stay reserved (held) until the daemon confirms the change, and are

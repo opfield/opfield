@@ -8,6 +8,7 @@ import {
   dockerAvailabilityLeaseState,
   dockerAvailabilityPlacements,
   leasePolicies,
+  managedAvailabilityMembers,
 } from '@/db/schema/index.js';
 import type { AvailabilityLeaseKeyView, AvailabilityLeaseReport } from '@/grpc/generated/types.js';
 import { createChildLogger } from '@/lib/logger.js';
@@ -450,10 +451,33 @@ export class AvailabilityLeaseReports {
         noticedAt: input.now,
         stateHash: next.stateHash ?? null,
       };
+      if (notice.kind === 'failover' && state.kind === 'managed_availability_set' && state.resourceId) {
+        notice.loss = await this.failoverLoss(tx, state.resourceId, change.from, change.to);
+      }
       // B-14: its audit is stored with the change itself, so a crash before the audit row is written loses nothing.
       if (notice.kind) await persistPendingLeaseTakeover(tx, pendingLeaseTakeover(notice));
       return notice;
     });
+  }
+
+  /** The lost-range estimate of a set failover, read before the set's own primary moves (C-4). */
+  private async failoverLoss(
+    tx: Parameters<Parameters<DrizzleClient['transaction']>[0]>[0],
+    setId: string,
+    fromNodeId: string | null | undefined,
+    toNodeId: string | null | undefined
+  ): Promise<{ bytes: number | null; since: string | null }> {
+    const members = await tx
+      .select({
+        nodeId: managedAvailabilityMembers.nodeId,
+        lagBytes: managedAvailabilityMembers.lagBytes,
+        lastReportedAt: managedAvailabilityMembers.lastReportedAt,
+      })
+      .from(managedAvailabilityMembers)
+      .where(eq(managedAvailabilityMembers.setId, setId));
+    const target = members.find((member) => member.nodeId === toNodeId);
+    const previous = members.find((member) => member.nodeId === fromNodeId);
+    return { bytes: target?.lagBytes ?? null, since: previous?.lastReportedAt?.toISOString() ?? null };
   }
 
   private async placementOf(

@@ -14,7 +14,8 @@ export type AvailabilitySetState =
   | "no_failover"
   | "failing_over"
   | "closing"
-  | "error";
+  | "error"
+  | "paused";
 export type AvailabilityMemberRole = "primary" | "copy" | "rebuilding" | "fenced" | "unknown";
 export type AvailabilityMemberStatus = "creating" | "ready" | "error" | "removing";
 export type AvailabilitySyncState = "sync" | "async" | "none";
@@ -66,6 +67,8 @@ export interface AvailabilityMember {
   nodeName: string | null;
   priority: number;
   role: AvailabilityMemberRole;
+  /** It still reports itself primary but lost the role in a failover; role is unknown until it reports. */
+  previousPrimary?: boolean;
   eligible: boolean;
   eligibilityReason: string | null;
   lagBytes: number | null;

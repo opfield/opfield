@@ -10,6 +10,7 @@ import {
   type RelayWitnessRelay,
   type RelayWitnessRow,
   RelayWitnessService,
+  witnessRowStatus,
 } from './relay-witness.service.js';
 
 const SHA = 'a'.repeat(64);
@@ -185,5 +186,21 @@ describe('RelayWitnessService.syncRelay', () => {
     vi.spyOn(service, 'plan').mockResolvedValue({ relay: relay(), specs: [], refused: [] });
     await service.syncRelay('relay-1', { reportedRevision: 0, reportedWitnesses: 0 });
     expect(dispatch.applyRelayWitnesses).not.toHaveBeenCalled();
+  });
+});
+
+describe('witness row status', () => {
+  it('shows a Keeper witness without quorum as waiting, not failed', () => {
+    expect(witnessRowStatus('running')).toBe('ready');
+    expect(witnessRowStatus('starting')).toBe('waiting_quorum');
+    expect(
+      witnessRowStatus(
+        'error',
+        'witness does not answer its health check: keeper did not report its mode (no quorum yet?)'
+      )
+    ).toBe('waiting_quorum');
+    expect(witnessRowStatus('error', 'artifact checksum mismatch')).toBe('error');
+    expect(witnessRowStatus('refused')).toBe('error');
+    expect(witnessRowStatus('fetching')).toBe('pending');
   });
 });

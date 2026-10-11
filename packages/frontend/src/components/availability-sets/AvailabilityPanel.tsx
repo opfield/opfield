@@ -492,7 +492,7 @@ export function AvailabilityPanel({
                           : "secondary"
                     }
                   >
-                    {witness.status}
+                    {witness.status === "waiting_quorum" ? "waiting for quorum" : witness.status}
                   </Badge>
                 </span>
               }

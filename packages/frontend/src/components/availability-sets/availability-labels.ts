@@ -26,12 +26,14 @@ export const SET_STATE_LABELS: Record<AvailabilitySetState, string> = {
   failing_over: "Failing over",
   closing: "Turning off",
   error: "Error",
+  paused: "Paused",
 };
 
 export function setStateVariant(state: AvailabilitySetState): BadgeVariant {
   if (state === "healthy") return "success";
   if (state === "error") return "destructive";
   if (state === "converting" || state === "closing") return "info";
+  if (state === "paused") return "secondary";
   return "warning";
 }
 
@@ -76,6 +78,14 @@ const ELIGIBILITY_REASONS: Record<string, string> = {
   keeper_quorum: "No Keeper quorum",
   readonly: "Read-only tables",
 };
+
+/** The role badge: a member that lost the primary role in a failover and has not reported since says so. */
+export function memberRoleLabel(member: AvailabilityMember): string {
+  if (member.desiredState === "removing") return "Removing";
+  if (member.previousPrimary)
+    return member.reporting ? "Previous primary" : "Previous primary, unreachable";
+  return ROLE_LABELS[member.role];
+}
 
 export function eligibilityText(member: AvailabilityMember): string {
   if (!member.reporting) return "Not reporting";

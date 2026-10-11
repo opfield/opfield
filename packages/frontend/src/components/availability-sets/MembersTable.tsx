@@ -16,7 +16,7 @@ import {
   formatLag,
   memberHealthVariant,
   memberName,
-  ROLE_LABELS,
+  memberRoleLabel,
   roleVariant,
   syncStateLabel,
 } from "./availability-labels";
@@ -74,7 +74,7 @@ export function MembersTable({
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate font-medium">{memberName(member)}</span>
           <Badge size="inline" variant={roleVariant(member.role)}>
-            {member.desiredState === "removing" ? "Removing" : ROLE_LABELS[member.role]}
+            {memberRoleLabel(member)}
           </Badge>
         </div>
       ),
