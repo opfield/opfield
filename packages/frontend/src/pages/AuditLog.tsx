@@ -358,7 +358,7 @@ export function AuditLog({
   headerActionsTarget?: HTMLElement | null;
 }) {
   const initialViewConfig = useMemo(() => readAuditViewConfig(), []);
-  // Links from other pages open the log filtered: ?action=…&resource=… (for example the Cloud block's audit link).
+  // A link can open the log filtered: ?action=…&resource=….
   const [searchParams] = useSearchParams();
   const [initialFilters] = useState(() => ({
     action: searchParams.get("action")?.trim() || "all",
