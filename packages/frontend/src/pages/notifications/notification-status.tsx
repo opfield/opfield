@@ -1,6 +1,6 @@
 import { Check, Clock, Minus, X } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { StatusTone } from "@/components/common/resource-status";
+import { cn } from "@/lib/utils";
 import type { SiemDeliveryStatus } from "@/types";
 
 /** Alert severity as a Badge variant: alert rules and webhook deliveries. */

@@ -490,10 +490,7 @@ export function AdminUserConfigDialog({
           <div className="border border-border">
             <div className="max-h-[min(25rem,48dvh)] divide-y divide-border overflow-y-auto overscroll-contain">
               {sessions.map((session) => (
-                <div
-                  key={session.id}
-                  className="flex items-center justify-between gap-3 px-3 py-3"
-                >
+                <div key={session.id} className="flex items-center justify-between gap-3 px-3 py-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">
                       {session.userAgent || "Unknown browser"}

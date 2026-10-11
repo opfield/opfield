@@ -495,10 +495,7 @@ export function DockerNetworks({
                     Details
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => handleRemove(net)}
-                    className="text-destructive"
-                  >
+                  <DropdownMenuItem onClick={() => handleRemove(net)} className="text-destructive">
                     <Trash2 className="h-4 w-4" />
                     Remove
                   </DropdownMenuItem>
