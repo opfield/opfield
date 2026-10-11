@@ -15,6 +15,8 @@ on:
 
 permissions:
   contents: read
+  # Keyless image signing (scripts/release/supply-chain.sh), only used when SIGN_IMAGES is true.
+  id-token: write
   packages: write
 
 concurrency:
@@ -27,6 +29,9 @@ env:
   OPFIELD_GHCR: ${{ vars.OPFIELD_GHCR }}
   GATEWAY_IMAGE: ${{ vars.GATEWAY_IMAGE || (vars.OPFIELD_GHCR == 'true' && 'ghcr.io/opfield/opfield' || 'ghcr.io/the-square-labs/gateway') }}
   GATEWAY_IMAGE_MIRROR: ${{ vars.GATEWAY_IMAGE_MIRROR || (vars.OPFIELD_GHCR == 'true' && 'ghcr.io/the-square-labs/gateway' || '') }}
+  # With the repository variable SIGN_IMAGES=true every image is signed keyless (Sigstore, GitHub OIDC) and carries an
+  # SPDX SBOM attestation (docs/verify-releases.md). Keep this line identical in release.yml.
+  SIGN_IMAGES: ${{ vars.SIGN_IMAGES }}
 
 jobs:
   gateway:
@@ -66,7 +71,18 @@ jobs:
             --label "org.opencontainers.image.revision=${SHA}" \
             --provenance=false \
             --sbom=false \
+            --metadata-file "${RUNNER_TEMP}/image.metadata.json" \
             --push .
+
+      - name: Install cosign and syft
+        if: ${{ env.SIGN_IMAGES == 'true' }}
+        run: scripts/release/supply-chain.sh install
+
+      - name: Sign the build and attach its SBOM
+        if: ${{ env.SIGN_IMAGES == 'true' }}
+        run: |
+          digest=$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' "${RUNNER_TEMP}/image.metadata.json")
+          scripts/release/supply-chain.sh sign "${GATEWAY_IMAGE}@${digest}"
 
   # The runner changes rarely; it is rebuilt (under emulation for arm64) only when its source
   # tree changes, and releases pin the build of the tree they carry.
@@ -123,6 +139,20 @@ jobs:
             --tag "${GATEWAY_IMAGE}/backup-runner:tree-${TREE}" \
             --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
             --push packages/daemons/backup-runner
+
+      # Also for an existing build, so the first run with SIGN_IMAGES=true signs the build releases pin.
+      - name: Install cosign and syft
+        if: ${{ env.SIGN_IMAGES == 'true' }}
+        run: scripts/release/supply-chain.sh install
+
+      - name: Sign the build and attach its SBOMs
+        if: ${{ env.SIGN_IMAGES == 'true' }}
+        env:
+          TREE: ${{ steps.tree.outputs.hash }}
+        run: |
+          image="${GATEWAY_IMAGE}/backup-runner"
+          digest=$(docker buildx imagetools inspect "${image}:tree-${TREE}" --format '{{json .Manifest}}' | jq -er '.digest')
+          scripts/release/supply-chain.sh sign "${image}@${digest}"
 
   # Gateway's patched SeaweedFS (packages/daemons/seaweedfs-image): rebuilt only when that tree
   # changes. The docker daemon pins the digest of the tree's build, so a change to the image is
@@ -184,6 +214,24 @@ jobs:
           TREE: ${{ steps.tree.outputs.hash }}
         run: docker buildx imagetools inspect "${GATEWAY_IMAGE}/seaweedfs-gateway:tree-${TREE}" --format '{{json .Manifest}}' | jq -r '.digest'
 
+      # Also for an existing build, so the first run with SIGN_IMAGES=true signs the build nodes pin.
+      - name: Install cosign and syft
+        if: ${{ env.SIGN_IMAGES == 'true' }}
+        run: scripts/release/supply-chain.sh install
+
+      - name: Sign the build and attach its SBOMs
+        if: ${{ env.SIGN_IMAGES == 'true' }}
+        env:
+          TREE: ${{ steps.tree.outputs.hash }}
+        run: |
+          image="${GATEWAY_IMAGE}/seaweedfs-gateway"
+          digest=$(docker buildx imagetools inspect "${image}:tree-${TREE}" --format '{{json .Manifest}}' | jq -er '.digest')
+          also=()
+          if [[ -n "$GATEWAY_IMAGE_MIRROR" ]]; then
+            also=(--also "${GATEWAY_IMAGE_MIRROR}/seaweedfs-gateway")
+          fi
+          scripts/release/supply-chain.sh sign "${image}@${digest}" "${also[@]}"
+
   mirror:
     name: Mirror third-party images
     runs-on: ubuntu-latest
@@ -226,3 +274,41 @@ jobs:
         env:
           MIRROR_REPOSITORY: ${{ env.GATEWAY_IMAGE_MIRROR }}
         run: node scripts/mirror-third-party-images.mjs
+
+  # Signs every mirrored third-party digest in both repositories and attaches an SBOM per platform. The signature
+  # says Opfield's workflow mirrored that exact digest, not that Opfield built it. Already signed digests are skipped,
+  # so only the first run with SIGN_IMAGES=true (or a new pin) does real work.
+  mirror-signatures:
+    name: Sign mirrored third-party images
+    needs: mirror
+    if: ${{ vars.SIGN_IMAGES == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PUSH_TOKEN || github.token }}
+
+      - name: Install cosign and syft
+        run: scripts/release/supply-chain.sh install
+
+      - name: Sign the mirrored digests
+        run: |
+          mapfile -t pins < <(jq -r '.images[] | "\(.name) \(.source | sub("^.*@"; ""))"' config/third-party-images.json)
+          for pin in "${pins[@]}"; do
+            name=${pin% *}
+            digest=${pin#* }
+            also=()
+            if [[ -n "$GATEWAY_IMAGE_MIRROR" ]]; then
+              also=(--also "${GATEWAY_IMAGE_MIRROR}/${name}")
+            fi
+            scripts/release/supply-chain.sh sign "${GATEWAY_IMAGE}/${name}@${digest}" "${also[@]}"
+          done

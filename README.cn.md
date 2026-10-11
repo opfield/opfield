@@ -79,6 +79,7 @@ curl -fsSL https://get.opfield.dev | bash
 | 配置 tokens、OAuth、MCP、logging、updates 和 AI | [Operations guide](docs/operations.md) |
 | 配置 multi-provider inference proxy | [Inference proxy](docs/inference.md) |
 | 查看 security model | [Security model](docs/security.md) |
+| 验证版本镜像、SBOM 和签名清单 | [Verifying releases](docs/verify-releases.md) |
 | 了解 license tiers 和 activation | [Licensing](docs/licensing.md) |
 | 本地运行项目或参与贡献 | [Development guide](docs/development.md) |
 | 查看 permission scopes | [SCOPES.md](SCOPES.md) |
@@ -175,6 +176,22 @@ Opfield 的设计目标是让自托管基础设施控制平面默认更安全：
 
 最终形成的是 PKI-backed trust model：short-lived enrollment tokens 只有在 daemon 确认自己正在与 pinned Opfield certificate 通信后才会让节点进入系统，长期信任则基于 certificate identity，而不是 reusable shared secrets。这让 Opfield 对 setup 期间的 token interception 和 enrollment 后的 node hijacking 都具备更强的默认防护。完整说明和 hardening checklist 见 [security model](docs/security.md)。
 
+## 验证版本
+
+每个版本都可以独立验证：
+
+- Opfield 及其守护进程只会在使用内置公钥验证 Ed25519 签名的清单之后才安装更新。清单作为版本资产发布（`*.update.json`）。
+- 从 Opfield 2.12 开始，每个发布的镜像（Opfield、relay、Secure Link 连接器、backup runner、修补版 SeaweedFS、第三方镜像的镜像副本以及 inference core）都由发布它的 GitHub Actions 工作流通过 Sigstore 无密钥签名，并记录在 Rekor 透明日志中。
+- 每个版本都附带其镜像和二进制文件的 SPDX SBOM，这些 SBOM 也作为已签名的证明附加到镜像上。
+
+```bash
+cosign verify ghcr.io/opfield/opfield:v2.12.0 \
+  --certificate-identity https://github.com/opfield/opfield/.github/workflows/release.yml@refs/tags/v2.12.0 \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+所有镜像、SBOM 检查和手动验证清单的方法见 [Verifying releases](docs/verify-releases.md)。每个 GitHub 版本都附有更新说明（[CHANGELOG.md](CHANGELOG.md)）。请按照 [SECURITY.md](SECURITY.md) 报告漏洞。
+
 ## FAQ
 
 <details>
@@ -230,6 +247,8 @@ Managed services 会继续运行。Existing nginx configs 会继续服务 traffi
 Opfield 提供四个产品计划。付费计划适用于一个 Opfield 实例，不按 managed node、用户或 custom permission group 额外收费。
 
 Opfield 源代码依据 [PolyForm Perimeter License 1.0.1](LICENSE.md) 发布。该许可证允许为非竞争性目的使用、修改和再分发代码，包括企业内部使用；但不允许向他人提供被宣传为 Opfield 替代品的产品。Personal、Business 或 Enterprise 密钥依据 [Paid Key Terms](COMMERCIAL-LICENSE.md) 解锁相应计划的功能与限制；普通付费密钥不会自动授予 OEM、白标、转售或竞争性托管服务的权利。
+
+本仓库是开放核心：前端、后端、节点守护进程、relay 和安装程序。付费计划的后端功能以商业核心的形式提供，这是一个单独签名、不在本仓库中的软件包。激活付费密钥后，Opfield 会通过签名更新机制安装与当前版本匹配的商业核心；Community 版仅凭本仓库即可构建和运行。详见 [Community and the commercial core](docs/commercial-core.md)。
 
 每个官方版本还附带[产品连续性授权](CONTINUITY-GRANT.md)：如果 Opfield 停止提供（连续 12 个月没有新版本且许可证服务不可用，或发布停止支持公告），或许可方无法再履行职责，最后一个版本的源代码（包括商业核心）将以 MIT 许可证向所有人开放，持有当时有效密钥的用户还将获得永久、免版税的许可，可继续使用和自行托管该版本，并在没有许可证服务的情况下运行。完整条款以授权文件为准。
 

@@ -13,6 +13,8 @@ on:
 permissions:
   actions: read
   contents: write
+  # Keyless image signing (scripts/release/supply-chain.sh), only used when SIGN_IMAGES is true.
+  id-token: write
   packages: write
 
 concurrency:
@@ -31,6 +33,10 @@ env:
   GATEWAY_IMAGE: ${{ vars.GATEWAY_IMAGE || (vars.OPFIELD_GHCR == 'true' && 'ghcr.io/opfield/opfield' || 'ghcr.io/the-square-labs/gateway') }}
   GATEWAY_IMAGE_MIRROR: ${{ vars.GATEWAY_IMAGE_MIRROR || (vars.OPFIELD_GHCR == 'true' && 'ghcr.io/the-square-labs/gateway' || '') }}
   GATEWAY_SIGNED_IMAGE: ${{ vars.GATEWAY_SIGNED_IMAGE }}
+  # With the repository variable SIGN_IMAGES=true every image is signed keyless (Sigstore, GitHub OIDC) and carries an
+  # SPDX SBOM attestation; the SBOMs are also release assets (docs/verify-releases.md). This is in addition to the
+  # Ed25519-signed update manifests, which do not change. Keep this line identical in image.yml.
+  SIGN_IMAGES: ${{ vars.SIGN_IMAGES }}
 
 jobs:
   gateway:
@@ -169,6 +175,29 @@ jobs:
             echo "Mirrored ${GATEWAY_IMAGE}@${digest} to ${GATEWAY_IMAGE_MIRROR}"
           fi
 
+      - name: Install cosign and syft
+        if: ${{ env.SIGN_IMAGES == 'true' }}
+        run: scripts/release/supply-chain.sh install
+
+      - name: Sign the release images and write their SBOMs
+        if: ${{ env.SIGN_IMAGES == 'true' }}
+        env:
+          DIGEST: ${{ steps.image.outputs.digest }}
+          RUNNER_IMAGE: ${{ steps.images.outputs.runner }}
+        run: |
+          sboms="${RUNNER_TEMP}/sboms"
+          mkdir -p "$sboms"
+          also=()
+          runner_also=()
+          if [[ -n "$GATEWAY_IMAGE_MIRROR" ]]; then
+            also=(--also "$GATEWAY_IMAGE_MIRROR")
+            runner_also=(--also "${GATEWAY_IMAGE_MIRROR}/backup-runner")
+          fi
+          scripts/release/supply-chain.sh sign "${GATEWAY_IMAGE}@${DIGEST}" \
+            --sbom "${sboms}/opfield-${GITHUB_REF_NAME}.spdx.json" "${also[@]}"
+          scripts/release/supply-chain.sh sign "$RUNNER_IMAGE" \
+            --sbom "${sboms}/backup-runner-${GITHUB_REF_NAME}.spdx.json" "${runner_also[@]}"
+
       - name: Smoke-test the bundled backup runner
         if: ${{ steps.tag.outputs.prerelease != 'true' }}
         env:
@@ -248,6 +277,9 @@ jobs:
           license_endpoints="${RUNNER_TEMP}/license-endpoints/license-endpoints.json"
           if [[ -f "$license_endpoints" ]]; then
             assets+=("$license_endpoints")
+          fi
+          if [[ -d "${RUNNER_TEMP}/sboms" ]]; then
+            assets+=("${RUNNER_TEMP}/sboms"/*.spdx.json)
           fi
           gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
           uploaded=$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')
@@ -345,6 +377,10 @@ jobs:
           cache-dependency-path: |
             packages/daemons/go.work.sum
             packages/relay/go.sum
+
+      - name: Install cosign and syft
+        if: ${{ env.SIGN_IMAGES == 'true' }}
+        run: scripts/release/supply-chain.sh install
 
       - name: Build, sign, publish, and release component
         run: scripts/github-release.sh

@@ -184,6 +184,8 @@ Opfield and daemon automatic updates require signed release manifests. Release C
 
 If `UPDATE_SIGNING_PRIVATE_KEY_PEM_B64` is missing, Opfield and daemon release jobs fail instead of publishing unsigned automatic-update artifacts. To rotate the update signing key, generate a new key pair, update `config/update-trust/update-signing-public-key.pem`, deploy that release, then switch CI to the new private key.
 
+Images are additionally signed with Sigstore keyless signing and carry SBOM attestations; see [Verifying releases](verify-releases.md) for the `cosign verify` commands and how to check a manifest by hand.
+
 ## Programmatic Access
 
 Opfield supports browser sessions, REST API tokens, OAuth access tokens, MCP access, logging ingest tokens, and inference runtime tokens. These are intentionally separate.

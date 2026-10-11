@@ -279,7 +279,7 @@ export function StatusPageSection({ nodesList }: StatusPageSectionProps) {
           <Input
             value={config.upstreamUrl ?? ""}
             disabled={!canManage || !canManageUpstream || savingSettings}
-            placeholder="http://172.16.20.60:3000"
+            placeholder="http://10.0.0.5:3000"
             onChange={(event) =>
               setConfig((prev) => ({ ...prev, upstreamUrl: event.target.value }))
             }
