@@ -53,6 +53,12 @@ import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
+import {
+  DATABASE_TYPE_LABELS,
+  databaseTypeLabel,
+  KEY_VALUE_TYPE_DESCRIPTION,
+  managedDatabaseVersionLabel,
+} from "@/lib/database-type";
 import { refreshDynamicScopes } from "@/lib/live-scopes";
 import { listManagedDatabaseCandidateNodes } from "@/lib/managed-database-nodes";
 import { nodeIconClassNames } from "@/lib/node-appearance";
@@ -152,7 +158,7 @@ async function waitForManagedDatabaseReady(id: string): Promise<ManagedDatabase>
 
 const DEFAULT_MANAGED_DATABASE_VERSIONS: Record<DatabaseType, string[]> = {
   postgres: ["18.4", "18.3", "17.10", "17.8", "16.14", "16.10", "15.18", "15.14", "14.23", "14.19"],
-  redis: ["8.10.0", "8.8.1", "8.6.5", "8.4.5", "8.2.8", "7.4.10", "7.2.12", "6.2.20"],
+  redis: ["9.1.3"],
   clickhouse: [
     "26.7.1.1315",
     "26.6.2.81",
@@ -299,7 +305,7 @@ function DatabaseTagSummary({ tags, type }: { tags: string[]; type: DatabaseConn
       )}
       <span ref={typeRef} className="inline-flex shrink-0">
         <Badge variant="outline" className="uppercase">
-          {type}
+          {databaseTypeLabel(type)}
         </Badge>
       </span>
     </div>
@@ -387,7 +393,7 @@ export function ManagedDatabaseCreateForm({
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Engine</label>
+              <label className="text-sm font-medium">Type</label>
               <Select
                 value={draft.type}
                 onValueChange={(value) => {
@@ -414,7 +420,9 @@ export function ManagedDatabaseCreateForm({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="postgres">Postgres</SelectItem>
-                  <SelectItem value="redis">Redis</SelectItem>
+                  <SelectItem value="redis" description={KEY_VALUE_TYPE_DESCRIPTION}>
+                    {DATABASE_TYPE_LABELS.redis}
+                  </SelectItem>
                   <SelectItem value="clickhouse">ClickHouse</SelectItem>
                 </SelectContent>
               </Select>
@@ -445,7 +453,9 @@ export function ManagedDatabaseCreateForm({
                 <SelectContent>
                   {versions.map((version) => (
                     <SelectItem key={version} value={version}>
-                      {version}
+                      {draft.type === "redis"
+                        ? managedDatabaseVersionLabel({ type: "redis", version, engine: "valkey" })
+                        : version}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1189,7 +1199,7 @@ function DatabasesContent({
                     <SelectItem value="all">All types</SelectItem>
                     <SelectItem value="postgres">Postgres</SelectItem>
                     <SelectItem value="clickhouse">ClickHouse</SelectItem>
-                    <SelectItem value="redis">Redis</SelectItem>
+                    <SelectItem value="redis">{DATABASE_TYPE_LABELS.redis}</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select

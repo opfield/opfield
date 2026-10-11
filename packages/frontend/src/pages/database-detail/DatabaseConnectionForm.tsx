@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { DATABASE_TYPE_LABELS, KEY_VALUE_TYPE_DESCRIPTION } from "@/lib/database-type";
 import type {
   ClickHouseDatabaseConfig,
   DatabaseConnection,
@@ -343,7 +344,7 @@ export function DatabaseConnectionForm({
                 ? "Primary Postgres"
                 : draft.type === "clickhouse"
                   ? "Analytics ClickHouse"
-                  : "Application Redis"
+                  : "Application cache"
             }
           />
         </div>
@@ -378,7 +379,9 @@ export function DatabaseConnectionForm({
               <SelectContent>
                 <SelectItem value="postgres">Postgres</SelectItem>
                 <SelectItem value="clickhouse">ClickHouse</SelectItem>
-                <SelectItem value="redis">Redis</SelectItem>
+                <SelectItem value="redis" description={KEY_VALUE_TYPE_DESCRIPTION}>
+                  {DATABASE_TYPE_LABELS.redis}
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -583,7 +586,7 @@ export function DatabaseConnectionForm({
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-sm font-medium">Redis DB</label>
+                          <label className="text-sm font-medium">Logical database</label>
                           <Input
                             value={draft.db}
                             onChange={(e) => set("db", e.target.value)}
@@ -611,7 +614,7 @@ export function DatabaseConnectionForm({
 
                       <SwitchCard
                         label="TLS"
-                        description="Use TLS when connecting to Redis"
+                        description="Use TLS when connecting to the server"
                         checked={draft.tlsEnabled}
                         onCheckedChange={(checked) => set("tlsEnabled", checked)}
                       />

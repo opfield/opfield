@@ -162,6 +162,17 @@ export function withDatabaseApi<TBase extends ApiClientBaseConstructor>(Base: TB
       );
     }
 
+    async moveManagedDatabaseToValkey(id: string): Promise<ManagedDatabase> {
+      return this.unwrapData(
+        this.request<{ data: ManagedDatabase }>(
+          `/databases/managed/${encodeURIComponent(id)}/move-to-valkey`,
+          {
+            method: "POST",
+          }
+        )
+      );
+    }
+
     async pauseManagedDatabase(id: string): Promise<ManagedDatabase> {
       return this.unwrapData(
         this.request<{ data: ManagedDatabase }>(

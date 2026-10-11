@@ -204,7 +204,7 @@ export const CreateManagedDatabaseSchema = z
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['redisConfig'],
-        message: 'redisConfig is only supported for Redis',
+        message: 'redisConfig is only supported for key-value stores',
       });
     }
     if (value.postgresConfig !== undefined && value.type !== 'postgres') {
@@ -218,7 +218,7 @@ export const CreateManagedDatabaseSchema = z
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['ownerUsername'],
-        message: 'Redis uses the built-in default owner username',
+        message: 'A key-value store uses the built-in default owner username',
       });
     }
   });

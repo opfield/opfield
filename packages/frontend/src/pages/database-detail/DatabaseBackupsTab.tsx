@@ -831,7 +831,7 @@ export function RestoreDialog({
   const [targetDatabaseName, setTargetDatabaseName] = useState("");
   const [restoring, setRestoring] = useState(false);
   const runId = run?.id;
-  // Redis has no named databases, so the new managed Redis target ignores this name.
+  // A key-value store has no named databases, so the new managed target ignores this name.
   const hasDatabaseName = run?.engine !== "redis";
   const defaultTargetDatabaseName = normalizeManagedDatabaseName(
     run?.manifest?.sourceDatabase ?? sourceDatabaseName

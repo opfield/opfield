@@ -762,7 +762,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   },
   {
     id: 'database_redis',
-    label: 'Database - Redis',
+    label: 'Database - Key-value',
     metrics: [
       { id: 'latency_ms', label: 'Latency (ms)', unit: 'ms', defaultOperator: '>', defaultValue: 1000 },
       { id: 'memory_pct', label: 'Memory Usage (%)', unit: '%', defaultOperator: '>', defaultValue: 90 },

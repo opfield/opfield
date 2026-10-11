@@ -162,6 +162,12 @@ export interface ManagedDatabasePendingOperation {
    * back, so a serving database stays ready and keeps its links.
    */
   previousStatus?: string;
+  /**
+   * An update that moves a key-value store from Redis to Valkey: the version
+   * and image before it. A failed move puts them back, since the node returns
+   * the store to Redis.
+   */
+  previousEngine?: { version: string; imageRef: string };
 }
 
 export type ManagedDatabaseOwnerSeparationState = 'legacy' | 'preparing' | 'active' | 'error';

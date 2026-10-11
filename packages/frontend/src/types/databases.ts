@@ -1,5 +1,6 @@
 // Databases
 export type DatabaseType = "postgres" | "redis" | "clickhouse";
+export type ManagedDatabaseEngine = "postgres" | "redis" | "valkey" | "clickhouse";
 export type DatabaseHealthStatus = "online" | "offline" | "degraded" | "unknown";
 export type ManagedDatabaseStatus =
   | "creating"
@@ -18,6 +19,8 @@ export interface ManagedDatabase {
   name: string;
   type: DatabaseType;
   version: string;
+  /** Engine the instance runs; for type redis either "valkey" or "redis". */
+  engine?: ManagedDatabaseEngine;
   nodeId: string;
   storageSizeBytes: string | number;
   runtimeConfig: { cpuCores: number; memoryMb: number; swapMb: number };
@@ -282,6 +285,8 @@ export interface DatabaseConnection {
     nodeId: string;
     nodeAvailable?: boolean;
     version: string;
+    /** Engine the instance runs; for type redis either "valkey" or "redis". */
+    engine?: ManagedDatabaseEngine;
     storageSizeBytes: number;
     runtimeConfig: { cpuCores: number; memoryMb: number; swapMb: number };
     publishedPort: number | null;

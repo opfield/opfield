@@ -126,6 +126,8 @@ function DatabaseDetailContent({
   const canPause = canEdit && database?.managed?.status === "ready";
   const canUnpause = canEdit && database?.managed?.status === "paused";
   const canRestart = canEdit && !!database?.managed && database.managed.status !== "paused";
+  const canMoveToValkey =
+    canManageSettings && database?.type === "redis" && database.managed?.engine === "redis";
   const canDelete = hasDatabaseScope(hasScope, "databases:delete", id);
   const canRead = hasDatabaseScope(hasScope, "databases:query:read", id);
   const canWrite = hasDatabaseScope(hasScope, "databases:query:write", id);
@@ -609,6 +611,25 @@ function DatabaseDetailContent({
     }
   };
 
+  const moveToValkey = async () => {
+    if (!database?.managed || !canMoveToValkey || database.managed.status !== "ready") return;
+    const ok = await confirm({
+      title: "Move to Valkey",
+      description:
+        "Copies every key into Valkey 9.1.3 on the same node and switches this key-value store to it. Writes pause while the keys are copied; reads keep working. The Redis data stays on the node until the copy is verified, and the store goes back to Redis if anything fails. Bloom and cuckoo filters, time series, vector sets and search indexes cannot be moved: the move stops before changing anything if the store has them.",
+      confirmLabel: "Move to Valkey",
+      variant: "default",
+    });
+    if (!ok) return;
+    try {
+      const moved = await api.moveManagedDatabaseToValkey(database.managed.id);
+      toast.success(moved.status === "updating" ? "Moving to Valkey" : "Moved to Valkey");
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to move to Valkey");
+    }
+  };
+
   if (loading) return <DetailPageSkeleton label="Loading database" tabs={5} />;
   if (!database)
     return (
@@ -666,6 +687,8 @@ function DatabaseDetailContent({
               canConfigurePostgres={
                 canManageSettings && database.type === "postgres" && !!database.managed
               }
+              canMoveToValkey={canMoveToValkey}
+              moveToValkeyReady={database.managed?.status === "ready"}
               canReveal={canReveal}
               canRotateDirectCredentials={
                 canManageSettings && database.managed?.publishedPort != null
@@ -683,6 +706,7 @@ function DatabaseDetailContent({
               onConfigureClickHouse={() => setClickHouseConfigOpen(true)}
               onConfigureRedis={() => setRedisConfigOpen(true)}
               onConfigurePostgres={() => setPostgresConfigOpen(true)}
+              onMoveToValkey={() => void moveToValkey()}
               onRevealCredentials={() => void revealCredentials()}
               onRotateDirectCredentials={() => void rotateDirectCredentials()}
               onRotateCertificate={() => void rotateCertificate()}

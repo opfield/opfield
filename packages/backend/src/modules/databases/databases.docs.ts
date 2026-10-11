@@ -82,6 +82,8 @@ export const listManagedDatabaseCatalogRoute = appRoute({
   path: '/managed/catalog',
   tags: ['Databases'],
   summary: 'List curated managed database versions',
+  description:
+    'Key-value stores work with Redis clients. New key-value stores run Valkey (`redis` lists only Valkey versions); a create that asks for an older Redis version gets the current Valkey version.',
   responses: okJson(UnknownDataResponseSchema),
 });
 
@@ -90,6 +92,8 @@ export const listManagedDatabasesRoute = appRoute({
   path: '/managed',
   tags: ['Databases'],
   summary: 'List managed database instances',
+  description:
+    'Each instance reports `engine`. A key-value store (`type: "redis"`) reports `valkey` or, when it was created before 2.12 and not moved yet, `redis`.',
   responses: okJson(UnknownDataResponseSchema),
 });
 
@@ -149,6 +153,17 @@ export const restartManagedDatabaseRoute = appRoute({
   responses: okJson(UnknownDataResponseSchema),
 });
 
+export const moveManagedDatabaseToValkeyRoute = appRoute({
+  method: 'post',
+  path: '/managed/{id}/move-to-valkey',
+  tags: ['Databases'],
+  summary: 'Move a key-value store that runs Redis to Valkey',
+  description:
+    'Copies every key of a running key-value store that still runs Redis into Valkey on the same node and switches the store to it. Writes pause while the keys are copied; reads keep working. The Redis data stays on the node until the key counts match, and the store goes back to Redis if anything fails. A store holding keys that cannot be copied (Bloom or cuckoo filters, time series, vector sets, search indexes) is refused before anything changes, with the store left as it was.',
+  request: { params: IdParamSchema },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
 export const pauseManagedDatabaseRoute = appRoute({
   method: 'post',
   path: '/managed/{id}/pause',
@@ -191,7 +206,7 @@ export const rotateManagedDatabaseCertificateRoute = appRoute({
   tags: ['Databases'],
   summary: 'Rotate a managed database direct-TLS certificate',
   description:
-    'Issues a new certificate from the Database CA and has the running engine reload it in place (PostgreSQL, Redis and ClickHouse keep serving). A restart is used only with allowRestart or when the node daemon cannot reload certificates yet. Gateway also renews these certificates automatically before they expire.',
+    'Issues a new certificate from the Database CA and has the running engine reload it in place (PostgreSQL, key-value stores and ClickHouse keep serving). A restart is used only with allowRestart or when the node daemon cannot reload certificates yet. Gateway also renews these certificates automatically before they expire.',
   request: { params: IdParamSchema, ...optionalJsonBody(RenewManagedCertificateSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -613,7 +628,7 @@ export const scanRedisKeysRoute = appRoute({
   method: 'get',
   path: '/{id}/redis/keys',
   tags: ['Databases'],
-  summary: 'Scan Redis keys',
+  summary: 'Scan keys of a key-value store',
   request: { params: IdParamSchema, query: RedisScanKeysQuerySchema },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -622,7 +637,7 @@ export const getRedisKeyRoute = appRoute({
   method: 'get',
   path: '/{id}/redis/key',
   tags: ['Databases'],
-  summary: 'Get a Redis key',
+  summary: 'Get a key of a key-value store',
   request: { params: IdParamSchema, query: RedisGetKeyQuerySchema },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -631,7 +646,7 @@ export const setRedisKeyRoute = appRoute({
   method: 'put',
   path: '/{id}/redis/key',
   tags: ['Databases'],
-  summary: 'Set a Redis key',
+  summary: 'Set a key of a key-value store',
   request: { params: IdParamSchema, ...jsonBody(RedisSetKeySchema) },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -640,7 +655,7 @@ export const deleteRedisKeyRoute = appRoute({
   method: 'delete',
   path: '/{id}/redis/key',
   tags: ['Databases'],
-  summary: 'Delete a Redis key',
+  summary: 'Delete a key of a key-value store',
   request: { params: IdParamSchema, ...jsonBody(RedisGetKeyQuerySchema) },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -649,7 +664,7 @@ export const expireRedisKeyRoute = appRoute({
   method: 'post',
   path: '/{id}/redis/key/expire',
   tags: ['Databases'],
-  summary: 'Set Redis key expiration',
+  summary: 'Set the expiration of a key of a key-value store',
   request: { params: IdParamSchema, ...jsonBody(RedisExpireKeySchema) },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -658,7 +673,7 @@ export const executeRedisCommandRoute = appRoute({
   method: 'post',
   path: '/{id}/redis/command',
   tags: ['Databases'],
-  summary: 'Execute a Redis command',
+  summary: 'Execute a Redis command on a key-value store',
   request: { params: IdParamSchema, ...jsonBody(ExecuteRedisCommandSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });
