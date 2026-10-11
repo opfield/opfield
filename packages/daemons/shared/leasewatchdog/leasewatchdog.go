@@ -51,7 +51,7 @@ func RunArgs(recordsOwner, releasesURL, artifactBaseURL, channel string) string 
 // SystemdUnit is the installer's systemd unit for binary and args.
 func SystemdUnit(binary, args string) string {
 	return `[Unit]
-Description=Gateway Availability Lease Watchdog
+Description=Opfield Availability Lease Watchdog
 # Deliberately independent of docker-daemon and docker: it must keep
 # enforcing lease deadlines when either one is stopped, hung or removed.
 After=local-fs.target
@@ -71,7 +71,7 @@ WantedBy=multi-user.target
 // OpenRCScript is the installer's OpenRC service for binary and args.
 func OpenRCScript(binary, args string) string {
 	return `#!/sbin/openrc-run
-name="Gateway Availability Lease Watchdog"
+name="Opfield Availability Lease Watchdog"
 command="` + binary + `"
 command_args="` + args + `"
 pidfile="/run/${RC_SVCNAME}.pid"

@@ -5,7 +5,7 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_alert_rules',
     description:
-      'List notification alert rules. Returns id, name, enabled, type (threshold/event), category, severity, metric, operator, thresholdValue, eventPattern, resourceIds, webhookIds, cooldownSeconds. Categories include hosting VM/account, node, container, build, compose, proxy, pages, gateway (the Gateway host, backend process, Postgres, Redis, stack containers and background jobs, plus relay and license), logging, integration, certificate, security, and managed database types. Use manage_notifications alert_categories for each category metrics, events, and template variables.',
+      'List notification alert rules. Returns id, name, enabled, type (threshold/event), category, severity, metric, operator, thresholdValue, eventPattern, resourceIds, webhookIds, cooldownSeconds. Categories include hosting VM/account, node, container, build, compose, proxy, pages, gateway (the Opfield host, backend process, Postgres, Redis, stack containers and background jobs, plus relay and license), logging, integration, certificate, security, and managed database types. Use manage_notifications alert_categories for each category metrics, events, and template variables.',
     parameters: {
       type: 'object',
       properties: {
@@ -98,7 +98,7 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
         resolveMessageTemplate: {
           type: 'string',
           description:
-            'Handlebars message sent when the alert resolves (e.g., "{{resource.name}} is back online after {{fired.duration}}"). Omit to use Gateway\'s resolve text for the rule; the firing message is never reused.',
+            'Handlebars message sent when the alert resolves (e.g., "{{resource.name}} is back online after {{fired.duration}}"). Omit to use Opfield\'s resolve text for the rule; the firing message is never reused.',
         },
         webhookIds: { type: 'array', items: { type: 'string' }, description: 'Webhook IDs to deliver to' },
         cooldownSeconds: { type: 'number', description: 'Cooldown between repeated firings (default 900)' },
@@ -134,7 +134,7 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
         messageTemplate: { type: 'string' },
         resolveMessageTemplate: {
           type: ['string', 'null'],
-          description: "Message sent when the alert resolves; empty or null uses Gateway's resolve text",
+          description: "Message sent when the alert resolves; empty or null uses Opfield's resolve text",
         },
         webhookIds: { type: 'array', items: { type: 'string' } },
         cooldownSeconds: { type: 'number' },
@@ -365,7 +365,7 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'create_siem_destination',
     description:
-      'Create a SIEM audit export destination. The URL must be HTTPS without credentials, query parameters, or fragments. The bearer token, HMAC secret, or custom header value is encrypted at rest and never returned. This sends Gateway audit metadata, never full audit details.',
+      'Create a SIEM audit export destination. The URL must be HTTPS without credentials, query parameters, or fragments. The bearer token, HMAC secret, or custom header value is encrypted at rest and never returned. This sends Opfield audit metadata, never full audit details.',
     parameters: {
       type: 'object',
       properties: {

@@ -83,7 +83,7 @@ export const addIngressGroupMemberRoute = appRoute({
   tags: TAGS,
   summary: 'Add a member',
   description:
-    'Without downtime: the node joins as `joining` and receives every route of the group (Secure Link sources, Pages artifacts, config, certificates) before its address is published in DNS; then it becomes `active`. An offline node or a route that did not reach it keeps it joining; Gateway retries and promotes it automatically.',
+    'Without downtime: the node joins as `joining` and receives every route of the group (Secure Link sources, Pages artifacts, config, certificates) before its address is published in DNS; then it becomes `active`. An offline node or a route that did not reach it keeps it joining; Opfield retries and promotes it automatically.',
   request: { params: IdParamSchema, ...jsonBody(AddIngressGroupMemberSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -115,7 +115,7 @@ export const convertRouteToIngressGroupRoute = appRoute({
   tags: TAGS,
   summary: 'Move a route onto the group',
   description:
-    'A planned operation without downtime: the node that serves the route now must be a member and keeps serving while the other members get the route (config, certificates, Secure Link sources) first. A route whose names are registered Gateway domains moves with its domain (convert the domain instead). Requires proxy:edit on the route and proxy:create for every member.',
+    'A planned operation without downtime: the node that serves the route now must be a member and keeps serving while the other members get the route (config, certificates, Secure Link sources) first. A route whose names are registered Opfield domains moves with its domain (convert the domain instead). Requires proxy:edit on the route and proxy:create for every member.',
   request: { params: IdParamSchema, ...jsonBody(IngressGroupRouteConversionSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -126,7 +126,7 @@ export const convertDomainToIngressGroupRoute = appRoute({
   tags: TAGS,
   summary: 'Move a domain and its routes onto the group',
   description:
-    'Moves the domain, every route on it and every related registered domain: config and certificates on the new members first, then DNS (Cloudflare-managed records become the union of the active members’ addresses; external DNS must list them, Gateway validates it). The domain’s current node must be a member. Requires domains:edit on the domain and domains:create for every member.',
+    'Moves the domain, every route on it and every related registered domain: config and certificates on the new members first, then DNS (Cloudflare-managed records become the union of the active members’ addresses; external DNS must list them, Opfield validates it). The domain’s current node must be a member. Requires domains:edit on the domain and domains:create for every member.',
   request: { params: IdParamSchema, ...jsonBody(IngressGroupDomainConversionSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });

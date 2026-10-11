@@ -212,7 +212,7 @@ mount(stage(h("div", { className: "grid grid-cols-4 gap-4" },
 Detail pages of managed databases and managed storage. \`useManagedCertificateStatus(load, { enabled, refreshKey })\` loads the status once and reports the first load to the page gate, so the row and the notice appear with the page.
 
 ## Rules
-- \`ManagedCertificateDetailRow\` goes in the resource's details panel: "Expires <date> · renewed automatically" (or "needs attention"). It renders nothing without a certificate (TLS off, no permission, older Gateway).
+- \`ManagedCertificateDetailRow\` goes in the resource's details panel: "Expires <date> · renewed automatically" (or "needs attention"). It renders nothing without a certificate (TLS off, no permission, older Opfield).
 - \`ManagedCertificateNotice\` renders only when renewal failed, seven days or less remain, a delivered certificate is not loaded yet, or the renewal waits for the node daemon or its CA. Otherwise nothing: no banner for a healthy certificate.
 - The action is a \`NoticeAction\` text link with an arrow, never a button; \`onRenew\` returns whether the renewal ran, and the action shows \`pending\` meanwhile.
 - The dashboard lists every affected resource in one \`Notice\` (ManagedCertificatesNotice).
@@ -248,7 +248,7 @@ Conditions that need the operator: an expired licence, certificates that did not
 
 ## Rules
 - Tones: \`destructive\` for broken or expiring now (with \`role="alert"\`), \`warning\` for attention soon (title in \`text-warning-text\`), \`info\` (the link colour) for news and setup.
-- Title: one sentence stating the condition ("Gateway license has expired"). Summary: \`text-sm text-muted-foreground\`, what it affects.
+- Title: one sentence stating the condition ("Opfield license has expired"). Summary: \`text-sm text-muted-foreground\`, what it affects.
 - Actions are \`NoticeAction\`s: a text link with an arrow in the tone colour, never a filled button. \`to\` for an app link, \`href\` for an external page, otherwise a button; \`pending\` swaps the arrow for a spinner; a secondary one (Hide) is \`muted\` with \`arrow: false\`.
 
 ## The consumer provides
@@ -259,9 +259,9 @@ mount(h(G.MemoryRouter, null, stage(
   h(G.Notice, { tone: "destructive", role: "alert", title: "TLS certificate distribution needs attention", actions: h(G.NoticeAction, { tone: "destructive", to: "/ssl-certificates" }, "View certificates") },
     h("p", { className: "text-sm text-muted-foreground" }, "At least one active route has not received its current certificate.")),
   h(G.Notice, { tone: "warning", icon: I.RefreshCw, title: "Update Available", actions: [h(G.NoticeAction, { key: "a", tone: "warning", to: "/settings/general" }, "Go to Settings"), h(G.NoticeAction, { key: "b", tone: "warning", muted: true, arrow: false, onClick: function () {} }, "Hide")] },
-    h("p", { className: "text-sm text-muted-foreground" }, "Gateway 2.11.0 is ready to install")),
+    h("p", { className: "text-sm text-muted-foreground" }, "Opfield 2.11.0 is ready to install")),
   h(G.Notice, { tone: "info", title: "Finalize setup", actions: h(G.NoticeAction, { tone: "info", onClick: function () {} }, "Open checklist") },
-    h("p", { className: "text-sm text-muted-foreground" }, "Connect infrastructure, secure your account, and enable optional Gateway features."))
+    h("p", { className: "text-sm text-muted-foreground" }, "Connect infrastructure, secure your account, and enable optional Opfield features."))
 )));
 `,
   },

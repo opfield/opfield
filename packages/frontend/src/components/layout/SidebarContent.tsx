@@ -124,7 +124,7 @@ export function SidebarContent({
   const updateAvailable = gatewayUpdateAvailable || relayOnlyUpdateAvailable;
   const updateLabel = relayOnlyUpdateAvailable
     ? "Relay update available"
-    : "Gateway update available";
+    : "Opfield update available";
   const showUpdateNotifications = useUIStore((s) => s.showUpdateNotifications);
   const relayUpdateLabel = useRelayPoolUpdateLabel();
   const showRelayUpdate = relayUpdateLabel !== null && hasScope("settings:gateway:view");
@@ -374,8 +374,8 @@ export function SidebarContent({
               style={{ paddingTop: 10, paddingBottom: 10, paddingLeft: 10 }}
             >
               <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground/80 whitespace-nowrap pl-1">
-                <img src="/android-chrome-192x192.png" alt="Gateway" className="h-5 w-5" />
-                Gateway
+                <img src="/android-chrome-192x192.png" alt="Opfield" className="h-5 w-5" />
+                Opfield
               </span>
 
               <div className="flex items-center gap-0.5">

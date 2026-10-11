@@ -3,11 +3,11 @@
 ## Images and registries
 
 - `list_docker_images`, `pull_docker_image`, `remove_docker_image`, `prune_docker_images`. Pull an approved image onto the selected Docker Node before creating a resource from it, and wait for the pull Task.
-- `manage_docker_registry` stores private registry credentials, globally or per Node; they are never returned after storage. Do not create a registry entry to pull a public Docker Hub image. Never ask for a registry password in chat: let the user enter it in the Gateway Console.
+- `manage_docker_registry` stores private registry credentials, globally or per Node; they are never returned after storage. Do not create a registry entry to pull a public Docker Hub image. Never ask for a registry password in chat: let the user enter it in the Opfield Console.
 
 ## Volumes
 
-- `manage_docker_volume` creates Gateway-managed local volumes only: `storageKind: "regular"`, or `"disk-image"` with `capacityBytes` (Personal plan or higher and a compatible Node).
+- `manage_docker_volume` creates Opfield-managed local volumes only: `storageKind: "regular"`, or `"disk-image"` with `capacityBytes` (Personal plan or higher and a compatible Node).
 - `operation: "resize"` only grows a volume. `operation: "adopt"` brings an eligible legacy local-driver volume under management without copying data.
 - Never propose a host bind mount for a new or changed mount.
 
@@ -34,8 +34,8 @@
 
 ## Isolation profiles
 
-The **Secure** profile (gVisor) cannot attach GPUs or devices, use host bind mounts, migrate between Nodes, or be exported. Changing the profile always recreates the workload. Docker Nodes report Secure Runtime setup state; install it through Gateway's setup entrypoint, not ad hoc console commands.
+The **Secure** profile (gVisor) cannot attach GPUs or devices, use host bind mounts, migrate between Nodes, or be exported. Changing the profile always recreates the workload. Docker Nodes report Secure Runtime setup state; install it through Opfield's setup entrypoint, not ad hoc console commands.
 
 ## Scopes
 
-`docker:containers:view|create|edit|manage|environment|delete|console|files:read|files:write|export|secrets|webhooks|mounts|migrate`, `docker:compose:view|create|manage|delete`, `docker:images:view|pull|delete`, `docker:volumes:*`, `docker:networks:*`, `docker:registries:*`, `docker:tasks`, `docker:tasks:manage`, `docker:folders:manage`. A Node-level grant covers every Container and Deployment on that Node; a child grant (`<nodeId>/<resourceId>`) covers one. Console, file, export, secret, mount, and migration scopes are OAuth manual-approval scopes. Full table: [Scopes reference](https://docs.goodgateway.dev/en/identity/scopes-reference/).
+`docker:containers:view|create|edit|manage|environment|delete|console|files:read|files:write|export|secrets|webhooks|mounts|migrate`, `docker:compose:view|create|manage|delete`, `docker:images:view|pull|delete`, `docker:volumes:*`, `docker:networks:*`, `docker:registries:*`, `docker:tasks`, `docker:tasks:manage`, `docker:folders:manage`. A Node-level grant covers every Container and Deployment on that Node; a child grant (`<nodeId>/<resourceId>`) covers one. Console, file, export, secret, mount, and migration scopes are OAuth manual-approval scopes. Full table: [Scopes reference](https://docs.opfield.dev/en/identity/scopes-reference/).

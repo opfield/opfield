@@ -362,9 +362,9 @@ export class GatewayIdentityRenewalService {
       }
       const window = GATEWAY_IDENTITY_RENEW_BEFORE_MS;
       const internal = readCertificate(relayPaths.appInternalServer);
-      this.checkExpiry(due, 'Gateway internal listener certificate', internal, now, window, false);
+      this.checkExpiry(due, 'Opfield internal listener certificate', internal, now, window, false);
       const appClient = readCertificate(relayPaths.appRelayClient);
-      this.checkExpiry(due, 'Gateway relay client certificate', appClient, now, window, false);
+      this.checkExpiry(due, 'Opfield relay client certificate', appClient, now, window, false);
       const relayClient = readCertificate(relayPaths.relayAppClient);
       this.checkExpiry(due, 'relay client certificate', relayClient, now, window, false);
     }
@@ -422,7 +422,7 @@ export class GatewayIdentityRenewalService {
     if (expiry !== null && expiry - now > GATEWAY_IDENTITY_RENEW_BEFORE_MS) return;
     this.warnDaily(
       'operator-certificate',
-      'The gRPC certificate configured by GRPC_TLS_CERT expires soon and cannot be renewed by Gateway',
+      'The gRPC certificate configured by GRPC_TLS_CERT expires soon and cannot be renewed by Opfield',
       { expiresAt: expiry === null ? null : new Date(expiry).toISOString() }
     );
   }

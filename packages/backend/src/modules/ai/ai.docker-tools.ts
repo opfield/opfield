@@ -965,7 +965,7 @@ function lifecycleToolResult(
   return {
     success: true,
     pending: true,
-    message: `The container is still ${answer.pending}: Gateway stopped waiting after 45 s and the operation goes on. Do not repeat the request. Read the container with get_docker_container until ${waitUntil}${task}.`,
+    message: `The container is still ${answer.pending}: Opfield stopped waiting after 45 s and the operation goes on. Do not repeat the request. Read the container with get_docker_container until ${waitUntil}${task}.`,
     data: pendingOperationBody({ ...answer, pending: answer.pending }),
   };
 }

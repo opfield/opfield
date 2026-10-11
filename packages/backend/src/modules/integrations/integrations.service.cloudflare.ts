@@ -165,7 +165,7 @@ export class IntegrationsCloudflareService extends IntegrationsGitLabConnectorSe
       .where(eq(domains.integrationConnectorId, id))
       .limit(5);
     if (linkedDomains.length > 0) {
-      throw new AppError(409, 'CLOUDFLARE_CONNECTOR_IN_USE', 'Cloudflare connector is used by Gateway domains', {
+      throw new AppError(409, 'CLOUDFLARE_CONNECTOR_IN_USE', 'Cloudflare connector is used by Opfield domains', {
         domainCount: linkedDomains.length,
         domains: linkedDomains,
       });

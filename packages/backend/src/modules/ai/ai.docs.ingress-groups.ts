@@ -1,7 +1,7 @@
 export const INGRESS_GROUP_DOCS: Record<string, string> = {
   'ingress-groups': `# Ingress Groups
 
-An ingress group is a set of nginx ingress nodes, normally one per site, that serve the same routes and domains. Each member renders every route of the group itself and keeps its own replica of every certificate, so a member keeps serving while the Gateway control plane or another member is down. Use manage_ingress_group (REST: /api/ingress-groups).
+An ingress group is a set of nginx ingress nodes, normally one per site, that serve the same routes and domains. Each member renders every route of the group itself and keeps its own replica of every certificate, so a member keeps serving while the Opfield control plane or another member is down. Use manage_ingress_group (REST: /api/ingress-groups).
 
 ## Model
 - A group has a name, slug, optional description, a node folder (folderId; groups use node folders, with their own ingress:groups permissions) and dnsFailoverMode.
@@ -22,7 +22,7 @@ An ingress group is a set of nginx ingress nodes, normally one per site, that se
 - delete: only a group without routes and domains.
 
 ## DNS
-- dnsFailoverMode none: a Cloudflare-managed group domain lists the address of every active member (round robin). Plain DNS records are not health-checked, so an unreachable member keeps receiving its share of clients until it is removed from the group. External DNS is the operator's; Gateway validates that it points at members.
+- dnsFailoverMode none: a Cloudflare-managed group domain lists the address of every active member (round robin). Plain DNS records are not health-checked, so an unreachable member keeps receiving its share of clients until it is removed from the group. External DNS is the operator's; Opfield validates that it points at members.
 - Members without a detected public ingress address are not published.
 
 ## Certificates
@@ -32,5 +32,5 @@ An ingress group is a set of nginx ingress nodes, normally one per site, that se
 ## Status
 - get shows each member with state, connection and ingress health, and each route and domain with per-member delivery: the config and certificate version each member confirmed, or pending or failed with the reason. get_route shows servingNodeIds, ingressGroup and ingressDelivery for a route on a group.
 - Route health is checked through every member: a route is degraded when some member fails it and offline when none serves it.
-- Every Gateway-rendered server block and the default server answer /.well-known/gateway-ingress-health: 200 with JSON when nginx runs the current config generation (and, with Secure Links, at least one relay transport is usable), 503 otherwise, 502 when the nginx daemon is not running.`,
+- Every Opfield-rendered server block and the default server answer /.well-known/gateway-ingress-health: 200 with JSON when nginx runs the current config generation (and, with Secure Links, at least one relay transport is usable), 503 otherwise, 502 when the nginx daemon is not running.`,
 };

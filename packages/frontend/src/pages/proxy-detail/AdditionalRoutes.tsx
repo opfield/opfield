@@ -200,7 +200,7 @@ export function validateAdditionalRoutePath(
   const lower = normalized.toLowerCase();
   const reserved = ["/.well-known/acme-challenge", "/_gateway"];
   if (reserved.some((prefix) => lower === prefix || lower.startsWith(`${prefix}/`))) {
-    return "This path is reserved by Gateway.";
+    return "This path is reserved by Opfield.";
   }
   if (
     routes.some(

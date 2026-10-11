@@ -385,7 +385,7 @@ describe('update artifact trust', () => {
         },
         gatewayPublicKey
       )
-    ).toThrow('Gateway update secure-link connector image reference is not digest pinned');
+    ).toThrow('Opfield update secure-link connector image reference is not digest pinned');
   });
 
   it('rejects an invalid relay version even when the manifest signature is valid', () => {
@@ -478,7 +478,7 @@ describe('update artifact trust', () => {
     ).toThrow('OpenCodex update image mismatch');
   });
 
-  it('rejects an OpenCodex manifest whose version is not a Good Gateway release', () => {
+  it('rejects an OpenCodex manifest whose version is not an Opfield release', () => {
     const payload = Buffer.from(
       JSON.stringify({
         kind: 'opencodex-image',
@@ -510,6 +510,6 @@ describe('update artifact trust', () => {
         },
         gatewayPublicKey
       )
-    ).toThrow('OpenCodex update version is not a Good Gateway release');
+    ).toThrow('OpenCodex update version is not an Opfield release');
   });
 });

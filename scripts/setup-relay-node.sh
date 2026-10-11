@@ -27,11 +27,11 @@ DRY_RUN=0
 
 usage() {
   echo "Usage: setup-relay-node.sh --gateway host:port --token TOKEN --gateway-cert-sha256 sha256:HEX --advertise-address HOST [--service-port 9443] [--version vX.Y.Z] [--disable-console] [--disable-files] [--protected] [--dry-run]"
-  echo "  An enrolled relay can be re-run without --token: it keeps its identity and takes the Gateway address, certificate"
+  echo "  An enrolled relay can be re-run without --token: it keeps its identity and takes the Opfield address, certificate"
   echo "  pin, advertised address and port from its configuration unless they are given. With a token it re-enrolls."
   echo "  --disable-console  Turn the host console off (console.enabled: false; env GATEWAY_NODE_DISABLE_CONSOLE=1)"
   echo "  --disable-files    Turn host file access off (files.enabled: false; env GATEWAY_NODE_DISABLE_FILES=1)"
-  echo "  --protected        Protected mode (protected.enabled: true; env GATEWAY_RELAY_PROTECTED=1): Gateway cannot open a"
+  echo "  --protected        Protected mode (protected.enabled: true; env GATEWAY_RELAY_PROTECTED=1): Opfield cannot open a"
   echo "                     console, run commands, read or write files or collect host diagnostics on this machine; it can only"
   echo "                     update the relay with official signed releases and route traffic through it. The machine owner"
   echo "                     turns it off with: relay-supervisor protected off, then a restart of the relay supervisor."
@@ -802,7 +802,7 @@ if [[ "$RELAY_ENROLLED" -eq 1 && -z "$TOKEN" ]]; then
   [[ -n "$ADVERTISE_ADDRESS" ]] || ADVERTISE_ADDRESS=$(relay_config_advertised_address || true)
   [[ "$SERVICE_PORT_GIVEN" -eq 1 ]] || SERVICE_PORT=$(relay_config_value worker service_port || echo "$SERVICE_PORT")
   if [[ -z "$GATEWAY" || -z "$GATEWAY_CERT_SHA256" || -z "$ADVERTISE_ADDRESS" ]]; then
-    echo "This relay is enrolled, but ${RELAY_CONFIG} does not name its Gateway, certificate pin and advertised address; pass --gateway, --gateway-cert-sha256 and --advertise-address." >&2
+    echo "This relay is enrolled, but ${RELAY_CONFIG} does not name its Opfield address, certificate pin and advertised address; pass --gateway, --gateway-cert-sha256 and --advertise-address." >&2
     usage >&2
     exit 2
   fi
@@ -842,11 +842,11 @@ relay_dry_run() {
   fi
   has_systemd && manager="systemd unit gateway-relay-supervisor"
   ! has_openrc || has_systemd || manager="OpenRC service gateway-relay-supervisor"
-  echo "Dry run: Relay supervisor ${version} (${ARCH}) for Gateway ${GATEWAY}, advertised at ${ADVERTISE_ADDRESS}:${SERVICE_PORT}."
+  echo "Dry run: Relay supervisor ${version} (${ARCH}) for Opfield ${GATEWAY}, advertised at ${ADVERTISE_ADDRESS}:${SERVICE_PORT}."
   if [[ "$RERUN_WITHOUT_TOKEN" -eq 1 ]]; then
-    echo "The relay is enrolled and no token was given: it keeps its identity (Gateway, certificate pin and advertised address come from its configuration unless given)."
+    echo "The relay is enrolled and no token was given: it keeps its identity (Opfield address, certificate pin and advertised address come from its configuration unless given)."
   elif [[ "$RELAY_ENROLLED" -eq 1 ]]; then
-    echo "The relay is enrolled and a token was given: it re-enrolls, and keeps its previous identity if Gateway refuses the token."
+    echo "The relay is enrolled and a token was given: it re-enrolls, and keeps its previous identity if Opfield refuses the token."
   fi
   if [[ "$PREVIOUS_RUN_UID" != 0 && "$PREVIOUS_RUN_UID" != "$(id -u "$RUN_USER")" ]]; then
     echo "Would stop the relay supervisor and switch it from $(id -nu "$PREVIOUS_RUN_UID" 2>/dev/null || echo "uid ${PREVIOUS_RUN_UID}") to ${RUN_USER}."
@@ -858,7 +858,7 @@ relay_dry_run() {
   if [[ "$PROTECTED" == "1" ]] || relay_protected_setting "$RELAY_CONFIG" enabled; then
     echo "Would write protected.enabled: true to /etc/gateway-relay-supervisor/config.yaml (protected mode)."
   fi
-  echo "Would wait for the relay to enroll and connect to Gateway."
+  echo "Would wait for the relay to enroll and connect to Opfield."
   echo "Dry run completed; no host changes were made."
 }
 if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -1013,7 +1013,7 @@ start_relay_supervisor() {
   if has_systemd; then
     cat >/etc/systemd/system/gateway-relay-supervisor.service <<UNIT || fail_supervisor_start "Could not write the relay supervisor systemd unit."
 [Unit]
-Description=Gateway Relay Supervisor
+Description=Opfield Relay Supervisor
 After=network-online.target
 Wants=network-online.target
 
@@ -1037,8 +1037,8 @@ UNIT
   elif has_openrc; then
     cat >/etc/init.d/gateway-relay-supervisor <<UNIT || fail_supervisor_start "Could not write the relay supervisor OpenRC service."
 #!/sbin/openrc-run
-name="Gateway Relay Supervisor"
-description="Gateway Relay Supervisor"
+name="Opfield Relay Supervisor"
+description="Opfield Relay Supervisor"
 command="/usr/local/lib/gateway-relay/run-supervisor"
 command_user="${RUN_USER}:${RUN_GROUP}"
 pidfile="/run/\${RC_SVCNAME}.pid"
@@ -1083,15 +1083,15 @@ await_enrollment() {
       outcome=$(jq -r '.outcome // empty' "$ENROLLMENT_RESULT" 2>/dev/null || true)
       error=$(jq -r '.error // empty' "$ENROLLMENT_RESULT" 2>/dev/null || true)
       if [[ "$outcome" == "enrolled" ]]; then
-        echo "Relay enrolled with Gateway."
+        echo "Relay enrolled with Opfield."
         enrolled=1
       elif [[ "$outcome" == "failed" ]]; then
         if [[ "$REENROLLMENT" -eq 1 ]]; then
           echo "Relay re-enrollment failed: ${error}" >&2
-          echo "The relay keeps running with its previous identity. Issue a new re-enroll token in Gateway (Settings > Relay) and run the installer again." >&2
+          echo "The relay keeps running with its previous identity. Issue a new re-enroll token in Opfield (Settings > Relay) and run the installer again." >&2
         else
           echo "Relay enrollment failed: ${error}" >&2
-          echo "Create a new enrollment token in Gateway and run the installer again." >&2
+          echo "Create a new enrollment token in Opfield and run the installer again." >&2
         fi
         return 1
       fi
@@ -1099,13 +1099,13 @@ await_enrollment() {
     if [[ "$enrolled" -eq 1 ]]; then
       if daemon_records_gateway_session "$VERSION"; then
         if gateway_session_is_current; then
-          echo "Relay supervisor is connected to Gateway."
+          echo "Relay supervisor is connected to Opfield."
           return 0
         fi
       elif supervisor_service_running; then
         running=$((running + 1))
         if [[ "$running" -ge 10 ]]; then
-          echo "Relay supervisor ${VERSION} does not report its Gateway connection; check that the relay is online in Gateway." >&2
+          echo "Relay supervisor ${VERSION} does not report its Opfield connection; check that the relay is online in Opfield." >&2
           return 0
         fi
       else
@@ -1118,9 +1118,9 @@ await_enrollment() {
   if ! supervisor_service_running; then
     echo "The relay supervisor is not running; the service manager could not keep it up. The log below shows why." >&2
   elif [[ "$enrolled" -eq 1 ]]; then
-    echo "The relay supervisor has not connected to Gateway within ${ENROLLMENT_WAIT_SECONDS} s; check that Gateway at ${GATEWAY} is reachable and the supervisor log." >&2
+    echo "The relay supervisor has not connected to Opfield within ${ENROLLMENT_WAIT_SECONDS} s; check that Opfield at ${GATEWAY} is reachable and the supervisor log." >&2
   else
-    echo "The relay supervisor has not reported its enrollment within ${ENROLLMENT_WAIT_SECONDS} s; check that Gateway at ${GATEWAY} is reachable and the supervisor log." >&2
+    echo "The relay supervisor has not reported its enrollment within ${ENROLLMENT_WAIT_SECONDS} s; check that Opfield at ${GATEWAY} is reachable and the supervisor log." >&2
   fi
   return 2
 }
@@ -1140,7 +1140,7 @@ if [[ "$enrollment_status" -eq 1 && "$REENROLLMENT" -eq 1 ]]; then
 fi
 if [[ "$enrollment_status" -ne 0 ]]; then
   # A timeout is a failure too: a supervisor that cannot start never reports, and the relay is not usable.
-  echo "Relay supervisor ${VERSION} is installed, but the relay is not enrolled and connected to Gateway." >&2
+  echo "Relay supervisor ${VERSION} is installed, but the relay is not enrolled and connected to Opfield." >&2
   supervisor_log_hint
   exit 1
 fi

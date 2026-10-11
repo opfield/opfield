@@ -48,7 +48,7 @@ export function isNodeProtected(node: Node | NodeDetail | null | undefined): boo
 
 /** What the Protected badge explains. */
 export const PROTECTED_NODE_DESCRIPTION =
-  "Protected by the machine owner: no console, files, commands or host diagnostics from Gateway. Gateway can update the relay with official signed releases and route traffic through it.";
+  "Protected by the machine owner: no console, files, commands or host diagnostics from Opfield. Opfield can update the relay with official signed releases and route traffic through it.";
 
 export function isNodeHostFeatureDisabled(
   node: Node | NodeDetail | null | undefined,

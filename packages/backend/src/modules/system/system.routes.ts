@@ -204,7 +204,7 @@ systemRoutes.openapi(performSystemUpdateRoute, async (c) => {
   const updateService = container.resolve(UpdateService);
   const eventBus = container.resolve(EventBusService);
   if (updateService.isGatewayUpdateInProgress()) {
-    return c.json({ code: 'UPDATE_IN_PROGRESS', message: 'A Gateway update is already in progress' }, 409);
+    return c.json({ code: 'UPDATE_IN_PROGRESS', message: 'An Opfield update is already in progress' }, 409);
   }
   // A running Relay Pool update refuses the Gateway update with a 409.
   await updateService.assertGatewayUpdateAllowed();
@@ -256,7 +256,7 @@ systemRoutes.openapi(proceedSystemUpdateRoute, async (c) => {
   if (forbidden) return forbidden;
   const updateService = container.resolve(UpdateService);
   if (!updateService.proceedWithoutWaiting()) {
-    return c.json({ code: 'UPDATE_NOT_WAITING', message: 'No Gateway update is waiting for running operations' }, 409);
+    return c.json({ code: 'UPDATE_NOT_WAITING', message: 'No Opfield update is waiting for running operations' }, 409);
   }
   logger.warn('Gateway update proceeds without waiting for running operations', { userId: c.get('user')?.id });
   return c.json({ data: { status: 'updating' } });
@@ -282,7 +282,7 @@ systemRoutes.openapi(performRelayUpdateRoute, async (c) => {
     return c.json(
       {
         code: 'GATEWAY_UPDATE_IN_PROGRESS',
-        message: 'Gateway is updating. Update the Relay Pool after the Gateway update has finished.',
+        message: 'Opfield is updating. Update the Relay Pool after the Opfield update has finished.',
       },
       409
     );

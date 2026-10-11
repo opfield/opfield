@@ -85,7 +85,7 @@ export const AvailabilityViewSchema = z
       })
       .nullable(),
     policyLeaseHours: z.number().nullable().openapi({
-      description: 'How long failover keeps working while Gateway is down (the relay policy lease)',
+      description: 'How long failover keeps working while Opfield is down (the relay policy lease)',
     }),
     operation: z
       .object({
@@ -135,7 +135,7 @@ export const AvailabilityPreflightResultSchema = z
 const AvailabilityEventsResponseSchema = z.object({
   data: z.array(z.record(z.unknown())).openapi({
     description:
-      'Audit rows (`action` `availability.<event>`); `createdAt` is when it happened, also for events the servers queued while Gateway was down (`details.noticedAt`: when Gateway learned of it)',
+      'Audit rows (`action` `availability.<event>`); `createdAt` is when it happened, also for events the servers queued while Opfield was down (`details.noticedAt`: when Opfield learned of it)',
   }),
   page: z.number(),
   limit: z.number(),
@@ -222,7 +222,7 @@ export function availabilityRouteDocs(input: AvailabilityDocsInput) {
       path: `${base}/availability`,
       tags: [tag],
       summary: `Change availability settings of a ${noun}`,
-      description: `Durability (switching a far pair to synchronous makes every commit wait for the round trip), failback, the fallback delay of a synchronous copy, the lag a copy may have and stay eligible, and the lease witnesses of a set with automatic failover (\`witness\`; null lets Gateway pick). Needs ${editScope}. ${license('current')}`,
+      description: `Durability (switching a far pair to synchronous makes every commit wait for the round trip), failback, the fallback delay of a synchronous copy, the lag a copy may have and stay eligible, and the lease witnesses of a set with automatic failover (\`witness\`; null lets Opfield pick). Needs ${editScope}. ${license('current')}`,
       request: { params, ...jsonBody(ManagedAvailabilitySettingsSchema) },
       responses: okJson(dataResponseSchema(AvailabilityViewSchema)),
     }),

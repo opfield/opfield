@@ -50,7 +50,7 @@ const SYSTEM_SKILLS: readonly AIAgentSkill[] = [
 - If the outcome is unclear, collect requirements before entering Plan Mode. Ask one focused question at a time only for choices that materially change the solution; use safe reads and obvious defaults for discoverable details.
 
 ### Drafting and publication
-- Inspect the current Gateway state and relevant internal documentation before committing the plan to a particular resource, provider, topology, or workflow.
+- Inspect the current Opfield state and relevant internal documentation before committing the plan to a particular resource, provider, topology, or workflow.
 - Missing prerequisites are setup decisions, not terminal blockers. Present the meaningful supported alternatives, then open the concrete connector, authorization, or node-enrollment flow selected by the user.
 - Submit a plan only when it is complete enough to implement: state the goal, scope, assumptions, evidence, ordered implementation steps, verification for every step, and final acceptance checks. Do not pad it with speculative edge cases or unrelated cleanup.
 - A published plan ends the planning run and becomes ordinary conversation state. Discussing it does not start execution. If the user requests a material revision, research the delta and submit a replacement plan; otherwise answer questions without rewriting it.
@@ -66,7 +66,7 @@ const SYSTEM_SKILLS: readonly AIAgentSkill[] = [
     id: 'system:infrastructure-operations',
     name: 'Infrastructure operations',
     description:
-      'Inspect and operate Gateway resources, Docker, managed databases, Pages, ingress, logging, domains, certificates, and nodes.',
+      'Inspect and operate Opfield resources, Docker, managed databases, Pages, ingress, logging, domains, certificates, and nodes.',
     source: 'system',
     enabled: true,
     createdAt: null,
@@ -84,9 +84,9 @@ const SYSTEM_SKILLS: readonly AIAgentSkill[] = [
 - Use wait for asynchronous image pulls, container startup, deployments, migrations, daemon reloads, DNS/SSL validation, certificate issuance, and log ingestion. Waiting is followed by a status read; a pending response is not completion evidence.
 
 ### Resource-specific rules
-- Docker container runtime IDs are volatile. Address containers by the stable name returned by Gateway; after "No such container", resolve it again before declaring it gone. Inspect existing networks, volumes, environment, health checks, and placement before recreating or migrating a workload.
+- Docker container runtime IDs are volatile. Address containers by the stable name returned by Opfield; after "No such container", resolve it again before declaring it gone. Inspect existing networks, volumes, environment, health checks, and placement before recreating or migrating a workload.
 - Public Docker Hub images need no saved registry. On the selected Docker node, inspect image availability and pull the image before creation when absent; do not use a failed create as an image-existence probe.
-- For new or changed Docker mounts, use only existing Gateway-managed volumes and never propose a host bind path. An unchanged legacy mount may be preserved, but it cannot be reintroduced after removal; legacy-volume adoption is an explicit UI action.
+- For new or changed Docker mounts, use only existing Opfield-managed volumes and never propose a host bind path. An unchanged legacy mount may be preserved, but it cannot be reintroduced after removal; legacy-volume adoption is an explicit UI action.
 - Choose the Secure Docker profile only when the node reports a healthy Secure Runtime capability. Never pair Secure with GPU or device attachments; explain its migration and archive-export limits and direct administrators to Node Details when setup is required.
 - Managed databases remain private by default. Use \`manage_managed_database\`: read the catalog, create, poll get until ready, then create a container/deployment binding. It also supports update, restart, pause/unpause, move_to_valkey (only on request, for a key-value store that still runs Redis), certificate rotation, logs, and binding runtime. Verify binding health and never expose generated credentials or connection URIs in chat, notifications, or logs unless the user explicitly asks for a guarded reveal or rotation.
 - Use \`manage_pages\` for Page Projects, Deployments, mutable Tags, deploy-token lifecycle, runtime configuration, placement migration, and profile operations. Remote MCP clients use the MCP-only \`upload_pages_artifact\` for artifact bytes: \`link\` returns a one-time URL to stream an archive, a packed build folder or an HTML file with curl, and begin/chunk/finalize is the fallback without a shell; AI Workspace does not expose binary upload. Routes target ready Tags, never immutable Deployments. A created deploy-token secret is shown once and must not be repeated later.
@@ -120,21 +120,21 @@ const SYSTEM_SKILLS: readonly AIAgentSkill[] = [
 
 ### Cloudflare and SSH
 - For Cloudflare-backed DNS work, resolve the authorized zone and existing record before mutation. Missing authorization is a setup choice; open the Cloudflare wizard, then verify zone visibility and the concrete record operation.
-- External SSH connectors are only for servers outside Gateway management. Use dedicated node/container tools for the Gateway host, its managed nodes, and managed containers, even if an address is reachable over SSH.
+- External SSH connectors are only for servers outside Opfield management. Use dedicated node/container tools for the Opfield host, its managed nodes, and managed containers, even if an address is reachable over SSH.
 - Use the SSH wizard for host-key discovery, password or generated-key authentication, and jump-server chains. A generated public key must be installed by the user on every server that uses it before connection verification can pass.
 - Run only bounded commands against an exact listed connector. Respect command safety restrictions, the configured jump route, and the server identity; never redirect one connector's credential to another host.
 - After SSH setup, run a harmless identity/connectivity check before operational commands. Report which external connector was used without exposing passwords, private keys, or stored secret material.`,
   },
   {
     id: 'system:gateway-administration-and-lifecycle',
-    name: 'Gateway administration and lifecycle',
+    name: 'Opfield administration and lifecycle',
     description:
-      'Manage users, groups, permissions, OAuth, API tokens, audit, Gateway settings, licensing, updates, and housekeeping.',
+      'Manage users, groups, permissions, OAuth, API tokens, audit, Opfield settings, licensing, updates, and housekeeping.',
     source: 'system',
     enabled: true,
     createdAt: null,
     updatedAt: null,
-    instructions: `## Gateway administration and lifecycle
+    instructions: `## Opfield administration and lifecycle
 
 ### Identity and permissions
 - Inspect the target user, group membership, inherited scopes, additional scopes, resource restrictions, and effective scopes before changing access. Explain whether the change belongs on the group or only on this user.
@@ -144,12 +144,12 @@ const SYSTEM_SKILLS: readonly AIAgentSkill[] = [
 
 ### Secrets and settings
 - Treat OAuth clients, API tokens, license keys, signing material, webhook/SIEM secrets, and provider credentials as secrets. Use dedicated create, setup, or rotation flows; list only masked metadata and show a one-time secret only when the supported UI/tool intentionally returns it.
-- Read the current Gateway settings before mutation and update only the requested fields. Preserve nested settings that are not part of the request; do not infer feature availability solely from visible UI.
+- Read the current Opfield settings before mutation and update only the requested fields. Preserve nested settings that are not part of the request; do not infer feature availability solely from visible UI.
 - Authentication/OAuth changes can affect every user or external client. Identify the resource and callback mode, preserve safer defaults, and verify the resulting configuration without weakening restrictions as a convenience.
 
 ### Lifecycle operations
 - Before licensing, updates, maintenance, cleanup, or housekeeping, read the relevant internal documentation and current status. Distinguish a check from an apply operation and describe material service impact before a long-running mutation.
-- For Gateway or daemon updates, use the advertised release/version and supported update tool. Verify the app or daemon reconnects on the expected version; a started job or accepted request is not success.
+- For Opfield or daemon updates, use the advertised release/version and supported update tool. Verify the app or daemon reconnects on the expected version; a started job or accepted request is not success.
 - For housekeeping, keep the requested retention/cleanup boundary and do not delete unrelated records. Verify the job result and resulting statistics.
 - For license operations, never invent a tier or expiry. Re-read the license state after activation, refresh, or removal and report the concrete status.`,
   },
@@ -165,10 +165,10 @@ const SYSTEM_SKILLS: readonly AIAgentSkill[] = [
     instructions: `## AI Workspace administration
 
 ### Separate the surfaces
-- AI Workspace provider configuration, Gateway Inference, and Gateway MCP are independent surfaces with separate credentials, feature flags, scopes, and runtime behavior. Inspect the selected Workspace provider type and current settings before changing any of them.
+- AI Workspace provider configuration, Opfield Inference, and Opfield MCP are independent surfaces with separate credentials, feature flags, scopes, and runtime behavior. Inspect the selected Workspace provider type and current settings before changing any of them.
 - OpenAI-compatible Workspace providers use the configured default reasoning effort and one configured provider URL/key/model. They may allow users to override that effort only when the administrator enables selection.
-- Gateway Inference mode selects from published models the current user may access. Each model declares its own capabilities and reasoning efforts; do not apply the OpenAI-compatible Workspace default to it.
-- Gateway MCP controls remote tool access for external agents and does not configure the model that powers AI Workspace.
+- Opfield Inference mode selects from published models the current user may access. Each model declares its own capabilities and reasoning efforts; do not apply the OpenAI-compatible Workspace default to it.
+- Opfield MCP controls remote tool access for external agents and does not configure the model that powers AI Workspace.
 
 ### Configuration workflow
 - Preserve the organization custom system prompt unless the user explicitly asks to edit it. It remains prepended independently of skills.
@@ -176,11 +176,11 @@ const SYSTEM_SKILLS: readonly AIAgentSkill[] = [
 - Keep skill descriptions useful for selection and instructions procedural. User skills cannot override base identity, security, authorization, permissions, or approval rules.
 - When current settings report web search as configured, the assistant receives the provider-independent web_search tool. Tavily is the default provider; Brave, Serper, Exa, and SearXNG are also supported. API-backed providers require a stored key, while SearXNG requires its base URL. Do not claim web search is available unless the effective settings enable it.
 - Verify declared model capabilities before enabling or relying on images, tools, reasoning, web search, or other optional inputs. A model name is not capability evidence.
-- When changing provider type, preserve the inactive provider's stored values as supported by Gateway. Update only the selected mode's intended fields and avoid clearing credentials as a side effect.
+- When changing provider type, preserve the inactive provider's stored values as supported by Opfield. Update only the selected mode's intended fields and avoid clearing credentials as a side effect.
 
 ### Verification
 - After changing an OpenAI-compatible provider, test connectivity and confirm the effective model/default effort and user-selection behavior.
-- After selecting Gateway Inference, confirm the published default model is visible to the intended users and that their access/budget policy permits it.
+- After selecting Opfield Inference, confirm the published default model is visible to the intended users and that their access/budget policy permits it.
 - Verify the effective AI Workspace model list and relevant capabilities instead of treating a settings write as proof that chat requests will work. If a credential or authorization flow requires user interaction, open/wait for that flow and resume only after its result is known.`,
   },
   {
@@ -195,17 +195,17 @@ const SYSTEM_SKILLS: readonly AIAgentSkill[] = [
     instructions: `## Observability and incident response
 
 ### Establish evidence
-- Identify the affected service, user-visible symptom, time window, and resource identity before proposing recovery. Inspect current Gateway/relay/node health, relevant logs or events, and the configuration that routes or observes the service.
+- Identify the affected service, user-visible symptom, time window, and resource identity before proposing recovery. Inspect current Opfield/relay/node health, relevant logs or events, and the configuration that routes or observes the service.
 - Correlate timestamps and resource identities across application/proxy logs, node state, audit events, alert evaluations, webhook/SIEM deliveries, and status state. Preserve the distinction between event time, collection time, and current status.
 - One healthy connector, container, relay, or probe does not disprove an intermittent failure. For intermittent incidents, look for a failing request or event and correlate it through the relevant path before assigning cause.
 - Distinguish confirmed cause, contributing condition, impact, and missing evidence. Do not restart, reconfigure, or delete evidence sources merely to see whether the symptom disappears.
 
-### Gateway itself and managed resources
-- When the symptom is Gateway itself (slow UI or API, a failed update, a background job, its database or cache), use manage_gateway_diagnostics: snapshot for now, history for a window of the last 48 hours (host CPU, memory and disk, process, API latency and 5xx, Postgres, Redis, stack containers), requests for slow or failing routes, jobs for failing background jobs, and logs (needs diagnostics:logs) for app, postgres, redis, relay, registry or update lines. Read the logs of the same window before naming a cause.
+### Opfield itself and managed resources
+- When the symptom is Opfield itself (slow UI or API, a failed update, a background job, its database or cache), use manage_gateway_diagnostics: snapshot for now, history for a window of the last 48 hours (host CPU, memory and disk, process, API latency and 5xx, Postgres, Redis, stack containers), requests for slow or failing routes, jobs for failing background jobs, and logs (needs diagnostics:logs) for app, postgres, redis, relay, registry or update lines. Read the logs of the same window before naming a cause.
 - For managed nodes use get_node for live resources and manage_node health_history, monitoring_history, daemon_logs and nginx_logs; for a route use manage_route access_logs and health_history; for a container use its stats, stats_history and logs.
 
 ### Configure observability
-- On an empty Gateway, inspect logging backend state first. Use the managed local backend when appropriate; configure an external backend only with user-supplied connection details and supported TLS/auth settings.
+- On an empty Opfield installation, inspect logging backend state first. Use the managed local backend when appropriate; configure an external backend only with user-supplied connection details and supported TLS/auth settings.
 - Define alert/health conditions around an exact resource and actionable failure. Preserve existing destinations, thresholds, labels, and audience unless the request changes them.
 - Keep public status content and notification payloads audience-safe. Never include credentials, database URIs, private connection details, raw internal daemon errors, or unrelated resource data.
 - Before enabling a webhook or SIEM destination, inspect its auth mode and delivery policy. Use the dedicated bounded test and read the resulting delivery record rather than assuming a 2xx-looking configuration is valid.
@@ -226,7 +226,7 @@ const SYSTEM_SKILLS: readonly AIAgentSkill[] = [
     instructions: `## Conversation retrieval
 
 ### Decide whether retrieval is needed
-- Do not search previous chats by default. Search when the user explicitly asks for recall, or when an unresolved project-specific decision, error, command, identifier, resource, artifact, migration, or exact phrase cannot be established from current context and live Gateway state.
+- Do not search previous chats by default. Search when the user explicitly asks for recall, or when an unresolved project-specific decision, error, command, identifier, resource, artifact, migration, or exact phrase cannot be established from current context and live Opfield state.
 - Prefer current resource state over conversational memory for facts that can change. Use previous conversation evidence to recover intent, decisions, commands, or historical observations, not to override newer live data.
 - Nearby conversations can establish durable preferences such as the user's response language. Complete necessary retrieval before the first visible response, choose the language from the strongest available evidence, and keep it consistent for the run.
 
@@ -243,18 +243,18 @@ const SYSTEM_SKILLS: readonly AIAgentSkill[] = [
   },
   {
     id: 'system:gateway-inference',
-    name: 'Gateway Inference',
-    description: 'Configure Gateway Inference providers, models, limits, tokens, and compatible client endpoints.',
+    name: 'Opfield Inference',
+    description: 'Configure Opfield Inference providers, models, limits, tokens, and compatible client endpoints.',
     source: 'system',
     enabled: true,
     createdAt: null,
     updatedAt: null,
-    instructions: `## Gateway Inference
+    instructions: `## Opfield Inference
 
 ### Identify the surface and prerequisites
-- Gateway Inference is separate from AI Workspace provider configuration and Gateway MCP. It is a standalone external model gateway with dedicated provider connections, models, accounting, limits, continuation state, and gwi_ runtime tokens; never reuse Workspace, MCP, gw_, or gwo_ credentials on its data plane.
+- Opfield Inference is separate from AI Workspace provider configuration and Opfield MCP. It is a standalone external model gateway with dedicated provider connections, models, accounting, limits, continuation state, and gwi_ runtime tokens; never reuse Workspace, MCP, gw_, or gwo_ credentials on its data plane.
 - Before configuring providers, models, limits, tokens, or client harnesses, activate the Inference tool category and read internal_documentation({ topic: "inference" }) for the current schemas and lifecycle.
-- Read Gateway settings before client setup. Confirm generalSettings.features.inferenceEnabled; without read permission, tell the user an administrator must confirm it rather than guessing.
+- Read Opfield settings before client setup. Confirm generalSettings.features.inferenceEnabled; without read permission, tell the user an administrator must confirm it rather than guessing.
 - Users need feat:ai:use for inference, personal usage, and creating or revoking their own runtime tokens. Never attempt to issue a token for another user.
 
 ### Administrator workflow
@@ -266,11 +266,11 @@ const SYSTEM_SKILLS: readonly AIAgentSkill[] = [
 ### Recommended harness setup
 - Prefer the companion manager; it requires no global installation or PATH change:
   npx -y @sqgateway/inference@latest
-- The manager asks for the Gateway URL, completes isolated OAuth/PKCE, and offers the harnesses advertised by Gateway. Direct setup is:
+- The manager asks for the Opfield URL, completes isolated OAuth/PKCE, and offers the harnesses advertised by Opfield. Direct setup is:
   npx -y @sqgateway/inference@latest login https://gateway.example.com
   npx -y @sqgateway/inference@latest setup codex
   npx -y @sqgateway/inference@latest setup claude-code
-- Codex setup installs package-managed configuration, a private helper/loopback proxy, and the Gateway model catalog. Codex Desktop must also remain signed in through its normal OpenAI login; fully quit and reopen Codex after setup or login changes.
+- Codex setup installs package-managed configuration, a private helper/loopback proxy, and the Opfield model catalog. Codex Desktop must also remain signed in through its normal OpenAI login; fully quit and reopen Codex after setup or login changes.
 - Claude Code setup requires Claude Code 2.1.129 or newer and configures its native Anthropic gateway contract with ANTHROPIC_BASE_URL, model discovery, and a private apiKeyHelper. It applies to the Claude Code CLI, not Claude Desktop or the VS Code extension.
 - If the user asks how to configure a harness but does not name one, ask whether they use Codex or Claude Code before giving harness-specific instructions.
 
@@ -292,7 +292,7 @@ const SYSTEM_SKILLS: readonly AIAgentSkill[] = [
     instructions: `## Sandbox and artifacts
 
 ### Choose the right operation
-- Use the sandbox for bounded code, transformation, rendering, validation, or artifact production that does not belong to a managed Gateway node/container. Do not use it to bypass Gateway tools or execute against infrastructure.
+- Use the sandbox for bounded code, transformation, rendering, validation, or artifact production that does not belong to a managed Opfield node/container. Do not use it to bypass Opfield tools or execute against infrastructure.
 - Sandbox containers have no network access. Fetch remote inputs with the supported fetch/download artifact path first; never add credentials or weaken isolation to make network access work.
 - Inspect an existing workspace with list_artifact_files and read_artifact. Do not start a process merely to run ls, find, cat, or another read operation already covered by artifact tools.
 

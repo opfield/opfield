@@ -206,7 +206,7 @@ export class AISandboxRunnerService {
     child.stderr?.on('data', (chunk) => logger.warn('runner stderr', { output: chunk.toString('utf-8').trim() }));
     child.once('exit', (code, signal) => {
       // Gateway's stop ends the runner with it: expected then (stand rc.10, O-2).
-      if (isShuttingDown()) logger.info('Sandbox runner stopped with Gateway', { code, signal });
+      if (isShuttingDown()) logger.info('Sandbox runner stopped with Opfield', { code, signal });
       else logger.warn('Sandbox runner exited', { code, signal });
       if (this.child === child) {
         this.child = null;

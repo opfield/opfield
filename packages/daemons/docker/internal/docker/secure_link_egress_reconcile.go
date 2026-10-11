@@ -358,7 +358,7 @@ func (m *dockerSecureLinkManager) recordEgressResponseLocked(response *securelin
 		answer, ok := answered[config.ID]
 		switch {
 		case response.Version < securelink.ProtocolVersion:
-			status.State, status.Error = egressStateError, "the secure-link connector image does not serve egress: it needs the connector image of this Gateway release"
+			status.State, status.Error = egressStateError, "the secure-link connector image does not serve egress: it needs the connector image of this Opfield release"
 		case !ok:
 			status.State, status.Error = egressStateError, "the secure-link connector did not report the egress listener"
 		case answer.State == securelink.EgressListening && answer.Generation == config.Generation:

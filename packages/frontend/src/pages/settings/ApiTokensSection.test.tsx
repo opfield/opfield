@@ -122,7 +122,7 @@ describe("token internal registry access", () => {
 });
 
 describe("token scopes", () => {
-  it("asks Gateway to store exactly the counted scopes, so a Git Use line reopens as Use", async () => {
+  it("asks Opfield to store exactly the counted scopes, so a Git Use line reopens as Use", async () => {
     const connector = "0b8f2a8e-6f1c-4a57-9a51-3f9d7f1b2c01";
     const use = [
       `integrations:github:use:${connector}/repo/7`,

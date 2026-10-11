@@ -1056,8 +1056,8 @@ export function SSLCertificates() {
               </p>
               <p className="text-sm text-muted-foreground">
                 {renewingCert?.challengeType === "dns-01"
-                  ? "Gateway is creating or checking DNS TXT records and will continue automatically when Cloudflare is configured."
-                  : "Gateway is requesting and deploying the renewed certificate."}
+                  ? "Opfield is creating or checking DNS TXT records and will continue automatically when Cloudflare is configured."
+                  : "Opfield is requesting and deploying the renewed certificate."}
               </p>
             </div>
           </div>

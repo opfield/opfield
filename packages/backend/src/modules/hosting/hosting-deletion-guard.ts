@@ -135,7 +135,7 @@ export async function lockHostingDeletion(
   } else {
     const bindings = await tx.select().from(hostingNodeBindings).where(eq(hostingNodeBindings.resourceId, resource.id));
     if (bindings.length)
-      throw new AppError(409, 'HOSTING_NODE_BINDING_CHANGED', 'The deleted VM still has Gateway node bindings');
+      throw new AppError(409, 'HOSTING_NODE_BINDING_CHANGED', 'The deleted VM still has Opfield node bindings');
   }
   const [operation] = await tx
     .select()

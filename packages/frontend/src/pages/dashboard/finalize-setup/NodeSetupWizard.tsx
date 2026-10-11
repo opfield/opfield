@@ -158,9 +158,9 @@ export function NodeSetupWizard({
       description={
         <>
           <p>
-            Nodes are secure agents that let Gateway operate infrastructure outside this control
+            Nodes are secure agents that let Opfield operate infrastructure outside this control
             plane. They keep the credentials and host-level work on the machine where it belongs,
-            while Gateway gives you one place to configure and observe it.
+            while Opfield gives you one place to configure and observe it.
           </p>
           <p>
             Choose Ingress to serve public domains and routes, Docker for runtime containers, Build
@@ -170,7 +170,7 @@ export function NodeSetupWizard({
           </p>
           <p>
             This step creates a one-time enrollment command. Run it on the target host and keep this
-            dialog open; Gateway detects the connection automatically. You can add, remove, and
+            dialog open; Opfield detects the connection automatically. You can add, remove, and
             configure more nodes later from Nodes.
           </p>
         </>
@@ -204,7 +204,7 @@ export function NodeSetupWizard({
           title="Node connected"
           continueIn="Continue from Nodes to add more hosts, inspect their health, and configure the services each node provides."
         >
-          Gateway can now communicate with this node and use it for the selected infrastructure
+          Opfield can now communicate with this node and use it for the selected infrastructure
           role.
         </FinalizeSetupCompletion>
       ) : enrollment ? (
@@ -212,7 +212,7 @@ export function NodeSetupWizard({
           <div className="border border-border p-4">
             <p className="text-sm font-medium">Run this command on the target host</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Keep this wizard open. Gateway checks the node automatically every few seconds.
+              Keep this wizard open. Opfield checks the node automatically every few seconds.
             </p>
           </div>
           <UnreleasedInstallerNote installerRelease={enrollment.installerRelease} />
@@ -252,7 +252,7 @@ export function NodeSetupWizard({
       ) : (
         <PanelShell
           title="Node enrollment"
-          description="Choose what this host will contribute to Gateway and give it a recognizable name."
+          description="Choose what this host will contribute to Opfield and give it a recognizable name."
         >
           <SettingsControlRow title="Node type" description={selected.description}>
             <Select value={type} onValueChange={(value) => setType(value as NodeType)}>
@@ -270,7 +270,7 @@ export function NodeSetupWizard({
           </SettingsControlRow>
           <SettingsControlRow
             title="Node name"
-            description="Shown throughout Gateway after the node connects."
+            description="Shown throughout Opfield after the node connects."
           >
             <Input
               value={name}

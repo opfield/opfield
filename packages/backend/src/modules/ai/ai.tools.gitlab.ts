@@ -30,7 +30,7 @@ export const GITLAB_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'gitlab_list_projects',
     description:
-      'List synced GitLab projects for a connector using Gateway allowlist rules. Group- or project-limited GitLab scopes list only the projects they cover; every project tool is checked against the project, its groups, and the connector.',
+      'List synced GitLab projects for a connector using Opfield allowlist rules. Group- or project-limited GitLab scopes list only the projects they cover; every project tool is checked against the project, its groups, and the connector.',
     parameters: {
       type: 'object',
       properties: {
@@ -77,7 +77,7 @@ export const GITLAB_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'gitlab_sync_connector',
     description:
-      'Run a GitLab connector sync now so Gateway refreshes visible projects and discovered registries. Use after changing GitLab registry/project settings or connector allowlists.',
+      'Run a GitLab connector sync now so Opfield refreshes visible projects and discovered registries. Use after changing GitLab registry/project settings or connector allowlists.',
     parameters: { type: 'object', properties: { connectorId: connectorIdSchema }, required: ['connectorId'] },
     destructive: false,
     category: 'GitLab',
@@ -88,7 +88,7 @@ export const GITLAB_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'gitlab_add_connector_projects',
     description:
-      'Add visible GitLab projects to a connector allowlist by full path or remote ID. This changes Gateway connector access and requires approval.',
+      'Add visible GitLab projects to a connector allowlist by full path or remote ID. This changes Opfield connector access and requires approval.',
     parameters: {
       type: 'object',
       properties: {
@@ -381,7 +381,7 @@ export const GITLAB_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'gitlab_update_project_settings',
     description:
-      'Update supported GitLab project settings. Currently supports container_registry_access_level to enable, private-limit, or disable the project container registry. Automatically runs a connector sync afterward so Gateway refreshes discovered registries.',
+      'Update supported GitLab project settings. Currently supports container_registry_access_level to enable, private-limit, or disable the project container registry. Automatically runs a connector sync afterward so Opfield refreshes discovered registries.',
     parameters: {
       type: 'object',
       properties: {
@@ -403,7 +403,7 @@ export const GITLAB_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'gitlab_create_deploy_token',
     description:
-      'Create a GitLab deploy token and store the raw token encrypted inside Gateway. The raw token is never returned; only masked metadata is returned.',
+      'Create a GitLab deploy token and store the raw token encrypted inside Opfield. The raw token is never returned; only masked metadata is returned.',
     parameters: {
       type: 'object',
       properties: {
@@ -424,7 +424,7 @@ export const GITLAB_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'gitlab_clone_repository_to_sandbox',
     description:
-      'Download a GitLab repository archive through Gateway, upload it into a no-network sandbox, and extract it under /workspace. After CLONE_READY, inspect the checkout with list_artifact_files/read_artifact on the returned processId; do not start a second sandbox process just to list or read cloned files. No PAT or deploy token is exposed in command text, output, or tool result.',
+      'Download a GitLab repository archive through Opfield, upload it into a no-network sandbox, and extract it under /workspace. After CLONE_READY, inspect the checkout with list_artifact_files/read_artifact on the returned processId; do not start a second sandbox process just to list or read cloned files. No PAT or deploy token is exposed in command text, output, or tool result.',
     parameters: {
       type: 'object',
       properties: {

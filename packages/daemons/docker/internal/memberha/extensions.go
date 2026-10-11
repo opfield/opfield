@@ -491,7 +491,7 @@ func (m *Manager) Detach(setID, operationID string, evidence DetachEvidence) err
 	}
 	switch {
 	case !evidence.NeverHeld:
-		return refuse("Gateway observed a holder of the set's lease")
+		return refuse("Opfield observed a holder of the set's lease")
 	case others > 0:
 		return refuse("other members were prepared")
 	case mem.state.Held:

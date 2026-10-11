@@ -242,7 +242,7 @@ export function DockerVolumes({
       setPendingVolumeAction(`adopt:${nodeId}/${name}`);
       try {
         await api.adoptVolume(nodeId, name);
-        toast.success("Volume migrated to Gateway management");
+        toast.success("Volume migrated to Opfield management");
         await fetchVolumes(undefined, search);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Failed to migrate volume");
@@ -450,8 +450,8 @@ export function DockerVolumes({
                     size="icon-xs"
                     pending={pendingVolumeAction === `adopt:${(v as any)._nodeId}/${v.name}`}
                     onClick={() => handleAdopt(v.name, (v as any)._nodeId)}
-                    title="Migrate to Gateway management"
-                    aria-label="Migrate to Gateway management"
+                    title="Migrate to Opfield management"
+                    aria-label="Migrate to Opfield management"
                   >
                     {pendingVolumeAction !== `adopt:${(v as any)._nodeId}/${v.name}` && (
                       <ArrowRightLeft />

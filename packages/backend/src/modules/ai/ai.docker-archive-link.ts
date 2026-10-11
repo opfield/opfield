@@ -107,7 +107,7 @@ export async function createDockerArchiveUploadLink(user: User, args: Record<str
     name: target.name,
     commands: { file: `curl -sS --fail-with-body -T container.gwca ${shellQuote(url)}` },
     usage:
-      'Run the command from a shell that has the archive (replace container.gwca with its path). Only a Gateway container archive (.gwca) is accepted, not a folder or a plain tar. The link works once: the response is { data: { container } } with the new, stopped container. A failed or interrupted transfer imports nothing; create a new link to retry.',
+      'Run the command from a shell that has the archive (replace container.gwca with its path). Only an Opfield container archive (.gwca) is accepted, not a folder or a plain tar. The link works once: the response is { data: { container } } with the new, stopped container. A failed or interrupted transfer imports nothing; create a new link to retry.',
   };
 }
 

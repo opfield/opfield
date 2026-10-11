@@ -36,7 +36,7 @@ export function PolicyLeaseNotice({ hours }: { hours: number | null }) {
   return (
     <Notice
       tone="warning"
-      title={`Failover works without Gateway for ${current} h`}
+      title={`Failover works without Opfield for ${current} h`}
       actions={
         canEditSettings ? (
           <NoticeAction tone="warning" pending={saving} onClick={() => void setToSevenDays()}>

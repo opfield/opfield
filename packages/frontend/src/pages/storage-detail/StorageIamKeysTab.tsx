@@ -280,7 +280,7 @@ export function StorageIamKeysTab({
             <DialogTitle>Create Access Key</DialogTitle>
             <DialogDescription>
               {engine === "seaweedfs"
-                ? "The access key ID and secret are generated for you — by Gateway for keys without an expiry. Only a display name is set here."
+                ? "The access key ID and secret are generated for you — by Opfield for keys without an expiry. Only a display name is set here."
                 : "The access key ID and secret are generated for you; only a display name is set here."}
             </DialogDescription>
           </DialogHeader>

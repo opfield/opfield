@@ -23,10 +23,10 @@ export function SetupUnlockStep({
     >
       <div className="space-y-1 text-center">
         <h2 className="flex items-center justify-center gap-2 text-lg font-semibold">
-          <LockKeyhole className="h-5 w-5" /> Welcome to Gateway
+          <LockKeyhole className="h-5 w-5" /> Welcome to Opfield
         </h2>
         <p className="text-sm text-muted-foreground">
-          This Gateway has not been configured yet. Enter the one-time setup code printed by the
+          This Opfield installation has not been configured yet. Enter the one-time setup code printed by the
           installer.
         </p>
       </div>

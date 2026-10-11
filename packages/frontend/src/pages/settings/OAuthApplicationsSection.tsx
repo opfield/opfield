@@ -58,8 +58,8 @@ function ReportLoading({ loading }: { loading: boolean }) {
 function resourceLabel(resource: string): string {
   try {
     const url = new URL(resource);
-    if (url.pathname === "/api") return "Gateway API";
-    if (url.pathname === "/api/mcp") return "Gateway MCP";
+    if (url.pathname === "/api") return "Opfield API";
+    if (url.pathname === "/api/mcp") return "Opfield MCP";
     return url.pathname || url.host;
   } catch {
     return resource;
@@ -290,7 +290,7 @@ export function OAuthApplicationsSection({
     <>
       <PanelShell
         title="OAuth Applications"
-        description="Applications you authorized to access Gateway with your account"
+        description="Applications you authorized to access Opfield with your account"
         icon={<ShieldCheck className="h-4 w-4" />}
       >
         {loading ? null : authorizations.length === 0 ? (

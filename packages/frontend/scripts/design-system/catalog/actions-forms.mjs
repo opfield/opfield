@@ -202,7 +202,7 @@ The setup checklist, the setup wizards and dialogs that ask the user to pick one
 mount(stage(h("div", { className: "w-[28rem] space-y-2" },
   h(G.ChoiceCard, { icon: I.Shield, title: "Add a passkey", description: "Use this device, a password manager, or a security key.", trailing: h(G.Badge, { variant: "success" }, "Done") }),
   h(G.ChoiceCard, { icon: I.Settings, title: "Authenticator app", description: "Scan a QR code with any compatible TOTP app.", trailing: h(I.ArrowRight, { className: "text-muted-foreground" }) }),
-  h(G.ChoiceCard, { icon: I.Globe, title: "OAuth", description: "Authorize your GitHub account without copying a token into Gateway.", pending: true }),
+  h(G.ChoiceCard, { icon: I.Globe, title: "OAuth", description: "Authorize your GitHub account without copying a token into Opfield.", pending: true }),
   h(G.ChoiceCard, { icon: I.Copy, title: "Personal access token", description: "Connect GitHub.com or a GitHub Enterprise instance with a PAT.", disabled: true })
 )));
 `,
@@ -656,7 +656,7 @@ Settings pages and panels: one row per setting, inside a \`PanelShell\`. A row w
     preview: () => `
 function R() {
   var a = React.useState(true), b = React.useState("30");
-  return h(G.TooltipProvider, null, h(G.PanelShell, { title: "Health checks", description: "How Gateway probes upstreams", className: "w-[40rem]" },
+  return h(G.TooltipProvider, null, h(G.PanelShell, { title: "Health checks", description: "How Opfield probes upstreams", className: "w-[40rem]" },
     h(G.SettingsControlRow, { title: "Enabled", description: "Probe every route with a health check path.", onClick: function () { a[1](!a[0]); } }, h(G.Switch, { checked: a[0], onChange: a[1], ariaLabel: "Enabled" })),
     h(G.SettingsControlRow, { title: "Interval", help: "How often each upstream is probed. Shorter intervals find outages sooner and cost more requests.", description: "Seconds between probes." },
       h(G.Select, { value: b[0], onValueChange: b[1] }, h(G.SelectTrigger, null, h(G.SelectValue)), h(G.SelectContent, null, h(G.SelectItem, { value: "10" }, "10 seconds"), h(G.SelectItem, { value: "30" }, "30 seconds"), h(G.SelectItem, { value: "60" }, "60 seconds")))),

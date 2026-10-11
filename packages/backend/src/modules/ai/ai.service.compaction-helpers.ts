@@ -154,7 +154,7 @@ export function serializeMessagesForCompaction(messages: ChatMessage[]): string 
 
 export function buildCompactionSystemPrompt(trigger: AIContextCompactionTrigger): string {
   return [
-    'You compact Gateway AI chat history for future assistant turns.',
+    'You compact Opfield AI chat history for future assistant turns.',
     'Write the summary in the same language as the conversation, especially the latest user messages.',
     'Preserve user goals, explicit constraints, decisions, accepted designs, current task state, open questions, important IDs, paths, commands, resources, and tool outcomes.',
     'Do not invent facts. Do not include raw one-time secrets, API tokens, passwords, private keys, or credential values; say that secret material was omitted when relevant.',

@@ -277,7 +277,7 @@ export function DockerComposeProjects({
     const accepted = await confirm({
       title: `Adopt ${project.name}`,
       description:
-        "Bring this external Compose project under Gateway lifecycle and immutable revision management?",
+        "Bring this external Compose project under Opfield lifecycle and immutable revision management?",
       confirmLabel: "Adopt project",
     });
     if (!accepted) return;
@@ -393,8 +393,8 @@ export function DockerComposeProjects({
                   <Button
                     size="icon"
                     variant="ghost"
-                    title="Adopt into Gateway"
-                    aria-label={`Adopt ${project.name} into Gateway`}
+                    title="Adopt into Opfield"
+                    aria-label={`Adopt ${project.name} into Opfield`}
                     onClick={() => void adoptProject(project)}
                   >
                     <Import className="h-3.5 w-3.5" />

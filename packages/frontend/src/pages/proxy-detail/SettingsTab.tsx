@@ -220,7 +220,7 @@ export function SettingsTab({
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="font-sans">
-            <SelectItem value="inherit">Gateway default (1000 / 3000 / 1000)</SelectItem>
+            <SelectItem value="inherit">Opfield default (1000 / 3000 / 1000)</SelectItem>
             <SelectItem value="custom">Custom</SelectItem>
             <SelectItem value="disabled">Disabled</SelectItem>
           </SelectContent>
@@ -611,7 +611,7 @@ export function SettingsTab({
           <SettingsControlRow
             title="Enabled"
             description="Run periodic health probes"
-            help="Gateway periodically requests the upstream through this Route and records availability and latency independently from client traffic."
+            help="Opfield periodically requests the upstream through this Route and records availability and latency independently from client traffic."
           >
             <Switch
               checked={healthCheckEnabled}

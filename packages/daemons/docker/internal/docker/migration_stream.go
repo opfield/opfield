@@ -20,7 +20,7 @@ const migrationChunkBytes = 1024 * 1024
 // as it does when the daemon or Gateway restarts, the control session moves
 // (a daemon or relay update), or a newer stream of the node replaces it. The
 // daemon opens it again; that is no failure.
-var errMigrationStreamClosed = errors.New("migration transfer stream closed by Gateway")
+var errMigrationStreamClosed = errors.New("migration transfer stream closed by Opfield")
 
 type migrationIncomingArtifact struct {
 	migrationID string
@@ -58,7 +58,7 @@ func (p *DockerPlugin) RunMigrationStream(ctx context.Context, conn *grpc.Client
 		if err := p.runMigrationStream(ctx, conn, nodeID); err != nil && ctx.Err() == nil {
 			switch {
 			case errors.Is(err, errMigrationStreamClosed):
-				p.logger.Info("migration transfer stream closed by Gateway, opening it again")
+				p.logger.Info("migration transfer stream closed by Opfield, opening it again")
 			case !errors.Is(err, io.EOF) && connector.PlannedDisconnect(err):
 				// Gateway or the relay on the way stopped gracefully (an
 				// update or restart). An EOF during a transfer stays a warning.
@@ -174,7 +174,7 @@ func (p *DockerPlugin) runMigrationStream(ctx context.Context, conn *grpc.Client
 				_ = sendMigrationStreamError(stream, payload.Heartbeat.MigrationId, "", err)
 			}
 		case *pb.MigrationTransferControl_Error:
-			p.logger.Warn("gateway aborted migration artifact transfer",
+			p.logger.Warn("Opfield aborted migration artifact transfer",
 				"migration_id", payload.Error.MigrationId,
 				"artifact_id", payload.Error.ArtifactId,
 				"error", payload.Error.Message)

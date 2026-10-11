@@ -21,7 +21,7 @@ export function DemoModeDialog() {
         </DialogHeader>
         <div className="py-4">
           <p className="text-sm text-muted-foreground">
-            You can explore the configured Gateway, but changes, credentials, consoles, and external
+            You can explore the configured Opfield, but changes, credentials, consoles, and external
             automation are locked in the public demo.
           </p>
         </div>
@@ -31,7 +31,7 @@ export function DemoModeDialog() {
           </Button>
           <Button asChild>
             <a href={DEMO_CTA_URL} target="_blank" rel="noreferrer">
-              Get your own Gateway
+              Get your own Opfield
               <ExternalLink className="h-4 w-4" />
             </a>
           </Button>

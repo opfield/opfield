@@ -719,7 +719,7 @@ export function AILitePanel({ onOpenMobileMenu }: { onOpenMobileMenu?: () => voi
           onStart={(scenario) => startScenario(scenario, context)}
           onInvestigateOperationalIssue={() =>
             handleQuickAction(
-              "Investigate the current Gateway relay issue, identify impact and evidence, then propose the safest recovery plan."
+              "Investigate the current Opfield relay issue, identify impact and evidence, then propose the safest recovery plan."
             )
           }
         />

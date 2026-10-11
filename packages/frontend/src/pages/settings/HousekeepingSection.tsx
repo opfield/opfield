@@ -261,7 +261,7 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
                 <p className="text-sm font-medium">
                   <SettingsHelpTitle
                     label="Schedule"
-                    help="A cron expression defines when automatic cleanup runs. For example, 0 3 * * * runs every day at 03:00 in the Gateway host timezone."
+                    help="A cron expression defines when automatic cleanup runs. For example, 0 3 * * * runs every day at 03:00 in the Opfield host timezone."
                   />
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -650,7 +650,7 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
             />
             <HousekeepingCard
               label="Docker Images"
-              description="Prune old Gateway images"
+              description="Prune old Opfield images"
               stat={hkStats ? String(hkStats.dockerImages.oldImageCount) : "..."}
               statDetail={
                 hkStats ? `old (${formatBytes(hkStats.dockerImages.reclaimableBytes)})` : "old"

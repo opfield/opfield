@@ -285,8 +285,8 @@ export class IntegrationsCoreService {
 
   protected gitLabPatCreationUrl(baseUrl: string): string {
     const url = new URL('/-/user_settings/personal_access_tokens', `${baseUrl}/`);
-    url.searchParams.set('name', 'Gateway AI');
-    url.searchParams.set('description', 'Personal token for Gateway AI tools');
+    url.searchParams.set('name', 'Opfield AI');
+    url.searchParams.set('description', 'Personal token for Opfield AI tools');
     url.searchParams.set('scopes', 'api');
     return url.toString();
   }

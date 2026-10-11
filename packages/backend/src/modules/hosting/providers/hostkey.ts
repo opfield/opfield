@@ -454,7 +454,7 @@ export class HostkeyHostingAdapter implements HostingProviderAdapter {
         'HOSTKEY did not return a compatible traffic plan without a surcharge; no VM was ordered'
       );
     if (!/^gw-[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(input.marker))
-      throw new AppError(400, 'HOSTING_MARKER_INVALID', 'Invalid Gateway VM identity marker');
+      throw new AppError(400, 'HOSTING_MARKER_INVALID', 'Invalid Opfield VM identity marker');
     const prefix =
       input.name
         .toLowerCase()
@@ -508,7 +508,7 @@ export class HostkeyHostingAdapter implements HostingProviderAdapter {
       await this.call(
         'whmcs',
         'request_cancellation',
-        { id: resource.remoteId, cancellation_reason: input.reason ?? 'Explicit cancellation requested from Gateway' },
+        { id: resource.remoteId, cancellation_reason: input.reason ?? 'Explicit cancellation requested from Opfield' },
         true
       );
       return { id: `cancel:${resource.remoteId}`, resourceId: resource.remoteId, status: 'pending' };
@@ -720,7 +720,7 @@ export class HostkeyHostingAdapter implements HostingProviderAdapter {
       throw new HostingProviderError(
         409,
         false,
-        'HOSTKEY invoice does not belong exclusively to this Gateway order and account; no credit was applied'
+        'HOSTKEY invoice does not belong exclusively to this Opfield order and account; no credit was applied'
       );
     const total = invoice.total;
     const totalComparison = total ? compareHostingDecimal(total.amount, quote.amount) : null;

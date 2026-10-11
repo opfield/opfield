@@ -56,7 +56,7 @@ export function registerMcpAccessResource(
     'gateway-access',
     MCP_ACCESS_RESOURCE_URI,
     {
-      title: 'My Gateway access',
+      title: 'My Opfield access',
       description:
         'What this connection can access, by area: broad or limited, the granted folders (with paths), nodes and resources with their actions, and where it may create. Folder-limited access is normal; work inside the listed folders and pass folderId when creating.',
       mimeType: 'application/json',

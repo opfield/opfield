@@ -133,7 +133,7 @@ func (s *setMesh) Ensure(ctx context.Context, setID string) (string, error) {
 	cli := s.plugin.client.cli
 	if existing, err := cli.NetworkInspect(ctx, name, mobyclient.NetworkInspectOptions{}); err == nil {
 		if existing.Network.Labels["wiolett.gateway.managed"] != setMeshNetworkLabel || !existing.Network.Internal {
-			return "", fmt.Errorf("network %s exists and is not a Gateway availability set network", name)
+			return "", fmt.Errorf("network %s exists and is not an Opfield availability set network", name)
 		}
 		s.kick()
 		return name, nil

@@ -1,30 +1,30 @@
-# Good Gateway Paid Key Terms 1.2
+# Opfield Paid Key Terms 1.2
 
-These terms govern Personal, Business, and Enterprise Good Gateway license keys issued by the **Licensor**. They supplement, and do not modify, the [PolyForm Perimeter License 1.0.1](LICENSE.md).
+These terms govern Personal, Business, and Enterprise Opfield license keys issued by the **Licensor**. They supplement, and do not modify, the [PolyForm Perimeter License 1.0.1](LICENSE.md).
 
-Until a legal entity formed to operate Square Labs receives the relevant rights through a legally effective written assignment, the Licensor is [**Alexandr Slavinskii**](https://github.com/knownout). After that assignment, the legal entity becomes the Licensor. References to the Licensor include any later valid successor or assignee that acquires the relevant rights and assumes the associated obligations.
+Until a legal entity formed to operate Opfield receives the relevant rights through a legally effective written assignment, the Licensor is [**Alexandr Slavinskii**](https://github.com/knownout). After that assignment, the legal entity becomes the Licensor. References to the Licensor include any later valid successor or assignee that acquires the relevant rights and assumes the associated obligations.
 
 That succession does not revoke, invalidate, deactivate, or change the plan, installation, term, continuity, or restrictions of any valid key solely because of the assignment.
 
-PolyForm Perimeter permits use, modification, and redistribution for permitted purposes, including internal business use. It does not permit providing to others a product marketed as a substitute for Good Gateway. An ordinary paid key unlocks plan features and limits; it does not waive that competition restriction or grant OEM, white-label, resale, or competing hosted-service rights. Those uses require a separate written agreement signed by the Licensor.
+PolyForm Perimeter permits use, modification, and redistribution for permitted purposes, including internal business use. It does not permit providing to others a product marketed as a substitute for Opfield. An ordinary paid key unlocks plan features and limits; it does not waive that competition restriction or grant OEM, white-label, resale, or competing hosted-service rights. Those uses require a separate written agreement signed by the Licensor.
 
 The release may also include the [Product Continuity MIT Grant](CONTINUITY-MIT-GRANT.md). That conditional grant is not based on release age, inactivity, support status, sales, or service availability.
 
 ## Acceptance
 
-These terms are automatically offered with every Personal, Business, or Enterprise Gateway license key issued by the Licensor. By activating or using the key, you accept these terms. If you act on behalf of an organization, you represent that you have authority to accept these terms for that organization.
+These terms are automatically offered with every Personal, Business, or Enterprise Opfield license key issued by the Licensor. By activating or using the key, you accept these terms. If you act on behalf of an organization, you represent that you have authority to accept these terms for that organization.
 
 ## Paid-plan access
 
-Subject to these terms, the Licensor grants the person or organization identified in the paid license record access to the features and limits of the key's plan for one active, official Good Gateway installation at a time.
+Subject to these terms, the Licensor grants the person or organization identified in the paid license record access to the features and limits of the key's plan for one active, official Opfield installation at a time.
 
-The key does not restrict rights already granted independently by PolyForm Perimeter, an active Product Continuity MIT Grant, a third-party license, or another written agreement. Paid-plan access and support apply only to official, unmodified Gateway releases unless the Licensor agrees otherwise in writing.
+The key does not restrict rights already granted independently by PolyForm Perimeter, an active Product Continuity MIT Grant, a third-party license, or another written agreement. Paid-plan access and support apply only to official, unmodified Opfield releases unless the Licensor agrees otherwise in writing.
 
 ## Term, grace period, and continuity
 
 Paid-plan access begins when the Licensor issues the key. A key without an expiration date remains active until it is revoked, replaced, or deactivated.
 
-For a key with an expiration date, Gateway applies the technical grace period documented for that plan. After the grace period, the same installation may continue operating paid-plan resources and services configured before expiration, including the infrastructure those resources serve. Expiration does not stop or delete already configured services.
+For a key with an expiration date, Opfield applies the technical grace period documented for that plan. After the grace period, the same installation may continue operating paid-plan resources and services configured before expiration, including the infrastructure those resources serve. Expiration does not stop or delete already configured services.
 
 The continuity period does not authorize creating new paid-plan resources, expanding into additional paid-only features, or moving the paid entitlement to another organization or installation. Renewing the key restores full paid-plan access.
 
@@ -32,7 +32,7 @@ Revocation for a violation of these terms or other applicable Licensor terms, fr
 
 ## One installation
 
-The key covers one active Gateway installation at a time. When a key is detached or transferred, the old installation is no longer entitled to paid-plan access once another installation becomes active. During expiration grace and continuity, the key covers only the installation most recently authorized before expiration.
+The key covers one active Opfield installation at a time. When a key is detached or transferred, the old installation is no longer entitled to paid-plan access once another installation becomes active. During expiration grace and continuity, the key covers only the installation most recently authorized before expiration.
 
 ## Restrictions
 
@@ -41,7 +41,7 @@ These terms do not permit you to:
 - share, resell, transfer, or make the paid key available to another person or organization;
 - bypass, remove, disable, or interfere with license validation, plan limits, feature entitlements, or other technical protection measures;
 - use the key to provide an OEM, white-label, resale, competing hosted, or other substitute product without a separate written agreement signed by the Licensor; or
-- use trademarks, names, or logos of Square Labs, Good Gateway, or the Licensor except as necessary to identify the software.
+- use trademarks, names, or logos of Opfield or the Licensor except as necessary to identify the software.
 
 Any additional rights require a separate written agreement signed by the Licensor.
 
@@ -51,7 +51,7 @@ These terms apply only to the paid key and Licensor-provided paid-plan access. T
 
 ## Assignment and succession
 
-The Licensor may assign these terms, the related paid-license records, and the Licensor's rights and obligations to a person or entity that acquires the relevant rights in Good Gateway. The assignment becomes effective only when that successor has legally acquired those rights and assumed the associated obligations. Existing valid keys continue under the same plan, installation, term, continuity, and restriction rules after that assignment unless the key holder and successor agree otherwise in writing.
+The Licensor may assign these terms, the related paid-license records, and the Licensor's rights and obligations to a person or entity that acquires the relevant rights in Opfield. The assignment becomes effective only when that successor has legally acquired those rights and assumed the associated obligations. Existing valid keys continue under the same plan, installation, term, continuity, and restriction rules after that assignment unless the key holder and successor agree otherwise in writing.
 
 The key holder may not assign or transfer a key or these paid-plan rights except as expressly permitted by these terms or agreed by the Licensor in writing.
 
@@ -65,4 +65,4 @@ As far as the law allows, the software and paid-plan access are provided as is, 
 
 ## Contact
 
-Questions about competing products, OEM, white-label, resale, hosted services, or other commercial licensing may be sent to [contact@thesqlabs.com](mailto:contact@thesqlabs.com).
+Questions about competing products, OEM, white-label, resale, hosted services, or other commercial licensing may be sent to [support@opfield.dev](mailto:support@opfield.dev).

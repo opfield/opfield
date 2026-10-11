@@ -444,7 +444,7 @@ function GitConnectorPanel({
             <DialogHeader>
               <DialogTitle>Add GitHub Connector</DialogTitle>
               <DialogDescription>
-                Choose how Gateway should authorize account-wide access to GitHub.
+                Choose how Opfield should authorize account-wide access to GitHub.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
@@ -452,7 +452,7 @@ function GitConnectorPanel({
               <ChoiceCard
                 icon={ShieldCheck}
                 title="OAuth"
-                description="Authorize your GitHub account without copying a token into Gateway."
+                description="Authorize your GitHub account without copying a token into Opfield."
                 trailing={
                   <Badge variant={githubOAuthAvailable ? "secondary" : "outline"}>
                     {githubOAuthAvailable ? "Recommended" : "Unavailable"}
@@ -496,7 +496,7 @@ function GitConnectorPanel({
                 ? "Authorize the selected GitHub account to update this connector without changing its project bindings."
                 : provider === "github"
                   ? "The connector can use repositories visible to the authorized GitHub account."
-                  : "Gateway encrypts the credential and uses it only for the configured repositories."}
+                  : "Opfield encrypts the credential and uses it only for the configured repositories."}
             </DialogDescription>
           </DialogHeader>
 
@@ -520,7 +520,7 @@ function GitConnectorPanel({
               {!githubOAuthActive ? (
                 <SettingsControlRow
                   title="Connector name"
-                  description="A label for this source-control connection in Gateway."
+                  description="A label for this source-control connection in Opfield."
                 >
                   <Input
                     value={form.name}
@@ -596,7 +596,7 @@ function GitConnectorPanel({
                 {editingConnector ? (
                   <SettingsControlRow
                     title="Enabled"
-                    description="Allow Gateway to use this connector."
+                    description="Allow Opfield to use this connector."
                   >
                     <Switch
                       checked={form.enabled}
@@ -647,7 +647,7 @@ function GitConnectorPanel({
                     </SettingsControlRow>
                     <SettingsControlRow
                       title="Personal access token"
-                      description="Gateway validates the token without storing it until you save."
+                      description="Opfield validates the token without storing it until you save."
                       controlsClassName="sm:min-w-[22rem] sm:max-w-none"
                     >
                       <div className="flex w-full min-w-0 border border-input bg-background">
@@ -687,7 +687,7 @@ function GitConnectorPanel({
                     </SettingsControlRow>
                     <SettingsControlRow
                       title="Repositories"
-                      description="Add every repository this credential should make available to Gateway."
+                      description="Add every repository this credential should make available to Opfield."
                     >
                       <EditableStringList
                         values={repositoryUrls}

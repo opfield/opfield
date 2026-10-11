@@ -222,7 +222,7 @@ export class ExternalSshService {
       throw new AppError(
         502,
         'SSH_HOST_KEY_DISCOVERY_FAILED',
-        'Gateway could not read the SSH host key through the selected route'
+        'Opfield could not read the SSH host key through the selected route'
       );
     } finally {
       jumpClient?.end();
@@ -399,7 +399,7 @@ export class ExternalSshService {
         'localhost',
       ].includes(normalized)
     ) {
-      throw new AppError(403, 'SSH_GATEWAY_TARGET_BLOCKED', 'Gateway itself cannot be used as an external SSH target');
+      throw new AppError(403, 'SSH_GATEWAY_TARGET_BLOCKED', 'Opfield itself cannot be used as an external SSH target');
     }
     const addresses = await this.resolveHostAddresses(normalized);
     const gatewayAddresses = new Set(
@@ -408,7 +408,7 @@ export class ExternalSshService {
         .map((entry) => entry.address.toLowerCase())
     );
     if (addresses.some((address) => gatewayAddresses.has(address) || isLoopbackAddress(address))) {
-      throw new AppError(403, 'SSH_GATEWAY_TARGET_BLOCKED', 'Gateway itself cannot be used as an external SSH target');
+      throw new AppError(403, 'SSH_GATEWAY_TARGET_BLOCKED', 'Opfield itself cannot be used as an external SSH target');
     }
     const nodeRows = await this.db.select({ hostname: nodes.hostname, report: nodes.lastHealthReport }).from(nodes);
     const matchesManagedNode = nodeRows.some((node) => {
@@ -421,7 +421,7 @@ export class ExternalSshService {
       return node.hostname.toLowerCase() === normalized || addresses.some((address) => nodeAddresses.has(address));
     });
     if (matchesManagedNode) {
-      throw new AppError(403, 'SSH_MANAGED_TARGET_BLOCKED', 'Gateway-managed nodes require their dedicated tools');
+      throw new AppError(403, 'SSH_MANAGED_TARGET_BLOCKED', 'Opfield-managed nodes require their dedicated tools');
     }
     if (this.dockerService) {
       const containers = await this.dockerService.listLocalContainers().catch(() => []);
@@ -438,7 +438,7 @@ export class ExternalSshService {
         throw new AppError(
           403,
           'SSH_CONTAINER_TARGET_BLOCKED',
-          'Gateway and container addresses require dedicated tools'
+          'Opfield and container addresses require dedicated tools'
         );
       }
     }

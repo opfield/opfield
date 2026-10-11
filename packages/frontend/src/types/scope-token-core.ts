@@ -525,15 +525,15 @@ export const CORE_TOKEN_SCOPES = [
   // Gateway Settings
   {
     value: "settings:gateway:view",
-    label: "View Gateway Settings",
+    label: "View Opfield Settings",
     desc: "View sign-in provisioning and external control-plane settings",
-    group: "Gateway Settings",
+    group: "Opfield Settings",
   },
   {
     value: "settings:gateway:edit",
-    label: "Edit Gateway Settings",
+    label: "Edit Opfield Settings",
     desc: "Edit sign-in provisioning and external control-plane settings",
-    group: "Gateway Settings",
+    group: "Opfield Settings",
   },
   // Integrations: GitLab
   {
@@ -669,13 +669,13 @@ export const CORE_TOKEN_SCOPES = [
   {
     value: "hosting:resources:view",
     label: "View Hosting VMs",
-    desc: "View provider inventory and associated Gateway nodes",
+    desc: "View provider inventory and associated Opfield nodes",
     group: "Integrations: Hosting",
   },
   {
     value: "hosting:resources:create",
     label: "Create Hosting VMs",
-    desc: "Order provider VMs and install Gateway roles; may incur charges",
+    desc: "Order provider VMs and install Opfield roles; may incur charges",
     group: "Integrations: Hosting",
   },
   {
@@ -699,7 +699,7 @@ export const CORE_TOKEN_SCOPES = [
   {
     value: "hosting:resources:recover",
     label: "Recover Hosted Nodes",
-    desc: "Restart Gateway daemons or explicitly retry a failed installation",
+    desc: "Restart Opfield daemons or explicitly retry a failed installation",
     group: "Integrations: Hosting",
   },
   {

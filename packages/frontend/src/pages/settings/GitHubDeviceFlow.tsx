@@ -116,7 +116,7 @@ export function GitHubDeviceFlow({
     <DeviceFlowTransition stateKey="pending">
       <div className="space-y-3 border border-border p-4">
         <p className="text-sm">
-          Complete authorization in the GitHub window. Gateway checks the status automatically.
+          Complete authorization in the GitHub window. Opfield checks the status automatically.
         </p>
         <CopyValueField
           label="Authorization code"

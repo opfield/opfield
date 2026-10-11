@@ -280,8 +280,8 @@ export class RelayCertificateRenewalService {
         result.set(instance.id, {
           state: 'expired',
           message:
-            `The relay certificate expired on ${on}, so daemons and Gateway cannot connect to this relay. ` +
-            'Gateway renews it automatically while the relay supervisor is connected' +
+            `The relay certificate expired on ${on}, so daemons and Opfield cannot connect to this relay. ` +
+            'Opfield renews it automatically while the relay supervisor is connected' +
             (failure ? ` (last attempt failed: ${failure.message})` : '') +
             '. If the supervisor cannot reconnect, re-enroll the relay.',
           expiresAt: expiresAt.toISOString(),
@@ -291,8 +291,8 @@ export class RelayCertificateRenewalService {
         result.set(instance.id, {
           state: failure ? 'renewal_failed' : 'expiring',
           message: failure
-            ? `Certificate renewal failed: ${failure.message} The certificate expires on ${on}; Gateway retries hourly.`
-            : `The relay certificate expires on ${on}. Gateway renews it while the relay supervisor is connected.`,
+            ? `Certificate renewal failed: ${failure.message} The certificate expires on ${on}; Opfield retries hourly.`
+            : `The relay certificate expires on ${on}. Opfield renews it while the relay supervisor is connected.`,
           expiresAt: expiresAt.toISOString(),
           observedAt,
         });

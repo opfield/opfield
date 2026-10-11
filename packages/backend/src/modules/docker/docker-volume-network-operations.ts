@@ -698,7 +698,7 @@ export async function removeOrphanedAnonymousVolume(
     throw new AppError(409, 'VOLUME_IN_USE', 'Volume is in use');
   }
   if (await isGatewayManagedVolume(context.db, nodeId, name, volume)) {
-    throw new AppError(409, 'VOLUME_MANAGED', 'Housekeeping never removes a volume managed by Gateway');
+    throw new AppError(409, 'VOLUME_MANAGED', 'Housekeeping never removes a volume managed by Opfield');
   }
   // force=false: Docker still refuses a volume that a container started using meanwhile.
   await removeVolume(context, nodeId, name, false, userId);
@@ -793,7 +793,7 @@ export async function createNetwork(
     throw new AppError(
       409,
       'RESERVED_NETWORK_NAME',
-      'Network names "gateway-secure-links", "gateway-db-*", "gateway-storage-*" and "gateway-link-*" are reserved for Gateway'
+      'Network names "gateway-secure-links", "gateway-db-*", "gateway-storage-*" and "gateway-link-*" are reserved for Opfield'
     );
   }
   const result = await context.nodeDispatch.sendDockerNetworkCommand(nodeId, 'create', {
@@ -826,7 +826,7 @@ export async function removeNetwork(
 ) {
   const network = await resolveNetworkIdentity(context, nodeId, networkId);
   if (isGatewayManagedDockerNetwork(network.name)) {
-    throw new AppError(409, 'MANAGED_NETWORK', 'Gateway-managed networks cannot be removed');
+    throw new AppError(409, 'MANAGED_NETWORK', 'Opfield-managed networks cannot be removed');
   }
   if (isBuiltInDockerNetwork(network.name)) {
     throw new AppError(400, 'BUILTIN_NETWORK', 'Built-in Docker networks cannot be removed');
@@ -854,7 +854,7 @@ export async function connectContainerToNetwork(
 ) {
   const network = await resolveNetworkIdentity(context, nodeId, networkId);
   if (isGatewayManagedDockerNetwork(network.name)) {
-    throw new AppError(409, 'MANAGED_NETWORK', 'Gateway-managed networks cannot be connected manually');
+    throw new AppError(409, 'MANAGED_NETWORK', 'Opfield-managed networks cannot be connected manually');
   }
   await context.assertContainerMutationAllowed?.(nodeId, containerId);
   const result = await context.nodeDispatch.sendDockerNetworkCommand(nodeId, 'connect', {
@@ -880,7 +880,7 @@ export async function disconnectContainerFromNetwork(
 ) {
   const network = await resolveNetworkIdentity(context, nodeId, networkId);
   if (isGatewayManagedDockerNetwork(network.name)) {
-    throw new AppError(409, 'MANAGED_NETWORK', 'Gateway-managed networks cannot be disconnected manually');
+    throw new AppError(409, 'MANAGED_NETWORK', 'Opfield-managed networks cannot be disconnected manually');
   }
   if (isBuiltInDockerNetwork(network.name)) {
     throw new AppError(400, 'BUILTIN_NETWORK', 'Containers cannot be disconnected from built-in Docker networks');

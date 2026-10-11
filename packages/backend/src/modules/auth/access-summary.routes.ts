@@ -63,7 +63,7 @@ export const AccessSummarySchema = z
     example: {
       limited: true,
       summary:
-        "Your Gateway access is limited to specific folders, nodes or resources. ...\n- Docker containers and deployments: folder 'MyProject' (create, manage, view); create only in the folders or nodes listed.",
+        "Your Opfield access is limited to specific folders, nodes or resources. ...\n- Docker containers and deployments: folder 'MyProject' (create, manage, view); create only in the folders or nodes listed.",
       areas: [
         {
           area: 'docker_containers',

@@ -1197,7 +1197,7 @@ export class NginxCertificateDistributionService {
     throw new AppError(
       409,
       'NGINX_TLS_MIGRATION_FAILED',
-      'Gateway could not import the existing TLS certificate safely'
+      'Opfield could not import the existing TLS certificate safely'
     );
   }
 
@@ -1254,7 +1254,7 @@ export class NginxCertificateDistributionService {
         throw new AppError(
           409,
           'TLS_CERTIFICATE_MATERIAL_UNAVAILABLE',
-          'Gateway does not have usable certificate material'
+          'Opfield does not have usable certificate material'
         );
       }
       const keyPem = cert.encryptedDek
@@ -1280,7 +1280,7 @@ export class NginxCertificateDistributionService {
       throw new AppError(
         409,
         'TLS_CERTIFICATE_MATERIAL_UNAVAILABLE',
-        'Gateway does not have usable certificate material'
+        'Opfield does not have usable certificate material'
       );
     }
     // Only an active TLS server leaf from a user CA may be put into service;
@@ -1334,7 +1334,7 @@ export class NginxCertificateDistributionService {
       throw new AppError(
         409,
         'TLS_CERTIFICATE_MATERIAL_UNAVAILABLE',
-        'Gateway does not have usable certificate material'
+        'Opfield does not have usable certificate material'
       );
     }
     try {
@@ -1362,7 +1362,7 @@ export class NginxCertificateDistributionService {
       throw new AppError(
         409,
         'TLS_CERTIFICATE_MATERIAL_INVALID',
-        'Gateway could not decrypt the certificate asset safely'
+        'Opfield could not decrypt the certificate asset safely'
       );
     }
   }
@@ -1383,7 +1383,7 @@ export class NginxCertificateDistributionService {
       throw new AppError(
         409,
         'TLS_CERTIFICATE_MATERIAL_INVALID',
-        'Gateway could not validate the certificate private key'
+        'Opfield could not validate the certificate private key'
       );
     }
   }

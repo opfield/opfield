@@ -59,7 +59,7 @@ drain:
 		p.logger.Info("announced the restart to the relays", "registrations", len(acks))
 		// The next process takes over the registrations the relays hold for it without waiting for Gateway.
 		if err := writeRestartMarker(p.cfg.StateDir, time.Now()); err != nil {
-			p.logger.Warn("could not record the restart announcement; the next process waits for Gateway before it registers", "error", err)
+			p.logger.Warn("could not record the restart announcement; the next process waits for Opfield before it registers", "error", err)
 		}
 	}
 	// An update hands the streams and node-local links to the next process: the relays answer new tunnels

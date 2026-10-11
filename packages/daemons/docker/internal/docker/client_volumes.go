@@ -159,7 +159,7 @@ func (c *Client) UpdateVolumeLabels(ctx context.Context, name string, labels map
 	}
 	for _, key := range []string{managedVolumeLabel, managedVolumeOriginLabel, managedVolumeStorageKindLabel, managedVolumeCapacityLabel} {
 		if supplied, ok := nextLabels[key]; ok && supplied != currentLabels[key] {
-			return fmt.Errorf("label %q is reserved for Gateway-managed volumes", key)
+			return fmt.Errorf("label %q is reserved for Opfield-managed volumes", key)
 		}
 		if current, ok := currentLabels[key]; ok {
 			nextLabels[key] = current

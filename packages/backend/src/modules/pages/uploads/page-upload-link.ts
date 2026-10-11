@@ -117,7 +117,7 @@ export async function publishPageUploadLink(token: string, body: ReadableStream<
             new AppError(
               413,
               'PAGES_ARTIFACT_TOO_LARGE',
-              `Artifact exceeds the Gateway file-upload limit (${maxBytes} bytes)`
+              `Artifact exceeds the Opfield file-upload limit (${maxBytes} bytes)`
             )
           );
           return;

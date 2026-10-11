@@ -175,7 +175,7 @@ export function ManagedObjectStorageSettingsTab({
 
         <SwitchCard
           label="Publish S3 endpoint"
-          description="Private access remains available through Gateway relay."
+          description="Private access remains available through Opfield relay."
           checked={publishS3}
           onCheckedChange={setPublishS3}
           disabled={saving}

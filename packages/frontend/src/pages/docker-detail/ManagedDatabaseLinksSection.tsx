@@ -1024,7 +1024,7 @@ export const ManagedDatabaseLinksSection = forwardRef<
           <DialogHeader>
             <DialogTitle>Add Managed Database Link</DialogTitle>
             <DialogDescription>
-              Gateway will inject the selected connection into this workload when you save and
+              Opfield will inject the selected connection into this workload when you save and
               recreate it.
             </DialogDescription>
           </DialogHeader>

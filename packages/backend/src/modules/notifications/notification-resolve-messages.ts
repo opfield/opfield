@@ -28,7 +28,7 @@ const EVENT_RESOLVE_TEXT: Record<string, (name: string) => string> = {
   'gateway:job.failing': (name) => `${name} runs without errors again`,
   'gateway:relay.recovering': (name) => `${name} is serving again`,
   'gateway:relay.unavailable': (name) => `${name} is serving again`,
-  'gateway:outbound.unavailable': () => 'Gateway has outbound connectivity again',
+  'gateway:outbound.unavailable': () => 'Opfield has outbound connectivity again',
   'gateway:license.expired_grace': () => 'The license is valid again',
   'gateway:license.unavailable': () => 'The paid license is available again',
   'logging:storage.pressure': (name) => `Logging storage of ${name} is back to normal`,

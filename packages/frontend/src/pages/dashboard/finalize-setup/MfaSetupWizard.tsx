@@ -107,7 +107,7 @@ export function MfaSetupWizard({
         <>
           <p>
             Multi-factor authentication adds a second proof of identity to this account. It protects
-            Gateway even when a password or email sign-in code is exposed.
+            Opfield even when a password or email sign-in code is exposed.
           </p>
           <p>
             A passkey is the recommended phishing-resistant option. It can live on this device, in a

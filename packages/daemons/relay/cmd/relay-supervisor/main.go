@@ -71,7 +71,7 @@ func main() {
 	if err != nil {
 		logger.Error("re-enrollment skipped; continuing with the current identity", "error", err)
 	} else if reenrollment != nil {
-		logger.Warn("configuration carries an enrollment token; re-enrolling this relay with Gateway")
+		logger.Warn("configuration carries an enrollment token; re-enrolling this relay with Opfield")
 	}
 	daemon, err := lifecycle.NewDaemonBase(&cfg.BaseConfig, configPath, supervisor.New(cfg), logger)
 	if err != nil {

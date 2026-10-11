@@ -5,7 +5,7 @@ export const FOLDER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_resource_folders',
     description:
-      'List the folders of a Gateway resource type that you can use. Each folder carries access.actions (the actions you hold there, broad grants included) and access.canCreate. With folder-limited access you see every folder you hold any grant on, even an empty one: pick a folderId here before creating or moving resources, and see get_my_access for all your grants.',
+      'List the folders of an Opfield resource type that you can use. Each folder carries access.actions (the actions you hold there, broad grants included) and access.canCreate. With folder-limited access you see every folder you hold any grant on, even an empty one: pick a folderId here before creating or moving resources, and see get_my_access for all your grants.',
     parameters: {
       type: 'object',
       properties: {
@@ -31,7 +31,7 @@ export const FOLDER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_resource_folder',
     description:
-      'Create, update, move, delete, reorder, or assign foldered Gateway resources. Use the resource-specific ids and resourceType (pages = Page Projects, storage = storage connections, pki_cas = internal CAs: only root CAs move and their intermediates follow, pki_certificates = internal PKI certificates, pki_templates and nginx_templates = custom templates; built-ins never move).',
+      'Create, update, move, delete, reorder, or assign foldered Opfield resources. Use the resource-specific ids and resourceType (pages = Page Projects, storage = storage connections, pki_cas = internal CAs: only root CAs move and their intermediates follow, pki_certificates = internal PKI certificates, pki_templates and nginx_templates = custom templates; built-ins never move).',
     parameters: {
       type: 'object',
       properties: {

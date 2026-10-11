@@ -205,7 +205,7 @@ export class HostingSnapshotsService {
       .from(hostingNodeBindings)
       .where(eq(hostingNodeBindings.resourceId, resource.id));
     if (!bindings.length)
-      throw new AppError(409, 'HOSTING_NODE_BINDING_REQUIRED', 'Snapshots require a VM bound to a Gateway node');
+      throw new AppError(409, 'HOSTING_NODE_BINDING_REQUIRED', 'Snapshots require a VM bound to an Opfield node');
     for (const binding of bindings) {
       const [node] = await this.db.select().from(nodes).where(eq(nodes.id, binding.nodeId));
       if (

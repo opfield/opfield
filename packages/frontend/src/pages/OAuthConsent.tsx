@@ -201,7 +201,7 @@ export function OAuthConsent() {
   const finalSelectedScopes = access.scopes;
   const hasManualApprovalScopes = (preview?.manualApprovalScopes.length ?? 0) > 0;
 
-  const resourceLabel = preview?.resourceInfo.name ?? "Gateway API";
+  const resourceLabel = preview?.resourceInfo.name ?? "Opfield API";
   const redirectHost = useMemo(() => {
     if (!preview?.redirect.uri) return null;
     try {
@@ -221,7 +221,7 @@ export function OAuthConsent() {
         return;
       }
       if (!isLoopbackCallbackUrl(result.redirectUrl)) {
-        throw new Error("Gateway returned an invalid loopback OAuth callback");
+        throw new Error("Opfield returned an invalid loopback OAuth callback");
       }
       setResult({ kind: "approved", redirectUrl: result.redirectUrl });
       setSubmitting(null);
@@ -241,7 +241,7 @@ export function OAuthConsent() {
         return;
       }
       if (!isLoopbackCallbackUrl(result.redirectUrl)) {
-        throw new Error("Gateway returned an invalid loopback OAuth callback");
+        throw new Error("Opfield returned an invalid loopback OAuth callback");
       }
       setResult({ kind: "denied", redirectUrl: result.redirectUrl });
       setSubmitting(null);
@@ -286,7 +286,7 @@ export function OAuthConsent() {
               )}
             </div>
             <div>
-              <p className="text-xs font-medium text-muted-foreground">Gateway OAuth</p>
+              <p className="text-xs font-medium text-muted-foreground">Opfield OAuth</p>
               <h1 className="text-lg font-semibold text-foreground">
                 {result.kind === "approved" ? "Authorization complete" : "Authorization denied"}
               </h1>
@@ -331,9 +331,9 @@ export function OAuthConsent() {
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-3">
-                    <img src="/android-chrome-192x192.png" alt="Gateway" className="h-9 w-9" />
+                    <img src="/android-chrome-192x192.png" alt="Opfield" className="h-9 w-9" />
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground">Gateway OAuth</p>
+                      <p className="text-xs font-medium text-muted-foreground">Opfield OAuth</p>
                       <h1 className="text-xl font-semibold text-foreground">
                         Authorize {resourceLabel} access
                       </h1>
@@ -370,7 +370,7 @@ export function OAuthConsent() {
 
               <section className="space-y-3 p-5">
                 <Notice tone="warning" title="Only authorize tools you trust">
-                  Gateway cannot verify this client; it can only enforce the scopes you approve and
+                  Opfield cannot verify this client; it can only enforce the scopes you approve and
                   the permissions your account currently has.
                 </Notice>
 

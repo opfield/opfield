@@ -956,7 +956,7 @@ export class NodesService {
           .set({
             phase: 'failed',
             errorCode: 'HOSTING_NODE_REMOVED',
-            errorMessage: 'Node removed from Gateway by the user; provider resources were not deleted.',
+            errorMessage: 'Node removed from Opfield by the user; provider resources were not deleted.',
             encryptedBootstrap: null,
             bootstrapExpiresAt: null,
             leaseOwner: null,

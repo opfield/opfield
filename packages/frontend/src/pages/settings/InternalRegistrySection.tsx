@@ -248,13 +248,13 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
     >
       <SettingsControlRow
         title="Storage backend"
-        description="Artifacts are stored on the Gateway-managed registry volume."
+        description="Artifacts are stored on the Opfield-managed registry volume."
       >
         <span className="text-sm">Local volume</span>
       </SettingsControlRow>
       <SettingsControlRow
         title="Capacity"
-        description="Registry data remains on the Gateway node volume."
+        description="Registry data remains on the Opfield node volume."
       >
         <span className="text-right text-sm">
           {formatBytes(used)} used
@@ -282,7 +282,7 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
           <span className="flex items-center gap-2">
             <SettingsHelpTitle
               label="External access"
-              help="Publishes the internal registry through an Nginx ingress so Docker clients outside Gateway's private transport can pull images over HTTPS."
+              help="Publishes the internal registry through an Nginx ingress so Docker clients outside Opfield's private transport can pull images over HTTPS."
             />
             <LicensePlanBadge feature="git-push-to-deploy" label="Business+" />
           </span>
@@ -299,7 +299,7 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
         <>
           <SettingsControlRow
             title="External domain"
-            description="Optional hostname for Docker clients outside the Gateway private transport."
+            description="Optional hostname for Docker clients outside the Opfield private transport."
             help="Public DNS name Docker clients use as the registry address. It must resolve to the selected ingress node and match the TLS certificate."
           >
             <DomainAutocompleteInput
@@ -313,7 +313,7 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
           <SettingsControlRow
             title="Ingress node"
             description="The selected Nginx node owns the public registry route."
-            help="This Nginx node terminates TLS and forwards registry traffic to Gateway. It must be reachable from the external Docker clients."
+            help="This Nginx node terminates TLS and forwards registry traffic to Opfield. It must be reachable from the external Docker clients."
           >
             <Select value={nginxNodeId} onValueChange={setNginxNodeId}>
               <SelectTrigger className="sm:w-72">

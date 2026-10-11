@@ -35,7 +35,7 @@ func Enroll(address, token, expectedGatewayCertSHA256, hostname, nginxVersion, o
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("dial gateway: %w", err)
+		return nil, fmt.Errorf("dial Opfield: %w", err)
 	}
 	defer conn.Close()
 
@@ -82,13 +82,13 @@ func normalizeExpectedFingerprint(fingerprint string) (string, error) {
 
 func verifyGatewayFingerprint(expectedFingerprint string, peerCertificates []*x509.Certificate) error {
 	if len(peerCertificates) == 0 {
-		return fmt.Errorf("gateway did not present a TLS certificate")
+		return fmt.Errorf("Opfield did not present a TLS certificate")
 	}
 
 	sum := sha256.Sum256(peerCertificates[0].Raw)
 	actualFingerprint := "sha256:" + hex.EncodeToString(sum[:])
 	if actualFingerprint != expectedFingerprint {
-		return fmt.Errorf("gateway certificate fingerprint mismatch: expected %s, got %s", expectedFingerprint, actualFingerprint)
+		return fmt.Errorf("Opfield certificate fingerprint mismatch: expected %s, got %s", expectedFingerprint, actualFingerprint)
 	}
 
 	return nil

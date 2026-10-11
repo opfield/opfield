@@ -612,7 +612,7 @@ export function SSLCertificateCreateDialog({
                               className="overflow-hidden text-xs text-muted-foreground"
                             >
                               {usesCloudflareDns
-                                ? "Gateway will create and clean up the Cloudflare validation records automatically."
+                                ? "Opfield will create and clean up the Cloudflare validation records automatically."
                                 : "DNS-01 requires TXT validation records. After requesting, you'll be shown the records to add."}
                             </motion.p>
                           )}

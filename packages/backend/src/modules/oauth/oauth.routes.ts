@@ -71,20 +71,20 @@ function resourceInfo(resource: string) {
   if (resource === service.getMcpResourceUrl()) {
     return {
       resource,
-      name: 'Gateway MCP',
+      name: 'Opfield MCP',
       description: 'Remote MCP access for AI and MCP clients.',
     };
   }
   if (resource === service.getInferenceSetupResourceUrl()) {
     return {
       resource,
-      name: 'Gateway Inference Setup',
-      description: 'Configure Gateway inference clients and their dedicated runtime tokens.',
+      name: 'Opfield Inference Setup',
+      description: 'Configure Opfield inference clients and their dedicated runtime tokens.',
     };
   }
   return {
     resource,
-    name: 'Gateway API',
+    name: 'Opfield API',
     description: 'REST API access for CLI and external applications.',
   };
 }
@@ -122,7 +122,7 @@ oauthMetadataRoutes.get('/oauth-protected-resource', (c) => {
     authorization_servers: [service.getIssuerUrl()],
     scopes_supported: supportedScopes(service.getApiResourceUrl()),
     bearer_methods_supported: ['header'],
-    resource_name: 'Gateway API',
+    resource_name: 'Opfield API',
   });
 });
 
@@ -133,7 +133,7 @@ oauthMetadataRoutes.get('/oauth-protected-resource/api', (c) => {
     authorization_servers: [service.getIssuerUrl()],
     scopes_supported: supportedScopes(service.getApiResourceUrl()),
     bearer_methods_supported: ['header'],
-    resource_name: 'Gateway API',
+    resource_name: 'Opfield API',
   });
 });
 
@@ -144,7 +144,7 @@ oauthMetadataRoutes.get('/oauth-protected-resource/api/mcp', (c) => {
     authorization_servers: [service.getIssuerUrl()],
     scopes_supported: supportedScopes(service.getMcpResourceUrl()),
     bearer_methods_supported: ['header'],
-    resource_name: 'Gateway MCP',
+    resource_name: 'Opfield MCP',
   });
 });
 
@@ -155,7 +155,7 @@ oauthMetadataRoutes.get('/oauth-protected-resource/api/inference/setup', (c) => 
     authorization_servers: [service.getIssuerUrl()],
     scopes_supported: ['inference:setup'],
     bearer_methods_supported: ['header'],
-    resource_name: 'Gateway Inference Setup',
+    resource_name: 'Opfield Inference Setup',
   });
 });
 

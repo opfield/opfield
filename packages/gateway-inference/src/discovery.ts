@@ -49,23 +49,23 @@ export async function discoverInference(
     !validUrl(discovery.adapters.openai.baseUrl) ||
     !validUrl(discovery.adapters.anthropic.baseUrl)
   ) {
-    throw new CliError('INCOMPATIBLE_GATEWAY', 'Gateway inference discovery uses an unsupported schema.');
+    throw new CliError('INCOMPATIBLE_GATEWAY', 'Opfield inference discovery uses an unsupported schema.');
   }
   const expectedOrigin = new URL(origin).origin;
   if (
     new URL(discovery.oauth.resource).origin !== expectedOrigin ||
     new URL(discovery.oauth.authorizationServer).origin !== expectedOrigin
   ) {
-    throw new CliError('UNTRUSTED_OAUTH_ENDPOINT', 'Gateway discovery advertised OAuth URLs on another origin.');
+    throw new CliError('UNTRUSTED_OAUTH_ENDPOINT', 'Opfield discovery advertised OAuth URLs on another origin.');
   }
   assertTrustedEndpoint(discovery.adapters.openai.baseUrl, origin, 'OpenAI adapter endpoint');
   assertTrustedEndpoint(discovery.adapters.anthropic.baseUrl, origin, 'Anthropic adapter endpoint');
   if (requireEnabled && discovery.enabled === false)
-    throw new CliError('INFERENCE_DISABLED', 'Inference is disabled on this Gateway.');
+    throw new CliError('INFERENCE_DISABLED', 'Inference is disabled on this Opfield installation.');
   if (compareVersions(CLI_VERSION, discovery.minimumCliVersion) < 0) {
     throw new CliError(
       'CLI_UPDATE_REQUIRED',
-      `Gateway requires @sqgateway/inference ${discovery.minimumCliVersion} or newer (current ${CLI_VERSION}).`
+      `Opfield requires @sqgateway/inference ${discovery.minimumCliVersion} or newer (current ${CLI_VERSION}).`
     );
   }
   // Both schemas expose the standard OpenAI and Anthropic adapter URLs. Keep
@@ -112,7 +112,7 @@ export async function fetchSetupOAuthMetadata(discovery: InferenceDiscovery, fet
   ) {
     throw new CliError(
       'INCOMPATIBLE_OAUTH_SERVER',
-      'Gateway does not advertise the required inference setup OAuth contract.'
+      'Opfield does not advertise the required inference setup OAuth contract.'
     );
   }
   assertTrustedEndpoint(metadata.authorization_endpoint, discovery.oauth.authorizationServer, 'authorization endpoint');

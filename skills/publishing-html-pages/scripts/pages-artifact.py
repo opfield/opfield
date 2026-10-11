@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare Gateway Pages uploads: inspect one file, pack a site directory, read MCP-sized chunks."""
+"""Prepare Opfield Pages uploads: inspect one file, pack a site directory, read MCP-sized chunks."""
 
 from __future__ import annotations
 

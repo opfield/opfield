@@ -1,7 +1,7 @@
 export const OPERATIONS_DOCS: Record<string, string> = {
   folders: `# Foldered Resources
 
-Gateway uses shared folder views for several resource lists. Use folder tools instead of guessing REST paths.
+Opfield uses shared folder views for several resource lists. Use folder tools instead of guessing REST paths.
 
 ## Tools
 - list_resource_folders({ resourceType, dockerResourceType? }) lists the folders you can use and visible assignments. Each folder carries access.actions (the actions you hold in it, broad grants included) and access.canCreate. Without dockerResourceType, Docker lists the first Docker type you can use.
@@ -86,12 +86,12 @@ Sandbox tools run bounded commands in Docker containers owned by the current use
 - list_sandbox_jobs: list current user's running sandbox jobs.
 
 ## Network and Artifacts
-Sandbox containers have no direct network access. Use Gateway-mediated helpers:
-- fetch: read network content through Gateway, capped at 10 MB.
-- download_artifact: download a URL through Gateway and place it in a running sandbox under /workspace, capped at 200 MB.
+Sandbox containers have no direct network access. Use Opfield-mediated helpers:
+- fetch: read network content through Opfield, capped at 10 MB.
+- download_artifact: download a URL through Opfield and place it in a running sandbox under /workspace, capped at 200 MB.
 - list_artifact_files: list files/directories already present in a running sandbox workspace without starting another process.
 - read_artifact: read a file from the sandbox in chunks, capped per read.
-- send_artifact: save a sandbox file as a Gateway-managed downloadable artifact for the user.
+- send_artifact: save a sandbox file as an Opfield-managed downloadable artifact for the user.
 
 Artifact path rules:
 - The sandbox process working directory is /workspace.
@@ -114,7 +114,7 @@ AI conversations are stored on the backend. Tool discovery is conversation-scope
 - A model cannot be changed while the assistant is responding.
 - Changing the model later requires a user confirmation because it can increase cost and reduce continuity or provider cache efficiency.
 - Persisted model changes appear as timeline events. Consecutive changes collapse to the final transition, and a chain that returns to the original model is hidden.
-- In Gateway Inference mode, model choices are filtered by the user's model access and effective API/subscription budget. A zero API budget hides API-only models.
+- In Opfield Inference mode, model choices are filtered by the user's model access and effective API/subscription budget. A zero API budget hides API-only models.
 
 ## Context
 - get_current_context returns the current UI route and focused resource when the user says "this page" or "current resource".
@@ -131,17 +131,17 @@ AI conversations are stored on the backend. Tool discovery is conversation-scope
 
 ## Attachments And Artifacts
 - The composer accepts up to three supported images when the selected model advertises image input.
-- Uploaded attachments become Gateway-managed artifacts tied to the conversation.
+- Uploaded attachments become Opfield-managed artifacts tied to the conversation.
 - Tool-generated files are attached through send_artifact and should not be duplicated as manual download links.
 
 ## AI Workspace
-AI Workspace is Gateway's intent-driven desktop interface. The Work Session becomes the main screen, the sidebar shows a separate Dashboard link, Sidebar-pinned resources, and recent/pinned Work Sessions. Dashboard pins are not duplicated there: use the Sidebar placement for frequent navigation. Settings, Administration, and top-level pages keep a back button to return to the Work Session.
+AI Workspace is Opfield's intent-driven desktop interface. The Work Session becomes the main screen, the sidebar shows a separate Dashboard link, Sidebar-pinned resources, and recent/pinned Work Sessions. Dashboard pins are not duplicated there: use the Sidebar placement for frequent navigation. Settings, Administration, and top-level pages keep a back button to return to the Work Session.
 
 Do not assume the current page from chat text. Use get_current_context when the user refers to their visible page.`,
 
   'status-page': `# Status Pages
 
-Gateway can publish status-page data from monitored services and incidents. Use manage_status_page for settings, services, incidents, updates, proxy-template choices, and preview.
+Opfield can publish status-page data from monitored services and incidents. Use manage_status_page for settings, services, incidents, updates, proxy-template choices, and preview.
 
 ## Resources and Operations
 - settings: { resource: "settings", operation: "get"|"update", payload? }
@@ -153,10 +153,10 @@ Gateway can publish status-page data from monitored services and incidents. Use 
 
 Scopes: status-page:view for reads/preview, status-page:manage for settings/services, and status-page:incidents:create, status-page:incidents:update, status-page:incidents:resolve, or status-page:incidents:delete for incident mutations.`,
 
-  api: `# Gateway REST API
+  api: `# Opfield REST API
 
-Gateway provides REST access for external scripts, CI/CD pipelines, CLI tools, and integrations without a browser session.
-Programmatic REST clients can use either Gateway API tokens (\`gw_\`) or OAuth Authorization Code + PKCE access tokens (\`gwo_\`). API/OAuth tokens can hold every resource scope, including user and group administration, gateway settings, raw nginx config and bypass flags, node config and files, integrations, hosting and inference administration. Only account-bound scopes cannot be delegated: AI Workspace and sandbox access, AI configuration and skills, \`mcp:use\`, \`inference:setup\` and \`admin:users:impersonate\`. A token never exceeds its owner's current scopes. MCP clients use OAuth access tokens for the MCP resource with ordinary delegated API scopes; the owning user account must have \`mcp:use\`.
+Opfield provides REST access for external scripts, CI/CD pipelines, CLI tools, and integrations without a browser session.
+Programmatic REST clients can use either Opfield API tokens (\`gw_\`) or OAuth Authorization Code + PKCE access tokens (\`gwo_\`). API/OAuth tokens can hold every resource scope, including user and group administration, Opfield settings, raw nginx config and bypass flags, node config and files, integrations, hosting and inference administration. Only account-bound scopes cannot be delegated: AI Workspace and sandbox access, AI configuration and skills, \`mcp:use\`, \`inference:setup\` and \`admin:users:impersonate\`. A token never exceeds its owner's current scopes. MCP clients use OAuth access tokens for the MCP resource with ordinary delegated API scopes; the owning user account must have \`mcp:use\`.
 
 ## Current-User OAuth Authorizations
 The assistant can manage existing OAuth authorizations for the current browser user with manage_oauth_authorization:
@@ -166,8 +166,8 @@ The assistant can manage existing OAuth authorizations for the current browser u
 
 Pending OAuth consent remains browser-only. Do not try to approve a new OAuth client through tools.
 
-## Current-User Gateway API Tokens
-The assistant can manage the current browser user's Gateway API tokens with manage_api_token:
+## Current-User Opfield API Tokens
+The assistant can manage the current browser user's Opfield API tokens with manage_api_token:
 - { operation: "list" }
 - { operation: "create", name, scopes, registryAccess? }
 - { operation: "update", tokenId, name?, scopes?, registryAccess? }

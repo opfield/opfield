@@ -31,7 +31,7 @@ export async function runInferenceMcp(input: {
   const integrationPaths = resolveCodexPaths(input.paths, input.profileName);
   const configured = await inspectCodexConfiguration({ paths: integrationPaths, profile: input.profileName });
   if (!configured.configured || !configured.baseUrl) {
-    throw new Error('Gateway inference is not configured. Run setup codex again.');
+    throw new Error('Opfield inference is not configured. Run setup codex again.');
   }
   const proxy = await (input.proxyDaemon ?? inferenceProxyDaemonManager).ensure({
     paths: input.paths,
@@ -66,7 +66,7 @@ export async function runInferenceMcp(input: {
 
   server.registerTool(
     'inference_status',
-    { description: 'Inspect the local Gateway Codex integration and catalog freshness.' },
+    { description: 'Inspect the local Opfield Codex integration and catalog freshness.' },
     async () => {
       const refreshedContext = await authenticatedSetupClient(
         input.profileName,
@@ -86,7 +86,7 @@ export async function runInferenceMcp(input: {
   );
   server.registerTool(
     'inference_refresh',
-    { description: 'Refresh the local Codex model catalog from Gateway.' },
+    { description: 'Refresh the local Codex model catalog from Opfield.' },
     async () => {
       const result = await refresh();
       return {
@@ -102,7 +102,7 @@ export async function runInferenceMcp(input: {
   );
 
   void refresh().catch((error) =>
-    process.stderr.write(`Gateway catalog startup refresh failed: ${messageOf(error)}\n`)
+    process.stderr.write(`Opfield catalog startup refresh failed: ${messageOf(error)}\n`)
   );
   const controller = new AbortController();
   void monitorCatalog({ ...input, refresh, signal: controller.signal });
@@ -166,7 +166,7 @@ async function monitorCatalog(input: {
         }
       } catch (error) {
         if (input.signal.aborted) break;
-        process.stderr.write(`Gateway catalog event stream disconnected: ${messageOf(error)}\n`);
+        process.stderr.write(`Opfield catalog event stream disconnected: ${messageOf(error)}\n`);
         await abortableDelay(5_000, input.signal);
       }
     }
@@ -179,7 +179,7 @@ async function refreshWithoutDisconnect(refresh: () => Promise<unknown>, reason:
   try {
     await refresh();
   } catch (error) {
-    process.stderr.write(`Gateway catalog ${reason} refresh failed: ${messageOf(error)}\n`);
+    process.stderr.write(`Opfield catalog ${reason} refresh failed: ${messageOf(error)}\n`);
   }
 }
 
@@ -238,7 +238,7 @@ function schedulePoll(refresh: () => Promise<unknown>, signal: AbortSignal) {
     if (signal.aborted) return;
     const jitter = Math.round(FALLBACK_POLL_MS * (Math.random() * 0.2 - 0.1));
     holder.current = setTimeout(async () => {
-      await refresh().catch((error) => process.stderr.write(`Gateway catalog poll failed: ${messageOf(error)}\n`));
+      await refresh().catch((error) => process.stderr.write(`Opfield catalog poll failed: ${messageOf(error)}\n`));
       schedule();
     }, FALLBACK_POLL_MS + jitter);
     holder.current.unref();

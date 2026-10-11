@@ -65,7 +65,7 @@ const CLOUDBLAST_EXPLANATIONS: Record<string, string> = {
   UNAUTHENTICATED: 'The API token is missing or malformed',
   INVALID_TOKEN: 'The API token does not match a CloudBlast account',
   ACCOUNT_BANNED: 'The CloudBlast account is suspended',
-  IP_NOT_ALLOWED: 'The Gateway outbound IP is not in the CloudBlast API whitelist',
+  IP_NOT_ALLOWED: 'The Opfield outbound IP is not in the CloudBlast API whitelist',
   NOT_FOUND: 'The requested CloudBlast resource was not found',
   SERVER_STATUS_CONFLICT: 'The server is busy installing, restoring or running another task. Wait and retry',
   NO_AVAILABLE_NODE: 'No node in this location has capacity for the selected plan and template',

@@ -367,7 +367,7 @@ export function ExternalSshConnectorDialog({
         description={
           isTarget
             ? "External target, account, and optional jump server."
-            : "Add the intermediate server Gateway should use to reach the target."
+            : "Add the intermediate server Opfield should use to reach the target."
         }
       >
         <SettingsControlRow title="Connector name">
@@ -455,7 +455,7 @@ export function ExternalSshConnectorDialog({
     return (
       <PanelShell
         title={purpose === "target" ? "Authentication" : "Jump server authentication"}
-        description="Gateway encrypts the credential and never displays it again."
+        description="Opfield encrypts the credential and never displays it again."
         icon={<KeyRound className="h-4 w-4" />}
       >
         <SettingsControlRow title="Credential type">
@@ -501,7 +501,7 @@ export function ExternalSshConnectorDialog({
         ) : (
           <SettingsControlRow
             title="Generated key"
-            description="Gateway generates an Ed25519 key pair on the final create action."
+            description="Opfield generates an Ed25519 key pair on the final create action."
           >
             <span className="text-sm text-muted-foreground">Ed25519</span>
           </SettingsControlRow>
@@ -610,9 +610,9 @@ export function ExternalSshConnectorDialog({
       : [`Target: ${form.username}@${form.host}:${form.port}`];
 
   const description = generatedPublicKey
-    ? "Install the generated public key before Gateway verifies the remaining route."
+    ? "Install the generated public key before Opfield verifies the remaining route."
     : step === "target_connection"
-      ? "Define the target server and how Gateway should reach it."
+      ? "Define the target server and how Opfield should reach it."
       : step === "jump_connection"
         ? "Define the jump server without creating it yet."
         : step === "jump_authentication"

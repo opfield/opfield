@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { managedInstanceCondition } from "./ManagedInstanceNotice";
 
 describe("managed instance condition", () => {
-  it("reads the condition Gateway recorded from the node", () => {
+  it("reads the condition Opfield recorded from the node", () => {
     expect(
       managedInstanceCondition(
         "MANAGED_DISK_REPAIRING: The database disk went read-only after a write to it failed. The engine is stopped while the disk is checked and repaired; it starts again on its own."

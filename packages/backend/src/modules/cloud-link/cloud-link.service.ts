@@ -391,13 +391,13 @@ export class CloudLinkService {
     await this.serialized(async () => {
       const { enrollment } = await this.readStored();
       if (!enrollment) {
-        throw new CloudLinkRequestError(409, 'CLOUD_NOT_CONNECTED', 'Connect this Gateway to your cloud account first');
+        throw new CloudLinkRequestError(409, 'CLOUD_NOT_CONNECTED', 'Connect this Opfield installation to your cloud account first');
       }
       if (enrollment.managed) {
         throw new CloudLinkRequestError(
           409,
           'CLOUD_MANAGED',
-          'This Gateway is managed by the cloud; remote management cannot be turned off'
+          'This Opfield installation is managed by the cloud; remote management cannot be turned off'
         );
       }
       const previous = (await this.remoteManagementFor(enrollment)).enabled;

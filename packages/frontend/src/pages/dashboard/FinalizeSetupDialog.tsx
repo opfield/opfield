@@ -164,7 +164,7 @@ export function FinalizeSetupDialog({
     const confirmed = await confirm({
       title: "Skip Setup for Now?",
       description:
-        "These steps introduce Gateway's core capabilities. If you are new to Gateway or want to understand its features in more detail, we recommend completing at least the items that apply to your installation. You can still configure every feature later from Settings.",
+        "These steps introduce Opfield's core capabilities. If you are new to Opfield or want to understand its features in more detail, we recommend completing at least the items that apply to your installation. You can still configure every feature later from Settings.",
       cancelLabel: "Continue setup",
       confirmLabel: "Skip for now",
       variant: "default",
@@ -187,12 +187,12 @@ export function FinalizeSetupDialog({
         onInteractOutside={(event) => event.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Finalize Gateway Setup</DialogTitle>
+          <DialogTitle>Finalize Opfield Setup</DialogTitle>
         </DialogHeader>
         <DialogDescription asChild>
           <div className="space-y-2">
             <p>
-              Gateway is ready to use. This checklist walks the first administrator through the
+              Opfield is ready to use. This checklist walks the first administrator through the
               capabilities that usually make a new installation useful: infrastructure nodes,
               account protection, optional AI, and external integrations.
             </p>
@@ -203,7 +203,7 @@ export function FinalizeSetupDialog({
             </p>
             <p>
               You can skip this checklist for now or skip an optional flow and return to every
-              setting later. If Gateway is new to you, completing at least the relevant items
+              setting later. If Opfield is new to you, completing at least the relevant items
               provides the quickest path to understanding how its core features fit together.
             </p>
           </div>

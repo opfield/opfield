@@ -25,7 +25,7 @@ async function main() {
     cleanup: [],
   };
 
-  console.log(`Gateway API URL: ${config.apiUrl}`);
+  console.log(`Opfield API URL: ${config.apiUrl}`);
   console.log(`Seeded API token ${seeded.tokenId} with ${seeded.scopes.length} delegable scopes`);
   if (config.keepToken) {
     console.log(`Seeded token: ${seeded.token}`);

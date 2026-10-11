@@ -76,7 +76,7 @@ export async function createStorageObjectDownloadLink(user: User, args: Record<s
     filename,
     commands: { download: `curl -fsS -o ${shellQuote(filename)} ${shellQuote(url)}` },
     usage:
-      'Run the command from the shell that should keep the object (change the file name if needed). The link works once and streams the object through Gateway. If curl exits non-zero the file is incomplete: delete it and create a new link.',
+      'Run the command from the shell that should keep the object (change the file name if needed). The link works once and streams the object through Opfield. If curl exits non-zero the file is incomplete: delete it and create a new link.',
   };
 }
 

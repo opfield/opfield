@@ -47,11 +47,11 @@ export function buildHostingBootstrap(input: {
     throw new AppError(
       409,
       'HOSTING_GATEWAY_NOT_READY',
-      'Configure the Gateway enrollment endpoint and certificate first'
+      'Configure the Opfield enrollment endpoint and certificate first'
     );
   const url = new URL(`https://${input.gateway}`);
   if (url.username || url.password || url.pathname !== '/' || url.search || url.hash)
-    throw new AppError(400, 'HOSTING_GATEWAY_INVALID', 'Invalid Gateway enrollment endpoint');
+    throw new AppError(400, 'HOSTING_GATEWAY_INVALID', 'Invalid Opfield enrollment endpoint');
   const args = [
     '--gateway',
     input.gateway,
@@ -71,7 +71,7 @@ export function buildHostingBootstrap(input: {
     ? `
 # A cloned template must never inherit another Gateway host identity or certificate.
 if [ -s /var/lib/gateway/host-identity ]; then
-  echo 'Gateway identity already exists; refusing to adopt or reinstall a cloned identity' >&2
+  echo 'Opfield identity already exists; refusing to adopt or reinstall a cloned identity' >&2
   exit 42
 fi
 `
@@ -88,7 +88,7 @@ umask 077
 mkdir -p /var/lib/gateway
 # The lock also fences a timed-out installer that is still running inside the guest.
 exec 9>/var/lib/gateway/hosting-install.lock
-flock -n 9 || { echo 'A Gateway hosting installer is already running' >&2; exit 44; }
+flock -n 9 || { echo 'An Opfield hosting installer is already running' >&2; exit 44; }
 ${
   input.waitForCloudInit
     ? `# QGA and SSH come up before cloud-init finishes package/network setup. Never race its package manager.
@@ -151,17 +151,17 @@ export function validateHostingGateway(value: string, allowPrivate: boolean): vo
   try {
     url = new URL(`https://${value}`);
   } catch {
-    throw new AppError(400, 'HOSTING_GATEWAY_INVALID', 'Invalid Gateway enrollment endpoint');
+    throw new AppError(400, 'HOSTING_GATEWAY_INVALID', 'Invalid Opfield enrollment endpoint');
   }
   const host = url.hostname.replace(/^\[|\]$/g, '');
   if (!host || host === 'localhost' || host === '127.0.0.1' || host === '::1' || !url.port)
-    throw new AppError(400, 'HOSTING_GATEWAY_INVALID', 'A remotely reachable Gateway endpoint with port is required');
+    throw new AppError(400, 'HOSTING_GATEWAY_INVALID', 'A remotely reachable Opfield endpoint with port is required');
   // Private Proxmox connectivity is allowed. Public provider reachability is checked before ordering.
   const ip = normalizeIp(host);
   if (ip && (isAlwaysBlockedOutboundIp(ip) || (!allowPrivate && !isPubliclyRoutableIp(ip))))
     throw new AppError(
       400,
       'HOSTING_GATEWAY_PRIVATE',
-      'Set a publicly reachable Gateway gRPC address in General settings so cloud nodes can connect. No VM was ordered.'
+      'Set a publicly reachable Opfield gRPC address in General settings so cloud nodes can connect. No VM was ordered.'
     );
 }

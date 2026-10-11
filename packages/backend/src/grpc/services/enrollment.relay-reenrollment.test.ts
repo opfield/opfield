@@ -126,7 +126,7 @@ describe('Enrollment errors returned to the daemon', () => {
 
     expect(callback).toHaveBeenCalledWith({
       code: 13,
-      message: 'Enrollment failed; see the Gateway log for details',
+      message: 'Enrollment failed; see the Opfield log for details',
     });
   });
 
@@ -163,7 +163,7 @@ describe('Enrollment errors returned to the daemon', () => {
     expect(deps.systemCA.issueNodeCert).toHaveBeenCalled();
     expect(callback).toHaveBeenCalledWith({
       code: 13,
-      message: 'Certificate renewal failed; see the Gateway log for details',
+      message: 'Certificate renewal failed; see the Opfield log for details',
     });
   });
 });

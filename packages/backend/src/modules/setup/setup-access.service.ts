@@ -36,14 +36,14 @@ interface StoredSetupSession {
 
 export class SetupAlreadyInProgressError extends Error {
   constructor() {
-    super('Gateway setup is already in progress');
+    super('Opfield setup is already in progress');
     this.name = 'SetupAlreadyInProgressError';
   }
 }
 
 export class SetupApplyInProgressError extends Error {
   constructor() {
-    super('Gateway setup is already being applied');
+    super('Opfield setup is already being applied');
     this.name = 'SetupApplyInProgressError';
   }
 }
@@ -56,7 +56,7 @@ export class SetupAccessService {
   ) {}
 
   async generateCode(): Promise<GeneratedSetupCode> {
-    if (await this.policy.isSetupComplete()) throw new Error('Gateway setup is already complete');
+    if (await this.policy.isSetupComplete()) throw new Error('Opfield setup is already complete');
 
     const id = randomBytes(8).toString('hex');
     const code = `gws_${randomBytes(32).toString('base64url')}`;

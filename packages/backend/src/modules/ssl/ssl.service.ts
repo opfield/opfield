@@ -1640,7 +1640,7 @@ export class SSLService {
             name: challenge.recordName,
             content: challenge.recordValue,
             ttl: 60,
-            comment: `Gateway ACME DNS-01 challenge for SSL certificate ${certId}`,
+            comment: `Opfield ACME DNS-01 challenge for SSL certificate ${certId}`,
           }));
         const created = !existing;
         const nextChallenge: DNSChallenge = {
@@ -1973,7 +1973,7 @@ export class SSLService {
       throw new AppError(
         400,
         'INTERNAL_CERT_NOT_RENEWABLE',
-        'This certificate was issued from a CSR, so Gateway does not hold its private key and cannot reissue it'
+        'This certificate was issued from a CSR, so Opfield does not hold its private key and cannot reissue it'
       );
     }
     const [updated] = await this.db

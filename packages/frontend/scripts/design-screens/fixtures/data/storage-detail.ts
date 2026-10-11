@@ -149,7 +149,7 @@ export function backupsListing(bucket: string, prefix: string): ObjectStorageLis
 
 export const backupsReadme = `# db-backups
 
-Nightly logical backups written by the Gateway backup runner on storage-1.
+Nightly logical backups written by the Opfield backup runner on storage-1.
 
 - One folder per database (\`orders-db/\`, \`analytics/\`, \`sessions/\`).
 - Nightly dumps are kept for 14 days; pre-release snapshots for 5 runs.

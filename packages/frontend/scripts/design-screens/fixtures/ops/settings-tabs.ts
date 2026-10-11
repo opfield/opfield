@@ -177,7 +177,7 @@ export const relaySnapshot: DashboardRelaySnapshot = {
       kind: "local",
       nodeId: null,
       faultDomainId: "gateway",
-      displayName: "Gateway relay",
+      displayName: "Opfield relay",
       advertisedAddresses: ["10.0.20.2"],
       servicePort: 7443,
       state: "ready",
@@ -607,7 +607,7 @@ export const aiConfig = {
   gatewayInferenceModels: [
     {
       id: "gateway-large",
-      displayName: "Gateway Large",
+      displayName: "Opfield Large",
       supportsImages: true,
       maxContextTokens: 200_000,
       maxOutputTokens: 32_000,
@@ -616,7 +616,7 @@ export const aiConfig = {
     },
     {
       id: "gateway-small",
-      displayName: "Gateway Small",
+      displayName: "Opfield Small",
       supportsImages: false,
       maxContextTokens: 64_000,
       maxOutputTokens: 8_000,
@@ -789,7 +789,7 @@ export const inferenceModels: InferenceModel[] = [
   {
     id: uuid(65250),
     publicId: "gateway-large",
-    displayName: "Gateway Large",
+    displayName: "Opfield Large",
     sortOrder: 0,
     enabled: true,
     contextWindow: 200_000,
@@ -812,7 +812,7 @@ export const inferenceModels: InferenceModel[] = [
   {
     id: uuid(65251),
     publicId: "gateway-small",
-    displayName: "Gateway Small",
+    displayName: "Opfield Small",
     sortOrder: 1,
     enabled: true,
     contextWindow: 64_000,
@@ -861,7 +861,7 @@ export const aiSkills: AIAgentSkill[] = [
   {
     id: uuid(65262),
     name: "gateway-operations",
-    description: "Built-in guidance for Gateway resources and safe operations",
+    description: "Built-in guidance for Opfield resources and safe operations",
     instructions: "",
     source: "system",
     enabled: true,

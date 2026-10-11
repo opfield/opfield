@@ -123,7 +123,7 @@ export function assertArchiveNetworksAllowed(networks: ReadonlyArray<{ name: str
       throw new AppError(400, 'NETWORK_MODE_NOT_ALLOWED', `Network mode "${name}" is not allowed for containers`);
     }
     if (isReservedGatewayNetworkName(name)) {
-      throw new AppError(409, 'MANAGED_NETWORK', 'Gateway-managed networks cannot be connected manually');
+      throw new AppError(409, 'MANAGED_NETWORK', 'Opfield-managed networks cannot be connected manually');
     }
   }
   if (names.length > 1 && names.includes('none')) {

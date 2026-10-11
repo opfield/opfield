@@ -5,7 +5,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   // ── Maintenance and Control Plane ──
   {
     name: 'get_license_status',
-    description: 'Read Gateway license status, tier, installation ID, expiry, grace state, and masked key metadata.',
+    description: 'Read Opfield license status, tier, installation ID, expiry, grace state, and masked key metadata.',
     parameters: { type: 'object', properties: {} },
     destructive: false,
     category: 'Maintenance',
@@ -15,7 +15,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_license',
     description:
-      'Manage the Gateway license. operation must be one of activate, activate_module, check, or clear. activate requires licenseKey and then installs the licensed module; activate_module retries only the module installation.',
+      'Manage the Opfield license. operation must be one of activate, activate_module, check, or clear. activate requires licenseKey and then installs the licensed module; activate_module retries only the module installation.',
     parameters: {
       type: 'object',
       properties: {
@@ -36,7 +36,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'get_cloud_status',
     description:
-      'Read whether this Gateway is connected to a cloud account: not_connected, connected (account email, portal URL, connected since, socket online/connecting/reconnecting with the last error) or disconnected_by_account (when and why), plus the 5 latest requests the account sent over the link.',
+      'Read whether this Opfield installation is connected to a cloud account: not_connected, connected (account email, portal URL, connected since, socket online/connecting/reconnecting with the last error) or disconnected_by_account (when and why), plus the 5 latest requests the account sent over the link.',
     parameters: { type: 'object', properties: {} },
     destructive: false,
     category: 'Maintenance',
@@ -46,7 +46,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_cloud',
     description:
-      'Connect this Gateway to a cloud account or disconnect it. operation must be connect, disconnect or set_remote_management. connect requires code, the single-use CLD-XXXX-XXXX code from the installation\'s page in the cloud account (valid 10 minutes); connecting again replaces the previous connection. disconnect revokes the connection at the account and forgets it here; when the account cannot be reached it is forgotten here anyway and the result carries a warning. set_remote_management requires enabled: it turns "Allow remote management" on or off (off by default; a managed cloud VM is always managed by the cloud and has no switch). Reads (state, logs, services, update status) need no switch.',
+      'Connect this Opfield installation to a cloud account or disconnect it. operation must be connect, disconnect or set_remote_management. connect requires code, the single-use CLD-XXXX-XXXX code from the installation\'s page in the cloud account (valid 10 minutes); connecting again replaces the previous connection. disconnect revokes the connection at the account and forgets it here; when the account cannot be reached it is forgotten here anyway and the result carries a warning. set_remote_management requires enabled: it turns "Allow remote management" on or off (off by default; a managed cloud VM is always managed by the cloud and has no switch). Reads (state, logs, services, update status) need no switch.',
     parameters: {
       type: 'object',
       properties: {
@@ -58,7 +58,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
         enabled: {
           type: 'boolean',
           description:
-            'For set_remote_management: whether the cloud account may create node enrolment tokens, start Gateway updates and issue first-admin setup codes.',
+            'For set_remote_management: whether the cloud account may create node enrolment tokens, start Opfield updates and issue first-admin setup codes.',
         },
         code: { type: 'string', description: 'Connection code for connect, for example CLD-7K3M-Q9TX.' },
       },
@@ -97,7 +97,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_gateway_diagnostics',
     description:
-      "Read the state of Gateway itself, the control plane (for managed nodes use get_node and manage_node). operation: snapshot (now: Gateway's host CPU, memory, load and data-volume disk, where host.cpuCount and host.cpuPercent cover the CPUs Gateway may use (kernelCpuCount is the kernel's count) and host.memoryScope says whether memory is the container cgroup limit (cgroup) or the kernel's view (kernel, as inside an LXC); the backend process memory, CPU and event-loop delay; Postgres and Redis reachability, latency, connection pool, size and long queries; the stack containers such as app, postgres, redis, relay and registry with state, health, restarts, CPU and memory; failing background jobs; API latency and 5xx), history (one-minute samples kept 48 hours: from/to as ISO or durations such as 6h or 1d, default the last 6 hours; metrics as dotted paths like host.cpuPercent, requests.p95Ms, postgres.poolWaiting or containers.postgres.memoryBytes, see availableMetrics; returns avg and max per step, stepMinutes defaults to at most 120 points), requests (per-route counts, p95 and 5xx over the last minutes, up to 60), jobs (every background job: last run, duration, last error, failures in a row), or logs (lines of one Gateway container, newest last: source app (default), update (the last Gateway update run), or a stack service such as postgres, redis, relay or registry; since/until as ISO or durations, default the last hour; level is the minimum (error, warn, info, debug); text, context and requestId filter app lines; limit up to 1000, default 200; needs diagnostics:logs).",
+      "Read the state of Opfield itself, the control plane (for managed nodes use get_node and manage_node). operation: snapshot (now: Opfield's host CPU, memory, load and data-volume disk, where host.cpuCount and host.cpuPercent cover the CPUs Opfield may use (kernelCpuCount is the kernel's count) and host.memoryScope says whether memory is the container cgroup limit (cgroup) or the kernel's view (kernel, as inside an LXC); the backend process memory, CPU and event-loop delay; Postgres and Redis reachability, latency, connection pool, size and long queries; the stack containers such as app, postgres, redis, relay and registry with state, health, restarts, CPU and memory; failing background jobs; API latency and 5xx), history (one-minute samples kept 48 hours: from/to as ISO or durations such as 6h or 1d, default the last 6 hours; metrics as dotted paths like host.cpuPercent, requests.p95Ms, postgres.poolWaiting or containers.postgres.memoryBytes, see availableMetrics; returns avg and max per step, stepMinutes defaults to at most 120 points), requests (per-route counts, p95 and 5xx over the last minutes, up to 60), jobs (every background job: last run, duration, last error, failures in a row), or logs (lines of one Opfield container, newest last: source app (default), update (the last Opfield update run), or a stack service such as postgres, redis, relay or registry; since/until as ISO or durations, default the last hour; level is the minimum (error, warn, info, debug); text, context and requestId filter app lines; limit up to 1000, default 200; needs diagnostics:logs).",
     parameters: {
       type: 'object',
       properties: {
@@ -141,7 +141,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'get_gateway_settings',
     description:
-      'Read every Gateway settings section: sign-in methods, password policy and MFA grace, OIDC provisioning and provider, SMTP (secrets masked), logging backend, MCP server, web TLS transport, general settings (public URL, update channel, relay tuning, features), network security, outbound webhook policy, and environment settings with their defaults.',
+      'Read every Opfield settings section: sign-in methods, password policy and MFA grace, OIDC provisioning and provider, SMTP (secrets masked), logging backend, MCP server, web TLS transport, general settings (public URL, update channel, relay tuning, features), network security, outbound webhook policy, and environment settings with their defaults.',
     parameters: { type: 'object', properties: {} },
     destructive: false,
     category: 'Maintenance',
@@ -151,7 +151,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'update_gateway_settings',
     description:
-      'Update Gateway settings exactly like the Settings UI. Pass only fields to change. SMTP, the OIDC provider, the public URL, and relaxing OIDC verified-email enforcement require admin:system. smtp.testRecipient sends a test email; enabling password or email-code sign-in requires verified SMTP; enabling OIDC sign-in requires a configured provider. environmentSettings patches the environment (limits/timeouts) settings.',
+      'Update Opfield settings exactly like the Settings UI. Pass only fields to change. SMTP, the OIDC provider, the public URL, and relaxing OIDC verified-email enforcement require admin:system. smtp.testRecipient sends a test email; enabling password or email-code sign-in requires verified SMTP; enabling OIDC sign-in requires a configured provider. environmentSettings patches the environment (limits/timeouts) settings.',
     parameters: {
       type: 'object',
       properties: {
@@ -236,13 +236,13 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
         },
         webTlsEnabled: {
           type: 'boolean',
-          description: 'Serve the web UI over TLS; changing it restarts the Gateway web runtime.',
+          description: 'Serve the web UI over TLS; changing it restarts the Opfield web runtime.',
         },
         mcpServerEnabled: { type: 'boolean' },
         mcpExtendedCompatibility: {
           type: 'boolean',
           description:
-            'Return every OAuth-scoped MCP tool in the initial tools/list response. Enabled by default; disable only for harnesses that load every tool schema into context and exhaust it, because they may then be unable to use some Gateway tools.',
+            'Return every OAuth-scoped MCP tool in the initial tools/list response. Enabled by default; disable only for harnesses that load every tool schema into context and exhaust it, because they may then be unable to use some Opfield tools.',
         },
         generalSettings: {
           type: 'object',
@@ -266,7 +266,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_system_updates',
     description:
-      'Read or manage Gateway, Relay Pool, and daemon updates. Operations: get_gateway_status, check_gateway, get_gateway_release_notes, list_gateway_release_notes (every release between the current and the available version), perform_gateway_update, proceed_gateway_update (stop waiting for running operations), acknowledge_gateway_update_failure, perform_relay_update, abandon_relay_update (end a stuck or paused Relay Pool update), list_daemon_updates, check_daemon_updates, update_daemon (waits up to 30 minutes for long tasks running on the node unless now is true). Mutating operations require explicit approval unless the user bypass mode allows it.',
+      'Read or manage Opfield, Relay Pool, and daemon updates. Operations: get_gateway_status, check_gateway, get_gateway_release_notes, list_gateway_release_notes (every release between the current and the available version), perform_gateway_update, proceed_gateway_update (stop waiting for running operations), acknowledge_gateway_update_failure, perform_relay_update, abandon_relay_update (end a stuck or paused Relay Pool update), list_daemon_updates, check_daemon_updates, update_daemon (waits up to 30 minutes for long tasks running on the node unless now is true). Mutating operations require explicit approval unless the user bypass mode allows it.',
     parameters: {
       type: 'object',
       properties: {
@@ -340,7 +340,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_system_alerts',
     description:
-      "List Gateway's system alerts about certificates (expiry warnings, CA expiry, revocations) or dismiss one by alertId. Operations: list, dismiss. For Gateway's own health use manage_gateway_diagnostics; for configurable alerts use list_alert_rules.",
+      "List Opfield's system alerts about certificates (expiry warnings, CA expiry, revocations) or dismiss one by alertId. Operations: list, dismiss. For Opfield's own health use manage_gateway_diagnostics; for configurable alerts use list_alert_rules.",
     parameters: {
       type: 'object',
       properties: {
@@ -363,7 +363,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
       properties: {
         showSystem: {
           type: 'boolean',
-          description: 'Include Gateway system certificates in the counts (requires admin:details:certificates).',
+          description: 'Include Opfield system certificates in the counts (requires admin:details:certificates).',
         },
       },
       additionalProperties: false,
@@ -398,7 +398,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
         },
         parentId: { type: 'string', description: 'Optional parent group UUID to inherit scopes from' },
         folderId: { type: ['string', 'null'], description: 'Optional group folder UUID.' },
-        requireGateway2fa: { type: 'boolean', description: 'Require Gateway MFA for members of this group.' },
+        requireGateway2fa: { type: 'boolean', description: 'Require Opfield MFA for members of this group.' },
       },
       required: ['name', 'scopes'],
       additionalProperties: false,
@@ -426,7 +426,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
           type: ['string', 'null'],
           description: 'New parent group UUID, or null to remove inheritance',
         },
-        requireGateway2fa: { type: 'boolean', description: 'Require Gateway MFA for members of this group.' },
+        requireGateway2fa: { type: 'boolean', description: 'Require Opfield MFA for members of this group.' },
       },
       required: ['groupId'],
       additionalProperties: false,
@@ -623,7 +623,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
           type: 'string',
           enum: ['node', 'proxy_host', 'database', 'docker_container', 'docker_deployment'],
         },
-        resourceId: { type: 'string', description: 'Gateway resource ID to pin or unpin.' },
+        resourceId: { type: 'string', description: 'Opfield resource ID to pin or unpin.' },
         target: { type: 'string', enum: ['dashboard', 'sidebar'] },
         pinned: { type: 'boolean', description: 'True pins the resource; false removes only this placement.' },
         nodeId: { type: 'string', description: 'Required when resourceType is a Docker container or deployment.' },
@@ -641,7 +641,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'open_node_enrollment',
     description:
-      "Open the concrete Gateway node-enrollment flow in the user's current AI Workspace. Use only after the user has chosen to add a Gateway-managed node. This is a client-side setup handoff, not a blocker and not a resource mutation by itself.",
+      "Open the concrete Opfield node-enrollment flow in the user's current AI Workspace. Use only after the user has chosen to add an Opfield-managed node. This is a client-side setup handoff, not a blocker and not a resource mutation by itself.",
     parameters: {
       type: 'object',
       properties: {},
@@ -688,7 +688,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'ask_question',
     description:
-      "Ask the user a clarifying question before proceeding. Use this only when a material requirement is unclear, ambiguous, or missing and cannot be inferred from context, tool results, or a standard default. Never use this tool to confirm or approve an action the user already requested; Gateway's approval UI handles policy-required confirmations. Do not ask when there is exactly one valid applicable option or the user asked you to choose automatically/use defaults. You can provide options for the user to pick from, allow free text input, or both.",
+      "Ask the user a clarifying question before proceeding. Use this only when a material requirement is unclear, ambiguous, or missing and cannot be inferred from context, tool results, or a standard default. Never use this tool to confirm or approve an action the user already requested; Opfield's approval UI handles policy-required confirmations. Do not ask when there is exactly one valid applicable option or the user asked you to choose automatically/use defaults. You can provide options for the user to pick from, allow free text input, or both.",
     parameters: {
       type: 'object',
       properties: {
@@ -744,14 +744,14 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'read_gateway_documentation',
     description:
-      'Read Gateway internal operational documentation through remote MCP. Topic access is filtered by the OAuth token scopes; general MCP workflow topics remain available to every authenticated MCP connection.',
+      'Read Opfield internal operational documentation through remote MCP. Topic access is filtered by the OAuth token scopes; general MCP workflow topics remain available to every authenticated MCP connection.',
     parameters: {
       type: 'object',
       properties: {
         topic: {
           type: 'string',
           enum: Object.keys(INTERNAL_DOCS),
-          description: 'Gateway documentation topic to read.',
+          description: 'Opfield documentation topic to read.',
         },
       },
       required: ['topic'],

@@ -108,7 +108,7 @@ setupRoutes.post('/unlock', async (c) => {
     session = await container.resolve(SetupAccessService).createSession(body.code?.trim() ?? '');
   } catch (error) {
     if (error instanceof SetupAlreadyInProgressError) {
-      throw new AppError(409, 'SETUP_IN_PROGRESS', 'Gateway setup is already in progress');
+      throw new AppError(409, 'SETUP_IN_PROGRESS', 'Opfield setup is already in progress');
     }
     throw new AppError(401, 'SETUP_CODE_INVALID', 'Invalid or expired setup code');
   }
@@ -266,10 +266,10 @@ setupRoutes.post('/wizard/session', async (c) => {
     throw new AppError(401, 'SETUP_SESSION_REQUIRED', 'A valid setup session is required');
   }
   if ((await container.resolve(SetupWizardService).getPhase()) !== 'ai_workspace') {
-    throw new AppError(409, 'SETUP_CONFIGURATION_REQUIRED', 'Apply Gateway setup before configuring AI Workspace');
+    throw new AppError(409, 'SETUP_CONFIGURATION_REQUIRED', 'Apply Opfield setup before configuring AI Workspace');
   }
   const user = await container.resolve(AuthService).getUserById(GATEWAY_SYSTEM_USER_ID);
-  if (!user) throw new AppError(500, 'SETUP_SYSTEM_USER_MISSING', 'Gateway System user is unavailable');
+  if (!user) throw new AppError(500, 'SETUP_SYSTEM_USER_MISSING', 'Opfield System user is unavailable');
 
   const sessions = container.resolve(SessionService);
   await sessions.destroySetupSessions(GATEWAY_SYSTEM_USER_ID, setupSessionId);
@@ -302,13 +302,13 @@ setupRoutes.post('/wizard/apply', async (c) => {
     );
   } catch (error) {
     if (error instanceof SetupApplyInProgressError) {
-      throw new AppError(409, 'SETUP_APPLY_IN_PROGRESS', 'Gateway setup is already being applied');
+      throw new AppError(409, 'SETUP_APPLY_IN_PROGRESS', 'Opfield setup is already being applied');
     }
     if (isDockerSocketUnavailable(error)) {
       throw new AppError(
         503,
         'SETUP_DOCKER_UNAVAILABLE',
-        'Gateway cannot access Docker. Verify that /var/run/docker.sock is mounted and accessible, then retry.'
+        'Opfield cannot access Docker. Verify that /var/run/docker.sock is mounted and accessible, then retry.'
       );
     }
     throw error;
@@ -322,7 +322,7 @@ const SetupLicenseActivationSchema = z.object({
 
 async function requireAppliedSetup(): Promise<void> {
   if ((await container.resolve(SetupWizardService).getPhase()) !== 'ai_workspace') {
-    throw new AppError(409, 'SETUP_CONFIGURATION_REQUIRED', 'Apply Gateway setup before choosing a license');
+    throw new AppError(409, 'SETUP_CONFIGURATION_REQUIRED', 'Apply Opfield setup before choosing a license');
   }
 }
 

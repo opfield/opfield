@@ -55,10 +55,10 @@ export function AdminUserInvitationRow({
         <p className="text-sm font-medium">Invitation email</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
           {user.invitationSentAt
-            ? "Told the user their Gateway account was created."
+            ? "Told the user their Opfield account was created."
             : smtpMissing
               ? "Sending requires verified SMTP."
-              : "Tells the user their Gateway account was created. Available once, before the first sign-in."}
+              : "Tells the user their Opfield account was created. Available once, before the first sign-in."}
         </p>
       </div>
       {user.invitationSentAt ? (

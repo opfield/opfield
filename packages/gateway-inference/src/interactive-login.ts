@@ -20,7 +20,7 @@ export async function runInteractiveLogin(input: {
     {
       value: 'oauth',
       label: 'Browser OAuth',
-      hint: 'Open Gateway in your browser and approve this device',
+      hint: 'Open Opfield in your browser and approve this device',
     },
     {
       value: 'token',
@@ -39,7 +39,7 @@ export async function runInteractiveLogin(input: {
       input.ui.cancel(input.cancelMessage ?? 'Login cancelled.');
       return false;
     }
-    input.ui.info('Validating Gateway inference token...');
+    input.ui.info('Validating Opfield inference token...');
     await loginWithInferenceTokenCommand(
       { gateway: input.gateway, token },
       input.profileName,

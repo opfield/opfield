@@ -399,7 +399,7 @@ export function ManagedDatabaseCreateForm({
                 <motion.div key="published-tcp-settings" {...MANAGED_DATABASE_FORM_ANIMATION}>
                   <SettingsControlRow
                     title="Published TCP port"
-                    description="Leave empty to let Docker allocate a free port. Gateway does not change host firewalls."
+                    description="Leave empty to let Docker allocate a free port. Opfield does not change host firewalls."
                   >
                     <Input
                       id="managed-db-published-port"
@@ -475,7 +475,7 @@ export function ManagedDatabaseCreateForm({
         <motion.div key="managed-database-step-3" {...MANAGED_DATABASE_FORM_ANIMATION}>
           <PanelShell
             title="ClickHouse configuration fragment"
-            description="Optional XML configuration. Security, networking and managed data paths remain controlled by Gateway."
+            description="Optional XML configuration. Security, networking and managed data paths remain controlled by Opfield."
             className="bg-background"
             bodyClassName="min-h-0 bg-background"
           >

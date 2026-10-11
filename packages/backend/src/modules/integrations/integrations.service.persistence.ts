@@ -273,7 +273,7 @@ export abstract class IntegrationsPersistenceService extends IntegrationsCoreSer
       throw new AppError(
         400,
         'CLOUDFLARE_ZONE_READ_REQUIRED',
-        'Cloudflare token must include Zone:Read permission for the zones Gateway should manage',
+        'Cloudflare token must include Zone:Read permission for the zones Opfield should manage',
         { cause: error instanceof Error ? error.message : String(error) }
       );
     }
@@ -318,14 +318,14 @@ export abstract class IntegrationsPersistenceService extends IntegrationsCoreSer
           name: `_gateway-permission-check.${probeZone.name}`,
           content: `gateway-${Date.now()}`,
           ttl: 60,
-          comment: 'Gateway permission check',
+          comment: 'Opfield permission check',
         });
       } catch (error) {
         if (!this.isCloudflarePermissionError(error)) throw error;
         throw new AppError(
           400,
           'CLOUDFLARE_DNS_EDIT_REQUIRED',
-          'Cloudflare token must include DNS:Edit permission for Gateway-managed zones',
+          'Cloudflare token must include DNS:Edit permission for Opfield-managed zones',
           { zone: probeZone.name, cause: error instanceof Error ? error.message : String(error) }
         );
       }

@@ -298,12 +298,12 @@ export function InferenceProviderConnectDialog({
         <DialogDescription asChild>
           <div className="space-y-2">
             <p>
-              Connect a subscription account or API credential so Gateway can discover the models
+              Connect a subscription account or API credential so Opfield can discover the models
               available from this provider.
             </p>
             <p>
-              The connection stays managed by Gateway and can be reviewed, changed, or removed later
-              from Gateway Inference settings.
+              The connection stays managed by Opfield and can be reviewed, changed, or removed later
+              from Opfield Inference settings.
             </p>
           </div>
         </DialogDescription>
@@ -394,7 +394,7 @@ export function InferenceProviderConnectDialog({
                 {oauth.completionMode === "device_poll" ? (
                   <>
                     <p className="text-sm">
-                      Complete authorization in the provider window. Gateway checks the status
+                      Complete authorization in the provider window. Opfield checks the status
                       automatically.
                     </p>
                     {oauth.userCode && (

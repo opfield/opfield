@@ -7,7 +7,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'create_docker_container',
     description:
-      'Create a new Docker container on a node from an image already present on that node, and start it when you also have docker:containers:manage on it (otherwise it stays stopped). Before first creation, use list_docker_images and pull_docker_image when the requested image is absent, then wait for the pull task to complete. Volume mounts may reference only existing Gateway-managed volumes; never provide host bind paths. Secure runtime requires a healthy Secure Runtime capability on the node and does not support GPU or device attachments. For public Docker Hub images such as nginx:alpine, omit registryId; a saved registry is not required. To create inside an app environment, pass folderId from get_app placementFolderIds.',
+      'Create a new Docker container on a node from an image already present on that node, and start it when you also have docker:containers:manage on it (otherwise it stays stopped). Before first creation, use list_docker_images and pull_docker_image when the requested image is absent, then wait for the pull task to complete. Volume mounts may reference only existing Opfield-managed volumes; never provide host bind paths. Secure runtime requires a healthy Secure Runtime capability on the node and does not support GPU or device attachments. For public Docker Hub images such as nginx:alpine, omit registryId; a saved registry is not required. To create inside an app environment, pass folderId from get_app placementFolderIds.',
     parameters: {
       type: 'object',
       properties: {
@@ -37,12 +37,12 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
         volumes: {
           type: 'array',
           description:
-            'Existing Gateway-managed named-volume mounts. Each volume needs docker:volumes:view (or edit) on it.',
+            'Existing Opfield-managed named-volume mounts. Each volume needs docker:volumes:view (or edit) on it.',
           items: {
             type: 'object',
             properties: {
               containerPath: { type: 'string' },
-              name: { type: 'string', description: 'Existing Gateway-managed volume name' },
+              name: { type: 'string', description: 'Existing Opfield-managed volume name' },
               readOnly: { type: 'boolean' },
             },
             required: ['containerPath', 'name'],
@@ -69,7 +69,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
           type: 'integer',
           minimum: 0,
           maximum: 300,
-          description: 'Container stop grace period in seconds, 0-300. Default: Gateway fallback 20 seconds.',
+          description: 'Container stop grace period in seconds, 0-300. Default: Opfield fallback 20 seconds.',
         },
         gpu: {
           type: 'object',
@@ -173,7 +173,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
       type: 'object',
       properties: {
         nodeId: { type: 'string', description: 'Docker node ID' },
-        deploymentId: { type: 'string', description: 'Gateway deployment ID' },
+        deploymentId: { type: 'string', description: 'Opfield deployment ID' },
       },
       required: ['nodeId', 'deploymentId'],
     },
@@ -190,7 +190,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
       type: 'object',
       properties: {
         nodeId: { type: 'string', description: 'Docker node ID' },
-        deploymentId: { type: 'string', description: 'Gateway deployment ID' },
+        deploymentId: { type: 'string', description: 'Opfield deployment ID' },
       },
       required: ['nodeId', 'deploymentId'],
     },
@@ -207,7 +207,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
       type: 'object',
       properties: {
         nodeId: { type: 'string', description: 'Docker node ID' },
-        deploymentId: { type: 'string', description: 'Gateway deployment ID' },
+        deploymentId: { type: 'string', description: 'Opfield deployment ID' },
       },
       required: ['nodeId', 'deploymentId'],
     },
@@ -224,7 +224,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
       type: 'object',
       properties: {
         nodeId: { type: 'string', description: 'Docker node ID' },
-        deploymentId: { type: 'string', description: 'Gateway deployment ID' },
+        deploymentId: { type: 'string', description: 'Opfield deployment ID' },
       },
       required: ['nodeId', 'deploymentId'],
     },
@@ -241,7 +241,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
       type: 'object',
       properties: {
         nodeId: { type: 'string', description: 'Docker node ID' },
-        deploymentId: { type: 'string', description: 'Gateway deployment ID' },
+        deploymentId: { type: 'string', description: 'Opfield deployment ID' },
       },
       required: ['nodeId', 'deploymentId'],
     },
@@ -258,7 +258,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
       type: 'object',
       properties: {
         nodeId: { type: 'string', description: 'Docker node ID' },
-        deploymentId: { type: 'string', description: 'Gateway deployment ID' },
+        deploymentId: { type: 'string', description: 'Opfield deployment ID' },
         image: { type: 'string', description: 'Optional full image reference to deploy' },
         tag: { type: 'string', description: 'Optional tag applied to the current deployment image repository' },
         registryId: { type: 'string', description: 'Optional Docker registry UUID for pulling the image' },
@@ -283,12 +283,12 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'switch_docker_deployment_slot',
     description:
-      'Switch a blue/green Docker deployment to the specified slot. Use only with the Gateway deployment ID and slot name, not a container ID. The standby starts as it was deployed; a standby deployed before the current managed database and storage links is recreated from its own release with those links. That recreate keeps the standby image and mounts, so it needs no docker:containers:mounts even with host bind mounts.',
+      'Switch a blue/green Docker deployment to the specified slot. Use only with the Opfield deployment ID and slot name, not a container ID. The standby starts as it was deployed; a standby deployed before the current managed database and storage links is recreated from its own release with those links. That recreate keeps the standby image and mounts, so it needs no docker:containers:mounts even with host bind mounts.',
     parameters: {
       type: 'object',
       properties: {
         nodeId: { type: 'string', description: 'Docker node ID' },
-        deploymentId: { type: 'string', description: 'Gateway deployment ID' },
+        deploymentId: { type: 'string', description: 'Opfield deployment ID' },
         slot: { type: 'string', enum: ['blue', 'green'], description: 'Target slot to make active' },
         force: { type: 'boolean', description: 'Force switch even if health checks are not healthy (default false)' },
       },
@@ -307,7 +307,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
       type: 'object',
       properties: {
         nodeId: { type: 'string', description: 'Docker node ID' },
-        deploymentId: { type: 'string', description: 'Gateway deployment ID' },
+        deploymentId: { type: 'string', description: 'Opfield deployment ID' },
         force: { type: 'boolean', description: 'Force rollback even if health checks are not healthy (default false)' },
       },
       required: ['nodeId', 'deploymentId'],
@@ -325,7 +325,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
       type: 'object',
       properties: {
         nodeId: { type: 'string', description: 'Docker node ID' },
-        deploymentId: { type: 'string', description: 'Gateway deployment ID' },
+        deploymentId: { type: 'string', description: 'Opfield deployment ID' },
         slot: { type: 'string', enum: ['blue', 'green'], description: 'Inactive slot to stop' },
       },
       required: ['nodeId', 'deploymentId', 'slot'],
@@ -599,7 +599,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_docker_volumes',
     description:
-      'List Gateway-managed volumes plus legacy volumes still attached to visible Gateway containers on a specific node. Orphaned unmanaged volumes are hidden.',
+      'List Opfield-managed volumes plus legacy volumes still attached to visible Opfield containers on a specific node. Orphaned unmanaged volumes are hidden.',
     parameters: {
       type: 'object',
       properties: {
@@ -632,7 +632,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_docker_registry',
     description:
-      'Manage saved private or custom Docker registries and the Gateway internal build registry. Operations: list, get, create, update, delete, test, test_direct for saved registries; internal_get (state, health, storage, external access), internal_repositories, internal_update_settings (external access hostname, nginx node, certificate), internal_gc (garbage collection, optionally dryRun), and internal_resume_maintenance (resume an interrupted maintenance run) for the internal registry. Do not create a registry for public Docker Hub images; pull those directly without registryId. Mutating operations require the corresponding docker:registries:* scope; internal registry reads need broad docker:registries:view and changes broad docker:registries:edit.',
+      'Manage saved private or custom Docker registries and the Opfield internal build registry. Operations: list, get, create, update, delete, test, test_direct for saved registries; internal_get (state, health, storage, external access), internal_repositories, internal_update_settings (external access hostname, nginx node, certificate), internal_gc (garbage collection, optionally dryRun), and internal_resume_maintenance (resume an interrupted maintenance run) for the internal registry. Do not create a registry for public Docker Hub images; pull those directly without registryId. Mutating operations require the corresponding docker:registries:* scope; internal registry reads need broad docker:registries:view and changes broad docker:registries:edit.',
     parameters: {
       type: 'object',
       properties: {
@@ -681,7 +681,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_docker_volume',
     description:
-      'Create, inspect, resize, adopt, rename, relabel, delete, and browse files of Docker volumes on a node. create makes a Gateway-managed local volume and accepts no driver setting: storageKind "regular" (default) takes no capacity; storageKind "disk-image" makes a fixed-size volume and requires capacityBytes (at least 268435456), a compatible node, and Personal-or-higher licensing. resize grows an existing Gateway-managed disk-image volume to capacityBytes; it cannot shrink. adopt brings an eligible legacy local volume under Gateway management without copying data. inspect and metrics read the cached detail and usage; managed_options lists the managed volumes the caller may attach as container mounts (docker:volumes:view on each). rename (newName), update_labels (labels), resize and adopt edit one volume and need docker:volumes:edit on it (a node or folder grant covers it). File operations (list_files, read_file, write_file, create_file, create_directory, delete_file, move_file, upload_init/upload_chunk/upload_complete/upload_abort) need docker:volumes:files:read or :write; binary content uses contentBase64 and upload chunks carry at most 1 MiB. Archive export uses the MCP-only download_docker_archive tool. delete removes the volume. Compose-owned volumes must be changed through their Compose project. Listing is available via list_docker_volumes.',
+      'Create, inspect, resize, adopt, rename, relabel, delete, and browse files of Docker volumes on a node. create makes an Opfield-managed local volume and accepts no driver setting: storageKind "regular" (default) takes no capacity; storageKind "disk-image" makes a fixed-size volume and requires capacityBytes (at least 268435456), a compatible node, and Personal-or-higher licensing. resize grows an existing Opfield-managed disk-image volume to capacityBytes; it cannot shrink. adopt brings an eligible legacy local volume under Opfield management without copying data. inspect and metrics read the cached detail and usage; managed_options lists the managed volumes the caller may attach as container mounts (docker:volumes:view on each). rename (newName), update_labels (labels), resize and adopt edit one volume and need docker:volumes:edit on it (a node or folder grant covers it). File operations (list_files, read_file, write_file, create_file, create_directory, delete_file, move_file, upload_init/upload_chunk/upload_complete/upload_abort) need docker:volumes:files:read or :write; binary content uses contentBase64 and upload chunks carry at most 1 MiB. Archive export uses the MCP-only download_docker_archive tool. delete removes the volume. Compose-owned volumes must be changed through their Compose project. Listing is available via list_docker_volumes.',
     parameters: {
       type: 'object',
       properties: {
@@ -1130,7 +1130,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
       properties: {
         operation: { type: 'string', enum: ['create', 'update', 'delete'] },
         nodeId: { type: 'string', description: 'Docker node ID' },
-        deploymentId: { type: 'string', description: 'Gateway deployment ID for update and delete' },
+        deploymentId: { type: 'string', description: 'Opfield deployment ID for update and delete' },
         payload: {
           type: 'object',
           description:
@@ -1230,7 +1230,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
         mounts: {
           type: 'array',
           description:
-            'recreate: complete mount list. Use name for a Gateway-managed volume or hostPath for an existing host bind mount; a newly attached volume needs docker:volumes:view on it, and changing or removing a host bind mount requires docker:containers:mounts.',
+            'recreate: complete mount list. Use name for an Opfield-managed volume or hostPath for an existing host bind mount; a newly attached volume needs docker:volumes:view on it, and changing or removing a host bind mount requires docker:containers:mounts.',
           items: {
             type: 'object',
             properties: {
@@ -1292,7 +1292,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_docker_availability',
     description:
-      'Run a Docker container, blue/green deployment, or Compose Project across several Docker nodes (replicated) or with automatic failover. preflight checks eligibility and candidate nodes for a proposed policy; enable applies it; get and get_by_resource read the policy with placements; list_operations pages rollout history; update changes mode, replicas, node selection, rollout policy, offline grace, or priority mode; priorityMode with an ordered nodePriority (first node is the primary, the rest are backups in order; only eligible nodes, no duplicates) serves from the first available nodes and moves the workload back (a failback operation) once a higher-priority node has stayed healthy for failbackDelaySeconds; retry_operation retries a failed operation; disable returns the workload to one node and requires survivingPlacementId plus the typed confirmation shown by the UI. Failover runs in the data plane (lease mode) while every ingress Nginx node and relay of the workload and enough lease voters advertise availability_lease_v2, otherwise the backend drives it (legacy); a legacy policy enters lease mode only once every node and relay of the workload ran availability_lease_v2 for 2 minutes without a restart (reason participants_settling until then), and a lease-mode policy returns to legacy only after lease mode stayed impossible for 2 minutes (lease.reason.since) or on a disable, stop, start or restart, never because of the license, and leaving lease mode keeps the serving copy running (lease.retainedHolders while closing; only a stop stops it); get returns lease.mode with lease.reason, lease.excludedNodes (candidate nodes left out of holding and standbys: offline, watchdog_missing, daemon_outdated or identity_pending; never a reason to leave lease mode), the lease holder per slot, the policy voters (candidate hosts with availability_lease_v2 plus witnesses so the count is odd, at least 3; the automatic witness is never the local relay of Gateway while another member can witness), the witness with its warning, and the voter reachability margin; witness sets the witness (a relay instance or Docker node id that is not a candidate and runs on another host) or auto. partitionMode strict (default) never runs two copies of a slot; available keeps serving through a partition and may run two copies at once. A replica is judged by its Docker state and, where the workload has one, by the HTTP health check of its Routes or deployment: one failing it twice in a row leaves its routes only while another copy serves and passes (Replicated) or a ready standby takes over (Failover in lease mode), otherwise it keeps serving and the policy is degraded with AVAILABILITY_PLACEMENT_HTTP_UNHEALTHY. Mutations need docker:availability:manage; the workload, candidate nodes, and dependencies are authorized like the Availability routes.',
+      'Run a Docker container, blue/green deployment, or Compose Project across several Docker nodes (replicated) or with automatic failover. preflight checks eligibility and candidate nodes for a proposed policy; enable applies it; get and get_by_resource read the policy with placements; list_operations pages rollout history; update changes mode, replicas, node selection, rollout policy, offline grace, or priority mode; priorityMode with an ordered nodePriority (first node is the primary, the rest are backups in order; only eligible nodes, no duplicates) serves from the first available nodes and moves the workload back (a failback operation) once a higher-priority node has stayed healthy for failbackDelaySeconds; retry_operation retries a failed operation; disable returns the workload to one node and requires survivingPlacementId plus the typed confirmation shown by the UI. Failover runs in the data plane (lease mode) while every ingress Nginx node and relay of the workload and enough lease voters advertise availability_lease_v2, otherwise the backend drives it (legacy); a legacy policy enters lease mode only once every node and relay of the workload ran availability_lease_v2 for 2 minutes without a restart (reason participants_settling until then), and a lease-mode policy returns to legacy only after lease mode stayed impossible for 2 minutes (lease.reason.since) or on a disable, stop, start or restart, never because of the license, and leaving lease mode keeps the serving copy running (lease.retainedHolders while closing; only a stop stops it); get returns lease.mode with lease.reason, lease.excludedNodes (candidate nodes left out of holding and standbys: offline, watchdog_missing, daemon_outdated or identity_pending; never a reason to leave lease mode), the lease holder per slot, the policy voters (candidate hosts with availability_lease_v2 plus witnesses so the count is odd, at least 3; the automatic witness is never the local relay of Opfield while another member can witness), the witness with its warning, and the voter reachability margin; witness sets the witness (a relay instance or Docker node id that is not a candidate and runs on another host) or auto. partitionMode strict (default) never runs two copies of a slot; available keeps serving through a partition and may run two copies at once. A replica is judged by its Docker state and, where the workload has one, by the HTTP health check of its Routes or deployment: one failing it twice in a row leaves its routes only while another copy serves and passes (Replicated) or a ready standby takes over (Failover in lease mode), otherwise it keeps serving and the policy is degraded with AVAILABILITY_PLACEMENT_HTTP_UNHEALTHY. Mutations need docker:availability:manage; the workload, candidate nodes, and dependencies are authorized like the Availability routes.',
     parameters: {
       type: 'object',
       properties: {
@@ -1405,7 +1405,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'upload_docker_container_archive',
     description:
-      'Import a Gateway container archive (.gwca) as a new container on a Docker node through authenticated MCP. Preferred: operation "link" takes nodeId, the new container name, optional folderId and the resolution returned by manage_docker_container archive_plan_import, and returns a one-time upload URL (valid 15 minutes, single use) with a ready `curl -T container.gwca <url>` command; the archive streams from the shell into the import, the curl response is the new stopped container, and a failed or interrupted transfer imports nothing. Without a shell, use the resumable begin/chunk/status/finalize/abort workflow: begin takes the same arguments plus the exact archive size and its lowercase SHA-256; send ordered chunks of at most 1 MiB decoded base64 at the returned offset, then finalize. Requires docker:containers:create for the node or folder and the container archive entitlement; archive environment, secrets, networks, and volumes need the matching node scopes. Authentication comes from the MCP connection; never pass a token.',
+      'Import an Opfield container archive (.gwca) as a new container on a Docker node through authenticated MCP. Preferred: operation "link" takes nodeId, the new container name, optional folderId and the resolution returned by manage_docker_container archive_plan_import, and returns a one-time upload URL (valid 15 minutes, single use) with a ready `curl -T container.gwca <url>` command; the archive streams from the shell into the import, the curl response is the new stopped container, and a failed or interrupted transfer imports nothing. Without a shell, use the resumable begin/chunk/status/finalize/abort workflow: begin takes the same arguments plus the exact archive size and its lowercase SHA-256; send ordered chunks of at most 1 MiB decoded base64 at the returned offset, then finalize. Requires docker:containers:create for the node or folder and the container archive entitlement; archive environment, secrets, networks, and volumes need the matching node scopes. Authentication comes from the MCP connection; never pass a token.',
     parameters: {
       type: 'object',
       properties: {
@@ -1444,7 +1444,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'download_docker_archive',
     description:
-      'Export a container archive (.gwca, kind container) or a volume archive (.tar.gz, kind volume) through authenticated MCP. Preferred: operation "link" takes the begin arguments and returns a one-time download URL (valid 15 minutes, single use) with a ready `curl -fsS -o <file> <url>` command that streams the archive from the node; a non-zero curl exit means the file is incomplete. Without a shell, begin prepares the archive on the Gateway and returns a downloadId; poll status until ready (it reports sizeBytes and sha256); read chunk at increasing offsets (at most 1 MiB per call, base64) until eof; then close. Container export needs docker:containers:export, plus files read for the portable image mode, environment access when includeEnvironment (default true), and secrets access when includeSecrets. Volume export needs docker:volumes:export. Prepared archives expire after an hour of inactivity.',
+      'Export a container archive (.gwca, kind container) or a volume archive (.tar.gz, kind volume) through authenticated MCP. Preferred: operation "link" takes the begin arguments and returns a one-time download URL (valid 15 minutes, single use) with a ready `curl -fsS -o <file> <url>` command that streams the archive from the node; a non-zero curl exit means the file is incomplete. Without a shell, begin prepares the archive on the Opfield host and returns a downloadId; poll status until ready (it reports sizeBytes and sha256); read chunk at increasing offsets (at most 1 MiB per call, base64) until eof; then close. Container export needs docker:containers:export, plus files read for the portable image mode, environment access when includeEnvironment (default true), and secrets access when includeSecrets. Volume export needs docker:volumes:export. Prepared archives expire after an hour of inactivity.',
     parameters: {
       type: 'object',
       properties: {

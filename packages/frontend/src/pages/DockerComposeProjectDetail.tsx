@@ -469,14 +469,14 @@ export function DockerComposeProjectDetail() {
         ? [
             pinAction,
             {
-              label: "Adopt into Gateway",
+              label: "Adopt into Opfield",
               icon: <UploadCloud className="h-4 w-4" />,
               onClick: async () => {
                 if (
                   await confirm({
                     title: `Adopt ${project.name}`,
                     description:
-                      "Bring this external Compose project under Gateway lifecycle and immutable revision management?",
+                      "Bring this external Compose project under Opfield lifecycle and immutable revision management?",
                     confirmLabel: "Adopt project",
                   })
                 )
@@ -1357,7 +1357,7 @@ export function DockerComposeProjectDetail() {
           <TabsContent value="configuration" className="flex min-h-0 flex-1 flex-col pb-0">
             <PanelShell
               title="Active immutable configuration"
-              description="Gateway-stored Compose YAML for the active revision. Editing creates a new immutable revision."
+              description="Opfield-stored Compose YAML for the active revision. Editing creates a new immutable revision."
               actions={
                 project.managementState === "managed" && canManage ? (
                   <Button onClick={() => setRevisionOpen(true)}>
@@ -1380,7 +1380,7 @@ export function DockerComposeProjectDetail() {
                 />
               ) : (
                 <p className="p-4 text-sm text-muted-foreground">
-                  No Gateway-managed configuration. Adopt the external project by supplying complete
+                  No Opfield-managed configuration. Adopt the external project by supplying complete
                   YAML.
                 </p>
               )}

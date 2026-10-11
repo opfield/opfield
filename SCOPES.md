@@ -38,34 +38,34 @@ Viewer and Operator match the built-in `viewer` and `operator` groups type by ty
 
 ## Programmatic Access
 
-Gateway has four token families:
+Opfield has four token families:
 
 | Prefix | Purpose |
 |--------|---------|
 | `gw_` | API token for REST API automation. |
 | `gwo_` | OAuth access token for one OAuth resource. |
 | `gwl_` | External logging ingest token. |
-| `gwi_` | Dedicated Gateway Inference runtime token. |
+| `gwi_` | Dedicated Opfield Inference runtime token. |
 
 OAuth tokens are bound to exactly one resource:
 
 | Resource | URL path | Accepted by |
 |----------|----------|-------------|
-| Gateway API | `/api` | REST API routes |
-| Gateway MCP | `/api/mcp` | Remote MCP endpoint |
+| Opfield API | `/api` | REST API routes |
+| Opfield MCP | `/api/mcp` | Remote MCP endpoint |
 
-The REST API accepts browser sessions, `gw_` API tokens, and `gwo_` OAuth tokens issued for the Gateway API resource. The MCP endpoint accepts only `gwo_` OAuth tokens issued for the Gateway MCP resource; API tokens, browser cookies, logging tokens, and inference tokens are rejected. Inference data-plane routes accept only `gwi_` tokens.
+The REST API accepts browser sessions, `gw_` API tokens, and `gwo_` OAuth tokens issued for the Opfield API resource. The MCP endpoint accepts only `gwo_` OAuth tokens issued for the Opfield MCP resource; API tokens, browser cookies, logging tokens, and inference tokens are rejected. Inference data-plane routes accept only `gwi_` tokens.
 
 OAuth lifetime behavior is resource-specific:
 
-- Gateway API OAuth uses expiring access tokens and refresh-token renewal.
-- Gateway MCP OAuth is intended for long-lived MCP access and does not rely on refresh-token churn during normal use.
+- Opfield API OAuth uses expiring access tokens and refresh-token renewal.
+- Opfield MCP OAuth is intended for long-lived MCP access and does not rely on refresh-token churn during normal use.
 
 Delegated API/OAuth scopes are always bounded by the owning user's current effective scopes. Revoking or editing a user's group permissions also reduces the effective permissions of that user's existing tokens.
 
 ## Scope Evaluation Behavior
 
-Gateway evaluates scopes with exact, broad, resource-scoped, and implied-scope rules:
+Opfield evaluates scopes with exact, broad, resource-scoped, and implied-scope rules:
 
 - A broad resource-scopable scope grants access to every resource for that base scope. For example, `proxy:view` grants `proxy:view:<hostId>`.
 - A resource-scoped scope grants access only to that resource. For example, `proxy:edit:<hostA>` grants read/edit access to `hostA`, but not to `hostB` and not to broad `proxy:view`.
@@ -83,9 +83,9 @@ Gateway evaluates scopes with exact, broad, resource-scoped, and implied-scope r
 - `pages:folders:manage` grants full Page Project folder-tree visibility and folder mutation rights, but moving or reordering Projects also requires `pages:edit:<projectId>` for every affected Project.
 - Every resource-qualified Pages scope uses the Page Project ID, including Deployment, Tag, and deploy-token operations.
 - Docker container scopes accept either `<nodeId>` for every container and deployment on a node or `<nodeId>/<stableResourceId>` for exactly one standalone container or blue/green deployment. Node grants cover their child resources; child grants do not cover siblings.
-- Changing an existing container or deployment is authorized on the workload itself. A new image or tag (container update or recreate, deployment deploy or update, AI/MCP tools) needs `docker:containers:edit`, `docker:containers:environment` and `docker:containers:secrets` (deploy also `manage`) on the workload, because the new code receives its environment and secrets; those scopes authorize pulling the image, as `docker:containers:create` does at creation, so `docker:images:pull` is not needed. A Compose revision needs `docker:compose:manage`. An environment-only change needs only `docker:containers:environment` and a secrets-only change only `docker:containers:secrets`, including the container recreate it causes (`PUT .../env`, an update with `env` alone, AI `update_env`) and saving a deployment's environment alone; the deploy that rolls a deployment's saved environment out keeps `manage`. The secret list returns the keys with `docker:containers:environment` and the values only with `docker:containers:secrets`. Attaching a Gateway-managed volume (create, recreate, duplicate, deployment create or update, archive import into an existing volume) needs `docker:volumes:view` (or `edit`) on each newly attached volume plus the workload's own create or edit; `docker:containers:mounts` is needed only for legacy host bind mounts.
+- Changing an existing container or deployment is authorized on the workload itself. A new image or tag (container update or recreate, deployment deploy or update, AI/MCP tools) needs `docker:containers:edit`, `docker:containers:environment` and `docker:containers:secrets` (deploy also `manage`) on the workload, because the new code receives its environment and secrets; those scopes authorize pulling the image, as `docker:containers:create` does at creation, so `docker:images:pull` is not needed. A Compose revision needs `docker:compose:manage`. An environment-only change needs only `docker:containers:environment` and a secrets-only change only `docker:containers:secrets`, including the container recreate it causes (`PUT .../env`, an update with `env` alone, AI `update_env`) and saving a deployment's environment alone; the deploy that rolls a deployment's saved environment out keeps `manage`. The secret list returns the keys with `docker:containers:environment` and the values only with `docker:containers:secrets`. Attaching an Opfield-managed volume (create, recreate, duplicate, deployment create or update, archive import into an existing volume) needs `docker:volumes:view` (or `edit`) on each newly attached volume plus the workload's own create or edit; `docker:containers:mounts` is needed only for legacy host bind mounts.
 - Recreate and in-place update workflows preserve a standalone container's stable resource ID. Cross-node migration rewrites child grants to the target node. Explicit container or deployment deletion removes child grants, so a later same-name resource does not inherit access.
-- When an API/OAuth token asks for a broad scope but the owning user has only resource-scoped access, Gateway narrows the effective token scope to the resource-scoped variant.
+- When an API/OAuth token asks for a broad scope but the owning user has only resource-scoped access, Opfield narrows the effective token scope to the resource-scoped variant.
 - Folder-scopable scopes accept `<scope>:folder/<folderId>`; the grant covers the folder, its subfolders, and every resource currently inside them. Node-bound families (routes, Pages, storage, databases, Docker, hosted VM snapshots and resources) and every creation scope accept `<scope>:node/<nodeId>`. Logging token scopes resolve folder grants through logging environment folders; `docker:availability:manage` through the granted container or Compose folder. `pki:ca:view`, `pki:ca:edit` and `pki:ca:export` folder grants cover each root CA in the folder and its intermediates; `pki:cert:view`, `pki:cert:revoke` and `pki:cert:export` folder grants the certificates in a PKI certificate folder; `proxy:templates:view` and `proxy:templates:manage` folder grants the nginx templates in the folder; `ingress:groups:view` and `ingress:groups:manage` accept only node folder grants, which cover the ingress groups in the folder and its subfolders. Certificate templates are not resource-scopable, so their folders only organize the list.
 - With "assign created resource permissions" enabled, the creator of a resource keeps only the per-resource scopes they already hold for it (broadly, on the destination folder or node, or through an existing grant), and always view of the created resource itself, so the grant survives a later move without adding capabilities. The destination is read from the created resource when the caller does not pass it.
 
@@ -103,19 +103,19 @@ Git integration scopes can be limited to one connected account and, below it, to
 
 - Restrictable scopes: `integrations:{gitlab,github,git}:{view,use,repo:read,repo:write}` and `integrations:gitlab:sandbox:clone`. Generic Git takes connector qualifiers only. `integrations:<provider>:manage` is unqualified or limited to a connector: managing the connection (settings, tokens, allowlist, sync, test, delete) needs it on the connector or unqualified, and creating connectors needs it unqualified.
 - An operation on a repository is allowed with the unqualified scope, the connector qualifier, any group or owner qualifier that contains the repository, or the exact project or repository qualifier. Implied view applies per qualifier: `integrations:gitlab:repo:write:<connectorId>/project/42` also grants `integrations:gitlab:view:<connectorId>/project/42`. Folder qualifiers do not apply to integrations.
-- Every repository operation checks the repository: files, trees, branches, commits, CI pipelines, job logs and variables, webhooks, deploy tokens, registry settings, sandbox clones, and Docker or Pages build sources, in the REST API, the AI assistant and Gateway MCP alike.
+- Every repository operation checks the repository: files, trees, branches, commits, CI pipelines, job logs and variables, webhooks, deploy tokens, registry settings, sandbox clones, and Docker or Pages build sources, in the REST API, the AI assistant and Opfield MCP alike.
 - The connector's system credential is used when `integrations:<provider>:use` covers the repository the same way; otherwise the caller's personal credential. Without either, AI Workspace users are asked to authorize a personal credential and every other caller gets a 403 naming `integrations:<provider>:use` and the repository.
 - Lists show only what the caller may view: connector lists and GitLab connector details and capabilities are open to callers with any Git scope on the connector (connectors seen only through group, owner, project or repository grants leave out their allowlist), and project and repository lists hold the projects and repositories the grants cover, decided by the same group ancestry (by ID) as the checks.
 - Connecting a Docker or Pages build source to a repository, or changing its connector, repository or branch, needs `integrations:<provider>:use` on the repository (any qualifier covering it) next to the workload's own permissions; `repo:read`, an unqualified `view`, or a personal credential are not needed, because builds run with the connector credential. The source picker lists the connectors and repositories the caller's `use` grants cover, the same check saving applies. GitLab and generic Git list every synced or allowlisted repository; GitHub lists up to 1000 of the connector's repositories (allowlisted ones, unless it takes every visible repository) and finds others with `?search=` (GitHub's search API and the exact `owner/name`); the response carries `truncated` while the list may be incomplete. Saving other source settings and manual builds (Build now, rebuild, deploying a commit) need only the workload's own permissions. Polling, webhook and deferred builds never depend on anyone's current permissions; the repositories a source can build stay limited to what its connector reaches (synced or allowlisted projects that are still accessible).
 - A GitLab project outside the caller's grant answers exactly like a project that is not synced (404, no path), so project IDs cannot be probed. Writes, secrets (CI/CD variables, webhooks, deploy tokens), sandbox clones and the connector-credential decision read group ancestry and repository ownership fresh from the provider; reads may use the cached value for up to five minutes. GitHub ownership is cached by repository ID, never by path. Connector syncs and source webhook deliveries drop the cached data.
 - Connector change events over the WebSocket reach only callers who may see that connector.
 - The scope picker reads `GET /api/integrations/{gitlab|github}/{connectorId}/scope-targets?search=&limit=50` (groups and projects, or owners and repositories) and `GET .../scope-targets/resolve?ids=group/123,project/456` (labels for stored qualifiers; `missing` when the target no longer exists). Both need `integrations:<provider>:view` on the connector or anything in it and return only targets the caller may view and the connector includes (its allowlist, unless it takes every visible repository); a stored qualifier the caller cannot view keeps its raw ID as the label. Picker requests are limited per account (60 a minute, then 429), and one request makes at most 60 uncached provider lookups; later targets stay unlabeled. `search` matches names and full paths (`team/sub`, `owner/repo`); a search reads a bounded number of provider pages (GitHub also uses its search API past that bound), and `truncated: { more, exact }` reports matches left out so the caller can refine the search.
-- `GET .../scope-targets/lookup?kind=group&path=team/sub` (GitLab `group`/`project`, GitHub `owner`/`repo`) returns the stable qualifier of a path the caller may view (Gateway MCP: `find_git_scope_target`). Permission group saves and additional user permissions also accept `<scope>:<connectorId>/<kind>/path/<path>` and store the resolved ID qualifier; a path that does not resolve fails the save. Only IDs are stored, so a later rename never changes what a grant covers.
+- `GET .../scope-targets/lookup?kind=group&path=team/sub` (GitLab `group`/`project`, GitHub `owner`/`repo`) returns the stable qualifier of a path the caller may view (Opfield MCP: `find_git_scope_target`). Permission group saves and additional user permissions also accept `<scope>:<connectorId>/<kind>/path/<path>` and store the resolved ID qualifier; a path that does not resolve fails the save. Only IDs are stored, so a later rename never changes what a grant covers.
 - API tokens and OAuth/MCP grants are bounded by the owner's current scopes per qualifier: a broader token is narrowed to the owner's qualifiers, and a token limited to a group, owner, project or repository keeps that qualifier when its owner holds the same scope (or one implying it) unqualified, on the connector, or with any group, owner, project or repository qualifier on the same connector. Containment is provider data, so every repository operation of a token or OAuth caller requires both the token's scopes and the owner's current scopes to cover the repository: a token limited to project P works when its owner holds the group containing P, and a token limited to group G whose owner holds only project P reaches P alone. Such narrow token scopes never count when the token grants permissions to users or groups.
 
 ## Retired Scope Names
 
-The v2.11 catalog cleanup renamed, merged, or removed these scopes. Migration `0200_scope_catalog_cleanup` added the replacement to every stored grant (qualifiers are kept: `old:<suffix>` gains `new:<suffix>`) and left the retired name next to it, so a Gateway rolled back to 2.10 keeps working with the names it knows. Retired names grant nothing in 2.11 and are not shown by the API; when 2.11 starts after an older release has run, it repeats this conversion. Holders of `pki:ca:create:root` also received `pki:ca:edit` and `pki:ca:export`, holders of `integrations:{github,git}:view` received `:repo:read`, holders of `integrations:{github,git}:manage` received `:repo:read` and `:repo:write`, and holders of `docker:volumes:create` (broad or on a bare node ID; not folder or `node/` destinations, and not delete-only holders) received `docker:volumes:edit` with the same qualifier. For two releases Gateway still accepts the old names on input (OAuth `scope`, API token create/update, permission group create/update, user additional permissions, and OAuth authorization edits) and rewrites them the same way; a request whose scopes were all removed is rejected. New API tokens and OAuth requests also receive these additions when the requester holds them, except manual-approval scopes such as `pki:ca:export` or `integrations:github:repo:write`, which must be requested explicitly (OAuth consent shows the additions and they can be unticked). Permission checks use only the current names.
+The v2.11 catalog cleanup renamed, merged, or removed these scopes. Migration `0200_scope_catalog_cleanup` added the replacement to every stored grant (qualifiers are kept: `old:<suffix>` gains `new:<suffix>`) and left the retired name next to it, so an Opfield installation rolled back to 2.10 keeps working with the names it knows. Retired names grant nothing in 2.11 and are not shown by the API; when 2.11 starts after an older release has run, it repeats this conversion. Holders of `pki:ca:create:root` also received `pki:ca:edit` and `pki:ca:export`, holders of `integrations:{github,git}:view` received `:repo:read`, holders of `integrations:{github,git}:manage` received `:repo:read` and `:repo:write`, and holders of `docker:volumes:create` (broad or on a bare node ID; not folder or `node/` destinations, and not delete-only holders) received `docker:volumes:edit` with the same qualifier. For two releases Opfield still accepts the old names on input (OAuth `scope`, API token create/update, permission group create/update, user additional permissions, and OAuth authorization edits) and rewrites them the same way; a request whose scopes were all removed is rejected. New API tokens and OAuth requests also receive these additions when the requester holds them, except manual-approval scopes such as `pki:ca:export` or `integrations:github:repo:write`, which must be requested explicitly (OAuth consent shows the additions and they can be unticked). Permission checks use only the current names.
 
 | Retired | Replacement |
 |---------|-------------|
@@ -285,7 +285,7 @@ Legacy global nginx management routes under `/api/monitoring/nginx/*` are no lon
 | `hosting:snapshots:view` | View VM snapshots and folders; restrictable to resource ID. Snapshot mutation permissions imply view only for the same resource. Also requires VM inventory and bound-node details access. |
 | `hosting:snapshots:create` | Create a VM snapshot without requiring shutdown; restrictable to resource ID. Also requires configuration access to bound nodes. Optional `includeRam` is supported only for running Proxmox VMs and defaults to disk-only snapshots. |
 | `hosting:snapshots:delete` | Delete a VM snapshot; restrictable to resource ID. |
-| `hosting:snapshots:restore` | Restore a VM snapshot, replacing disk data; restrictable to resource ID. Proxmox handles stopping a running VM during rollback; Gateway requests restart if it was running immediately before dispatch. Other providers currently require a stopped VM. |
+| `hosting:snapshots:restore` | Restore a VM snapshot, replacing disk data; restrictable to resource ID. Proxmox handles stopping a running VM during rollback; Opfield requests restart if it was running immediately before dispatch. Other providers currently require a stopped VM. |
 | `hosting:snapshots:folders:manage` | Create folders and organize VM snapshots; restrictable to resource ID. |
 | `hosting:resources:delete` | Destroy a hosted VM or cancel a HOSTKEY rental; restrictable to resource ID. |
 | `hosting:resources:recover` | Restart a hosted daemon through an available independent channel; restrictable to resource ID. |
@@ -294,12 +294,12 @@ Legacy global nginx management routes under `/api/monitoring/nginx/*` are no lon
 | `housekeeping:view` |  |
 | `housekeeping:run` |  |
 | `housekeeping:configure` |  |
-| `diagnostics:view` | Gateway's own state and its 48-hour minute history: host CPU, memory and disk, the backend process, its Postgres and Redis, the stack containers, background jobs and API latency. Granted to the built-in admin groups. |
-| `diagnostics:logs` | Read the logs of Gateway's own containers (app, Postgres, Redis, relay, registry, update runs). Implies `diagnostics:view`. Granted to the built-in admin groups; not to demo-admin. |
+| `diagnostics:view` | Opfield's own state and its 48-hour minute history: host CPU, memory and disk, the backend process, its Postgres and Redis, the stack containers, background jobs and API latency. Granted to the built-in admin groups. |
+| `diagnostics:logs` | Read the logs of Opfield's own containers (app, Postgres, Redis, relay, registry, update runs). Implies `diagnostics:view`. Granted to the built-in admin groups; not to demo-admin. |
 | `license:view` |  |
 | `license:manage` |  |
 | `ai:workspace:use` | Use AI Workspace. Granted to the built-in viewer group and above. |
-| `feat:ai:use` | Use Gateway Inference, view personal usage, and create or revoke personal inference tokens. |
+| `feat:ai:use` | Use Opfield Inference, view personal usage, and create or revoke personal inference tokens. |
 | `feat:ai:configure` |  |
 | `ai:skills:manage` | Manage shared user-defined AI Workspace skills. |
 | `ai:sandbox:use` |  |
@@ -393,18 +393,18 @@ Legacy global nginx management routes under `/api/monitoring/nginx/*` are no lon
 
 ## Internal Registry Access
 
-External Docker clients (`docker login` to the internal registry, Business+ external access) authenticate with a Gateway API token. Registry access is a property of the token, chosen when it is created or edited: none, pull, or pull and push, each for every repository or for listed repository names (exact match, `team/app` does not cover `team/app-two` or `team`). A token may carry registry access without any scope.
+External Docker clients (`docker login` to the internal registry, Business+ external access) authenticate with an Opfield API token. Registry access is a property of the token, chosen when it is created or edited: none, pull, or pull and push, each for every repository or for listed repository names (exact match, `team/app` does not cover `team/app-two` or `team`). A token may carry registry access without any scope.
 
 - Pull can be given by a user who can view a Docker workload or image anywhere (`docker:containers:view`, `docker:compose:view` or `docker:images:view`, broad or limited to a node, folder or resource).
 - Push can be given by a user who can change a workload (`docker:containers:edit`, `docker:containers:manage` or `docker:compose:manage`).
 - Every token request at `/api/docker/registry/token` checks the token's access and the owner's current permissions, so a demoted owner's tokens lose push (or everything) at once.
 - API: `registryAccess` on `POST /api/tokens` and `PATCH /api/tokens/{id}`, for example `{ "pull": "all", "push": ["team/app"] }`; an absent action is not granted and `{}` removes the access.
 
-Compatibility: tokens created before this carry `docker:registries:internal:pull` / `:push` (with or without a repository) in their scopes; Gateway reads them as the token's registry access and shows them that way. Requests that still send these names in `scopes` get the same registry access. The two scopes remain in the catalog only as legacy user grants: a holder may give tokens access to the repositories the grant covers even without workload access. Built-in groups no longer include them.
+Compatibility: tokens created before this carry `docker:registries:internal:pull` / `:push` (with or without a repository) in their scopes; Opfield reads them as the token's registry access and shows them that way. Requests that still send these names in `scopes` get the same registry access. The two scopes remain in the catalog only as legacy user grants: a holder may give tokens access to the repositories the grant covers even without workload access. Built-in groups no longer include them.
 
 ## API Token Delegation
 
-API tokens and OAuth grants (for both the Gateway API and Gateway MCP resources) can carry every scope a user can hold, so programmatic clients and MCP agents can do everything a user can do with Gateway resources: node enrollment and configuration, raw nginx config, users and permission groups, Gateway settings, integrations, hosting resources, inference administration, relay control, and updates. Only browser- or identity-bound capabilities are excluded. They cannot be granted:
+API tokens and OAuth grants (for both the Opfield API and Opfield MCP resources) can carry every scope a user can hold, so programmatic clients and MCP agents can do everything a user can do with Opfield resources: node enrollment and configuration, raw nginx config, users and permission groups, Opfield settings, integrations, hosting resources, inference administration, relay control, and updates. Only browser- or identity-bound capabilities are excluded. They cannot be granted:
 
 | Scope | Reason |
 |-------|--------|
@@ -420,11 +420,11 @@ API tokens and OAuth grants (for both the Gateway API and Gateway MCP resources)
 | `admin:users:impersonate` | Impersonation replaces the caller's browser session with another user's session. |
 | `integrations:gitlab:sandbox:clone` | Clones repositories into the AI sandbox working copy and also requires `ai:sandbox:use`. |
 
-`mcp:use` is not a token scope. It gates whether the owning user account may use the MCP endpoint at all. MCP tokens use ordinary delegated Gateway scopes such as `nodes:details`, `proxy:view`, or `docker:containers:view` to determine which MCP tools and resources are available.
+`mcp:use` is not a token scope. It gates whether the owning user account may use the MCP endpoint at all. MCP tokens use ordinary delegated Opfield scopes such as `nodes:details`, `proxy:view`, or `docker:containers:view` to determine which MCP tools and resources are available.
 
-Gateway MCP delegates the same scopes as API tokens, including GitLab, GitHub, generic Git, Cloudflare, hosting, and external SSH connector administration and operations. Managed DNS access uses the ordinary `domains:*` scopes.
+Opfield MCP delegates the same scopes as API tokens, including GitLab, GitHub, generic Git, Cloudflare, hosting, and external SSH connector administration and operations. Managed DNS access uses the ordinary `domains:*` scopes.
 
-Some operations stay browser-only regardless of scopes because they are bound to the caller's identity or browser: sign-in, password, MFA, passkeys, the caller's own sessions and preferences, starting impersonation, OAuth consent, creating or editing API tokens and OAuth authorizations (a token must not mint Gateway credentials), per-user Git credentials, AI Workspace chat, UI bootstrap, and the post-setup onboarding checklist. Gateway settings, user/group administration, node config, raw nginx config, hosting, inference administration and personal `gwi_` inference keys (with `feat:ai:use` on the token), relay control, and updates accept API and OAuth tokens.
+Some operations stay browser-only regardless of scopes because they are bound to the caller's identity or browser: sign-in, password, MFA, passkeys, the caller's own sessions and preferences, starting impersonation, OAuth consent, creating or editing API tokens and OAuth authorizations (a token must not mint Opfield credentials), per-user Git credentials, AI Workspace chat, UI bootstrap, and the post-setup onboarding checklist. Opfield settings, user/group administration, node config, raw nginx config, hosting, inference administration and personal `gwi_` inference keys (with `feat:ai:use` on the token), relay control, and updates accept API and OAuth tokens.
 
 Account-level baseline scopes that gate a whole route family (for example `feat:ai:use` in front of inference administration) are evaluated against the token owner's live permissions for bearer callers; the token still needs the route's own delegated scope. Personal inference key management requires `feat:ai:use` on the token itself.
 
@@ -460,7 +460,7 @@ OAuth consent leaves high-risk scopes unchecked by default. The user must explic
 | `docker:containers:console` | Can open an interactive console in containers. |
 | `docker:containers:files:read` | Can browse and read container filesystem contents. |
 | `docker:containers:files:write` | Can create, modify, move, or delete container filesystem contents. |
-| `docker:containers:export` | Can export a container as a portable Gateway archive. |
+| `docker:containers:export` | Can export a container as a portable Opfield archive. |
 | `docker:containers:secrets` | Can reveal and manage encrypted container/deployment secrets. Implies `docker:containers:environment`. |
 | `docker:containers:mounts` | Can change or remove legacy host bind mounts of containers/deployments and give such workloads a new image. New host bind mounts are prohibited; managed volumes are attached with `docker:volumes:view` on each volume instead. |
 | `docker:containers:migrate` | Can move containers or deployments and their data between Docker nodes. |
@@ -485,11 +485,11 @@ OAuth consent leaves high-risk scopes unchecked by default. The user must explic
 | `hosting:snapshots:restore` | Can roll a VM back to a snapshot. |
 | `hosting:billing:topup` | Can request provider deposit invoices. |
 | `logs:tokens:create` | Can mint logging ingest tokens. |
-| `feat:ai:use` | Can use Gateway Inference and mint or revoke the user's `gwi_` inference keys. |
+| `feat:ai:use` | Can use Opfield Inference and mint or revoke the user's `gwi_` inference keys. |
 | `admin:audit` | Can read audit history. |
 | `audit:siem:manage` | Can configure authenticated SIEM endpoints and replay failed audit exports. |
 | `admin:details:certificates` | Can view internal system PKI and SSL certificates. |
-| `admin:update` | Can check for and apply Gateway/daemon updates. |
+| `admin:update` | Can check for and apply Opfield/daemon updates. |
 | `admin:system` | Protected system administration: deleted-user restore, MFA reset, relay control. |
 | `admin:users` | Can create, reconfigure, block, and delete users and revoke their sessions. |
 | `admin:groups` | Can create and change permission groups and their scopes. |

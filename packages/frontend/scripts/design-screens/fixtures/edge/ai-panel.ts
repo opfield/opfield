@@ -124,7 +124,7 @@ export const aiMessages: AIMessage[] = [
     createdAt: ago(6, "m"),
     resourceReferences: Object.values(refs),
     content: [
-      `${ref(refs.route)} is up, but slow. Its health check has answered in 1.2–1.9 s for the last 40 minutes, above the route's 800 ms slow threshold, so Gateway marks it **degraded** rather than offline.`,
+      `${ref(refs.route)} is up, but slow. Its health check has answered in 1.2–1.9 s for the last 40 minutes, above the route's 800 ms slow threshold, so Opfield marks it **degraded** rather than offline.`,
       "",
       "What I found:",
       "",

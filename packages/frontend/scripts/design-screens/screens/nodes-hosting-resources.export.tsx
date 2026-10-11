@@ -14,6 +14,6 @@ it("nodes-hosting-resources", async () => {
     ready: async () => {
       await screen.findByText("win-build-test");
     },
-    notes: ["Two guests are discovered but have no Gateway daemon yet (Unbound)."],
+    notes: ["Two guests are discovered but have no Opfield daemon yet (Unbound)."],
   });
 });

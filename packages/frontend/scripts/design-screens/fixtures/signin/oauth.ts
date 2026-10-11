@@ -46,7 +46,7 @@ export const oauthConsent: OAuthConsentPreview = {
   resource: "https://gateway.example.com/api",
   resourceInfo: {
     resource: "https://gateway.example.com/api",
-    name: "Gateway API",
+    name: "Opfield API",
     description: "REST API access for CLI and external applications.",
   },
   expiresAt: ahead(9, "m"),

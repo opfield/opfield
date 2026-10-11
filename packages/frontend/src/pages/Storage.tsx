@@ -385,7 +385,7 @@ function StorageContent() {
         <PageHeader
           leading={<LiteModeBackButton />}
           title="Storage"
-          description="Saved S3-compatible object storage connections managed through Gateway"
+          description="Saved S3-compatible object storage connections managed through Opfield"
           actions={
             <ResponsiveHeaderActions
               actions={[
@@ -509,7 +509,7 @@ function StorageContent() {
           loadingLabel="Loading storage connections..."
           emptyState={
             <EmptyState
-              message="No storage connections. Add an S3-compatible bucket to manage it through Gateway."
+              message="No storage connections. Add an S3-compatible bucket to manage it through Opfield."
               {...(canCreate ? { actionLabel: "Add Storage", onAction: openConnectionCreate } : {})}
               hasActiveFilters={search !== "" || providerFilter !== "all" || healthFilter !== "all"}
               onReset={() => {

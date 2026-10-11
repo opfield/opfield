@@ -493,7 +493,7 @@ function dropReservedTemplateVariables<T>(variables: T): T {
   }
   const reserved = reservedTemplateVariableNames(variables as Record<string, unknown>);
   if (reserved.length === 0) return variables;
-  logger.info('Dropped Gateway-managed template variables from proxy host input', { reserved });
+  logger.info('Dropped Opfield-managed template variables from proxy host input', { reserved });
   return withoutReservedTemplateVariables(variables as Record<string, unknown>) as T;
 }
 

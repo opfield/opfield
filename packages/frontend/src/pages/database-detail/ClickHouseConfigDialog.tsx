@@ -74,7 +74,7 @@ export function ClickHouseConfigDialog({
         </DialogHeader>
         <PanelShell
           title="ClickHouse configuration fragment"
-          description="Optional XML configuration. Network and managed storage paths remain controlled by Gateway."
+          description="Optional XML configuration. Network and managed storage paths remain controlled by Opfield."
           className="min-h-0"
           bodyClassName="min-h-0 bg-background"
         >

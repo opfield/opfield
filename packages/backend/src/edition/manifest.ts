@@ -59,6 +59,6 @@ export function verifyCommercialManifest(
 ): CommercialManifest {
   if (Buffer.byteLength(signed) > COMMERCIAL_MANIFEST_MAX_BYTES) throw new Error('Commercial manifest is too large');
   const manifest = commercialManifestSchema.parse(verifySignedPayload<unknown>(signed, publicKey));
-  if (manifest.hostVersion !== hostVersion) throw new Error('Commercial package does not match the Gateway release');
+  if (manifest.hostVersion !== hostVersion) throw new Error('Commercial package does not match the Opfield release');
   return manifest;
 }

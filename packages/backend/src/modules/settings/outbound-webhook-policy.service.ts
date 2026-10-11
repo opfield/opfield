@@ -159,8 +159,8 @@ export async function checkOutboundWebhookTarget(
         resolvedAddresses,
         allowed: false,
         reason: options.selfAddressBlockedPorts
-          ? `Target ${ip}:${targetPort} is a Gateway service port`
-          : `Webhook target resolves to Gateway address ${ip}`,
+          ? `Target ${ip}:${targetPort} is an Opfield service port`
+          : `Webhook target resolves to Opfield address ${ip}`,
       };
     }
     if (isPrivateIp(ip) && (!policy.allowPrivateNetworks || !ipInAnyCidr(ip, policy.allowedPrivateCidrs))) {

@@ -709,14 +709,14 @@ describe('normalizeOidcClaims', () => {
 
   it('rejects subjects in the reserved Gateway system namespace', () => {
     expect(() => normalizeOidcClaims({ sub: 'system:external-user', email: 'user@example.com' })).toThrow(
-      'OIDC subject uses a reserved Gateway namespace'
+      'OIDC subject uses a reserved Opfield namespace'
     );
   });
 
   it('rejects subjects that collide with pre-created Gateway placeholders', () => {
     for (const sub of ['manual:victim@example.com', 'MANUAL:victim@example.com', 'System:gateway-setup']) {
       expect(() => normalizeOidcClaims({ sub, email: 'victim@example.com', email_verified: true })).toThrow(
-        'OIDC subject uses a reserved Gateway namespace'
+        'OIDC subject uses a reserved Opfield namespace'
       );
     }
   });

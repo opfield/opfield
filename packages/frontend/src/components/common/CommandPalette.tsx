@@ -924,9 +924,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           },
         });
       };
-      addUpdatePreview("command:dev-update-gateway", "Show Gateway update only", "gateway");
+      addUpdatePreview("command:dev-update-gateway", "Show Opfield update only", "gateway");
       addUpdatePreview("command:dev-update-relay", "Show Relay update only", "relay");
-      addUpdatePreview("command:dev-update-both", "Show Gateway and Relay updates", "both");
+      addUpdatePreview("command:dev-update-both", "Show Opfield and Relay updates", "both");
     }
     for (const container of commandContainers) {
       const nodeId = container._nodeId;

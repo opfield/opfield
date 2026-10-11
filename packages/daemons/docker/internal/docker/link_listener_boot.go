@@ -352,7 +352,7 @@ func (p *DockerPlugin) restoreDatabaseListeners(ctx context.Context) {
 
 func systemdLinkListenerUnit(executable, stateDir string) string {
 	return `[Unit]
-Description=Gateway database link listeners: listen before Docker starts containers
+Description=Opfield database link listeners: listen before Docker starts containers
 After=local-fs.target
 Before=docker.service
 
@@ -368,7 +368,7 @@ WantedBy=multi-user.target docker.service
 
 func openrcLinkListenerService(executable, stateDir string) string {
 	return `#!/sbin/openrc-run
-description="Gateway database link listeners: listen before Docker starts containers"
+description="Opfield database link listeners: listen before Docker starts containers"
 
 depend() {
 	need localmount
@@ -376,7 +376,7 @@ depend() {
 }
 
 start() {
-	ebegin "Opening Gateway database link listeners"
+	ebegin "Opening Opfield database link listeners"
 	` + shellQuote(executable) + ` hold-link-listeners --state-dir ` + shellQuote(stateDir) + `
 	eend $?
 }

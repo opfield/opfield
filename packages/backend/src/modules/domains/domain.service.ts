@@ -746,7 +746,7 @@ export class DomainsService extends DomainsServiceIngressGroups {
       throw new AppError(
         409,
         'DOMAIN_DNS_DELETE_CHOICE_REQUIRED',
-        'Choose whether to delete the matched existing Cloudflare DNS records or only remove the Gateway mapping',
+        'Choose whether to delete the matched existing Cloudflare DNS records or only remove the Opfield mapping',
         { domain: row.domain, recordIds: row.providerRecordIds }
       );
     }

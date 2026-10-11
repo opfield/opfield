@@ -172,7 +172,7 @@ export function SiemDestinationDialog({
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit SIEM Destination" : "New SIEM Destination"}</DialogTitle>
           <DialogDescription>
-            Gateway sends privacy-reduced audit events to this HTTPS collector.
+            Opfield sends privacy-reduced audit events to this HTTPS collector.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -196,7 +196,7 @@ export function SiemDestinationDialog({
               type="url"
               value={url}
               onChange={(event) => changeUrl(event.target.value)}
-              placeholder="https://siem.example.com/gateway/audit"
+              placeholder="https://siem.example.com/opfield/audit"
               autoCapitalize="none"
               autoCorrect="off"
               spellCheck={false}
@@ -253,7 +253,7 @@ export function SiemDestinationDialog({
                       />
                       <SecretError message={secretError} />
                       <p className="text-xs text-muted-foreground">
-                        Gateway sends this header with every request. Gateway transport headers
+                        Opfield sends this header with every request. Opfield transport headers
                         cannot be overridden.
                       </p>
                     </div>
@@ -276,7 +276,7 @@ export function SiemDestinationDialog({
                     <SecretError message={secretError} />
                     {authType === "hmac_sha256" && (
                       <p className="text-xs text-muted-foreground">
-                        Gateway sends <code>X-Gateway-Timestamp</code> and signs it with the raw
+                        Opfield sends <code>X-Gateway-Timestamp</code> and signs it with the raw
                         JSON body in <code>X-Gateway-Signature-256</code>.
                       </p>
                     )}

@@ -295,7 +295,7 @@ export function NodeFirewallTab({
         const approved = await confirm({
           title: "Confirm Firewall Change",
           description:
-            "These rules may block new connections, including the node’s connection to Gateway. An existing connection staying open does not prove that new connections will work.",
+            "These rules may block new connections, including the node’s connection to Opfield. An existing connection staying open does not prove that new connections will work.",
           confirmLabel: "Apply firewall changes",
           variant: "default",
         });

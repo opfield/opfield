@@ -408,7 +408,7 @@ export function NodeSnapshotsTab({
           title: action === "snapshot_restore" ? "Restore VM snapshot" : "Delete snapshot",
           description:
             action === "snapshot_restore"
-              ? `Replace all current VM disk data with “${snapshot!.name}”? All Gateway roles and workloads on this VM are affected. Data written after the snapshot will be lost.${view.provider === "proxmox" ? " Proxmox stops the VM as part of rollback, interrupting running workloads, and requests a restart if it was running. Snapshots containing RAM can also start the VM." : ""}${view.provider === "hostkey" ? " HOSTKEY also deletes snapshots newer than the selected snapshot." : ""}`
+              ? `Replace all current VM disk data with “${snapshot!.name}”? All Opfield roles and workloads on this VM are affected. Data written after the snapshot will be lost.${view.provider === "proxmox" ? " Proxmox stops the VM as part of rollback, interrupting running workloads, and requests a restart if it was running. Snapshots containing RAM can also start the VM." : ""}${view.provider === "hostkey" ? " HOSTKEY also deletes snapshots newer than the selected snapshot." : ""}`
               : `Permanently delete snapshot “${snapshot!.name}”? This cannot be undone.`,
           confirmLabel: action === "snapshot_restore" ? "Restore snapshot" : "Delete snapshot",
           variant: "destructive",

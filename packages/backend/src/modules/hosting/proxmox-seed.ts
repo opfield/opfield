@@ -11,7 +11,7 @@ export async function assertProxmoxSeedRuntime() {
   try {
     await execute('xorriso', ['-version'], { timeout: 5000, maxBuffer: 16 * 1024 });
   } catch {
-    throw new AppError(500, 'HOSTING_SEED_BUILD_FAILED', 'Install xorriso on Gateway before provisioning Proxmox VMs');
+    throw new AppError(500, 'HOSTING_SEED_BUILD_FAILED', 'Install xorriso on the Opfield host before provisioning Proxmox VMs');
   }
 }
 export function proxmoxSeedFiles(input: HostingCreateRequest, mac: string) {
@@ -106,7 +106,7 @@ export async function buildProxmoxSeed(input: HostingCreateRequest, mac: string)
     throw new AppError(
       500,
       'HOSTING_SEED_BUILD_FAILED',
-      'Could not prepare cloud-init media. Check that xorriso is installed on Gateway.'
+      'Could not prepare cloud-init media. Check that xorriso is installed on the Opfield host.'
     );
   } finally {
     await rm(directory, { recursive: true, force: true });

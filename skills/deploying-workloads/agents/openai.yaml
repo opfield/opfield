@@ -1,4 +1,4 @@
 interface:
-  display_name: "Gateway Docker Workloads"
-  short_description: "Deploy Containers, Deployments, and Compose via Gateway"
-  default_prompt: "Use $deploying-workloads to deploy this application as a Gateway-native Docker workload."
+  display_name: "Opfield Docker Workloads"
+  short_description: "Deploy Containers, Deployments, and Compose via Opfield"
+  default_prompt: "Use $deploying-workloads to deploy this application as an Opfield-native Docker workload."

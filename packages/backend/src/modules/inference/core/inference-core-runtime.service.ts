@@ -509,7 +509,7 @@ export class InferenceCoreRuntimeService {
     );
     const compatibility = checkOpenCodexGatewayCompatibility(artifact, this.env.APP_VERSION);
     if (!compatibility.compatible) {
-      throw new AppError(409, 'GATEWAY_UPDATE_REQUIRED', compatibility.reason ?? 'Gateway version is incompatible');
+      throw new AppError(409, 'GATEWAY_UPDATE_REQUIRED', compatibility.reason ?? 'Opfield version is incompatible');
     }
     await this.upsertStateRow({ targetVersion: artifact.version, targetDigest: artifact.digest });
     return artifact;
@@ -645,13 +645,13 @@ export class InferenceCoreRuntimeService {
       if (probe.ready && probe.identity) {
         const identity = probe.identity;
         if (identity.contractId !== WIOLETT_CORE_CONTRACT_ID) {
-          throw new Error('core readiness contract identity does not match Gateway');
+          throw new Error('core readiness contract identity does not match Opfield');
         }
         if (identity.coreProtocolMajor !== INFERENCE_CORE_PROTOCOL_MAJOR) {
-          throw new Error('core readiness protocol version does not match Gateway');
+          throw new Error('core readiness protocol version does not match Opfield');
         }
         if (identity.stateSchemaVersion !== INFERENCE_CORE_STATE_SCHEMA_VERSION) {
-          throw new Error('core readiness state schema does not match Gateway');
+          throw new Error('core readiness state schema does not match Opfield');
         }
         if (normalizeReleaseVersion(identity.version) !== normalizeReleaseVersion(expectedVersion)) {
           throw new Error(`core readiness version mismatch: expected ${expectedVersion}, received ${identity.version}`);
@@ -827,7 +827,7 @@ export class InferenceCoreRuntimeService {
       throw new AppError(
         409,
         'CORE_LAYOUT_UNAVAILABLE',
-        'The inference core requires the Compose-managed Gateway deployment'
+        'The inference core requires the Compose-managed Opfield deployment'
       );
     }
     const networks = self.NetworkSettings?.Networks ?? {};
@@ -846,7 +846,7 @@ export class InferenceCoreRuntimeService {
     throw new AppError(
       409,
       'CORE_LAYOUT_UNAVAILABLE',
-      'No stable internal Gateway network alias found; the core cannot be reached privately'
+      'No stable internal Opfield network alias found; the core cannot be reached privately'
     );
   }
 

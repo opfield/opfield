@@ -270,7 +270,7 @@ function secretInString(value: string): string | null {
   if (PRIVATE_KEY_PATTERN.test(value)) return 'private key';
   if (PASSWORD_HASH_PATTERN.test(value)) return 'password hash';
   if (CREDENTIAL_URL_PATTERN.test(value)) return 'URL with credentials';
-  if (GATEWAY_TOKEN_PATTERN.test(value)) return 'Gateway token';
+  if (GATEWAY_TOKEN_PATTERN.test(value)) return 'Opfield token';
   if (SECRET_ENV_ASSIGNMENT.test(value)) return 'secret environment assignment';
   return null;
 }

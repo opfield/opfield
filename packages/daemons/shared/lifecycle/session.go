@@ -49,7 +49,7 @@ type RegistrationRejectedError struct {
 }
 
 func (e *RegistrationRejectedError) Error() string {
-	return "registration rejected by gateway: " + e.Message
+	return "registration rejected by Opfield: " + e.Message
 }
 
 // asyncCommandPool bounds concurrent handlers for one command family. A pool
@@ -341,7 +341,7 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 			d.sessionReceivedCommand = true
 			notifyLauncherControlReady(d.logger)
 			if err := recordGatewaySession(d.cfg.StateDir, receivedAt); err != nil {
-				d.logger.Warn("could not record the gateway session for the installer", "error", err)
+				d.logger.Warn("could not record the Opfield session for the installer", "error", err)
 			}
 			if d.tunnelIdentityPending.CompareAndSwap(true, false) {
 				d.notifyTunnelIdentityChanged()
@@ -357,7 +357,7 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 
 		// A command the gateway already stopped waiting for must not run.
 		if clock.expired(cmd, receivedAt) {
-			d.logger.Warn("dropping expired gateway command", "command_id", cmd.CommandId)
+			d.logger.Warn("dropping expired Opfield command", "command_id", cmd.CommandId)
 			if cmd.CommandId != "" {
 				if err := writer.Send(&pb.DaemonMessage{
 					Payload: &pb.DaemonMessage_CommandResult{CommandResult: &pb.CommandResult{

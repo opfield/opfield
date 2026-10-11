@@ -74,12 +74,12 @@ export const securitySchemes = {
     type: 'http' as const,
     scheme: 'bearer',
     description:
-      'Gateway API token (`gw_...`) or OAuth access token (`gwo_...`) for programmatic access. Browser sessions use the HttpOnly session cookie.',
+      'Opfield API token (`gw_...`) or OAuth access token (`gwo_...`) for programmatic access. Browser sessions use the HttpOnly session cookie.',
   },
   inferenceTokenAuth: {
     type: 'http' as const,
     scheme: 'bearer',
-    description: 'Dedicated Gateway inference token (`gwi_...`). Valid only on inference adapter data planes.',
+    description: 'Dedicated Opfield inference token (`gwi_...`). Valid only on inference adapter data planes.',
   },
 };
 
@@ -579,7 +579,7 @@ export const tags = [
   { name: 'Alerts', description: 'Expiry alerts and notifications' },
   { name: 'Tokens', description: 'API token management' },
   { name: 'Admin', description: 'User administration' },
-  { name: 'Nodes', description: 'Gateway node enrollment, configuration, and monitoring' },
+  { name: 'Nodes', description: 'Opfield node enrollment, configuration, and monitoring' },
   { name: 'Routes', description: 'Ingress route management; stable API paths retain the proxy-hosts name' },
   { name: 'Route Folders', description: 'Ingress route folder organization' },
   { name: 'Nginx Templates', description: 'Reusable nginx config templates' },
@@ -590,7 +590,7 @@ export const tags = [
   { name: 'Docker Networks', description: 'Docker network management' },
   { name: 'Docker Registries', description: 'Private Docker registry credentials' },
   { name: 'Docker Folders', description: 'Docker container folder organization' },
-  { name: 'Docker Health Checks', description: 'Gateway-managed Docker health checks' },
+  { name: 'Docker Health Checks', description: 'Opfield-managed Docker health checks' },
   { name: 'Docker Migrations', description: 'Durable Docker node-to-node migrations' },
   { name: 'Docker Secrets', description: 'Container and deployment environment secrets' },
   { name: 'Docker Files', description: 'Container file browser operations' },
@@ -605,7 +605,7 @@ export const tags = [
   { name: 'AI', description: 'AI assistant configuration and metadata' },
   { name: 'Inference', description: 'Standalone multi-provider inference proxy management' },
   { name: 'System', description: 'Version, release, and update operations' },
-  { name: 'License', description: 'Gateway license activation and status' },
+  { name: 'License', description: 'Opfield license activation and status' },
   { name: 'Cloud', description: 'Connection of this installation to its cloud account' },
   { name: 'Housekeeping', description: 'Retention, cleanup, and housekeeping runs' },
   { name: 'Monitoring', description: 'Dashboard, health, log, and nginx monitoring' },

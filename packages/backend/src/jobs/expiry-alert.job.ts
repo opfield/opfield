@@ -320,8 +320,8 @@ export class ExpiryAlertJob {
     for (const owner of owners) {
       const key = `${owner.type}:${owner.id}`;
       if (labels.has(key)) continue;
-      if (owner.type === 'gateway_listener') labels.set(key, `the Gateway ${owner.id} listener`);
-      else if (owner.type === 'gateway_service') labels.set(key, `the Gateway internal service ${owner.id}`);
+      if (owner.type === 'gateway_listener') labels.set(key, `the Opfield ${owner.id} listener`);
+      else if (owner.type === 'gateway_service') labels.set(key, `the Opfield internal service ${owner.id}`);
       else if (owner.type === 'managed_storage') labels.set(key, `deleted managed storage ${owner.id}`);
       else if (owner.type === 'managed_database') labels.set(key, `deleted managed database ${owner.id}`);
       else if (owner.type === 'relay_node_server') labels.set(key, `relay ${owner.id}`);
@@ -364,7 +364,7 @@ export class ExpiryAlertJob {
       const offline = node.status === 'online' ? '' : ` (the node is ${node.status})`;
       const message = legacy
         ? `mTLS client certificate of node "${name}" ${expiresPhrase(notAfter, now)} and its daemon (${node.daemonVersion}) has not renewed it${offline}. Update the node daemon: current daemons renew once a third of the lifetime remains. After expiry the node must be re-enrolled.`
-        : `mTLS client certificate of node "${name}" ${expiresPhrase(notAfter, now)}. The daemon renews it once a third of its lifetime remains, so its renewal is failing${offline}. Make sure the node can reach Gateway and runs a current daemon; after expiry it must be re-enrolled.`;
+        : `mTLS client certificate of node "${name}" ${expiresPhrase(notAfter, now)}. The daemon renews it once a third of its lifetime remains, so its renewal is failing${offline}. Make sure the node can reach Opfield and runs a current daemon; after expiry it must be re-enrolled.`;
       if (await this.expiryAlertOnce(type, 'node', node.id, notAfter, threshold, message)) created++;
     }
     return { checked: expiringNodes.length, created };
@@ -613,7 +613,7 @@ function internalCertificateHint(cert: { type: string; autoRenew: boolean; renew
   if (cert.autoRenew) {
     return cert.renewalError
       ? ` Automatic reissue from its CA has not succeeded: ${cert.renewalError}`
-      : ' Gateway reissues it from its CA automatically.';
+      : ' Opfield reissues it from its CA automatically.';
   }
-  return ' Automatic reissue is off, or it was issued from a CSR so Gateway does not hold its key: issue a new certificate from the CA and link it.';
+  return ' Automatic reissue is off, or it was issued from a CSR so Opfield does not hold its key: issue a new certificate from the CA and link it.';
 }

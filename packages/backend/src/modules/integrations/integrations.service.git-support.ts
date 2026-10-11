@@ -489,7 +489,7 @@ export abstract class IntegrationsGitSupportService extends IntegrationsPersiste
           new AppError(
             502,
             error.message.includes('ENOENT') ? 'GIT_RUNTIME_UNAVAILABLE' : 'GIT_COMMAND_FAILED',
-            error.message.includes('ENOENT') ? 'Git is not installed in the Gateway runtime' : 'Git operation failed'
+            error.message.includes('ENOENT') ? 'Git is not installed in the Opfield runtime' : 'Git operation failed'
           )
         );
       });

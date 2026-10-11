@@ -200,7 +200,7 @@ describe("create form availability section", () => {
   it("offers to set the relay policy lease to 7 days when it is shorter", async () => {
     api.updateAuthProvisioningSettings.mockResolvedValue({});
     renderSection(preflight({ policyLeaseHours: 72 }));
-    expect(await screen.findByText("Failover works without Gateway for 72 h")).toBeInTheDocument();
+    expect(await screen.findByText("Failover works without Opfield for 72 h")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Set to 7 days/ }));
     expect(api.updateAuthProvisioningSettings).toHaveBeenCalledWith({
       generalSettings: { relayPolicyLeaseHours: 168 },

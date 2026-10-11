@@ -1371,7 +1371,7 @@ func (e *engine) activate(ctx context.Context, snap *configSnapshot, dead Keeper
 		e.mu.Lock()
 		e.activated = act
 		e.mu.Unlock()
-		e.logger.Warn("Gateway is down and the Keeper witness is dead: standby witness activated by the holder",
+		e.logger.Warn("Opfield is down and the Keeper witness is dead: standby witness activated by the holder",
 			"set_id", snap.config.SetID, "standby_witness_id", standby.WitnessID, "dead_witness_id", dead.WitnessID)
 		return act, nil
 	}

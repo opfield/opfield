@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 const grantPath = process.argv[2] ?? 'CONTINUITY-MIT-GRANT.md';
 const grant = await readFile(grantPath, 'utf8');
-const expectedSha256 = '437af389b46519cd723108460840a76dce9643824f4a017b0d00aacd8d1a3ce4';
+const expectedSha256 = '041adcb82aefa815df689bcc33cfd1889ab7d36ff2c0ab4fd73d9be2d450cfa7';
 const actualSha256 = createHash('sha256').update(grant).digest('hex');
 
 if (actualSha256 !== expectedSha256) {
@@ -13,7 +13,7 @@ if (actualSha256 !== expectedSha256) {
 }
 
 const required = [
-  '# Good Gateway Product Continuity MIT Grant 1.0',
+  '# Opfield Product Continuity MIT Grant 1.0',
   'Alexandr Slavinskii',
   'legally effective written assignment',
   'does not reduce rights already granted to users',

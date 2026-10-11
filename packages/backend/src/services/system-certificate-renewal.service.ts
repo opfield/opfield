@@ -625,7 +625,7 @@ export class SystemCertificateRenewalService {
       return {
         ready: false,
         reason: 'renewal_failed',
-        message: `The TLS certificate does not name ${names.join(', ')} yet and its renewal failed: ${state?.lastError ?? 'unknown error'}. Gateway retries at ${state?.nextAttemptAt?.toISOString()}; the run continues automatically once it succeeds.`,
+        message: `The TLS certificate does not name ${names.join(', ')} yet and its renewal failed: ${state?.lastError ?? 'unknown error'}. Opfield retries at ${state?.nextAttemptAt?.toISOString()}; the run continues automatically once it succeeds.`,
       } satisfies RenewalReadiness;
     }
     if (!target.supportsHotReload) {

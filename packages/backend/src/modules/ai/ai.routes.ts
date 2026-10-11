@@ -73,18 +73,18 @@ function toolSubject(name: string): string {
 }
 
 function userFacingToolDescription(name: string, category: string, destructive: boolean): string {
-  if (name === 'discover_tools') return 'Find available Gateway tool groups and capabilities.';
+  if (name === 'discover_tools') return 'Find available Opfield tool groups and capabilities.';
   if (name === 'read_skill') return 'Read one available skill without activating it.';
   if (name === 'activate_skill') return 'Activate one available skill until the next context compaction.';
   if (name === 'get_current_context') return 'Read the page and resource currently open in the UI.';
   if (name === 'end_conversation') return 'Close the current assistant conversation with a reason.';
-  if (name === 'find_resource') return 'Search Gateway resources by name, type, or identifier.';
+  if (name === 'find_resource') return 'Search Opfield resources by name, type, or identifier.';
   if (name === 'search_chats') return 'Search previous AI chats for relevant context.';
   if (name === 'search_compacted_history') return 'Search exact details from compacted history in the current chat.';
   if (name === 'find_in_chat') return 'Search within a specific previous AI chat.';
   if (name === 'read_chat_slice') return 'Read a bounded slice of messages from a previous AI chat.';
   if (name === 'list_chat_projects') return 'List AI chat projects available as retrieval boundaries.';
-  if (name === 'internal_documentation') return 'Search the assistant documentation for Gateway operations.';
+  if (name === 'internal_documentation') return 'Search the assistant documentation for Opfield operations.';
   if (name === 'wait') return 'Pause briefly before checking an operation again.';
   if (name === 'web_search') return 'Search the web when current external information is needed.';
 

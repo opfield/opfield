@@ -187,7 +187,7 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
       if (updated.status === "valid") {
         toast.success(
           updated.moduleRestarting
-            ? "License activated. Gateway is preparing paid features and will restart when ready."
+            ? "License activated. Opfield is preparing paid features and will restart when ready."
             : "License activated"
         );
       } else {
@@ -207,7 +207,7 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
       const result = await api.activateLicenseModule();
       toast.success(
         result.restarting
-          ? "Gateway is preparing paid features and will restart when ready."
+          ? "Opfield is preparing paid features and will restart when ready."
           : "Paid features are ready"
       );
     } catch (error) {
@@ -221,7 +221,7 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
     const ok = await confirm({
       title: "Deactivate License",
       description:
-        "Deactivate this license and release it from this Gateway installation? The Gateway will return to Community edition.",
+        "Deactivate this license and release it from this Opfield installation? Opfield will return to Community edition.",
       confirmLabel: "Deactivate",
       variant: "destructive",
     });
@@ -248,7 +248,7 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
         icon={<KeyRound className="h-4 w-4" />}
         id="gateway-license"
         title="License"
-        description="Current Gateway license and activation state"
+        description="Current Opfield license and activation state"
         actions={
           canManage ? (
             <Button onClick={() => setDialogOpen(true)}>
@@ -267,7 +267,7 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
           <div className="border-t border-border p-4 space-y-3">
             <p className="text-sm text-muted-foreground">
               Your license is active, but paid features are not ready. Enabling them prepares the
-              required files before restarting Gateway.
+              required files before restarting Opfield.
             </p>
             {canManage ? (
               <Button onClick={handleModuleActivation} pending={activatingModule}>
@@ -359,7 +359,7 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
             <div className="space-y-1.5">
               {moduleState && moduleState !== "ready" ? (
                 <p className="text-sm text-muted-foreground">
-                  Activation will prepare paid features, then restart Gateway. It stays available
+                  Activation will prepare paid features, then restart Opfield. It stays available
                   while files are downloaded and verified.
                 </p>
               ) : null}

@@ -129,7 +129,7 @@ export class CloudLinkAgent {
     this.unsubscribe?.();
     this.unsubscribe = null;
     await this.ticking?.catch(() => undefined);
-    this.closeSocket(1001, 'Gateway is stopping');
+    this.closeSocket(1001, 'Opfield is stopping');
     this.credentials = null;
     this.service.setLocalSocketStatusReader(null);
     this.service.setLiveRequestWindowsReader(null);

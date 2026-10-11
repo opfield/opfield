@@ -19,12 +19,12 @@ export const inferenceSetupAuthMiddleware: MiddlewareHandler<AppEnv> = async (c,
   }
 
   const rawToken = extractSetupToken(c.req.header('Authorization'));
-  if (!rawToken) throw new HTTPException(401, { message: 'A Gateway inference setup credential is required' });
+  if (!rawToken) throw new HTTPException(401, { message: 'An Opfield inference setup credential is required' });
 
   if (rawToken.startsWith('gwi_')) {
     const result = await container.resolve(InferenceTokenService).validateToken(rawToken);
     if (!result || result.managedBy !== null) {
-      throw new HTTPException(401, { message: 'A user-managed Gateway inference token is required' });
+      throw new HTTPException(401, { message: 'A user-managed Opfield inference token is required' });
     }
     c.set('user', result.user);
     c.set('effectiveScopes', result.user.scopes);

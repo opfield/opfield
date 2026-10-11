@@ -701,7 +701,7 @@ export function renderAccessSummaryText(summary: Pick<AccessSummary, 'limited' |
   if (!summary.limited) return '';
   const restricted = summary.areas.filter(isRestrictedSummaryArea);
   const header =
-    'Your Gateway access is limited to specific folders, nodes or resources. Empty lists and denials at the root are expected; work inside these grants:';
+    'Your Opfield access is limited to specific folders, nodes or resources. Empty lists and denials at the root are expected; work inside these grants:';
   const footer =
     'Call get_my_access (or read gateway://access) for ids and details; pass folderId (and nodeId) when creating.';
   const broadTitles = summary.areas

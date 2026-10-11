@@ -422,7 +422,7 @@ export class RelaySupervisorService implements LocalRelayOutageSignal {
   }
 
   async retryRecovery(userId: string): Promise<ReturnType<RelaySupervisorService['getSnapshot']>> {
-    if (!this.options.required || !this.relayClient) throw new Error('Gateway relay is not enabled');
+    if (!this.options.required || !this.relayClient) throw new Error('Opfield relay is not enabled');
     // Offered exactly when canRetry is: the stored reason is kept current by every probe, and a
     // relay stopped by a Docker safety error may be retried once Docker is back. The fresh probe
     // below then decides.

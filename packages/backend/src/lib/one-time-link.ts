@@ -34,7 +34,7 @@ export async function issueOneTimeLink<T>(
 ): Promise<{ url: string; expiresAt: string }> {
   const publicUrl = await container.resolve(GeneralSettingsService).getPublicUrl();
   if (!publicUrl) {
-    throw new AppError(409, 'PUBLIC_URL_REQUIRED', `Set the Gateway public URL before creating ${kind.label}`);
+    throw new AppError(409, 'PUBLIC_URL_REQUIRED', `Set the Opfield public URL before creating ${kind.label}`);
   }
   const token = `${kind.tokenPrefix}${randomBytes(32).toString('base64url')}`;
   await container.resolve(CacheService).set(cacheKey(kind, token), grant, kind.ttlSeconds);

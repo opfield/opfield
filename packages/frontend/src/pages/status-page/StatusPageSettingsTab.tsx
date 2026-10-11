@@ -121,7 +121,7 @@ export function StatusPageSettingsTab({
         <SettingsControlRow
           title="Recent resolved incidents"
           description="Number of days resolved incidents remain visible on the public page."
-          help="Controls public visibility only. Older resolved incidents remain stored in Gateway but are omitted from the public status page."
+          help="Controls public visibility only. Older resolved incidents remain stored in Opfield but are omitted from the public status page."
           controlsClassName="sm:min-w-0"
         >
           <Input
@@ -204,7 +204,7 @@ export function StatusPageSettingsTab({
         <SettingsControlRow
           title="Auto incidents for degraded services"
           description="Create an automatic incident when an exposed service is degraded."
-          help="Applies only to services exposed on this Status Page. Gateway opens and later resolves the incident automatically from observed service health."
+          help="Applies only to services exposed on this Status Page. Opfield opens and later resolves the incident automatically from observed service health."
           controlsClassName="sm:min-w-0"
         >
           <Switch
@@ -219,7 +219,7 @@ export function StatusPageSettingsTab({
         <SettingsControlRow
           title="Degraded incident severity"
           description="Severity used for automatic degraded-service incidents."
-          help="Sets the public severity and notification priority of incidents created for degraded services. It does not change how Gateway determines that a service is degraded."
+          help="Sets the public severity and notification priority of incidents created for degraded services. It does not change how Opfield determines that a service is degraded."
           controlsClassName="sm:min-w-0"
         >
           <Select
@@ -240,7 +240,7 @@ export function StatusPageSettingsTab({
         <SettingsControlRow
           title="Auto incidents for outages"
           description="Create an automatic incident when an exposed service is offline."
-          help="Applies only to services exposed on this Status Page. An outage incident is created after the configured delay when Gateway observes the service as offline."
+          help="Applies only to services exposed on this Status Page. An outage incident is created after the configured delay when Opfield observes the service as offline."
           controlsClassName="sm:min-w-0"
         >
           <Switch

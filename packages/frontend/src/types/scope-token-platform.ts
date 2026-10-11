@@ -21,27 +21,27 @@ export const PLATFORM_TOKEN_SCOPES = [
   // Gateway diagnostics
   {
     value: "diagnostics:view",
-    label: "View Gateway Diagnostics",
-    desc: "View Gateway's own host, process, database, cache, container, background job and API latency state and its history",
+    label: "View Opfield Diagnostics",
+    desc: "View Opfield's own host, process, database, cache, container, background job and API latency state and its history",
     group: "Diagnostics",
   },
   {
     value: "diagnostics:logs",
-    label: "Read Gateway Logs",
-    desc: "Read the logs of Gateway's own containers: the app, its database, cache, relay and registry",
+    label: "Read Opfield Logs",
+    desc: "Read the logs of Opfield's own containers: the app, its database, cache, relay and registry",
     group: "Diagnostics",
   },
   // Licensing
   {
     value: "license:view",
     label: "View License",
-    desc: "View Gateway license status and entitlement details",
+    desc: "View Opfield license status and entitlement details",
     group: "Licensing",
   },
   {
     value: "license:manage",
     label: "Manage License",
-    desc: "Activate, update, or remove the Gateway license",
+    desc: "Activate, update, or remove the Opfield license",
     group: "Licensing",
   },
   // Notifications
@@ -115,8 +115,8 @@ export const PLATFORM_TOKEN_SCOPES = [
   },
   {
     value: "feat:ai:use",
-    label: "Use Gateway Inference",
-    desc: "Use Gateway Inference and view personal inference usage",
+    label: "Use Opfield Inference",
+    desc: "Use Opfield Inference and view personal inference usage",
     group: "Features",
   },
   {

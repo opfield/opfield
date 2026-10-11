@@ -486,7 +486,7 @@ export function createWSHandlers() {
                 throw new AppError(
                   rateCheck.unavailable ? 503 : 429,
                   code,
-                  rateCheck.unavailable ? 'Gateway is temporarily unavailable' : 'AI rate limit exceeded',
+                  rateCheck.unavailable ? 'Opfield is temporarily unavailable' : 'AI rate limit exceeded',
                   rateCheck.unavailable ? undefined : { retryAfter: rateCheck.retryAfter }
                 );
               }
@@ -618,7 +618,7 @@ export function createWSHandlers() {
                 throw new AppError(
                   rateCheck.unavailable ? 503 : 429,
                   code,
-                  rateCheck.unavailable ? 'Gateway is temporarily unavailable' : 'AI rate limit exceeded',
+                  rateCheck.unavailable ? 'Opfield is temporarily unavailable' : 'AI rate limit exceeded',
                   rateCheck.unavailable ? undefined : { retryAfter: rateCheck.retryAfter }
                 );
               }
@@ -684,7 +684,7 @@ export function createWSHandlers() {
                 throw new AppError(
                   rateCheck.unavailable ? 503 : 429,
                   code,
-                  rateCheck.unavailable ? 'Gateway is temporarily unavailable' : 'AI rate limit exceeded',
+                  rateCheck.unavailable ? 'Opfield is temporarily unavailable' : 'AI rate limit exceeded',
                   rateCheck.unavailable ? undefined : { retryAfter: rateCheck.retryAfter }
                 );
               }
@@ -772,7 +772,7 @@ export function createWSHandlers() {
                 throw new AppError(
                   rateCheck.unavailable ? 503 : 429,
                   code,
-                  rateCheck.unavailable ? 'Gateway is temporarily unavailable' : 'AI rate limit exceeded',
+                  rateCheck.unavailable ? 'Opfield is temporarily unavailable' : 'AI rate limit exceeded',
                   rateCheck.unavailable ? undefined : { retryAfter: rateCheck.retryAfter }
                 );
               }
@@ -826,7 +826,7 @@ export function createWSHandlers() {
                 throw new AppError(
                   rateCheck.unavailable ? 503 : 429,
                   code,
-                  rateCheck.unavailable ? 'Gateway is temporarily unavailable' : 'AI rate limit exceeded',
+                  rateCheck.unavailable ? 'Opfield is temporarily unavailable' : 'AI rate limit exceeded',
                   rateCheck.unavailable ? undefined : { retryAfter: rateCheck.retryAfter }
                 );
               }

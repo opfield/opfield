@@ -83,7 +83,7 @@ export function GracefulShutdownSettingsPanel({
     <PanelShell
       hidden={hidden}
       title="Graceful shutdown"
-      description="Controls how long Gateway drains user traffic, structured logs, and final cleanup before restart"
+      description="Controls how long Opfield drains user traffic, structured logs, and final cleanup before restart"
       icon={<Power className="h-4 w-4" />}
       actions={
         <Button
@@ -102,7 +102,7 @@ export function GracefulShutdownSettingsPanel({
         <SettingsControlRow
           title="User request drain"
           description="Time in seconds for requests and short jobs already in progress to finish. New user requests are rejected immediately."
-          help="When Gateway begins shutting down, it stops accepting new user work but waits up to this long for requests and short-running jobs that already started."
+          help="When Opfield begins shutting down, it stops accepting new user work but waits up to this long for requests and short-running jobs that already started."
         >
           <div className="w-full sm:w-40">
             <NumericInput
@@ -122,7 +122,7 @@ export function GracefulShutdownSettingsPanel({
         <SettingsControlRow
           title="Structured log drain"
           description="Additional time in seconds for accepted log batches to reach storage after user traffic has drained."
-          help="After user traffic finishes draining, Gateway reserves this additional period for accepted structured-log batches to be written to storage."
+          help="After user traffic finishes draining, Opfield reserves this additional period for accepted structured-log batches to be written to storage."
         >
           <div className="w-full sm:w-40">
             <NumericInput

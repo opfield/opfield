@@ -30,13 +30,13 @@ export function mapSshConnectionError(error: unknown, role: 'jump' | 'target'): 
     return new AppError(
       401,
       role === 'jump' ? 'SSH_JUMP_AUTHENTICATION_FAILED' : 'SSH_AUTHENTICATION_FAILED',
-      `Gateway could not authenticate to the ${serverLabel}. Check that the configured password or generated public key is installed for the SSH user, then try again.`
+      `Opfield could not authenticate to the ${serverLabel}. Check that the configured password or generated public key is installed for the SSH user, then try again.`
     );
   }
   return new AppError(
     502,
     role === 'jump' ? 'SSH_JUMP_CONNECTION_FAILED' : 'SSH_CONNECTION_FAILED',
-    `Gateway could not connect to the ${serverLabel} with the configured SSH credential.`
+    `Opfield could not connect to the ${serverLabel} with the configured SSH credential.`
   );
 }
 

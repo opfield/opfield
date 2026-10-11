@@ -692,8 +692,8 @@ export function AILiteSidebar({
               }
             >
               <span className="flex items-center gap-1.5 whitespace-nowrap pl-1 text-sm font-semibold text-foreground/80">
-                <img src="/android-chrome-192x192.png" alt="Gateway" className="h-5 w-5" />
-                Gateway AI
+                <img src="/android-chrome-192x192.png" alt="Opfield" className="h-5 w-5" />
+                Opfield AI
               </span>
               <div className="flex items-center gap-0.5">
                 <DropdownMenu>

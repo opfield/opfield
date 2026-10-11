@@ -870,7 +870,7 @@ func validateClickHouseFragment(fragment string) error {
 				rootSeen = true
 			}
 			if forbiddenClickHouseElement(name) {
-				return fmt.Errorf("ClickHouse XML element %q is managed by Gateway", name)
+				return fmt.Errorf("ClickHouse XML element %q is managed by Opfield", name)
 			}
 			for _, attr := range t.Attr {
 				attrName := strings.ToLower(attr.Name.Local)

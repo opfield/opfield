@@ -304,7 +304,7 @@ function StorageDetailContent({
     const ok = await confirm({
       title: "Renew TLS Certificate",
       description:
-        "Gateway issues a new certificate from the Storage CA and the running storage loads it without a restart. S3 clients keep trusting the same Storage CA.",
+        "Opfield issues a new certificate from the Storage CA and the running storage loads it without a restart. S3 clients keep trusting the same Storage CA.",
       confirmLabel: "Renew certificate",
       variant: "default",
     });
@@ -498,7 +498,7 @@ function StorageDetailContent({
           <DialogHeader>
             <DialogTitle>Stored Credentials</DialogTitle>
             <DialogDescription>
-              The credentials Gateway uses to reach this storage, decrypted for viewing.
+              The credentials Opfield uses to reach this storage, decrypted for viewing.
             </DialogDescription>
           </DialogHeader>
           <div className="border border-border bg-card overflow-hidden">
@@ -625,7 +625,7 @@ function forgetBackupHistoryDescription(history: BackupHistoryReference, managed
   const files = managed
     ? "Backup files stored in this managed storage are deleted with it."
     : "Their backup files are not deleted and stay in the buckets.";
-  return `${entries} this storage${withFiles}. Forgetting removes this history from Gateway, so those backups can no longer be restored or deleted here. ${files}`;
+  return `${entries} this storage${withFiles}. Forgetting removes this history from Opfield, so those backups can no longer be restored or deleted here. ${files}`;
 }
 
 import { ContentLoading } from "@/components/common/ContentLoading";

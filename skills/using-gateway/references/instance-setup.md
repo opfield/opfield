@@ -1,15 +1,15 @@
-# New Gateway instance setup
+# New Opfield instance setup
 
-Use this reference when the user has no usable Gateway control plane, receives `SETUP_REQUIRED`, or needs the first Nodes required for the selected workload. Installation, browser onboarding, Node enrollment, MCP OAuth, and application deployment are separate boundaries; complete each before claiming the next is ready.
+Use this reference when the user has no usable Opfield control plane, receives `SETUP_REQUIRED`, or needs the first Nodes required for the selected workload. Installation, browser onboarding, Node enrollment, MCP OAuth, and application deployment are separate boundaries; complete each before claiming the next is ready.
 
 ## Choose the starting point
 
-- No Gateway installation: install the control plane, then complete the browser wizard.
+- No Opfield installation: install the control plane, then complete the browser wizard.
 - Stack installed but normal APIs return `423 SETUP_REQUIRED`: use the installer-provided URL and one-time setup code. Do not reinstall.
 - Wizard complete but no suitable Nodes: enroll only the roles required by the workload.
 - Instance and Nodes ready but MCP unavailable: continue with [MCP connection](connection.md).
 
-When MCP is already connected, use `read_gateway_documentation` for the current installation and Node requirements. Before MCP exists, use the checked-out Gateway installation documentation and UI-generated enrollment commands as the source of truth.
+When MCP is already connected, use `read_gateway_documentation` for the current installation and Node requirements. Before MCP exists, use the checked-out Opfield installation documentation and UI-generated enrollment commands as the source of truth.
 
 ## Install the control plane
 
@@ -42,6 +42,6 @@ Use the authenticated UI or guided finalization flow and the generated one-time 
 - `monitoring`: monitoring capabilities when required.
 - `relay`: outbound connectivity topology when required by the installation.
 
-Wait until Gateway reports each Node online and capability-compatible. Report control plane, onboarding, Nodes, Builds, MCP, application resource, Route, DNS, and TLS readiness separately.
+Wait until Opfield reports each Node online and capability-compatible. Report control plane, onboarding, Nodes, Builds, MCP, application resource, Route, DNS, and TLS readiness separately.
 
 For later enrollment, daemon updates, service addresses, and Node repair, use the `managing-nodes` skill.

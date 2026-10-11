@@ -52,7 +52,7 @@ export async function prepareCommercialUpdate(options: {
       await ensureDirectory(versionDirectory);
       const existing = await readExistingVersion(versionDirectory);
       if (existing && existing !== releaseId)
-        throw new Error('A Gateway version cannot be rebound to a different private core');
+        throw new Error('An Opfield version cannot be rebound to a different private core');
       if (existing) {
         const cached = await verifyCommercialRelease(
           join(versionDirectory, 'releases', existing),

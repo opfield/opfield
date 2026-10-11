@@ -334,7 +334,7 @@ export class InternalCertificateRenewalService {
       throw new AppError(
         400,
         'INTERNAL_CERT_NOT_RENEWABLE',
-        'This certificate was issued from a CSR, so Gateway does not hold its private key. Issue a new certificate from a CSR and link it.'
+        'This certificate was issued from a CSR, so Opfield does not hold its private key. Issue a new certificate from a CSR and link it.'
       );
     }
     if (source.type !== 'tls-server') {

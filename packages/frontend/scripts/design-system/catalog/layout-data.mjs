@@ -308,7 +308,7 @@ mount(stage(h("div", { className: "w-[32rem] divide-y divide-border border borde
     source: "src/components/common/PoweredByFooter.tsx",
     exports: ["PoweredByFooter"],
     height: 90,
-    summary: "The \"Powered by Good Gateway\" line under login and public pages, muted text with a foreground link.",
+    summary: "The \"Powered by Opfield\" line under login and public pages, muted text with a foreground link.",
     guide: `
 ## Use it for
 The foot of the login, consent and status pages only.

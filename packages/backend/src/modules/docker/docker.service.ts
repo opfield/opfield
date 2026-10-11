@@ -180,7 +180,7 @@ function secureRuntimeUnavailableMessage(status: { state?: unknown; message?: un
 }
 
 const AVAILABILITY_NETWORKS_MANAGED =
-  'This container is controlled by Availability: its replicas run on Gateway-managed networks on every node. Disable Availability to change its networks.';
+  'This container is controlled by Availability: its replicas run on Opfield-managed networks on every node. Disable Availability to change its networks.';
 
 /** The app kill switch freeze as Docker container mutations see it (AppMemberFreeze). */
 export interface DockerAppFreezeGuard {
@@ -807,7 +807,7 @@ export class DockerManagementService {
       throw new AppError(
         409,
         'GATEWAY_INTERNAL_CONTAINER',
-        'This container is managed by Gateway and cannot be modified directly.'
+        'This container is managed by Opfield and cannot be modified directly.'
       );
     }
     if (this.isManagedDeploymentInternal(data)) {
@@ -956,7 +956,7 @@ export class DockerManagementService {
       throw new AppError(
         409,
         'UNSUPPORTED_DAEMON',
-        'Docker node does not support Gateway GPU attachments. Update the Docker daemon before changing GPU configuration.'
+        'Docker node does not support Opfield GPU attachments. Update the Docker daemon before changing GPU configuration.'
       );
     }
   }
@@ -1968,7 +1968,7 @@ export class DockerManagementService {
       throw new AppError(404, 'DOCKER_IMAGE_NOT_FOUND', 'Docker image was not found');
     }
     if (findGatewayInternalImage(imageList, imageId)) {
-      throw new AppError(409, 'GATEWAY_INTERNAL_IMAGE', 'Gateway-owned images cannot be removed manually');
+      throw new AppError(409, 'GATEWAY_INTERNAL_IMAGE', 'Opfield-owned images cannot be removed manually');
     }
     const canonicalImageId = dockerImageId(image);
     if (!canonicalImageId) {
@@ -1982,11 +1982,11 @@ export class DockerManagementService {
     const images = await listAllDockerImages(this.imageOperationContext(), nodeId);
     const image = findGatewayInternalImage(Array.isArray(images) ? images : [], imageId);
     if (!image) {
-      throw new AppError(404, 'GATEWAY_INTERNAL_IMAGE_NOT_FOUND', 'Gateway-owned image was not found');
+      throw new AppError(404, 'GATEWAY_INTERNAL_IMAGE_NOT_FOUND', 'Opfield-owned image was not found');
     }
     const canonicalImageId = dockerImageId(image);
     if (!canonicalImageId) {
-      throw new AppError(404, 'GATEWAY_INTERNAL_IMAGE_NOT_FOUND', 'Gateway-owned image was not found');
+      throw new AppError(404, 'GATEWAY_INTERNAL_IMAGE_NOT_FOUND', 'Opfield-owned image was not found');
     }
     await removeDockerImage(this.imageOperationContext(), nodeId, canonicalImageId, false, null);
   }

@@ -75,7 +75,7 @@ export function parseIpv4Range(value: string, subnet: string, gateway: string): 
   const last = first + 2 ** (32 - bits) - 1;
   const gatewayIp = normalizeIp(gateway);
   if (!gatewayIp || gatewayIp.includes(':') || !ipInCidr(gatewayIp, subnet))
-    fail('Gateway must be inside the configured subnet');
+    fail('Opfield must be inside the configured subnet');
   const gatewayNumber = ipv4Number(gatewayIp);
   const addresses = new Set<number>();
   for (const [startRaw, endRaw] of rangeParts(value)) {

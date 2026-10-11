@@ -24,7 +24,7 @@ export async function requestJson<T>(url: string, init: RequestInit = {}, option
     const timeout = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
     throw new CliError(
       timeout ? 'NETWORK_TIMEOUT' : 'NETWORK_ERROR',
-      timeout ? 'Gateway request timed out.' : 'Gateway is unreachable.',
+      timeout ? 'Opfield request timed out.' : 'Opfield is unreachable.',
       {
         cause: error,
       }
@@ -41,7 +41,7 @@ export async function requestJson<T>(url: string, init: RequestInit = {}, option
   try {
     return JSON.parse(text) as T;
   } catch (error) {
-    throw new CliError('INVALID_GATEWAY_RESPONSE', 'Gateway returned an invalid JSON response.', { cause: error });
+    throw new CliError('INVALID_GATEWAY_RESPONSE', 'Opfield returned an invalid JSON response.', { cause: error });
   }
 }
 
@@ -53,7 +53,7 @@ async function responseError(response: Response): Promise<CliError> {
     // The status and generic message remain sufficient when an upstream proxy returns HTML.
   }
   const code = body.code || body.error || `HTTP_${response.status}`;
-  const message = body.message || body.error_description || `Gateway request failed with HTTP ${response.status}.`;
+  const message = body.message || body.error_description || `Opfield request failed with HTTP ${response.status}.`;
   return new CliError(code, redactText(message), { details: body.details, exitCode: response.status === 401 ? 2 : 1 });
 }
 
@@ -64,14 +64,14 @@ export function assertTrustedEndpoint(endpoint: string, issuer: string, label: s
     parsed = new URL(endpoint);
     parsedIssuer = new URL(issuer);
   } catch (error) {
-    throw new CliError('INVALID_OAUTH_METADATA', `Gateway advertised an invalid ${label}.`, { cause: error });
+    throw new CliError('INVALID_OAUTH_METADATA', `Opfield advertised an invalid ${label}.`, { cause: error });
   }
   const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname);
   if (
     parsed.origin !== parsedIssuer.origin ||
     (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && loopback))
   ) {
-    throw new CliError('UNTRUSTED_OAUTH_ENDPOINT', `Gateway advertised an untrusted ${label}.`);
+    throw new CliError('UNTRUSTED_OAUTH_ENDPOINT', `Opfield advertised an untrusted ${label}.`);
   }
   return parsed.href;
 }

@@ -464,7 +464,7 @@ export abstract class IntegrationsGitConnectorService extends IntegrationsGitRep
       username: status.gitlabUsername,
       authorizationUrl:
         provider === 'github'
-          ? 'https://github.com/settings/tokens/new?description=Gateway%20AI&scopes=repo,workflow,read:org,read:packages'
+          ? 'https://github.com/settings/tokens/new?description=Opfield%20AI&scopes=repo,workflow,read:org,read:packages'
           : null,
     };
   }

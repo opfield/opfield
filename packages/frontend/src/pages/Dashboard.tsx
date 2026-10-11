@@ -95,44 +95,44 @@ function relayImageSummary(image: string | null | undefined): string {
 function relayNoticeContent(relay: DashboardRelaySnapshot) {
   if (relay.state === "critical") {
     return {
-      title: "Gateway relay is unavailable",
-      dialogTitle: "Gateway Relay Is Unavailable",
+      title: "Opfield relay is unavailable",
+      dialogTitle: "Opfield Relay Is Unavailable",
       summary: "Managed nodes and secure database connections are disconnected.",
       description: "Automatic recovery failed. Immediate administrator action is required.",
     };
   }
   if (relay.state === "recovering") {
     return {
-      title: "Gateway relay recovery in progress",
-      dialogTitle: "Gateway Relay Recovery in Progress",
+      title: "Opfield relay recovery in progress",
+      dialogTitle: "Opfield Relay Recovery in Progress",
       summary: `Recovery attempt ${relay.attempt} of ${relay.maxAttempts} is in progress.`,
       description:
-        "Secure database connections are temporarily unavailable while Gateway recovers the relay.",
+        "Secure database connections are temporarily unavailable while Opfield recovers the relay.",
     };
   }
   if (relay.state === "degraded") {
     return {
-      title: "Gateway relay management needs attention",
-      dialogTitle: "Gateway Relay Management Needs Attention",
+      title: "Opfield relay management needs attention",
+      dialogTitle: "Opfield Relay Management Needs Attention",
       summary: "Relay runtime ownership could not be verified.",
       description: "Traffic may continue, but automatic container recovery is unavailable.",
     };
   }
   if (relay.state === "maintenance") {
     return {
-      title: "Gateway relay maintenance in progress",
-      dialogTitle: "Gateway Relay Maintenance in Progress",
+      title: "Opfield relay maintenance in progress",
+      dialogTitle: "Opfield Relay Maintenance in Progress",
       summary: "Secure database connections are temporarily unavailable.",
       description:
-        "Gateway is updating the relay and will restore connections when maintenance completes.",
+        "Opfield is updating the relay and will restore connections when maintenance completes.",
     };
   }
   return {
-    title: "Gateway relay activation in progress",
-    dialogTitle: "Gateway Relay Activation in Progress",
+    title: "Opfield relay activation in progress",
+    dialogTitle: "Opfield Relay Activation in Progress",
     summary: "Secure database connections may be temporarily unavailable.",
     description:
-      "Gateway is activating the standalone relay required for managed database connections.",
+      "Opfield is activating the standalone relay required for managed database connections.",
   };
 }
 
@@ -246,7 +246,7 @@ export function RelayHealthNotice({
               <p>
                 {critical
                   ? "Please contact your administrator to restore managed nodes and secure database connections."
-                  : "Gateway is handling this automatically. No action is required unless this message remains visible."}
+                  : "Opfield is handling this automatically. No action is required unless this message remains visible."}
               </p>
             </div>
           )}
@@ -322,7 +322,7 @@ export function LicenseGraceNotice({
       tone="destructive"
       role="alert"
       aria-live="polite"
-      title="Gateway license has expired"
+      title="Opfield license has expired"
       actions={
         canManage ? (
           <NoticeAction
@@ -624,7 +624,7 @@ export function Dashboard() {
           className="mb-4"
           leading={<LiteModeBackButton />}
           title="Dashboard"
-          description="Gateway and PKI infrastructure overview"
+          description="Opfield and PKI infrastructure overview"
         />
         <div className="space-y-6">
           {license?.status === "expired_grace" ? (
@@ -697,7 +697,7 @@ export function Dashboard() {
             >
               <p>
                 {dashboardBootstrap.update.updateAvailable
-                  ? `Gateway ${dashboardBootstrap.update.latestVersion} is ready to install`
+                  ? `Opfield ${dashboardBootstrap.update.latestVersion} is ready to install`
                   : `Relay ${dashboardBootstrap.update.relay?.latestVersion} is ready to install`}
               </p>
             </Notice>
@@ -800,7 +800,7 @@ export function Dashboard() {
               }
             >
               <p>
-                Connect infrastructure, secure your account, and enable optional Gateway features.
+                Connect infrastructure, secure your account, and enable optional Opfield features.
               </p>
             </Notice>
           )}

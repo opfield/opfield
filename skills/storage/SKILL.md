@@ -1,22 +1,22 @@
 ---
 name: storage
-description: Manage Gateway object storage, including external S3, R2, MinIO-compatible, FTP, FTPS, and SFTP connections, Gateway-managed SeaweedFS clusters and legacy managed MinIO, buckets and objects, private workload links and scoped access keys, server-side copy jobs, and the guided legacy MinIO to SeaweedFS migration. Use when asked to connect external storage, provision managed object storage, upload or browse objects, copy or sync data between storages, or migrate off a legacy MinIO cluster. Use after using-gateway has confirmed the Gateway MCP connection.
+description: Manage Opfield object storage, including external S3, R2, MinIO-compatible, FTP, FTPS, and SFTP connections, Opfield-managed SeaweedFS clusters and legacy managed MinIO, buckets and objects, private workload links and scoped access keys, server-side copy jobs, and the guided legacy MinIO to SeaweedFS migration. Use when asked to connect external storage, provision managed object storage, upload or browse objects, copy or sync data between storages, or migrate off a legacy MinIO cluster. Use after using-gateway has confirmed the Opfield MCP connection.
 ---
 
 # Storage
 
-Gateway has two kinds of storage:
+Opfield has two kinds of storage:
 
-- **External connections**: AWS S3, R2, MinIO-compatible, FTP, FTPS, or SFTP endpoints Gateway points at. SFTP requires a pinned host-key fingerprint.
-- **Managed storage**: clusters Gateway runs on a `storage` Node. New clusters are single-node **SeaweedFS**, S3 API only (no FTP or SFTP), with at least 512 MiB of memory and a Node daemon that advertises SeaweedFS support. Existing **MinIO** clusters (`engine: "minio"`) are legacy: still manageable, but they cannot be created any more. Managed storage is private by default through the authenticated relay; a public S3 listener is an explicit opt-in.
+- **External connections**: AWS S3, R2, MinIO-compatible, FTP, FTPS, or SFTP endpoints Opfield points at. SFTP requires a pinned host-key fingerprint.
+- **Managed storage**: clusters Opfield runs on a `storage` Node. New clusters are single-node **SeaweedFS**, S3 API only (no FTP or SFTP), with at least 512 MiB of memory and a Node daemon that advertises SeaweedFS support. Existing **MinIO** clusters (`engine: "minio"`) are legacy: still manageable, but they cannot be created any more. Managed storage is private by default through the authenticated relay; a public S3 listener is an explicit opt-in.
 
 Start with `using-gateway` for connection, discovery, and safety rules. Read `read_gateway_documentation({ topic: "storage" })` before an unfamiliar workflow.
 
 ## External connections
 
-`list_storage_connections`, `get_storage_connection`, and `manage_storage_connection` (create, update, test, delete, `health_history`, `monitoring`, `reveal_credentials`). Connection credentials are secrets: never ask for them in chat; let the user enter them in the Gateway Console or pass them from a local source the user named without echoing them. `reveal_credentials` needs `storage:credentials:reveal`, is refused during impersonation, and runs only on an explicit request.
+`list_storage_connections`, `get_storage_connection`, and `manage_storage_connection` (create, update, test, delete, `health_history`, `monitoring`, `reveal_credentials`). Connection credentials are secrets: never ask for them in chat; let the user enter them in the Opfield Console or pass them from a local source the user named without echoing them. `reveal_credentials` needs `storage:credentials:reveal`, is refused during impersonation, and runs only on an explicit request.
 
-`delete` is refused while backup policies or active backup runs use the connection. When only backup history blocks it, `config.backupHistory: "forget"` removes that history: the files stay in storage but are no longer restorable through Gateway. Pass it only after explicit confirmation.
+`delete` is refused while backup policies or active backup runs use the connection. When only backup history blocks it, `config.backupHistory: "forget"` removes that history: the files stay in storage but are no longer restorable through Opfield. Pass it only after explicit confirmation.
 
 ## Managed storage
 
@@ -51,4 +51,4 @@ Only on the user's explicit request. It is a guided procedure run one tool step 
 - SeaweedFS is S3 only. Clients of a source with FTP or SFTP enabled need another path before migrating.
 - Managed capacity is the requested size, not the host's free disk. Never promise host-path access to managed data.
 
-Scopes: `storage:view|create|edit|delete|credentials:reveal|credentials:use|iam|bind|objects:read|objects:write|objects:admin|folders:manage`, `databases:backups:*` (backups write to storage), and `nodes:backups:execute` (copy-job executor). `storage:credentials:reveal`, `storage:iam` and `storage:bind` are OAuth manual-approval scopes. Full table: [Scopes reference](https://docs.goodgateway.dev/en/identity/scopes-reference/).
+Scopes: `storage:view|create|edit|delete|credentials:reveal|credentials:use|iam|bind|objects:read|objects:write|objects:admin|folders:manage`, `databases:backups:*` (backups write to storage), and `nodes:backups:execute` (copy-job executor). `storage:credentials:reveal`, `storage:iam` and `storage:bind` are OAuth manual-approval scopes. Full table: [Scopes reference](https://docs.opfield.dev/en/identity/scopes-reference/).

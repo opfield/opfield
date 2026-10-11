@@ -272,9 +272,9 @@ export function StatusPageSection({ nodesList }: StatusPageSectionProps) {
           />
         </SettingsRow>
         <SettingsRow
-          label="Gateway upstream URL"
-          description="Internal Gateway URL used by the generated proxy host"
-          help="Address the selected ingress node uses to reach Gateway. Use an internal address that is reachable from that node, not necessarily the public browser URL. Leave empty to use loopback on the Gateway host, or the Gateway address nodes enroll with (local first) from any other node."
+          label="Opfield upstream URL"
+          description="Internal Opfield URL used by the generated proxy host"
+          help="Address the selected ingress node uses to reach Opfield. Use an internal address that is reachable from that node, not necessarily the public browser URL. Leave empty to use loopback on the Opfield host, or the Opfield address nodes enroll with (local first) from any other node."
         >
           <Input
             value={config.upstreamUrl ?? ""}
@@ -288,7 +288,7 @@ export function StatusPageSection({ nodesList }: StatusPageSectionProps) {
         <SettingsRow
           label="Ingress node"
           description="Online Ingress node, or ingress group, that serves the public status page"
-          help="The selected Nginx node owns the public virtual host, terminates TLS, and proxies status-page requests back to Gateway. An ingress group serves it from every member, so the page stays reachable while one site is down."
+          help="The selected Nginx node owns the public virtual host, terminates TLS, and proxies status-page requests back to Opfield. An ingress group serves it from every member, so the page stays reachable while one site is down."
         >
           <StatusPageIngressSelect
             nodeId={config.nodeId}
@@ -332,7 +332,7 @@ export function StatusPageSection({ nodesList }: StatusPageSectionProps) {
         <SettingsRow
           label="Proxy template"
           description="Optional nginx template override for the generated proxy host"
-          help="Uses a custom Nginx configuration template instead of Gateway's default status-page proxy. Leave it on Default unless the route requires specialized proxy behavior."
+          help="Uses a custom Nginx configuration template instead of Opfield's default status-page proxy. Leave it on Default unless the route requires specialized proxy behavior."
         >
           <Select
             value={config.proxyTemplateId ?? "__default__"}

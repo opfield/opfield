@@ -178,7 +178,7 @@ export class RelayIdentityProvisionerService {
         this.ensureLeaf('app-relay-client', 'tls-client', 'app-relay-client', []),
         this.ensureLeaf('relay-app-client', 'tls-client', 'relay-app-client', []),
       ]);
-      if (!systemCa) throw new Error('Gateway system CA certificate is unavailable');
+      if (!systemCa) throw new Error('Opfield system CA certificate is unavailable');
 
       const paths = {
         systemCa: resolve(this.identityDir, 'system-ca.crt'),

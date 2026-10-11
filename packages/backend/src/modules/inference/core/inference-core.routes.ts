@@ -43,7 +43,7 @@ const coreInstallRoute = appRoute({
   method: 'post',
   path: '/install',
   tags: ['Inference'],
-  summary: 'Install the managed inference core on this Gateway host',
+  summary: 'Install the managed inference core on the Opfield host',
   request: jsonBody(coreVersionInputSchema),
   responses: acceptedJson(coreOperationAcceptedSchema),
 });

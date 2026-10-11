@@ -118,7 +118,7 @@ export function IngressGroupDialog({
           <DialogDescription>
             Nginx nodes, normally one per site, that serve the same routes and domains. Each member
             keeps its own config and certificates, so it keeps serving when another member or
-            Gateway is down.
+            Opfield is down.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">

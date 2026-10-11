@@ -226,7 +226,7 @@ export function InferenceModelDialog({
         <DialogHeader>
           <DialogTitle>{editing ? "Edit Inference Model" : "Add Inference Model"}</DialogTitle>
           <DialogDescription>
-            Choose one provider model. Gateway routes requests only across its eligible accounts.
+            Choose one provider model. Opfield routes requests only across its eligible accounts.
           </DialogDescription>
         </DialogHeader>
 

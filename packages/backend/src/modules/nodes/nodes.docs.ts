@@ -70,7 +70,7 @@ const CreateNodeResponseSchema = dataResponseSchema(
       .string()
       .regex(/^sha256:[0-9a-f]{64}$/)
       .openapi({
-        description: 'SHA-256 fingerprint of the active Gateway gRPC TLS leaf certificate.',
+        description: 'SHA-256 fingerprint of the active Opfield gRPC TLS leaf certificate.',
         example: 'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
       }),
     gatewayEnrollmentTargets: z
@@ -80,11 +80,11 @@ const CreateNodeResponseSchema = dataResponseSchema(
       })
       .openapi({
         description:
-          'Backend-derived gRPC enrollment targets. A null public gateway is not configured yet; installCommands then use the host of this request.',
+          'Backend-derived gRPC enrollment targets. A null public Opfield target is not configured yet; installCommands then use the host of this request.',
       }),
     installerRelease: z.string().nullable().openapi({
       description:
-        'Gateway release whose installers the setup commands download and verify. Null for an unreleased build, whose commands run the installers from main.',
+        'Opfield release whose installers the setup commands download and verify. Null for an unreleased build, whose commands run the installers from main.',
       example: 'v2.11.0',
     }),
     installCommands: z
@@ -99,7 +99,7 @@ const CreateNodeResponseSchema = dataResponseSchema(
       )
       .openapi({
         description:
-          'Setup command for each enrollment target, using curl or wget. A release build downloads the installer of its own release, checks it against gateway-daemon-installers.sha256 and pins the daemon release that matches this Gateway.',
+          'Setup command for each enrollment target, using curl or wget. A release build downloads the installer of its own release, checks it against gateway-daemon-installers.sha256 and pins the daemon release that matches this Opfield installation.',
       }),
   })
 );

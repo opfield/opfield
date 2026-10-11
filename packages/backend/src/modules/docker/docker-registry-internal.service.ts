@@ -86,7 +86,7 @@ export class DockerInternalRegistryService {
     await this.store.initialize();
   }
 
-  async recoverInterruptedMaintenance(cause = 'Gateway restarted'): Promise<void> {
+  async recoverInterruptedMaintenance(cause = 'Opfield restarted'): Promise<void> {
     const state = await this.getState();
     if (state.maintenancePhase === 'idle' && state.status !== 'maintenance') return;
     const now = new Date();

@@ -330,16 +330,16 @@ export function NodeEnrollmentDialog({
     result?.type === "relay"
       ? "Installs the Relay supervisor and enrolls this host into the Relay Pool."
       : result?.type === "docker"
-        ? "Installs the Docker management daemon and enrolls with this Gateway."
+        ? "Installs the Docker management daemon and enrolls with this Opfield installation."
         : result?.type === "builder"
-          ? "Installs the isolated Docker builder profile and enrolls with this Gateway."
+          ? "Installs the isolated Docker builder profile and enrolls with this Opfield installation."
           : result?.type === "databases"
             ? "Verifies safe ext4 image storage, then installs the managed database daemon."
             : result?.type === "storage"
               ? "Verifies safe ext4 image storage, then installs the managed Storage daemon."
               : result?.type === "monitoring"
-                ? "Installs the monitoring agent and enrolls with this Gateway."
-                : "Installs Nginx and the ingress daemon, then enrolls with this Gateway.";
+                ? "Installs the monitoring agent and enrolls with this Opfield installation."
+                : "Installs Nginx and the ingress daemon, then enrolls with this Opfield installation.";
 
   return (
     <>
@@ -359,7 +359,7 @@ export function NodeEnrollmentDialog({
                   {effectiveMode === "external"
                     ? "Create a pending node and run its one-time setup command on the target host."
                     : retainedHosting?.existingResource
-                      ? "Install Gateway on the selected provider VM."
+                      ? "Install Opfield on the selected provider VM."
                       : "Create and enroll a node using a connected hosting account. Nothing is ordered before your confirmation."}
                 </DialogDescription>
               </DialogHeader>

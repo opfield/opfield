@@ -29,7 +29,7 @@ import type { InferenceDiscovery, RuntimeCredential } from './types.js';
 
 const MINIMUM_CODEX_VERSION = '0.145.0';
 export const CODEX_ACCOUNT_LOGIN_WARNING =
-  'Codex is not signed in to an OpenAI account. Sign in to Codex, then fully quit and reopen Desktop to display Gateway models.';
+  'Codex is not signed in to an OpenAI account. Sign in to Codex, then fully quit and reopen Desktop to display Opfield models.';
 
 export interface CommandResult {
   code: number;
@@ -67,7 +67,7 @@ export class CodexIntegrationService {
     const codexAccountReady = await this.hasCodexAccountLogin(codex.command, integrationPaths.codexHome);
     const runtimeCredential = await this.ensureRuntimeToken(input.profileName, input.profile, input.client);
     const runtimeSource = this.options.runtimeSource ?? process.argv[1];
-    if (!runtimeSource) throw new CliError('RUNTIME_SOURCE_MISSING', 'Could not locate the packaged Gateway runtime.');
+    if (!runtimeSource) throw new CliError('RUNTIME_SOURCE_MISSING', 'Could not locate the packaged Opfield runtime.');
     await installPrivateRuntime(runtimeSource, this.paths.runtimeFile);
 
     const catalog = await syncCodexCatalog({
@@ -309,7 +309,7 @@ export class CodexIntegrationService {
 
   private async installRuntime(): Promise<void> {
     const runtimeSource = this.options.runtimeSource ?? process.argv[1];
-    if (!runtimeSource) throw new CliError('RUNTIME_SOURCE_MISSING', 'Could not locate the packaged Gateway runtime.');
+    if (!runtimeSource) throw new CliError('RUNTIME_SOURCE_MISSING', 'Could not locate the packaged Opfield runtime.');
     // The private runtime invokes `sync` on MCP startup. It is already the
     // installed artifact, so trying to reinstall itself would resolve native
     // packaging dependencies from the stripped runtime directory.
@@ -325,19 +325,19 @@ export class CodexIntegrationService {
         signal: AbortSignal.timeout(5_000),
       });
       if (response.ok || response.status === 304) {
-        return { name: 'runtime-probe', status: 'ok', message: 'Gateway accepted the runtime token' };
+        return { name: 'runtime-probe', status: 'ok', message: 'Opfield accepted the runtime token' };
       }
       if (response.status === 401 || response.status === 403) {
         return {
           name: 'runtime-probe',
           status: 'error',
-          message: `Gateway rejected the runtime token (HTTP ${response.status})`,
+          message: `Opfield rejected the runtime token (HTTP ${response.status})`,
         };
       }
       return {
         name: 'runtime-probe',
         status: 'warning',
-        message: `Gateway runtime probe is degraded (HTTP ${response.status})`,
+        message: `Opfield runtime probe is degraded (HTTP ${response.status})`,
       };
     } catch (error) {
       return { name: 'runtime-probe', status: 'warning', message: `Offline: ${messageOf(error)}` };
@@ -353,7 +353,7 @@ export class CodexIntegrationService {
     if (compareVersions(version, MINIMUM_CODEX_VERSION) < 0) {
       throw new CliError(
         'CODEX_UPDATE_REQUIRED',
-        `Codex ${MINIMUM_CODEX_VERSION} or newer is required for the Gateway model catalog (found ${version}).`
+        `Codex ${MINIMUM_CODEX_VERSION} or newer is required for the Opfield model catalog (found ${version}).`
       );
     }
     return { command, version };
@@ -400,7 +400,7 @@ export class CodexIntegrationService {
     if (result.code !== 0) {
       throw new CliError(
         'CODEX_CONFIG_REJECTED',
-        `Codex ${version} rejected the Gateway configuration: ${result.stderr}`
+        `Codex ${version} rejected the Opfield configuration: ${result.stderr}`
       );
     }
     let actual: unknown;
@@ -408,14 +408,14 @@ export class CodexIntegrationService {
       actual = JSON.parse(result.stdout);
       assertCodexCatalog(actual);
     } catch (error) {
-      throw new CliError('CODEX_CATALOG_REJECTED', 'Codex did not load a valid Gateway model catalog.', {
+      throw new CliError('CODEX_CATALOG_REJECTED', 'Codex did not load a valid Opfield model catalog.', {
         cause: error,
       });
     }
     const expectedSlugs = expected.models.map((model) => model.slug).sort();
     const actualSlugs = (actual as { models: Array<{ slug: string }> }).models.map((model) => model.slug).sort();
     if (JSON.stringify(actualSlugs) !== JSON.stringify(expectedSlugs)) {
-      throw new CliError('CODEX_CATALOG_NOT_AUTHORITATIVE', 'Codex model list differs from the Gateway catalog.');
+      throw new CliError('CODEX_CATALOG_NOT_AUTHORITATIVE', 'Codex model list differs from the Opfield catalog.');
     }
   }
 
@@ -435,7 +435,7 @@ function selectDefaultModel(catalog: Awaited<ReturnType<typeof readCatalog>>): s
       (left, right) =>
         Number(left.priority ?? Number.MAX_SAFE_INTEGER) - Number(right.priority ?? Number.MAX_SAFE_INTEGER)
     )[0];
-  if (!model) throw new CliError('CATALOG_EMPTY', 'Gateway catalog has no model that Codex can select by default.');
+  if (!model) throw new CliError('CATALOG_EMPTY', 'Opfield catalog has no model that Codex can select by default.');
   return String(model.slug);
 }
 

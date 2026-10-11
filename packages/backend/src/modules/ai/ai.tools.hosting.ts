@@ -43,7 +43,7 @@ export const HOSTING_AI_TOOLS: AIToolDefinition[] = [
           ],
         },
         connectorId: { type: 'string', description: 'Hosting account (connector) UUID' },
-        nodeId: { type: 'string', description: 'Gateway node UUID bound to a hosting VM' },
+        nodeId: { type: 'string', description: 'Opfield node UUID bound to a hosting VM' },
         operationId: { type: 'string', description: 'Hosting operation UUID' },
         resourceId: { type: 'string', description: 'Hosting VM (resource) UUID' },
         folderId: { type: 'string', description: 'Snapshot folder UUID for snapshot_folder_action' },

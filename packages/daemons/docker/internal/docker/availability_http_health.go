@@ -609,7 +609,7 @@ func (p *DockerPlugin) initAvailabilityHealth() {
 func (p *DockerPlugin) availabilityHealthDormantChanged(policyID string, dormant bool) {
 	if p.logger != nil {
 		if dormant {
-			p.logger.Warn("availability copy fails its HTTP health check; Gateway took it out of its routes", "policy_id", policyID)
+			p.logger.Warn("availability copy fails its HTTP health check; Opfield took it out of its routes", "policy_id", policyID)
 		} else {
 			p.logger.Info("availability copy is back in its routes", "policy_id", policyID)
 		}

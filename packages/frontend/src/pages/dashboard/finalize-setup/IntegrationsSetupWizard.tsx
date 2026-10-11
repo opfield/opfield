@@ -357,7 +357,7 @@ export function IntegrationsSetupWizard({
   const directDescription =
     directSetup === null
       ? null
-      : "Only this connector is being configured. Credentials are sent to Gateway and stored encrypted; they are never added to the AI conversation.";
+      : "Only this connector is being configured. Credentials are sent to Opfield and stored encrypted; they are never added to the AI conversation.";
 
   const footer =
     completedIntegration && connector ? (
@@ -421,12 +421,12 @@ export function IntegrationsSetupWizard({
         directDescription ?? (
           <>
             <p>
-              Integrations let Gateway work with the systems that already surround your
+              Integrations let Opfield work with the systems that already surround your
               infrastructure, without requiring you to leave the control plane for routine setup and
               deployment tasks.
             </p>
             <p>
-              Cloudflare lets Gateway manage authorized DNS records. GitLab, GitHub, and generic Git
+              Cloudflare lets Opfield manage authorized DNS records. GitLab, GitHub, and generic Git
               connectors provide repository access for source, CI, and deployment workflows.
             </p>
             <p>
@@ -462,11 +462,11 @@ export function IntegrationsSetupWizard({
           title="Cloudflare connected"
           continueIn={
             isDirectSetup
-              ? "Gateway can now use this Cloudflare connection in the current scenario."
+              ? "Opfield can now use this Cloudflare connection in the current scenario."
               : "Continue from Settings → Integrations → Cloudflare to limit zones, rotate the token, and manage connector access."
           }
         >
-          Gateway can now use the authorized Cloudflare account when you configure eligible DNS
+          Opfield can now use the authorized Cloudflare account when you configure eligible DNS
           zones and proxied hosts.
         </FinalizeSetupCompletion>
       ) : screen === "gitlab_complete" ? (
@@ -474,11 +474,11 @@ export function IntegrationsSetupWizard({
           title="GitLab connected"
           continueIn={
             isDirectSetup
-              ? "Gateway can now re-check this scenario's GitLab prerequisite."
+              ? "Opfield can now re-check this scenario's GitLab prerequisite."
               : "Continue from Settings → Integrations → GitLab to choose projects, registries, and synchronization settings."
           }
         >
-          Gateway can now discover the repositories, CI projects, and container registries visible
+          Opfield can now discover the repositories, CI projects, and container registries visible
           to this token.
         </FinalizeSetupCompletion>
       ) : screen === "github_complete" ? (
@@ -486,11 +486,11 @@ export function IntegrationsSetupWizard({
           title="GitHub connected"
           continueIn={
             isDirectSetup
-              ? "Gateway can now re-check this scenario's GitHub prerequisite."
+              ? "Opfield can now re-check this scenario's GitHub prerequisite."
               : "Continue from Settings → Integrations → GitHub to manage this connector."
           }
         >
-          Gateway can now use repositories visible to the authorized GitHub account for source and
+          Opfield can now use repositories visible to the authorized GitHub account for source and
           deployment workflows.
         </FinalizeSetupCompletion>
       ) : screen === "git_complete" ? (
@@ -498,11 +498,11 @@ export function IntegrationsSetupWizard({
           title="Git connector connected"
           continueIn={
             isDirectSetup
-              ? "Gateway can now re-check this scenario's repository prerequisite."
+              ? "Opfield can now re-check this scenario's repository prerequisite."
               : "Continue from Settings → Integrations → Git to manage this connector."
           }
         >
-          Gateway can now use the configured repository or allowlist for source workflows.
+          Opfield can now use the configured repository or allowlist for source workflows.
         </FinalizeSetupCompletion>
       ) : screen === "overview" ? (
         <div className="space-y-3">
@@ -542,11 +542,11 @@ export function IntegrationsSetupWizard({
       ) : screen === "cloudflare" ? (
         <PanelShell
           title="Cloudflare connector"
-          description="Create a connection Gateway can use for authorized DNS zones and proxy-host records."
+          description="Create a connection Opfield can use for authorized DNS zones and proxy-host records."
         >
           <SettingsControlRow
             title="Connector name"
-            description="A label for this Cloudflare connection in Gateway."
+            description="A label for this Cloudflare connection in Opfield."
           >
             <Input
               value={cloudflareName}
@@ -556,7 +556,7 @@ export function IntegrationsSetupWizard({
           </SettingsControlRow>
           <SettingsControlRow
             title="API token"
-            description="Requires Zone and DNS permissions for the zones Gateway should manage."
+            description="Requires Zone and DNS permissions for the zones Opfield should manage."
           >
             <div className="space-y-2">
               <Input
@@ -579,11 +579,11 @@ export function IntegrationsSetupWizard({
       ) : screen === "gitlab" ? (
         <PanelShell
           title="GitLab connector"
-          description="Connect the GitLab instance Gateway should use for projects, CI, and container registries."
+          description="Connect the GitLab instance Opfield should use for projects, CI, and container registries."
         >
           <SettingsControlRow
             title="Connector name"
-            description="A label for this GitLab connection in Gateway."
+            description="A label for this GitLab connection in Opfield."
           >
             <Input
               value={gitlabName}
@@ -603,7 +603,7 @@ export function IntegrationsSetupWizard({
           </SettingsControlRow>
           <SettingsControlRow
             title="Personal access token"
-            description="Gateway initially imports projects visible to this token; refine access later in Settings."
+            description="Opfield initially imports projects visible to this token; refine access later in Settings."
           >
             <Input
               type="password"
@@ -622,7 +622,7 @@ export function IntegrationsSetupWizard({
             description={
               screen === "github"
                 ? githubAuthMode === "oauth"
-                  ? "Connect your GitHub account. Gateway can use repositories available to the authorized account."
+                  ? "Connect your GitHub account. Opfield can use repositories available to the authorized account."
                   : "Connect a GitHub account with a personal access token."
                 : "Connect one or more repositories on a generic Git host."
             }
@@ -633,7 +633,7 @@ export function IntegrationsSetupWizard({
                 description={
                   githubOAuthAvailable
                     ? "OAuth is recommended; a personal access token remains available."
-                    : "OAuth is not configured on this Gateway; use a personal access token."
+                    : "OAuth is not configured on this Opfield installation; use a personal access token."
                 }
               >
                 <Tabs
@@ -654,7 +654,7 @@ export function IntegrationsSetupWizard({
             ) : null}
             <SettingsControlRow
               title="Connector name"
-              description="A label for this source-control connection in Gateway."
+              description="A label for this source-control connection in Opfield."
             >
               <Input
                 value={screen === "github" ? githubName : gitName}
@@ -689,7 +689,7 @@ export function IntegrationsSetupWizard({
             {screen === "git" ? (
               <SettingsControlRow
                 title="Repositories"
-                description="Add every repository this credential should make available to Gateway."
+                description="Add every repository this credential should make available to Opfield."
               >
                 <EditableStringList
                   values={gitRepositoryUrls}
@@ -710,7 +710,7 @@ export function IntegrationsSetupWizard({
                 </SettingsControlRow>
                 <SettingsControlRow
                   title="Access token"
-                  description="Gateway encrypts this token and never displays it again."
+                  description="Opfield encrypts this token and never displays it again."
                 >
                   <Input
                     type="password"
@@ -724,7 +724,7 @@ export function IntegrationsSetupWizard({
             {screen === "github" && githubAuthMode === "token" ? (
               <SettingsControlRow
                 title="Personal access token"
-                description="Gateway encrypts this token and uses repositories visible to its GitHub account."
+                description="Opfield encrypts this token and uses repositories visible to its GitHub account."
               >
                 <Input
                   type="password"

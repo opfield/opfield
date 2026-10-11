@@ -61,7 +61,7 @@ import { reserveProxmoxQuota } from './proxmox-quota.js';
 type BootstrapPayload = { script: string; create: HostingCreateRequest; ssh?: SshInstallKey };
 const BOOTSTRAP_TTL_MS = 60 * 60 * 1000;
 const CREDIT_REJECTED_MESSAGE =
-  'HOSTKEY rejected account credit payment. Pay this order invoice in HOSTKEY; Gateway will continue automatically once it is paid. No replacement VM will be ordered.';
+  'HOSTKEY rejected account credit payment. Pay this order invoice in HOSTKEY; Opfield will continue automatically once it is paid. No replacement VM will be ordered.';
 
 function acceptedProvisionInput(request: Record<string, unknown>): HostingProvisionInput {
   const { vmid: _vmid, proxmoxProfile: _profile, ...input } = request;
@@ -171,7 +171,7 @@ export class HostingProvisioningService {
       throw new AppError(
         409,
         'HOSTING_GATEWAY_NOT_READY',
-        'Configure a reachable Gateway enrollment endpoint before creating a VM'
+        'Configure a reachable Opfield enrollment endpoint before creating a VM'
       );
     validateHostingGateway(gateway, connector.provider === 'proxmox');
     const catalog = await adapter.catalog();
@@ -454,7 +454,7 @@ export class HostingProvisioningService {
     const gateway =
       connector.provider === 'proxmox' ? targets.local?.gateway || targets.public.gateway : targets.public.gateway;
     if (!gateway)
-      throw new AppError(409, 'HOSTING_GATEWAY_NOT_READY', 'Configure a reachable Gateway enrollment endpoint');
+      throw new AppError(409, 'HOSTING_GATEWAY_NOT_READY', 'Configure a reachable Opfield enrollment endpoint');
     validateHostingGateway(gateway, connector.provider === 'proxmox');
     const certificateFingerprint = await this.nodeService.getGatewayEnrollmentCertificateFingerprint();
     const marker =
@@ -756,7 +756,7 @@ export class HostingProvisioningService {
           phase: 'unknown',
           errorCode: 'HOSTING_NODE_MISSING',
           errorMessage:
-            'The Gateway node was removed while the provider create outcome remains unconfirmed. No replacement VM will be ordered; inspect the provider and reconcile this operation.',
+            'The Opfield node was removed while the provider create outcome remains unconfirmed. No replacement VM will be ordered; inspect the provider and reconcile this operation.',
         });
         return;
       }
@@ -768,7 +768,7 @@ export class HostingProvisioningService {
         {
           code: 'HOSTING_NODE_MISSING',
           message:
-            'The Gateway node was removed before provisioning finished. No further provisioning will be attempted; check the provider VM before recovering or removing it.',
+            'The Opfield node was removed before provisioning finished. No further provisioning will be attempted; check the provider VM before recovering or removing it.',
         }
       );
       return;
@@ -1244,7 +1244,7 @@ export class HostingProvisioningService {
             phase: 'provisioning',
             dispatchStartedAt: null,
             errorCode: 'HOSTING_SSH_INSTALL_WAITING',
-            errorMessage: 'Installing again: Gateway restarted during the installation',
+            errorMessage: 'Installing again: Opfield restarted during the installation',
             result: { ...row.result, sshInstall: { ...state, redispatched: true } },
           });
           return;
@@ -1252,7 +1252,7 @@ export class HostingProvisioningService {
         await this.sshInstall.finish(adapter, row, 'failed', undefined, {
           code: 'HOSTING_INSTALL_OUTCOME_UNKNOWN',
           message:
-            'The installation session ended without a result (Gateway restarted during it) and the node never enrolled. Retry installation on this VM.',
+            'The installation session ended without a result (Opfield restarted during it) and the node never enrolled. Retry installation on this VM.',
         });
       }
       return;
@@ -1318,7 +1318,7 @@ export class HostingProvisioningService {
       throw new AppError(
         409,
         'HOSTING_EXISTING_DAEMON',
-        'This VM already has Gateway identity; wait for automatic adoption'
+        'This VM already has Opfield identity; wait for automatic adoption'
       );
     row = await this.operations.update(row, { dispatchStartedAt: null, errorCode: null, errorMessage: null });
     row = await this.operations.dispatch(row, 'installing');
@@ -1359,7 +1359,7 @@ export class HostingProvisioningService {
     const input = acceptedProvisionInput(row.request);
     const gateway = (await this.nodeService.getGatewayEnrollmentTargets()).public.gateway;
     if (!gateway)
-      throw new AppError(409, 'HOSTING_GATEWAY_NOT_READY', 'Configure a reachable Gateway enrollment endpoint');
+      throw new AppError(409, 'HOSTING_GATEWAY_NOT_READY', 'Configure a reachable Opfield enrollment endpoint');
     validateHostingGateway(gateway, connector.provider === 'proxmox');
     return buildHostingBootstrap({
       // SSH comes up while cloud-init still runs apt on the new server.

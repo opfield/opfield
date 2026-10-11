@@ -27,7 +27,7 @@ export const systemVersionRoute = appRoute({
   method: 'get',
   path: '/version',
   tags: ['System'],
-  summary: 'Get gateway version and update status',
+  summary: 'Get Opfield version and update status',
   responses: okJson(UnknownDataResponseSchema),
 });
 
@@ -35,7 +35,7 @@ export const systemConfigRoute = appRoute({
   method: 'get',
   path: '/config',
   tags: ['System'],
-  summary: 'Get gateway runtime configuration',
+  summary: 'Get Opfield runtime configuration',
   responses: okJson(UnknownDataResponseSchema),
 });
 
@@ -43,7 +43,7 @@ export const checkSystemUpdateRoute = appRoute({
   method: 'post',
   path: '/check-update',
   tags: ['System'],
-  summary: 'Check for gateway updates',
+  summary: 'Check for Opfield updates',
   responses: okJson(UnknownDataResponseSchema),
 });
 
@@ -51,7 +51,7 @@ export const performSystemUpdateRoute = appRoute({
   method: 'post',
   path: '/update',
   tags: ['System'],
-  summary: 'Trigger gateway self-update',
+  summary: 'Trigger Opfield self-update',
   request: jsonBody(UpdateRequestSchema),
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -68,7 +68,7 @@ export const acknowledgeSystemUpdateFailureRoute = appRoute({
   method: 'post',
   path: '/update/acknowledge',
   tags: ['System'],
-  summary: 'Stop reporting a Gateway update that did not complete',
+  summary: 'Stop reporting an Opfield update that did not complete',
   responses: okJson(UnknownDataResponseSchema),
 });
 

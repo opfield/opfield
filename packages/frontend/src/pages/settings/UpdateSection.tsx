@@ -54,9 +54,9 @@ export function UpdateSection({ canUpdate }: UpdateSectionProps) {
     await checkForUpdates();
     const s = useUpdateStore.getState().status;
     if (s?.updateAvailable && s.relay?.updateAvailable) {
-      toast.info(`Gateway ${s.latestVersion} and Relay ${s.relay.latestVersion} are available`);
+      toast.info(`Opfield ${s.latestVersion} and Relay ${s.relay.latestVersion} are available`);
     } else if (s?.updateAvailable) {
-      toast.info(`Gateway update available: ${s.latestVersion}`);
+      toast.info(`Opfield update available: ${s.latestVersion}`);
     } else if (s?.relay?.updateAvailable) {
       toast.info(`Relay update available: ${s.relay.latestVersion}`);
     } else {
@@ -69,8 +69,8 @@ export function UpdateSection({ canUpdate }: UpdateSectionProps) {
     const gatewayUpdate = updateStatus.updateAvailable && Boolean(updateStatus.latestVersion);
     if (!gatewayUpdate || !updateStatus.latestVersion) return;
     const ok = await confirm({
-      title: "Update Gateway",
-      description: `Update Gateway from ${updateStatus.currentVersion} to ${updateStatus.latestVersion}? The application will restart automatically.`,
+      title: "Update Opfield",
+      description: `Update Opfield from ${updateStatus.currentVersion} to ${updateStatus.latestVersion}? The application will restart automatically.`,
       confirmLabel: "Update",
     });
     if (!ok) return;
@@ -108,7 +108,7 @@ export function UpdateSection({ canUpdate }: UpdateSectionProps) {
     const ok = await confirm({
       title: "Abandon Relay Pool Update?",
       description:
-        "Gateway fails this update run and returns the relays it drained to service. Relays that already updated keep the new version.",
+        "Opfield fails this update run and returns the relays it drained to service. Relays that already updated keep the new version.",
       confirmLabel: "Abandon update",
       variant: "destructive",
     });
@@ -147,8 +147,8 @@ export function UpdateSection({ canUpdate }: UpdateSectionProps) {
         <PanelShell
           icon={<RefreshCw className="h-4 w-4 text-warning-text" />}
           id="system-updates"
-          title={<span className="text-warning-text">Gateway Update Available</span>}
-          description="A Gateway update is ready to install"
+          title={<span className="text-warning-text">Opfield Update Available</span>}
+          description="An Opfield update is ready to install"
           className={cn("xl:col-span-2", navigationHighlighted && "navigation-target-ripple")}
           dirty
           actions={
@@ -182,7 +182,7 @@ export function UpdateSection({ canUpdate }: UpdateSectionProps) {
               )}
               {canUpdate && (
                 <Button onClick={handleGatewayUpdate} variant="warning">
-                  Update Gateway to {updateStatus?.latestVersion}
+                  Update Opfield to {updateStatus?.latestVersion}
                 </Button>
               )}
             </>
@@ -190,7 +190,7 @@ export function UpdateSection({ canUpdate }: UpdateSectionProps) {
         >
           <div className="divide-y divide-border">
             <DetailRow
-              label="Gateway"
+              label="Opfield"
               value={`${updateStatus?.currentVersion} → ${updateStatus?.latestVersion}`}
             />
           </div>
@@ -214,7 +214,7 @@ export function UpdateSection({ canUpdate }: UpdateSectionProps) {
             relayUpdateAvailable
               ? "A signed Relay release is ready for a one-instance-at-a-time rollout"
               : relayRolloutRunning
-                ? "Relays update one at a time while Gateway stays usable"
+                ? "Relays update one at a time while Opfield stays usable"
                 : "A Relay Pool rollout has not finished"
           }
           className={cn(
@@ -293,15 +293,15 @@ export function UpdateSection({ canUpdate }: UpdateSectionProps) {
       >
         <div className="border-b border-border p-4">
           <div className="flex items-center gap-4">
-            <img src="/android-chrome-192x192.png" alt="Gateway" className="h-10 w-10" />
+            <img src="/android-chrome-192x192.png" alt="Opfield" className="h-10 w-10" />
             <div>
-              <p className="text-sm font-semibold">Gateway</p>
+              <p className="text-sm font-semibold">Opfield</p>
               <p className="text-xs text-muted-foreground">Infrastructure control plane</p>
             </div>
           </div>
         </div>
         <div className="divide-y divide-border -mb-px [&>*:last-child]:border-b [&>*:last-child]:border-border">
-          <DetailRow label="Gateway version" value={updateStatus?.currentVersion ?? "..."} />
+          <DetailRow label="Opfield version" value={updateStatus?.currentVersion ?? "..."} />
           <DetailRow label="Relay version" value={updateStatus?.relay.currentVersion ?? "..."} />
           <DetailRow
             label="Status"

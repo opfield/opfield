@@ -126,7 +126,7 @@ func NewManager(deps Deps, store *Store) (*Manager, error) {
 		held: map[string]int{}, confirmWait: cgroupConfirmWait}
 	stored, err := store.LoadAll()
 	if err != nil {
-		m.logger.Error("some availability member files could not be read; those members stay stopped until Gateway configures them again", "error", err)
+		m.logger.Error("some availability member files could not be read; those members stay stopped until Opfield configures them again", "error", err)
 	}
 	ids := make([]string, 0, len(stored))
 	for id := range stored {

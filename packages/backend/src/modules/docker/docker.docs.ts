@@ -270,7 +270,7 @@ export const exportContainerArchiveRoute = appRoute({
   method: 'get',
   path: '/nodes/{nodeId}/containers/{containerId}/archive',
   tags: ['Docker Containers'],
-  summary: 'Stream a Gateway container archive',
+  summary: 'Stream an Opfield container archive',
   request: { params: containerParams, query: ContainerArchiveExportQuerySchema },
   responses: {
     200: {
@@ -298,7 +298,7 @@ export const importContainerArchiveRoute = appRoute({
   method: 'post',
   path: '/nodes/{nodeId}/containers/archive',
   tags: ['Docker Containers'],
-  summary: 'Import a streamed Gateway container archive',
+  summary: 'Import a streamed Opfield container archive',
   request: {
     params: nodeParams,
     query: ContainerArchiveImportQuerySchema,
@@ -313,7 +313,7 @@ export const planContainerArchiveImportRoute = appRoute({
   method: 'post',
   path: '/nodes/{nodeId}/containers/archive/plan',
   tags: ['Docker Containers'],
-  summary: 'Plan target resource mappings for a Gateway container archive',
+  summary: 'Plan target resource mappings for an Opfield container archive',
   request: { params: nodeParams, ...jsonBody(ContainerArchivePlanSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -1114,14 +1114,14 @@ export const getInternalRegistryRoute = appRoute({
   method: 'get',
   path: '/registries/internal/state',
   tags: ['Docker Registries'],
-  summary: 'Get the Gateway internal registry state',
+  summary: 'Get the Opfield internal registry state',
   responses: okJson(UnknownDataResponseSchema),
 });
 export const updateInternalRegistryRoute = appRoute({
   method: 'put',
   path: '/registries/internal/settings',
   tags: ['Docker Registries'],
-  summary: 'Update Business+ external access settings for the Gateway internal registry',
+  summary: 'Update Business+ external access settings for the Opfield internal registry',
   request: jsonBody(DockerInternalRegistrySettingsSchema),
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -1129,7 +1129,7 @@ export const runInternalRegistryGcRoute = appRoute({
   method: 'post',
   path: '/registries/internal/gc',
   tags: ['Docker Registries'],
-  summary: 'Run retention and garbage collection for the Gateway internal registry',
+  summary: 'Run retention and garbage collection for the Opfield internal registry',
   request: optionalJsonBody(z.object({ dryRun: z.boolean().default(false) })),
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -1275,7 +1275,7 @@ export const triggerDockerWebhookRoute = appRoute({
   tags: ['Docker Webhooks'],
   summary: 'Trigger a Docker webhook',
   description:
-    "Updates the image of the webhook's container or deployment. On a workload with legacy host bind mounts the call acts for the account that last saved the webhook and needs its current docker:containers:mounts; a webhook with no recorded account (saved before Gateway recorded one) is refused there until it is saved again.",
+    "Updates the image of the webhook's container or deployment. On a workload with legacy host bind mounts the call acts for the account that last saved the webhook and needs its current docker:containers:mounts; a webhook with no recorded account (saved before Opfield recorded one) is refused there until it is saved again.",
   security: [],
   request: { params: pathParamSchema('token'), ...jsonBody(WebhookTriggerSchema) },
   responses: okJson(UnknownDataResponseSchema),

@@ -136,7 +136,7 @@ export async function readGwcaImportMetadata(file: File): Promise<GwcaImportMeta
 
   const prefix = new Uint8Array(await readBlobBytes(file.slice(0, prefixLength)));
   if (!bytesEqual(prefix.subarray(0, GWCA_MAGIC.length), GWCA_MAGIC)) {
-    throw new Error("File is not a Gateway container archive");
+    throw new Error("File is not an Opfield container archive");
   }
   if (prefix[GWCA_MAGIC.length] !== MANIFEST_FRAME) {
     throw new Error("Container archive manifest is missing");
@@ -181,7 +181,7 @@ export async function readGwcaImportMetadata(file: File): Promise<GwcaImportMeta
     parsed.container?.schemaVersion !== 1 ||
     !parsed.container.name
   ) {
-    throw new Error("Unsupported Gateway container archive");
+    throw new Error("Unsupported Opfield container archive");
   }
   const networks = Array.isArray(parsed.container.networks) ? parsed.container.networks : [];
   const mounts = Array.isArray(parsed.container.mounts) ? parsed.container.mounts : [];

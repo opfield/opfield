@@ -743,7 +743,7 @@ export class DockerRegistryService {
     const state = await this.internalRegistryService.getState();
     return {
       id: INTERNAL_DOCKER_REGISTRY_ID,
-      name: 'Gateway Internal Registry',
+      name: 'Opfield Internal Registry',
       url: 'registry:5000',
       username: null,
       trustedAuthRealm: null,
@@ -763,7 +763,7 @@ export class DockerRegistryService {
       throw new AppError(
         409,
         'REGISTRY_SYSTEM_MANAGED',
-        'The Gateway internal registry is managed through internal registry settings'
+        'The Opfield internal registry is managed through internal registry settings'
       );
     }
   }

@@ -221,7 +221,7 @@ export function ModelGeneralFields({
                   }
                   help={
                     field.key === "autoCompactTokenLimit"
-                      ? "Gateway starts compacting conversation context at this input-token threshold. It must not exceed Maximum input tokens."
+                      ? "Opfield starts compacting conversation context at this input-token threshold. It must not exceed Maximum input tokens."
                       : undefined
                   }
                 >
@@ -304,7 +304,7 @@ export function ModelAccessFields({
   return (
     <PanelShell
       title="Model access"
-      description="Choose who can use this model through Gateway"
+      description="Choose who can use this model through Opfield"
       icon={<Users className="h-4 w-4" />}
       actions={
         mode === "selected" ? (
@@ -325,7 +325,7 @@ export function ModelAccessFields({
       <SettingsControlRow
         title="Access"
         description="Publish for everyone, selected users and groups, or disable access"
-        help="Controls who can discover and request this model through Gateway. Selected access is additive across the users and permission groups listed below."
+        help="Controls who can discover and request this model through Opfield. Selected access is additive across the users and permission groups listed below."
       >
         <Select value={mode} onValueChange={(value) => setMode(value as AccessMode)}>
           <SelectTrigger aria-label="Access" className="w-full">

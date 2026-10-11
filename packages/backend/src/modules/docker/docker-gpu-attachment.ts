@@ -24,7 +24,7 @@ export function hasDockerGpuV1Capability(value: unknown): boolean {
   return unknownArray(capabilities.capabilities).some((capability) => capability === 'docker_gpu_v1');
 }
 
-const EXTERNAL_GPU_ATTACHMENT_REASON = 'This container uses a GPU mapping that Gateway cannot safely modify.';
+const EXTERNAL_GPU_ATTACHMENT_REASON = 'This container uses a GPU mapping that Opfield cannot safely modify.';
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;

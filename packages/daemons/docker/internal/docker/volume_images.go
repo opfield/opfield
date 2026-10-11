@@ -625,7 +625,7 @@ func (m *volumeImageManager) updateLabels(ctx context.Context, name string, labe
 	}
 	for _, key := range []string{managedVolumeLabel, managedVolumeOriginLabel, managedVolumeStorageKindLabel, managedVolumeCapacityLabel} {
 		if supplied, ok := next[key]; ok && supplied != current.Volume.Labels[key] {
-			return fmt.Errorf("label %q is reserved for Gateway-managed volumes", key)
+			return fmt.Errorf("label %q is reserved for Opfield-managed volumes", key)
 		}
 		next[key] = current.Volume.Labels[key]
 	}

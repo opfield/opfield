@@ -1,4 +1,4 @@
 interface:
-  display_name: "Gateway Access Control"
-  short_description: "Manage Gateway users, groups, scopes, and grants"
-  default_prompt: "Use $access-control to review or change this Gateway access with least privilege."
+  display_name: "Opfield Access Control"
+  short_description: "Manage Opfield users, groups, scopes, and grants"
+  default_prompt: "Use $access-control to review or change access in this Opfield installation with least privilege."

@@ -9,7 +9,7 @@ import {
 } from './cloud-link.types.js';
 
 const NOT_IN_DOCKER =
-  "This installation's containers cannot be read here: Gateway does not run in Docker with access to its Docker socket";
+  "This installation's containers cannot be read here: Opfield does not run in Docker with access to its Docker socket";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

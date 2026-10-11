@@ -33,8 +33,8 @@ class CertificateChangedDuringRenewalError extends Error {
 }
 
 /** What a failed RPC tells the daemon: database and PKI errors carry queries and identifiers, which stay in the log. */
-const ENROLLMENT_FAILED_MESSAGE = 'Enrollment failed; see the Gateway log for details';
-const RENEWAL_FAILED_MESSAGE = 'Certificate renewal failed; see the Gateway log for details';
+const ENROLLMENT_FAILED_MESSAGE = 'Enrollment failed; see the Opfield log for details';
+const RENEWAL_FAILED_MESSAGE = 'Certificate renewal failed; see the Opfield log for details';
 
 function relayHostTakenMessage(relayName: string | null): string {
   return `This host already has ${relayName ? `relay "${relayName}"` : 'a relay'} in the Relay Pool. Re-enroll that relay (Settings > Relay > Re-enroll) or remove it first.`;

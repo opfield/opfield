@@ -317,7 +317,7 @@ export function SiemDestinationsTab({
           />
         </div>
       ) : (
-        <EmptyState message="No SIEM destinations configured. Add an HTTPS collector to export Gateway audit events." />
+        <EmptyState message="No SIEM destinations configured. Add an HTTPS collector to export Opfield audit events." />
       )}
       <SiemDestinationDialog
         open={dialogOpen}

@@ -451,8 +451,8 @@ const MAX_REVISION_JUMP = 1_000_000;
 const STALE_REFUSALS_BEFORE_RAISE = 3;
 
 export const LOCAL_POLICY_TRUST_UNSUPPORTED_MESSAGE =
-  'The local relay trusts only policy signing keys Gateway can no longer sign with, and its version cannot reset ' +
-  'that trust. Update the Relay Pool to the current release; Gateway then recovers it automatically. To recover ' +
+  'The local relay trusts only policy signing keys Opfield can no longer sign with, and its version cannot reset ' +
+  'that trust. Update the Relay Pool to the current release; Opfield then recovers it automatically. To recover ' +
   'by hand, rename relay.db in the relay state volume (keep identity-rotation.json) and run docker restart on the ' +
   'relay container.';
 
@@ -473,7 +473,7 @@ export interface RelayPolicyTrustStatus {
 
 export function remoteRelayReenrollmentMessage(): string {
   return (
-    'This relay trusts only policy signing keys Gateway can no longer sign with, so it refuses every policy. ' +
+    'This relay trusts only policy signing keys Opfield can no longer sign with, so it refuses every policy. ' +
     'Re-enroll it: create a re-enrollment token for this relay and run the relay installer with it on the host. ' +
     'The relay keeps its place in the pool and pins the current key.'
   );
@@ -673,13 +673,13 @@ export class RelayPolicyService {
     const tunnels = this.gatewayTunnels();
     const entry = this.gatewayEndpoints.get(key);
     if (!entry) {
-      tunnels.failSlot(slotId, 'Gateway tunnel endpoint is closed');
+      tunnels.failSlot(slotId, 'Opfield tunnel endpoint is closed');
       return;
     }
     const { target } = entry;
     const fingerprint = entry.fingerprint();
     void (async () => {
-      if (!fingerprint) throw new Error('Gateway relay is unavailable');
+      if (!fingerprint) throw new Error('Opfield relay is unavailable');
       const routeId =
         target.kind === 'database'
           ? await this.gatewayDatabaseRoute(target.managedDatabaseId, fingerprint)
@@ -1370,12 +1370,12 @@ export class RelayPolicyService {
       if (current?.state !== 'recovery_unsupported' && current?.state !== 'recovery_failed') {
         this.setLocalPolicyTrust(
           'locked_out',
-          `The local relay still refuses Gateway policy after its trust was reset (${reason}). ` +
-            `Gateway retries the reset after ${new Date(nextAttemptAt).toISOString()}.`,
+          `The local relay still refuses Opfield policy after its trust was reset (${reason}). ` +
+            `Opfield retries the reset after ${new Date(nextAttemptAt).toISOString()}.`,
           trustedKeyIds
         );
       }
-      throw new Error(`Local relay refuses Gateway policy; trust reset retries after the cooldown: ${reason}`);
+      throw new Error(`Local relay refuses Opfield policy; trust reset retries after the cooldown: ${reason}`);
     }
     let replacedKeyIds: string[];
     try {
@@ -1393,7 +1393,7 @@ export class RelayPolicyService {
       }
       this.setLocalPolicyTrust(
         'recovery_failed',
-        `Gateway could not reset the local relay's policy trust: ${errorMessage(error)}`,
+        `Opfield could not reset the local relay's policy trust: ${errorMessage(error)}`,
         trustedKeyIds
       );
       throw error;
@@ -1405,7 +1405,7 @@ export class RelayPolicyService {
     });
     this.setLocalPolicyTrust(
       'recovered',
-      `The local relay trusted no policy key Gateway could sign with (${reason}). Gateway re-pinned the active key.`,
+      `The local relay trusted no policy key Opfield could sign with (${reason}). Opfield re-pinned the active key.`,
       [trust.keyId]
     );
     await this.audit
@@ -1469,7 +1469,7 @@ export class RelayPolicyService {
           result.set(instance.id, {
             state: canReset ? 'locked_out' : 'recovery_unsupported',
             message: canReset
-              ? 'The local relay trusts no policy signing key Gateway can sign with. Gateway resets its trust automatically on the next policy sync.'
+              ? 'The local relay trusts no policy signing key Opfield can sign with. Opfield resets its trust automatically on the next policy sync.'
               : LOCAL_POLICY_TRUST_UNSUPPORTED_MESSAGE,
             observedAt,
             trustedKeyIds: reported[index] ?? [],
@@ -2654,7 +2654,7 @@ export class RelayPolicyService {
     const candidate = assignment.candidates.find(
       (item) => item.relayInstanceId === relayInstanceId && item.assignmentGeneration === assignmentGeneration
     );
-    if (!candidate) throw new Error('Gateway relay candidate grant is unavailable');
+    if (!candidate) throw new Error('Opfield relay candidate grant is unavailable');
     await this.gatewayTunnels().probe(
       candidate.local
         ? { kind: 'local', grant: candidate.grant, relayId: candidate.relayInstanceId }

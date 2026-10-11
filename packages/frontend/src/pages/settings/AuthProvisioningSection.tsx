@@ -195,12 +195,12 @@ export function AuthProvisioningSection({
                   "Browser-facing URL for redirects and links."
                 )
               }
-              help="This is the address users and external clients use to reach Gateway. A wrong value can break sign-in redirects, callback URLs, and links generated in emails."
+              help="This is the address users and external clients use to reach Opfield. A wrong value can break sign-in redirects, callback URLs, and links generated in emails."
             >
               <Input
                 type="url"
                 value={publicUrl}
-                placeholder="https://gateway.example.com"
+                placeholder="https://opfield.example.com"
                 disabled={!canEditIdentityTrust || isSavingGeneral}
                 onChange={(event) => setPublicUrl(event.target.value)}
                 onKeyDown={(event) => {
@@ -240,11 +240,11 @@ export function AuthProvisioningSection({
                 <p className="text-sm font-medium">
                   <SettingsHelpTitle
                     label="File upload limit"
-                    help="Maximum size of one file accepted by Gateway file managers. This is separate from the HTTP and inference request limits on the Environment tab."
+                    help="Maximum size of one file accepted by Opfield file managers. This is separate from the HTTP and inference request limits on the Environment tab."
                   />
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Maximum file size accepted by Gateway, in MB
+                  Maximum file size accepted by Opfield, in MB
                 </p>
               </div>
               <Input
@@ -268,7 +268,7 @@ export function AuthProvisioningSection({
                 <p className="text-sm font-medium">
                   <SettingsHelpTitle
                     label="File open limit"
-                    help="Maximum file size Gateway will load or copy through the browser interface. Larger files may still exist on the node but cannot be opened in-browser."
+                    help="Maximum file size Opfield will load or copy through the browser interface. Larger files may still exist on the node but cannot be opened in-browser."
                   />
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -298,7 +298,7 @@ export function AuthProvisioningSection({
             >
               <Input
                 value={gatewayGrpcPublicTarget}
-                placeholder="gateway.example.com:9443"
+                placeholder="opfield.example.com:9443"
                 disabled={!canEdit || isSavingGeneral}
                 onChange={(event) => setGatewayGrpcPublicTarget(event.target.value)}
                 onKeyDown={(event) => {
@@ -311,7 +311,7 @@ export function AuthProvisioningSection({
             <SettingsControlRow
               title="gRPC local IP"
               description="Optional private address for local node enrollment"
-              help="Optional private address used in enrollment commands for nodes on the local network. When empty, Gateway uses the public target above."
+              help="Optional private address used in enrollment commands for nodes on the local network. When empty, Opfield uses the public target above."
             >
               <Input
                 value={gatewayGrpcLocalIp}
@@ -331,7 +331,7 @@ export function AuthProvisioningSection({
         <PanelShell
           icon={<SlidersHorizontal className="h-4 w-4" />}
           title="Features and updates"
-          description="Gateway capabilities, branding, transport, and releases"
+          description="Opfield capabilities, branding, transport, and releases"
           actions={
             <Button
               onClick={saveFeatureSettings}
@@ -346,7 +346,7 @@ export function AuthProvisioningSection({
           <div className="divide-y divide-border">
             <SettingsControlRow
               title="Hide external branding"
-              description="Hide Good Gateway branding on public system pages"
+              description="Hide Opfield branding on public system pages"
             >
               <Switch
                 checked={hideExternalBranding}
@@ -360,11 +360,11 @@ export function AuthProvisioningSection({
                 <p className="text-sm font-medium">
                   <SettingsHelpTitle
                     label="Internal HTTPS on port 3000"
-                    help="Encrypts direct traffic to Gateway's internal web port with a certificate from the System CA. Changing it restarts the Gateway container."
+                    help="Encrypts direct traffic to Opfield's internal web port with a certificate from the System CA. Changing it restarts the Opfield container."
                   />
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Enable System CA HTTPS for Gateway port 3000
+                  Enable System CA HTTPS for Opfield port 3000
                 </p>
               </div>
               <Switch
@@ -379,7 +379,7 @@ export function AuthProvisioningSection({
                 <p className="flex items-center gap-2 text-sm font-medium">
                   <SettingsHelpTitle
                     label="PKI"
-                    help="PKI enables Gateway-managed certificate authorities, certificates, revocation, and reusable issuance templates."
+                    help="PKI enables Opfield-managed certificate authorities, certificates, revocation, and reusable issuance templates."
                   />
                   <LicensePlanBadge feature="internal-pki" />
                 </p>
@@ -401,7 +401,7 @@ export function AuthProvisioningSection({
                 <p className="flex items-center gap-2 text-sm font-medium">
                   <SettingsHelpTitle
                     label="SIEM audit export"
-                    help="Sends privacy-reduced Gateway audit events to configured security monitoring collectors for centralized investigation and retention."
+                    help="Sends privacy-reduced Opfield audit events to configured security monitoring collectors for centralized investigation and retention."
                   />
                   <LicensePlanBadge feature="siem-export" />
                 </p>
@@ -424,7 +424,7 @@ export function AuthProvisioningSection({
                 <p className="text-sm font-medium">
                   <SettingsHelpTitle
                     label="Inference"
-                    help="Enables Gateway's model proxy, provider connections, API tokens, model catalog, usage accounting, and per-user limits."
+                    help="Enables Opfield's model proxy, provider connections, API tokens, model catalog, usage accounting, and per-user limits."
                   />
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -441,7 +441,7 @@ export function AuthProvisioningSection({
             <SettingsControlRow
               title="Update channel"
               description="Allow preview versions for managed updates"
-              help="Stable installs production-ready releases only. Preview also allows release candidates for Gateway, Relay, and managed node daemons; it does not change Inference Core updates."
+              help="Stable installs production-ready releases only. Preview also allows release candidates for Opfield, Relay, and managed node daemons; it does not change Inference Core updates."
             >
               <Select
                 value={updateChannel}
@@ -482,7 +482,7 @@ export function AuthProvisioningSection({
         icon={<Database className="h-4 w-4" />}
         hidden={section !== "all" && section !== "features"}
         title="Structured logging storage"
-        description="Keep logging disabled, let Gateway manage a local ClickHouse, or use an external ClickHouse"
+        description="Keep logging disabled, let Opfield manage a local ClickHouse, or use an external ClickHouse"
         actions={
           <Button
             aria-label="Save structured logging storage"
@@ -500,7 +500,7 @@ export function AuthProvisioningSection({
           <SettingsControlRow
             title="Storage mode"
             description="Disabling managed local storage stops its container but preserves the Docker volume."
-            help="Disabled stores no structured logs. Managed local runs Gateway's ClickHouse container. External sends logs to a ClickHouse instance you operate."
+            help="Disabled stores no structured logs. Managed local runs Opfield's ClickHouse container. External sends logs to a ClickHouse instance you operate."
           >
             <Select
               value={loggingDraft.mode}
@@ -526,7 +526,7 @@ export function AuthProvisioningSection({
           </SettingsControlRow>
           {loggingDraft.mode === "local" && (
             <div className="px-4 py-3 text-sm text-muted-foreground">
-              Gateway uses the mounted Docker socket to run a pinned ClickHouse image on the current
+              Opfield uses the mounted Docker socket to run a pinned ClickHouse image on the current
               network.
             </div>
           )}
@@ -535,7 +535,7 @@ export function AuthProvisioningSection({
               <SettingsControlRow
                 title="ClickHouse URL"
                 description="HTTP(S) endpoint for the external ClickHouse instance."
-                help="Gateway uses ClickHouse's HTTP interface at this address to insert and query structured logs. Include the correct scheme and port."
+                help="Opfield uses ClickHouse's HTTP interface at this address to insert and query structured logs. Include the correct scheme and port."
               >
                 <Input
                   type="url"
@@ -549,7 +549,7 @@ export function AuthProvisioningSection({
               </SettingsControlRow>
               <SettingsControlRow
                 title="Username"
-                description="ClickHouse account used by Gateway."
+                description="ClickHouse account used by Opfield."
               >
                 <Input
                   value={loggingDraft.username}
@@ -583,7 +583,7 @@ export function AuthProvisioningSection({
               </SettingsControlRow>
               <SettingsControlRow
                 title="Database"
-                description="Database that stores structured Gateway logs."
+                description="Database that stores structured Opfield logs."
               >
                 <Input
                   value={loggingDraft.database}
@@ -608,7 +608,7 @@ export function AuthProvisioningSection({
               <SettingsControlRow
                 title="Request timeout"
                 description="ClickHouse request timeout in milliseconds."
-                help="Maximum time Gateway waits for one ClickHouse operation before treating it as failed. Increasing it tolerates slow storage but delays failure recovery."
+                help="Maximum time Opfield waits for one ClickHouse operation before treating it as failed. Increasing it tolerates slow storage but delays failure recovery."
               >
                 <Input
                   type="number"
@@ -633,7 +633,7 @@ export function AuthProvisioningSection({
         icon={<KeyRound className="h-4 w-4" />}
         hidden={section !== "all" && section !== "authentication"}
         title="Sign-in methods"
-        description="Enable the primary methods available to Gateway accounts"
+        description="Enable the primary methods available to Opfield accounts"
       >
         <div className="divide-y divide-border">
           {[
@@ -675,7 +675,7 @@ export function AuthProvisioningSection({
         icon={<ShieldCheck className="h-4 w-4" />}
         hidden={section !== "all" && section !== "authentication"}
         title="Multi-factor authentication"
-        description="Controls how Gateway enforces MFA for local browser sessions"
+        description="Controls how Opfield enforces MFA for local browser sessions"
         actions={
           <Button
             aria-label="Save MFA grace period"
@@ -743,12 +743,12 @@ export function AuthProvisioningSection({
           <SettingsControlRow
             title="Issuer URL"
             description="OpenID Connect issuer used for discovery."
-            help="The issuer is the identity provider's canonical URL. Gateway reads its discovery document from this address to find authorization, token, and key endpoints."
+            help="The issuer is the identity provider's canonical URL. Opfield reads its discovery document from this address to find authorization, token, and key endpoints."
           >
             <Input
               type="url"
               value={oidcDraft.issuer}
-              placeholder="https://id.example.com/application/o/gateway/"
+              placeholder="https://id.example.com/application/o/opfield/"
               disabled={!canEditIdentityTrust || isSavingOidc}
               onChange={(event) =>
                 setOidcDraft((current) => ({ ...current, issuer: event.target.value }))
@@ -758,11 +758,11 @@ export function AuthProvisioningSection({
           <SettingsControlRow
             title="Client ID"
             description="OAuth client identifier registered at the provider."
-            help="Public identifier assigned to the Gateway application by the identity provider. It is not a secret."
+            help="Public identifier assigned to the Opfield application by the identity provider. It is not a secret."
           >
             <Input
               value={oidcDraft.clientId}
-              placeholder="gateway"
+              placeholder="opfield"
               disabled={!canEditIdentityTrust || isSavingOidc}
               onChange={(event) =>
                 setOidcDraft((current) => ({ ...current, clientId: event.target.value }))
@@ -776,7 +776,7 @@ export function AuthProvisioningSection({
                 ? `Stored secret ends in ${settings.oidc.clientSecretLast4}`
                 : "Required for the initial configuration."
             }
-            help="Secret assigned to the Gateway application by the identity provider. Leave the field empty when editing to keep the encrypted value already stored."
+            help="Secret assigned to the Opfield application by the identity provider. Leave the field empty when editing to keep the encrypted value already stored."
           >
             <Input
               type="password"
@@ -798,7 +798,7 @@ export function AuthProvisioningSection({
             <Input
               type="url"
               value={oidcDraft.redirectUri}
-              placeholder="https://gateway.example.com/auth/callback"
+              placeholder="https://opfield.example.com/auth/callback"
               disabled={!canEditIdentityTrust || isSavingOidc}
               onChange={(event) =>
                 setOidcDraft((current) => ({ ...current, redirectUri: event.target.value }))
@@ -833,7 +833,7 @@ export function AuthProvisioningSection({
               <p className="text-sm font-medium">
                 <SettingsHelpTitle
                   label="Auto-create users on OIDC sign-in"
-                  help="Creates a Gateway account the first time a valid identity-provider user signs in. Disable it when every allowed user must be provisioned manually first."
+                  help="Creates an Opfield account the first time a valid identity-provider user signs in. Disable it when every allowed user must be provisioned manually first."
                 />
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -1090,7 +1090,7 @@ export function AuthProvisioningSection({
             <Input
               aria-label="Sender name"
               value={smtpDraft.senderName}
-              placeholder="Gateway"
+              placeholder="Opfield"
               disabled={!canEditIdentityTrust || isSavingLocalAuth}
               onChange={(event) =>
                 setSmtpDraft((current) => ({ ...current, senderName: event.target.value }))
@@ -1201,7 +1201,7 @@ export function AuthProvisioningSection({
               <p className="text-sm font-medium">
                 <SettingsHelpTitle
                   label="Enable MCP server"
-                  help="Exposes Gateway tools through the remote Model Context Protocol endpoint. MCP clients complete OAuth authorization and connect through /api/mcp; users still need the required account scopes."
+                  help="Exposes Opfield tools through the remote Model Context Protocol endpoint. MCP clients complete OAuth authorization and connect through /api/mcp; users still need the required account scopes."
                 />
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -1219,12 +1219,12 @@ export function AuthProvisioningSection({
               <p className="text-sm font-medium">
                 <SettingsHelpTitle
                   label="Extended MCP compatibility"
-                  help="Uses Gateway's broader compatibility behavior for clients that discover tools incrementally. Disable only for a client that cannot handle the expanded tool catalog."
+                  help="Uses Opfield's broader compatibility behavior for clients that discover tools incrementally. Disable only for a client that cannot handle the expanded tool catalog."
                 />
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Keep this enabled unless your harness loads every tool into its context at once and
-                exhausts it. Turning it off can prevent that harness from using some Gateway tools.
+                exhausts it. Turning it off can prevent that harness from using some Opfield tools.
               </p>
             </div>
             <Switch
@@ -1268,11 +1268,11 @@ export function AuthProvisioningSection({
               <p className="text-sm font-medium">
                 <SettingsHelpTitle
                   label="Client IP source"
-                  help="Selects which network address Gateway treats as the real client. This affects rate limiting and audit records, so it must match your reverse-proxy topology."
+                  help="Selects which network address Opfield treats as the real client. This affects rate limiting and audit records, so it must match your reverse-proxy topology."
                 />
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Controls which address Gateway uses for rate limits and audit records
+                Controls which address Opfield uses for rate limits and audit records
               </p>
             </div>
             <div className="w-full shrink-0 sm:w-64">
@@ -1397,11 +1397,11 @@ export function AuthProvisioningSection({
               <p className="text-sm font-medium">
                 <SettingsHelpTitle
                   label="Allow private network webhooks"
-                  help="Permits notification delivery to selected private network ranges. Localhost, link-local, multicast, metadata, and Gateway-local destinations remain blocked."
+                  help="Permits notification delivery to selected private network ranges. Localhost, link-local, multicast, metadata, and Opfield-local destinations remain blocked."
                 />
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Notification webhooks may call the private CIDRs below. Local Gateway addresses,
+                Notification webhooks may call the private CIDRs below. Local Opfield addresses,
                 localhost, link-local, multicast, and metadata endpoints stay blocked.
               </p>
             </div>

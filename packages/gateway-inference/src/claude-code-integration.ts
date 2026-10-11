@@ -167,7 +167,7 @@ export class ClaudeCodeIntegrationService {
       signal: AbortSignal.timeout(5_000),
     });
     if (!response.ok) {
-      throw new CliError('CLAUDE_MODELS_REJECTED', `Gateway model discovery failed with HTTP ${response.status}.`);
+      throw new CliError('CLAUDE_MODELS_REJECTED', `Opfield model discovery failed with HTTP ${response.status}.`);
     }
     const body = (await response.json()) as { data?: unknown };
     const models = Array.isArray(body.data)
@@ -180,7 +180,7 @@ export class ClaudeCodeIntegrationService {
         )
       : [];
     if (!models.length) {
-      throw new CliError('CLAUDE_MODELS_EMPTY', 'Gateway returned no Claude Code-compatible model aliases.');
+      throw new CliError('CLAUDE_MODELS_EMPTY', 'Opfield returned no Claude Code-compatible model aliases.');
     }
     return models;
   }
@@ -208,18 +208,18 @@ export class ClaudeCodeIntegrationService {
       const details = (await response.text()).slice(0, 300).trim();
       throw new CliError(
         'CLAUDE_SMOKE_REJECTED',
-        `Gateway rejected the Claude Code compatibility probe with HTTP ${response.status}${details ? `: ${details}` : ''}.`
+        `Opfield rejected the Claude Code compatibility probe with HTTP ${response.status}${details ? `: ${details}` : ''}.`
       );
     }
     const stream = await response.text();
     if (!stream.includes('message_stop')) {
-      throw new CliError('CLAUDE_STREAM_INVALID', 'Gateway did not complete the Claude Code streaming probe.');
+      throw new CliError('CLAUDE_STREAM_INVALID', 'Opfield did not complete the Claude Code streaming probe.');
     }
   }
 
   private async installRuntime(): Promise<void> {
     const runtimeSource = this.options.runtimeSource ?? process.argv[1];
-    if (!runtimeSource) throw new CliError('RUNTIME_SOURCE_MISSING', 'Could not locate the packaged Gateway runtime.');
+    if (!runtimeSource) throw new CliError('RUNTIME_SOURCE_MISSING', 'Could not locate the packaged Opfield runtime.');
     await installPrivateRuntime(runtimeSource, this.paths.runtimeFile);
   }
 

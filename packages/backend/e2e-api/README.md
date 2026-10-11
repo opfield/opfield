@@ -1,6 +1,6 @@
-# Gateway API E2E Smoke Suite
+# Opfield API E2E Smoke Suite
 
-This suite verifies a running Gateway deployment through real HTTP API calls with a Gateway API token. It creates a temporary permission group, user, and API token directly in the local PostgreSQL database, using all currently delegable API token scopes from `src/lib/scopes.ts`, then removes them after the run.
+This suite verifies a running Opfield deployment through real HTTP API calls with an Opfield API token. It creates a temporary permission group, user, and API token directly in the local PostgreSQL database, using all currently delegable API token scopes from `src/lib/scopes.ts`, then removes them after the run.
 
 Run from the repository root:
 
@@ -30,12 +30,12 @@ The runtime tier creates only `codex-e2e-*` resources. It covers pending node en
 
 Useful environment variables:
 
-- `DATABASE_URL`: PostgreSQL database for the running Gateway. Defaults to the backend dev database.
-- `GATEWAY_E2E_API_URL`: Gateway API base URL. Defaults to `http://localhost:3000`.
+- `DATABASE_URL`: PostgreSQL database for the running Opfield installation. Defaults to the backend dev database.
+- `GATEWAY_E2E_API_URL`: Opfield API base URL. Defaults to `http://localhost:3000`.
 - `GATEWAY_E2E_KEEP_TOKEN=1`: Keep the seeded permission group, user, and API token after the run and print the token.
 - `GATEWAY_E2E_ALLOW_UNHEALTHY=1`: Do not fail if `/health` returns `503`.
 - `GATEWAY_E2E_ALLOW_MUTATIONS=1`: Enable safe create/update/delete smoke tests.
 - `GATEWAY_E2E_ALLOW_RUNTIME_MUTATIONS=1`: Enable disposable runtime mutations for Docker containers and nginx ingress routes.
 - `GATEWAY_E2E_DOCKER_IMAGE`: Docker image to use for the runtime container scenario. If omitted, the suite picks a suitable local image from the connected Docker node.
 
-The suite never mutates pre-existing Docker containers, triggers Gateway/daemon updates, issues ACME certificates, or mutates connected databases. Runtime tests operate only on resources created by the suite and clean them up after the run.
+The suite never mutates pre-existing Docker containers, triggers Opfield/daemon updates, issues ACME certificates, or mutates connected databases. Runtime tests operate only on resources created by the suite and clean them up after the run.

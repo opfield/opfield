@@ -615,7 +615,7 @@ func validateServiceLabels(node *yaml.Node, reservedPolicy bool) error {
 	for key := range mappingValues(node) {
 		if !reservedPolicy {
 			if strings.HasPrefix(key, "com.docker.compose.") || strings.HasPrefix(key, "wiolett.gateway.compose.") {
-				return fmt.Errorf("compose label %q is reserved by Docker Compose or Gateway", key)
+				return fmt.Errorf("compose label %q is reserved by Docker Compose or Opfield", key)
 			}
 			continue
 		}
@@ -624,7 +624,7 @@ func validateServiceLabels(node *yaml.Node, reservedPolicy bool) error {
 			return fmt.Errorf("compose label %q cannot use variables in its key", key)
 		}
 		if isReservedDockerLabel(key) {
-			return fmt.Errorf("compose label %q is reserved by Docker Compose or Gateway", key)
+			return fmt.Errorf("compose label %q is reserved by Docker Compose or Opfield", key)
 		}
 	}
 	return nil

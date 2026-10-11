@@ -1,18 +1,18 @@
 ---
 name: access-control
-description: Administer Gateway identity and access, including users, permission groups, scopes, folder, node, and resource restrictions, API tokens, OAuth and MCP grants, and impersonation limits. Use when asked to create, block, or delete a user, change someone's permissions, design a least-privilege scope set for an integration or agent, or explain what a token or OAuth grant can and cannot do. Use after using-gateway has confirmed the Gateway MCP connection.
+description: Administer Opfield identity and access, including users, permission groups, scopes, folder, node, and resource restrictions, API tokens, OAuth and MCP grants, and impersonation limits. Use when asked to create, block, or delete a user, change someone's permissions, design a least-privilege scope set for an integration or agent, or explain what a token or OAuth grant can and cannot do. Use after using-gateway has confirmed the Opfield MCP connection.
 ---
 
 # Access Control
 
-Start with `using-gateway` for connection, discovery, and safety rules; its connection reference explains how scopes bound an MCP session. Read `read_gateway_documentation({ topic: "permissions" })` (also `users`, `authentication`) before changing access, and check a specific scope in the [Scopes reference](https://docs.goodgateway.dev/en/identity/scopes-reference/) instead of guessing its name.
+Start with `using-gateway` for connection, discovery, and safety rules; its connection reference explains how scopes bound an MCP session. Read `read_gateway_documentation({ topic: "permissions" })` (also `users`, `authentication`) before changing access, and check a specific scope in the [Scopes reference](https://docs.opfield.dev/en/identity/scopes-reference/) instead of guessing its name.
 
 ## Users and groups
 
 Every user belongs to exactly one permission group. Built-in groups (`system-admin`, `admin`, `operator`, `viewer`, `guest`) cannot be modified. Custom groups hold any scope combination and nest one level: a top-level group can be a parent, a nested group cannot have children, and inherited scopes add to the member's effective scopes.
 
 - `list_users`, `manage_user` for general administration.
-- `manage_user` `send_invitation` emails a new user the one-time account invitation; it works only before their first sign-in and needs verified SMTP and the Gateway public URL. `list_users` shows `lastLoginAt` and `invitationSentAt`. The Gateway setting `generalSettings.sendInvitationOnUserCreate` (off by default) sends it on every `create_user`; if that send fails, the user is still created with `invitationSentAt: null`.
+- `manage_user` `send_invitation` emails a new user the one-time account invitation; it works only before their first sign-in and needs verified SMTP and the Opfield public URL. `list_users` shows `lastLoginAt` and `invitationSentAt`. The Opfield setting `generalSettings.sendInvitationOnUserCreate` (off by default) sends it on every `create_user`; if that send fails, the user is still created with `invitationSentAt: null`.
 - `update_user_role(userId, groupId)` changes effective permissions immediately.
 - `set_user_additional_permissions(userId, additionalScopes)` **replaces** the user's extra scopes; `[]` resets them without touching the group. Read the current `additionalScopes` first when adding one, and grant only scopes the acting administrator holds.
 - `set_user_blocked` blocks or unblocks.
@@ -51,7 +51,7 @@ A token or grant's own restriction is applied first and then bounded by the owne
 
 - `manage_api_token` and `manage_oauth_authorization` are browser-session tools for the current user's own tokens and grants, and are **not exposed over MCP**. An MCP agent cannot mint an API token or approve an OAuth client. When a user asks for a token, send them to the Console; do not look for a workaround.
 - API tokens and OAuth grants can hold every scope a user can, except user-account-only scopes: `ai:workspace:use`, `feat:ai:configure`, `ai:skills:manage`, `ai:sandbox:*`, `mcp:use`, `inference:setup`, `admin:users:impersonate`, and `integrations:gitlab:sandbox:clone`.
-- Retired scope names from before 2.11 are still accepted for two releases and rewritten to their replacements; see [retired scope names](https://docs.goodgateway.dev/en/identity/scopes-reference/#retired-scope-names) before trusting a name from older examples.
+- Retired scope names from before 2.11 are still accepted for two releases and rewritten to their replacements; see [retired scope names](https://docs.opfield.dev/en/identity/scopes-reference/#retired-scope-names) before trusting a name from older examples.
 
 ## Impersonation
 
@@ -65,4 +65,4 @@ Grant `mcp:use` to the user account, then only the resource scopes the job needs
 
 After a group or permission change, have the affected identity attempt one action that should now be allowed and one that should be denied, and confirm both. After creating a restricted grant, confirm a resource outside the restriction is genuinely invisible, not merely unlisted in one view.
 
-Scopes for this area: `admin:users`, `admin:users:folders:manage`, `admin:groups`, `admin:groups:folders:manage`, `admin:users:impersonate` (browser-only, non-delegable), and the account-level `mcp:use`. `admin:users` and `admin:groups` are OAuth manual-approval scopes. Further reading: [Users and groups](https://docs.goodgateway.dev/en/identity/auth-users-groups/), [Tokens and OAuth](https://docs.goodgateway.dev/en/identity/scopes-tokens-oauth/), [Permissions](https://docs.goodgateway.dev/en/concepts/permissions/).
+Scopes for this area: `admin:users`, `admin:users:folders:manage`, `admin:groups`, `admin:groups:folders:manage`, `admin:users:impersonate` (browser-only, non-delegable), and the account-level `mcp:use`. `admin:users` and `admin:groups` are OAuth manual-approval scopes. Further reading: [Users and groups](https://docs.opfield.dev/en/identity/auth-users-groups/), [Tokens and OAuth](https://docs.opfield.dev/en/identity/scopes-tokens-oauth/), [Permissions](https://docs.opfield.dev/en/concepts/permissions/).

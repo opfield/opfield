@@ -335,7 +335,7 @@ export function HostingIntegrationDetail({
                 !(await confirm({
                   title: "Delete Hosting Connector?",
                   description:
-                    "Provider VMs and Gateway nodes will not be deleted. Reconnecting this account can restore their hosting associations.",
+                    "Provider VMs and Opfield nodes will not be deleted. Reconnecting this account can restore their hosting associations.",
                   confirmLabel: "Delete connector",
                   variant: "destructive",
                 }))
@@ -461,7 +461,7 @@ export function HostingIntegrationDetail({
               <PanelShell
                 title="Connection"
                 icon={<ServerCog className="h-4 w-4" />}
-                description="Provider identity and current Gateway sync state."
+                description="Provider identity and current Opfield sync state."
               >
                 <SettingsControlRow title="Provider">
                   <span className="text-sm text-muted-foreground">

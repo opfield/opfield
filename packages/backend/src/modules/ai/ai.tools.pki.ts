@@ -4,7 +4,7 @@ export const PKI_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'audit_system_pki_leaves',
     description:
-      'Explicit read-only audit of leaves issued by Gateway system CAs. System PKI is otherwise hidden. Reports persisted lifecycle evidence and never revokes, deletes, exports keys, or cleans certificates.',
+      'Explicit read-only audit of leaves issued by Opfield system CAs. System PKI is otherwise hidden. Reports persisted lifecycle evidence and never revokes, deletes, exports keys, or cleans certificates.',
     parameters: {
       type: 'object',
       properties: { caId: { type: 'string', description: 'Optional system CA UUID to audit' } },
@@ -21,7 +21,7 @@ export const PKI_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        showSystem: { type: 'boolean', description: 'Include Gateway system CAs; needs admin:details:certificates' },
+        showSystem: { type: 'boolean', description: 'Include Opfield system CAs; needs admin:details:certificates' },
       },
     },
     destructive: false,
@@ -160,7 +160,7 @@ export const PKI_AI_TOOLS: AIToolDefinition[] = [
         search: { type: 'string', description: 'Search by common name' },
         showSystem: {
           type: 'boolean',
-          description: 'Include certificates of Gateway system CAs; needs admin:details:certificates',
+          description: 'Include certificates of Opfield system CAs; needs admin:details:certificates',
         },
         sortBy: { type: 'string', enum: ['commonName', 'createdAt', 'notAfter', 'type'] },
         sortOrder: { type: 'string', enum: ['asc', 'desc'] },

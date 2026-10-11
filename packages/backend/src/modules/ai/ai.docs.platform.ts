@@ -1,10 +1,10 @@
 export const PLATFORM_DOCS: Record<string, string> = {
-  'gateway-settings': `# Gateway Settings And MCP
+  'gateway-settings': `# Opfield Settings And MCP
 
 Use \`get_gateway_settings\` before changing control-plane settings and \`update_gateway_settings\` with only the fields the user explicitly requested.
 
 ## Sign-in And OAuth
-- oidcAutoCreateUsers controls whether a valid OIDC login may create a Gateway user automatically.
+- oidcAutoCreateUsers controls whether a valid OIDC login may create an Opfield user automatically.
 - oidcDefaultGroupId is the permission group assigned to automatically created users.
 - oidcRequireVerifiedEmail requires the provider to assert a verified email.
 - oauthExtendedCallbackCompatibility allows unverified public OAuth clients to use external HTTPS callbacks. Loopback callbacks are the safer default. External callbacks are marked as higher risk in consent.
@@ -14,21 +14,21 @@ Use \`get_gateway_settings\` before changing control-plane settings and \`update
 
 ## MCP
 - mcpServerEnabled enables the remote MCP endpoint. MCP still requires an OAuth token issued for the MCP resource and the owning user must have \`mcp:use\`.
-- Gateway MCP exposes the GitLab, GitHub, generic Git and external SSH tools to tokens that hold the matching integration scopes; only \`gitlab_clone_repository_to_sandbox\` stays chat-only because it needs the AI sandbox. Managed DNS uses the ordinary Domains tools and \`domains:*\` scopes.
-- Extended MCP compatibility is enabled by default and returns every OAuth-scoped tool in the initial \`tools/list\` response. When an administrator disables it, MCP starts with a compact core toolset: \`discover_tools\` activates domain toolsets, Gateway sends \`notifications/tools/list_changed\`, and the client refreshes \`tools/list\`.
+- Opfield MCP exposes the GitLab, GitHub, generic Git and external SSH tools to tokens that hold the matching integration scopes; only \`gitlab_clone_repository_to_sandbox\` stays chat-only because it needs the AI sandbox. Managed DNS uses the ordinary Domains tools and \`domains:*\` scopes.
+- Extended MCP compatibility is enabled by default and returns every OAuth-scoped tool in the initial \`tools/list\` response. When an administrator disables it, MCP starts with a compact core toolset: \`discover_tools\` activates domain toolsets, Opfield sends \`notifications/tools/list_changed\`, and the client refreshes \`tools/list\`.
 - The \`Ingress\` toolset covers Domains, Routes, route folders, nginx templates, access lists, raw route configuration, managed manual/Docker/Pages upstreams, and the canonical maintenance lifecycle. Route tools use UI-aligned names and arguments; resource URIs, scopes, REST paths, and persisted identifiers keep their existing compatibility contracts.
 - Use \`manage_additional_route\` for path-prefix locations inside a Route. It supports manual, standalone Docker container, Compose-service, Docker deployment, and Pages Tag targets plus location advanced config. Docker and Compose targets create and own their required Secure Link binding.
 - Use \`manage_additional_secure_link\` for extra bindings referenced by a Route advanced nginx config. It supports Docker destinations and the managed S3 destination via \`upstreamKind: "managed_storage"\` plus \`managedStorageId\`; the managed-storage path uses a private relay without a shared Docker network, published port, or root credential. Route-owned bindings are visible in its list but must be changed through \`manage_additional_route\`, not deleted independently.
 - The \`Docker\` toolset exposes Compose lifecycle and revisions, Git source settings and Build Secrets, Build Worker-filtered history, logs, cancellation, and retry. The \`Pages\` toolset exposes Page Projects, Deployments, Tags, runtime configuration, profile settings, project migration, Git-source builds, and an MCP-only resumable artifact uploader. Upload chunks are base64-encoded, capped at 1 MiB decoded, and authenticated by the MCP connection rather than a token argument. The \`Databases\` toolset includes managed database provisioning and standalone-container, deployment, or Compose-service bindings. The \`Storage\` toolset covers external and managed storage connections, object operations, managed-storage lifecycle, private workload links, scoped IAM keys, and the MCP-only resumable object uploader.
-- MCP clients can call \`read_gateway_documentation\` or read \`gateway://docs\`. General operator topics are available to every valid MCP grant; subsystem topics remain filtered by the delegated OAuth scopes. \`gateway://access\` (also \`get_my_access\` and REST \`GET /api/auth/me/access\`) describes the caller's folders, nodes and resources, and \`gateway://skills\` serves the agent skills that match the running Gateway version, also offered as \`skill-<name>\` prompts.
-- mcpExtendedCompatibility is enabled by default. It returns every OAuth-scoped tool in the initial \`tools/list\` response and omits \`discover_tools\`. Disable it only when a harness loads every tool schema into its context at once and exhausts that context; disabling it can leave that harness unable to use some Gateway tools.
+- MCP clients can call \`read_gateway_documentation\` or read \`gateway://docs\`. General operator topics are available to every valid MCP grant; subsystem topics remain filtered by the delegated OAuth scopes. \`gateway://access\` (also \`get_my_access\` and REST \`GET /api/auth/me/access\`) describes the caller's folders, nodes and resources, and \`gateway://skills\` serves the agent skills that match the running Opfield version, also offered as \`skill-<name>\` prompts.
+- mcpExtendedCompatibility is enabled by default. It returns every OAuth-scoped tool in the initial \`tools/list\` response and omits \`discover_tools\`. Disable it only when a harness loads every tool schema into its context at once and exhausts that context; disabling it can leave that harness unable to use some Opfield tools.
 
 ## General And Network Settings
 - generalSettings contains feature flags and shared limits. Inference is disabled by default under Settings > General > Features and updates.
-- generalSettings.publicUrl is the canonical URL of the console (Settings > General > Access and limits). Saving settings restarts Gateway only when internal HTTPS is switched or the public URL changes while internal HTTPS is on; every other change applies without a restart.
-- generalSettings.hideExternalBranding hides Good Gateway branding on public system pages.
-- generalSettings.relayPolicyLeaseHours (1-168, default 72) is how long a relay keeps accepting traffic under the last signed policy while Gateway is unreachable; it is set on Settings > Relay. relayGrantTtlHours (1-224, Settings > General > Access and limits) is the lifetime of newly issued relay grants.
-- generalSettings.updateChannel is \`stable\` or \`preview\`. Stable is the default and accepts production releases only. Preview also allows GitHub prereleases tagged as \`vX.Y.Z-rc.N\` for Gateway and with the required component suffix for Relay and managed node daemons, for example \`vX.Y.Z-rc.N-relay\` or \`vX.Y.Z-rc.N-docker\`. It does not change Inference Core updates.
+- generalSettings.publicUrl is the canonical URL of the console (Settings > General > Access and limits). Saving settings restarts Opfield only when internal HTTPS is switched or the public URL changes while internal HTTPS is on; every other change applies without a restart.
+- generalSettings.hideExternalBranding hides Opfield branding on public system pages.
+- generalSettings.relayPolicyLeaseHours (1-168, default 72) is how long a relay keeps accepting traffic under the last signed policy while Opfield is unreachable; it is set on Settings > Relay. relayGrantTtlHours (1-224, Settings > General > Access and limits) is the lifetime of newly issued relay grants.
+- generalSettings.updateChannel is \`stable\` or \`preview\`. Stable is the default and accepts production releases only. Preview also allows GitHub prereleases tagged as \`vX.Y.Z-rc.N\` for Opfield and with the required component suffix for Relay and managed node daemons, for example \`vX.Y.Z-rc.N-relay\` or \`vX.Y.Z-rc.N-docker\`. It does not change Inference Core updates.
 - networkSecurity controls trusted private destinations and outbound request restrictions.
 - outboundWebhookPolicy controls allowed webhook destinations.
 
@@ -44,31 +44,31 @@ Never weaken callback, network, or webhook restrictions without explaining the r
 - Read the live license status instead of inferring access from visible UI. Disk-image volume creation requires Personal or higher; other protected capabilities are governed by their advertised entitlements and quotas.
 
 ## Cloud Account Connection
-- \`get_cloud_status\` reads whether this Gateway is connected to a cloud account: the account email, portal URL, connected since and the socket state (online, connecting, reconnecting with its last error), or when and why the account disconnected it.
+- \`get_cloud_status\` reads whether this Opfield installation is connected to a cloud account: the account email, portal URL, connected since and the socket state (online, connecting, reconnecting with its last error), or when and why the account disconnected it.
 - \`manage_cloud({ operation: "connect", code })\` connects with the single-use \`CLD-XXXX-XXXX\` code from the installation's page in the cloud account (valid 10 minutes). Connecting again replaces the previous connection. Treat the code as a secret and never repeat it in chat.
 - \`manage_cloud({ operation: "set_remote_management", enabled })\` turns "Allow remote management" on or off (off by default, audited as \`cloud.remote_management\`). Reads need no switch; node-token, update and setup-link requests from the account need it on, or a managed cloud VM (enrolled from its provisioning file, shown as Managed by the cloud). A refused request answers REMOTE_MANAGEMENT_OFF and is audited. A setup code is issued only while no user exists.
 - \`manage_cloud({ operation: "disconnect" })\` revokes the connection at the account and forgets it here. If the account cannot be reached the connection is still forgotten here and the result carries a \`warning\`: tell the user to disconnect the installation in the cloud account too.
-- Every connect, disconnect, disconnect by the account and each request the account sends over the socket has its own audit entry (resource type \`cloud-link\`, actions \`cloud.connect\`, \`cloud.disconnect\`, \`cloud.disconnected_by_account\`, \`cloud.request\` with the request type, service, tail/since, request id, result and result size). Identical successful reads of the same type and service within 10 minutes of the first one are counted, not written one by one: the first read has its own entry and the repeats get one summary entry (details.summary: count, first and last time, total bytes) when the 10 minutes end, the socket stops or Gateway shuts down. Failed reads always have their own entry. \`get_cloud_status\` also returns the 5 latest entries with their read counts.
-- A connected Gateway keeps one outbound socket to the account, which reads this Gateway's host state, its own containers, their logs and the update status through it, and can ask for a first-admin setup code (only before setup), a one-time node enrolment token with its install command, and start the Gateway update Settings offers. Actions and failed requests always have their own audit entry. A managed installation enrols itself on start from \`/var/lib/gateway/cloud-enroll.json\` and activates the paid license key in it as Settings > Update license does (audited as \`cloud.connect\` and \`license.activate\` with source enroll-file, and \`cloud.enroll_file\` when the file is removed once both steps succeeded or were refused for good). Uses the license scopes: license:view to read, license:manage to change.
+- Every connect, disconnect, disconnect by the account and each request the account sends over the socket has its own audit entry (resource type \`cloud-link\`, actions \`cloud.connect\`, \`cloud.disconnect\`, \`cloud.disconnected_by_account\`, \`cloud.request\` with the request type, service, tail/since, request id, result and result size). Identical successful reads of the same type and service within 10 minutes of the first one are counted, not written one by one: the first read has its own entry and the repeats get one summary entry (details.summary: count, first and last time, total bytes) when the 10 minutes end, the socket stops or Opfield shuts down. Failed reads always have their own entry. \`get_cloud_status\` also returns the 5 latest entries with their read counts.
+- A connected Opfield installation keeps one outbound socket to the account, which reads this Opfield installation's host state, its own containers, their logs and the update status through it, and can ask for a first-admin setup code (only before setup), a one-time node enrolment token with its install command, and start the Opfield update Settings offers. Actions and failed requests always have their own audit entry. A managed installation enrols itself on start from \`/var/lib/gateway/cloud-enroll.json\` and activates the paid license key in it as Settings > Update license does (audited as \`cloud.connect\` and \`license.activate\` with source enroll-file, and \`cloud.enroll_file\` when the file is removed once both steps succeeded or were refused for good). Uses the license scopes: license:view to read, license:manage to change.
 
-## Gateway And Daemon Updates
-- Read \`generalSettings.updateChannel\` before interpreting update results. \`stable\` excludes release candidates; \`preview\` also accepts GitHub prereleases tagged as \`vX.Y.Z-rc.N\` for Gateway and component-suffixed tags such as \`vX.Y.Z-rc.N-relay\` or \`vX.Y.Z-rc.N-docker\` for Relay and managed node daemons. Inference Core remains on its independent stable signed channel.
+## Opfield And Daemon Updates
+- Read \`generalSettings.updateChannel\` before interpreting update results. \`stable\` excludes release candidates; \`preview\` also accepts GitHub prereleases tagged as \`vX.Y.Z-rc.N\` for Opfield and component-suffixed tags such as \`vX.Y.Z-rc.N-relay\` or \`vX.Y.Z-rc.N-docker\` for Relay and managed node daemons. Inference Core remains on its independent stable signed channel.
 - Use \`manage_system_updates({ operation: "get_gateway_status" })\` or \`manage_system_updates({ operation: "check_gateway" })\` before proposing an update.
 - Read release notes with \`manage_system_updates({ operation: "get_gateway_release_notes", version })\` for the exact advertised version, or \`list_gateway_release_notes\` for every release between the current and the available version.
-- Apply an app update with \`manage_system_updates({ operation: "perform_gateway_update", version })\` only after explicit approval. The update first checks free disk space, then waits for running deploys, drains, Availability and Compose operations, build rollouts and Docker migrations (status \`waiting_for_operations\`, up to 15 minutes by default) while new ones are refused; \`proceed_gateway_update\` ("Update now") stops waiting, and recovery resumes what still runs. It snapshots the Gateway database before the new version starts and restores it if the update fails. \`acknowledge_gateway_update_failure\` clears a reported failure.
+- Apply an app update with \`manage_system_updates({ operation: "perform_gateway_update", version })\` only after explicit approval. The update first checks free disk space, then waits for running deploys, drains, Availability and Compose operations, build rollouts and Docker migrations (status \`waiting_for_operations\`, up to 15 minutes by default) while new ones are refused; \`proceed_gateway_update\` ("Update now") stops waiting, and recovery resumes what still runs. It snapshots the Opfield database before the new version starts and restores it if the update fails. \`acknowledge_gateway_update_failure\` clears a reported failure.
 - Use the \`list_daemon_updates\` and \`check_daemon_updates\` operations before \`manage_system_updates({ operation: "update_daemon", nodeId })\`; pass the exact nodeId and verify the node reconnects on the expected version. Daemon updates are refused for disconnected nodes, relay nodes (use \`perform_relay_update\` for the Relay Pool) and nodes that already run the release; nodes that share an Availability policy update one after another.
 - A daemon update waits first for the long tasks running on its node: backups, image builds, Docker migrations, image pulls, container actions, storage copies, container archive transfers (\`waitingForTasks\` in the result, \`metadata.updatePhase: waiting_for_tasks\` and \`metadata.updateWaitingForTasks\` on the node). After 30 minutes it goes ahead and keeps a warning. \`now: true\` updates at once, also for an update that already waits; the running tasks may fail, so pass it only after the user confirmed exactly that.
 - An update of a Docker or nginx node whose daemon advertises \`daemon_stream_handover_v1\` keeps relay stream sessions (a pause of a second or two). Raw streams of older peers, PostgreSQL links where the daemon opens TLS, registry pulls and pushes, and backup runs are cut as before; the first update onto this release and a rollback below it cut once. \`lastHealthReport.updateConnections\` shows what an update now would keep and cut; \`metadata.lastUpdate\` keeps the result of the last update (warnings, \`serviceRestart\` when the daemon restarted its whole service for a newer launcher or says why not, and in \`connections\` the kept and cut counts by class; class \`uncounted\` means every connection of the node was cut and no daemon counted them: the update came from a daemon that cannot hand connections over, such as the first update from 2.11.3, or a rollback put one back; \`service_restart\` next to it counts the restart of the whole service the new daemon did once right after such an update for its newer launcher).
-- A node's \`capabilities.launcherVersion\` is the launcher its daemon runs under; the launcher updates itself in place after a daemon update. A node on a 2.11.4 or later daemon without it (a launcher started before 2.11.4) restarts its whole service once on its next daemon update: that update hands nothing over and cuts open connections once (class \`service_restart\`; \`handoverAvailable: false\` in \`lastHealthReport.updateConnections\` beforehand), and the service starts with the updated daemon's launcher. Later updates keep connections. Gateway waits up to 4.5 minutes for an updated daemon, as long as its launcher keeps it on trial; a daemon that comes back on the previous version was rolled back, and the stopped candidate handed its connections to it.
+- A node's \`capabilities.launcherVersion\` is the launcher its daemon runs under; the launcher updates itself in place after a daemon update. A node on a 2.11.4 or later daemon without it (a launcher started before 2.11.4) restarts its whole service once on its next daemon update: that update hands nothing over and cuts open connections once (class \`service_restart\`; \`handoverAvailable: false\` in \`lastHealthReport.updateConnections\` beforehand), and the service starts with the updated daemon's launcher. Later updates keep connections. Opfield waits up to 4.5 minutes for an updated daemon, as long as its launcher keeps it on trial; a daemon that comes back on the previous version was rolled back, and the stopped candidate handed its connections to it.
 - Never invent a version, claim an update completed before its status confirms success, or update unrelated daemons as a side effect.`,
 
-  inference: `# Gateway Inference
+  inference: `# Opfield Inference
 
-Gateway Inference is a standalone external model gateway. It is not the AI Workspace provider configuration and it is not Gateway MCP. It has separate provider credentials, model configuration, scopes, accounting, continuation state, and dedicated \`gwi_\` runtime tokens. Never use a normal \`gw_\` API token, a \`gwo_\` OAuth token, a Workspace provider key, or an MCP credential on the inference data plane.
+Opfield Inference is a standalone external model gateway. It is not the AI Workspace provider configuration and it is not Opfield MCP. It has separate provider credentials, model configuration, scopes, accounting, continuation state, and dedicated \`gwi_\` runtime tokens. Never use a normal \`gw_\` API token, a \`gwo_\` OAuth token, a Workspace provider key, or an MCP credential on the inference data plane.
 
 ## Availability
 
-Inference is disabled by default. Read Gateway settings first. An administrator with \`settings:gateway:edit\` can enable it through \`update_gateway_settings\`:
+Inference is disabled by default. Read Opfield settings first. An administrator with \`settings:gateway:edit\` can enable it through \`update_gateway_settings\`:
 
 \`\`\`json
 {
@@ -94,10 +94,10 @@ Always inspect current state before mutation. Use \`internal_documentation({ top
 1. Call \`manage_inference_provider({ operation: "list_templates" })\` and use the returned provider ID. Never invent template IDs.
 2. For API/local providers, call \`connect_api_key\` with the name, providerId, and only the secret/URL fields supported by that template. Never repeat the API key.
 3. For supported device/OAuth providers, call \`start_authorization\`. Subscription connectors require the exact returned termsVersion and explicit user approval before acceptTerms may be true. Never infer or silently accept connector terms.
-4. Return the authorization URL/user code. For device flows, call \`wait\` and then \`authorization_status\`; Gateway polls automatically. Redirect/paste-callback providers must be completed in **Settings > Inference**. Never ask the user to paste an OAuth callback URL or authorization code into AI chat.
+4. Return the authorization URL/user code. For device flows, call \`wait\` and then \`authorization_status\`; Opfield polls automatically. Redirect/paste-callback providers must be completed in **Settings > Inference**. Never ask the user to paste an OAuth callback URL or authorization code into AI chat.
 5. Call \`sync\`, then verify discoveredModels, quota, status, and syncStatus.
 
-Each connection row is one account or API key. There is no Pool resource. Gateway groups compatible connections automatically per provider/model:
+Each connection row is one account or API key. There is no Pool resource. Opfield groups compatible connections automatically per provider/model:
 
 - \`balanced\`: distributes new threads across every connection whose reported quota is above its configured minimum, weighted by remaining quota, while retaining thread affinity;
 - \`sequential\`: uses the lowest routingOrder connection until unavailable, then moves down the list.
@@ -108,7 +108,7 @@ Subscription connections can set minimumRemainingPercent from 1 to 100. The same
 
 1. List synchronized provider connections and select a discovered model.
 2. Call \`manage_inference_model({ operation: "save", configuration })\`. Omit modelId to create; include modelId to replace the entire configuration atomically.
-3. A logical model may use one or more compatible sources, including different provider templates or upstream models. Every enabled source must satisfy the published modalities, capabilities, reasoning map, and technical limits. Gateway may retry another source only before client output begins and keeps the same request/accounting lineage across that retry.
+3. A logical model may use one or more compatible sources, including different provider templates or upstream models. Every enabled source must satisfy the published modalities, capabilities, reasoning map, and technical limits. Opfield may retry another source only before client output begins and keeps the same request/accounting lineage across that retry.
 4. Configure publicId, displayName, contextWindow, maxInputTokens, optional maxOutputTokens, autoCompactTokenLimit, modalities, capabilities, reasoning efforts, subscriptionMultiplier, sources, pricing, and access. For API-backed models the schema still requires subscriptionMultiplier; pass \`1\`. API accounting ignores it, and the UI intentionally does not expose it.
 5. Access mode is \`everyone\`, \`selected\` with user/group subjects, or \`disabled\`. Never publish without an enabled, available source.
 6. reasoningEffortMap maps client efforts to provider efforts, for example \`{ "ultra": "max" }\`. Every advertised effort must be representable by every enabled source. The reasoningEfforts array order is preserved in the backend and determines selector/manifest order.
@@ -123,7 +123,7 @@ Published model order is persisted separately and controls API catalog, companio
 
 ## User Tokens And Harness Setup
 
-Users need \`feat:ai:use\` for Gateway Inference access, personal usage visibility, and creation or revocation of their own inference tokens. AI Workspace access is controlled separately by \`ai:workspace:use\`.
+Users need \`feat:ai:use\` for Opfield Inference access, personal usage visibility, and creation or revocation of their own inference tokens. AI Workspace access is controlled separately by \`ai:workspace:use\`.
 
 Token options:
 
@@ -140,7 +140,7 @@ No global installation or PATH change is required:
 npx -y @sqgateway/inference@latest
 \`\`\`
 
-An administrator must first enable **Inference** in **Settings > General**. Before giving harness setup instructions, call \`get_gateway_settings\` when it is available and report \`generalSettings.features.inferenceEnabled\`. Without that read permission, do not guess its value: explain that an administrator must confirm it. The interactive manager asks for the Gateway URL and offers either isolated browser OAuth/PKCE or a masked existing \`gwi_\` token, then can configure, diagnose, repair, or remove supported harness integrations. Browser OAuth always prints the complete authorization URL before attempting to open it, preserving a manual fallback when the browser does not start. The token is validated before it is saved, identifies its owning user, and requires no email. Direct commands are \`login [gateway]\`, \`logout\`, \`setup [harness]\`, \`startup install|status|uninstall\`, and the offline recovery command \`uninstall codex-usage\`; non-interactive token login uses \`--token\`. \`--home /data/inference\` or \`GATEWAY_INFERENCE_HOME=/data/inference\` keeps all companion-owned filesystem state and mode-0600 credentials below one directory and is propagated to installed helper processes. Harness configuration still remains in the native Codex or Claude Code directory. If the user does not name a harness, ask whether they use Codex or Claude Code before giving harness-specific instructions.
+An administrator must first enable **Inference** in **Settings > General**. Before giving harness setup instructions, call \`get_gateway_settings\` when it is available and report \`generalSettings.features.inferenceEnabled\`. Without that read permission, do not guess its value: explain that an administrator must confirm it. The interactive manager asks for the Opfield URL and offers either isolated browser OAuth/PKCE or a masked existing \`gwi_\` token, then can configure, diagnose, repair, or remove supported harness integrations. Browser OAuth always prints the complete authorization URL before attempting to open it, preserving a manual fallback when the browser does not start. The token is validated before it is saved, identifies its owning user, and requires no email. Direct commands are \`login [gateway]\`, \`logout\`, \`setup [harness]\`, \`startup install|status|uninstall\`, and the offline recovery command \`uninstall codex-usage\`; non-interactive token login uses \`--token\`. \`--home /data/inference\` or \`GATEWAY_INFERENCE_HOME=/data/inference\` keeps all companion-owned filesystem state and mode-0600 credentials below one directory and is propagated to installed helper processes. Harness configuration still remains in the native Codex or Claude Code directory. If the user does not name a harness, ask whether they use Codex or Claude Code before giving harness-specific instructions.
 
 #### Codex CLI and Desktop
 
@@ -151,7 +151,7 @@ npx -y @sqgateway/inference@latest setup codex
 npx -y @sqgateway/inference@latest setup codex --url https://gateway.example.com --startup
 \`\`\`
 
-Codex setup issues a dedicated runtime token, writes only package-managed Codex configuration sections, installs a private helper and loopback proxy, and maintains the authoritative Gateway model catalog. It does not replace native Codex usage or quota displays. Catalog changes apply after starting a new Codex process. Codex Desktop must also be signed in to an OpenAI account through Codex's normal login flow; after Gateway setup or login changes, fully quit and reopen Codex. On macOS and Linux, \`startup install\` enables user-session startup for the already installed private helper; it does not depend on npm, \`npx\`, or shell \`PATH\`, install a privileged system service, or enable systemd lingering.
+Codex setup issues a dedicated runtime token, writes only package-managed Codex configuration sections, installs a private helper and loopback proxy, and maintains the authoritative Opfield model catalog. It does not replace native Codex usage or quota displays. Catalog changes apply after starting a new Codex process. Codex Desktop must also be signed in to an OpenAI account through Codex's normal login flow; after Opfield setup or login changes, fully quit and reopen Codex. On macOS and Linux, \`startup install\` enables user-session startup for the already installed private helper; it does not depend on npm, \`npx\`, or shell \`PATH\`, install a privileged system service, or enable systemd lingering.
 
 #### Claude Code CLI
 
@@ -191,7 +191,7 @@ Anthropic SDKs append \`/v1\` themselves, so configure the SDK base URL without 
 - Provider credentials are encrypted and list operations return masked metadata only.
 - Activity stores metadata and normalized usage, never prompts or model output.
 - After configuration, verify provider sync, model visibility, a small request, accounting, reasoning mapping, tools, continuation, compatible pre-output fallback, and Codex auto-compaction where applicable.
-- Gateway Inference runtime and credentials remain isolated from the assistant configuration. The assistant may use a published Gateway Inference model only when an administrator explicitly selects that provider type.`,
+- Opfield Inference runtime and credentials remain isolated from the assistant configuration. The assistant may use a published Opfield Inference model only when an administrator explicitly selects that provider type.`,
   'ai-settings': `# AI Workspace Settings
 
 AI Workspace settings control the provider, request limits, tool exposure, web search, and sandbox runner. Use these tools instead of guessing from UI labels:
@@ -203,22 +203,22 @@ AI Workspace settings control the provider, request limits, tool exposure, web s
 - get_sandbox_runtime_status: read sandbox runner enablement and runtime health.
 
 ## Provider Settings
-- providerType: openai_compatible or gateway_inference. Gateway Inference is available only while the inference feature is enabled.
+- providerType: openai_compatible or gateway_inference. Opfield Inference is available only while the inference feature is enabled.
 - providerUrl: OpenAI-compatible API base URL.
 - endpointMode: auto, chat_completions, or responses.
 - model: provider model name.
 - apiKey: only set this when replacing the stored provider key. The current secret is never returned in full.
-- gatewayInferenceModel: default published Gateway Inference model ID.
+- gatewayInferenceModel: default published Opfield Inference model ID.
 - gatewayInferenceAllowUserModelSelection: whether users may choose another model they are allowed to access.
-- allowUserReasoningEffortSelection: whether users may override the default reasoning effort for the OpenAI-compatible provider. Gateway Inference uses each published model's own reasoning capabilities instead.
-- OpenAI-compatible provider values are preserved while Gateway Inference is selected. Disabling inference restores them; if no OpenAI-compatible key was saved, the assistant is disabled.
+- allowUserReasoningEffortSelection: whether users may override the default reasoning effort for the OpenAI-compatible provider. Opfield Inference uses each published model's own reasoning capabilities instead.
+- OpenAI-compatible provider values are preserved while Opfield Inference is selected. Disabling inference restores them; if no OpenAI-compatible key was saved, the assistant is disabled.
 
 ## Limits
 - rateLimitMax and rateLimitWindowSeconds: rate limit for assistant requests.
 - maxToolRounds: maximum sequential tool-call rounds in one assistant run.
 - maxContextTokens: context budget used by the conversation builder.
 - maxCompletionTokens and maxTokensField: response token cap and provider field name.
-- reasoningEffort: default OpenAI-compatible provider effort: low, medium, high, or none. Use none to leave reasoning unspecified. Gateway Inference ignores this setting.
+- reasoningEffort: default OpenAI-compatible provider effort: low, medium, high, or none. Use none to leave reasoning unspecified. Opfield Inference ignores this setting.
 
 ## Tool Access
 - disabledTools: exact tool names hidden from the assistant.
@@ -232,7 +232,7 @@ AI Workspace settings control the provider, request limits, tool exposure, web s
 
   gitlab: `# GitLab Integrations
 
-Gateway GitLab connectors are configured by admins in Settings -> Integrations. Embedded AI users authorize each connector with their own encrypted PAT unless integrations:gitlab:use covers the project (use the connector's system credential). Gateway MCP exposes the same GitLab tools with the same checks, except cloning into the AI sandbox.
+Opfield GitLab connectors are configured by admins in Settings -> Integrations. Embedded AI users authorize each connector with their own encrypted PAT unless integrations:gitlab:use covers the project (use the connector's system credential). Opfield MCP exposes the same GitLab tools with the same checks, except cloning into the AI sandbox.
 
 ## Scope Restrictions
 - GitLab scopes can be limited to a connector (\`<scope>:<connectorId>\`), a group with its subgroups (\`<connectorId>/group/<groupId>\`) or one project (\`<connectorId>/project/<projectId>\`). IDs are GitLab's numeric IDs, not paths.
@@ -244,8 +244,8 @@ Gateway GitLab connectors are configured by admins in Settings -> Integrations. 
 ## Discovery
 - Use gitlab_list_connectors to find enabled connectors.
 - No connector is a setup choice, not a terminal failure. For a GitLab repository, ask the user whether they want a shared GitLab-instance connector or a generic connector scoped to this repository before treating repository inspection as unavailable.
-- If Gateway asks for GitLab authorization, wait for the user to complete or cancel the authorization modal. Never ask the user to paste a PAT into chat.
-- Use gitlab_list_projects or gitlab_search_projects to find projects already synced through Gateway allowlist rules.
+- If Opfield asks for GitLab authorization, wait for the user to complete or cancel the authorization modal. Never ask the user to paste a PAT into chat.
+- Use gitlab_list_projects or gitlab_search_projects to find projects already synced through Opfield allowlist rules.
 - Project arguments accept the synced project remote ID or full path.
 - Every GitLab tool except gitlab_list_connectors requires the exact connectorId UUID from gitlab_list_connectors or from a prior GitLab project result. Do not use connector names, project paths, or blank values as connectorId.
 - If a visible GitLab project exists but is not enabled in the connector allowlist, use gitlab_add_connector_projects with explicit approval, then gitlab_sync_connector.
@@ -269,13 +269,13 @@ Gateway GitLab connectors are configured by admins in Settings -> Integrations. 
 - gitlab_list_project_variables returns metadata only (keys and flags, never values) and needs integrations:gitlab:repo:read. github_list_actions_variables returns values, which are secrets, so it needs integrations:github:repo:write.
 - gitlab_set_project_variable accepts a secret value but the value must not be repeated in responses or explanations.
 - gitlab_delete_project_variable always requires explicit tool approval.
-- Webhook management uses GitLab project webhook tools and must respect connector allowlist and Gateway scopes.
-- gitlab_create_deploy_token captures the raw deploy token only inside Gateway, encrypts it as connector-managed credentials, and returns masked metadata only.
+- Webhook management uses GitLab project webhook tools and must respect connector allowlist and Opfield scopes.
+- gitlab_create_deploy_token captures the raw deploy token only inside Opfield, encrypts it as connector-managed credentials, and returns masked metadata only.
 - If a project registry is disabled, use gitlab_update_project_settings with containerRegistryAccessLevel=enabled after approval. That tool runs a connector sync afterward and reports sync or syncError; use gitlab_sync_connector only if you need to retry a failed sync or refresh metadata later.
 
 ## Safety Rules
-- Gateway scopes, connector allowlist, provider capabilities, and tool approval rules are authoritative. GitLab PAT permissions are only an upper bound.
-- Direct commits to protected/default branches are allowed only when Gateway approval rules and the GitLab PAT both allow it.
+- Opfield scopes, connector allowlist, provider capabilities, and tool approval rules are authoritative. GitLab PAT permissions are only an upper bound.
+- Direct commits to protected/default branches are allowed only when Opfield approval rules and the GitLab PAT both allow it.
 - Never ask the user to paste connector PATs, deploy token values, or project variable secrets into chat unless the current tool call explicitly needs one-time secret input.
 - Audit logs store metadata and optional diff hashes, not raw secrets or full diffs.`,
 
@@ -294,7 +294,7 @@ Each alert rule defines:
 - **Severity**: info, warning, critical
 - **Webhooks**: webhookIds — which webhooks receive notifications from this rule
 - **Message template**: Handlebars template rendered with event-specific variables
-- **Resolve message**: resolveMessageTemplate — sent when the alert resolves; empty uses Gateway's resolve text for the rule (e.g. "Proxy host example.com is back online after 13m 2s."), never the firing message
+- **Resolve message**: resolveMessageTemplate — sent when the alert resolves; empty uses Opfield's resolve text for the rule (e.g. "Proxy host example.com is back online after 13m 2s."), never the firing message
 - **Cooldown**: cooldownSeconds — won't re-fire within this period (default 900s = 15 min)
 
 ## Webhooks
@@ -327,7 +327,7 @@ The category metadata returned by \`GET /api/notifications/alert-rules/categorie
 - database_clickhouse metrics: latency_ms, database_size_mb, disk_used_pct, disk_available_mb, pending_mutations.
 - database_redis (key-value stores) metrics: latency_ms, memory_pct.
 - database health events: health.offline, health.degraded, health.online. These events can also be used with threshold-style observation windows when supportsThreshold is true.
-- Availability (a database or storage on several servers): the three database categories and managed_storage have the events availability.failover, availability.switchover, availability.forced_promotion, availability.degraded, availability.no_failover and availability.restored (set states, supportsThreshold), availability.member_offline, availability.sync_degraded, availability.sync_far, availability.witness_lost, availability.witness_moved, availability.fenced, availability.rejoined, availability.rebuilt and availability.cancelled_sync_wait. Their \`details.reason\`, \`details.member_id\` and \`details.occurred_at\` say why, which server, and when it happened (events the servers queued while Gateway was down keep their own time). The database categories also have the metrics replication_lag_bytes and replication_lag_seconds (worst copy) and rtt_ms (round trip between the servers). managed_storage rules name storage connection ids.
+- Availability (a database or storage on several servers): the three database categories and managed_storage have the events availability.failover, availability.switchover, availability.forced_promotion, availability.degraded, availability.no_failover and availability.restored (set states, supportsThreshold), availability.member_offline, availability.sync_degraded, availability.sync_far, availability.witness_lost, availability.witness_moved, availability.fenced, availability.rejoined, availability.rebuilt and availability.cancelled_sync_wait. Their \`details.reason\`, \`details.member_id\` and \`details.occurred_at\` say why, which server, and when it happened (events the servers queued while Opfield was down keep their own time). The database categories also have the metrics replication_lag_bytes and replication_lag_seconds (worst copy) and rtt_ms (round trip between the servers). managed_storage rules name storage connection ids.
 
 ## Handlebars Helpers
 Available in all templates:

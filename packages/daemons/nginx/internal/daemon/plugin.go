@@ -268,19 +268,19 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 	p.registryListenersRelease = time.AfterFunc(registryListenerAdoptionWindow, p.releaseUnclaimedRegistryListeners)
 	p.pagesRuntime, err = pages.New(p.cfg.Nginx.PagesRoot, p.cfg.Nginx.ConfigDir, p.cfg.Nginx.CertsDir, p.mgr)
 	if err != nil {
-		logger.Warn("Gateway Pages runtime is unavailable; Pages capability is disabled", "error", err)
+		logger.Warn("Opfield Pages runtime is unavailable; Pages capability is disabled", "error", err)
 	} else if err := p.pagesRuntime.SetHtpasswdDir(p.cfg.Nginx.HtpasswdDir); err != nil {
-		logger.Warn("Gateway Pages htpasswd directory is unsafe; Pages capability is disabled", "error", err)
+		logger.Warn("Opfield Pages htpasswd directory is unsafe; Pages capability is disabled", "error", err)
 		p.pagesRuntime = nil
 	} else if err := p.pagesRuntime.RepairStorage(); err != nil {
-		logger.Warn("Gateway Pages storage is unavailable; Pages capability is disabled", "error", err)
+		logger.Warn("Opfield Pages storage is unavailable; Pages capability is disabled", "error", err)
 		p.pagesRuntime = nil
 	} else {
 		// nginx workers must reach the releases through the daemon's state
 		// directory, which state writes create owner-only (N-22).
 		p.pagesRuntime.SetReaderAccess(baseCfg.StateDir, p.secureLinks.socketOwnerUID)
 		if err := p.pagesRuntime.RepairTraversal(); err != nil {
-			logger.Warn("nginx workers may not reach Gateway Pages releases; Pages deliveries stay not ready until they can", "error", err)
+			logger.Warn("nginx workers may not reach Opfield Pages releases; Pages deliveries stay not ready until they can", "error", err)
 		}
 		// Set this only after every v1 runtime dependency has initialized and the
 		// confined storage root has passed a real filesystem preflight. This is
@@ -288,10 +288,10 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 		p.pagesV1Available = true
 		p.pagesRuntimeConfigAvailable, err = nginxBuildHasSubFilter(p.cfg.Nginx.Binary)
 		if err != nil {
-			logger.Warn("Gateway Pages runtime configuration is unavailable; capability is disabled", "error", err)
+			logger.Warn("Opfield Pages runtime configuration is unavailable; capability is disabled", "error", err)
 			p.pagesRuntimeConfigAvailable = false
 		} else if !p.pagesRuntimeConfigAvailable {
-			logger.Warn("Gateway Pages runtime configuration is unavailable; nginx was built without http_sub_module")
+			logger.Warn("Opfield Pages runtime configuration is unavailable; nginx was built without http_sub_module")
 		}
 	}
 
@@ -342,7 +342,7 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 	if modified, err := nginx.EnsureServerNamesHashBucketSize(p.cfg.Nginx.GlobalConfig); err != nil {
 		logger.Warn("failed to configure server names hash bucket size", "error", err)
 	} else if modified {
-		logger.Info("configured server names hash bucket size for Gateway Pages")
+		logger.Info("configured server names hash bucket size for Opfield Pages")
 		globalConfigModified = true
 	}
 

@@ -170,13 +170,13 @@ func runInstall() {
 		os.Exit(1)
 	}
 	if kept {
-		fmt.Printf("Kept the existing %s; set its gateway address, token and certificate fingerprint\n", configPath)
+		fmt.Printf("Kept the existing %s; set its Opfield address, token and certificate fingerprint\n", configPath)
 	}
 	fmt.Printf("Config written to %s\n", configPath)
 
 	// Create systemd service unit
 	serviceContent := `[Unit]
-Description=Gateway Nginx Daemon
+Description=Opfield Nginx Daemon
 After=network-online.target nginx.service
 Wants=network-online.target
 

@@ -1,4 +1,4 @@
 interface:
-  display_name: "Publish to Gateway Pages"
-  short_description: "Publish HTML to Gateway Pages and share a link"
-  default_prompt: "Use $publishing-html-pages to publish this HTML output to Gateway Pages and share a verified link."
+  display_name: "Publish to Opfield Pages"
+  short_description: "Publish HTML to Opfield Pages and share a link"
+  default_prompt: "Use $publishing-html-pages to publish this HTML output to Opfield Pages and share a verified link."

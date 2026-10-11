@@ -12,7 +12,7 @@ const COMPLETED_TASK_STATUSES = ['completed', 'succeeded', 'failed'] as const;
 const STALE_ACTIVE_TASK_TIMEOUT_MS = 60 * 60 * 1000;
 const LOST_STARTUP_TRACKING_ERROR = 'Task tracking interrupted by backend restart';
 /** Progress of a task Gateway lost track of while the node may still run it. */
-export const DETACHED_TASK_PROGRESS = 'Gateway lost track of it; checks with the node once it is connected';
+export const DETACHED_TASK_PROGRESS = 'Opfield lost track of it; checks with the node once it is connected';
 
 export type DockerTaskRow = typeof dockerTasks.$inferSelect;
 /** A task as the API shows it: without what Gateway keeps to settle it with its node and what it still owes then. */

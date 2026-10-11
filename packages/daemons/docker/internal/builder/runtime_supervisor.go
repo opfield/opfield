@@ -250,7 +250,7 @@ func splitControlPlaneAddress(address string) (string, string) {
 
 func renderEgressUnit() string {
 	return `[Unit]
-Description=Gateway builder egress policy
+Description=Opfield builder egress policy
 After=network-online.target
 Wants=network-online.target
 Before=gateway-builder-containerd.service gateway-builder-buildkit.service
@@ -303,7 +303,7 @@ func renderGitAskpass() string {
 func renderContainerdUnit(config RuntimeConfig) string {
 	cpuQuota := strconv.FormatFloat(float64(config.CPULimitMillis)/10, 'f', 2, 64) + "%"
 	return fmt.Sprintf(`[Unit]
-Description=Gateway isolated builder containerd
+Description=Opfield isolated builder containerd
 After=network-online.target
 Wants=network-online.target
 
@@ -329,7 +329,7 @@ WantedBy=multi-user.target
 
 func renderBuildkitUnit(config RuntimeConfig) string {
 	return fmt.Sprintf(`[Unit]
-Description=Gateway isolated BuildKit builder
+Description=Opfield isolated BuildKit builder
 After=gateway-builder-containerd.service
 Requires=gateway-builder-containerd.service
 

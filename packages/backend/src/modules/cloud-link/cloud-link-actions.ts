@@ -59,7 +59,7 @@ export function createCloudLinkActions(): CloudLinkActions {
       const installation = await enrollmentInstallation(created, await publicUrlFallbackGateway());
       const target =
         installation.installCommands.find((command) => command.target === 'public') ?? installation.installCommands[0];
-      if (!target) throw new Error('Gateway has no address a node could enrol with; set its public URL first');
+      if (!target) throw new Error('Opfield has no address a node could enrol with; set its public URL first');
       return {
         token: created.enrollmentToken,
         expiresAt: created.enrollmentTokenExpiresAt,
@@ -90,7 +90,7 @@ export function createCloudLinkActions(): CloudLinkActions {
     async update(version) {
       const updateService = container.resolve(UpdateService);
       if (updateService.isGatewayUpdateInProgress()) {
-        throw new AppError(409, 'UPDATE_IN_PROGRESS', 'A Gateway update is already in progress');
+        throw new AppError(409, 'UPDATE_IN_PROGRESS', 'An Opfield update is already in progress');
       }
       await updateService.assertGatewayUpdateAllowed();
       const status = await updateService.getCachedStatus();

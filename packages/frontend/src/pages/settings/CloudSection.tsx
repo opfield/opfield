@@ -47,7 +47,7 @@ function PortalLink({ url }: { url: string }) {
 }
 
 const REMOTE_MANAGEMENT_HINT =
-  "Lets your cloud account create node enrolment tokens, start Gateway updates and issue a first-admin setup code. Reading state and logs needs no permission.";
+  "Lets your cloud account create node enrolment tokens, start Opfield updates and issue a first-admin setup code. Reading state and logs needs no permission.";
 
 function RemoteManagementRow({
   remoteManagement,
@@ -235,7 +235,7 @@ export function CloudSection({ canManage, canViewAudit }: CloudSectionProps) {
     const ok = await confirm({
       title: "Disconnect from Cloud",
       description:
-        "Disconnect this Gateway from your cloud account? The account will no longer see its state or logs until you connect it again with a new code.",
+        "Disconnect this Opfield installation from your cloud account? The account will no longer see its state or logs until you connect it again with a new code.",
       confirmLabel: "Disconnect",
       variant: "destructive",
     });
@@ -290,7 +290,7 @@ export function CloudSection({ canManage, canViewAudit }: CloudSectionProps) {
     </form>
   ) : (
     <p className="p-4 text-sm text-muted-foreground">
-      Ask an administrator who manages the license to connect this Gateway.
+      Ask an administrator who manages the license to connect this Opfield installation.
     </p>
   );
 
@@ -304,7 +304,7 @@ export function CloudSection({ canManage, canViewAudit }: CloudSectionProps) {
           ? `Connected to ${status.accountEmail ?? "your cloud account"}`
           : disconnectedByAccount
             ? "Disconnected by the account"
-            : "Connect this Gateway to your cloud account"
+            : "Connect this Opfield installation to your cloud account"
       }
       className="xl:col-span-2"
       style={{ borderColor: "var(--color-info)" }}
@@ -348,7 +348,7 @@ export function CloudSection({ canManage, canViewAudit }: CloudSectionProps) {
         <>
           <div className="border-b border-border p-4">
             <p className="text-sm text-muted-foreground">
-              {status.disconnectedReason ?? "Your cloud account disconnected this Gateway."} To
+              {status.disconnectedReason ?? "Your cloud account disconnected this Opfield installation."} To
               connect it again, create a new code on this installation's page in your cloud account.
             </p>
           </div>
@@ -367,8 +367,8 @@ export function CloudSection({ canManage, canViewAudit }: CloudSectionProps) {
         <>
           <div className="border-b border-border p-4">
             <p className="text-sm text-muted-foreground">
-              A connected Gateway keeps one outbound connection to your cloud account, so the
-              account can show this Gateway's state and container logs. Open this installation in
+              A connected Opfield keeps one outbound connection to your cloud account, so the
+              account can show this installation's state and container logs. Open this installation in
               your cloud account, press Connect, and enter the code it shows.
             </p>
           </div>

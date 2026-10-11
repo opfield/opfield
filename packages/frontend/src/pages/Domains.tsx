@@ -97,14 +97,14 @@ const DOMAIN_CREATION_BLOCKER_COPY: Record<
   no_nodes: {
     title: "No Ingress Nodes",
     description:
-      "A domain must be assigned to an Ingress node that accepts incoming traffic. Add and connect an Ingress node first; Gateway will use its detected public service address as the DNS target. You can review or change that address in the node's Settings before returning here.",
+      "A domain must be assigned to an Ingress node that accepts incoming traffic. Add and connect an Ingress node first; Opfield will use its detected public service address as the DNS target. You can review or change that address in the node's Settings before returning here.",
     actionLabel: "Open Nodes",
     href: "/nodes",
   },
   no_public_address: {
     title: "No Public Ingress Addresses",
     description:
-      "Gateway found Ingress nodes, but none currently reports a public service address that can be used as the DNS target. Open a node's Settings and choose Automatic or one of the detected public addresses. Nodes that expose only private addresses cannot be assigned to a domain.",
+      "Opfield found Ingress nodes, but none currently reports a public service address that can be used as the DNS target. Open a node's Settings and choose Automatic or one of the detected public addresses. Nodes that expose only private addresses cannot be assigned to a domain.",
     actionLabel: "Open Nodes",
     href: "/nodes",
   },
@@ -304,7 +304,7 @@ export function Domains() {
     if (d.dnsProvider === "cloudflare" && d.dnsOwnership === "matched_existing") {
       const ok = await confirm({
         title: "Delete Domain Mapping",
-        description: `Remove "${d.domain}" from Gateway? The matched existing Cloudflare DNS record will be kept.`,
+        description: `Remove "${d.domain}" from Opfield? The matched existing Cloudflare DNS record will be kept.`,
         confirmLabel: "Remove Mapping",
         cancelLabel: "Cancel",
         variant: "default",
@@ -316,7 +316,7 @@ export function Domains() {
         title: "Delete Domain",
         description:
           d.dnsProvider === "cloudflare"
-            ? `Delete "${d.domain}" and its Gateway-managed Cloudflare DNS records?`
+            ? `Delete "${d.domain}" and its Opfield-managed Cloudflare DNS records?`
             : `Are you sure you want to delete "${d.domain}"? This won't affect routes or certificates using this domain.`,
         confirmLabel: "Delete",
       });

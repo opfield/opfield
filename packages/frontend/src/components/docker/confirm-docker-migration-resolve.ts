@@ -14,8 +14,8 @@ export async function confirmDockerMigrationResolve(
     title: "Resolve migration",
     description:
       side === "source"
-        ? "Cutover did not complete, so Gateway keeps the source node as authoritative. Confirm that you removed or stopped the target copy and restarted the source if it should run. Resolving releases the migration lock and the maintenance mode it entered; it does not start or remove any container."
-        : "Cutover completed, so Gateway treats the target node as authoritative. Confirm that the source copy is stopped or removed. Resolving releases the migration lock and the maintenance mode it entered; it does not start or remove any container.",
+        ? "Cutover did not complete, so Opfield keeps the source node as authoritative. Confirm that you removed or stopped the target copy and restarted the source if it should run. Resolving releases the migration lock and the maintenance mode it entered; it does not start or remove any container."
+        : "Cutover completed, so Opfield treats the target node as authoritative. Confirm that the source copy is stopped or removed. Resolving releases the migration lock and the maintenance mode it entered; it does not start or remove any container.",
     confirmLabel: side === "source" ? "Source is authoritative" : "Target is authoritative",
     variant: "destructive",
   });

@@ -147,14 +147,14 @@ prompt_menu() {
 # ── Parse Arguments ─────────────────────────────────────────────────
 show_help() {
     cat <<'HELP'
-Gateway Daemon Setup — downloads and runs the appropriate setup script
+Opfield Daemon Setup — downloads and runs the appropriate setup script
 
 Usage:
   setup-daemon.sh --type <nginx|docker|storage|monitoring> [options...]
 
 Options:
   --type <type>            Node type: nginx, docker, storage, or monitoring (databases is a legacy alias)
-  --version <tag>          Gateway release tag containing the installers (default: the release
+  --version <tag>          Opfield release tag containing the installers (default: the release
                            this installer came from)
   --script-dir <path>      Run a daemon-specific installer from a local directory
   -h, --help               Show this help
@@ -194,7 +194,7 @@ if [[ -z "$DAEMON_TYPE" ]]; then
     if [ -t 1 ] && command_exists clear; then
         clear
     fi
-    show_logo "Gateway Daemon Setup" "Choose a node installer"
+    show_logo "Opfield Daemon Setup" "Choose a node installer"
     selector_title "Select daemon type to install:"
     choice=$(prompt_menu "1" "nginx       — Reverse proxy node (nginx + nginx-daemon)" "docker      — Docker container management node" "storage     — Managed databases, object storage and backups" "monitoring  — System metrics agent (no nginx/docker)")
     case "$choice" in
@@ -237,7 +237,7 @@ else
     TMPDIR=$(mktemp -d /tmp/gateway-setup.XXXXXX)
     trap 'rm -rf "$TMPDIR"' EXIT
     CHECKSUMS="${TMPDIR}/gateway-daemon-installers.sha256"
-    log "Downloading verified ${SCRIPT_NAME} from Gateway releases..."
+    log "Downloading verified ${SCRIPT_NAME} from Opfield releases..."
     curl -fsSL "${RELEASE_URL}/gateway-daemon-installers.sha256" -o "$CHECKSUMS" ||
         die "Failed to download installer checksums from ${RELEASE_URL}"
 

@@ -1,12 +1,12 @@
-# Good Gateway Product Continuity MIT Grant 1.0
+# Opfield Product Continuity MIT Grant 1.0
 
-This grant applies only to Good Gateway source code included in the release distributed with this file for which the Licensor owns the copyright or transferable economic rights (the **Covered Source**). It does not apply to trademarks, product names, logos, commercial license keys, separately licensed documentation or assets, or third-party components.
+This grant applies only to Opfield source code included in the release distributed with this file for which the Licensor owns the copyright or transferable economic rights (the **Covered Source**). It does not apply to trademarks, product names, logos, commercial license keys, separately licensed documentation or assets, or third-party components.
 
 This is a present, non-revocable grant of a conditional future license. It is not a release countdown. No passage of time after a release, publication of a newer release, product pause, or service outage starts the MIT License.
 
 ## Licensor And Succession
 
-Until a legal entity formed to operate Square Labs receives the relevant rights through a legally effective written assignment, the **Licensor** is [**Alexandr Slavinskii**](https://github.com/knownout). After that assignment, the legal entity becomes the Licensor and a **Company Rights Holder**. References to the Licensor include any later valid successor or assignee.
+Until a legal entity formed to operate Opfield receives the relevant rights through a legally effective written assignment, the **Licensor** is [**Alexandr Slavinskii**](https://github.com/knownout). After that assignment, the legal entity becomes the Licensor and a **Company Rights Holder**. References to the Licensor include any later valid successor or assignee.
 
 That succession does not reduce rights already granted to users, change the conditions of this grant, terminate applicable paid-key terms, or revoke, invalidate, or deactivate any valid commercial key solely because of the assignment.
 
@@ -38,7 +38,7 @@ A temporary registry status, pending liquidation, insolvency, bankruptcy proceed
 
 None of the following, alone or in combination, starts the MIT License or a transition period:
 
-- no new Good Gateway releases, updates, or security fixes;
+- no new Opfield releases, updates, or security fixes;
 - a temporary, indefinite, or permanent pause in development, maintenance, sales, licensing, renewals, or support;
 - a public announcement that the product is paused, discontinued, unsupported, or no longer commercially offered;
 - unavailability of a company website, documentation website, source repository, update service, licensing service, or any other online service, for any duration;

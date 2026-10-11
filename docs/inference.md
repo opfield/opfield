@@ -1,14 +1,14 @@
 # Multi-provider inference proxy
 
-Gateway exposes a standalone OpenAI- and Anthropic-compatible inference data plane. It is isolated from AI Workspace and the MCP runtime: it uses dedicated provider credentials, `gwi_` user tokens, model access rules, accounting, and a usage ledger.
+Opfield exposes a standalone OpenAI- and Anthropic-compatible inference data plane. It is isolated from AI Workspace and the MCP runtime: it uses dedicated provider credentials, `gwi_` user tokens, model access rules, accounting, and a usage ledger.
 
-The data plane is served by a managed OpenCodex inference core that Gateway installs and updates on the host as a supervised container. Gateway remains the control plane: provider connections, models, limits, tokens, pricing, and accounting stay in the Gateway UI and database, and are delegated to the core automatically. The connector baseline is OpenCodex; Cursor, Kiro, and OpenCodex desktop lifecycle features are intentionally excluded.
+The data plane is served by a managed OpenCodex inference core that Opfield installs and updates on the host as a supervised container. Opfield remains the control plane: provider connections, models, limits, tokens, pricing, and accounting stay in the Opfield UI and database, and are delegated to the core automatically. The connector baseline is OpenCodex; Cursor, Kiro, and OpenCodex desktop lifecycle features are intentionally excluded.
 
 The provider registry covers OpenAI/Codex, Anthropic, xAI, Kimi/Moonshot, Google Gemini, Google Antigravity, GitHub Copilot, Umans, OpenCode, NeuralWatt, OrcaRouter, DeepSeek, Fire Pass, NVIDIA, Z.AI, SiliconFlow, Qwen, Tencent, Alibaba, ZenMux, LiteLLM, Ollama, vLLM, LM Studio, MiniMax, MiMo, Cloudflare Workers AI, OpenRouter, Groq, Cerebras, Together, Hugging Face, Mistral, Azure OpenAI, and generic OpenAI-compatible endpoints. Google Antigravity uses Cloud Code Assist project discovery and its request envelope. Provider-specific capabilities remain explicit in the registry, so an unavailable surface fails closed instead of silently using the wrong wire format.
 
 ## Enable inference
 
-Inference is disabled by default. An administrator with Gateway settings access enables it under **Settings > General > Features and updates > Inference**. No process restart is required.
+Inference is disabled by default. An administrator with Opfield settings access enables it under **Settings > General > Features and updates > Inference**. No process restart is required.
 
 When disabled, management and data-plane routes return `INFERENCE_DISABLED`, and the frontend omits Inference usage, token management, and administration surfaces. Connected provider credentials, model configuration, and accounting history remain stored.
 
@@ -16,7 +16,7 @@ Apply database migrations before enabling the flag. Roll out admin scopes first,
 
 ## Inference core lifecycle
 
-The managed core is a single `inference-core` container supervised by Gateway. It listens only on the internal Docker network; clients never reach it directly. All client traffic enters through Gateway's `/api/inference/v1` proxy, which authenticates the `gwi_` token, admits the request against budgets, and forwards it to the core with a signed per-request context. The core reports admission and settlement back to Gateway over an authenticated internal callback channel, so PostgreSQL remains the source of truth for usage and billing.
+The managed core is a single `inference-core` container supervised by Opfield. It listens only on the internal Docker network; clients never reach it directly. All client traffic enters through Opfield's `/api/inference/v1` proxy, which authenticates the `gwi_` token, admits the request against budgets, and forwards it to the core with a signed per-request context. The core reports admission and settlement back to Opfield over an authenticated internal callback channel, so PostgreSQL remains the source of truth for usage and billing.
 
 Administrators manage the core from **Settings > Inference** (and during initial setup from the setup wizard):
 
@@ -25,30 +25,30 @@ Administrators manage the core from **Settings > Inference** (and during initial
 - **Repair** reconciles a degraded or failed container back to the desired state.
 - **Check updates** records the newest release available on the channel.
 
-Only one lifecycle operation runs at a time. Operations interrupted by a Gateway restart are marked failed and reconciled from observed container state on boot.
+Only one lifecycle operation runs at a time. Operations interrupted by an Opfield restart are marked failed and reconciled from observed container state on boot.
 
-Gateway and inference-core upgrades do not invalidate provider connections, runtime tokens, or an installed harness integration. The companion helper refreshes the Codex model catalog automatically. Rerun `setup` only when repairing or replacing the local integration, changing Gateway identity, or adopting a future explicitly incompatible endpoint contract.
+Opfield and inference-core upgrades do not invalidate provider connections, runtime tokens, or an installed harness integration. The companion helper refreshes the Codex model catalog automatically. Rerun `setup` only when repairing or replacing the local integration, changing Opfield identity, or adopting a future explicitly incompatible endpoint contract.
 
 ## Administrator setup
 
 1. Open **Settings > Inference**.
 2. Install the inference core and wait for it to report healthy.
-3. In **Providers**, connect subscription accounts through the displayed OAuth/device flow or add API/local credentials. OpenAI/Codex uses the remote-safe device flow at `auth.openai.com/codex/device`; Gateway never relies on the Codex CLI's `localhost:1455` loopback callback. Subscription connectors are unofficial upstream integrations and require explicit terms/risk acknowledgement.
+3. In **Providers**, connect subscription accounts through the displayed OAuth/device flow or add API/local credentials. OpenAI/Codex uses the remote-safe device flow at `auth.openai.com/codex/device`; Opfield never relies on the Codex CLI's `localhost:1455` loopback callback. Subscription connectors are unofficial upstream integrations and require explicit terms/risk acknowledgement.
 4. Wait for sync. Providers with multiple connected accounts/keys appear as one collapsible table group; a provider with one connection remains a normal row. Open an account row to review 5h/7d/30d subscription quota, including model-scoped weekly limits such as Anthropic's separate Fable, Opus, and Sonnet windows, enable or disable it, synchronize it manually, or configure a minimum remaining reserve.
-5. Gateway automatically routes across compatible sources while retaining active-turn affinity and failing over only before client output begins. Within a provider group, drag account rows to set the priority used by Sequential routing; accounts cannot be moved between provider groups. A subscription connection is excluded when its worst fresh account-wide quota window falls below its configured reserve. A model-scoped window excludes the connection only for models of that family, so an exhausted Fable window leaves the same account routable for Sonnet. A logical model may also include fallback sources from different providers or upstream models when every source satisfies the published modalities, capabilities, reasoning map, and technical limits.
+5. Opfield automatically routes across compatible sources while retaining active-turn affinity and failing over only before client output begins. Within a provider group, drag account rows to set the priority used by Sequential routing; accounts cannot be moved between provider groups. A subscription connection is excluded when its worst fresh account-wide quota window falls below its configured reserve. A model-scoped window excludes the connection only for models of that family, so an exhausted Fable window leaves the same account routable for Sonnet. A logical model may also include fallback sources from different providers or upstream models when every source satisfies the published modalities, capabilities, reasoning map, and technical limits.
 6. In **Models**, publish a stable public model ID with one or more compatible sources.
 7. Configure context/input/output/auto-compaction limits, modalities, and access. Subscription-backed models also have a credit multiplier; API-backed models use versioned provider/manual pricing and do not expose a subscription multiplier.
 8. Configure reasoning overrides such as `ultra=max`. Efforts without an override map to the same provider name. Drag efforts into the order that clients and the AI Workspace reasoning selector should display them.
-9. Optionally set a **System prompt** for the model. **Append** keeps the Codex default instructions and adds the prompt after them; **Replace** substitutes the default entirely, so a replacement must restate any tool or patch-format rules the model still needs. The prompt is delivered through the Codex model catalog that the companion package maintains, reaches a device on its next catalog refresh, and takes effect after Codex restarts. It applies to the Codex harness only: Gateway never rewrites the `instructions` or `system` field of a client request, so Claude Code and direct API clients keep their own prompts.
+9. Optionally set a **System prompt** for the model. **Append** keeps the Codex default instructions and adds the prompt after them; **Replace** substitutes the default entirely, so a replacement must restate any tool or patch-format rules the model still needs. The prompt is delivered through the Codex model catalog that the companion package maintains, reaches a device on its next catalog refresh, and takes effect after Codex restarts. It applies to the Codex harness only: Opfield never rewrites the `instructions` or `system` field of a client request, so Claude Code and direct API clients keep their own prompts.
 10. In **Settings > Inference > Limits**, set default limits and optional per-user overrides.
 
 Drag model rows to set the order returned by the management and data-plane catalogs. The companion preserves that order in the Codex manifest, and AI Workspace uses it for its model selector and default-model fallback.
 
-There is no user-visible or administrator-managed Pool entity. Provider administration remains grouped by provider, while one logical model may include compatible sources from more than one provider or upstream model. Gateway validates every enabled source against the model's published contract and keeps failover inside one request/accounting lineage; it never switches after output has begun.
+There is no user-visible or administrator-managed Pool entity. Provider administration remains grouped by provider, while one logical model may include compatible sources from more than one provider or upstream model. Opfield validates every enabled source against the model's published contract and keeps failover inside one request/accounting lineage; it never switches after output has begun.
 
 ## User setup
 
-Users need `feat:ai:use` for Gateway Inference access, personal usage visibility, and creation or revocation of their own inference tokens. AI Workspace access is controlled separately by `ai:workspace:use`.
+Users need `feat:ai:use` for Opfield Inference access, personal usage visibility, and creation or revocation of their own inference tokens. AI Workspace access is controlled separately by `ai:workspace:use`.
 
 Create a token under **Profile > Authorizations > Inference API tokens**. The `gwi_` secret is shown once.
 
@@ -68,7 +68,7 @@ For Codex and Claude Code, prefer the companion package instead of editing confi
 npx -y @sqgateway/inference@latest
 ```
 
-The interactive package asks for the Gateway URL and then offers browser OAuth with resource-isolated PKCE or a masked existing `gwi_` token. Before attempting to open the browser, OAuth always prints the complete authorization URL to the console so it can be opened manually. The token is validated before it is saved and already identifies its user, so no email is required. Direct `login [gateway]`, `logout`, and `setup [harness]` commands are also available; non-interactive token login uses `--token`:
+The interactive package asks for the Opfield URL and then offers browser OAuth with resource-isolated PKCE or a masked existing `gwi_` token. Before attempting to open the browser, OAuth always prints the complete authorization URL to the console so it can be opened manually. The token is validated before it is saved and already identifies its user, so no email is required. Direct `login [gateway]`, `logout`, and `setup [harness]` commands are also available; non-interactive token login uses `--token`:
 
 ```bash
 npx -y @sqgateway/inference@latest login https://gateway.example.com --token gwi_...
@@ -77,7 +77,7 @@ npx -y @sqgateway/inference@latest setup codex --url https://gateway.example.com
 npx -y @sqgateway/inference@latest setup claude-code
 ```
 
-Codex setup issues a dedicated runtime token, installs a private stable helper and loopback proxy, and maintains the authoritative Gateway model catalog. Codex Desktop must also be signed in to an OpenAI account through its normal login flow; after setup or login changes, fully quit and reopen Codex so it reloads the custom model catalog. Native Codex usage and quota displays are not overridden.
+Codex setup issues a dedicated runtime token, installs a private stable helper and loopback proxy, and maintains the authoritative Opfield model catalog. Codex Desktop must also be signed in to an OpenAI account through its normal login flow; after setup or login changes, fully quit and reopen Codex so it reloads the custom model catalog. Native Codex usage and quota displays are not overridden.
 
 Use `--home /data/inference` or `GATEWAY_INFERENCE_HOME=/data/inference` to keep profiles, credentials, catalogs, helper, and proxy state below one companion directory. The package propagates that home into its installed long-lived processes. Codex and Claude Code configuration still remains in the harness-native configuration directory.
 
@@ -93,7 +93,7 @@ The startup entry runs the already installed private helper directly at user log
 
 Claude Code setup requires Claude Code 2.1.129 or newer. It configures Claude Code's native Anthropic gateway contract through `ANTHROPIC_BASE_URL`, model discovery, and a private `apiKeyHelper`; it does not run a loopback proxy. The integration applies only to the Claude Code CLI, not Claude Desktop or the VS Code extension.
 
-For ChatGPT subscription-backed models whose upstream catalog advertises it, Codex also exposes `/fast`. Gateway forwards the `priority` service tier and charges a fixed 2x subscription-credit multiplier; API dollar accounting is unchanged.
+For ChatGPT subscription-backed models whose upstream catalog advertises it, Codex also exposes `/fast`. Opfield forwards the `priority` service tier and charges a fixed 2x subscription-credit multiplier; API dollar accounting is unchanged.
 
 Supported primary operations include:
 
@@ -109,7 +109,7 @@ Supported primary operations include:
 - `POST /alpha/search`
 - `POST /realtime/calls` and `POST /live`
 
-Responses, Chat Completions, and Messages support unary and SSE responses. Responses also supports an end-to-end WebSocket transport: Gateway keeps the client socket open across turns, forwards each turn to the managed core over WebSocket, and issues fresh signed admission context per turn without converting the stream through SSE or disk files. Realtime sideband/audio WebSockets are not supported. Authentication accepts only a dedicated `gwi_` token through `Authorization: Bearer` or `x-api-key`; browser sessions and regular `gw_`/`gwo_` credentials cannot enter the data plane.
+Responses, Chat Completions, and Messages support unary and SSE responses. Responses also supports an end-to-end WebSocket transport: Opfield keeps the client socket open across turns, forwards each turn to the managed core over WebSocket, and issues fresh signed admission context per turn without converting the stream through SSE or disk files. Realtime sideband/audio WebSockets are not supported. Authentication accepts only a dedicated `gwi_` token through `Authorization: Bearer` or `x-api-key`; browser sessions and regular `gw_`/`gwo_` credentials cannot enter the data plane.
 
 `GET /usage` is authenticated but does not consume inference concurrency or rate-limit admission. It returns user-visible percentage windows plus lifetime and UTC daily token totals used by compatible harness usage views; raw administrator accounting remains on management surfaces.
 
@@ -143,38 +143,38 @@ credits = weighted tokens / 1000000
   × frozen service-tier multiplier
 ```
 
-One public subscription credit therefore represents 1,000,000 weighted tokens before multipliers. Gateway keeps the legacy internal accounting scale private and converts limits and usage at management and activity boundaries, so existing policies, ledger entries, and active reservations require no migration.
+One public subscription credit therefore represents 1,000,000 weighted tokens before multipliers. Opfield keeps the legacy internal accounting scale private and converts limits and usage at management and activity boundaries, so existing policies, ledger entries, and active reservations require no migration.
 
 Admission first reserves a conservative input-plus-output estimate without assuming a future cache hit; settlement replaces it with the weighted actual usage above. Dynamic burn compares remaining quota with the fraction of time left in each reported window, enforces a 30% quota-pressure floor, and caps the result at 8x. Stale, exhausted, or invalid quota data fails closed at 8x. The multiplier is frozen at admission. Codex Fast adds a separate fixed 2x service-tier multiplier for eligible ChatGPT subscription sources; API dollar accounting is unaffected.
 
-A request admitted while the user still has a positive balance always runs to completion: Gateway never reduces its output limit, and the turn may settle past the window limit. Only the reservation is bounded by the remaining balance, so parallel turns cannot stack reservations beyond the limit. The next request after the balance is exhausted is denied with the window's recovery time. Truncating a turn is deliberately avoided: harnesses retry an incomplete response several times and every retry is billed.
+A request admitted while the user still has a positive balance always runs to completion: Opfield never reduces its output limit, and the turn may settle past the window limit. Only the reservation is bounded by the remaining balance, so parallel turns cannot stack reservations beyond the limit. The next request after the balance is exhausted is denied with the window's recovery time. Truncating a turn is deliberately avoided: harnesses retry an incomplete response several times and every retry is billed.
 
-The published model **output limit** is the source of truth for the upstream request. Gateway signs it into the per-request context, and a core that negotiated the capability uses it as the provider output ceiling when the client sends no limit of its own. Older cores do not receive the claim and keep their built-in defaults.
+The published model **output limit** is the source of truth for the upstream request. Opfield signs it into the per-request context, and a core that negotiated the capability uses it as the provider output ceiling when the client sends no limit of its own. Older cores do not receive the claim and keep their built-in defaults.
 
-API usage is stored in integer microdollars using the pricing snapshot selected at admission. API-backed models do not consume subscription credits or use a subscription multiplier. Redis holds atomic reservations, affinity, cooldowns, and refresh locks; PostgreSQL remains the source of truth and stores immutable settlement ledger rows. Continuation state lives in the managed core rather than being duplicated in Gateway request-history storage.
+API usage is stored in integer microdollars using the pricing snapshot selected at admission. API-backed models do not consume subscription credits or use a subscription multiplier. Redis holds atomic reservations, affinity, cooldowns, and refresh locks; PostgreSQL remains the source of truth and stores immutable settlement ledger rows. Continuation state lives in the managed core rather than being duplicated in Opfield request-history storage.
 
 ## Compaction and continuation
 
-During long silent SSE responses, including native compaction, Gateway sends an initial comment and then checks every 15 seconds for idle output. Keepalive comments are emitted only between complete SSE frames and when the consumer can accept data. They are not model output or completion events; the real terminal event still controls request accounting. This protects the HTTP stream from intermediary idle timeouts without inventing response content.
+During long silent SSE responses, including native compaction, Opfield sends an initial comment and then checks every 15 seconds for idle output. Keepalive comments are emitted only between complete SSE frames and when the consumer can accept data. They are not model output or completion events; the real terminal event still controls request accounting. This protects the HTTP stream from intermediary idle timeouts without inventing response content.
 
 
-Gateway supports:
+Opfield supports:
 
 - `previous_response_id` continuation, isolated to the owning user;
 - the v1 `/responses/compact` replacement-history response;
 - the Responses v2 `compaction_trigger` item;
-- Gateway `ocx1:` compaction envelopes that can be passed back as a `compaction` input item.
+- Opfield `ocx1:` compaction envelopes that can be passed back as a `compaction` input item.
 
 Compaction is accounted separately and never receives dynamic burn; a requested eligible Fast tier still receives its fixed service-tier multiplier. A retry may select another capability-compatible provider before output begins, including for continuation requests, but provider selection cannot change after output starts, preventing mixed or duplicated streams.
 
-For Responses WebSocket clients, the socket remains usable until the client, Gateway, or the managed core closes it. A failed or incomplete turn is recorded as failed instead of being finalized as a successful zero-output request. Activity stores normalized metadata and usage only; hovering a model in the administrator activity table identifies the provider account used for that request.
+For Responses WebSocket clients, the socket remains usable until the client, Opfield, or the managed core closes it. A failed or incomplete turn is recorded as failed instead of being finalized as a successful zero-output request. Activity stores normalized metadata and usage only; hovering a model in the administrator activity table identifies the provider account used for that request.
 
 ## Security and privacy
 
-- Provider credentials are encrypted with the Gateway master key and never returned by management APIs.
+- Provider credentials are encrypted with the Opfield master key and never returned by management APIs.
 - Generic/private upstream URLs are denied by default. An administrator must explicitly allow a private destination; URL credentials, metadata/link-local/multicast destinations, unsafe schemes, and redirects are rejected.
 - OAuth state, PKCE verifiers, and refresh tokens are encrypted and bounded.
-- The core container is reachable only from Gateway over the internal Docker network; the core callback channel is authenticated with per-request signed contexts.
+- The core container is reachable only from Opfield over the internal Docker network; the core callback channel is authenticated with per-request signed contexts.
 - Activity and logs store metadata and normalized usage only, never prompts or model output.
 - Structured runtime logs use request IDs, logical model/provider/source type, latency, usage, burn, status, and error code. They do not label users or provider accounts.
 

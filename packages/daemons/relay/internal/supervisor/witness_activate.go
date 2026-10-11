@@ -210,7 +210,7 @@ func (m *witnessManager) activate(id string, request witnessactivation.Request) 
 		return fmt.Errorf("persist the activation: %w", err)
 	}
 	if !already && m.logger != nil {
-		m.logger.Warn("standby witness activated by the set's lease holder (Gateway is down)", "witness", id,
+		m.logger.Warn("standby witness activated by the set's lease holder (Opfield is down)", "witness", id,
 			"set", request.SetID, "holder", holder)
 	}
 	m.kick()

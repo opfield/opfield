@@ -73,10 +73,10 @@ func New(store *policy.Store, broker *broker.Broker, identityStore *identity.Sto
 func (s *Service) caller(ctx context.Context) (peer.Identity, error) {
 	caller, ok := peer.FromContext(ctx)
 	if !ok {
-		return peer.Identity{}, status.Error(codes.Unauthenticated, "Gateway app service certificate required")
+		return peer.Identity{}, status.Error(codes.Unauthenticated, "Opfield app service certificate required")
 	}
 	if !s.identity.AuthorizeAppClient(caller.CertificateFingerprint) {
-		return peer.Identity{}, status.Error(codes.PermissionDenied, "Gateway app service certificate required")
+		return peer.Identity{}, status.Error(codes.PermissionDenied, "Opfield app service certificate required")
 	}
 	return caller, nil
 }
@@ -252,7 +252,7 @@ func (s *Service) ResetLocalPolicyTrust(ctx context.Context, request *relayv1.Re
 		slog.Warn("refused policy trust reset", "key_id", request.KeyId, "error", err)
 		return nil, status.Error(codes.FailedPrecondition, err.Error())
 	}
-	slog.Warn("Gateway reset pinned policy trust", "key_id", request.KeyId, "fingerprint", request.PublicKeyFingerprint, "replaced_key_ids", replaced)
+	slog.Warn("Opfield reset pinned policy trust", "key_id", request.KeyId, "fingerprint", request.PublicKeyFingerprint, "replaced_key_ids", replaced)
 	return &relayv1.ResetLocalPolicyTrustResponse{
 		KeyId: request.KeyId, PublicKeyFingerprint: request.PublicKeyFingerprint, ReplacedKeyIds: replaced,
 	}, nil

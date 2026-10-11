@@ -1,10 +1,10 @@
-# Gateway MCP connection
+# Opfield MCP connection
 
-Use this reference only when Gateway remote MCP is missing, unauthenticated, or connected to the wrong instance. If Gateway itself is not installed, still requires first-run setup, or has no Node suitable for the workload, read [New instance setup](instance-setup.md) first.
+Use this reference only when Opfield remote MCP is missing, unauthenticated, or connected to the wrong instance. If Opfield itself is not installed, still requires first-run setup, or has no Node suitable for the workload, read [New instance setup](instance-setup.md) first.
 
 ## Endpoint
 
-Gateway exposes one Streamable HTTP MCP endpoint:
+Opfield exposes one Streamable HTTP MCP endpoint:
 
 ```text
 https://<gateway-host>/api/mcp
@@ -14,7 +14,7 @@ Normalize a base URL by removing a trailing slash before adding `/api/mcp`. Pref
 
 ## Administrator prerequisites
 
-An administrator enables MCP once, in Gateway settings under **OAuth and MCP access**:
+An administrator enables MCP once, in Opfield settings under **OAuth and MCP access**:
 
 1. Turn on **Enable MCP server**.
 2. Keep **Extended MCP compatibility** on for ordinary clients; every scoped tool is then listed up front. Turn it off only for clients whose context cannot hold the full catalog; those clients activate toolsets with `discover_tools` (see [MCP toolsets](mcp-toolsets.md)).
@@ -26,32 +26,32 @@ Inspect existing configuration first:
 
 ```bash
 codex mcp list
-codex mcp get good-gateway
+codex mcp get opfield
 ```
 
-If no Gateway server exists:
+If no Opfield server exists:
 
 ```bash
-codex mcp add good-gateway --url https://gateway.example.com/api/mcp
-codex mcp login good-gateway
+codex mcp add opfield --url https://gateway.example.com/api/mcp
+codex mcp login opfield
 codex mcp list
 ```
 
-An existing configuration may use another name, such as `gateway`. If it points elsewhere, report the mismatch before replacing it. Use a distinct name such as `good-gateway-staging` when the user needs several installations.
+An existing configuration may use another name, such as `good-gateway` or `gateway`. If it points elsewhere, report the mismatch before replacing it. Use a distinct name such as `opfield-staging` when the user needs several installations.
 
 ## Claude Code
 
 ```bash
-claude mcp add --transport http good-gateway --scope user https://gateway.example.com/api/mcp
-claude mcp login good-gateway
-claude mcp get good-gateway
+claude mcp add --transport http opfield --scope user https://gateway.example.com/api/mcp
+claude mcp login opfield
+claude mcp get opfield
 ```
 
-Use project scope only when the repository should share the server definition; every developer still signs in with their own Gateway account.
+Use project scope only when the repository should share the server definition; every developer still signs in with their own Opfield account.
 
 ## Authentication and scopes
 
-Gateway uses OAuth Authorization Code with PKCE and dynamic client registration. Let the user complete browser login and consent. Never ask them to paste the resulting token.
+Opfield uses OAuth Authorization Code with PKCE and dynamic client registration. Let the user complete browser login and consent. Never ask them to paste the resulting token.
 
 During consent the user can narrow the grant: **Restrict...** per scope, or **Limit selected scopes to folder...** for one folder across every selected scope of that resource type. High-risk scopes need explicit approval and start unticked, for example `admin:*`, `settings:gateway:edit`, `nodes:manage`, `nodes:console`, `nodes:files:*`, Docker console, file, export, secret, mount, and migrate scopes, `proxy:raw:write`, `proxy:unrestricted`, `ssl:cert:issue`, `pki:ca:export`, `storage:credentials:reveal`, `storage:iam`, `storage:bind`, `databases:query:*`, `databases:credentials:reveal`, `databases:backups:restore`, and connector `:use` or `:repo:write` scopes. Never assume one was granted; call the tool and read the 403.
 
@@ -61,12 +61,12 @@ A grant is bounded by the user's **current** permissions. Narrowing the user's g
 
 | Prefix | Credential | Accepted by |
 | --- | --- | --- |
-| `gwo_` | OAuth access token bound to one resource | MCP only when issued for the MCP resource; REST when issued for the Gateway API |
+| `gwo_` | OAuth access token bound to one resource | MCP only when issued for the MCP resource; REST when issued for the Opfield API |
 | `gw_` | API token | REST only |
 | `gwl_` | Logging ingest token | Log ingestion only |
-| `gwi_` | Gateway Inference token | Inference data plane only |
+| `gwi_` | Opfield Inference token | Inference data plane only |
 
-Gateway MCP accepts only `gwo_` tokens issued for the MCP resource. `gw_`, `gwl_`, and `gwi_` tokens, browser cookies, and OAuth tokens for another resource are rejected there. If a tool is absent, distinguish an undiscovered toolset from a missing scope, entitlement, disabled MCP server, unavailable subsystem, or incompatible client.
+Opfield MCP accepts only `gwo_` tokens issued for the MCP resource. `gw_`, `gwl_`, and `gwi_` tokens, browser cookies, and OAuth tokens for another resource are rejected there. If a tool is absent, distinguish an undiscovered toolset from a missing scope, entitlement, disabled MCP server, unavailable subsystem, or incompatible client.
 
 ## Verify the connection
 
@@ -76,4 +76,4 @@ After setup, refresh MCP tools or start a new session if the host cannot hot-loa
 2. confirm that one action the user should not have is denied;
 3. when the user has audit access, confirm the audit log attributes the calls to them and their OAuth client.
 
-Do not create a plugin-owned proxy or store credentials in the skill directory. Connection troubleshooting: [API and MCP](https://docs.goodgateway.dev/en/integrations/api-and-mcp/#mcp-connection-troubleshooting).
+Do not create a plugin-owned proxy or store credentials in the skill directory. Connection troubleshooting: [API and MCP](https://docs.opfield.dev/en/integrations/api-and-mcp/#mcp-connection-troubleshooting).

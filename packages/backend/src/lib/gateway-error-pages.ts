@@ -1,5 +1,5 @@
 const pageShell = (title: string, heading: string, message: string, status: string) =>
-  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="color-scheme" content="light dark"><title>${title}</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#fff;color:#09090b;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{width:100%;max-width:560px;text-align:center}.status{color:#71717a;font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}h1{margin:16px 0 0;font-size:clamp(40px,8vw,64px);line-height:1.05;font-weight:700;letter-spacing:-.04em}p.message{margin:20px auto 0;max-width:440px;color:#71717a;font-size:15px;line-height:1.6}.footer{margin-top:48px;color:#71717a;font-size:12px}.footer a{color:inherit;text-decoration:none}.footer a:hover{text-decoration:underline}@media(prefers-color-scheme:dark){body{background:#09090b;color:#fafafa}.status,p.message,.footer{color:#a1a1aa}.footer a{color:#fafafa}}</style></head><body><main><section><div class="status">${status}</div><h1>${heading}</h1><p class="message">${message}</p></section><div class="footer">Powered by <a href="https://goodgateway.dev" rel="noopener noreferrer">Good Gateway</a></div></main></body></html>`;
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="color-scheme" content="light dark"><title>${title}</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#fff;color:#09090b;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{width:100%;max-width:560px;text-align:center}.status{color:#71717a;font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}h1{margin:16px 0 0;font-size:clamp(40px,8vw,64px);line-height:1.05;font-weight:700;letter-spacing:-.04em}p.message{margin:20px auto 0;max-width:440px;color:#71717a;font-size:15px;line-height:1.6}.footer{margin-top:48px;color:#71717a;font-size:12px}.footer a{color:inherit;text-decoration:none}.footer a:hover{text-decoration:underline}@media(prefers-color-scheme:dark){body{background:#09090b;color:#fafafa}.status,p.message,.footer{color:#a1a1aa}.footer a{color:#fafafa}}</style></head><body><main><section><div class="status">${status}</div><h1>${heading}</h1><p class="message">${message}</p></section><div class="footer">Powered by <a href="https://opfield.dev" rel="noopener noreferrer">Opfield</a></div></main></body></html>`;
 
 export const GATEWAY_NOT_FOUND_HTML = pageShell(
   'Page not found',
@@ -9,7 +9,7 @@ export const GATEWAY_NOT_FOUND_HTML = pageShell(
 );
 
 const EXTERNAL_BRANDING_HTML =
-  'Powered by <a href="https://goodgateway.dev" rel="noopener noreferrer">Good Gateway</a>';
+  'Powered by <a href="https://opfield.dev" rel="noopener noreferrer">Opfield</a>';
 
 const MAINTENANCE_ACCESS_LINK_HTML = '<a class="access" href="#access" id="maintenance-access-link">Team access</a>';
 
@@ -92,7 +92,7 @@ export const GATEWAY_RESTARTING_HTML = `<!doctype html>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="robots" content="noindex,nofollow">
     <meta name="color-scheme" content="dark">
-    <title>Restarting Gateway</title>
+    <title>Restarting Opfield</title>
     <style>
       *{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#090909;color:#f4f4f5;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.content{width:100%;max-width:384px;text-align:center}.icon{display:flex;width:48px;height:48px;margin:0 auto 16px;align-items:center;justify-content:center;border:1px solid rgba(234,179,8,.35);background:rgba(234,179,8,.06);color:#facc15}.spinner{width:24px;height:24px;animation:spin .9s linear infinite}h1{margin:0;font-size:18px;line-height:1.4;font-weight:600}p{margin:8px 0 0;color:#a1a1aa;font-size:14px;line-height:1.55}.footer{margin-top:28px;color:#71717a;font-size:12px}.footer a{color:#a1a1aa;text-decoration:none}.footer a:hover{text-decoration:underline}@keyframes spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.spinner{animation-duration:1.8s}}
     </style>
@@ -101,9 +101,9 @@ export const GATEWAY_RESTARTING_HTML = `<!doctype html>
   <body>
     <main class="content">
       <div class="icon" aria-hidden="true"><svg class="spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path></svg></div>
-      <h1>Restarting Gateway</h1>
-      <p>Gateway is finishing active work before restarting. New actions are temporarily locked.</p>
-      <div class="footer">Powered by <a href="https://goodgateway.dev" rel="noopener noreferrer">Good Gateway</a></div>
+      <h1>Restarting Opfield</h1>
+      <p>Opfield is finishing active work before restarting. New actions are temporarily locked.</p>
+      <div class="footer">Powered by <a href="https://opfield.dev" rel="noopener noreferrer">Opfield</a></div>
     </main>
   </body>
 </html>`;

@@ -382,7 +382,7 @@ func (r *storageCopyRuntime) start(payload storageCopyPayload) (storageCopyStatu
 		r.mu.Unlock()
 		// A late delivery gets no listener; an answer the control plane does
 		// receive means this clock runs ahead of Gateway's, so name that.
-		return storageCopyStatus{}, fmt.Errorf("%s: the start request was due by %s but this node's clock reads %s; if this repeats, the node clock is ahead of Gateway, fix its time synchronization",
+		return storageCopyStatus{}, fmt.Errorf("%s: the start request was due by %s but this node's clock reads %s; if this repeats, the node clock is ahead of Opfield, fix its time synchronization",
 			storageCopyStartExpired, payload.StartBy.UTC().Format(time.RFC3339), started.Format(time.RFC3339))
 	}
 	if len(r.cancel) >= storageCopyMaxActive {

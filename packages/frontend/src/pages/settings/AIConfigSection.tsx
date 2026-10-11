@@ -989,7 +989,7 @@ export function AIConfigSection() {
                   ? `${aiConfig.disabledTools.length} tool${aiConfig.disabledTools.length !== 1 ? "s" : ""} disabled`
                   : "All tools enabled"
               }
-              help="Controls which Gateway operations the assistant is allowed to invoke. Disabling a tool removes that capability from every AI Workspace conversation."
+              help="Controls which Opfield operations the assistant is allowed to invoke. Disabling a tool removes that capability from every AI Workspace conversation."
               controlsClassName="sm:min-w-0"
             >
               <Button
@@ -1084,7 +1084,7 @@ export function AIConfigSection() {
           title="Provider"
           description={
             aiConfig.providerType === "gateway_inference"
-              ? "Gateway Inference model used for Workspace responses"
+              ? "Opfield Inference model used for Workspace responses"
               : "OpenAI-compatible provider connection used for Workspace responses"
           }
           actions={
@@ -1108,7 +1108,7 @@ export function AIConfigSection() {
                 {!inferenceEnabled && (
                   <>
                     {" "}
-                    To use Gateway Inference and subscription providers,{" "}
+                    To use Opfield Inference and subscription providers,{" "}
                     <Link
                       to="/settings/general"
                       className="underline underline-offset-2 hover:text-foreground"
@@ -1120,7 +1120,7 @@ export function AIConfigSection() {
                 )}
               </>
             }
-            help="Gateway Inference uses the centrally managed provider and model catalog. OAI-compatible connects AI Workspace directly to one configured API endpoint."
+            help="Opfield Inference uses the centrally managed provider and model catalog. OAI-compatible connects AI Workspace directly to one configured API endpoint."
           >
             <Select
               value={aiConfig.providerType || "openai_compatible"}
@@ -1143,7 +1143,7 @@ export function AIConfigSection() {
               <SelectContent>
                 <SelectItem value="openai_compatible">OAI-compatible</SelectItem>
                 {inferenceEnabled && (
-                  <SelectItem value="gateway_inference">Gateway Inference</SelectItem>
+                  <SelectItem value="gateway_inference">Opfield Inference</SelectItem>
                 )}
               </SelectContent>
             </Select>
@@ -1174,7 +1174,7 @@ export function AIConfigSection() {
               </SettingsControlRow>
               <SettingsControlRow
                 title="User model selection"
-                description="Allow users to choose another Gateway Inference model they can access."
+                description="Allow users to choose another Opfield Inference model they can access."
               >
                 <Switch
                   checked={aiConfig.gatewayInferenceAllowUserModelSelection}
@@ -1446,7 +1446,7 @@ export function AIConfigSection() {
         <SettingsControlRow
           title="Runtime"
           description="Sandbox runner process status."
-          help="Shows whether Gateway's sandbox worker is available to start isolated command-execution jobs for AI Workspace."
+          help="Shows whether Opfield's sandbox worker is available to start isolated command-execution jobs for AI Workspace."
           controlsClassName="flex justify-end justify-self-end !w-auto !min-w-0 !max-w-none"
         >
           <SandboxStatusBadge status={sandboxStatus} />

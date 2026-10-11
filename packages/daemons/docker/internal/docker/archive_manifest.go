@@ -104,7 +104,7 @@ func validateGwcaNetworks(networks []gwcaNetwork) error {
 			return fmt.Errorf("archive network: %w", err)
 		}
 		if isReservedGatewayNetworkName(entry.Name) {
-			return fmt.Errorf("archive network %q is managed by Gateway and cannot be attached to imported containers", entry.Name)
+			return fmt.Errorf("archive network %q is managed by Opfield and cannot be attached to imported containers", entry.Name)
 		}
 	}
 	if isolated && named > 1 {
@@ -302,7 +302,7 @@ func validateGwcaExportSupport(config *container.Config, host *container.HostCon
 	}
 	if len(unsupported) > 0 {
 		sort.Strings(unsupported)
-		return fmt.Errorf("container cannot be exported as a portable Gateway archive: %s", strings.Join(unsupported, "; "))
+		return fmt.Errorf("container cannot be exported as a portable Opfield archive: %s", strings.Join(unsupported, "; "))
 	}
 	return nil
 }

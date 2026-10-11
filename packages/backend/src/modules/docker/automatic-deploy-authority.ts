@@ -41,7 +41,7 @@ export function webhookDeployMountsRefusal(
   if ((error as { code?: unknown } | null)?.code !== 'MISSING_DOCKER_MOUNTS_SCOPE') return null;
   const reason =
     authority.unavailable === 'unknown'
-      ? 'Gateway cannot tell whose permissions the webhook uses: it was saved before Gateway recorded that, or the account that last saved it no longer exists'
+      ? 'Opfield cannot tell whose permissions the webhook uses: it was saved before Opfield recorded that, or the account that last saved it no longer exists'
       : authority.unavailable === 'inactive'
         ? `the account that last saved the webhook, ${authority.user!.label}, is blocked`
         : `${authority.user!.label}, who last saved the webhook and whose permissions webhook calls use, does not hold ${MOUNTS_SCOPE} on it`;

@@ -18,6 +18,6 @@ it("ingress-domain-dialog-delete", async () => {
       await chooseRowAction(user, "app.example.com", "Domain actions", "Delete");
       await settleDialog("Delete Domain");
     },
-    notes: ["Deleting a Cloudflare-managed domain also removes the DNS records Gateway created."],
+    notes: ["Deleting a Cloudflare-managed domain also removes the DNS records Opfield created."],
   });
 });

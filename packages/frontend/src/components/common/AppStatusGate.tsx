@@ -117,12 +117,12 @@ function StatusScreen({
           <div className="mt-7 text-xs text-[color:var(--restart-page-subtle)]">
             Powered by{" "}
             <a
-              href="https://goodgateway.dev"
+              href="https://opfield.dev"
               target="_blank"
               rel="noopener noreferrer"
               className="text-[color:var(--restart-page-muted)] hover:underline"
             >
-              Good Gateway
+              Opfield
             </a>
           </div>
         ) : null}
@@ -283,8 +283,8 @@ function GatewayUpdateWaitingScreen({ operation }: { operation: GatewayUpdateOpe
 
   return (
     <UpdateOperationScreen
-      title="Waiting to update Gateway"
-      description={`Gateway updates to ${operation.targetVersion} as soon as running operations finish${
+      title="Waiting to update Opfield"
+      description={`Opfield updates to ${operation.targetVersion} as soon as running operations finish${
         operation.waitDeadline ? `, at the latest at ${formatDateTime(operation.waitDeadline)}` : ""
       }. New deployments and other operations are paused until then.`}
     >
@@ -305,7 +305,7 @@ function GatewayUpdateWaitingScreen({ operation }: { operation: GatewayUpdateOpe
             Update now
           </Button>
           <p className="text-xs leading-[1.5] text-[color:var(--restart-page-subtle)]">
-            Updating now interrupts these operations. Gateway resumes or reconciles them after the
+            Updating now interrupts these operations. Opfield resumes or reconciles them after the
             restart.
           </p>
           {error && (
@@ -358,9 +358,9 @@ function GatewayOperationScreen() {
       setGatewayUpdateError(
         `${
           runningVersion
-            ? `Gateway ${runningVersion} is running instead of ${targetVersion}.`
-            : `Gateway is running a version other than ${targetVersion}.`
-        } The update did not complete; check the update container logs on the Gateway host.`,
+            ? `Opfield ${runningVersion} is running instead of ${targetVersion}.`
+            : `Opfield is running a version other than ${targetVersion}.`
+        } The update did not complete; check the update container logs on the Opfield host.`,
         targetVersion,
         { rolledBack: true }
       );
@@ -508,11 +508,11 @@ function GatewayOperationScreen() {
 
   return (
     <UpdateOperationScreen
-      title={updatingActive ? "Updating Gateway" : "Restarting Gateway"}
+      title={updatingActive ? "Updating Opfield" : "Restarting Opfield"}
       description={
         updatingActive && targetVersion
-          ? `Gateway is updating to ${targetVersion}. New actions are temporarily locked.`
-          : "Gateway is finishing active work before restarting. New actions are temporarily locked."
+          ? `Opfield is updating to ${targetVersion}. New actions are temporarily locked.`
+          : "Opfield is finishing active work before restarting. New actions are temporarily locked."
       }
     />
   );
@@ -610,12 +610,12 @@ function GatewayUpdateErrorScreen() {
       title="Update Failed"
       description={
         error.rolledBack
-          ? `Gateway could not complete the update${
+          ? `Opfield could not complete the update${
               error.targetVersion ? ` to ${error.targetVersion}` : ""
             }. The previous version is running.`
           : error.targetVersion
-            ? `Gateway could not start the update to ${error.targetVersion}.`
-            : "Gateway could not start the update."
+            ? `Opfield could not start the update to ${error.targetVersion}.`
+            : "Opfield could not start the update."
       }
     >
       <p className="mt-4 border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -623,11 +623,11 @@ function GatewayUpdateErrorScreen() {
       </p>
       <div className="mt-8 space-y-3">
         <Button onClick={handleReturn} className="w-full">
-          Return to Gateway
+          Return to Opfield
         </Button>
         <p className="text-xs text-muted-foreground">
           {error.rolledBack
-            ? "Review the update logs on the Gateway host before you retry the update."
+            ? "Review the update logs on the Opfield host before you retry the update."
             : "No restart was started. You can retry the update after resolving the error."}
         </p>
       </div>

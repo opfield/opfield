@@ -358,7 +358,7 @@ export function ManagedObjectStorageCreateForm({
           </PanelShell>
           <SwitchCard
             label="TLS"
-            description="Encrypt the S3 endpoint with a certificate from the Gateway Storage CA."
+            description="Encrypt the S3 endpoint with a certificate from the Opfield Storage CA."
             checked={draft.tlsEnabled ?? false}
             onCheckedChange={(enabled) => set("tlsEnabled", enabled)}
           />

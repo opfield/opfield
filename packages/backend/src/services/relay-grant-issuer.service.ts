@@ -692,13 +692,13 @@ export class RelayGrantIssuerService {
   async issueGatewayConnectAssignment(routeId: string, appCertificateFingerprint: string) {
     const [route] = await this.db.select().from(relayRoutes).where(eq(relayRoutes.id, routeId)).limit(1);
     if (!route || route.sourceKind !== 'gateway' || route.sourceCertificateSha256 !== appCertificateFingerprint)
-      throw new Error('Gateway relay route is unavailable');
+      throw new Error('Opfield relay route is unavailable');
     const [endpoint] = await this.db
       .select()
       .from(relayEndpoints)
       .where(eq(relayEndpoints.id, route.targetEndpointId))
       .limit(1);
-    if (endpoint?.status !== 'active') throw new Error('Gateway relay endpoint is unavailable');
+    if (endpoint?.status !== 'active') throw new Error('Opfield relay endpoint is unavailable');
     const grant = await this.signGrant({
       kind: 'connect',
       subjectKind: route.sourceKind,

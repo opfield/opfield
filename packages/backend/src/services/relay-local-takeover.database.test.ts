@@ -151,7 +151,7 @@ describe.skipIf(!url)('local relay takeover during a Relay Pool update', () => {
   it('keeps the local relay serving what only it can serve', async () => {
     const { endpointId } = await localWorkload('managed_database');
     await expect(blocker([endpointId])).resolves.toContain('without Relay Pool support');
-    await expect(blocker([], [endpointId])).resolves.toContain('reach no relay outside the Gateway host');
+    await expect(blocker([], [endpointId])).resolves.toContain('reach no relay outside the Opfield host');
   });
 
   it('does not drain a local relay that would refuse internal registry tunnels while it drains', async () => {

@@ -59,7 +59,7 @@ export async function createLoopbackReceiver(): Promise<LoopbackReceiver> {
       return;
     }
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-    response.end('<!doctype html><title>Good Gateway</title><p>Authorization received. You can close this window.</p>');
+    response.end('<!doctype html><title>Opfield</title><p>Authorization received. You can close this window.</p>');
     if (callback) callback(url);
     else requests.push(url);
   });
@@ -176,7 +176,7 @@ export async function loginWithBrowser(
           token_endpoint_auth_method: 'none',
           grant_types: ['authorization_code', 'refresh_token'],
           response_types: ['code'],
-          client_name: 'Good Gateway CLI',
+          client_name: 'Opfield CLI',
           software_id: 'net.wiolett.gateway.inference-cli',
           software_version: CLI_VERSION,
           scope: 'inference:setup',
@@ -185,7 +185,7 @@ export async function loginWithBrowser(
       { fetch: fetcher }
     );
     if (!registration.client_id) {
-      throw new CliError('INVALID_CLIENT_REGISTRATION', 'Gateway returned an invalid OAuth client registration.');
+      throw new CliError('INVALID_CLIENT_REGISTRATION', 'Opfield returned an invalid OAuth client registration.');
     }
     const state = base64Url(randomBytes(32));
     const pkce = createPkce();
@@ -244,11 +244,11 @@ export async function refreshCredential(options: {
     );
   }
   const stored = await options.credentials.get(options.profile);
-  if (!stored) throw new CliError('NOT_LOGGED_IN', 'Gateway connection is not logged in.', { exitCode: 2 });
+  if (!stored) throw new CliError('NOT_LOGGED_IN', 'Opfield connection is not logged in.', { exitCode: 2 });
   const now = options.now?.() ?? new Date();
   if (!stored.expiresAt || new Date(stored.expiresAt).getTime() > now.getTime() + 60_000) return stored;
   if (!stored.refreshToken)
-    throw new CliError('AUTHORIZATION_EXPIRED', 'Gateway authorization has expired; log in again.', { exitCode: 2 });
+    throw new CliError('AUTHORIZATION_EXPIRED', 'Opfield authorization has expired; log in again.', { exitCode: 2 });
 
   let response: OAuthTokenResponse;
   try {
@@ -264,7 +264,7 @@ export async function refreshCredential(options: {
     );
   } catch (error) {
     if (error instanceof CliError && ['invalid_grant', 'INVALID_GRANT'].includes(error.code)) {
-      throw new CliError('AUTHORIZATION_REVOKED', 'Gateway authorization was revoked; log in again.', {
+      throw new CliError('AUTHORIZATION_REVOKED', 'Opfield authorization was revoked; log in again.', {
         exitCode: 2,
         cause: error,
       });
@@ -333,7 +333,7 @@ async function exchangeToken(
     typeof response.token_type !== 'string' ||
     response.token_type.toLowerCase() !== 'bearer'
   ) {
-    throw new CliError('INVALID_TOKEN_RESPONSE', 'Gateway returned an invalid OAuth token response.');
+    throw new CliError('INVALID_TOKEN_RESPONSE', 'Opfield returned an invalid OAuth token response.');
   }
   return response;
 }

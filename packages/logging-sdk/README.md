@@ -1,8 +1,8 @@
-# Gateway Logging SDK
+# Opfield Logging SDK
 
-`@sqgateway/logger` is a Node-first TypeScript SDK for sending application logs into Good Gateway. It handles Gateway ingest tokens, context merging, batching, retries, rate-limit backoff, trace/span identifiers, and graceful shutdown flushing.
+`@sqgateway/logger` is a Node-first TypeScript SDK for sending application logs into Opfield. It handles Opfield ingest tokens, context merging, batching, retries, rate-limit backoff, trace/span identifiers, and graceful shutdown flushing.
 
-Use it when an external service, worker, script, or backend needs to write structured logs into Gateway without calling the ingest API manually.
+Use it when an external service, worker, script, or backend needs to write structured logs into Opfield without calling the ingest API manually.
 
 ## Installation
 
@@ -16,12 +16,12 @@ npm install @sqgateway/logger
 
 The package is ESM-only and ships TypeScript declarations. It expects a runtime with `fetch`; modern Node.js versions provide it globally. For older runtimes, pass a custom `fetch` implementation in the logger options.
 
-## Gateway Setup
+## Opfield Setup
 
-1. Open Gateway.
+1. Open Opfield.
 2. Create a logging ingest token for the target schema/source.
 3. Store the token as a server-side secret, for example `GATEWAY_LOGGING_TOKEN`.
-4. Configure the SDK with your Gateway URL and token.
+4. Configure the SDK with your Opfield URL and token.
 
 Logging ingest tokens use the `gwl_` prefix. Keep them server-side. Do not put them in browser bundles, public config, mobile apps, or any client-controlled code.
 
@@ -87,7 +87,7 @@ const logger = new GatewayLogger({
     jitter: true,
   },
   onError: (error, logs, failure) => {
-    console.error("Gateway logging delivery failed", {
+    console.error("Opfield logging delivery failed", {
       reason: failure?.reason,
       status: failure?.status,
       count: logs?.length ?? 0,
@@ -95,7 +95,7 @@ const logger = new GatewayLogger({
     });
   },
   onDrop: (log, reason) => {
-    console.warn("Gateway log dropped", reason, log.message);
+    console.warn("Opfield log dropped", reason, log.message);
   },
   onFallback: async (logs, failure) => {
     await persistFailedGatewayLogs(logs, failure);
@@ -107,8 +107,8 @@ const logger = new GatewayLogger({
 
 | Option | Type | Description |
 | --- | --- | --- |
-| `endpoint` | `string` | Base Gateway URL, for example `https://gateway.example.com`. Trailing slashes are removed automatically. |
-| `token` | `string` | Gateway logging ingest token. |
+| `endpoint` | `string` | Base Opfield URL, for example `https://gateway.example.com`. Trailing slashes are removed automatically. |
+| `token` | `string` | Opfield logging ingest token. |
 | `service` | `string` | Logical service name attached to every log from this logger. |
 | `source` | `string` | Source/channel name, such as `api`, `worker`, `cron`, or `queue`. |
 | `traceId` | `string` | Default trace identifier attached to every log. |
@@ -125,7 +125,7 @@ const logger = new GatewayLogger({
 
 ## Writing Logs
 
-The logger provides severity helpers for all Gateway severities:
+The logger provides severity helpers for all Opfield severities:
 
 ```ts
 logger.trace("Cache lookup", { fields: { key: "user:123" } });
@@ -201,7 +201,7 @@ await logger.withContext(
 
 ## Traces And Spans
 
-The SDK can create lightweight trace and span contexts. This does not require a separate tracing backend; it only attaches `traceId`, `spanId`, and optional names to Gateway log events.
+The SDK can create lightweight trace and span contexts. This does not require a separate tracing backend; it only attaches `traceId`, `spanId`, and optional names to Opfield log events.
 
 ```ts
 const trace = logger.createTrace({
@@ -226,7 +226,7 @@ await trace.end();
 
 ## Batching And Delivery
 
-Logs are queued in memory and delivered to Gateway over HTTP:
+Logs are queued in memory and delivered to Opfield over HTTP:
 
 - One event is sent to `/api/logging/ingest`.
 - Multiple events are sent to `/api/logging/ingest/batch`.
@@ -278,7 +278,7 @@ Default retry options:
 | `maxDelayMs` | `30000` | Maximum backoff delay. |
 | `jitter` | `true` | Adds random jitter to retry delays. |
 
-For `429` responses, the SDK prefers the HTTP `Retry-After` header. If the header is absent, it also understands Gateway's `details.retryAfterSeconds` response shape.
+For `429` responses, the SDK prefers the HTTP `Retry-After` header. If the header is absent, it also understands Opfield's `details.retryAfterSeconds` response shape.
 
 Permanent validation or authorization failures are not retried. Those batches are dropped with reason `"permanent_failure"`. Retryable batches that still fail after `maxAttempts` are dropped with reason `"retry_exhausted"`.
 
@@ -288,7 +288,7 @@ When a batch cannot be delivered, the SDK calls callbacks in this order:
 2. `onError(error, logs, failure)` with the failed log array and metadata.
 3. `onFallback(logs, failure)` if configured.
 
-`onFallback` is intended for recovery paths where logs should not disappear after Gateway delivery fails:
+`onFallback` is intended for recovery paths where logs should not disappear after Opfield delivery fails:
 
 ```ts
 const logger = new GatewayLogger({
@@ -315,7 +315,7 @@ If `onFallback` throws, the SDK calls `onError` again with the fallback error.
 | `queue_full` | The in-memory queue reached `maxQueueSize`. |
 | `closed` | Code attempted to log after `close()`. |
 | `invalid_event` | Reserved for invalid event handling. |
-| `permanent_failure` | Gateway rejected the batch with a non-retryable response. |
+| `permanent_failure` | Opfield rejected the batch with a non-retryable response. |
 | `retry_exhausted` | Retry attempts were exhausted. |
 
 Example:
@@ -325,7 +325,7 @@ const logger = new GatewayLogger({
   endpoint: "https://gateway.example.com",
   token: process.env.GATEWAY_LOGGING_TOKEN!,
   onDrop(log, reason) {
-    console.warn(`Dropped Gateway log: ${reason}`, log);
+    console.warn(`Dropped Opfield log: ${reason}`, log);
   },
 });
 ```
@@ -415,13 +415,13 @@ Use `labels` for low-cardinality dimensions you want to filter or group by, such
 
 Use `fields` for event-specific structured data, such as durations, status codes, entity IDs, error messages, payload sizes, or version information.
 
-Avoid placing secrets, passwords, API keys, tokens, raw authorization headers, private keys, or credential material in either labels or fields. Gateway can store and search logs, so treat log content as durable operational data.
+Avoid placing secrets, passwords, API keys, tokens, raw authorization headers, private keys, or credential material in either labels or fields. Opfield can store and search logs, so treat log content as durable operational data.
 
 ## API Reference
 
 ### `new GatewayLogger(options)`
 
-Creates a Gateway logger instance.
+Creates an Opfield logger instance.
 
 ```ts
 import { GatewayLogger } from "@sqgateway/logger";

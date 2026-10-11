@@ -915,7 +915,7 @@ echo "/dev/fake 999999999 1 $FAKE_FREE_KB 1% /"
     const run = await runSidecar({ dump });
 
     expect(run.status).toBe(1);
-    expect(run.stderr).toContain('Gateway update stopped before replacing the app');
+    expect(run.stderr).toContain('Opfield update stopped before replacing the app');
     expect(run.at('--force-recreate app')).toBe(-1);
     expect(run.at('DROP DATABASE')).toBe(-1);
     expect(existsSync(run.dump)).toBe(false);
@@ -957,7 +957,7 @@ echo "/dev/fake 999999999 1 $FAKE_FREE_KB 1% /"
 
     expect(run.status).not.toBe(0);
     expect(run.at('pg_restore --create')).toBeGreaterThan(run.at('DROP DATABASE'));
-    expect(run.stderr).toContain(`Gateway is left stopped. The pre-update snapshot is kept at ${run.dump}`);
+    expect(run.stderr).toContain(`Opfield is left stopped. The pre-update snapshot is kept at ${run.dump}`);
     expect(run.calls).not.toContain('compose up -d --no-deps app');
     expect(existsSync(run.dump)).toBe(true);
     expect(statSync(run.dump).mode & 0o777).toBe(0o600);
@@ -1024,7 +1024,7 @@ describe('UpdateService orchestration gate', () => {
 
     await vi.waitFor(() => expect(operation()).toMatchObject({ status: 'waiting_for_operations' }));
     expect(source.setOrchestrationAdmissionHold).toHaveBeenCalledWith(
-      expect.stringContaining('Gateway is updating to v2.4.3')
+      expect.stringContaining('Opfield is updating to v2.4.3')
     );
     expect(operation()).toMatchObject({
       targetVersion: 'v2.4.3',

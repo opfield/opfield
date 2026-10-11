@@ -106,7 +106,7 @@ export class GatewayOutboundMonitor {
     const results = await Promise.all(targets.map(async (target) => ({ target, result: await this.probe(target) })));
     const checked = results.filter((entry) => !('skipped' in entry.result));
     const reached = checked.some((entry) => 'reached' in entry.result && entry.result.reached);
-    const resource = { type: 'gateway', id: GATEWAY_OUTBOUND_RESOURCE_ID, name: 'Gateway' };
+    const resource = { type: 'gateway', id: GATEWAY_OUTBOUND_RESOURCE_ID, name: 'Opfield' };
 
     if (reached || checked.length === 0) {
       this.reachedSinceStart ||= reached;

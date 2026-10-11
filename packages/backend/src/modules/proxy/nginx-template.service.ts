@@ -70,7 +70,7 @@ const DEFAULT_PROXY_TEMPLATE_VARIABLES = [
     name: 'rateLimitMode',
     type: 'string' as const,
     default: 'inherit',
-    description: 'Use the gateway default, a custom policy, or disable protection',
+    description: 'Use the Opfield default, a custom policy, or disable protection',
   },
   {
     name: 'rateLimitRPS',

@@ -1,6 +1,6 @@
 # SIEM audit export
 
-SIEM export pushes privacy-reduced audit events to up to five HTTPS collectors. It is enabled in Gateway general settings; while it is off, the SIEM tools are unavailable, which is expected.
+SIEM export pushes privacy-reduced audit events to up to five HTTPS collectors. It is enabled in Opfield general settings; while it is off, the SIEM tools are unavailable, which is expected.
 
 ## What is exported
 
@@ -9,8 +9,8 @@ Each event carries only its id, installation source, type, timestamp, action, op
 ## Destinations
 
 - The URL must be HTTPS without userinfo, query, or fragment.
-- Authentication is a bearer token, an HMAC-SHA256 secret, or one validated custom header, never a Gateway transport header. The secret is encrypted at rest and never returned.
-- `create_siem_destination` requires the secret. Do not ask the user for it in chat. Let the user create or replace the destination, and its secret, in the Gateway Console. When the user explicitly asks you to create one and the secret already exists in a local source they named, pass it straight into the tool without echoing it.
+- Authentication is a bearer token, an HMAC-SHA256 secret, or one validated custom header, never an Opfield transport header. The secret is encrypted at rest and never returned.
+- `create_siem_destination` requires the secret. Do not ask the user for it in chat. Let the user create or replace the destination, and its secret, in the Opfield Console. When the user explicitly asks you to create one and the secret already exists in a local source they named, pass it straight into the tool without echoing it.
 
 ## Delivery
 

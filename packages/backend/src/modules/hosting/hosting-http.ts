@@ -61,7 +61,7 @@ function hostkeyLoginError(result: Record<string, unknown> | null): AppError {
     'invalid api key': 'HOSTKEY: API key was rejected.',
     'api key is disabled': 'HOSTKEY: API key is disabled.',
     'api key is inactive': 'HOSTKEY: API key is inactive.',
-    'ip not allowed': 'HOSTKEY: the Gateway outbound IP is not allowed by the key ACL.',
+    'ip not allowed': 'HOSTKEY: the Opfield outbound IP is not allowed by the key ACL.',
     'access denied': 'HOSTKEY: API key login was denied.',
   };
   if (Object.hasOwn(reasons, normalized))
@@ -108,16 +108,16 @@ function connectionErrorMessage(error: unknown, provider: HostingConnection['pro
     case 'HOSTING_REQUEST_TIMEOUT':
     case 'ETIMEDOUT':
     case 'ERR_TLS_HANDSHAKE_TIMEOUT':
-      return 'Provider connection timed out. Check that Gateway can reach the API address and port through your firewall.';
+      return 'Provider connection timed out. Check that Opfield can reach the API address and port through your firewall.';
     case 'ENOTFOUND':
       return 'Provider API hostname could not be resolved. Check the API address and DNS configuration.';
     case 'EAI_AGAIN':
-      return 'Provider DNS lookup temporarily failed. Check Gateway DNS connectivity and try again.';
+      return 'Provider DNS lookup temporarily failed. Check Opfield DNS connectivity and try again.';
     case 'ECONNREFUSED':
       return 'Provider refused the connection. Check the API port and that the API service is running.';
     case 'ENETUNREACH':
     case 'EHOSTUNREACH':
-      return 'Provider network is unreachable from Gateway. Check routing and firewall rules.';
+      return 'Provider network is unreachable from Opfield. Check routing and firewall rules.';
     case 'ECONNRESET':
     case 'EPIPE':
       return 'Provider connection was reset. Check the API service, proxy and network path.';
@@ -137,7 +137,7 @@ function connectionErrorMessage(error: unknown, provider: HostingConnection['pro
     case 'CERT_UNTRUSTED':
       return provider === 'proxmox'
         ? 'Proxmox TLS certificate is not trusted. Select Private CA certificate or Verified certificate fingerprint and provide independently verified trust details.'
-        : 'Provider TLS certificate is not trusted. Check the provider certificate chain and Gateway trust configuration.';
+        : 'Provider TLS certificate is not trusted. Check the provider certificate chain and Opfield trust configuration.';
     case 'ERR_OSSL_PEM_NO_START_LINE':
     case 'ERR_OSSL_PEM_BAD_BASE64_DECODE':
       return 'Trusted CA certificate is invalid. Paste the complete PEM certificate, including BEGIN CERTIFICATE and END CERTIFICATE.';
@@ -284,7 +284,7 @@ export class HostingHttpClient implements HostingHttp {
         throw new AppError(
           403,
           'HOSTING_AUTHENTICATION_FAILED',
-          'HOSTKEY returned an expired session. Check Gateway time and API key validity.'
+          'HOSTKEY returned an expired session. Check Opfield time and API key validity.'
         );
       const session = { token: sessionData.token, expiresAt };
       this.hostkeySession = session;

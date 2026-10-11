@@ -133,7 +133,7 @@ export const appSecureLinkStatus: ProxySecureLinkStatus = {
 
 // ── Rendered config ─────────────────────────────────────────────────────
 
-export const appRenderedConfig = `# Managed by Gateway — route app.example.com (generation 7)
+export const appRenderedConfig = `# Managed by Opfield — route app.example.com (generation 7)
 server {
   listen 443 ssl;
   http2 on;

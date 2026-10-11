@@ -242,7 +242,7 @@ export class DockerArchiveTransferStore {
       throw new AppError(
         507,
         'DOCKER_ARCHIVE_TRANSFER_SPOOL_FULL',
-        'The Gateway archive transfer spool is full; finish or abort other transfers and retry'
+        'The Opfield archive transfer spool is full; finish or abort other transfers and retry'
       );
     }
   }

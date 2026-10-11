@@ -173,7 +173,7 @@ export class ProxmoxFirewallAdapter implements HostingFirewallAdapter {
         throw new HostingProviderError(
           error.providerStatus,
           false,
-          'Proxmox token lacks Sys.Audit on / to read whether the cluster firewall is enabled; Gateway will not enable it.'
+          'Proxmox token lacks Sys.Audit on / to read whether the cluster firewall is enabled; Opfield will not enable it.'
         );
       throw error;
     }
@@ -257,23 +257,23 @@ export class ProxmoxFirewallAdapter implements HostingFirewallAdapter {
     const ownBindings = vmRules.filter((rule) => rule.type === 'group' && rule.comment === bindingComment);
     const foreignVmRules = activeVmRules.filter((rule) => !(rule.type === 'group' && rule.comment === bindingComment));
     const disableBlockers = [...blockers];
-    if (foreignVmRules.length) blockers.push('The VM has active firewall rules or groups not owned by Gateway.');
+    if (foreignVmRules.length) blockers.push('The VM has active firewall rules or groups not owned by Opfield.');
     if (truthy(options.enable) && !ownBindings.length)
-      blockers.push('An existing VM firewall is enabled without a Gateway-owned policy; it will not be overwritten.');
+      blockers.push('An existing VM firewall is enabled without an Opfield-owned policy; it will not be overwritten.');
     if (ownBindings.some((binding) => !completeBinding(binding)))
-      blockers.push('Gateway’s VM firewall binding is scoped or invalid; review it in Proxmox before applying rules.');
+      blockers.push('Opfield’s VM firewall binding is scoped or invalid; review it in Proxmox before applying rules.');
     const activeGroupRules = groupRules.filter(enabled);
     const foreignGroupRules = activeGroupRules.filter((rule) => !String(rule.comment ?? '').startsWith(marker));
     if (foreignGroupRules.length)
-      blockers.push('Gateway’s target security group contains active rules not owned by Gateway.');
+      blockers.push('Opfield’s target security group contains active rules not owned by Opfield.');
     const targetRulesMatch =
       activeGroupRules.length === expectedRules.length &&
       expectedRules.every((expected, index) => sameRule(activeGroupRules[index]!, expected));
     const nics = Object.entries(config).filter(([key]) => /^net\d+$/.test(key));
     const networkReady = nics.length > 0 && nics.every(([, value]) => String(value).split(',').includes('firewall=1'));
     if (!truthy(clusterOptions.enable))
-      blockers.push('Proxmox cluster firewall is disabled; Gateway will not enable it.');
-    if (!networkReady) blockers.push('Every Proxmox VM NIC must have firewall=1 before Gateway can apply filtering.');
+      blockers.push('Proxmox cluster firewall is disabled; Opfield will not enable it.');
+    if (!networkReady) blockers.push('Every Proxmox VM NIC must have firewall=1 before Opfield can apply filtering.');
     const vmPath = `/vms/${resource.remoteId}`;
     if (!hasPrivilege(vmPermissions, vmPath, 'VM.Config.Network')) {
       blockers.push(`Proxmox token lacks VM.Config.Network on ${vmPath}.`);
@@ -287,7 +287,7 @@ export class ProxmoxFirewallAdapter implements HostingFirewallAdapter {
       (options.policy_in === undefined || options.policy_in === 'DROP'
         ? options.policy_out === undefined || options.policy_out === 'DROP'
         : false);
-    if (desired.enabled && !optionsOwned) blockers.push('The VM has firewall policy options not owned by Gateway.');
+    if (desired.enabled && !optionsOwned) blockers.push('The VM has firewall policy options not owned by Opfield.');
     const bindingMatches =
       ownBindings.length === 1 &&
       enabled(ownBindings[0]!) &&
@@ -418,7 +418,7 @@ export class ProxmoxFirewallAdapter implements HostingFirewallAdapter {
       );
     }
     if (current.ownBindings.length > 1)
-      throw new HostingProviderError(409, false, 'Multiple Gateway firewall bindings require review.');
+      throw new HostingProviderError(409, false, 'Multiple Opfield firewall bindings require review.');
     await this.stageGroup(current);
     await this.assertStagedRules(current);
     const vmRules = await this.rules(`${current.base}/firewall/rules`);

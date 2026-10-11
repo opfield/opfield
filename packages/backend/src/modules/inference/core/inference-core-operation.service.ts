@@ -118,7 +118,7 @@ export class InferenceCoreOperationService {
       .update(inferenceCoreOperations)
       .set({
         status: 'failed',
-        error: 'Operation was interrupted by a Gateway restart',
+        error: 'Operation was interrupted by an Opfield restart',
         finishedAt: new Date(),
         heartbeatAt: new Date(),
       })

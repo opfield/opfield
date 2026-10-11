@@ -151,7 +151,7 @@ show_header() {
   printf -v rule '%*s' "$frame_width" ''
   rule="${rule// /─}"
   echo -e "${BRAND_MINT}╭${rule}╮${NC}"
-  printf "${BRAND_MINT}│${NC} ${BOLD}${BRAND_MINT}%-*.*s${NC} ${BRAND_MINT}│${NC}\n" "$content_width" "$content_width" "Gateway Installer"
+  printf "${BRAND_MINT}│${NC} ${BOLD}${BRAND_MINT}%-*.*s${NC} ${BRAND_MINT}│${NC}\n" "$content_width" "$content_width" "Opfield Installer"
   printf "${BRAND_MINT}│${NC} ${GRAY}%-*.*s${NC} ${BRAND_MINT}│${NC}\n" "$content_width" "$content_width" "Infrastructure control plane"
   echo -e "${BRAND_MINT}╰${rule}╯${NC}"
   echo ""
@@ -470,7 +470,7 @@ verify_signed_release() {
   if [[ "$kind" != "gateway-image" || "$manifest_version" != "$version" || "$tag" != "$version" ||
     "$image" != "$IMAGE" || ! "$digest" =~ ^sha256:[a-f0-9]{64}$ || "$image_ref" != "${IMAGE}@${digest}" ]]; then
     rm -rf "$tmp_dir"
-    die "Signed release manifest does not match the requested Gateway image."
+    die "Signed release manifest does not match the requested Opfield image."
   fi
   if [[ -n "$secure_connector_image_ref" ]]; then
     secure_connector_image="${IMAGE}/secure-link-connector"
@@ -537,7 +537,7 @@ verify_signed_relay() {
   [[ -n "$min_gateway_version" ]] || min_gateway_version="$manifest_version"
   if [[ ! "$min_gateway_version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] || version_is_newer "$min_gateway_version" "$VERSION"; then
     rm -rf "$tmp_dir"
-    die "Relay ${manifest_version} requires Gateway ${min_gateway_version} or newer."
+    die "Relay ${manifest_version} requires Opfield ${min_gateway_version} or newer."
   fi
   secure_connector_image="${IMAGE}/secure-link-connector"
   secure_connector_digest="${secure_connector_image_ref##*@}"
@@ -623,9 +623,9 @@ version_is_newer() {
 
 prepare_install_metadata() {
   if [[ -n "$SOURCE_DIR" ]]; then
-    [[ "$FRESH" == 1 ]] || die "--source-dir is supported only for a fresh Gateway installation"
+    [[ "$FRESH" == 1 ]] || die "--source-dir is supported only for a fresh Opfield installation"
     [[ -d "$SOURCE_DIR" && -f "$SOURCE_DIR/Dockerfile" && -f "$SOURCE_DIR/package.json" ]] || \
-      die "--source-dir must point to a Gateway source checkout"
+      die "--source-dir must point to an Opfield source checkout"
     SOURCE_DIR="$(cd "$SOURCE_DIR" && pwd)"
     VERSION="local-$(date -u +%Y%m%d%H%M%S)"
     IMAGE_REF="${IMAGE}:${VERSION}"
@@ -640,7 +640,7 @@ prepare_install_metadata() {
   fi
 
   local release_json relay_json relay_tag relay_version current_gateway_version current_relay_version
-  info "Resolving the latest Gateway release"
+  info "Resolving the latest Opfield release"
   # The installer and the updater record the running version; older installs only carry it in a
   # tagged image reference. A release candidate stays installed until its stable release exists.
   current_gateway_version="$(env_value GATEWAY_VERSION)"
@@ -649,7 +649,7 @@ prepare_install_metadata() {
     current_gateway_version="${current_gateway_version##*:}"
   fi
   [[ "$current_gateway_version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] || current_gateway_version=""
-  release_json="$(fetch_release gateway "$current_gateway_version")" || die "Unable to query Gateway releases"
+  release_json="$(fetch_release gateway "$current_gateway_version")" || die "Unable to query Opfield releases"
   if [[ -z "$release_json" && -n "$current_gateway_version" ]]; then
     VERSION="$current_gateway_version"
   else
@@ -662,7 +662,7 @@ prepare_install_metadata() {
         tail -n1 || true
     )"
   fi
-  [[ -n "$VERSION" ]] || die "The release API did not return an eligible Gateway release"
+  [[ -n "$VERSION" ]] || die "The release API did not return an eligible Opfield release"
   info "Version: ${VERSION}"
   verify_signed_release "$VERSION"
   current_relay_version="$(env_value GATEWAY_RELAY_BUILD_VERSION)"
@@ -703,11 +703,11 @@ usage() {
   cat <<'EOF'
 Usage: install.sh [--install-dir PATH] [--image IMAGE] [--source-dir PATH] [--http|--https] [--dry-run]
 
-Installs or updates Gateway. On a fresh interactive install, the only prompt
+Installs or updates Opfield. On a fresh interactive install, the only prompt
 selects native HTTPS or HTTP for port 3000. Non-interactive installs default
 to native HTTPS. All product configuration continues in the browser wizard.
 
---source-dir builds the Gateway image from a local source checkout on this
+--source-dir builds the Opfield image from a local source checkout on this
 host. It is intended for a fresh test installation and skips remote release
 discovery and image pulls.
 
@@ -764,7 +764,7 @@ else
   chmod 600 "$LOG_FILE" 2>/dev/null || true
 fi
 
-guide_start "${GRAY}Preparing Gateway installation:${NC}"
+guide_start "${GRAY}Preparing Opfield installation:${NC}"
 guide_blank
 prepare_install_metadata
 guide_blank
@@ -776,9 +776,9 @@ fi
 if [[ "$FRESH" == 1 && -z "$TRANSPORT" ]]; then
   TRANSPORT="https"
   if [[ -r /dev/tty && -w /dev/tty ]]; then
-    guide "${GRAY}Gateway can serve port 3000 with its own System CA certificate.${NC}"
+    guide "${GRAY}Opfield can serve port 3000 with its own System CA certificate.${NC}"
     selector_title "Web transport:"
-    transport_choice=$(prompt_menu "1" "Internal HTTPS  — use Gateway System CA on :3000" "HTTP            — configure TLS in a reverse proxy later")
+    transport_choice=$(prompt_menu "1" "Internal HTTPS  — use Opfield System CA on :3000" "HTTP            — configure TLS in a reverse proxy later")
     case "$transport_choice" in
       1) TRANSPORT="https" ;;
       2) TRANSPORT="http" ;;
@@ -792,14 +792,14 @@ if [[ "$FRESH" == 1 ]]; then
   if [[ "$TRANSPORT" == "https" ]]; then
     guide_blank
     warn "Your browser will show a certificate warning on first visit."
-    warn "This is expected until the Gateway System CA is trusted."
+    warn "This is expected until the Opfield System CA is trusted."
   else
     guide_blank
   fi
 fi
 if [[ "$DRY_RUN" -eq 1 ]]; then
-  info "Dry run: would validate Docker and prepare Gateway services"
-  info "Dry run: would start Gateway with ${TRANSPORT} on port 3000"
+  info "Dry run: would validate Docker and prepare Opfield services"
+  info "Dry run: would start Opfield with ${TRANSPORT} on port 3000"
   rm -f "$DRY_RUN_LOG"
   guide_blank
   echo -e "${BRAND_MINT}■${NC} ${BOLD}Dry run completed successfully — no host changes were made.${NC}"
@@ -808,8 +808,8 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
 fi
 
 if [[ -n "$SOURCE_DIR" ]]; then
-  info "Building Gateway from local source: ${SOURCE_DIR}"
-  run_quiet "Gateway image build" "${DOCKER[@]}" build --build-arg "APP_VERSION=${VERSION}" --tag "$IMAGE_REF" "$SOURCE_DIR"
+  info "Building Opfield from local source: ${SOURCE_DIR}"
+  run_quiet "Opfield image build" "${DOCKER[@]}" build --build-arg "APP_VERSION=${VERSION}" --tag "$IMAGE_REF" "$SOURCE_DIR"
   run_quiet "Relay image build" "${DOCKER[@]}" build -f "$SOURCE_DIR/packages/relay/Dockerfile" --build-arg "RELAY_BUILD_VERSION=${VERSION}" --tag "$RELAY_IMAGE_REF" "$SOURCE_DIR"
 fi
 
@@ -1125,12 +1125,12 @@ COMPOSE
   fi
 else
   info "Migrating the existing installer-managed Compose foundation"
-  run_quiet "Gateway image pull" "${DOCKER[@]}" pull "$IMAGE_REF"
+  run_quiet "Opfield image pull" "${DOCKER[@]}" pull "$IMAGE_REF"
   # Run the target image's compatibility entry point with the existing app's
   # network and environment while that app is still serving traffic. Keep
   # credentials in a mode-0600 temporary file, not Docker command arguments.
   current_app_id="$("${DOCKER[@]}" compose ps -q app)"
-  [[ -n "$current_app_id" ]] || die "Start the existing Gateway before preparing its licensed update"
+  [[ -n "$current_app_id" ]] || die "Start the existing Opfield installation before preparing its licensed update"
   current_network="$("${DOCKER[@]}" inspect --format '{{.HostConfig.NetworkMode}}' "$current_app_id")"
   preparation_env="$(mktemp "$INSTALL_DIR/.gateway-update-env.XXXXXX")"
   chmod 600 "$preparation_env"
@@ -1138,13 +1138,13 @@ else
   if ! "${DOCKER[@]}" inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$current_app_id" \
       | awk '/^(NODE_ENV|DATABASE_URL|REDIS_URL|PKI_MASTER_KEY)=/' > "$preparation_env"; then
     rm -f "$preparation_env"
-    die "Cannot read the existing Gateway update environment"
+    die "Cannot read the existing Opfield update environment"
   fi
   if ! run_quiet "License and private core preparation" "${DOCKER[@]}" run --rm \
       --network "$current_network" --env-file "$preparation_env" -v "$INSTALL_DIR:/host" "$IMAGE_REF" \
       node dist/cli/migrate-legacy-settings.js /host --prepare-only; then
     rm -f "$preparation_env"
-    die "Private core preparation failed; the current Gateway remains running"
+    die "Private core preparation failed; the current Opfield installation remains running"
   fi
   rm -f "$preparation_env"
   trap - EXIT
@@ -1159,33 +1159,33 @@ else
   foundation_env=()
   [[ -n "$DOCKER_LOG_DRIVER" ]] && foundation_env+=(-e "GATEWAY_DOCKER_LOG_DRIVER=$DOCKER_LOG_DRIVER")
   [[ -n "$DOCKER_LOG_OPTS" ]] && foundation_env+=(-e "GATEWAY_DOCKER_LOG_OPTS=$DOCKER_LOG_OPTS")
-  run_quiet "Gateway foundation migration" "${DOCKER[@]}" run --rm ${foundation_env[@]+"${foundation_env[@]}"} -v "$INSTALL_DIR:/host" "$IMAGE_REF" "${foundation_args[@]}"
+  run_quiet "Opfield foundation migration" "${DOCKER[@]}" run --rm ${foundation_env[@]+"${foundation_env[@]}"} -v "$INSTALL_DIR:/host" "$IMAGE_REF" "${foundation_args[@]}"
 fi
 
 if [[ -z "$SOURCE_DIR" ]]; then
   info "Pulling ${IMAGE_REF}"
   if [[ "$FRESH" == 1 ]]; then
-    run_quiet "Gateway service image pull" "${DOCKER[@]}" compose pull app relay
+    run_quiet "Opfield service image pull" "${DOCKER[@]}" compose pull app relay
   else
-    run_quiet "Gateway service image pull" "${DOCKER[@]}" compose pull app
+    run_quiet "Opfield service image pull" "${DOCKER[@]}" compose pull app
     if [[ "$RELAY_BOOTSTRAP" == 1 ]]; then
       run_quiet "Relay service image pull" "${DOCKER[@]}" compose pull relay
     fi
   fi
 fi
 info "Preparing the pinned recovery helper"
-run_quiet "Gateway recovery helper image pull" "${DOCKER[@]}" pull "$DOCKER_COMPOSE_CLI_IMAGE_REF"
-info "Starting Gateway services"
+run_quiet "Opfield recovery helper image pull" "${DOCKER[@]}" pull "$DOCKER_COMPOSE_CLI_IMAGE_REF"
+info "Starting Opfield services"
 if [[ "$FRESH" == 1 ]]; then
-  run_quiet "Gateway service startup" "${DOCKER[@]}" compose up -d
+  run_quiet "Opfield service startup" "${DOCKER[@]}" compose up -d
 else
   if [[ "$RELAY_BOOTSTRAP" == 1 ]]; then
     run_quiet "Relay service startup" "${DOCKER[@]}" compose up -d --no-deps relay
   fi
-  run_quiet "Gateway service startup" "${DOCKER[@]}" compose up -d --no-deps app
+  run_quiet "Opfield service startup" "${DOCKER[@]}" compose up -d --no-deps app
 fi
 
-info "Waiting for Gateway"
+info "Waiting for Opfield"
 healthy=0
 for _ in $(seq 1 90); do
   if curl -kfsS https://127.0.0.1:3000/health >/dev/null 2>&1 || curl -fsS http://127.0.0.1:3000/health >/dev/null 2>&1; then
@@ -1194,7 +1194,7 @@ for _ in $(seq 1 90); do
   fi
   sleep 2
 done
-[[ "$healthy" == 1 ]] || die "Gateway did not become healthy; run: docker compose logs app"
+[[ "$healthy" == 1 ]] || die "Opfield did not become healthy; run: docker compose logs app"
 
 # The first boot imports legacy OIDC_*, CLICKHOUSE_*, and APP_URL values into
 # encrypted Gateway settings. The guarded migration command verifies a complete
@@ -1203,19 +1203,19 @@ if grep -Eq '^(OIDC_|CLICKHOUSE_|APP_URL=|SETUP_TOKEN=)' .env; then
   info "Finalizing legacy settings migration"
   run_quiet "Legacy settings migration" "${DOCKER[@]}" compose run --rm -T -v "$INSTALL_DIR:/host" app \
     node dist/cli/migrate-legacy-settings.js /host --settings-only
-  run_quiet "Gateway restart after legacy migration" "${DOCKER[@]}" compose up -d --force-recreate app
+  run_quiet "Opfield restart after legacy migration" "${DOCKER[@]}" compose up -d --force-recreate app
 fi
 
-ok "Gateway ${VERSION} is running"
+ok "Opfield ${VERSION} is running"
 guide_blank
 if [[ "$FRESH" == 1 ]]; then
   if ! setup_json="$("${DOCKER[@]}" compose exec -T app node dist/cli/setup-code.js </dev/null 2>>"$LOG_FILE" | sed -n '/^{"id":/p' | tail -n1)"; then
-    die "Gateway started, but the setup code could not be generated. Check ${LOG_FILE} for details."
+    die "Opfield started, but the setup code could not be generated. Check ${LOG_FILE} for details."
   fi
   setup_code="$(printf '%s' "$setup_json" | sed -n 's/.*"code":"\([^"]*\)".*/\1/p')"
   expires_at="$(printf '%s' "$setup_json" | sed -n 's/.*"expiresAt":"\([^"]*\)".*/\1/p')"
   ca_fingerprint="$(printf '%s' "$setup_json" | sed -n 's/.*"caFingerprint":"\([^"]*\)".*/\1/p')"
-  [[ -n "$setup_code" ]] || die "Gateway started, but the setup code could not be generated"
+  [[ -n "$setup_code" ]] || die "Opfield started, but the setup code could not be generated"
   print_gateway_urls
   guide_blank
   guide "${BRAND_MINT}Setup code:${NC} ${setup_code}"
@@ -1226,9 +1226,9 @@ if [[ "$FRESH" == 1 ]]; then
   guide "${GRAY}The setup code is shown once. Finish configuration in the browser.${NC}"
   rm -f "$INSTALL_PENDING_MARKER"
 else
-  guide "${GRAY}Existing installation updated; persisted Gateway settings were preserved.${NC}"
+  guide "${GRAY}Existing installation updated; persisted Opfield settings were preserved.${NC}"
 fi
 
 guide_blank
-echo -e "${BRAND_MINT}■${NC} ${BOLD}Gateway installation completed successfully.${NC}"
+echo -e "${BRAND_MINT}■${NC} ${BOLD}Opfield installation completed successfully.${NC}"
 echo ""

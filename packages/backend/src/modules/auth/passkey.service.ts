@@ -55,7 +55,7 @@ export class PasskeyService {
       .from(userPasskeys)
       .where(eq(userPasskeys.userId, user.id));
     const options = await generateRegistrationOptions({
-      rpName: 'Gateway',
+      rpName: 'Opfield',
       rpID: this.rpId(),
       userName: user.email,
       userID: new TextEncoder().encode(user.id),

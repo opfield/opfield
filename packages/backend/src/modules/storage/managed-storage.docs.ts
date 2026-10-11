@@ -86,7 +86,7 @@ export const deleteManagedStorageRoute = appRoute({
   tags: [TAG],
   summary: 'Delete a managed object storage cluster',
   description:
-    'Refused while backup policies or active backup runs use the storage. Finished backup history also blocks deletion (409 STORAGE_BACKUP_HISTORY_EXISTS with historyRecords and backupsWithFiles) unless backupHistory=forget confirms removing it; forgotten backups can no longer be restored or deleted through Gateway, and files stored in this managed storage are deleted with it. Storage on several servers (availability on) answers at once with `deleting: true`: availability is turned off first (every other member and its data go), then the storage is deleted.',
+    'Refused while backup policies or active backup runs use the storage. Finished backup history also blocks deletion (409 STORAGE_BACKUP_HISTORY_EXISTS with historyRecords and backupsWithFiles) unless backupHistory=forget confirms removing it; forgotten backups can no longer be restored or deleted through Opfield, and files stored in this managed storage are deleted with it. Storage on several servers (availability on) answers at once with `deleting: true`: availability is turned off first (every other member and its data go), then the storage is deleted.',
   request: { params: IdParamSchema, query: DeleteStorageQuerySchema },
   responses: okJson(z.object({ success: z.boolean() })),
 });
@@ -139,7 +139,7 @@ export const getManagedStorageCertificateRoute = appRoute({
   tags: [TAG],
   summary: 'Get the TLS certificate of a managed object storage cluster and its automatic renewal status',
   description:
-    'Gateway renews the certificate while the cluster runs (two thirds into its lifetime or 30 days before expiry) and delivers it without a restart. Shows expiry, the renewal state and the last renewal error. Requires the same view permission as reading the cluster.',
+    'Opfield renews the certificate while the cluster runs (two thirds into its lifetime or 30 days before expiry) and delivers it without a restart. Shows expiry, the renewal state and the last renewal error. Requires the same view permission as reading the cluster.',
   request: { params: IdParamSchema },
   responses: okJson(dataResponseSchema(ManagedCertificateStatusSchema)),
 });
@@ -266,7 +266,7 @@ export const freezeManagedStorageWritesRoute = appRoute({
   tags: [TAG],
   summary: 'Make every issued key of a managed object storage cluster read-only',
   description:
-    'Migration write freeze: rewrites the policy of every access key and workload-link key Gateway issued on this cluster to read-only, including keys issued later, until unfreeze. The root credentials keep full access. Keys Gateway did not issue are reported in unmanagedKeys and stay writable. Idempotent; a partial failure returns 502 MANAGED_STORAGE_FREEZE_INCOMPLETE and a retry re-applies every key.',
+    'Migration write freeze: rewrites the policy of every access key and workload-link key Opfield issued on this cluster to read-only, including keys issued later, until unfreeze. The root credentials keep full access. Keys Opfield did not issue are reported in unmanagedKeys and stay writable. Idempotent; a partial failure returns 502 MANAGED_STORAGE_FREEZE_INCOMPLETE and a retry re-applies every key.',
   request: { params: IdParamSchema },
   responses: okJson(UnknownDataResponseSchema),
 });

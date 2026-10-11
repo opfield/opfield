@@ -21,7 +21,7 @@ const (
 	// NodeProtectedCapability marks a daemon running in protected mode.
 	NodeProtectedCapability = "node_protected_v1"
 
-	protectedModeRefusal = "refused: this node runs in protected mode, set by its owner in the daemon's local configuration. Gateway cannot open a console, run commands, read or write files or collect host diagnostics on it; it can only update it with official signed releases and route traffic through it"
+	protectedModeRefusal = "refused: this node runs in protected mode, set by its owner in the daemon's local configuration. Opfield cannot open a console, run commands, read or write files or collect host diagnostics on it; it can only update it with official signed releases and route traffic through it"
 )
 
 // ProtectedModePlugin is implemented by plugins that can run in protected

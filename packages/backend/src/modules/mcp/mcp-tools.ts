@@ -136,7 +136,7 @@ const MCP_TOOLSET_DEFINITIONS: McpToolsetDefinition[] = [
   {
     id: 'folders',
     title: 'Folders',
-    description: 'Folder layout and foldered resource assignment operations across Gateway resources.',
+    description: 'Folder layout and foldered resource assignment operations across Opfield resources.',
     toolNames: toolNamesForCategories(['Folders']),
   },
   {
@@ -257,14 +257,14 @@ const MCP_TOOLSET_DEFINITIONS: McpToolsetDefinition[] = [
     id: 'maintenance',
     title: 'Maintenance',
     description:
-      "Gateway settings, system updates, license, cloud account connection, housekeeping, and Gateway's own diagnostics (host, process, Postgres, Redis, stack containers, jobs, API latency, logs).",
+      "Opfield settings, system updates, license, cloud account connection, housekeeping, and Opfield's own diagnostics (host, process, Postgres, Redis, stack containers, jobs, API latency, logs).",
     toolNames: toolNamesForCategories(['Maintenance']),
   },
   {
     id: 'inference',
     title: 'Inference',
     description:
-      'Gateway Inference core, provider connections, published models, limits, usage, and personal inference keys.',
+      'Opfield Inference core, provider connections, published models, limits, usage, and personal inference keys.',
     toolNames: toolNamesForCategories(['Inference']),
   },
   {
@@ -282,7 +282,7 @@ const MCP_DEFAULT_TOOLSET_IDS = new Set(
 const MCP_DISCOVER_TOOLS_DEFINITION = {
   name: 'discover_tools',
   description:
-    'List Gateway MCP toolsets or activate a toolset by category id. Use this before specialized work, then call tools/list again to refresh the visible Gateway tools without loading every tool at once.',
+    'List Opfield MCP toolsets or activate a toolset by category id. Use this before specialized work, then call tools/list again to refresh the visible Opfield tools without loading every tool at once.',
   inputSchema: {
     type: 'object' as const,
     properties: {

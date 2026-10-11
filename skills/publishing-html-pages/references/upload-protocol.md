@@ -4,8 +4,8 @@
 
 ## Accepted artifacts
 
-- **One HTML file.** Declare `format: "html"`, or omit `format` and let Gateway detect it (content that starts with markup after an optional BOM and whitespace). Gateway wraps it as `index.html` of a generated archive. Only that one file is served, so every stylesheet, script, and image must be inline, a data URI, or an absolute URL.
-- **A `.tar.gz` archive** with `index.html` (or `index.htm`) at its root. Declare `format: "tar.gz"` or let Gateway detect the gzip magic bytes. Archives are validated: regular files and directories only (no links or special files), bounded file count and expanded size, no absolute or `..` paths.
+- **One HTML file.** Declare `format: "html"`, or omit `format` and let Opfield detect it (content that starts with markup after an optional BOM and whitespace). Opfield wraps it as `index.html` of a generated archive. Only that one file is served, so every stylesheet, script, and image must be inline, a data URI, or an absolute URL.
+- **A `.tar.gz` archive** with `index.html` (or `index.htm`) at its root. Declare `format: "tar.gz"` or let Opfield detect the gzip magic bytes. Archives are validated: regular files and directories only (no links or special files), bounded file count and expanded size, no absolute or `..` paths.
 
 Anything else fails with `PAGES_ARTIFACT_FORMAT_UNKNOWN`. A gzip body declared as `html` fails with `PAGES_ARTIFACT_NOT_HTML`.
 
@@ -15,15 +15,15 @@ Anything else fails with `PAGES_ARTIFACT_FORMAT_UNKNOWN`. A gzip body declared a
 { "operation": "link", "projectId": "<Page Project UUID>", "tag": "weekly-report", "expiresInHours": 72 }
 ```
 
-- Only `projectId` is required; `tag`, `format`, `expiresAt` or `expiresInHours`, and `source` work as for `begin`. An optional `sha256` makes Gateway reject bytes that do not match it.
-- The result has `uploadUrl`, `expiresAt` (15 minutes ahead), `maxBytes` (the Gateway file-upload limit), and `commands` for an archive, a folder, and an HTML file:
+- Only `projectId` is required; `tag`, `format`, `expiresAt` or `expiresInHours`, and `source` work as for `begin`. An optional `sha256` makes Opfield reject bytes that do not match it.
+- The result has `uploadUrl`, `expiresAt` (15 minutes ahead), `maxBytes` (the Opfield file-upload limit), and `commands` for an archive, a folder, and an HTML file:
 
 ```bash
 curl -sS --fail-with-body -X PUT --data-binary @site.tar.gz '<uploadUrl>'
 COPYFILE_DISABLE=1 tar czf - -C dist . | curl -sS --fail-with-body -X PUT --data-binary @- '<uploadUrl>'
 ```
 
-- The link works once. Gateway measures and hashes the body, creates the Deployment, validates and publishes it, and the curl response is `{ "data": <the finalize result below> }`. An interrupted or rejected transfer creates nothing; an archive that fails validation leaves a failed Deployment with the reason. Either way, create a new link to retry.
+- The link works once. Opfield measures and hashes the body, creates the Deployment, validates and publishes it, and the curl response is `{ "data": <the finalize result below> }`. An interrupted or rejected transfer creates nothing; an archive that fails validation leaves a failed Deployment with the reason. Either way, create a new link to retry.
 - The URL is a credential for that one upload: run the command yourself and never show it to the user.
 
 ## begin
@@ -50,7 +50,7 @@ COPYFILE_DISABLE=1 tar czf - -C dist . | curl -sS --fail-with-body -X PUT --data
 
 The result is `{ deployment, upload: { id, offset, expiresAt } }`. An upload session expires 30 minutes after its last chunk; maintenance then fails it and frees its quota reservation.
 
-`begin` can also fail on Project limits: `PAGES_ARTIFACT_TOO_LARGE` (the Gateway file-upload limit), `PAGES_STORAGE_QUOTA_EXCEEDED`, or `PAGES_RETENTION_PROTECTED_LIMIT` (pinned, tagged, or routed Deployments already fill `maxDeployments`). Report these; do not delete Deployments to make room without the user's approval.
+`begin` can also fail on Project limits: `PAGES_ARTIFACT_TOO_LARGE` (the Opfield file-upload limit), `PAGES_STORAGE_QUOTA_EXCEEDED`, or `PAGES_RETENTION_PROTECTED_LIMIT` (pinned, tagged, or routed Deployments already fill `maxDeployments`). Report these; do not delete Deployments to make room without the user's approval.
 
 ## chunk
 
@@ -60,7 +60,7 @@ The result is `{ deployment, upload: { id, offset, expiresAt } }`. An upload ses
 
 - Chunks are ordered, non-empty, and at most 1 MiB decoded. The base64 must be canonical: no line breaks, correct padding.
 - The result is `{ id, offset, complete }`, where `offset` is the next byte to send.
-- An offset that does not match the bytes Gateway has received fails with `PAGES_UPLOAD_OFFSET_MISMATCH` and reports `expectedOffset`. Resume from that value; never restart from zero after an acknowledged chunk.
+- An offset that does not match the bytes Opfield has received fails with `PAGES_UPLOAD_OFFSET_MISMATCH` and reports `expectedOffset`. Resume from that value; never restart from zero after an acknowledged chunk.
 
 With the bundled helper, read each chunk as JSON and pass its `contentBase64` through:
 
@@ -68,7 +68,7 @@ With the bundled helper, read each chunk as JSON and pass its `contentBase64` th
 python3 <skill-dir>/scripts/pages-artifact.py chunk <artifact> --offset <offset>
 ```
 
-Its `nextOffset` must equal the `offset` Gateway returns.
+Its `nextOffset` must equal the `offset` Opfield returns.
 
 ## cancel
 

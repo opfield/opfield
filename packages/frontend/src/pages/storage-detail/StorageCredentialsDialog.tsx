@@ -254,7 +254,7 @@ export function StorageCredentialsDialog({
             <>
               {!endpoint && (
                 <Notice tone="warning" title="No reachable S3 endpoint">
-                  The storage node has no Service Address, so Gateway cannot show an address clients
+                  The storage node has no Service Address, so Opfield cannot show an address clients
                   can reach. Add one on the node, or replace &lt;node-host&gt; below with an address
                   that reaches the node.
                 </Notice>

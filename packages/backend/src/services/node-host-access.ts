@@ -25,7 +25,7 @@ export const RELAY_PROTECTED_WITNESS_ALLOWED_CAPABILITY = 'relay_protected_witne
 const NODE_PROTECTED = {
   code: 'NODE_PROTECTED',
   message:
-    "This relay runs in protected mode, set by the owner of its machine in the relay's local configuration. Gateway cannot open a console, run commands, read or write files or collect host diagnostics on it; it can only update the relay with official signed releases and route traffic through it. Only the machine owner can turn protected mode off.",
+    "This relay runs in protected mode, set by the owner of its machine in the relay's local configuration. Opfield cannot open a console, run commands, read or write files or collect host diagnostics on it; it can only update the relay with official signed releases and route traffic through it. Only the machine owner can turn protected mode off.",
 };
 
 const CONSOLE_USER_UNAVAILABLE = {

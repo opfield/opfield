@@ -24,7 +24,7 @@ type InviteMethod = "password" | "email_otp";
 const METHOD_DETAILS: Record<InviteMethod, { label: string; description: string }> = {
   password: {
     label: "Email and password",
-    description: "Gateway sends a one-time email link so the user can set their password.",
+    description: "Opfield sends a one-time email link so the user can set their password.",
   },
   email_otp: {
     label: "Email code",
@@ -120,7 +120,7 @@ export function InviteUsersSetupWizard({
       description={
         <>
           <p>
-            Gateway is most useful when the people who operate the infrastructure have their own
+            Opfield is most useful when the people who operate the infrastructure have their own
             accounts and only the access they need. This step creates one additional user and puts
             them in a permission group from the start.
           </p>
@@ -162,8 +162,8 @@ export function InviteUsersSetupWizard({
           continueIn="Continue from Administration → Users to invite people, assign groups, and review account access."
         >
           {method === "password"
-            ? `Gateway created the account and emailed a password setup link to ${email.trim()}.`
-            : `Gateway created the account for ${email.trim()}. They can sign in with their email address and receive a one-time code.`}
+            ? `Opfield created the account and emailed a password setup link to ${email.trim()}.`
+            : `Opfield created the account for ${email.trim()}. They can sign in with their email address and receive a one-time code.`}
         </FinalizeSetupCompletion>
       ) : (
         <PanelShell
@@ -177,7 +177,7 @@ export function InviteUsersSetupWizard({
             title="Email"
             description={
               method === "password"
-                ? "Where Gateway sends the password setup link."
+                ? "Where Opfield sends the password setup link."
                 : "Used for this account and for one-time sign-in codes."
             }
           >

@@ -41,7 +41,7 @@ sha256_file() {
 
 show_header() {
     echo -e "${BRAND_MINT}╭───────────────────────────────────╮${NC}"
-    printf "${BRAND_MINT}│${NC} ${BOLD}${BRAND_MINT}%-33s${NC} ${BRAND_MINT}│${NC}\n" "Gateway Node Setup"
+    printf "${BRAND_MINT}│${NC} ${BOLD}${BRAND_MINT}%-33s${NC} ${BRAND_MINT}│${NC}\n" "Opfield Node Setup"
     printf "${BRAND_MINT}│${NC} ${GRAY}%-33s${NC} ${BRAND_MINT}│${NC}\n" "Database daemon installer"
     echo -e "${BRAND_MINT}╰───────────────────────────────────╯${NC}"
     echo ""
@@ -88,7 +88,7 @@ MOUNT_DIR=""
 
 usage() {
     cat <<'HELP'
-Gateway Database Node Setup — restricted docker-daemon enrollment
+Opfield Database Node Setup — restricted docker-daemon enrollment
 
 Usage:
   setup-database-node.sh [options]

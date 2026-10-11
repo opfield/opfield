@@ -1,11 +1,11 @@
 ---
 name: managing-nodes
-description: Enroll, inspect, and operate Gateway Nodes, the servers running Gateway daemons for nginx ingress, Docker, builder, storage and databases, monitoring, and relay. Use when asked to add a server to Gateway, check Node or daemon health, change a Node's service address, open a Node console or browse its filesystem, update daemons, or diagnose an offline or degraded Node. For a brand-new installation, start with the instance setup in using-gateway. Use after using-gateway has confirmed the Gateway MCP connection.
+description: Enroll, inspect, and operate Opfield Nodes, the servers running Opfield daemons for nginx ingress, Docker, builder, storage and databases, monitoring, and relay. Use when asked to add a server to Opfield, check Node or daemon health, change a Node's service address, open a Node console or browse its filesystem, update daemons, or diagnose an offline or degraded Node. For a brand-new installation, start with the instance setup in using-gateway. Use after using-gateway has confirmed the Opfield MCP connection.
 ---
 
 # Managing Nodes
 
-Nodes are servers running a Gateway daemon that connects to the control plane over mutual-TLS gRPC (port 9443). A Node's type decides what it can run, and a Node is never silently repurposed to another type.
+Nodes are servers running an Opfield daemon that connects to the control plane over mutual-TLS gRPC (port 9443). A Node's type decides what it can run, and a Node is never silently repurposed to another type.
 
 Start with `using-gateway` for connection, discovery, and safety rules; its instance-setup reference covers a brand-new control plane and first Nodes. Read `read_gateway_documentation({ topic: "nodes" })` (and `node-files`) before enrollment or file work: it has the current setup scripts, the manual-install fallback, and every reported health field.
 
@@ -28,8 +28,8 @@ Enroll only the roles the workload needs.
 Adding a server is an explicit infrastructure mutation; do it only on the user's request.
 
 1. Prefer the Console flow (**Nodes > Add Node**): it shows the one-time enrollment command directly to the user, so the token never passes through chat.
-2. `create_node({ type, displayName, ... })` (relay Nodes also need the advertised address) is the MCP equivalent. It returns a one-time enrollment token and the Gateway gRPC certificate fingerprint. Use it only when you will run the setup command on the target host yourself, with the user's authorization. Otherwise let the user use the Console.
-3. Run the exact setup command Gateway documents for the type (`setup-<type>-node.sh` with `--gateway <host>:9443 --token ... --gateway-cert-sha256 sha256:...`, plus `--mode builder` for builders and `--storage-root <path> --yes` for unattended storage Nodes). Pass the token straight into that command; never print it, log it, store it, or repeat it. Never reconstruct a token, target, or fingerprint by hand.
+2. `create_node({ type, displayName, ... })` (relay Nodes also need the advertised address) is the MCP equivalent. It returns a one-time enrollment token and the Opfield gRPC certificate fingerprint. Use it only when you will run the setup command on the target host yourself, with the user's authorization. Otherwise let the user use the Console.
+3. Run the exact setup command Opfield documents for the type (`setup-<type>-node.sh` with `--gateway <host>:9443 --token ... --gateway-cert-sha256 sha256:...`, plus `--mode builder` for builders and `--storage-root <path> --yes` for unattended storage Nodes). Pass the token straight into that command; never print it, log it, store it, or repeat it. Never reconstruct a token, target, or fingerprint by hand.
 4. The script installs the daemon, writes its config, starts a systemd service, and the daemon enrolls over mTLS. The token works once.
 5. Poll `get_node` until the status moves from `pending` to `online`, then check the capability report (daemon version, features) before relying on the Node.
 
@@ -40,21 +40,21 @@ Never delete a Node record while its old daemon might still reconnect: deletion 
 - `list_nodes`, `get_node` (`nodes:details`); `rename_node` (`nodes:rename`); `delete_node` (`nodes:delete`).
 - `manage_node_config` reads (`nodes:config:view`), updates, or tests (`nodes:manage`) the global nginx configuration. Test before update.
 - `set_node_service_creation_lock` locks or unlocks creation of new services on a Node; `manage_relay_pool` manages relay Nodes.
-- A Docker, database, or storage Node can set an explicit `serviceAddress` for cross-node and upstream reachability (`nodes:manage`); otherwise Gateway uses the first reported local address, then a public one.
-- Daemon mTLS certificates renew automatically once a third of their lifetime remains; Gateway alerts below 30 days.
-- Daemon updates come from the `maintenance` toolset (`manage_system_updates`; `read_gateway_documentation({ topic: "licensing-updates" })`). Update per `nodeId`, never "everything" at once. After a Gateway update, update the Node daemons before the Relay Pool (the pool update also recreates the local relay; current daemons reconnect to it within a second and ingress Nodes hold new Secure Link connections for up to 3 seconds). Nodes and relays that take part in a lease-mode Availability policy are sequenced by Gateway, one member per policy at a time: a queued update shows `metadata.updatePhase: waiting_for_lease_peers` with `metadata.updateWaitingFor` (see `high-availability`). Before that, an update waits up to 30 minutes for the long tasks running on the node (`waiting_for_tasks`, `metadata.updateWaitingForTasks`); `update_daemon` with `now: true` skips or ends that wait, so pass it only after the user confirmed that running tasks may fail. `metadata.lastUpdate` keeps the result of the last update: warnings, `serviceRestart` (the daemon restarted its whole service once for a newer launcher, or why not), and the connections it kept and cut.
+- A Docker, database, or storage Node can set an explicit `serviceAddress` for cross-node and upstream reachability (`nodes:manage`); otherwise Opfield uses the first reported local address, then a public one.
+- Daemon mTLS certificates renew automatically once a third of their lifetime remains; Opfield alerts below 30 days.
+- Daemon updates come from the `maintenance` toolset (`manage_system_updates`; `read_gateway_documentation({ topic: "licensing-updates" })`). Update per `nodeId`, never "everything" at once. After an Opfield update, update the Node daemons before the Relay Pool (the pool update also recreates the local relay; current daemons reconnect to it within a second and ingress Nodes hold new Secure Link connections for up to 3 seconds). Nodes and relays that take part in a lease-mode Availability policy are sequenced by Opfield, one member per policy at a time: a queued update shows `metadata.updatePhase: waiting_for_lease_peers` with `metadata.updateWaitingFor` (see `high-availability`). Before that, an update waits up to 30 minutes for the long tasks running on the node (`waiting_for_tasks`, `metadata.updateWaitingForTasks`); `update_daemon` with `now: true` skips or ends that wait, so pass it only after the user confirmed that running tasks may fail. `metadata.lastUpdate` keeps the result of the last update: warnings, `serviceRestart` (the daemon restarted its whole service once for a newer launcher, or why not), and the connections it kept and cut.
 - Restarts: a graceful Docker daemon restart is announced, so relays hold its registrations and ingress Nodes hold new connections to it for a few seconds instead of failing them; its containers keep running. The nginx daemon hands its Secure Link sockets to the next process across restarts and updates, except for the one restart that installs the new launcher after an upgrade. A daemon whose host becomes unreachable is dropped by the relays within about 3.5 seconds.
-- Relays keep admitting connections on their last signed policy for the relay policy lease (72 hours by default, `relayPolicyLeaseHours` 1 to 168 in the general settings) while Gateway is down; revocations and changes need Gateway.
+- Relays keep admitting connections on their last signed policy for the relay policy lease (72 hours by default, `relayPolicyLeaseHours` 1 to 168 in the general settings) while Opfield is down; revocations and changes need Opfield.
 
 ## Console and files
 
-- `execute_node_console_command({ nodeId, command: ["sh", "-lc", "..."] })` runs one command in a real PTY on the host OS. It needs `nodes:console`, an OAuth manual-approval scope. Gateway blocks obviously catastrophic patterns, but treat every command as a host mutation that needs user intent.
+- `execute_node_console_command({ nodeId, command: ["sh", "-lc", "..."] })` runs one command in a real PTY on the host OS. It needs `nodes:console`, an OAuth manual-approval scope. Opfield blocks obviously catastrophic patterns, but treat every command as a host mutation that needs user intent.
 - `manage_node_file` lists, reads, writes, creates, moves, and deletes files through the daemon, with chunked `upload_init`, `upload_chunk`, `upload_complete`, and `upload_abort`. Reads (`nodes:files:read`) are capped and report `truncated`; any change needs `nodes:files:write`. Both are manual-approval scopes.
-- Do not use the console to work around a type's design, such as giving a builder a Docker socket. Docker Nodes report Secure Runtime (gVisor) setup state; install it through Gateway's setup entrypoint, not the console, unless the user explicitly asks for host-level repair.
+- Do not use the console to work around a type's design, such as giving a builder a Docker socket. Docker Nodes report Secure Runtime (gVisor) setup state; install it through Opfield's setup entrypoint, not the console, unless the user explicitly asks for host-level repair.
 
 ## Health
 
-Health reports arrive every 30 seconds: CPU, memory, disk, load, swap, network, and type-specific data (nginx workers and 4xx/5xx rates; Docker container counts and stats). A disconnected Node shows its last known snapshot, and Gateway blocks mutations that would rely on unverified state.
+Health reports arrive every 30 seconds: CPU, memory, disk, load, swap, network, and type-specific data (nginx workers and 4xx/5xx rates; Docker container counts and stats). A disconnected Node shows its last known snapshot, and Opfield blocks mutations that would rely on unverified state.
 
 ## Verify
 
@@ -67,4 +67,4 @@ Health reports arrive every 30 seconds: CPU, memory, disk, load, swap, network, 
 - A green connection indicator does not prove that Routes, certificates, workloads, or bindings on the Node converged after reconnect; check each resource family.
 - A deleted Node record does not mean its workloads are gone: nginx, Docker, and database services may keep running independently.
 
-Further reading: [Nodes overview](https://docs.goodgateway.dev/en/nodes/overview/), [Roles and installation](https://docs.goodgateway.dev/en/nodes/roles-and-installation/), [Updates and offline behavior](https://docs.goodgateway.dev/en/nodes/updates-and-offline-behavior/).
+Further reading: [Nodes overview](https://docs.opfield.dev/en/nodes/overview/), [Roles and installation](https://docs.opfield.dev/en/nodes/roles-and-installation/), [Updates and offline behavior](https://docs.opfield.dev/en/nodes/updates-and-offline-behavior/).

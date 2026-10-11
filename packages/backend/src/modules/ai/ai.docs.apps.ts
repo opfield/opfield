@@ -13,7 +13,7 @@ An app groups resources of several types into environments (production, staging,
 - Each environment allows a set of nodes (allowedNodeIds in get_app; manage_app_environment allow_node, remove_node, list_nodes). A create or import on another node is refused with APP_NODE_NOT_ALLOWED, or APP_ENV_NO_ALLOWED_NODE when no node of the needed type is allowed (Docker for containers, deployments and Compose; Nginx for routes and Pages; database or storage nodes for managed databases and storage). Removing a node keeps what runs there.
 
 ## Membership
-- manage_app_members place moves members into an environment (target {appId, environmentId}) or out of their app (target null). It needs apps:env:manage on the target environment and on the environment a member leaves, plus edit permission on each member. Each member is placed or refused on its own (system routes, the route of the Gateway public URL, non-allowed nodes, deployment slot and Compose service containers are refused).
+- manage_app_members place moves members into an environment (target {appId, environmentId}) or out of their app (target null). It needs apps:env:manage on the target environment and on the environment a member leaves, plus edit permission on each member. Each member is placed or refused on its own (system routes, the route of the Opfield public URL, non-allowed nodes, deployment slot and Compose service containers are refused).
 - Deleting an environment or an app leaves its members running at the top level of their lists.
 
 ## Environment variables and secrets

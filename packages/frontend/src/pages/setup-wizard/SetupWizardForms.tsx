@@ -60,7 +60,7 @@ export function PublicUrlStep({
       <div className="text-center">
         <h2 className="text-lg font-semibold">Public URL</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Enter the canonical URL people and identity providers will use. Gateway will not infer it
+          Enter the canonical URL people and identity providers will use. Opfield will not infer it
           from the browser address.
         </p>
       </div>
@@ -75,7 +75,7 @@ export function PublicUrlStep({
           type="url"
           required
           value={publicUrl}
-          placeholder="https://gateway.example.com"
+          placeholder="https://opfield.example.com"
           onChange={(event) => setPublicUrl(event.target.value)}
         />
         <div className="flex justify-center">
@@ -176,7 +176,7 @@ export function OidcConfigStep({
       <div className="text-center">
         <h2 className="text-lg font-semibold">Configure OIDC</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Connect Gateway to your OpenID Connect identity provider.
+          Connect Opfield to your OpenID Connect identity provider.
         </p>
       </div>
       <form
@@ -274,7 +274,7 @@ export function SmtpConfigStep({
       <div className="text-center">
         <h2 className="text-lg font-semibold">Configure email delivery</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Gateway will verify the SMTP connection when you apply the setup configuration.
+          Opfield will verify the SMTP connection when you apply the setup configuration.
         </p>
       </div>
       <form

@@ -117,7 +117,7 @@ export function HostingResizeDialog({
       if (
         !(await confirm({
           title: "Confirm Resource Resize",
-          description: `Resize “${target.name}”? All Gateway roles on this VM are affected.${price ? ` Selected quote: ${formatHostingAmount(price.amount)} ${price.currency}.` : ""}`,
+          description: `Resize “${target.name}”? All Opfield roles on this VM are affected.${price ? ` Selected quote: ${formatHostingAmount(price.amount)} ${price.currency}.` : ""}`,
           confirmLabel: "Resize resource",
         }))
       )
@@ -219,7 +219,7 @@ export function HostingResizeDialog({
               )}
             </PanelShell>
             <p className="text-xs text-muted-foreground">
-              Affected Gateway nodes:{" "}
+              Affected Opfield nodes:{" "}
               {displayed.nodes.map((n) => `${n.name} · ${n.type}`).join(", ") || "none"}.
             </p>
           </div>

@@ -253,7 +253,7 @@ export function InferenceProviderDialog({
           <SettingsControlRow title="Status">
             <HealthBadge status={enabled ? displayedConnection.status : "disabled"} />
           </SettingsControlRow>
-          <SettingsControlRow title="Enabled" description="Allow Gateway to route requests here">
+          <SettingsControlRow title="Enabled" description="Allow Opfield to route requests here">
             <Switch
               checked={enabled}
               onChange={setEnabled}
@@ -314,7 +314,7 @@ export function InferenceProviderDialog({
             <SettingsControlRow
               title="Minimum remaining"
               description="Stop routing when any quota window reaches this reserve"
-              help="Keeps a percentage of the provider's reported quota unused. Gateway stops selecting this connection when any synchronized quota window falls to the reserve."
+              help="Keeps a percentage of the provider's reported quota unused. Opfield stops selecting this connection when any synchronized quota window falls to the reserve."
             >
               <div className="flex items-center gap-2">
                 <Input
@@ -336,7 +336,7 @@ export function InferenceProviderDialog({
             <SettingsControlRow
               title="Monthly API limit"
               description={`Used this UTC month: ${formatUsd(displayedConnection.apiMonthlySpentMicrodollars)}. Leave empty for unlimited.`}
-              help="Gateway stops routing paid API traffic to this connection after its tracked spend reaches the limit for the current UTC calendar month."
+              help="Opfield stops routing paid API traffic to this connection after its tracked spend reaches the limit for the current UTC calendar month."
             >
               <div className="flex items-center gap-2">
                 <Input

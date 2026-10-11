@@ -114,7 +114,7 @@ export function normalizeOidcClaims(
   }
   const lowerSubject = subject.trim().toLowerCase();
   if (RESERVED_SUBJECT_PREFIXES.some((prefix) => lowerSubject.startsWith(prefix))) {
-    throw new Error('OIDC subject uses a reserved Gateway namespace');
+    throw new Error('OIDC subject uses a reserved Opfield namespace');
   }
 
   const email = typeof claims?.email === 'string' ? claims.email.trim().toLowerCase() : '';
@@ -690,7 +690,7 @@ export class AuthService {
       throw new AppError(409, 'USER_DELETED', 'Deleted users must be restored before they can be changed');
     }
     if (target.oidcSubject?.startsWith(SYSTEM_SUBJECT_PREFIX)) {
-      throw new AppError(403, 'SYSTEM_USER', 'Cannot change the Gateway system user authentication method');
+      throw new AppError(403, 'SYSTEM_USER', 'Cannot change the Opfield system user authentication method');
     }
     if (target.authMethod === authMethod) return this.mapDbUserToUser(target);
 

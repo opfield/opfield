@@ -20,7 +20,7 @@ export async function loginCommand(
   const existing = await profiles.get(profileName);
   const originInput = args.gateway ?? args.command[1] ?? existing?.origin;
   if (!originInput) {
-    throw new CliError('GATEWAY_REQUIRED', 'Provide a Gateway origin: login https://gateway.example.com');
+    throw new CliError('GATEWAY_REQUIRED', 'Provide an Opfield origin: login https://gateway.example.com');
   }
   const origin = normalizeGatewayOrigin(originInput);
   const discovery = await discoverInference(origin, fetcher);
@@ -61,12 +61,12 @@ export async function loginWithInferenceTokenCommand(
   const existing = await profiles.get(profileName);
   const originInput = args.gateway ?? existing?.origin;
   if (!originInput) {
-    throw new CliError('GATEWAY_REQUIRED', 'Provide a Gateway origin: login https://gateway.example.com');
+    throw new CliError('GATEWAY_REQUIRED', 'Provide an Opfield origin: login https://gateway.example.com');
   }
   const origin = normalizeGatewayOrigin(originInput);
   const token = args.token.trim();
   if (!token.startsWith('gwi_')) {
-    throw new CliError('INVALID_INFERENCE_TOKEN', 'Gateway inference tokens must start with gwi_.');
+    throw new CliError('INVALID_INFERENCE_TOKEN', 'Opfield inference tokens must start with gwi_.');
   }
   await discoverInference(origin, fetcher);
   const client = new InferenceSetupClient(origin, token, fetcher);
@@ -87,7 +87,7 @@ export async function loginWithInferenceTokenCommand(
   );
   output.write(
     { ok: true, gateway: profile.origin, user: identity.user, inference: identity.inference, authMode: 'token' },
-    () => `Logged in to ${profile.origin} as ${identity.user.email} using a Gateway inference token.`
+    () => `Logged in to ${profile.origin} as ${identity.user.email} using an Opfield inference token.`
   );
 }
 
@@ -122,7 +122,7 @@ export async function logoutCommand(
   if (directInferenceToken) {
     output.write(
       { ok: true, remoteRevoked: false, authMode: 'token' },
-      () => 'Removed local authorization; the existing Gateway inference token was not revoked.'
+      () => 'Removed local authorization; the existing Opfield inference token was not revoked.'
     );
     return;
   }

@@ -29,7 +29,7 @@ export async function runInteractiveInferenceSetup(input: {
   configure: (harness: string, session: InteractiveSetupSession) => Promise<{ progress: string; summary: string }>;
 }): Promise<number> {
   if (input.showIntro !== false) {
-    input.ui.intro('Good Gateway Inference · Setup');
+    input.ui.intro('Opfield Inference · Setup');
   }
   let session: InteractiveSetupSession;
 
@@ -45,7 +45,7 @@ export async function runInteractiveInferenceSetup(input: {
     }
     const authorized = await input.authorize(gateway);
     if (authorized === false) return 0;
-    input.ui.info('Gateway authorization complete');
+    input.ui.info('Opfield authorization complete');
     session = await input.session();
   }
 
@@ -81,7 +81,7 @@ function harnessPresentation(harness: string): Pick<InteractiveOption, 'label' |
   if (harness === 'codex') {
     return {
       label: 'Codex CLI',
-      hint: 'Gateway models, reasoning, tools, and automatic catalog refresh',
+      hint: 'Opfield models, reasoning, tools, and automatic catalog refresh',
     };
   }
   if (harness === 'claude-code') {
@@ -90,7 +90,7 @@ function harnessPresentation(harness: string): Pick<InteractiveOption, 'label' |
       hint: 'Native Anthropic gateway, model discovery, tools, and extended thinking',
     };
   }
-  return { label: harnessLabel(harness), hint: 'Advertised by this Gateway instance' };
+  return { label: harnessLabel(harness), hint: 'Advertised by this Opfield instance' };
 }
 
 function harnessLabel(harness: string): string {

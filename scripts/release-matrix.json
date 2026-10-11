@@ -10,7 +10,7 @@
       "<newer>": "A release of the same line newer than the candidate, published on the preview channel.",
       "gwsvc, gwsvc2, gwdock, gwdock2": "System users created for the run: useradd --system --no-create-home --shell /usr/sbin/nologin <name> (Alpine: adduser -S -D -H -s /sbin/nologin <name>).",
       "<unit>": "nginx-daemon, docker-daemon, monitoring-daemon or gateway-relay-supervisor.",
-      "connected": "The installer prints '<daemon> is connected to Gateway' (the relay: that the supervisor enrolled and connected) and exits 0; the node is online in GET /api/nodes with daemonVersion equal to the installed release.",
+      "connected": "The installer prints '<daemon> is connected to Opfield' (the relay: that the supervisor enrolled and connected) and exits 0; the node is online in GET /api/nodes with daemonVersion equal to the installed release.",
       "service user": "systemd: systemctl show -p User,Group <unit>; OpenRC: rc-service <unit> status and ps -o user= -p <daemon pid>."
     }
   },
@@ -576,7 +576,7 @@
       "user-to-root": "Re-run of a non-root install without --user: root gets back only what the previous user owned, the wrapper becomes a root binary.",
       "user-to-user": "Re-run of a non-root install with another user.",
       "refused-user": "A user that does not exist, or a non-root user for a root-only profile: exit 1 before any host change.",
-      "token-refused": "An already used or expired token: exit 1 at once with 'Gateway refused the enrollment token', without the reachability hint.",
+      "token-refused": "An already used or expired token: exit 1 at once with 'Opfield refused the enrollment token', without the reachability hint.",
       "gateway-unreachable": "Gateway cannot be reached: exit 1 after the enrollment wait with the daemon log source and its last lines.",
       "prerequisites": "A missing or unsupported prerequisite (packages, nginx version or user, Docker socket, loop devices, service manager) is installed or refused before any change, as documented.",
       "service-fails": "The service of an enrolled node cannot start: the re-run exits 1 with the log tail and no manual-mode fallback.",
@@ -1410,8 +1410,8 @@
         "Run each setup command with the used token."
       ],
       "expect": [
-        "Each installer exits 1 within seconds with 'Gateway refused the enrollment token (already used, expired, or for another node): … Create a new setup command', names the daemon log and prints its last lines.",
-        "No 'check that Gateway … is reachable' hint is printed."
+        "Each installer exits 1 within seconds with 'Opfield refused the enrollment token (already used, expired, or for another node): … Create a new setup command', names the daemon log and prints its last lines.",
+        "No 'check that Opfield … is reachable' hint is printed."
       ]
     },
     {
@@ -1443,7 +1443,7 @@
         "Remove the rule and re-run once more."
       ],
       "expect": [
-        "Each re-run exits 1 after about 30 s with 'has not connected to Gateway within 30 s; check that Gateway at <gateway> is reachable', 'Daemon log: journalctl -u <unit>' (Alpine: the OpenRC log files) and the last 20 lines.",
+        "Each re-run exits 1 after about 30 s with 'has not connected to Opfield within 30 s; check that Opfield at <gateway> is reachable', 'Daemon log: journalctl -u <unit>' (Alpine: the OpenRC log files) and the last 20 lines.",
         "After the rule is removed each re-run is connected."
       ]
     },
@@ -2731,7 +2731,7 @@
       ],
       "expect": [
         "Images gateway-local:local-<time> and gateway-local/relay:local-<time> are built; GATEWAY_RELAY_MANAGED=false in .env; setup completes.",
-        "The second run stops with '--source-dir is supported only for a fresh Gateway installation'.",
+        "The second run stops with '--source-dir is supported only for a fresh Opfield installation'.",
         "The environment form builds gateway-local2 the same way."
       ]
     },

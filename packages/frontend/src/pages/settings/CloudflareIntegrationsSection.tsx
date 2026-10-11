@@ -325,7 +325,7 @@ export function CloudflareIntegrationsSection() {
               {editingConnector ? "Cloudflare Connector" : "Add Cloudflare Connector"}
             </DialogTitle>
             <DialogDescription>
-              Configure the system API token used for Gateway-managed DNS records.
+              Configure the system API token used for Opfield-managed DNS records.
             </DialogDescription>
           </DialogHeader>
 
@@ -351,7 +351,7 @@ export function CloudflareIntegrationsSection() {
               <Field label={editingConnector ? "Token" : "API Token"}>
                 <p className="mb-2 text-xs text-muted-foreground">
                   Required Cloudflare token permissions: Zone:Read plus DNS:Read and DNS:Edit for
-                  the zones Gateway should manage.
+                  the zones Opfield should manage.
                 </p>
                 <div className="flex min-w-0 border border-input bg-background">
                   <Input

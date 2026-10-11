@@ -302,7 +302,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
     const ok = await confirm({
       title: "Abandon Relay Pool Update?",
       description:
-        "Gateway fails this update run and returns the relays it drained to service. Relays that already updated keep the new version.",
+        "Opfield fails this update run and returns the relays it drained to service. Relays that already updated keep the new version.",
       confirmLabel: "Abandon update",
       variant: "destructive",
     });
@@ -358,7 +358,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
       !(await confirm({
         title: "Rebalance Relay Pool?",
         description:
-          "Gateway will pre-register every target and verify every source before switching new tunnels to the new assignments.",
+          "Opfield will pre-register every target and verify every source before switching new tunnels to the new assignments.",
         confirmLabel: "Rebalance",
       }))
     )
@@ -461,7 +461,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
       !(await confirm({
         title: `Re-enroll ${instance.displayName}?`,
         description:
-          "Gateway issues a single-use enrollment token for this relay. Running the relay installer with it on the host enrolls the relay again: it keeps its place in the pool, gets new certificates and pins the current policy signing key. Until then the relay keeps its current identity.",
+          "Opfield issues a single-use enrollment token for this relay. Running the relay installer with it on the host enrolls the relay again: it keeps its place in the pool, gets new certificates and pins the current policy signing key. Until then the relay keeps its current identity.",
         confirmLabel: "Create token",
       }))
     )
@@ -486,7 +486,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
         title: `Remove ${instance.displayName}?`,
         description:
           instance.state === "offline"
-            ? "Remove this offline relay and revoke its identity. Gateway will verify that its policy has expired and every affected workload has a ready remaining relay. The supervisor must be uninstalled separately on the host."
+            ? "Remove this offline relay and revoke its identity. Opfield will verify that its policy has expired and every affected workload has a ready remaining relay. The supervisor must be uninstalled separately on the host."
             : "This removes the drained relay identity and its retired assignment records. The supervisor must be uninstalled separately on the host.",
         confirmLabel: "Remove relay",
         variant: "destructive",
@@ -559,7 +559,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
           </div>
           <div className="text-xs text-muted-foreground">
             {row.kind === "local"
-              ? "Gateway host"
+              ? "Opfield host"
               : row.advertisedAddresses
                   .map((address) => relayEndpointLabel(address, row.servicePort))
                   .join(", ")}
@@ -945,7 +945,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
             icon={Database}
             history={history.map((sample) => metric(sample.activeDatabaseTunnels))}
             color="#8b5cf6"
-            subtitle="Gateway and binding streams"
+            subtitle="Opfield and binding streams"
           />
           <StatCard
             label="Registered endpoints"
@@ -1049,7 +1049,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
       <PanelShell
         icon={<Gauge className="h-4 w-4" />}
         title="Relay runtime"
-        description="Persisted Gateway settings distributed to the relay data plane"
+        description="Persisted Opfield settings distributed to the relay data plane"
         actions={
           <Button onClick={save} pending={saving} disabled={!canEdit || !hasChanges}>
             <Save className="h-4 w-4" />
@@ -1061,7 +1061,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
         <SettingsControlRow
           title="Data lanes"
           description="Persistent HTTP/2 data-plane connections per daemon (1–16)"
-          help="Each lane is a persistent connection from one relay daemon to Gateway. More lanes can increase parallel throughput but consume more connections and memory on both sides."
+          help="Each lane is a persistent connection from one relay daemon to Opfield. More lanes can increase parallel throughput but consume more connections and memory on both sides."
         >
           <NumericInput
             value={dataLanes}
@@ -1124,7 +1124,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
         <SettingsControlRow
           title="Adaptive admission"
           description="Throttle new proxy streams only when measured relay pressure rises"
-          help="When enabled, Gateway delays or rejects new lower-priority proxy streams as relays approach capacity while preserving room for database traffic."
+          help="When enabled, Opfield delays or rejects new lower-priority proxy streams as relays approach capacity while preserving room for database traffic."
         >
           <Switch
             checked={adaptiveAdmissionEnabled}
@@ -1186,8 +1186,8 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
         </SettingsControlRow>
         <SettingsControlRow
           title="Policy lease"
-          description="Lifetime of the signed policy Gateway pushes to a relay, in hours (1–168)"
-          help="A relay keeps admitting on its last known policy until this lease expires, so it can keep serving through a Gateway outage. A relay pool member that has not upgraded still caps its own lease at 15 minutes."
+          description="Lifetime of the signed policy Opfield pushes to a relay, in hours (1–168)"
+          help="A relay keeps admitting on its last known policy until this lease expires, so it can keep serving through an Opfield outage. A relay pool member that has not upgraded still caps its own lease at 15 minutes."
         >
           <NumericInput
             value={policyLeaseHours}
@@ -1200,7 +1200,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
         <SettingsControlRow
           title="Automatic recovery"
           description="Allow up to three bounded managed relay recovery attempts"
-          help="Lets Gateway restart or repair an unhealthy managed relay automatically. Recovery is bounded to three attempts to avoid an endless restart loop."
+          help="Lets Opfield restart or repair an unhealthy managed relay automatically. Recovery is bounded to three attempts to avoid an endless restart loop."
         >
           <Switch checked={autoRecovery} onChange={setAutoRecovery} disabled={!canEdit || saving} />
         </SettingsControlRow>
@@ -1272,7 +1272,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
           shownReenrollment ? (
             <>
               Run this on the relay host. The installer updates the relay supervisor and enrolls it
-              again with the token below; the relay then trusts Gateway's current policy key. The
+              again with the token below; the relay then trusts Opfield's current policy key. The
               token is single-use and expires at{" "}
               {formatDateTime(shownReenrollment.enrollmentTokenExpiresAt)}.
             </>

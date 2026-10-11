@@ -134,7 +134,7 @@ export const getAuthSettingsRoute = appRoute({
   method: 'get',
   path: '/auth-settings',
   tags: ['Admin'],
-  summary: 'Get Gateway settings',
+  summary: 'Get Opfield settings',
   responses: okJson(UnknownDataResponseSchema),
 });
 
@@ -142,7 +142,7 @@ export const updateAuthSettingsRoute = appRoute({
   method: 'put',
   path: '/auth-settings',
   tags: ['Admin'],
-  summary: 'Update Gateway settings',
+  summary: 'Update Opfield settings',
   request: jsonBody(UpdateAuthProvisioningSettingsSchema),
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -286,7 +286,7 @@ export const resetAdminUserMfaRoute = appRoute({
   method: 'post',
   path: '/users/{id}/mfa/reset',
   tags: ['Admin'],
-  summary: "Reset a user's Gateway MFA factors",
+  summary: "Reset a user's Opfield MFA factors",
   request: { params: IdParamSchema },
   responses: okJson(z.object({ message: z.string() })),
 });

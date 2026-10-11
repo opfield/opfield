@@ -268,7 +268,7 @@ async function manageToken(user: User, args: Record<string, unknown>) {
 async function requireInferenceEnabled(): Promise<void> {
   if (!(await container.resolve(GeneralSettingsService).isFeatureEnabled('inferenceEnabled'))) {
     throw new Error(
-      'Inference is disabled for this Gateway. An administrator can enable generalSettings.features.inferenceEnabled.'
+      'Inference is disabled for this Opfield installation. An administrator can enable generalSettings.features.inferenceEnabled.'
     );
   }
 }

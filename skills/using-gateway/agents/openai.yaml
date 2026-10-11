@@ -1,4 +1,4 @@
 interface:
-  display_name: "Using Good Gateway"
-  short_description: "Deploy and operate through Gateway MCP"
-  default_prompt: "Use $using-gateway to inspect this application and complete the requested Gateway-native workflow."
+  display_name: "Using Opfield"
+  short_description: "Deploy and operate through Opfield MCP"
+  default_prompt: "Use $using-gateway to inspect this application and complete the requested Opfield-native workflow."

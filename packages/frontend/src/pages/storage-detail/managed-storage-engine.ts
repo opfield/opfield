@@ -8,7 +8,7 @@ import type {
 export const MANAGED_STORAGE_CREATE_ENGINE: ManagedStorageEngine = "seaweedfs";
 
 export const MANAGED_STORAGE_MIGRATION_DOCS_URL =
-  "https://docs.goodgateway.dev/en/storage/overview/#migrating-from-minio";
+  "https://docs.opfield.dev/en/storage/overview/#migrating-from-minio";
 
 export const MANAGED_STORAGE_ENGINE_LABELS: Record<ManagedStorageEngine, string> = {
   minio: "MinIO",

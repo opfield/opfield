@@ -75,6 +75,7 @@ function isSpecialWarning(warning: string): boolean {
   return (
     warning.startsWith("Without a witness") ||
     warning.startsWith("Failover works without Gateway") ||
+    warning.startsWith("Failover works without Opfield") ||
     warning.startsWith("The members are far apart")
   );
 }
