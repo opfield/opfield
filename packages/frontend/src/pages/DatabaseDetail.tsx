@@ -49,6 +49,7 @@ import {
   updateDatabaseMonitoringCache,
 } from "./database-detail/database-detail-state";
 import { ManagedDatabaseSettingsTab } from "./database-detail/ManagedDatabaseSettingsTab";
+import { MoveToValkeyDialog } from "./database-detail/MoveToValkeyDialog";
 import { PostgresConfigDialog } from "./database-detail/PostgresConfigDialog";
 import {
   PostgresExtensionsTab,
@@ -110,6 +111,7 @@ function DatabaseDetailContent({
   const [clickHouseConfigOpen, setClickHouseConfigOpen] = useState(false);
   const [redisConfigOpen, setRedisConfigOpen] = useState(false);
   const [postgresConfigOpen, setPostgresConfigOpen] = useState(false);
+  const [moveToValkeyOpen, setMoveToValkeyOpen] = useState(false);
   const [explorerFocused, setExplorerFocused] = useState(false);
   const [revealedCredentials, setRevealedCredentials] = useState<Record<string, unknown> | null>(
     null
@@ -126,6 +128,8 @@ function DatabaseDetailContent({
   const canPause = canEdit && database?.managed?.status === "ready";
   const canUnpause = canEdit && database?.managed?.status === "paused";
   const canRestart = canEdit && !!database?.managed && database.managed.status !== "paused";
+  const canMoveToValkey =
+    canManageSettings && database?.type === "redis" && database.managed?.engine === "redis";
   const canDelete = hasDatabaseScope(hasScope, "databases:delete", id);
   const canRead = hasDatabaseScope(hasScope, "databases:query:read", id);
   const canWrite = hasDatabaseScope(hasScope, "databases:query:write", id);
@@ -666,6 +670,8 @@ function DatabaseDetailContent({
               canConfigurePostgres={
                 canManageSettings && database.type === "postgres" && !!database.managed
               }
+              canMoveToValkey={canMoveToValkey}
+              moveToValkeyReady={database.managed?.status === "ready"}
               canReveal={canReveal}
               canRotateDirectCredentials={
                 canManageSettings && database.managed?.publishedPort != null
@@ -683,6 +689,7 @@ function DatabaseDetailContent({
               onConfigureClickHouse={() => setClickHouseConfigOpen(true)}
               onConfigureRedis={() => setRedisConfigOpen(true)}
               onConfigurePostgres={() => setPostgresConfigOpen(true)}
+              onMoveToValkey={() => setMoveToValkeyOpen(true)}
               onRevealCredentials={() => void revealCredentials()}
               onRotateDirectCredentials={() => void rotateDirectCredentials()}
               onRotateCertificate={() => void rotateCertificate()}
@@ -951,6 +958,15 @@ function DatabaseDetailContent({
           open={clickHouseConfigOpen}
           onOpenChange={setClickHouseConfigOpen}
           onSaved={() => void load()}
+        />
+      )}
+
+      {canMoveToValkey && database.managed && (
+        <MoveToValkeyDialog
+          open={moveToValkeyOpen}
+          managedDatabaseId={database.managed.id}
+          onOpenChange={setMoveToValkeyOpen}
+          onMoved={() => void load()}
         />
       )}
 

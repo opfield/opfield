@@ -63,6 +63,9 @@ type managedStorageCommand struct {
 	SFTP            *managedStorageSFTP     `json:"sftp,omitempty"`
 	IAM             *managedStorageIAM      `json:"iam,omitempty"`
 	DeleteData      bool                    `json:"deleteData,omitempty"`
+	// Set names this node's member of a SeaweedFS availability set (version
+	// 3, managed_storage_set.go).
+	Set *managedStorageSetCommand `json:"set,omitempty"`
 }
 
 type managedStorageRootCreds struct {
@@ -154,6 +157,9 @@ type managedStorageRecord struct {
 	// DiskRepair is the last repair of the image's filesystem after it went
 	// read-only (see managed_disk_repair.go).
 	DiskRepair *managedDiskRepair `json:"diskRepair,omitempty"`
+	// Set: this record is a member of a SeaweedFS availability set; its
+	// container is the member's filer (managed_storage_set.go).
+	Set *managedStorageSetRecord `json:"set,omitempty"`
 }
 
 func newManagedStorageManager(cfg *config.Config, client *Client, logger *slog.Logger) (*managedStorageManager, error) {
@@ -217,6 +223,13 @@ func (m *managedStorageManager) handle(ctx context.Context, action, id, configJS
 		if err != nil {
 			return "", err
 		}
+		if input.Set != nil {
+			record, err := m.createSetMember(ctx, id, input)
+			if err != nil {
+				return "", err
+			}
+			return m.marshalManagedStorageDetail(ctx, record, m.storageStatus(ctx, record))
+		}
 		record, err := m.create(ctx, id, input)
 		if err != nil {
 			return "", err
@@ -231,6 +244,17 @@ func (m *managedStorageManager) handle(ctx context.Context, action, id, configJS
 			return "", err
 		}
 		record, err := m.loadRecord(id)
+		if errors.Is(err, os.ErrNotExist) && input.Set != nil && !input.Set.Origin {
+			// A member Gateway added to the set: the set's update creates it.
+			if err := validateSeaweedFSSetCommand(input, true); err != nil {
+				return "", err
+			}
+			created, err := m.createSetMember(ctx, id, input)
+			if err != nil {
+				return "", err
+			}
+			return m.marshalManagedStorageDetail(ctx, created, m.storageStatus(ctx, created))
+		}
 		if err != nil {
 			return "", err
 		}
@@ -245,8 +269,28 @@ func (m *managedStorageManager) handle(ctx context.Context, action, id, configJS
 				return "", err
 			}
 		}
-		if err := m.update(ctx, &record, input); err != nil {
-			return "", err
+		switch {
+		case record.Set != nil && input.Set == nil:
+			// The set was turned off around this member: it serves as a
+			// single node again.
+			if err := m.revertSetMember(ctx, &record, input); err != nil {
+				return "", err
+			}
+		case record.Set != nil:
+			if err := m.updateSetMember(ctx, &record, input); err != nil {
+				return "", err
+			}
+		case input.Set != nil:
+			if !input.Set.Origin {
+				return "", errors.New("only the node that serves the storage can be turned into its first availability member")
+			}
+			if err := m.convertToSetMember(ctx, &record, input); err != nil {
+				return "", err
+			}
+		default:
+			if err := m.update(ctx, &record, input); err != nil {
+				return "", err
+			}
 		}
 		if err := m.saveRecord(record); err != nil {
 			return "", err
@@ -296,7 +340,14 @@ func (m *managedStorageManager) handle(ctx context.Context, action, id, configJS
 			operationID = input.OperationID
 		}
 		restart := action == "restart" && (operationID == "" || operationID != record.OperationID)
-		if restart && record.engine() == managedStorageEngineSeaweedFS && m.seaweedfsContainerOutdated(ctx, record) {
+		if record.Set != nil {
+			// A set member's master belongs to the member runtime; a restart
+			// restarts the filer (S3 and its staged files), a start brings the
+			// volume server and filer up.
+			if err := m.startSetMember(ctx, record, restart); err != nil {
+				return "", err
+			}
+		} else if restart && record.engine() == managedStorageEngineSeaweedFS && m.seaweedfsContainerOutdated(ctx, record) {
 			// A restart of a container an older daemon made recreates it with
 			// the current settings (data kept).
 			replacement := managedStorageCommand{Engine: managedStorageEngineSeaweedFS, PublishS3: record.PublishS3, PublishedPort: record.PublishedPort}
@@ -329,6 +380,9 @@ func (m *managedStorageManager) handle(ctx context.Context, action, id, configJS
 		}
 		if m.repairs.running(id) {
 			return "", errDiskBeingRepaired("managed storage")
+		}
+		if record.Set != nil {
+			return "", errors.New("a member of an available storage is not stopped on its own; remove it from the set")
 		}
 		if err := m.client.StopContainer(ctx, record.ContainerID, 20); err != nil {
 			return "", err
@@ -367,6 +421,11 @@ func (m *managedStorageManager) handle(ctx context.Context, action, id, configJS
 		}
 		if err != nil {
 			return "", err
+		}
+		if record.Set != nil && !record.Removed {
+			if err := m.removeSetMember(ctx, record); err != nil {
+				return "", err
+			}
 		}
 		if err := m.remove(ctx, &record, deleteData); err != nil {
 			return "", err
@@ -420,8 +479,8 @@ func decodeManagedStorageCommand(raw string) (managedStorageCommand, error) {
 	if err := json.Unmarshal([]byte(raw), &input); err != nil {
 		return input, fmt.Errorf("parse managed storage config: %w", err)
 	}
-	if input.Version != 1 && input.Version != 2 {
-		return input, errors.New("managed storage config version must be 1 or 2")
+	if input.Version < 1 || input.Version > managedStorageSetPayloadVersion {
+		return input, errors.New("managed storage config version must be 1, 2 or 3")
 	}
 	if input.OperationID != "" && !managedStorageIDPattern.MatchString(input.OperationID) {
 		return input, errors.New("managed storage operation id must be a UUID")
@@ -441,6 +500,13 @@ func normalizeWorkloadEngine(input *managedStorageCommand) error {
 	case 2:
 		if input.Engine != managedStorageEngineSeaweedFS {
 			return errors.New("managed storage config version 2 requires engine seaweedfs")
+		}
+		if input.Set != nil {
+			return errors.New("an availability set member needs managed storage config version 3")
+		}
+	case managedStorageSetPayloadVersion:
+		if input.Engine != managedStorageEngineSeaweedFS || input.Set == nil {
+			return errors.New("managed storage config version 3 is a SeaweedFS availability set member")
 		}
 	}
 	return nil
@@ -474,6 +540,9 @@ func parseManagedStorageCommand(raw string, creating bool) (managedStorageComman
 	}
 	if err := normalizeWorkloadEngine(&input); err != nil {
 		return input, err
+	}
+	if input.Version == managedStorageSetPayloadVersion {
+		return input, validateSeaweedFSSetCommand(input, creating)
 	}
 	if input.Engine == managedStorageEngineSeaweedFS {
 		return input, validateSeaweedFSCommand(input, creating)

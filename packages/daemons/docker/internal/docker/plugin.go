@@ -357,10 +357,12 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 			return fmt.Errorf("initialize managed database storage for storage profile: %w", err)
 		}
 		p.wirePGSetHooks()
+		p.wireKVSetHooks()
 		p.storageManager, err = newManagedStorageManager(p.cfg, p.client, p.logger)
 		if err != nil {
 			return fmt.Errorf("initialize managed storage runtime: %w", err)
 		}
+		p.storageManager.plugin = p
 		// Release what interrupted deletes and older releases left behind
 		// before remounting: on a fixed loop-device pool, leaked devices would
 		// keep live instances down.
@@ -542,6 +544,7 @@ func (p *DockerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 				"managed_postgres_query_principal_v1",
 				"managed_postgres_query_writer_v1",
 				"managed_postgres_config_v1",
+				managedCapabilityValkey,
 				"managed_database_binding_principals_v2",
 				"managed_storage_v1",
 				"managed_storage_ext4_quota_v1",

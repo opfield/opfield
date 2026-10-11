@@ -7,6 +7,7 @@ import { RelativeTime } from "@/components/common/RelativeTime";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
+import { databaseTypeLabel } from "@/lib/database-type";
 import type { DatabaseConnection, DatabaseMetricSnapshot, ManagedCertificateStatus } from "@/types";
 import { hasUnverifiedTls } from "./DatabaseTlsVerificationNotice";
 import { formatHealthStatusLabel, formatMetricValue, HEALTH_BADGE, METRIC_COLORS } from "./shared";
@@ -488,7 +489,7 @@ export function DatabaseOverviewTab({
               </Badge>
             }
           />
-          <DetailRow label="Provider" value={<span className="capitalize">{database.type}</span>} />
+          <DetailRow label="Provider" value={databaseTypeLabel(database.type)} />
           <DetailRow
             label="Last Check"
             value={<RelativeTime value={database.lastHealthCheckAt} fallback="Never" />}

@@ -212,7 +212,8 @@ func (m *managedStorageManager) reclaimSpace(ctx context.Context) {
 		return
 	}
 	for _, record := range records {
-		if record.engine() != managedStorageEngineSeaweedFS || record.Removed || !record.DesiredRunning || record.ContainerID == "" {
+		// A set member's master runs on its primary only (managed_storage_set.go).
+		if record.engine() != managedStorageEngineSeaweedFS || record.Set != nil || record.Removed || !record.DesiredRunning || record.ContainerID == "" {
 			continue
 		}
 		// A disk that no longer takes writes cannot be compacted; the disk

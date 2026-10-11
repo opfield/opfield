@@ -38,7 +38,7 @@ Use the authenticated UI or guided finalization flow and the generated one-time 
 - `nginx` / Ingress: Domains, TLS, Routes, and Pages publication.
 - `docker`: Containers, Deployments, images, volumes, networks, and Compose Projects.
 - `builder`: isolated Git builds and artifact scanning. Keep it separate from unrelated workloads and control-plane credentials.
-- `storage`: managed PostgreSQL, Redis, ClickHouse, managed SeaweedFS object storage, and bounded backup jobs. The legacy `databases` role is database-only; use `storage` for new capacity.
+- `storage`: managed PostgreSQL, key-value stores, ClickHouse, managed SeaweedFS object storage, and bounded backup jobs. The legacy `databases` role is database-only; use `storage` for new capacity.
 - `monitoring`: monitoring capabilities when required.
 - `relay`: outbound connectivity topology when required by the installation.
 

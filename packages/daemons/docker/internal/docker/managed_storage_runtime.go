@@ -28,6 +28,9 @@ const managedStorageRootFilesystem = "gateway-managed-storage-root"
 
 type managedStorageManager struct {
 	client *Client
+	// plugin reaches the availability member runtime and mesh of SeaweedFS
+	// set members (managed_storage_set.go); nil in tests.
+	plugin *DockerPlugin
 	// dialTargets answers relay dials while dockerd does not (B-26).
 	dialTargets    dialTargetLookups
 	logger         *slog.Logger

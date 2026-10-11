@@ -1,6 +1,14 @@
-import { and, asc, eq, inArray, isNotNull, isNull, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, like, ne, sql } from 'drizzle-orm';
 import { DEVELOPMENT_SECURE_LINK_CONNECTOR_IMAGE } from '@/config/env.js';
-import { managedDatabaseBindings, managedStorageBindings } from '@/db/schema/index.js';
+import {
+  auditLog,
+  managedAvailabilityMembers,
+  managedAvailabilitySets,
+  managedAvailabilityWitnesses,
+  managedDatabaseBindings,
+  managedStorageBindings,
+  relayInstances,
+} from '@/db/schema/index.js';
 import {
   managedStorageAccessKeys,
   managedStorageClusterMembers,
@@ -20,6 +28,7 @@ import {
   forgetStorageBackupHistory,
   rehomeStorageBackupHistory,
 } from '@/modules/object-storage/storage-backup-references.js';
+import { relayMayHostWitnesses } from '@/services/relay-witness-hosting.js';
 
 const loggerManagedStorage = createChildLogger('ManagedStorage');
 const loggerManagedStorageTunnelProxy = createChildLogger('ManagedStorageTunnelProxy');
@@ -80,4 +89,14 @@ export const managedStorageRuntime = {
   inArray,
   rehomeStorageBackupHistory,
   backupWritesTo,
+  // Storage availability sets (commercial storage/availability).
+  desc,
+  like,
+  sql,
+  auditLog,
+  managedAvailabilitySets,
+  managedAvailabilityMembers,
+  managedAvailabilityWitnesses,
+  relayInstances,
+  relayMayHostWitnesses,
 };

@@ -879,7 +879,7 @@ umask 077
 tmp=/data/users.acl.gateway-tmp
 redis-cli --no-auth-warning --user default --raw ACL LIST >"$tmp"
 test -s "$tmp"
-chown redis:redis "$tmp"
+chown 999:999 "$tmp"
 chmod 0600 "$tmp"
 mv "$tmp" /data/users.acl`
 }
