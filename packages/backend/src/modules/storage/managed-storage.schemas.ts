@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { appListQueryFields } from '@/modules/apps/app-list-query.js';
 
 const managedStorageNameSchema = z.string().trim().min(1).max(255);
 // DTO validation is shared; the installed storage provider checks its private
@@ -8,6 +9,7 @@ const tagsSchema = z.array(z.string().trim().min(1).max(64)).max(32).optional();
 
 export const ManagedStorageListQuerySchema = z.object({
   nodeId: z.string().uuid().optional(),
+  ...appListQueryFields,
 });
 
 /**

@@ -224,9 +224,14 @@ export async function managePages(user: User, args: Record<string, unknown>) {
       hasScope(user.scopes, 'pages:create') ||
       hasScope(user.scopes, 'pages:edit') ||
       getFolderScopedIds(user.scopes, ['pages:create']).length > 0;
+    // folderId: the destination folder (an app environment lists only the nodes it allows).
+    const folderId = optionalString(args.folderId);
     return canUseAnyPlacement
-      ? projects.placementOptions()
-      : projects.placementOptions({ allowedNodeIds: getResourceScopedIds(user.scopes, 'pages:create') });
+      ? projects.placementOptions(folderId ? { folderId } : undefined)
+      : projects.placementOptions({
+          allowedNodeIds: getResourceScopedIds(user.scopes, 'pages:create'),
+          ...(folderId ? { folderId } : {}),
+        });
   }
   if (operation === 'project_get_by_slug') {
     const project = await projects.getBySlug(requiredString(args.slug));

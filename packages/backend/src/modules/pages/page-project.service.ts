@@ -185,7 +185,8 @@ export class PageProjectService {
   }> {
     return commercialModuleUnavailable();
   }
-  async placementOptions(_options?: { allowedNodeIds?: string[] }): Promise<
+  /** Nginx nodes a Project can be placed on; `folderId` (an app environment) narrows them to the nodes it allows. */
+  async placementOptions(_options?: { allowedNodeIds?: string[]; folderId?: string | null }): Promise<
     {
       pagesCapable: boolean;
       id: string;

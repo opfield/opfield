@@ -205,7 +205,14 @@ async function manageManagedDatabase(user: User, args: Record<string, unknown>) 
     // Same visibility as GET /databases/managed: scoped grants name the canonical connection;
     // an empty granted folder or a creator with nothing visible yet lists as empty.
     ensureAnyScopeBase(user, ['databases:view', 'databases:create']);
-    const rows = await service.list(ManagedDatabaseListQuerySchema.parse({ nodeId: args.nodeId, type: args.type }));
+    const rows = await service.list(
+      ManagedDatabaseListQuerySchema.parse({
+        nodeId: args.nodeId,
+        type: args.type,
+        excludeAppMembers: args.excludeAppMembers,
+        appId: args.appId,
+      })
+    );
     if (hasScope(user.scopes, 'databases:view')) return rows;
     const allowedIds = new Set(getResourceScopedIds(user.scopes, 'databases:view'));
     return rows.filter((row) => allowedIds.has(row.databaseConnectionId ?? ''));

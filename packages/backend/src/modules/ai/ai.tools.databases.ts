@@ -14,6 +14,8 @@ export const DATABASE_AI_TOOLS: AIToolDefinition[] = [
           description: 'Optional health status filter',
         },
         search: { type: 'string', description: 'Optional text search' },
+        excludeAppMembers: { type: 'boolean', description: 'Leave out databases that belong to an app.' },
+        appId: { type: 'string', description: 'Only databases of this app (any environment).' },
       },
     },
     destructive: false,
