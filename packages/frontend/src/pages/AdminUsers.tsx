@@ -535,7 +535,7 @@ function AdminUsersContent({
     {
       id: "actions",
       label: "Actions",
-      width: "8.5rem",
+      width: "5rem",
       align: "right",
       renderCell: (user) => {
         const isSelf = currentUser?.id === user.id;

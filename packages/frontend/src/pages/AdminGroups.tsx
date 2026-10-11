@@ -528,6 +528,7 @@ function AdminGroupsContent({
       id: "members",
       label: "Members",
       width: "8rem",
+      align: "right",
       renderCell: (group) => (
         <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <Users className="h-3.5 w-3.5" />
@@ -539,6 +540,7 @@ function AdminGroupsContent({
       id: "scopes",
       label: "Scopes",
       width: "10rem",
+      align: "right",
       renderCell: (group) => (
         <div className="flex flex-wrap gap-1.5">
           <Badge variant="outline">
@@ -556,7 +558,7 @@ function AdminGroupsContent({
     {
       id: "actions",
       label: "Actions",
-      width: "5.75rem",
+      width: "5rem",
       align: "right",
       renderCell: (group) => {
         const canManage = !group.isBuiltin && canManageGroup(group);
