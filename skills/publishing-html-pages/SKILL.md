@@ -1,6 +1,6 @@
 ---
 name: publishing-html-pages
-description: Build an HTML report, static site, or frontend output and publish it to Opfield Pages, then hand the user a working link. Use when asked to publish, host, preview, put online, or share a link to generated HTML or static files through Opfield, including single-file uploads, stable Tag links, expiring links, access-list-protected previews, preview-link rotation, rollback, custom domains, and Git-backed Pages builds. Use after using-gateway has confirmed the Opfield MCP connection.
+description: Build an HTML report, static site, or frontend output and publish it to Opfield Pages, then hand the user a working link. Use when asked to publish, host, preview, put online, or share a link to generated HTML or static files through Opfield, including single-file uploads, stable Tag links, expiring links, access-list-protected previews, preview-link rotation, rollback, custom domains, and Git-backed Pages builds. Use after using-opfield has confirmed the Opfield MCP connection.
 ---
 
 # Publishing HTML Pages
@@ -9,7 +9,7 @@ Opfield Pages serves static output as **Page Projects** that hold immutable **De
 
 Pages serves browser-delivered static output only. An API process, worker, or server-side state belongs in a Docker workload (`deploying-workloads`) behind a Route (`ingress-and-domains`).
 
-Start with `using-gateway` for connection, discovery, and safety rules. Before an unfamiliar Pages workflow, read `read_gateway_documentation({ topic: "pages" })`; it reflects the connected release.
+Start with `using-opfield` for connection, discovery, and safety rules. Before an unfamiliar Pages workflow, read `read_gateway_documentation({ topic: "pages" })`; it reflects the connected release.
 
 ## Recipe: build, upload, share
 

@@ -1,6 +1,6 @@
 ---
 name: storage
-description: Manage Opfield object storage, including external S3, R2, MinIO-compatible, FTP, FTPS, and SFTP connections, Opfield-managed SeaweedFS clusters and legacy managed MinIO, buckets and objects, private workload links and scoped access keys, server-side copy jobs, and the guided legacy MinIO to SeaweedFS migration. Use when asked to connect external storage, provision managed object storage, upload or browse objects, copy or sync data between storages, or migrate off a legacy MinIO cluster. Use after using-gateway has confirmed the Opfield MCP connection.
+description: Manage Opfield object storage, including external S3, R2, MinIO-compatible, FTP, FTPS, and SFTP connections, Opfield-managed SeaweedFS clusters and legacy managed MinIO, buckets and objects, private workload links and scoped access keys, server-side copy jobs, and the guided legacy MinIO to SeaweedFS migration. Use when asked to connect external storage, provision managed object storage, upload or browse objects, copy or sync data between storages, or migrate off a legacy MinIO cluster. Use after using-opfield has confirmed the Opfield MCP connection.
 ---
 
 # Storage
@@ -10,7 +10,7 @@ Opfield has two kinds of storage:
 - **External connections**: AWS S3, R2, MinIO-compatible, FTP, FTPS, or SFTP endpoints Opfield points at. SFTP requires a pinned host-key fingerprint.
 - **Managed storage**: clusters Opfield runs on a `storage` Node. New clusters are single-node **SeaweedFS**, S3 API only (no FTP or SFTP), with at least 512 MiB of memory and a Node daemon that advertises SeaweedFS support. Existing **MinIO** clusters (`engine: "minio"`) are legacy: still manageable, but they cannot be created any more. Managed storage is private by default through the authenticated relay; a public S3 listener is an explicit opt-in.
 
-Start with `using-gateway` for connection, discovery, and safety rules. Read `read_gateway_documentation({ topic: "storage" })` before an unfamiliar workflow.
+Start with `using-opfield` for connection, discovery, and safety rules. Read `read_gateway_documentation({ topic: "storage" })` before an unfamiliar workflow.
 
 ## External connections
 

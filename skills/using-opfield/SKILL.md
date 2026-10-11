@@ -1,11 +1,32 @@
 ---
-name: using-gateway
-description: Entry point and router for deploying, publishing, configuring, diagnosing, or operating applications through a user-owned Opfield instance and its authenticated remote MCP. Use first in any Opfield task for setup, MCP connection, tool discovery, safety rules, asynchronous Tasks, and verification, and to choose the domain skill for Pages, Docker workloads, high availability, ingress and TLS, internal PKI, databases, object storage, Nodes, observability, or access control. Do not use for generic Docker or hosting work that is not targeting Opfield.
+name: using-opfield
+description: Entry point and router for deploying, publishing, configuring, diagnosing, or operating applications through a user-owned Opfield instance (a self-hosted infrastructure control plane for a fleet of nodes) and its authenticated remote MCP. Use first in any Opfield task for setup, MCP connection, tool discovery, safety rules, asynchronous Tasks, and verification, and to choose the domain skill for Pages, Docker workloads, high availability, ingress and TLS, internal PKI, databases, object storage, Nodes, observability, or access control. Do not use for generic Docker or hosting work that is not targeting Opfield.
 ---
 
 # Using Opfield
 
 Turn the user's application intent into one native Opfield workflow. Opfield owns deployment state, builds, artifacts, Compose revisions, Domains, certificates, Routes, permissions, Tasks, and rollback-capable resources. Do not build a parallel orchestrator around shell access when Opfield MCP exposes the operation. MCP is not a back door: every call passes the same authorization, validation, and audit as a person in the Console.
+
+## What Opfield is
+
+Opfield is a self-hosted infrastructure control plane for a fleet of nodes. One Opfield enrolls the servers it is given and runs everything on them as managed resources: ingress Routes and Domains with TLS, Secure Links through relays, Docker workloads with availability across nodes, managed PostgreSQL, key-value stores, ClickHouse and S3 object storage with availability and backups, Pages, Apps, monitoring and logging, permissions, and an AI assistant with an MCP server.
+
+- **Ingress and TLS**: Domains and Routes on nginx ingress nodes, certificates from ACME, uploads or the internal PKI, access lists, maintenance mode.
+- **Secure Links**: private paths from Routes and apps to workloads, databases and storage, carried through the relays.
+- **Workloads**: Docker Containers, blue/green Deployments, Compose Projects and Git builds; replicas or failover across Docker nodes.
+- **Data**: managed PostgreSQL, key-value stores (Valkey, Redis protocol), ClickHouse and SeaweedFS object storage (S3), with availability, private bindings and backups; external databases and storage too.
+- **Pages and Apps**: static sites and reports with shareable links; Apps group one application's resources into environments.
+- **Operations**: node health, logging, alerts, webhooks, status pages, updates, users, groups, scoped permissions and the audit log.
+
+## How it differs
+
+It is not another Docker panel for one host. It is one control plane for many nodes: each node runs small daemons that Opfield enrolls, updates and watches. Traffic and private connections go through a pool of relays, so workloads and databases need no open ports. Availability uses leases and failover: when a node fails, its workloads and databases continue on another node. Releases and updates are signed and verified before they run. Every action, by a person, an API token or an agent, passes the same scoped permissions and lands in the audit log.
+
+## Where an agent starts
+
+- Use Opfield tools, not shell access to nodes: a change made around Opfield is not permission-checked or audited, and Opfield may overwrite it.
+- Find anything by name, domain, image or ID with `find_resource`; see what you may do, and where, with `get_my_access`.
+- Read `read_gateway_documentation({ topic })` before a workflow: `docker` and `availability` for workloads, `proxy`, `domains` and `ssl` for ingress and TLS, `databases` and `storage` for data, `pages` for static sites, `apps` for applications, `nodes` for servers, `logging` and `notifications` for monitoring, `permissions` for access.
 
 ## Connect and discover
 
@@ -20,7 +41,7 @@ Never ask the user to paste an OAuth token, API token, setup code, Node enrollme
 
 ## Route the request
 
-Each domain has its own skill in this package. If one is not installed, install the set with `npx skills add the-square-labs/gateway-skills`, or read it from the connected Opfield at `gateway://skills/<name>/SKILL.md` when that release serves skills.
+Each domain has its own skill in this package. If one is not installed, install the set with `npx skills add opfield/opfield-skills`, or read it from the connected Opfield at `gateway://skills/<name>/SKILL.md` when that release serves skills.
 
 - New control plane, unfinished onboarding, or missing first Nodes: [New instance setup](references/instance-setup.md).
 - MCP connection, OAuth, or missing tools: [MCP connection](references/connection.md) and [MCP toolsets](references/mcp-toolsets.md).

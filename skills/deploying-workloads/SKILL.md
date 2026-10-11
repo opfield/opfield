@@ -1,13 +1,13 @@
 ---
 name: deploying-workloads
-description: Deploy and operate Docker workloads on Opfield, including standalone Containers, blue/green Deployments with rollback, Compose Projects, Git-source builds into Opfield's internal registry, images, registries, volumes, networks, folders, and cross-node migration. Use when asked to run, update, roll out, roll back, recreate, migrate, or inspect a container, Deployment, or Compose Project on an Opfield-managed Docker Node, or to deploy a repository with a Dockerfile or Compose file through Opfield. Use after using-gateway has confirmed the Opfield MCP connection.
+description: Deploy and operate Docker workloads on Opfield, including standalone Containers, blue/green Deployments with rollback, Compose Projects, Git-source builds into Opfield's internal registry, images, registries, volumes, networks, folders, and cross-node migration. Use when asked to run, update, roll out, roll back, recreate, migrate, or inspect a container, Deployment, or Compose Project on an Opfield-managed Docker Node, or to deploy a repository with a Dockerfile or Compose file through Opfield. Use after using-opfield has confirmed the Opfield MCP connection.
 ---
 
 # Deploying Workloads
 
 Opfield manages Docker on enrolled Docker Nodes and adds three native models: blue/green **Deployments**, **Compose Projects** with immutable revisions, and **Git sources** that build digest-pinned artifacts into Opfield's internal registry. Every Docker tool needs a `nodeId`; resolve names, images, and domains with `find_resource` first.
 
-Start with `using-gateway` for connection, discovery, and safety rules. Read `read_gateway_documentation({ topic: "docker" })` before a multi-step workflow; it documents argument shapes this skill only summarizes. Exact tool names and operation enums: [Docker tool catalog](references/docker-tools.md).
+Start with `using-opfield` for connection, discovery, and safety rules. Read `read_gateway_documentation({ topic: "docker" })` before a multi-step workflow; it documents argument shapes this skill only summarizes. Exact tool names and operation enums: [Docker tool catalog](references/docker-tools.md).
 
 ## Pick the resource model
 

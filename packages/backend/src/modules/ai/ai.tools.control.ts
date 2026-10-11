@@ -744,7 +744,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'read_gateway_documentation',
     description:
-      'Read Opfield internal operational documentation through remote MCP. Topic access is filtered by the OAuth token scopes; general MCP workflow topics remain available to every authenticated MCP connection.',
+      'Read Opfield internal operational documentation through remote MCP. Start with topic "overview": what Opfield is, how it differs from a single-host Docker panel, and which topic and tools cover each area. Topic access is filtered by the OAuth token scopes; general MCP workflow topics remain available to every authenticated MCP connection.',
     parameters: {
       type: 'object',
       properties: {

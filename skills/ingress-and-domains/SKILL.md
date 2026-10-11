@@ -1,13 +1,13 @@
 ---
 name: ingress-and-domains
-description: Expose and troubleshoot services through Opfield ingress, including Domains and DNS, Routes (proxy hosts) to Docker, Pages, or manual upstreams, SSL certificates from ACME, upload, or internal PKI, Access Lists, Additional Routes, Secure Links, nginx templates, and maintenance mode. Use when asked to put a service on a hostname, add HTTPS, restrict access by IP or basic auth, put a Route into maintenance, or find out why a Route, Domain, or certificate is not working. Use after using-gateway has confirmed the Opfield MCP connection.
+description: Expose and troubleshoot services through Opfield ingress, including Domains and DNS, Routes (proxy hosts) to Docker, Pages, or manual upstreams, SSL certificates from ACME, upload, or internal PKI, Access Lists, Additional Routes, Secure Links, nginx templates, and maintenance mode. Use when asked to put a service on a hostname, add HTTPS, restrict access by IP or basic auth, put a Route into maintenance, or find out why a Route, Domain, or certificate is not working. Use after using-opfield has confirmed the Opfield MCP connection.
 ---
 
 # Ingress and Domains
 
 The Console and tools call these resources **Routes**; REST paths and the resource type keep the legacy name `proxy-hosts` / `proxy_host`. Each Route is one nginx server block on its assigned ingress (`nginx`) Node, or on every member of an **ingress group** (nginx Nodes, normally one per site, that serve the same Routes and Domains; see below).
 
-Start with `using-gateway` for connection, discovery, and safety rules. Use this skill after the target workload or Pages Tag exists, or when the request is about ingress itself. Read `read_gateway_documentation({ topic: "proxy" })` (also `domains`, `ssl`, `acme`, `access-lists`) before an unfamiliar workflow.
+Start with `using-opfield` for connection, discovery, and safety rules. Use this skill after the target workload or Pages Tag exists, or when the request is about ingress itself. Read `read_gateway_documentation({ topic: "proxy" })` (also `domains`, `ssl`, `acme`, `access-lists`) before an unfamiliar workflow.
 
 ## Publish a hostname
 
