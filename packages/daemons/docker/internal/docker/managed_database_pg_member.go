@@ -482,9 +482,16 @@ func (e *pgMember) psql(ctx context.Context, statements ...string) (string, erro
 	return e.m.pgExecOutput(callCtx, record.ContainerID, command, "")
 }
 
+// pgStatusSQL samples the server. Without a walreceiver a standby's timeline
+// is the newer of its last restartpoint's and its minimum recovery point's:
+// the restartpoint alone lags (a rewound copy keeps the common checkpoint of
+// the old timeline until its next restartpoint, and would read as diverged
+// from the timeline it replays); the minimum recovery point is on the
+// timeline its data follows (a diverged copy's stays on its own branch).
 const pgStatusSQL = `SELECT pg_is_in_recovery(),
   CASE WHEN pg_is_in_recovery()
-    THEN coalesce((SELECT received_tli FROM pg_stat_wal_receiver), (SELECT timeline_id FROM pg_control_checkpoint()))
+    THEN coalesce((SELECT received_tli FROM pg_stat_wal_receiver),
+      greatest((SELECT timeline_id FROM pg_control_checkpoint()), (SELECT min_recovery_end_timeline FROM pg_control_recovery())))
     ELSE ('x' || substr(pg_walfile_name(pg_current_wal_lsn()), 1, 8))::bit(32)::int END,
   CASE WHEN pg_is_in_recovery() THEN '' ELSE pg_current_wal_flush_lsn()::text END,
   coalesce(pg_last_wal_receive_lsn()::text, ''), coalesce(pg_last_wal_replay_lsn()::text, ''),

@@ -61,6 +61,25 @@ func TestRejoinRewindsDivergedMember(t *testing.T) {
 	h.pg.requireNoViolations(t)
 }
 
+// A diverged copy's walreceiver streams the shared part of the old timeline
+// for a moment on every restart (the container test saw it): samples that
+// catch it streaming while the log still reports the fork keep the rejoin
+// clock running, so the member is rewound.
+func TestRejoinWhileTheWalreceiverFlapsOnTheOldTimeline(t *testing.T) {
+	h := newHarness(t)
+	h.pg.set(func(p *fakePG) {
+		p.rewind = RewindResult{DivergedAt: MustLSN("0/4000000"), TargetEnd: MustLSN("0/4200000"), Timeline: 2}
+	})
+	divergedStandby(h, divergedLine)
+	h.pg.set(func(p *fakePG) { p.receiver = "streaming" })
+	for range 15 {
+		h.pg.logLine(divergedLine)
+		h.run(1, time.Second)
+	}
+	h.settle()
+	h.requireOrder("pg:stop_clean", "pg:rewind")
+}
+
 // M9: a killed primary cannot be rewound directly: it starts as a standby,
 // stops fast, then rewinds.
 func TestRejoinStartsKilledPrimaryAsStandbyBeforeRewind(t *testing.T) {
