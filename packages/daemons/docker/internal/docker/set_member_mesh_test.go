@@ -3,6 +3,7 @@ package docker
 import (
 	"bufio"
 	"context"
+	"log/slog"
 	"net"
 	"net/netip"
 	"strings"
@@ -104,5 +105,24 @@ func TestSetMeshNetworkNameIsStable(t *testing.T) {
 	name := setMeshNetworkName(meshTestSet)
 	if name != setMeshNetworkName(strings.ToUpper(meshTestSet)) || !strings.HasPrefix(name, "gateway-set-") || len(name) != len("gateway-set-")+16 {
 		t.Fatalf("network name %q", name)
+	}
+}
+
+// A member connection the relays cannot carry shows in the node logs: the
+// route's first failure as a warning, the next ones at info.
+func TestSetMeshLogsAFailedRouteOpenOnceAsWarning(t *testing.T) {
+	var logs strings.Builder
+	mesh := &setMesh{plugin: &DockerPlugin{logger: slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))}}
+	mesh.logBridgeFailure(meshTestSet, "m-0.pg", errRelayLaneUnavailable)
+	mesh.logBridgeFailure(meshTestSet, "m-0.pg", errRelayLaneUnavailable)
+	mesh.logBridgeFailure(meshTestSet, "m-1.pg", errRelayLaneUnavailable)
+	lines := strings.Split(strings.TrimSpace(logs.String()), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("want 3 lines, got %q", logs.String())
+	}
+	for i, level := range []string{"level=WARN", "level=INFO", "level=WARN"} {
+		if !strings.Contains(lines[i], level) || !strings.Contains(lines[i], "no relay transport") {
+			t.Fatalf("line %d: want %s with the error, got %q", i, level, lines[i])
+		}
 	}
 }

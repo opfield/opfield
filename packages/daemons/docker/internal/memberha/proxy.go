@@ -12,10 +12,12 @@ import (
 
 // Member proxy for direct publication (AS3). The published port of a member
 // is served by the daemon; the engine listens only on the set's private
-// bridge. A new connection is admitted only while admit() holds (the member
-// serves: the promoted holder with a fresh relay gate view naming it, or a
-// manual pair's primary), and every proxied session is closed as soon as
-// admit() stops holding.
+// bridge. The port listens only while admit() holds (the member serves: the
+// promoted holder with a fresh relay gate view naming it, or a manual pair's
+// primary): a member that does not serve has no listener at all, so a client
+// with several hosts (libpq target_session_attrs, Redis and S3 clients) gets
+// connection refused and moves to the next host at once. Copies never take
+// clients. Every proxied session is closed as soon as admit() stops holding.
 
 const (
 	proxySweepInterval = 100 * time.Millisecond
@@ -31,9 +33,13 @@ type Proxy struct {
 
 	mu       sync.Mutex
 	listener net.Listener
-	sessions map[*proxySession]struct{}
-	closed   bool
-	stop     chan struct{}
+	// bound is the address the port was first bound to (port 0 resolved), so
+	// it listens on the same port again after a member regained the role.
+	bound      net.Addr
+	bindFailed bool
+	sessions   map[*proxySession]struct{}
+	closed     bool
+	stop       chan struct{}
 }
 
 type proxySession struct {
@@ -59,28 +65,65 @@ func NewProxy(address string, admit func() bool, dial func(ctx context.Context) 
 		stop: make(chan struct{})}
 }
 
-// Start listens and serves until Close.
+// Start binds the port once (a port taken by something else is an error
+// here) and serves until Close: it listens while the member serves and is
+// closed while it does not.
 func (p *Proxy) Start() error {
-	listener, err := net.Listen("tcp", p.address)
+	p.mu.Lock()
+	err := p.listenLocked()
+	if err == nil && !p.admit() {
+		p.unlistenLocked()
+	}
+	p.mu.Unlock()
 	if err != nil {
 		return err
 	}
-	p.mu.Lock()
-	p.listener = listener
-	p.mu.Unlock()
-	go p.acceptLoop(listener)
 	go p.sweepLoop()
 	return nil
 }
 
-// Addr is the bound address (tests use port 0).
+// listenLocked opens the port when it is not open.
+func (p *Proxy) listenLocked() error {
+	if p.listener != nil || p.closed {
+		return nil
+	}
+	address := p.address
+	if p.bound != nil {
+		address = p.bound.String()
+	}
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		return err
+	}
+	p.listener = listener
+	if p.bound == nil {
+		p.bound = listener.Addr()
+	}
+	go p.acceptLoop(listener)
+	return nil
+}
+
+// unlistenLocked closes the port: new connections are refused by the kernel.
+func (p *Proxy) unlistenLocked() {
+	if p.listener != nil {
+		_ = p.listener.Close()
+		p.listener = nil
+	}
+}
+
+// Listening reports whether the port accepts connections now.
+func (p *Proxy) Listening() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.listener != nil
+}
+
+// Addr is the bound address (tests use port 0); it stays the same while the
+// port is closed.
 func (p *Proxy) Addr() net.Addr {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.listener == nil {
-		return nil
-	}
-	return p.listener.Addr()
+	return p.bound
 }
 
 func (p *Proxy) acceptLoop(listener net.Listener) {
@@ -138,10 +181,34 @@ func (p *Proxy) sweepLoop() {
 		case <-p.stop:
 			return
 		case <-ticker.C:
-			if !p.admit() {
-				p.CloseAll()
-			}
+			p.Sync()
 		}
+	}
+}
+
+// Sync makes the port follow the member's admission now (the sweep runs it
+// every proxySweepInterval): listening while it serves, closed with every
+// session ended while it does not.
+func (p *Proxy) Sync() {
+	admitted := p.admit()
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		return
+	}
+	if !admitted {
+		p.unlistenLocked()
+		p.mu.Unlock()
+		p.CloseAll()
+		return
+	}
+	err := p.listenLocked()
+	failedBefore := p.bindFailed
+	p.bindFailed = err != nil
+	address := p.address
+	p.mu.Unlock()
+	if err != nil && !failedBefore {
+		p.logger.Warn("availability member proxy could not listen on the published port; retrying", "address", address, "error", err)
 	}
 }
 
@@ -173,12 +240,9 @@ func (p *Proxy) Close() {
 		return
 	}
 	p.closed = true
-	listener := p.listener
+	p.unlistenLocked()
 	close(p.stop)
 	p.mu.Unlock()
-	if listener != nil {
-		_ = listener.Close()
-	}
 	p.CloseAll()
 }
 

@@ -44,6 +44,7 @@ export type RenewalReason =
   | 'expiring'
   | 'lifetime'
   | 'names_missing'
+  | 'usage_missing'
   | 'ca_changed'
   | 'served_mismatch'
   | 'awaiting_reload';
@@ -63,6 +64,8 @@ export interface RenewalCertificate {
   notBefore: Date;
   notAfter: Date;
   sans: string[];
+  /** Extended key usages of the leaf (serverAuth, clientAuth); absent when the owner type does not track them. */
+  extKeyUsage?: string[];
   certificatePem: string;
 }
 
@@ -80,6 +83,8 @@ export interface SystemCertificateRenewalTarget {
   expectedCaId: string;
   /** Names the certificate must carry (stable node identity, loopback names). */
   requiredSans: string[];
+  /** Extended key usages the certificate must carry (a database set member's leaf is its replication client too). */
+  requiredExtKeyUsage?: string[];
   /** Every node daemon of the owner reports `managed_tls_reload_v1`. */
   supportsHotReload: boolean;
   /** When the issuing CA expires: a renewed leaf is clamped to it. */
@@ -140,11 +145,12 @@ export interface RenewalEvaluation {
 /**
  * When a system leaf must be replaced: two thirds of its lifetime passed,
  * 30 days or fewer remain, a required name is missing (node address change,
- * loopback names), or it was issued by a CA other than the current one.
+ * loopback names), a required usage is missing (a database that became a set
+ * member), or it was issued by a CA other than the current one.
  */
 export function evaluateCertificateRenewal(
-  certificate: Pick<RenewalCertificate, 'notBefore' | 'notAfter' | 'sans' | 'caId'>,
-  desired: { requiredSans: readonly string[]; expectedCaId: string },
+  certificate: Pick<RenewalCertificate, 'notBefore' | 'notAfter' | 'sans' | 'caId' | 'extKeyUsage'>,
+  desired: { requiredSans: readonly string[]; expectedCaId: string; requiredExtKeyUsage?: readonly string[] },
   now = new Date()
 ): RenewalEvaluation {
   const remainingMs = certificate.notAfter.getTime() - now.getTime();
@@ -158,11 +164,14 @@ export function evaluateCertificateRenewal(
       ? 'ca_changed'
       : missingNames.length > 0
         ? 'names_missing'
-        : remainingMs <= RENEW_BEFORE_EXPIRY_MS
-          ? 'expiring'
-          : now.getTime() - certificate.notBefore.getTime() >= lifetimeMs * RENEW_AFTER_LIFETIME_FRACTION
-            ? 'lifetime'
-            : null;
+        : certificate.extKeyUsage &&
+            (desired.requiredExtKeyUsage ?? []).some((usage) => !certificate.extKeyUsage!.includes(usage))
+          ? 'usage_missing'
+          : remainingMs <= RENEW_BEFORE_EXPIRY_MS
+            ? 'expiring'
+            : now.getTime() - certificate.notBefore.getTime() >= lifetimeMs * RENEW_AFTER_LIFETIME_FRACTION
+              ? 'lifetime'
+              : null;
   return { due: reason !== null, reason, urgent, daysRemaining, missingNames };
 }
 

@@ -346,9 +346,22 @@ func pgctConfig(memberID, dbID string) memberha.Config {
 }
 
 // pgctTLS is the database CA and the one leaf every member serves and
-// presents to the set roles (server and client use).
+// presents to the set roles (server and client use), with the profile
+// Gateway's Database CA issues set member leaves with (tls-server key usages,
+// serverAuth and clientAuth: database-ca.service.ts). PGHA_CT_TLS_DIR runs
+// the test with leaves Gateway issued instead (ca.pem, cert.pem, key.pem).
 func pgctTLS(t *testing.T) (ca, cert, key string) {
 	t.Helper()
+	if dir := os.Getenv("PGHA_CT_TLS_DIR"); dir != "" {
+		read := func(name string) string {
+			data, err := os.ReadFile(filepath.Join(dir, name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			return string(data)
+		}
+		return read("ca.pem"), read("cert.pem"), read("key.pem")
+	}
 	encode := func(kind string, der []byte) string {
 		return string(pem.EncodeToMemory(&pem.Block{Type: kind, Bytes: der}))
 	}
@@ -367,7 +380,8 @@ func pgctTLS(t *testing.T) (ca, cert, key string) {
 	}
 	leafTemplate := &x509.Certificate{SerialNumber: big.NewInt(2), Subject: pkix.Name{CommonName: "managed-db-ct"},
 		NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(24 * time.Hour), DNSNames: []string{"database"},
-		KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}}
+		KeyUsage:    x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}}
 	leafDER, err := x509.CreateCertificate(rand.Reader, leafTemplate, caCert, &leafKey.PublicKey, caKey)
 	if err != nil {
 		t.Fatal(err)

@@ -18,6 +18,7 @@ import type {
   CommandResult,
 } from '@/grpc/generated/types.js';
 import { createChildLogger } from '@/lib/logger.js';
+import { availabilityMemberConfigError } from './availability-member-config.rules.js';
 import type { NodeDispatchService } from './node-dispatch.service.js';
 
 const logger = createChildLogger('AvailabilityMembers');
@@ -30,6 +31,15 @@ const COMMAND_TIMEOUT_MS = 30_000;
 
 export type AvailabilitySetRow = typeof managedAvailabilitySets.$inferSelect;
 export type AvailabilityMemberRow = typeof managedAvailabilityMembers.$inferSelect;
+
+/** A member whose node did not take the set's configuration (configureSetResults). */
+export interface AvailabilityMemberConfigureFailure {
+  memberId: string;
+  nodeId: string;
+  error: string;
+  /** The node (or the rules it applies) refused the configuration; false: unreachable or not capable yet. */
+  refused: boolean;
+}
 
 /** A member event as the node queued it, with the time it happened on the data plane. */
 export interface AvailabilityMemberEventRecord {
@@ -254,33 +264,49 @@ export class AvailabilityMembersService {
    * ports changed; bump `config_revision` first). Returns the members whose node did not take it.
    */
   async configureSet(setId: string, onlyMemberId?: string): Promise<string[]> {
+    return (await this.configureSetResults(setId, onlyMemberId)).map((failure) => failure.memberId);
+  }
+
+  /**
+   * configureSet with the reason of every member whose node did not take the configuration: `refused` when the node
+   * (or the rules it applies, availability-member-config.rules.ts) refused it, which does not clear on its own; not
+   * refused when the node was unreachable or does not run availability members (yet).
+   */
+  async configureSetResults(setId: string, onlyMemberId?: string): Promise<AvailabilityMemberConfigureFailure[]> {
     const loaded = await this.loadSet(setId);
     if (!loaded) return [];
-    const failed: string[] = [];
+    const failed: AvailabilityMemberConfigureFailure[] = [];
     for (const member of loaded.members) {
       if (onlyMemberId && member.id !== onlyMemberId) continue;
-      try {
-        const result = await this.send(member.nodeId, {
-          configure: await this.memberConfig(loaded.set, loaded.members, member),
+      const fail = (error: string, refused: boolean) => {
+        failed.push({ memberId: member.id, nodeId: member.nodeId, error, refused });
+        logger.warn('Availability member configuration was not applied', {
+          setId,
+          memberId: member.id,
+          nodeId: member.nodeId,
+          error,
         });
-        if (!result?.success) {
-          failed.push(member.id);
-          logger.warn('Availability member configuration was not applied', {
-            setId,
-            memberId: member.id,
-            nodeId: member.nodeId,
-            error: result ? result.error : 'the node does not run availability members',
-          });
+      };
+      try {
+        const config = await this.memberConfig(loaded.set, loaded.members, member);
+        // A configuration the node is bound to refuse is not sent (an automatic set before its lease policy exists).
+        const invalid = availabilityMemberConfigError(config);
+        if (invalid) {
+          fail(invalid, true);
+          continue;
+        }
+        const result = await this.send(member.nodeId, { configure: config });
+        if (!result) {
+          fail('the node does not run availability members', false);
+          continue;
+        }
+        if (!result.success) {
+          fail(result.error || 'the node refused the configuration', true);
           continue;
         }
         this.lastConfigured.set(member.id, { revision: loaded.set.configRevision, at: this.now() });
       } catch (error) {
-        failed.push(member.id);
-        logger.warn('Availability member configuration was not sent', {
-          setId,
-          memberId: member.id,
-          error: (error as Error).message,
-        });
+        fail(`unreachable: ${(error as Error).message}`, false);
       }
     }
     return failed;

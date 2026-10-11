@@ -727,7 +727,7 @@ func (m *managedDatabaseManager) detachPGLiftedProxy(id string) {
 // holder (H2). Standby at rest is lifted (the retained copy is promoted when
 // it came back read-only), the set settings and the member pg_hba go, the
 // record becomes single-node and the runtime forgets the member. Repeats
-// answer ready.
+// answer ready, and so does a database that is no member (never touched).
 func (m *managedDatabaseManager) pgLift(ctx context.Context, members *memberha.Manager, id string, ref pgMemberRef, detach *memberha.DetachEvidence) (string, error) {
 	record, err := m.loadRecord(id)
 	if err != nil {
@@ -737,7 +737,10 @@ func (m *managedDatabaseManager) pgLift(ctx context.Context, members *memberha.M
 		if record.AvailabilityLiftedFrom == ref.MemberID {
 			return pgOK(map[string]any{"status": "ready", "retained": true, "memberId": ref.MemberID})
 		}
-		return "", errors.New("this database is not a member of an availability set on this node")
+		// A plain database (a set that never converted it, e.g. a convert
+		// that failed before the origin became a member) already runs as a
+		// single node: the lift is done, and the database is left untouched.
+		return pgOK(map[string]any{"status": "ready", "retained": true, "singleNode": true, "memberId": ref.MemberID})
 	}
 	if record.AvailabilityMemberID != ref.MemberID || record.AvailabilitySetID != ref.SetID {
 		return "", errors.New("this node holds another member of the database")

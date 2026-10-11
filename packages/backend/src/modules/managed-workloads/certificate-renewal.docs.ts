@@ -23,7 +23,8 @@ export const ManagedCertificateStatusSchema = z
       reason: z.string().nullable(),
       due: z.boolean(),
       dueReason: z.string().nullable().openapi({
-        description: 'lifetime (2/3 passed), expiring (30 days or less), names_missing, ca_changed, or null',
+        description:
+          'lifetime (2/3 passed), expiring (30 days or less), names_missing, usage_missing (the leaf of a database set member lacks clientAuth), ca_changed, or null',
       }),
       urgent: z.boolean().openapi({ description: '7 days or less remain: a restart is allowed to apply it' }),
       hotReloadSupported: z.boolean(),

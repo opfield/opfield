@@ -1,7 +1,12 @@
 import { isIP } from 'node:net';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { DrizzleClient, DrizzleTransaction } from '@/db/client.js';
-import { certificateAuthorities, certificates, managedDatabaseInstances } from '@/db/schema/index.js';
+import {
+  certificateAuthorities,
+  certificates,
+  managedAvailabilitySets,
+  managedDatabaseInstances,
+} from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { CAService } from '@/modules/pki/ca.service.js';
 import type { CertService } from '@/modules/pki/cert.service.js';
@@ -13,6 +18,11 @@ import type {
 const logger = createChildLogger('DatabaseCA');
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
 const DATABASE_CA_CN = 'Gateway Database CA';
+/**
+ * A member of an availability set presents its leaf as the replication client too (sslcert of its standby, pg_rewind;
+ * the members' pg_hba requires clientcert=verify-ca), so set members' leaves carry both usages.
+ */
+export const SET_MEMBER_LEAF_EXT_KEY_USAGE = ['serverAuth', 'clientAuth'] as const;
 
 /**
  * Purpose-specific CA for direct managed-database TLS. It intentionally does
@@ -77,7 +87,8 @@ export class DatabaseCAService {
       await this.managedDatabaseIssueInput(managedDatabaseId, serviceAddresses),
       SYSTEM_USER_ID,
       { type: 'managed_database', id: managedDatabaseId },
-      bindCurrent
+      bindCurrent,
+      await this.managedDatabaseLeafOptions(managedDatabaseId)
     );
   }
 
@@ -90,7 +101,9 @@ export class DatabaseCAService {
     return this.requireSystemCertificateLifecycle().issuePending(
       await this.managedDatabaseIssueInput(managedDatabaseId, serviceAddresses),
       SYSTEM_USER_ID,
-      { type: 'managed_database', id: managedDatabaseId }
+      { type: 'managed_database', id: managedDatabaseId },
+      undefined,
+      await this.managedDatabaseLeafOptions(managedDatabaseId)
     );
   }
 
@@ -126,12 +139,33 @@ export class DatabaseCAService {
         notBefore: certificates.notBefore,
         notAfter: certificates.notAfter,
         sans: certificates.sans,
+        extKeyUsage: certificates.extKeyUsage,
         certificatePem: certificates.certificatePem,
       })
       .from(certificates)
       .where(eq(certificates.id, certificateId))
       .limit(1);
-    return certificate ? { ...certificate, sans: certificate.sans ?? [] } : null;
+    return certificate
+      ? { ...certificate, sans: certificate.sans ?? [], extKeyUsage: certificate.extKeyUsage ?? [] }
+      : null;
+  }
+
+  /**
+   * The usages a database's leaf needs: a member of an availability set (the set exists from the start of its convert
+   * or create) gets serverAuth and clientAuth, a single-node database serverAuth only. Issuing and renewing both follow.
+   */
+  async managedDatabaseLeafOptions(managedDatabaseId: string): Promise<{ extKeyUsage?: readonly string[] }> {
+    const [set] = await this.db
+      .select({ id: managedAvailabilitySets.id })
+      .from(managedAvailabilitySets)
+      .where(
+        and(
+          eq(managedAvailabilitySets.ownerKind, 'managed_database'),
+          eq(managedAvailabilitySets.ownerId, managedDatabaseId)
+        )
+      )
+      .limit(1);
+    return set ? { extKeyUsage: SET_MEMBER_LEAF_EXT_KEY_USAGE } : {};
   }
 
   private async managedDatabaseIssueInput(managedDatabaseId: string, serviceAddresses: readonly string[]) {

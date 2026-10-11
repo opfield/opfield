@@ -62,6 +62,11 @@ export function resolveLeafNotAfter(
 
 interface IssueCertificateOptions {
   allowSystem?: boolean;
+  /**
+   * Internal callers only: the leaf's extended key usages instead of the type's (a managed database member presents
+   * its server leaf as the replication client too: serverAuth and clientAuth).
+   */
+  extKeyUsage?: readonly string[];
   /** End the leaf with its CA instead of failing when the requested validity outlives the CA. */
   clampToCaValidity?: boolean;
   /**
@@ -163,9 +168,10 @@ export class CertService {
       (template?.keyUsage?.length ?? 0) > 0 ? (template!.keyUsage as string[]) : this.getKeyUsageStrings(input.type);
     const keyUsageFlags = this.buildKeyUsageFlags(keyUsageStrings);
 
-    // Resolve ext key usage from template or cert type fallback
-    const extKeyUsageStrings =
-      (template?.extKeyUsage?.length ?? 0) > 0
+    // Resolve ext key usage from the caller, the template or the cert type fallback
+    const extKeyUsageStrings = options?.extKeyUsage?.length
+      ? [...options.extKeyUsage]
+      : (template?.extKeyUsage?.length ?? 0) > 0
         ? (template!.extKeyUsage as string[])
         : this.getExtKeyUsageStrings(input.type);
     const extKeyUsageOids = this.resolveExtKeyUsageOids(extKeyUsageStrings);

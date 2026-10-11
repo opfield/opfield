@@ -527,11 +527,16 @@ func (m *managedDatabaseManager) kvMemberUpdate(ctx context.Context, id, configJ
 // and serves as the primary of its own data.
 func (m *managedDatabaseManager) kvLift(ctx context.Context, members *memberha.Manager, id string, command kvLiftCommand) (string, error) {
 	ref := command.kvMemberRef
-	if err := validateManagedDatabaseInput(command.Database); err != nil {
-		return "", err
-	}
 	record, err := m.loadRecord(id)
 	if err != nil {
+		return "", err
+	}
+	if record.AvailabilityMemberID == "" && record.AvailabilitySetID == "" {
+		// Already a single-node store (a set that never converted it, or a
+		// repeated lift): the lift is done, the store is left untouched.
+		return pgOK(map[string]any{"status": "lifted", "singleNode": true, "memberId": ref.MemberID})
+	}
+	if err := validateManagedDatabaseInput(command.Database); err != nil {
 		return "", err
 	}
 	if record.AvailabilityMemberID != ref.MemberID || record.AvailabilitySetID != ref.SetID {

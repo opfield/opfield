@@ -196,7 +196,16 @@ func (e *fakeEngine) Switchover(context.Context, string) error {
 	return nil
 }
 func (e *fakeEngine) Eligible(EligibilityInput, EngineStatus) (bool, string) { return true, "" }
-func (e *fakeEngine) BootstrapValue(EngineStatus) ([]byte, error)            { return []byte("bootstrap"), nil }
+
+// CertifiedSyncState: a certified value "sync-set" names this member in the
+// synchronous set.
+func (e *fakeEngine) CertifiedSyncState(value []byte) (string, bool) {
+	if string(value) == "sync-set" {
+		return "sync", true
+	}
+	return "async", true
+}
+func (e *fakeEngine) BootstrapValue(EngineStatus) ([]byte, error) { return []byte("bootstrap"), nil }
 func (e *fakeEngine) PromotedValue([]byte, EngineStatus) ([]byte, error) {
 	return []byte("promoted"), nil
 }

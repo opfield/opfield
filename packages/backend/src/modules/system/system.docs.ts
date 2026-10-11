@@ -19,7 +19,7 @@ export const DaemonUpdateRequestSchema = z.object({
     .boolean()
     .optional()
     .describe(
-      'Update without waiting for the long tasks running on the node; they may fail. Also ends the wait of an update that already waits for them.'
+      'Update without waiting for the long tasks running on the node (they may fail) or for its lease peers. Also ends the wait of an update that already waits for them.'
     ),
 });
 
@@ -128,12 +128,12 @@ export const updateDaemonRoute = appRoute({
   tags: ['System'],
   summary: 'Trigger daemon update for a node',
   description:
-    'Updates the daemon of a node to the latest release. While backups, image builds, Docker migrations, image pulls, container actions, storage copies, or container archive transfers run on the node, the update waits for them first: `waitingForTasks` in the response, `metadata.updatePhase: waiting_for_tasks` and `metadata.updateWaitingForTasks` on the node. After 30 minutes it goes ahead anyway and keeps a warning in `metadata.lastUpdate.warnings`. `now: true` does not wait and ends the wait of an update already waiting (`waitSkipped`). Nodes in a lease-mode Availability policy then wait for their peers (`leaseSequenced`). An update of a Docker or nginx node whose daemon advertises `daemon_stream_handover_v1` keeps its relay stream sessions; `metadata.lastUpdate.connections` holds what the update kept and cut, and `metadata.lastUpdate.serviceRestart` says when the update restarted the whole service once for a newer launcher (or why not).',
+    'Updates the daemon of a node to the latest release. While backups, image builds, Docker migrations, image pulls, container actions, storage copies, or container archive transfers run on the node, the update waits for them first: `waitingForTasks` in the response, `metadata.updatePhase: waiting_for_tasks` and `metadata.updateWaitingForTasks` on the node. After 30 minutes it goes ahead anyway and keeps a warning in `metadata.lastUpdate.warnings`. Nodes in a lease-mode Availability policy then wait for their peers (`leaseSequenced`). `now: true` waits for neither and ends the wait of an update already waiting (`waitSkipped`); skipping the peers is kept as a warning in `metadata.lastUpdate.warnings`. An update of a Docker or nginx node whose daemon advertises `daemon_stream_handover_v1` keeps its relay stream sessions; `metadata.lastUpdate.connections` holds what the update kept and cut, and `metadata.lastUpdate.serviceRestart` says when the update restarted the whole service once for a newer launcher (or why not).',
   request: {
     params: NodeIdParamSchema,
     ...optionalJsonBody(
       DaemonUpdateRequestSchema,
-      'Optional: `{ "now": true }` to update without waiting for running tasks'
+      'Optional: `{ "now": true }` to update without waiting for running tasks or lease peers'
     ),
   },
   responses: okJson(UnknownDataResponseSchema),

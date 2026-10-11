@@ -9,13 +9,27 @@ import type {
   CommandResult,
   GatewayCommand,
   ProxyMaintenanceFlag,
+  RelayGrantAssignment as WireRelayGrantAssignment,
 } from '@/grpc/generated/types.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { DaemonUpdateService } from './daemon-update.service.js';
 import { assertNodeHostFeatureEnabled } from './node-host-access.js';
 import type { DispatchedCommand, NodeRegistryService } from './node-registry.service.js';
-import type { RelayGrantBundle } from './relay-policy.service.js';
+import type { RelayGrantAssignment, RelayGrantBundle } from './relay-policy.service.js';
+
+/**
+ * A grant assignment as the daemon gets it: every field the issuer sets travels (the lease target and group of set
+ * paths were once dropped by a field-by-field copy, so set peer routes and lease groups never reached the daemons).
+ */
+export function relayGrantAssignmentOnWire(assignment: RelayGrantAssignment): WireRelayGrantAssignment {
+  return { ...assignment, resumeRoutes: assignment.resumeRoutes ?? [] } as WireRelayGrantAssignment;
+}
+
+/** Compile-time: every field of an issued assignment is declared on the wire message (proto RelayGrantAssignment). */
+type GrantFieldsOffWire = Exclude<keyof RelayGrantAssignment, keyof WireRelayGrantAssignment>;
+const grantFieldsOnWire: [GrantFieldsOffWire] extends [never] ? true : GrantFieldsOffWire = true;
+void grantFieldsOnWire;
 
 const logger = createChildLogger('NodeDispatch');
 const NGINX_SECURE_LINK_SOCKET_ONLY_CAPABILITY = 'nginx_secure_link_socket_only_v1';
@@ -689,21 +703,7 @@ export class NodeDispatchService {
           generatedAtUnixMs: bundle.generatedAtUnixMs,
           dataLanes: bundle.dataLanes ?? 4,
           readChunkBytes: bundle.readChunkBytes ?? 32 * 1024,
-          grants: bundle.grants.map((assignment) => ({
-            role: assignment.role,
-            ownerKind: assignment.ownerKind,
-            ownerId: assignment.ownerId,
-            endpointId: assignment.endpointId,
-            routeId: assignment.routeId,
-            targetEndpointId: assignment.targetEndpointId,
-            grant: assignment.grant,
-            schemaVersion: assignment.schemaVersion,
-            candidates: assignment.candidates,
-            managedDatabaseListener: assignment.managedDatabaseListener,
-            secureLinkEgress: assignment.secureLinkEgress,
-            streamResume: assignment.streamResume,
-            resumeRoutes: assignment.resumeRoutes ?? [],
-          })),
+          grants: bundle.grants.map(relayGrantAssignmentOnWire),
           relayLatencyTargets: bundle.relayLatencyTargets ?? [],
           revocationFences: bundle.revocationFences ?? [],
         },

@@ -282,6 +282,8 @@ async function addAvailabilitySets(
         mode: managedAvailabilitySets.mode,
         leasePolicyId: managedAvailabilitySets.leasePolicyId,
         primaryMemberId: managedAvailabilitySets.primaryMemberId,
+        state: managedAvailabilitySets.state,
+        operation: managedAvailabilitySets.operation,
       })
       .from(managedAvailabilitySets),
     db
@@ -298,6 +300,9 @@ async function addAvailabilitySets(
   ]);
   const now = Date.now();
   for (const set of sets) {
+    // A set that has not converged yet (create or convert running, or failed and being turned off) or is being turned
+    // off holds no update: there is no replication to protect, and its copies may never become eligible.
+    if (!setHoldsUpdates(set)) continue;
     const active = members.filter((member) => member.setId === set.id && member.desiredState === 'member');
     if (active.length === 0) continue;
     let policyId = set.leasePolicyId && policyMembers.has(set.leasePolicyId) ? set.leasePolicyId : null;
@@ -311,6 +316,8 @@ async function addAvailabilitySets(
       if (member.id === set.primaryMemberId) continue;
       const position = (member.enginePosition ?? {}) as Record<string, unknown>;
       if (position['runtime.stopped'] === 'true') continue;
+      // A member that never reported never ran (its configuration never arrived): it is not catching up.
+      if (!member.lastReportedAt) continue;
       const fresh = !!member.lastReportedAt && now - member.lastReportedAt.getTime() <= SET_MEMBER_REPORT_FRESH_MS;
       // A report from before the node's current session describes the member before its restart.
       const connectedAt = registry.getNode(member.nodeId)?.connectedAt?.getTime() ?? null;
@@ -323,4 +330,13 @@ async function addAvailabilitySets(
     }
   }
   return catchingUp;
+}
+
+/** Operations during which a set has not converged (its copies are being seeded, or it is being turned off). */
+const UNCONVERGED_OPERATIONS = new Set(['create', 'convert', 'disable']);
+
+/** Whether a set's members sequence the daemon updates of their nodes (see addAvailabilitySets). */
+export function setHoldsUpdates(set: { state: string; operation: { kind: string } | null }): boolean {
+  if (set.state === 'converting' || set.state === 'closing') return false;
+  return !(set.operation && UNCONVERGED_OPERATIONS.has(set.operation.kind));
 }

@@ -3,6 +3,7 @@ import { relayMayHostWitnesses } from '@/services/relay-witness-hosting.js';
 import { filterWitnessPool } from './lease-policy-rules.js';
 import { type LeaseVoterCandidateNode, type LeaseWitnessCandidate, selectPolicyVoters } from './lease-voters.js';
 import {
+  setHoldsLeaseEntry,
   setLeaseCandidates,
   setWitnessFilter,
   TWO_MEMBER_PREFERRED_VOTERS,
@@ -146,5 +147,14 @@ describe('availability set lease voters', () => {
       { memberId: 'node-a', nodeId: 'node-a', rank: 1 },
       { memberId: 'node-c', nodeId: 'node-c', rank: 2 },
     ]);
+  });
+});
+
+describe('set lease entry', () => {
+  it('keeps the policy out of lease mode while the set converts or is turned off', () => {
+    expect(setHoldsLeaseEntry('converting')).toBe(true);
+    expect(setHoldsLeaseEntry('closing')).toBe(true);
+    expect(setHoldsLeaseEntry('degraded')).toBe(false);
+    expect(setHoldsLeaseEntry('healthy')).toBe(false);
   });
 });

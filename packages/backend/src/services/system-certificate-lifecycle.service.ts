@@ -41,6 +41,12 @@ const PENDING_REUSE_MIN_REMAINING_MS = 30 * 24 * 60 * 60 * 1000;
  * predicate is deliberately based on explicit fields written here; a leaf
  * without this provenance is never touched automatically.
  */
+/** What a system leaf needs beyond its type's defaults. */
+export interface SystemLeafOptions {
+  /** Extended key usages instead of the type's (e.g. serverAuth and clientAuth). */
+  extKeyUsage?: readonly string[];
+}
+
 export class SystemCertificateLifecycleService {
   constructor(
     private readonly db: DrizzleClient,
@@ -52,7 +58,8 @@ export class SystemCertificateLifecycleService {
     input: IssueCertificateInput,
     issuedById: string,
     owner: SystemCertificateOwner,
-    bindCurrent?: SystemCertificateCurrentBinding
+    bindCurrent?: SystemCertificateCurrentBinding,
+    leaf: SystemLeafOptions = {}
   ) {
     await this.assertSystemCA(input.caId);
 
@@ -61,6 +68,7 @@ export class SystemCertificateLifecycleService {
     // current and this new one remains visible but ineligible for automation.
     const issued = await this.certService.issueCertificate(input, issuedById, {
       allowSystem: true,
+      ...(leaf.extKeyUsage ? { extKeyUsage: leaf.extKeyUsage } : {}),
       systemLifecycle: { ownerType: owner.type, ownerId: owner.id, state: 'unknown' },
     });
     const now = new Date();
@@ -165,11 +173,12 @@ export class SystemCertificateLifecycleService {
     input: IssueCertificateInput,
     issuedById: string,
     owner: SystemCertificateOwner,
-    bindPending?: SystemCertificateCurrentBinding
+    bindPending?: SystemCertificateCurrentBinding,
+    leaf: SystemLeafOptions = {}
   ) {
     await this.assertSystemCA(input.caId);
 
-    const reusable = await this.findReusablePending(owner, input.caId);
+    const reusable = await this.findReusablePending(owner, input.caId, leaf.extKeyUsage);
     if (reusable) {
       if (bindPending) {
         await this.db.transaction(async (tx) => {
@@ -181,6 +190,7 @@ export class SystemCertificateLifecycleService {
 
     const issued = await this.certService.issueCertificate(input, issuedById, {
       allowSystem: true,
+      ...(leaf.extKeyUsage ? { extKeyUsage: leaf.extKeyUsage } : {}),
       systemLifecycle: { ownerType: owner.type, ownerId: owner.id, state: 'unknown' },
     });
     const now = new Date();
@@ -382,7 +392,7 @@ export class SystemCertificateLifecycleService {
     return pending ?? null;
   }
 
-  private async findReusablePending(owner: SystemCertificateOwner, caId: string) {
+  private async findReusablePending(owner: SystemCertificateOwner, caId: string, extKeyUsage?: readonly string[]) {
     const [pending] = await this.db
       .select()
       .from(certificates)
@@ -398,6 +408,8 @@ export class SystemCertificateLifecycleService {
       .orderBy(desc(certificates.createdAt))
       .limit(1);
     if (!pending || pending.notAfter.getTime() - Date.now() < PENDING_REUSE_MIN_REMAINING_MS) return null;
+    // A staged leaf without the usages the owner needs now is replaced, not reused.
+    if (extKeyUsage && !extKeyUsage.every((usage) => (pending.extKeyUsage ?? []).includes(usage))) return null;
     const privateKeyPem = await this.certService.getCertificatePrivateKey(pending.id);
     if (!privateKeyPem) return null;
     return { certificate: pending, privateKeyPem };

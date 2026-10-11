@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -24,7 +25,11 @@ func TestPGMemberAutoConfRunsAsACopyOfTheMeshPrimary(t *testing.T) {
 		Parameters: pgha.Parameters{MaxConnections: 200}}
 	values := pgMemberAutoConf(config, 8<<30)
 	conninfo := values["primary_conninfo"]
-	for _, want := range []string{"host=primary-pg-repl", "port=5432", "user=gw_repl_a", "application_name=" + config.MemberID, "sslmode=verify-ca", "passfile="} {
+	// The member authenticates to the primary with its leaf as the client
+	// certificate (Gateway issues set member leaves for server and client use)
+	// and verifies the primary's against the database CA.
+	for _, want := range []string{"host=primary-pg-repl", "port=5432", "user=gw_repl_a", "application_name=" + config.MemberID, "sslmode=verify-ca", "passfile=",
+		"sslrootcert=" + pgContainerTLSDir + "/ca.pem", "sslcert=" + pgContainerTLSDir + "/cert.pem", "sslkey=" + pgContainerTLSDir + "/key.pem"} {
 		if !strings.Contains(conninfo, want) {
 			t.Fatalf("conninfo %q lacks %q", conninfo, want)
 		}
@@ -73,6 +78,13 @@ func TestPGMemberHBAKeepsSetRolesOnTLSWithACertificate(t *testing.T) {
 	} {
 		if !strings.Contains(hba, want) {
 			t.Fatalf("pg_hba lacks %q:\n%s", want, hba)
+		}
+	}
+	// Every line that admits a set role requires its client certificate.
+	for _, line := range strings.Split(hba, "\n") {
+		if (strings.Contains(line, "gw_repl_") || strings.Contains(line, "gw_rewind_")) && !strings.HasSuffix(line, "reject") &&
+			!strings.HasSuffix(line, "clientcert=verify-ca") {
+			t.Fatalf("pg_hba admits a set role without its certificate: %q", line)
 		}
 	}
 	passfile := pgMemberPassfile("gw_repl_a", `p:a\ss`, "gw_rewind_x", "r")
@@ -136,7 +148,8 @@ func TestPGSetGateRefusesLifecycleActionsOfAMember(t *testing.T) {
 }
 
 // Lifting is idempotent through the record; a database that is no member is
-// never removed or lifted by an availability action (B2).
+// never removed or changed by an availability action (B2): its lift answers
+// ready.
 func TestPGLiftAndRemoveNeverTouchAPlainDatabase(t *testing.T) {
 	m := newTestDatabaseManager(t, nil)
 	record := saveTestDatabase(t, m, "db-plain")
@@ -149,8 +162,21 @@ func TestPGLiftAndRemoveNeverTouchAPlainDatabase(t *testing.T) {
 	if _, err := m.pgRemove(context.Background(), manager, "db-plain", ref); err == nil {
 		t.Fatal("a plain database must never be removed by a member removal")
 	}
-	if _, err := m.pgLift(context.Background(), manager, "db-plain", ref, nil); err == nil {
-		t.Fatal("a plain database is not lifted")
+	// A plain database already runs as a single node: the lift answers ready
+	// and leaves the record as it is (a set that never converted it).
+	before, err := m.loadRecord("db-plain")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, err := m.pgLift(context.Background(), manager, "db-plain", ref, nil)
+	if err != nil || !strings.Contains(plain, `"singleNode":true`) {
+		t.Fatalf("a lift of a plain database answers ready untouched: %s %v", plain, err)
+	}
+	if _, err := m.pgLift(context.Background(), manager, "db-plain", ref, &memberha.DetachEvidence{NeverHeld: true}); err != nil {
+		t.Fatalf("a detach of a plain database answers ready untouched: %v", err)
+	}
+	if after, err := m.loadRecord("db-plain"); err != nil || !reflect.DeepEqual(before, after) {
+		t.Fatalf("a plain database must stay untouched: %+v -> %+v (%v)", before, after, err)
 	}
 	record.AvailabilityLiftedFrom = ref.MemberID
 	if err := m.saveRecord(record); err != nil {
@@ -159,6 +185,29 @@ func TestPGLiftAndRemoveNeverTouchAPlainDatabase(t *testing.T) {
 	detail, err := m.pgLift(context.Background(), manager, "db-plain", ref, nil)
 	if err != nil || !strings.Contains(detail, `"ready"`) {
 		t.Fatalf("a repeated lift answers ready: %s %v", detail, err)
+	}
+}
+
+// A Valkey store that is no member already runs as a single node: its lift
+// answers lifted and leaves it untouched (a set that never converted it).
+func TestKVLiftOfAPlainStoreIsDone(t *testing.T) {
+	m := newTestDatabaseManager(t, nil)
+	record := saveTestDatabase(t, m, "kv-plain")
+	record.Type = "redis"
+	if err := m.saveRecord(record); err != nil {
+		t.Fatal(err)
+	}
+	before, err := m.loadRecord("kv-plain")
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := kvLiftCommand{kvMemberRef: kvMemberRef{SetID: "11111111-1111-4111-8111-111111111111", MemberID: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}}
+	detail, err := m.kvLift(context.Background(), newPGTestMemberManager(t), "kv-plain", command)
+	if err != nil || !strings.Contains(detail, `"singleNode":true`) {
+		t.Fatalf("a lift of a plain store answers lifted: %s %v", detail, err)
+	}
+	if after, err := m.loadRecord("kv-plain"); err != nil || !reflect.DeepEqual(before, after) {
+		t.Fatalf("a plain store must stay untouched: %+v -> %+v (%v)", before, after, err)
 	}
 }
 
