@@ -130,38 +130,34 @@ export function useMemberApp(ref: AppMembershipRef | null | undefined): {
 }
 
 /**
- * The open incident of a member's environment that refuses changes needing a running, connected
- * environment (moving a key-value store to Valkey): the kill switch or a shutdown that is applying or
- * active. Null when there is none (or the app is not visible: the server still refuses).
+ * The open incident of a member's environment that refuses changes to the member: only the kill
+ * switch while it is applying or active. A shutdown holds nothing (members stay editable; Start skips
+ * the ones deleted meanwhile). Null when there is none (or the app is not visible: the server still
+ * refuses).
  */
 export function memberIncidentBlock(
   app: AppDetail | null,
   ref: AppMembershipRef | null | undefined
-): "isolation" | "shutdown" | null {
+): "isolation" | null {
   if (!app || !ref) return null;
-  const holds = (kind: "isolation" | "shutdown") =>
-    openAppIncidents(app, kind, [ref.environmentId]).some(
-      (incident) => incident.state === "applying" || incident.state === "active"
-    );
-  if (holds("isolation")) return "isolation";
-  if (holds("shutdown")) return "shutdown";
-  return null;
+  const isolated = openAppIncidents(app, "isolation", [ref.environmentId]).some(
+    (incident) => incident.state === "applying" || incident.state === "active"
+  );
+  return isolated ? "isolation" : null;
 }
 
-/** Why an action the open incident of a member's environment refuses is disabled, or null. */
-export function memberIncidentReason(block: "isolation" | "shutdown" | null): string | null {
-  if (block === "isolation") {
-    return "Unavailable while the app kill switch isolates this environment.";
-  }
-  if (block === "shutdown") return "Unavailable while this app environment is shut down.";
-  return null;
+/** Why an action the kill switch of a member's environment refuses is disabled, or null. */
+export function memberIncidentReason(block: "isolation" | null): string | null {
+  return block === "isolation"
+    ? "Unavailable while the app kill switch isolates this environment."
+    : null;
 }
 
 /**
- * What a member's page disables while its environment has an open incident (the server refuses the
- * same, see AppMemberFreeze): `frozen` for changes refused while the kill switch isolates it, `kept`
- * for deleting the member, removing its links and bindings, and renaming it, refused while it is
- * isolated or shut down. Null when the action is allowed.
+ * What a member's page disables while the kill switch isolates its environment (the server refuses
+ * the same with 409 APP_ISOLATED, see AppMemberFreeze): `frozen` for changes, `kept` for deleting the
+ * member, removing its links and bindings, and renaming it. A shutdown disables neither. Null when the
+ * action is allowed.
  */
 export interface MemberIncidentHold {
   frozen: string | null;
@@ -172,9 +168,8 @@ export function memberIncidentHold(
   app: AppDetail | null,
   ref: AppMembershipRef | null | undefined
 ): MemberIncidentHold {
-  const block = memberIncidentBlock(app, ref);
-  const reason = memberIncidentReason(block);
-  return { frozen: block === "isolation" ? reason : null, kept: reason };
+  const reason = memberIncidentReason(memberIncidentBlock(app, ref));
+  return { frozen: reason, kept: reason };
 }
 
 /**

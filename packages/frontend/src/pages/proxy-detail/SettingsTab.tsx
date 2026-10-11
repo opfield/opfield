@@ -88,7 +88,7 @@ export interface SettingsTabProps {
   isSavingTemplate: boolean;
   hasTemplateSettingsChanged: boolean;
   canManage: boolean;
-  /** Why removing Secure Link bindings is disabled (the route's app environment is isolated or shut down). */
+  /** Why removing Secure Link bindings is disabled (the route's app environment is isolated by the kill switch). */
   secureLinkRemovalDisabledReason?: string | null;
   hasHeadersChanged: boolean;
   hasRewritesChanged: boolean;

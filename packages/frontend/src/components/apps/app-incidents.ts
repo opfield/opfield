@@ -65,7 +65,7 @@ export async function startAfterShutdown(
   const ok = await confirm({
     title: `Start ${app.name}`,
     description:
-      "Everything the shutdown stopped starts again and routes return to their own maintenance state. Resources changed by hand meanwhile are left as they are.",
+      "Everything the shutdown stopped that still exists starts again, renamed or moved members included, and routes return to their own maintenance state. Members deleted meanwhile are skipped and listed in the incident.",
     confirmLabel: "Start",
   });
   if (!ok) return false;

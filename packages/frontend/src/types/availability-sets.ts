@@ -131,6 +131,8 @@ export interface AvailabilityView {
   } | null;
   policyLeaseHours: number | null;
   operation: AvailabilityOperation | null;
+  /** Set when the license no longer covers changes: adding a server and settings are refused. */
+  changesBlocked?: string | null;
   connection: {
     multiHostUri: string | null;
     hosts: Array<{ memberId: string; host: string; port: number }>;

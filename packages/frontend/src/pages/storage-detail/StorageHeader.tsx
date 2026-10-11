@@ -30,7 +30,7 @@ interface StorageHeaderProps {
   canRetry: boolean;
   canReveal: boolean;
   canDelete: boolean;
-  /** Why Remove is disabled (the storage's app environment is isolated or shut down); null enables it. */
+  /** Why Remove is disabled (the storage's app environment is isolated by the kill switch); null enables it. */
   removeDisabledReason?: string | null;
   onOpenPin: () => void;
   onBack: () => void;

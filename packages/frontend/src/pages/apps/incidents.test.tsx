@@ -235,13 +235,13 @@ describe("member incident block (Move to Valkey)", () => {
     environmentName: "live",
   };
 
-  it("blocks a member of an isolated or shut-down environment, not one that is releasing or elsewhere", () => {
+  it("blocks a member of an isolated environment, not a shut-down one, one that is releasing or elsewhere", () => {
     expect(memberIncidentBlock(app({ "env-live": [incident("isolation", "env-live")] }), ref)).toBe(
       "isolation"
     );
-    expect(memberIncidentBlock(app({ "env-live": [incident("shutdown", "env-live")] }), ref)).toBe(
-      "shutdown"
-    );
+    expect(
+      memberIncidentBlock(app({ "env-live": [incident("shutdown", "env-live")] }), ref)
+    ).toBeNull();
     expect(
       memberIncidentBlock(
         app({ "env-live": [incident("isolation", "env-live", { state: "releasing" })] }),
@@ -265,7 +265,7 @@ describe("member incident hold (deletes, unbinds, renames)", () => {
     environmentName: "live",
   };
 
-  it("keeps members of an isolated or shut-down environment, freezes changes only when isolated", () => {
+  it("holds members of an isolated environment only; a shutdown holds nothing", () => {
     const isolated = app({ "env-live": [incident("isolation", "env-live")] });
     const isolatedReason = "Unavailable while the app kill switch isolates this environment.";
     expect(memberIncidentHold(isolated, ref)).toEqual({
@@ -273,10 +273,7 @@ describe("member incident hold (deletes, unbinds, renames)", () => {
       kept: isolatedReason,
     });
     const shutDown = app({ "env-live": [incident("shutdown", "env-live")] });
-    expect(memberIncidentHold(shutDown, ref)).toEqual({
-      frozen: null,
-      kept: "Unavailable while this app environment is shut down.",
-    });
+    expect(memberIncidentHold(shutDown, ref)).toEqual({ frozen: null, kept: null });
     expect(memberIncidentHold(app(), ref)).toEqual({ frozen: null, kept: null });
     expect(memberIncidentHold(null, ref)).toEqual({ frozen: null, kept: null });
   });

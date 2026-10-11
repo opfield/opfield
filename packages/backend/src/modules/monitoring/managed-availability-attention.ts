@@ -58,6 +58,8 @@ export function availabilityAttention(
   // Turning on or off: the operation's own progress shows on the resource page.
   if (facts.state === 'converting' || facts.state === 'closing') return null;
   const reason = facts.stateReason;
+  // Paused on purpose (Pause or an app shutdown): its servers are stopped and nothing fails over.
+  if (reason?.code === 'paused') return null;
   const since = reason?.since ?? null;
   const message = reason?.message ?? null;
   if (

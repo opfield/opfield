@@ -68,7 +68,7 @@ export const ManagedStorageLinksSection = forwardRef<
     canManage: boolean;
     canManageCluster?: (connectionId: string | null) => boolean;
     disabled?: boolean;
-    /** Why unlinking a saved link is disabled (the app environment is isolated or shut down). */
+    /** Why unlinking a saved link is disabled (the app environment is isolated by the kill switch). */
     removeDisabledReason?: string | null;
     existingVariableNames?: string[];
     onInitialLoadingChange?: (loading: boolean) => void;

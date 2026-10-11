@@ -177,7 +177,7 @@ export const ManagedDatabaseLinksSection = forwardRef<
     targetResourceId: string;
     containerName: string;
     disabled?: boolean;
-    /** Why unlinking a saved link is disabled (the app environment is isolated or shut down). */
+    /** Why unlinking a saved link is disabled (the app environment is isolated by the kill switch). */
     removeDisabledReason?: string | null;
     existingVariableNames?: string[];
     onInitialLoadingChange?: (loading: boolean) => void;

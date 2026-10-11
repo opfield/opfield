@@ -47,7 +47,7 @@ export function AdditionalSecureLinkBindings({
 }: {
   hostId: string;
   canManage: boolean;
-  /** Why removing a binding is disabled (the route's app environment is isolated or shut down). */
+  /** Why removing a binding is disabled (the route's app environment is isolated by the kill switch). */
   removeDisabledReason?: string | null;
 }) {
   const [bindings, setBindings] = useState<ProxyAdditionalSecureLink[] | null>(null);

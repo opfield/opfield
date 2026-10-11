@@ -265,8 +265,8 @@ export function availabilityHandlers(state: AvailabilityScreenState) {
     ),
     http.get("*/api/databases/managed/:id/availability/events", ({ params }) =>
       params.id === managedId && state !== "single"
-        ? wrapped({ data: availabilityEvents, page: 1, limit: 20 })
-        : wrapped({ data: [], page: 1, limit: 20 })
+        ? ok({ data: availabilityEvents, page: 1, limit: 20 })
+        : ok({ data: [], page: 1, limit: 20 })
     ),
     http.get("*/api/databases/managed/:id/availability", ({ params }) =>
       params.id === managedId && state !== "single"

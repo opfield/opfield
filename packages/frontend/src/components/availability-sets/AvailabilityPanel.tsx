@@ -72,6 +72,14 @@ interface WitnessNames {
 
 function stateNotice(view: AvailabilityView) {
   const reason = view.stateReason?.message ?? view.lease?.reason ?? null;
+  if (view.stateReason?.code === "paused") {
+    return (
+      <Notice tone="info" title="Paused">
+        Every server is stopped. The primary keeps its role, so nothing fails over; starting again
+        starts the primary first, then the copies.
+      </Notice>
+    );
+  }
   if (view.state === "degraded") {
     return (
       <Notice tone="warning" title="Degraded">
@@ -350,6 +358,11 @@ export function AvailabilityPanel({
         </Notice>
       ) : null}
       {stateNotice(view)}
+      {view.changesBlocked ? (
+        <Notice tone="warning" title="Changes need a license">
+          {view.changesBlocked}
+        </Notice>
+      ) : null}
       {view.mode === "manual" ? (
         <Notice tone="info" title="Manual failover">
           {view.missingForAutomatic ??
@@ -370,7 +383,12 @@ export function AvailabilityPanel({
         actions={
           canManage ? (
             <div className="flex items-center gap-2">
-              <Button variant="outline" disabled={busy} onClick={openAdd}>
+              <Button
+                variant="outline"
+                disabled={busy || !!view.changesBlocked}
+                title={view.changesBlocked ?? undefined}
+                onClick={openAdd}
+              >
                 <Plus />
                 Add server
               </Button>
@@ -386,7 +404,10 @@ export function AvailabilityPanel({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem disabled={busy} onClick={() => setSettingsOpen(true)}>
+                  <DropdownMenuItem
+                    disabled={busy || !!view.changesBlocked}
+                    onClick={() => setSettingsOpen(true)}
+                  >
                     <ServerCog />
                     Settings
                   </DropdownMenuItem>

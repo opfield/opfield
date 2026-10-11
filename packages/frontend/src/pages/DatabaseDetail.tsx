@@ -581,7 +581,7 @@ function DatabaseDetailContent({
     const ok = await confirm({
       title: "Pause Database",
       description:
-        "This pauses the database container and disconnects active clients. Health checks, metrics, Explorer, and Console will be disabled until you unpause it.",
+        "This pauses the database and disconnects active clients. On several servers, the copies stop first, then the primary, which keeps its role. Health checks, metrics, Explorer, and Console will be disabled until you unpause it.",
       confirmLabel: "Pause database",
       variant: "default",
     });

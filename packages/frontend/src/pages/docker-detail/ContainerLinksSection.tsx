@@ -62,7 +62,7 @@ export function ContainerLinksSection({
   /** Setting variable names on a link needs environment access to the workload. */
   canSetEnvironment: boolean;
   disabled?: boolean;
-  /** Why removing a link is disabled (the workload's app environment is isolated or shut down). */
+  /** Why removing a link is disabled (the workload's app environment is isolated by the kill switch). */
   removeDisabledReason?: string | null;
   onMutationStart?: (transition: "updating" | "recreating") => void;
   onMutationEnd?: () => void;

@@ -18,12 +18,10 @@ function availabilityPath(owner: AvailabilityOwner): string {
     : `/managed-storage/${id}/availability`;
 }
 
-/** The database route nests the page (`{data: {data, page, limit}}`), storage does not. */
+/** Both kinds answer one page shape: `{data, page, limit}`. */
 function eventRows(body: unknown): AvailabilityEvent[] {
-  const outer = (body as { data?: unknown } | null)?.data;
-  if (Array.isArray(outer)) return outer as AvailabilityEvent[];
-  const inner = (outer as { data?: unknown } | null)?.data;
-  return Array.isArray(inner) ? (inner as AvailabilityEvent[]) : [];
+  const rows = (body as { data?: unknown } | null)?.data;
+  return Array.isArray(rows) ? (rows as AvailabilityEvent[]) : [];
 }
 
 export function withAvailabilitySetsApi<TBase extends ApiClientBaseConstructor>(Base: TBase) {

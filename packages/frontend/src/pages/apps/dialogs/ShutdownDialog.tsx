@@ -65,7 +65,8 @@ export function ShutdownDialog({
         <DialogHeader>
           <DialogTitle>Shut Down {app.name}</DialogTitle>
           <DialogDescription>
-            Stops what can be stopped. Start brings it back as it was.
+            Stops what can be stopped. Members stay editable while it is shut down; Start brings
+            back what still exists.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">

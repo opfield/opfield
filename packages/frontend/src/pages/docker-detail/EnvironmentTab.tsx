@@ -75,7 +75,7 @@ export function EnvironmentTab({
   disabled?: boolean;
   /** Managed links may stay editable while the rest is locked (a build rollout picks them up). */
   managedLinksDisabled?: boolean;
-  /** Why removing links and bindings is disabled (the app environment is isolated or shut down). */
+  /** Why removing links and bindings is disabled (the app environment is isolated by the kill switch). */
   linkRemovalDisabledReason?: string | null;
   onMutationStart?: (transition: "updating" | "recreating") => void;
   onMutationEnd?: () => void;

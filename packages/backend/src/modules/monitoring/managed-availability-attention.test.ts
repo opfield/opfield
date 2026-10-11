@@ -21,6 +21,14 @@ describe('Dashboard attention of databases and storage on several servers', () =
     expect(availabilityAttention({ ...healthy, mode: 'manual', state: 'converting' }, NOW)).toBeNull();
   });
 
+  it('leaves a paused set alone, a manual pair whose stopped primary does not report included', () => {
+    const paused = { code: 'paused', message: 'The database is paused', since: new Date(NOW).toISOString() };
+    expect(
+      availabilityAttention({ ...healthy, mode: 'manual', stateReason: { ...paused, reasons: [paused] } }, NOW)
+    ).toBeNull();
+    expect(availabilityAttention({ ...healthy, state: 'degraded', stateReason: paused }, NOW)).toBeNull();
+  });
+
   it('names the most urgent reason', () => {
     expect(
       availabilityAttention(

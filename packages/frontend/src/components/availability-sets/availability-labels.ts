@@ -167,6 +167,10 @@ const OPERATION_LABELS: Record<string, string> = {
   failback: "Switching back",
   update_settings: "Applying settings",
   disable: "Turning off availability",
+  rolling_update: "Updating servers one at a time",
+  rolling_restart: "Restarting servers one at a time",
+  pause: "Pausing servers",
+  unpause: "Starting servers",
 };
 
 export function operationLabel(kind: string): string {
@@ -200,6 +204,12 @@ const EVENT_LABELS: Record<string, string> = {
   fenced: "Primary stopped (fenced)",
   stepped_down: "Primary stepped down",
   witness_moved: "Witness moved",
+  witness_lost: "Witness lost",
+  sync_far: "Synchronous copy now far",
+  rolling_update: "Updated server by server",
+  rolling_restart: "Restarted server by server",
+  paused: "Paused",
+  resumed: "Started again",
 };
 
 export function eventLabel(action: string): string {
@@ -227,6 +237,8 @@ export function eventTone(action: string): BadgeVariant {
       "health_alert",
       "fenced",
       "cancelled_sync_wait",
+      "witness_lost",
+      "sync_far",
     ].includes(name)
   )
     return "warning";

@@ -369,6 +369,8 @@ export interface AppIncident {
     gone: number;
   };
   items: AppIncidentItem[];
+  /** Items Start or release did not bring back because their resource is gone (deleted meanwhile). */
+  skipped?: Array<{ id: string; kind: string; label: string; detail: string | null }>;
 }
 
 export interface AppShutdownSummary {

@@ -17,7 +17,7 @@ export function ComposeVariablesTab({
   project: DockerComposeProject;
   canManage: boolean;
   onApplied: () => void | Promise<void>;
-  /** Why removing links is disabled (the project's app environment is isolated or shut down). */
+  /** Why removing links is disabled (the project's app environment is isolated by the kill switch). */
   linkRemovalDisabledReason?: string | null;
 }) {
   const activeRevision = project.activeRevision;

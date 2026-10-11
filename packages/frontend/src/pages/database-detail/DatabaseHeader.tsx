@@ -38,13 +38,13 @@ interface DatabaseHeaderProps {
   canConfigurePostgres: boolean;
   /** Shows "Move to Valkey" (a managed key-value store that still runs Redis). */
   canMoveToValkey: boolean;
-  /** Why "Move to Valkey" is disabled (the store is not running, its app environment is isolated or shut down); null enables it. */
+  /** Why "Move to Valkey" is disabled (the store is not running or its app environment is isolated by the kill switch); null enables it. */
   moveToValkeyDisabledReason: string | null;
   canReveal: boolean;
   canRotateDirectCredentials: boolean;
   canRotateCertificate: boolean;
   canDelete: boolean;
-  /** Why Remove is disabled (the store's app environment is isolated or shut down); null enables it. */
+  /** Why Remove is disabled (the store's app environment is isolated by the kill switch); null enables it. */
   removeDisabledReason?: string | null;
   onOpenPin: () => void;
   onBack: () => void;
