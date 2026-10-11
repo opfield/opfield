@@ -118,6 +118,10 @@ export interface AuthProvisioningSettings {
     clientSecretLast4: string | null;
     redirectUri: string | null;
     scopes: string;
+    /** Name on the sign-in button; null shows "Sign in with SSO". */
+    displayName?: string | null;
+    /** The provider is the Opfield account the managed installation was provisioned with. */
+    opfieldAccount?: boolean;
   };
   logging?: {
     mode: "disabled" | "local" | "external";

@@ -82,6 +82,7 @@ const AUDIT_ACTION_OPTIONS = [
   "cloud.disconnect",
   "cloud.disconnected_by_account",
   "cloud.enroll_file",
+  "cloud.managed_sso",
   "cloud.remote_management",
   "cloud.request",
   "created",

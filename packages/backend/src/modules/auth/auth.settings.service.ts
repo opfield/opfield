@@ -1,5 +1,5 @@
 import { and, count, eq, isNull, not, or } from 'drizzle-orm';
-import type { DrizzleClient } from '@/db/client.js';
+import type { DrizzleClient, DrizzleExecutor } from '@/db/client.js';
 import { permissionGroups, settings, type UserAuthMethod, userPasskeys, users } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
 
@@ -214,6 +214,18 @@ export class AuthSettingsService {
 
     await this.setSetting('auth:oidc_default_group_id', viewerGroup.id);
     return viewerGroup.id;
+  }
+
+  /** Turns OIDC sign-in on in the caller's transaction (a managed installation's Opfield account sign-in). */
+  async enableOidcSignIn(executor: DrizzleExecutor): Promise<void> {
+    const [row] = await executor.select().from(settings).where(eq(settings.key, 'auth:methods')).limit(1);
+    const current = (row?.value ?? AUTH_SETTINGS_DEFAULTS['auth:methods']) as LocalAuthMethods;
+    if (current.oidc) return;
+    const value = { ...current, oidc: true };
+    await executor
+      .insert(settings)
+      .values({ key: 'auth:methods', value, updatedAt: new Date() })
+      .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: new Date() } });
   }
 
   private async getSetting<T>(key: string, fallback: T): Promise<T> {

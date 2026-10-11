@@ -144,7 +144,18 @@ export type CloudAnswer =
   | { id: string; ok: false; error: string; code?: string };
 
 /** Request kinds that act on the installation; they need remote management (see CloudLinkAccess). */
-export const CLOUD_PRIVILEGED_REQUEST_TYPES: ReadonlySet<string> = new Set(['node-token', 'update', 'setup-link']);
+export const CLOUD_PRIVILEGED_REQUEST_TYPES: ReadonlySet<string> = new Set([
+  'node-token',
+  'update',
+  'setup-link',
+  'sso-secret',
+]);
+/** Privileged kinds only a managed cloud VM answers; "Allow remote management" does not open them. */
+export const CLOUD_MANAGED_ONLY_REQUEST_TYPES: ReadonlySet<string> = new Set(['sso-secret']);
+export const NOT_MANAGED_BY_CLOUD = {
+  code: 'NOT_MANAGED_BY_CLOUD',
+  error: 'Only an installation managed by the cloud accepts this request',
+} as const;
 export const REMOTE_MANAGEMENT_OFF = {
   code: 'REMOTE_MANAGEMENT_OFF',
   error: 'Remote management is off on this installation',
@@ -153,6 +164,8 @@ export const REMOTE_MANAGEMENT_OFF = {
 /** Whether the cloud account may run privileged requests: a managed cloud VM, or the admin allowed it. */
 export interface CloudLinkAccess {
   privilegedAllowed(): Promise<boolean>;
+  /** A managed cloud VM (enrolled from its provisioning file). */
+  managedByCloud(): Promise<boolean>;
 }
 
 export interface CloudRemoteManagement {
@@ -224,6 +237,8 @@ export interface CloudLinkActions {
   }>;
   /** Starts the same update as Settings → Update now (default: the latest version). */
   update(version?: string): Promise<{ started: true; version: string }>;
+  /** Stores (encrypted) a new client secret of the Opfield account sign-in provider; answers once saved. */
+  ssoSecret(clientSecret: string): Promise<{ saved: true }>;
 }
 
 /** Request kinds that only read; identical successful reads share one audit entry. Actions never do. */

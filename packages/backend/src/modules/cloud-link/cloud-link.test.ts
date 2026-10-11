@@ -7,8 +7,9 @@ import type { CloudLinkAccess, CloudLinkProbe, CloudRequest } from './cloud-link
 import { cloudAgentSocketUrl, cloudBackoffDelay, cloudRequestAudit } from './cloud-link-agent.js';
 import { answerCloudRequest, parseCloudRequest } from './cloud-link-requests.js';
 
-const allowed: CloudLinkAccess = { privilegedAllowed: async () => true };
-const denied: CloudLinkAccess = { privilegedAllowed: async () => false };
+const managed: CloudLinkAccess = { privilegedAllowed: async () => true, managedByCloud: async () => true };
+const allowed: CloudLinkAccess = { privilegedAllowed: async () => true, managedByCloud: async () => false };
+const denied: CloudLinkAccess = { privilegedAllowed: async () => false, managedByCloud: async () => false };
 const ask = (probe: CloudLinkProbe, request: CloudRequest, access: CloudLinkAccess = allowed) =>
   answerCloudRequest(probe, request, access);
 
@@ -60,6 +61,7 @@ describe('cloud link', () => {
         updating: false,
       }),
       update: async (version) => ({ started: true, version: version ?? 'v2.11.5' }),
+      ssoSecret: async () => ({ saved: true }),
     };
 
     const request = parseCloudRequest(
@@ -246,5 +248,29 @@ describe('cloud link', () => {
         1
       )
     ).toMatchObject({ ok: false, errorCode: 'REMOTE_MANAGEMENT_OFF' });
+  });
+
+  it('takes a new sign-in client secret only on a managed installation, and never echoes or audits it', async () => {
+    const SECRET = 'portal-secret-6f1d2c';
+    const ssoSecret = vi.fn(async (secret: string) => {
+      if (secret === 'fails') throw new Error(`could not store ${secret}`);
+      return { saved: true as const };
+    });
+    const probe = { ssoSecret } as unknown as CloudLinkProbe;
+    const request = { id: 'k', type: 'sso-secret', params: { clientSecret: SECRET } };
+    await expect(ask(probe, request, denied)).resolves.toMatchObject({ ok: false, code: 'REMOTE_MANAGEMENT_OFF' });
+    await expect(ask(probe, request, allowed)).resolves.toMatchObject({ ok: false, code: 'NOT_MANAGED_BY_CLOUD' });
+    expect(ssoSecret).not.toHaveBeenCalled();
+    const answer = await ask(probe, request, managed);
+    expect(answer).toEqual({ id: 'k', ok: true, data: { saved: true } });
+    expect(ssoSecret).toHaveBeenCalledWith(SECRET);
+    await expect(ask(probe, { id: 'e', type: 'sso-secret', params: {} }, managed)).resolves.toMatchObject({
+      ok: false,
+    });
+    const failed = await ask(probe, { id: 'f', type: 'sso-secret', params: { clientSecret: 'fails' } }, managed);
+    expect(failed).toEqual({ id: 'f', ok: false, error: 'could not store [REDACTED]' });
+    const audit = cloudRequestAudit(request, answer, 20, 1);
+    expect(JSON.stringify(audit)).not.toContain(SECRET);
+    expect(audit).toMatchObject({ type: 'sso-secret', ok: true });
   });
 });

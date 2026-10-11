@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import type { DrizzleClient } from '@/db/client.js';
+import type { DrizzleClient, DrizzleExecutor } from '@/db/client.js';
 import { settings } from '@/db/schema/settings.js';
 
 export const FINALIZE_SETUP_STATE_KEY = 'onboarding:finalize_setup';
@@ -80,14 +80,14 @@ function normalizeState(value: unknown): FinalizeSetupState | null {
 export class FinalizeSetupService {
   constructor(private readonly db: DrizzleClient) {}
 
-  async initializeOwner(userId: string): Promise<void> {
+  async initializeOwner(userId: string, executor: DrizzleExecutor = this.db): Promise<void> {
     const state: FinalizeSetupState = {
       version: 3,
       ownerUserId: userId,
       mfaReminderHiddenAt: null,
       steps: pendingSteps(),
     };
-    await this.db
+    await executor
       .insert(settings)
       .values({ key: FINALIZE_SETUP_STATE_KEY, value: state, updatedAt: new Date() })
       .onConflictDoNothing();

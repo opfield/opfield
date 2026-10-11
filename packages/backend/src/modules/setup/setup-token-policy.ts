@@ -1,5 +1,5 @@
 import { count, eq, inArray, isNull, not, or } from 'drizzle-orm';
-import type { DrizzleClient } from '@/db/client.js';
+import type { DrizzleClient, DrizzleExecutor, DrizzleTransaction } from '@/db/client.js';
 import { settings, users } from '@/db/schema/index.js';
 
 const GATEWAY_SYSTEM_OIDC_SUBJECT = 'system:gateway-setup';
@@ -22,8 +22,8 @@ export class SetupTokenPolicyService {
     private readonly installerBootstrapEnabled = false
   ) {}
 
-  async isGatewayConfigured(): Promise<boolean> {
-    const [{ count: userCount }] = await this.db
+  async isGatewayConfigured(executor: DrizzleExecutor = this.db): Promise<boolean> {
+    const [{ count: userCount }] = await executor
       .select({ count: count() })
       .from(users)
       .where(or(isNull(users.oidcSubject), not(eq(users.oidcSubject, GATEWAY_SYSTEM_OIDC_SUBJECT))));
@@ -66,17 +66,20 @@ export class SetupTokenPolicyService {
   }
 
   async markSetupComplete(): Promise<void> {
+    await this.db.transaction((tx) => this.markSetupCompleteIn(tx));
+  }
+
+  /** Marks setup complete in the caller's transaction (with the administrator it creates, all or nothing). */
+  async markSetupCompleteIn(tx: DrizzleTransaction): Promise<void> {
     const completedAt = new Date().toISOString();
-    await this.db.transaction(async (tx) => {
-      await tx
-        .insert(settings)
-        .values({ key: SETUP_COMPLETED_AT_KEY, value: completedAt, updatedAt: new Date() })
-        .onConflictDoUpdate({
-          target: settings.key,
-          set: { value: completedAt, updatedAt: new Date() },
-        });
-      await tx.delete(settings).where(eq(settings.key, SETUP_FORCED_OPEN_KEY));
-    });
+    await tx
+      .insert(settings)
+      .values({ key: SETUP_COMPLETED_AT_KEY, value: completedAt, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: settings.key,
+        set: { value: completedAt, updatedAt: new Date() },
+      });
+    await tx.delete(settings).where(eq(settings.key, SETUP_FORCED_OPEN_KEY));
   }
 
   async reopenSetup(): Promise<void> {

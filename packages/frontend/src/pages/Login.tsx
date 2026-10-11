@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { AnimatedHeight } from "@/components/common/AnimatedHeight";
 import { CopyValueField } from "@/components/common/CopyValueField";
+import { OpfieldMark } from "@/components/common/OpfieldMark";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,10 @@ export type AuthMethods = {
   emailOtp: boolean;
   passkeyLogin: boolean;
   demoEmailOtp?: boolean;
+  /** Name on the OIDC button ("Sign in with <name>"); absent or null shows "Sign in with SSO". */
+  oidcDisplayName?: string | null;
+  /** The OIDC provider is the Opfield account a managed installation was provisioned with. */
+  oidcOpfieldAccount?: boolean;
 };
 type PendingMfa = { challengeId: string; passkeyAvailable: boolean };
 type PendingEnrollment = {
@@ -95,6 +100,12 @@ async function authRequest<T>(path: string, body?: unknown): Promise<T> {
   const data = (await response.json().catch(() => ({}))) as { message?: string; code?: string } & T;
   if (!response.ok) throw new Error(data.message ?? "Sign-in failed");
   return data;
+}
+
+/** "Sign in with Opfield account" on a managed installation, the provider's name, or "Sign in with SSO". */
+export function oidcButtonLabel(methods: Pick<AuthMethods, "oidcDisplayName">): string {
+  const name = methods.oidcDisplayName?.trim();
+  return name ? `Sign in with ${name}` : "Sign in with SSO";
 }
 
 export function loadAuthMethods(): Promise<AuthMethods> {
@@ -733,8 +744,12 @@ export function LoginPage({
                     }}
                     disabled={busy}
                   >
-                    <LogIn className="h-4 w-4" />
-                    Sign in with SSO
+                    {methods.oidcOpfieldAccount ? (
+                      <OpfieldMark className="h-4 w-4 text-current" title="" />
+                    ) : (
+                      <LogIn className="h-4 w-4" />
+                    )}
+                    {oidcButtonLabel(methods)}
                   </Button>
                 )}
                 {emailEnabled && (

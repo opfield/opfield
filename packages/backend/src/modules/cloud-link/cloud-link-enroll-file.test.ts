@@ -5,7 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OperationLeaseStore } from '@/db/operation-lease.js';
 import { LicenseServerRequestError } from '@/modules/license/license.service.js';
 import { CloudLinkRequestError, type CloudLinkService } from './cloud-link.service.js';
-import { CloudLinkEnrollFile, createEnrollFileLicense, type EnrollFileLicense } from './cloud-link-enroll-file.js';
+import {
+  CloudLinkEnrollFile,
+  createEnrollFileLicense,
+  type EnrollFileLicense,
+  type EnrollFileSso,
+} from './cloud-link-enroll-file.js';
 
 const KEY = 'WLT-GW-AAAA-BBBB-CCCC-DDDD';
 const leases = {
@@ -36,6 +41,7 @@ describe('cloud enrolment file', () => {
       }),
       recordEnrollFileEvent: vi.fn(async (_details: Record<string, unknown>) => undefined),
       recordLicenseActivation: vi.fn(async (_details: Record<string, unknown>) => undefined),
+      recordManagedSso: vi.fn(async (_details: Record<string, unknown>) => undefined),
     };
   }
 
@@ -131,5 +137,111 @@ describe('cloud enrolment file', () => {
     ).resolves.toBe(true);
     expect(await exists(path)).toBe(true);
     expect(keys.activate).not.toHaveBeenCalled();
+  });
+
+  describe('Opfield account sign-in', () => {
+    const SECRET = 'client-secret-9f8e7d';
+    const file = {
+      code: 'CLD-7K3M-Q9TX',
+      publicUrl: 'https://acme.opfield.cloud:3000',
+      sso: { issuer: 'https://account.opfield.dev', clientId: 'gw-acme', clientSecret: SECRET },
+      owner: { sub: '0b6f3c8e-6a1e-4d43-9b8e-2b8d3c1f0a77', email: 'Owner@Example.com', name: 'Ada Owner' },
+    };
+
+    it('sets up sign-in before enrolling and takes the client secret out of the file while enrolment retries', async () => {
+      await writeFile(path, JSON.stringify(file));
+      let reachable = false;
+      const fake = service(async () => {
+        if (!reachable) throw new CloudLinkRequestError(502, 'CLOUD_PORTAL_UNAVAILABLE', 'unreachable', true);
+        return {};
+      });
+      const sso: EnrollFileSso = { apply: vi.fn(async () => 'done' as const) };
+      const runner = new CloudLinkEnrollFile(
+        fake as unknown as CloudLinkService,
+        leases,
+        license(async () => ({ plan: 'x', moduleRestarting: null })),
+        path
+      );
+      runner.setManagedSso(sso);
+      await expect(runner.runOnce()).resolves.toBe(true);
+      expect(sso.apply).toHaveBeenCalledWith({
+        publicUrl: 'https://acme.opfield.cloud:3000',
+        sso: file.sso,
+        owner: { ...file.owner, email: 'owner@example.com' },
+      });
+      const left = JSON.parse(await readFile(path, 'utf8'));
+      expect(left.sso).toEqual({ issuer: 'https://account.opfield.dev', clientId: 'gw-acme' });
+      expect(left.owner.sub).toBe(file.owner.sub);
+      expect(fake.recordManagedSso).toHaveBeenCalledWith(
+        expect.objectContaining({ step: 'secret_removed', outcome: 'done' })
+      );
+
+      // The next pass (or the next start) does not set sign-in up twice, and finishes once the account answers.
+      reachable = true;
+      await expect(runner.runOnce()).resolves.toBe(false);
+      expect(sso.apply).toHaveBeenCalledTimes(1);
+      expect(await exists(path)).toBe(false);
+      expect(fake.recordEnrollFileEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ outcome: 'settled', enrollment: 'done', sso: 'done', removed: true })
+      );
+      expect(
+        JSON.stringify([
+          fake.recordEnrollFileEvent.mock.calls,
+          fake.recordManagedSso.mock.calls,
+          fake.connect.mock.calls,
+        ])
+      ).not.toContain(SECRET);
+    });
+
+    it('keeps the file and the secret while sign-in waits for another pass', async () => {
+      await writeFile(path, JSON.stringify(file));
+      const fake = service(async () => ({}));
+      let calls = 0;
+      const sso: EnrollFileSso = { apply: vi.fn(async () => (++calls === 1 ? ('retry' as const) : ('done' as const))) };
+      const runner = new CloudLinkEnrollFile(
+        fake as unknown as CloudLinkService,
+        leases,
+        license(async () => ({ plan: 'x', moduleRestarting: null })),
+        path
+      );
+      runner.setManagedSso(sso);
+      await expect(runner.runOnce()).resolves.toBe(true);
+      expect(JSON.parse(await readFile(path, 'utf8')).sso.clientSecret).toBe(SECRET);
+      await expect(runner.runOnce()).resolves.toBe(false);
+      expect(sso.apply).toHaveBeenCalledTimes(2);
+      expect(await exists(path)).toBe(false);
+    });
+
+    it('removes the secret too when sign-in was refused for good, and leaves the setup link flow', async () => {
+      await writeFile(path, JSON.stringify({ ...file, owner: undefined }));
+      const fake = service(async () => {
+        throw new CloudLinkRequestError(502, 'CLOUD_PORTAL_UNAVAILABLE', 'unreachable', true);
+      });
+      const sso: EnrollFileSso = { apply: vi.fn(async () => 'rejected' as const) };
+      const runner = new CloudLinkEnrollFile(
+        fake as unknown as CloudLinkService,
+        leases,
+        license(async () => ({ plan: 'x', moduleRestarting: null })),
+        path
+      );
+      runner.setManagedSso(sso);
+      await expect(runner.runOnce()).resolves.toBe(true);
+      expect(JSON.parse(await readFile(path, 'utf8')).sso.clientSecret).toBeUndefined();
+    });
+
+    it('ignores a malformed owner, and files without sso or owner stay on the current flow', async () => {
+      await writeFile(path, JSON.stringify({ code: 'CLD-7K3M-Q9TX', owner: { sub: '', email: 'not-an-email' } }));
+      const fake = service(async () => ({}));
+      const sso: EnrollFileSso = { apply: vi.fn(async () => 'done' as const) };
+      const runner = new CloudLinkEnrollFile(
+        fake as unknown as CloudLinkService,
+        leases,
+        license(async () => ({ plan: 'x', moduleRestarting: null })),
+        path
+      );
+      runner.setManagedSso(sso);
+      await expect(runner.runOnce()).resolves.toBe(false);
+      expect(sso.apply).not.toHaveBeenCalled();
+    });
   });
 });
