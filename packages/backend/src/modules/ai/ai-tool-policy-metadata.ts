@@ -80,6 +80,7 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
   }),
   manage_app: operationPolicies({ create: ['create'], update: ['update'], delete: ['delete'] }),
   manage_app_members: operationPolicies({ read: ['list'], update: ['place'] }),
+  promote_app_environment: operationPolicies({ read: ['preview', 'status', 'list'], execute: ['execute'] }),
   manage_app_incident: operationPolicies({
     read: ['status', 'preview'],
     execute: ['shutdown', 'start', 'isolate', 'release'],

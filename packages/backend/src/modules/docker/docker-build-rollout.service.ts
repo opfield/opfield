@@ -36,4 +36,29 @@ export class DockerBuildRolloutService {
   > {
     return { succeeded: 0, failed: 0 };
   }
+  /**
+   * App promotion: make the build artifact `repository@digest` (internal registry) the active artifact of another
+   * owner (`container:<nodeId>:<name>` or `deployment:<id>`), rotating its pins like a rollout, without a build.
+   * False when no artifact matches.
+   */
+  async pinPromotedArtifact(_input: {
+    repository: string;
+    digest: string;
+    ownerKey: string;
+    userId: string | null;
+  }): Promise<boolean> {
+    return commercialModuleUnavailable();
+  }
+  /**
+   * App promotion of an image that exists only on its node (no registry digest): push it to the internal registry as
+   * an artifact owned by `promotion` + `ownerKey` and return its pullable `127.0.0.1:5443/<repo>@<digest>` reference.
+   */
+  async snapshotForPromotion(_input: {
+    nodeId: string;
+    image: string;
+    ownerKey: string;
+    userId: string | null;
+  }): Promise<{ image: string; repository: string; digest: string }> {
+    return commercialModuleUnavailable();
+  }
 }

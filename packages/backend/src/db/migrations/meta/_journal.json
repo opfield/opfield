@@ -1674,6 +1674,13 @@
       "when": 1792257437000,
       "tag": "0238_app_incidents",
       "breakpoints": true
+    },
+    {
+      "idx": 239,
+      "version": "7",
+      "when": 1792343837000,
+      "tag": "0239_app_promotions",
+      "breakpoints": true
     }
   ]
 }

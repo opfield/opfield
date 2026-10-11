@@ -58,6 +58,7 @@ import { AppMembershipService } from '@/modules/apps/app-membership.js';
 import { AppNetworkIsolation } from '@/modules/apps/app-network-isolation.js';
 import { AppNodesService } from '@/modules/apps/app-nodes.service.js';
 import { AppOverviewService } from '@/modules/apps/app-overview.service.js';
+import { AppPromotionService } from '@/modules/apps/app-promotion.service.js';
 import { AppVariablesService } from '@/modules/apps/app-variables.service.js';
 import { AppsService } from '@/modules/apps/apps.service.js';
 import { AlertService } from '@/modules/audit/alert.service.js';
@@ -1466,6 +1467,10 @@ export async function initializeContainer(): Promise<void> {
     auditService
   );
   container.registerInstance(AppIncidentService, appIncidentService);
+  container.registerInstance(
+    AppPromotionService,
+    new AppPromotionService(db, appsService, appMembersReader, appMemberFreeze, auditService)
+  );
   appsService.setIncidentGuard(appIncidentService);
   appMembersService.setIncidentCheck((environmentId) => appIncidentService.environmentHasIncident(environmentId));
   appNodesService.setFreezeCheck((environmentId) =>

@@ -10,6 +10,7 @@ import { registerAppMaintenanceRoutes } from './app-maintenance.routes.js';
 import { registerAppMembersRoutes } from './app-members.routes.js';
 import { registerAppNodesRoutes } from './app-nodes.routes.js';
 import { registerAppOverviewRoutes } from './app-overview.routes.js';
+import { registerAppPromotionRoutes } from './app-promotion.routes.js';
 import { type AppsRouter, appActor } from './app-route-helpers.js';
 import { registerAppVariablesRoutes } from './app-variables.routes.js';
 import {
@@ -87,3 +88,4 @@ registerAppMaintenanceRoutes(appsRoutes);
 registerAppOverviewRoutes(appsRoutes);
 registerAppActivityRoutes(appsRoutes);
 registerAppIncidentRoutes(appsRoutes);
+registerAppPromotionRoutes(appsRoutes);

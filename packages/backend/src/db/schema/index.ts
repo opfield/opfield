@@ -8,6 +8,7 @@ export * from './ai-runtime.js';
 export * from './alerts.js';
 export * from './api-tokens.js';
 export * from './app-incidents.js';
+export * from './app-promotions.js';
 export * from './apps.js';
 export * from './audit-log.js';
 export * from './backups.js';

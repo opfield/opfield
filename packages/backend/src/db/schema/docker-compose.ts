@@ -150,6 +150,10 @@ export const dockerComposeRevisions = pgTable(
     sourceBindingId: uuid('source_binding_id'),
     buildBatchId: uuid('build_batch_id'),
     sourceCommitSha: text('source_commit_sha'),
+    // A revision an app promotion created from another environment's revision (its images pinned by digest).
+    promotedFromRevisionId: uuid('promoted_from_revision_id').references((): AnyPgColumn => dockerComposeRevisions.id, {
+      onDelete: 'set null',
+    }),
     createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -1,4 +1,5 @@
 import { APP_INCIDENT_AI_TOOLS } from './ai.app-incident-tools.js';
+import { APP_PROMOTION_AI_TOOLS } from './ai.app-promotion-tools.js';
 import { BACKUP_AI_TOOLS } from './ai.backup-tools.js';
 import { GIT_SCOPE_TARGET_AI_TOOLS } from './ai.git-scope-target-tools.js';
 import { STORAGE_AI_TOOLS } from './ai.storage-tools.js';
@@ -34,6 +35,7 @@ const AI_TOOL_DEFINITIONS: AIToolDefinition[] = [
   ...INGRESS_GROUP_AI_TOOLS,
   ...APP_AI_TOOLS,
   ...APP_INCIDENT_AI_TOOLS,
+  ...APP_PROMOTION_AI_TOOLS,
   ...PLATFORM_AI_TOOLS,
   ...CONTROL_AI_TOOLS,
   ...DOCKER_AI_TOOLS,

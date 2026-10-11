@@ -48,6 +48,7 @@ export const AI_TOOL_ANY_SCOPE_REQUIREMENTS: Readonly<Record<string, readonly st
   get_app_overview: APP_TOOL_SCOPES,
   get_app_activity: APP_TOOL_SCOPES,
   manage_app_incident: APP_TOOL_SCOPES,
+  promote_app_environment: APP_TOOL_SCOPES,
   manage_database_backups: [
     'databases:backups:view',
     'databases:backups:manage',
