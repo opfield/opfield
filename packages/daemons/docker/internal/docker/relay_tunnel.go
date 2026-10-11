@@ -597,6 +597,13 @@ func (r *relayTunnelRouter) acceptIncoming(ctx context.Context, assignment *pb.R
 		dialed.conn, err = r.plugin.databaseManager.prepareLinkConnection(ctx, dialed.conn, *dialed.postgres, tunnel, cancel)
 	}
 	if err != nil {
+		if errors.Is(err, errRelayClientLeftEarly) {
+			// The client gave up before the tunnel opened (a relay that took long to take it): not this
+			// endpoint's failure, and nobody is left to answer.
+			r.plugin.logger.Debug("relay endpoint tunnel ended by its client before any data", "owner_kind", assignment.OwnerKind,
+				"owner_id", assignment.OwnerId, "relay_instance_id", r.targetID)
+			return
+		}
 		if !errors.Is(err, errEndpointNotServed) {
 			r.tunnelFailed(assignment, "dial", err)
 			_ = stream.Send(&relayv1.TunnelFrame{Payload: &relayv1.TunnelFrame_Error{Error: &relayv1.RelayError{Code: "endpoint_unavailable", Message: "Endpoint is unavailable"}}})
