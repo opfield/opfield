@@ -34,6 +34,13 @@ service RelayAdmin {
   rpc ReloadIdentity(ReloadIdentityRequest) returns (ReloadIdentityResponse);
   rpc CommitIdentityRotation(CommitIdentityRotationRequest) returns (CommitIdentityRotationResponse);
   rpc SetDrain(SetDrainRequest) returns (SetDrainResponse);
+  // Opens a tunnel with this relay itself as the origin (a witness process
+  // the relay supervisor runs reaching availability set members). The first
+  // frame is dial; then the stream carries data like OpenTunnel. Only routes
+  // whose source is this relay instance (source_kind relay_instance) are
+  // dialled, under their target endpoint's lease gate and session limits.
+  // Relays advertise relay_dial_route_v1.
+  rpc DialRoute(stream TunnelFrame) returns (stream TunnelFrame);
 }
 
 message SignedGrant {
@@ -116,10 +123,17 @@ message TunnelFrame {
     TunnelHalfClose half_close = 5;
     TunnelClose close = 6;
     RelayError error = 7;
+    // RelayAdmin.DialRoute only: the route to dial.
+    DialRoute dial = 8;
   }
 }
 
 message OpenTunnel { SignedGrant grant = 1; }
+message DialRoute {
+  string route_id = 1;
+  // 0 dials the route of the policy without assignment scope.
+  uint64 assignment_generation = 2;
+}
 message AcceptTunnel { string accept_token = 1; }
 message TunnelReady { uint32 max_frame_bytes = 1; }
 message TunnelData { bytes data = 1; }
@@ -164,6 +178,11 @@ message EndpointPolicy {
   // the relay admits the registration and its tunnels only while its lease
   // gate is open for subject_id (A2.4, A8, A11). Empty keeps legacy admission.
   string lease_policy_id = 10;
+  // Relay-local endpoint (subject_kind relay_instance, subject_id this
+  // relay's instance id): the relay serves tunnels to it itself, by dialling
+  // 127.0.0.1:relay_local_port, a port of the witness range (39400-39499).
+  // No daemon registers it. Relays advertise relay_local_endpoints_v1.
+  uint32 relay_local_port = 11;
 }
 
 message RoutePolicy {
@@ -393,6 +412,13 @@ enum LeaseNackReason {
   // Graceful close: the acceptor does not confirm the close to this holder
   // (it is not the slot's retained holder, or another proposer superseded it).
   LEASE_NACK_REASON_RETAIN_REFUSED = 11;
+  // Stateful keys (availability_lease_v3): the propose does not echo a promise
+  // this acceptor issued in its current incarnation (it restarted or lost its
+  // state since), so it neither accepts nor leaves UNKNOWN (AS1).
+  LEASE_NACK_REASON_NO_PROMISE = 12;
+  // Stateful keys: the proposed holder state is missing, too large, cannot be
+  // decoded, or names another holder than the ballot's proposer.
+  LEASE_NACK_REASON_STATE_INVALID = 13;
 }
 
 enum LeaseKeyState {
@@ -499,6 +525,10 @@ message LeasePromise {
   // True while the acceptor abstains (A3) or does not vote: never counted.
   bool shadow = 4;
   uint64 acceptor_incarnation = 5;
+  // Stateful keys only (availability_lease_v3): the acceptor's highest
+  // accepted ballot and state (Paxos phase 1b), or UNKNOWN. Absent means
+  // UNKNOWN, so a v2 acceptor never counts toward a KNOWN majority.
+  LeaseAcceptedState accepted = 6;
 }
 
 message LeasePropose {
@@ -507,6 +537,9 @@ message LeasePropose {
   uint64 epoch = 3;
   uint64 manifest_version = 4;
   uint64 echo = 5;
+  // Stateful keys only: the proposed LeaseHolderState, encoded. Its sha256 is
+  // what the accept v2 statement covers; the transition id travels inside.
+  bytes state = 6;
 }
 
 // A signed accept. The signature covers the canonical accept statement
@@ -522,6 +555,9 @@ message LeaseAccepted {
   // Signature of the same statement with the acceptor's previous identity
   // key while it rotates keys; any one verifying signature suffices.
   repeated bytes additional_signatures = 8;
+  // Stateful keys only: sha256 of the accepted propose's state. Its presence
+  // selects the accept v2 statement (doc.go).
+  bytes state_hash = 9;
 }
 
 message LeaseNack {
@@ -544,6 +580,9 @@ message LeaseCommit {
   uint64 epoch = 3;
   uint64 manifest_version = 4;
   repeated LeaseAccepted quorum = 5;
+  // Stateful keys only: the certified LeaseHolderState bytes; every accept of
+  // the quorum covers their sha256.
+  bytes state = 6;
 }
 
 message LeaseRelease {
@@ -600,6 +639,56 @@ message LeaseStatus {
   uint64 manifest_version = 7;
   // Reserved-for holder while state is RESERVED (bootstrap or successor).
   string reserved_for = 8;
+  // Stateful keys only: as LeasePromise.accepted, so candidates evaluate
+  // eligibility before they send a prepare.
+  LeaseAcceptedState accepted = 9;
+}
+
+// Stateful keys only (availability_lease_v3). An acceptor's memory of a key:
+// UNKNOWN (known = false) when its store was created fresh, it has no accepted
+// record for the key, or the record predates its adoption of the policy's
+// current voter set as a new voter (AS1).
+message LeaseAcceptedState {
+  bool known = 1;
+  // Highest ballot this acceptor accepted as a voter and the state it carried.
+  LeaseBallot ballot = 2;
+  bytes state = 3;
+  // The proposer of ballot released it (final release, A6) as far as this
+  // acceptor knows, and the successor that release designated.
+  bool released = 4;
+  string released_successor_id = 5;
+  // Voter epoch the accept was made under.
+  uint64 epoch = 6;
+}
+
+// The certified value of a stateful lease key (availability_lease_v3). The
+// library maintains every field but value, which is the application's state
+// (opaque to relays, at most 1024 bytes). The encoded bytes are hashed as
+// carried; nobody re-encodes them.
+message LeaseHolderState {
+  bytes value = 1;
+  // Proposer of the ballot that proposed this state.
+  string holder_id = 2;
+  // Set by every acquisition; cleared by the holder's Promoted transition.
+  bool pending_promotion = 3;
+  // Last holder whose Promoted transition was certified.
+  string promoted_holder_id = 4;
+  // Incremented on every change of the state.
+  uint64 generation = 5;
+  // Id of the last application transition applied to value; empty after an
+  // acquisition or bootstrap.
+  string transition_id = 6;
+  // Set by a forced acquisition (AS10); kept until the next Promoted transition.
+  LeaseForcedMarker forced = 7;
+}
+
+message LeaseForcedMarker {
+  string operation_id = 1;
+  // Highest commit ballot the operator saw when forcing.
+  LeaseBallot over = 2;
+  string holder_id = 3;
+  // Highest KNOWN accepted ballot the forced state replaced; empty when none.
+  LeaseBallot base = 4;
 }
 
 // Signed by the relay policy signing key (Ed25519) over
@@ -656,6 +745,10 @@ message LeaseManifest {
   // holder it sees for the slot when it closes; an unheld slot has no entry.
   // A holder that is not named, or cannot reach such a majority, fences.
   repeated LeaseRetainedSlot retained = 16;
+  // Every key carries a certified holder state (availability_lease_v3; every
+  // participant must advertise it). Strict partition mode only: the library
+  // rejects AVAILABLE for a stateful manifest (AS8).
+  bool stateful = 17;
 }
 
 message LeaseRetainedSlot {
@@ -826,6 +919,15 @@ message AvailabilityLeaseKeyView {
   // for a holder change it learns later, for example after it was down
   // (N-5). Zero when unknown.
   int64 holder_since_unix_ms = 25;
+  // Stateful keys only (availability_lease_v3): whether this acceptor's
+  // memory of the key is KNOWN, the ballot it last accepted and the sha256 of
+  // that state ("sha256:<hex>"), and the hash of the latest commit's state.
+  // The state bytes are never reported.
+  bool stateful = 26;
+  bool state_known = 27;
+  string state_hash = 28;
+  AvailabilityLeaseBallot accepted = 29;
+  string committed_state_hash = 30;
 }
 
 message AvailabilityLeaseBallot {

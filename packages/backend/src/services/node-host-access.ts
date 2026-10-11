@@ -13,6 +13,20 @@ export const NODE_FILES_DISABLED_CAPABILITY = 'node_files_disabled_v1';
  * as that user, so it refuses every console session.
  */
 export const NODE_CONSOLE_USER_UNAVAILABLE_CAPABILITY = 'node_console_user_unavailable_v1';
+/**
+ * Protected mode: the owner of the machine a relay runs on turned it on in the relay's local config. The relay refuses
+ * console, command execution, file access and host diagnostics whatever Gateway sends; Gateway can only update it with
+ * official signed releases and route traffic through it. Nobody can turn it off from Gateway.
+ */
+export const NODE_PROTECTED_CAPABILITY = 'node_protected_v1';
+/** The owner of a protected relay allows database availability witness processes on it (off by default). */
+export const RELAY_PROTECTED_WITNESS_ALLOWED_CAPABILITY = 'relay_protected_witness_allowed_v1';
+
+const NODE_PROTECTED = {
+  code: 'NODE_PROTECTED',
+  message:
+    "This relay runs in protected mode, set by the owner of its machine in the relay's local configuration. Gateway cannot open a console, run commands, read or write files or collect host diagnostics on it; it can only update the relay with official signed releases and route traffic through it. Only the machine owner can turn protected mode off.",
+};
 
 const CONSOLE_USER_UNAVAILABLE = {
   code: 'NODE_CONSOLE_USER_UNAVAILABLE',
@@ -39,11 +53,18 @@ const FEATURES: Record<NodeHostFeature, { capability: string; code: string; mess
 
 /** The flags stored on the node's capabilities (and returned by the node API) for the features its daemon disabled. */
 export function nodeHostAccessFlags(advertised: readonly string[] | null | undefined): {
+  nodeProtected?: true;
+  protectedWitnessAllowed?: true;
   nodeConsoleDisabled?: true;
   nodeFilesDisabled?: true;
   nodeConsoleUserUnavailable?: true;
 } {
+  const nodeProtected = advertised?.includes(NODE_PROTECTED_CAPABILITY) === true;
   return {
+    ...(nodeProtected ? { nodeProtected: true as const } : {}),
+    ...(nodeProtected && advertised?.includes(RELAY_PROTECTED_WITNESS_ALLOWED_CAPABILITY)
+      ? { protectedWitnessAllowed: true as const }
+      : {}),
     ...(advertised?.includes(NODE_CONSOLE_DISABLED_CAPABILITY) ? { nodeConsoleDisabled: true as const } : {}),
     ...(advertised?.includes(NODE_FILES_DISABLED_CAPABILITY) ? { nodeFilesDisabled: true as const } : {}),
     ...(advertised?.includes(NODE_CONSOLE_USER_UNAVAILABLE_CAPABILITY)
@@ -59,8 +80,20 @@ export function nodeHostFeatureDisabledError(feature: NodeHostFeature): AppError
 
 type CapabilityRegistry = { hasCapability(nodeId: string, capability: string): boolean };
 
+export function nodeProtectedError(): AppError {
+  return new AppError(409, NODE_PROTECTED.code, NODE_PROTECTED.message);
+}
+
+/** Whether the connected node runs in protected mode. */
+export function isNodeProtected(registry: CapabilityRegistry, nodeId: string): boolean {
+  return registry.hasCapability(nodeId, NODE_PROTECTED_CAPABILITY);
+}
+
 /** Why the node's daemon refuses every host console session, or null when it accepts them. */
 export function nodeConsoleRefusal(registry: CapabilityRegistry, nodeId: string): AppError | null {
+  if (isNodeProtected(registry, nodeId)) {
+    return nodeProtectedError();
+  }
   if (registry.hasCapability(nodeId, NODE_CONSOLE_DISABLED_CAPABILITY)) {
     return nodeHostFeatureDisabledError('console');
   }
@@ -79,9 +112,11 @@ export function assertNodeHostFeatureEnabled(
   const refusal =
     feature === 'console'
       ? nodeConsoleRefusal(registry, nodeId)
-      : registry.hasCapability(nodeId, FEATURES[feature].capability)
-        ? nodeHostFeatureDisabledError(feature)
-        : null;
+      : isNodeProtected(registry, nodeId)
+        ? nodeProtectedError()
+        : registry.hasCapability(nodeId, FEATURES[feature].capability)
+          ? nodeHostFeatureDisabledError(feature)
+          : null;
   if (refusal) {
     throw refusal;
   }

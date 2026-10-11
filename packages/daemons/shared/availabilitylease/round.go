@@ -26,6 +26,17 @@ type round struct {
 	refused    map[string]bool
 	sawOther   bool
 	higher     bool
+
+	// Stateful keys (state_proposer.go): KNOWN promises of voters, the
+	// proposal and its hash, the transition it carries or certifies, and the
+	// operation id of a forced acquisition.
+	stateful      bool
+	known         map[string]knownAccepted
+	proposal      []byte
+	proposalHash  [32]byte
+	proposalState HolderState
+	transition    string
+	forced        string
 }
 
 func (n *Node) startRound(pk *proposerKey, manifest *Manifest, purpose Role, now time.Duration) {
@@ -41,6 +52,7 @@ func (n *Node) startRound(pk *proposerKey, manifest *Manifest, purpose Role, now
 		ballot: ballot, anchor: now, deadline: now + roundTimeout, config: config, manifest: manifest, purpose: purpose,
 		echoes: map[string]uint64{}, promised: map[string]bool{}, proposedTo: map[string]bool{},
 		accepts: map[string]*pb.LeaseAccepted{}, refused: map[string]bool{},
+		stateful: manifest.Stateful, known: map[string]knownAccepted{},
 	}
 	if purpose == RoleAcquiring || purpose == RoleBootstrapping {
 		pk.role = purpose
@@ -86,9 +98,16 @@ func (n *Node) onPromise(from string, msg *pb.LeasePromise, now time.Duration) {
 	}
 	if !msg.GetShadow() && r.config.isVoter(from) {
 		r.promised[from] = true
+		if report, ok := parseKnown(msg.GetAccepted()); ok && r.stateful {
+			r.known[from] = report
+		}
 	}
 	if r.proposing {
 		n.sendPropose(pk, r, from, now)
+		return
+	}
+	if r.stateful {
+		n.statefulPromise(pk, r, now)
 		return
 	}
 	if r.config.quorum(r.promised) {
@@ -136,6 +155,9 @@ func (n *Node) sendPropose(pk *proposerKey, r *round, to string, now time.Durati
 		Key: pk.key.proto(), Ballot: r.ballot.proto(), Epoch: r.config.Epoch,
 		ManifestVersion: r.manifest.Version, Echo: r.echoes[to],
 	}
+	if r.stateful {
+		propose.State = r.proposal
+	}
 	n.queue(to, &pb.LeaseItem{Body: &pb.LeaseItem_Propose{Propose: propose}})
 }
 
@@ -148,7 +170,10 @@ func (n *Node) onAccepted(from string, msg *pb.LeaseAccepted, now time.Duration)
 	if r == nil || !r.config.isVoter(from) || msg.GetEpoch() != r.config.Epoch || msg.GetManifestVersion() != r.manifest.Version {
 		return
 	}
-	statement := acceptStatement(key, r.ballot, msg.GetEpoch(), msg.GetManifestVersion(), from, msg.GetAcceptorIncarnation())
+	if r.stateful && !sameBytes(msg.GetStateHash(), r.proposalHash[:]) {
+		return
+	}
+	statement := statementFor(r.stateful, key, r.ballot, msg.GetEpoch(), msg.GetManifestVersion(), from, msg.GetAcceptorIncarnation(), r.proposalHash)
 	if !n.verifyAny(n.identityKeys(from), statement, msg.GetSignature(), msg.GetAdditionalSignatures()) {
 		return
 	}
@@ -202,6 +227,9 @@ func (n *Node) roundSucceeded(pk *proposerKey, r *round, majority bool, now time
 	}
 	sort.Strings(ids)
 	commit := &pb.LeaseCommit{Key: pk.key.proto(), Ballot: r.ballot.proto(), Epoch: r.config.Epoch, ManifestVersion: r.manifest.Version}
+	if r.stateful {
+		commit.State = r.proposal
+	}
 	for _, id := range ids {
 		commit.Quorum = append(commit.Quorum, r.accepts[id])
 	}
@@ -217,13 +245,16 @@ func (n *Node) roundSucceeded(pk *proposerKey, r *round, majority bool, now time
 		pk.deadline, pk.softAt = now+FenceCompleteAfter, now+FenceCompleteAfter
 	}
 	pk.designated, pk.retry = false, false
+	if r.stateful {
+		n.certify(pk, r)
+	}
 	if r.purpose == RoleBootstrapping {
 		pk.bootstrapDone = r.manifest.BootstrapID
 	}
 	pk.commit, pk.commitBallot = commit, r.ballot
 	pk.freshCommitAt, pk.hasFreshCommit = now, true
 	if acquired {
-		n.emit(Event{Kind: EventAcquired, Key: pk.key, Ballot: r.ballot, At: now})
+		n.emit(Event{Kind: EventAcquired, Key: pk.key, Ballot: r.ballot, At: now, Forced: r.forced, Recovered: r.purpose == RoleRecovering})
 	}
 	targets := map[string]bool{}
 	for _, id := range r.config.memberIDs {
@@ -309,6 +340,9 @@ func (n *Node) onNack(from string, msg *pb.LeaseNack, now time.Duration) {
 	case pb.LeaseNackReason_LEASE_NACK_REASON_BALLOT_TOO_LOW,
 		pb.LeaseNackReason_LEASE_NACK_REASON_STALE_EPOCH, pb.LeaseNackReason_LEASE_NACK_REASON_STALE_MANIFEST:
 		r.higher = true
+		if n.restartStatefulAcquisition(pk, r, msg.GetReason(), now) {
+			return
+		}
 	case pb.LeaseNackReason_LEASE_NACK_REASON_HELD, pb.LeaseNackReason_LEASE_NACK_REASON_RESERVED:
 		if msg.GetHolderId() != n.id {
 			r.sawOther = true

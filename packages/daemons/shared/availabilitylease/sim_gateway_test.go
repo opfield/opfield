@@ -34,6 +34,7 @@ type simPolicy struct {
 	id         string
 	version    uint64
 	available  bool
+	stateful   bool
 	slots      uint32
 	candidates []string
 	closed     bool
@@ -94,7 +95,7 @@ func (g *simGateway) buildManifest(p *simPolicy) *pb.LeaseSignedBlock {
 	value := &pb.LeaseManifest{
 		SchemaVersion: 1, PolicyId: p.id, ManifestVersion: p.version, Slots: p.slots, VoterEpoch: p.epoch,
 		Mode: pb.LeasePolicyMode_LEASE_POLICY_MODE_FAILOVER, PartitionMode: pb.LeasePartitionMode_LEASE_PARTITION_MODE_STRICT,
-		Closed: p.closed, BootstrapId: p.bootstrapID, LeaseTermMs: 30000,
+		Closed: p.closed, BootstrapId: p.bootstrapID, LeaseTermMs: 30000, Stateful: p.stateful,
 	}
 	if p.slots > 1 {
 		value.Mode = pb.LeasePolicyMode_LEASE_POLICY_MODE_REPLICATED
@@ -294,7 +295,10 @@ func (g *simGateway) changeVoters(policyID string, next []string, deliverP float
 			return
 		}
 		if p.jointAcked == 0 {
-			if g.adoptedBy(policyID, old, jointEpoch) && g.adoptedBy(policyID, next, jointEpoch) {
+			// Stateful policies settle only after a live holder renewed
+			// under the joint epoch (AS1); without one they stay joint.
+			if g.adoptedBy(policyID, old, jointEpoch) && g.adoptedBy(policyID, next, jointEpoch) &&
+				(!p.stateful || g.renewedUnder(policyID, jointEpoch)) {
 				p.jointAcked = g.w.now
 			} else {
 				g.deliver(p.block, 1)
@@ -310,6 +314,24 @@ func (g *simGateway) changeVoters(policyID string, next []string, deliverP float
 		g.w.after(time.Second, poll)
 	}
 	g.w.after(time.Second, poll)
+}
+
+// renewedUnder reports whether a live holder of every key of a policy
+// reported a commit under epoch, like the lease reports' HeldCommit.
+func (g *simGateway) renewedUnder(policyID string, epoch uint64) bool {
+	for _, key := range g.w.keys {
+		if key.PolicyID != policyID {
+			continue
+		}
+		holder := g.w.holder(key)
+		if holder == "" {
+			return false
+		}
+		if held, _, ok := g.w.nodes[holder].node.HeldCommit(key); !ok || held < epoch {
+			return false
+		}
+	}
+	return true
 }
 
 func (g *simGateway) republish(policyID string, deliverP float64) {

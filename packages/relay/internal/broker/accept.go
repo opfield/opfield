@@ -3,6 +3,7 @@ package broker
 import (
 	"fmt"
 
+	"github.com/wiolett-industries/gateway/daemon-shared/relaylocal"
 	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
 	"github.com/wiolett-industries/gateway/relay/internal/peer"
 	"google.golang.org/grpc/codes"
@@ -107,5 +108,6 @@ func (b *Broker) closeEndpointSessionsLocked(code codes.Code, message, endpointI
 // service (the Gateway internal registry) is served only by the local relay,
 // so it keeps admitting tunnels to it. See DrainKeepsLocalServicesCapability.
 func drainRefuses(endpoint *relayv1.EndpointPolicy) bool {
-	return endpoint.GetSubjectKind() != localServiceSubjectKind
+	// A relay-local endpoint (a witness this relay hosts) is served only here too.
+	return endpoint.GetSubjectKind() != localServiceSubjectKind && endpoint.GetSubjectKind() != relaylocal.SubjectKind
 }

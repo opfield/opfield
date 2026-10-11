@@ -140,6 +140,8 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 
 	// Send registration message
 	regMsg := d.plugin.BuildRegisterMessage(d.state.NodeID)
+	protectRegistration(d.protected, regMsg)
+	regMsg.Capabilities = append(regMsg.Capabilities, protectedCapabilities(d.protected)...)
 	regMsg.Capabilities = append(regMsg.Capabilities, d.cfg.hostAccessCapabilities()...)
 	if d.consoleUserRefusal != "" {
 		regMsg.Capabilities = append(regMsg.Capabilities, NodeConsoleUserUnavailableCapability)
@@ -344,6 +346,19 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 			continue
 		}
 
+		// Protected mode: refuse everything that is not known to be safe, before any handler sees it.
+		if refused := refuseProtectedCommand(d.protected, d.plugin, cmd); refused != nil {
+			if _, input := cmd.Payload.(*pb.GatewayCommand_ExecInput); input || cmd.CommandId == "" {
+				// Console input is fire-and-forget: there is no session to answer for.
+				continue
+			}
+			d.logger.Warn("refused a command in protected mode", "command_id", cmd.CommandId, "command", commandKind(cmd))
+			if failed, _, err := d.results.send(refused, time.Now()); failed != nil {
+				return err
+			}
+			continue
+		}
+
 		// Handle RequestHealth and RequestStats inline
 		switch cmd.Payload.(type) {
 		case *pb.GatewayCommand_RequestHealth:
@@ -503,7 +518,10 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 			updateCmd := cmd.GetUpdateDaemon()
 			result := &pb.CommandResult{CommandId: cmd.CommandId, Success: true}
 			var serviceRestart *launcherServiceRestart
-			if err := SelfUpdate(
+			if refusal := d.protectedUpdateRefusal(updateCmd.TargetVersion); refusal != "" {
+				result.Success = false
+				result.Error = refusal
+			} else if err := SelfUpdate(
 				updateCmd.DownloadUrl,
 				updateCmd.TargetVersion,
 				updateCmd.Checksum,
@@ -577,7 +595,13 @@ func runHealthReporter(ctx context.Context, d *DaemonBase, writer *stream.Writer
 
 // collectFullHealth gathers system metrics and enriches them with plugin-specific data.
 func collectFullHealth(d *DaemonBase) *pb.HealthReport {
-	report := d.plugin.CollectHealth(d.sysReporter.CollectSystemHealth(nil))
+	var system *pb.HealthReport
+	if d.protected {
+		system = d.sysReporter.CollectAggregateHealth(nil)
+	} else {
+		system = d.sysReporter.CollectSystemHealth(nil)
+	}
+	report := d.plugin.CollectHealth(system)
 	if report != nil {
 		report.RelayLatencies = relaybridge.Latency.Samples()
 	}

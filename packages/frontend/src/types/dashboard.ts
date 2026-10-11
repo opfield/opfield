@@ -191,6 +191,8 @@ export interface DashboardRelayInstance {
   revocation?: RelayRevocationStatus | null;
   /** Its control stream ended with the local relay and has not come back yet. */
   reconnecting?: boolean;
+  /** Its machine owner turned protected mode on: no console, files, commands or host diagnostics from Gateway. */
+  protected?: boolean;
 }
 
 /**

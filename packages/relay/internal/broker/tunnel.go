@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/wiolett-industries/gateway/daemon-shared/relaylocal"
 	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
 	"github.com/wiolett-industries/gateway/relay/internal/admission"
 	"github.com/wiolett-industries/gateway/relay/internal/config"
 	"github.com/wiolett-industries/gateway/relay/internal/peer"
+	"github.com/wiolett-industries/gateway/relay/internal/policy"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -19,7 +22,7 @@ import (
 // gives up within a few seconds anyway, and a held open costs a session.
 var TunnelPolicyHold = 2 * time.Second
 
-func (b *Broker) OpenTunnel(stream relayv1.TunnelBroker_OpenTunnelServer) (resultErr error) {
+func (b *Broker) OpenTunnel(stream relayv1.TunnelBroker_OpenTunnelServer) error {
 	client, err := peer.Require(stream.Context())
 	if err != nil {
 		return status.Error(codes.Unauthenticated, err.Error())
@@ -37,6 +40,35 @@ func (b *Broker) OpenTunnel(stream relayv1.TunnelBroker_OpenTunnelServer) (resul
 		b.refusals.note("source", client.SubjectID, grantRefusalReason(err), err)
 		return err
 	}
+	return b.serveTunnel(stream, tunnelRequest{
+		routeID: claims.RouteID, assignmentGeneration: claims.AssignmentGeneration,
+		routeGrantSessions: claims.MaxConcurrentSessions, grantFrameBytes: claims.MaxFrameBytes,
+		policy: func() (*policy.Snapshot, error) {
+			return b.awaitPolicyLocked(stream.Context(), claims, "connect", TunnelPolicyHold)
+		},
+	})
+}
+
+// tunnelRequest is a tunnel admitted by a verified connect grant (OpenTunnel)
+// or opened by this relay itself for a route whose source it is (DialRoute).
+type tunnelRequest struct {
+	routeID              string
+	assignmentGeneration uint64
+	// routeGrantSessions and grantFrameBytes are the grant's own limits;
+	// zero leaves the policy's.
+	routeGrantSessions uint32
+	grantFrameBytes    uint32
+	// policy returns the snapshot the tunnel is admitted under. Called and
+	// returning with mu held.
+	policy func() (*policy.Snapshot, error)
+	// relayOrigin: the route must name this relay instance as its source,
+	// and a drain does not refuse it (no other relay can carry it).
+	relayOrigin bool
+}
+
+type tunnelServerStream = grpc.BidiStreamingServer[relayv1.TunnelFrame, relayv1.TunnelFrame]
+
+func (b *Broker) serveTunnel(stream tunnelServerStream, request tunnelRequest) (resultErr error) {
 	sessionID, err := randomToken()
 	if err != nil {
 		return status.Error(codes.Internal, "could not create session id")
@@ -47,20 +79,34 @@ func (b *Broker) OpenTunnel(stream relayv1.TunnelBroker_OpenTunnelServer) (resul
 	}
 	// Taken before mu: a lease gate read waits for the lease node's disk
 	// writes, which must not hold up every other admission (F4).
-	verdicts := b.tunnelLeaseVerdicts(claims)
+	verdicts := b.tunnelLeaseVerdicts(request.routeID, request.assignmentGeneration)
 	b.mu.Lock()
-	snapshot, err := b.awaitPolicyLocked(stream.Context(), claims, "connect", TunnelPolicyHold)
+	snapshot, err := request.policy()
 	if err != nil {
 		b.mu.Unlock()
-		b.refusals.note("route", claims.RouteID, refusalPolicy, err)
+		b.refusals.note("route", request.routeID, refusalPolicy, err)
 		return err
 	}
-	route := snapshot.Route(claims.RouteID, claims.AssignmentGeneration)
+	if request.relayOrigin && request.assignmentGeneration == 0 {
+		request.assignmentGeneration = latestRouteAssignment(snapshot, request.routeID)
+	}
+	route := snapshot.Route(request.routeID, request.assignmentGeneration)
 	if route == nil {
 		b.mu.Unlock()
+		if request.relayOrigin {
+			err := status.Error(codes.NotFound, "route is not in this relay's policy")
+			b.refusals.note("route", request.routeID, refusalPolicy, err)
+			return err
+		}
 		return status.Error(codes.PermissionDenied, "connect grant route was revoked")
 	}
-	endpoint := snapshot.Endpoint(route.TargetEndpointId, claims.AssignmentGeneration)
+	if request.relayOrigin && (route.SourceKind != relaylocal.SubjectKind || snapshot.RelayInstanceID == "" || route.SourceId != snapshot.RelayInstanceID) {
+		b.mu.Unlock()
+		err := status.Error(codes.PermissionDenied, "route does not start at this relay")
+		b.refusals.note("route", route.RouteId, refusalPolicy, err)
+		return err
+	}
+	endpoint := snapshot.Endpoint(route.TargetEndpointId, request.assignmentGeneration)
 	if endpoint == nil {
 		b.mu.Unlock()
 		err := status.Error(codes.PermissionDenied, "connect grant endpoint was revoked")
@@ -69,13 +115,13 @@ func (b *Broker) OpenTunnel(stream relayv1.TunnelBroker_OpenTunnelServer) (resul
 	}
 	// Decided under the lock: a forced drain disconnects the sessions it finds
 	// under this lock, so a tunnel admitted after it must not slip in.
-	if b.draining.Load() && drainRefuses(endpoint) {
+	if b.draining.Load() && !request.relayOrigin && drainRefuses(endpoint) {
 		b.mu.Unlock()
 		err := status.Error(codes.Unavailable, "relay is draining")
 		b.refusals.note("route", route.RouteId, refusalDraining, err)
 		return err
 	}
-	frameLimit := minNonZero(DefaultMaxFrameBytes, int(route.MaxFrameBytes), int(claims.MaxFrameBytes))
+	frameLimit := minNonZero(DefaultMaxFrameBytes, int(route.MaxFrameBytes), int(request.grantFrameBytes))
 	trafficClass := routeTrafficClass(route)
 	metrics := b.routeMetricsLocked(route.RouteId)
 	startedAt := time.Now()
@@ -96,7 +142,7 @@ func (b *Broker) OpenTunnel(stream relayv1.TunnelBroker_OpenTunnelServer) (resul
 		return err
 	}
 	admit := func(grantLimit uint32) error {
-		if err := b.sessionCapacityErrorLocked(route, endpoint, claims.MaxConcurrentSessions, grantLimit); err != nil {
+		if err := b.sessionCapacityErrorLocked(route, endpoint, request.routeGrantSessions, grantLimit); err != nil {
 			return throttle(refusalSessionCap, err)
 		}
 		if err := b.admission.Admit(trafficClass, route.RouteId, b.usageLocked()); err != nil {
@@ -111,17 +157,17 @@ func (b *Broker) OpenTunnel(stream relayv1.TunnelBroker_OpenTunnelServer) (resul
 	if err := b.tunnelLeaseErrorWithLocked(verdicts, route, endpoint); err != nil {
 		return failOpen(refusalLeaseGate, err)
 	}
-	if endpoint.SubjectKind == localServiceSubjectKind {
-		target, targetErr := config.BuiltinLocalServiceTarget(endpoint.SubjectId)
+	if endpoint.SubjectKind == localServiceSubjectKind || endpoint.SubjectKind == relaylocal.SubjectKind {
+		target, reason, targetErr := localTarget(endpoint, snapshot)
 		if targetErr != nil {
-			return failOpen(refusalLocalService, status.Error(codes.PermissionDenied, targetErr.Error()))
+			return failOpen(reason, status.Error(codes.PermissionDenied, targetErr.Error()))
 		}
 		if err := admit(endpoint.MaxConcurrentSessions); err != nil {
 			return err
 		}
 		metrics.opened.Add(1)
 		metrics.touch()
-		session := &activeTunnel{routeID: route.RouteId, routeGeneration: route.Generation, sourceKind: route.SourceKind, sourceID: route.SourceId, endpointID: endpoint.EndpointId, endpointGeneration: endpoint.Generation, assignmentGeneration: claims.AssignmentGeneration, trafficClass: trafficClass, metrics: metrics, admittedSeq: b.nextAdmissionLocked(), stop: make(chan struct{})}
+		session := &activeTunnel{routeID: route.RouteId, routeGeneration: route.Generation, sourceKind: route.SourceKind, sourceID: route.SourceId, endpointID: endpoint.EndpointId, endpointGeneration: endpoint.Generation, assignmentGeneration: request.assignmentGeneration, trafficClass: trafficClass, metrics: metrics, admittedSeq: b.nextAdmissionLocked(), stop: make(chan struct{})}
 		metrics.active.Add(1)
 		b.active[sessionID] = session
 		b.trackSessionLocked(session, 1)
@@ -137,10 +183,14 @@ func (b *Broker) OpenTunnel(stream relayv1.TunnelBroker_OpenTunnelServer) (resul
 			b.pruneRouteMetrics(session.routeID, metrics)
 			session.close()
 		}()
-		connection, dialErr := b.dialLocalService(stream.Context(), target.Target)
+		connection, dialErr := b.dialLocalService(stream.Context(), target)
 		if dialErr != nil {
-			err := status.Error(codes.Unavailable, "built-in local service is unavailable")
-			b.refusals.note("route", route.RouteId, refusalLocalService, fmt.Errorf("%w: %v", err, dialErr))
+			message := "built-in local service is unavailable"
+			if reason == refusalRelayLocal {
+				message = "relay-local endpoint is unavailable"
+			}
+			err := status.Error(codes.Unavailable, message)
+			b.refusals.note("route", route.RouteId, reason, fmt.Errorf("%w: %v", err, dialErr))
 			return err
 		}
 		defer connection.Close()
@@ -150,7 +200,7 @@ func (b *Broker) OpenTunnel(stream relayv1.TunnelBroker_OpenTunnelServer) (resul
 		resultErr = session.bridgeResult(bridge(stream, &connectionTunnelStream{connection: connection, maxFrame: frameLimit}, frameLimit, session.stop, route.DisableIdleTimeout, false, metrics))
 		return resultErr
 	}
-	registration := b.endpoints[policyAssignmentKey(endpoint.EndpointId, claims.AssignmentGeneration)]
+	registration := b.endpoints[policyAssignmentKey(endpoint.EndpointId, request.assignmentGeneration)]
 	if registration == nil || time.Now().Unix() > registration.expiresAt.Load() {
 		return failOpen(refusalNotRegistered, status.Error(codes.Unavailable, "target endpoint is not registered"))
 	}
@@ -169,7 +219,7 @@ func (b *Broker) OpenTunnel(stream relayv1.TunnelBroker_OpenTunnelServer) (resul
 	}
 	metrics.opened.Add(1)
 	metrics.touch()
-	session := &activeTunnel{routeID: route.RouteId, routeGeneration: route.Generation, sourceKind: route.SourceKind, sourceID: route.SourceId, endpointID: endpoint.EndpointId, endpointGeneration: endpoint.Generation, assignmentGeneration: claims.AssignmentGeneration, trafficClass: trafficClass, metrics: metrics, registration: registration, admittedSeq: b.nextAdmissionLocked(), stop: make(chan struct{})}
+	session := &activeTunnel{routeID: route.RouteId, routeGeneration: route.Generation, sourceKind: route.SourceKind, sourceID: route.SourceId, endpointID: endpoint.EndpointId, endpointGeneration: endpoint.Generation, assignmentGeneration: request.assignmentGeneration, trafficClass: trafficClass, metrics: metrics, registration: registration, admittedSeq: b.nextAdmissionLocked(), stop: make(chan struct{})}
 	pending := &pendingTunnel{endpoint: endpoint, session: session, accepted: make(chan acceptedConnection, 1)}
 	// The restart signal of this registration as of now: a restart called
 	// off later replaces it, and a closed one must not refuse the tunnels
@@ -242,6 +292,28 @@ func (b *Broker) OpenTunnel(stream relayv1.TunnelBroker_OpenTunnelServer) (resul
 	bridgeErr := session.bridgeResult(bridge(stream, accepted.stream, frameLimit, session.stop, route.DisableIdleTimeout, trafficClass == admission.TrafficClassProxy, metrics))
 	accepted.result <- bridgeErr
 	return bridgeErr
+}
+
+// localTarget is the loopback destination of an endpoint this relay serves
+// itself: a built-in local service (the internal registry) or a relay-local
+// endpoint of this relay instance on a port of the witness range. Callers
+// never supply a host, so a policy cannot make the relay dial anything else.
+func localTarget(endpoint *relayv1.EndpointPolicy, snapshot *policy.Snapshot) (string, string, error) {
+	if endpoint.SubjectKind == localServiceSubjectKind {
+		if snapshot.Mode != relayv1.RelayMode_RELAY_MODE_LOCAL_COMBINED {
+			// Only the local relay next to the Gateway serves built-in local
+			// services. A remote relay would dial the service's fixed name on
+			// its own host's network, which no policy may make it do.
+			return "", refusalLocalService, fmt.Errorf("built-in local services are served only by the local relay")
+		}
+		target, err := config.BuiltinLocalServiceTarget(endpoint.SubjectId)
+		return target.Target, refusalLocalService, err
+	}
+	if snapshot.RelayInstanceID == "" || endpoint.SubjectId != snapshot.RelayInstanceID {
+		return "", refusalRelayLocal, fmt.Errorf("relay-local endpoint belongs to another relay")
+	}
+	target, err := relaylocal.Target(endpoint.RelayLocalPort)
+	return target, refusalRelayLocal, err
 }
 
 // bridgeResult gives a bridge that ended because the tunnel was closed the

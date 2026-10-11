@@ -9,8 +9,10 @@ type ManifestInfo struct {
 	// Epoch is the policy's voter epoch (A18).
 	Epoch uint64
 	// Voters are the policy's voters across its quorum sets (A18).
-	Voters      []string
-	Available   bool
+	Voters    []string
+	Available bool
+	// Stateful: the policy's keys carry certified holder state (v3).
+	Stateful    bool
 	Closed      bool
 	Slots       uint32
 	Candidates  []string
@@ -120,7 +122,7 @@ func (n *Node) TrustedPolicyKeyIDs() []string {
 
 func manifestInfo(manifest *Manifest) ManifestInfo {
 	info := ManifestInfo{
-		PolicyID: manifest.PolicyID, Version: manifest.Version, Epoch: manifest.Epoch, Available: manifest.Available,
+		PolicyID: manifest.PolicyID, Version: manifest.Version, Epoch: manifest.Epoch, Available: manifest.Available, Stateful: manifest.Stateful,
 		Closed: manifest.Closed, Slots: manifest.Slots, Candidates: append([]string(nil), manifest.Candidates...),
 		BootstrapID: manifest.BootstrapID, Bootstrap: map[uint32]string{}, Retained: map[uint32]string{},
 	}

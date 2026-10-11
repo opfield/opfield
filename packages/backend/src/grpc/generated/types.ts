@@ -1024,6 +1024,15 @@ export interface AvailabilityLeaseKeyView {
   gateBallot?: AvailabilityLeaseBallot | null;
   /** Unix ms when this member first stored a commit of the committed ballot's proposer; '0' when unknown. */
   holderSinceUnixMs?: string;
+  /**
+   * Relays only, stateful policies (availability_lease_v3): whether the relay's memory of the key is KNOWN,
+   * the ballot it last accepted, "sha256:<hex>" of that state and of the latest commit's. Never the state.
+   */
+  stateful?: boolean;
+  stateKnown?: boolean;
+  stateHash?: string;
+  accepted?: AvailabilityLeaseBallot | null;
+  committedStateHash?: string;
 }
 
 export interface AvailabilityLeaseEvent {

@@ -24,6 +24,9 @@ type scenarioSpec struct {
 	bootstrap  string
 	seed       int64
 	wire       bool
+	// stateful: p1 carries certified holder state with the database model
+	// driven by the test (manual sync-set changes).
+	stateful bool
 }
 
 // newScenario builds a lossless, deterministic world from spec and starts
@@ -60,6 +63,11 @@ func newScenario(t *testing.T, spec scenarioSpec) *simWorld {
 		policy.bootstrapID = 1
 		policy.bootstrap[0] = spec.bootstrap
 		w.nodes[spec.bootstrap].containers[Key{PolicyID: "p1"}] = &simContainer{live: true, legacy: true}
+	}
+	if spec.stateful {
+		policy.stateful = true
+		w.state = newSimStateModel(w)
+		w.state.manual = true
 	}
 	w.gw.policies["p1"] = policy
 	w.strict["p1"] = !spec.available
