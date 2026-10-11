@@ -1,4 +1,5 @@
 import type {
+  CloudConnectCodeView,
   CloudLinkStatusView,
   DaemonNodeUpdateResult,
   DaemonUpdateStatus,
@@ -196,6 +197,25 @@ export function withSystemApi<TBase extends ApiClientBaseConstructor>(Base: TBas
         this.request<{ data: CloudLinkStatusView }>("/system/cloud/connect", {
           method: "POST",
           body: JSON.stringify({ code }),
+        })
+      );
+    }
+
+    /** A code to enter in the Opfield account; Gateway waits for it to be entered. */
+    async startCloudLinkCode(): Promise<CloudConnectCodeView> {
+      return this.unwrapData(
+        this.request<{ data: CloudConnectCodeView }>("/system/cloud/link", { method: "POST" })
+      );
+    }
+
+    async getCloudLinkCode(): Promise<CloudConnectCodeView> {
+      return this.unwrapData(this.request<{ data: CloudConnectCodeView }>("/system/cloud/link"));
+    }
+
+    async cancelCloudLinkCode(): Promise<CloudConnectCodeView> {
+      return this.unwrapData(
+        this.request<{ data: CloudConnectCodeView }>("/system/cloud/link/cancel", {
+          method: "POST",
         })
       );
     }

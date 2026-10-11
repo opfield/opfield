@@ -7,12 +7,16 @@ import type { AppEnv } from '@/types.js';
 import {
   CloudRemoteManagementSchema,
   ConnectCloudSchema,
+  cancelCloudLinkCodeRoute,
+  cloudLinkCodeStatusRoute,
   cloudRemoteManagementRoute,
   cloudStatusRoute,
   connectCloudRoute,
   disconnectCloudRoute,
+  startCloudLinkCodeRoute,
 } from './cloud-link.docs.js';
 import { CloudLinkRequestError, CloudLinkService } from './cloud-link.service.js';
+import { CloudLinkConnectCode } from './cloud-link-connect-code.js';
 
 export const cloudLinkRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
 
@@ -59,4 +63,21 @@ cloudLinkRoutes.openapi({ ...cloudRemoteManagementRoute, middleware: requireScop
   } catch (error) {
     throw toAppError(error);
   }
+});
+
+// Connect with one code shown here and entered in the Opfield account.
+cloudLinkRoutes.openapi({ ...startCloudLinkCodeRoute, middleware: requireScope('license:manage') }, async (c) => {
+  try {
+    return c.json({ data: await container.resolve(CloudLinkConnectCode).start({ userId: c.get('user')?.id ?? null }) });
+  } catch (error) {
+    throw toAppError(error);
+  }
+});
+
+cloudLinkRoutes.openapi({ ...cloudLinkCodeStatusRoute, middleware: requireScope('license:manage') }, async (c) => {
+  return c.json({ data: await container.resolve(CloudLinkConnectCode).status() });
+});
+
+cloudLinkRoutes.openapi({ ...cancelCloudLinkCodeRoute, middleware: requireScope('license:manage') }, async (c) => {
+  return c.json({ data: await container.resolve(CloudLinkConnectCode).cancel({ userId: c.get('user')?.id ?? null }) });
 });

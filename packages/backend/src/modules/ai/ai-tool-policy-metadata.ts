@@ -114,7 +114,12 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
   manage_oauth_authorization: operationPolicies({ read: ['list'], update: ['update_scopes'], delete: ['revoke'] }),
   manage_api_token: operationPolicies({ read: ['list'], create: ['create'], update: ['update'], delete: ['revoke'] }),
   manage_license: operationPolicies({ external: ['activate', 'activate_module', 'check'], delete: ['clear'] }),
-  manage_cloud: operationPolicies({ external: ['connect'], update: ['set_remote_management'], delete: ['disconnect'] }),
+  manage_cloud: operationPolicies({
+    read: ['link_status'],
+    external: ['connect', 'start_link'],
+    update: ['set_remote_management', 'cancel_link'],
+    delete: ['disconnect'],
+  }),
   manage_gateway_diagnostics: operationPolicies({ read: ['snapshot', 'history', 'requests', 'jobs', 'logs'] }),
   manage_configuration_export: operationPolicies({
     read: ['estimate', 'progress', 'move_status'],

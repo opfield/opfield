@@ -42,3 +42,27 @@ export const disconnectCloudRoute = appRoute({
   summary: 'Disconnect this installation from its cloud account',
   responses: okJson(UnknownDataResponseSchema),
 });
+
+export const startCloudLinkCodeRoute = appRoute({
+  method: 'post',
+  path: '/link',
+  tags: ['Cloud'],
+  summary: 'Get a code to enter in the Opfield account (Installations > Add) and wait for it to be entered',
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const cloudLinkCodeStatusRoute = appRoute({
+  method: 'get',
+  path: '/link',
+  tags: ['Cloud'],
+  summary: 'Get the connect code shown on this installation and whether it was entered',
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const cancelCloudLinkCodeRoute = appRoute({
+  method: 'post',
+  path: '/link/cancel',
+  tags: ['Cloud'],
+  summary: 'Stop waiting for the connect code and forget it',
+  responses: okJson(UnknownDataResponseSchema),
+});

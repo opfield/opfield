@@ -104,6 +104,27 @@ export interface CloudRequestSummary {
   lastAt: string | null;
 }
 
+/** A connect code shown on this installation (Connect in Settings > Cloud). */
+export type CloudConnectCodeState =
+  | "none"
+  | "pending"
+  | "connected"
+  | "expired"
+  | "invalid"
+  | "used"
+  | "wrong_installation"
+  | "failed";
+
+export interface CloudConnectCodeView {
+  state: CloudConnectCodeState;
+  /** XXXX-XXXX while pending. */
+  code: string | null;
+  expiresAt: string | null;
+  accountEmail: string | null;
+  error: string | null;
+  errorCode: string | null;
+}
+
 export interface CloudLinkStatusView {
   state: CloudLinkState;
   portalUrl: string;

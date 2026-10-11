@@ -1222,6 +1222,31 @@ export class LicenseService {
     }
   }
 
+  /**
+   * A short-lived code that links this installation to an Opfield account (Opfield account > Installations > Add).
+   * Asked of the license service with the installation token, over its endpoint list; registers first if needed.
+   */
+  async requestConnectCode(): Promise<{ code: string; expiresAt: string; portalUrl: string | null }> {
+    const credential = await this.ensureRegistered(true);
+    if (!credential) {
+      throw new LicenseServerRequestError(503, 'LICENSE_SERVER_UNAVAILABLE', 'License server is unavailable');
+    }
+    const result = await this.post<{ code?: unknown; expiresAt?: unknown; portalUrl?: unknown }>(
+      '/api/v1/installations/connect-code',
+      { installationToken: credential.token }
+    );
+    const code = typeof result?.code === 'string' ? result.code.trim().toUpperCase() : '';
+    const expiresAt = typeof result?.expiresAt === 'string' ? Date.parse(result.expiresAt) : Number.NaN;
+    if (!/^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code) || !Number.isFinite(expiresAt)) {
+      throw new LicenseServerRequestError(502, 'INVALID_LICENSE_STATE', 'License server returned an invalid code');
+    }
+    return {
+      code,
+      expiresAt: new Date(expiresAt).toISOString(),
+      portalUrl: typeof result.portalUrl === 'string' && result.portalUrl.trim() ? result.portalUrl.trim() : null,
+    };
+  }
+
   async getInstallationId(): Promise<string> {
     if (!this.installationIdPromise) {
       this.installationIdPromise = this.loadOrCreateInstallationId().finally(() => {

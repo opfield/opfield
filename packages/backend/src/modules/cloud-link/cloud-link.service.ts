@@ -38,6 +38,8 @@ const SOCKET_STATUS_TTL_SECONDS = 60;
 /** Audit actions of the cloud link; every entry has resource type `cloud-link` and the agent id as resource id. */
 export const CLOUD_AUDIT_ACTIONS = {
   connect: 'cloud.connect',
+  /** A connect code shown on this installation: requested, expired or refused (the code itself is never written). */
+  connectCode: 'cloud.connect_code',
   disconnect: 'cloud.disconnect',
   disconnectedByAccount: 'cloud.disconnected_by_account',
   enrollFile: 'cloud.enroll_file',
@@ -283,25 +285,109 @@ export class CloudLinkService {
         CLOUD_ENROLL_TIMEOUT_MS
       );
       if (status < 200 || status >= 300) throw this.enrollError(status, body);
-      const enrolled = readEnrollResponse(body);
-      if (!enrolled) {
-        throw new CloudLinkRequestError(502, 'CLOUD_PORTAL_ERROR', 'Your cloud account returned an unreadable answer');
-      }
-      const enrollment: StoredCloudEnrollment = {
-        agentId: enrolled.agentId,
-        secret: this.cryptoService.encryptString(enrolled.secret),
-        portalUrl: this.acceptedPortalUrl(enrolled.portalUrl, portalUrl),
-        accountEmail: enrolled.accountEmail,
-        enrolledAt: new Date().toISOString(),
-        ...(managed ? { managed: true } : {}),
-      };
-      await this.setSetting(SETTINGS_KEYS.enrollment, enrollment);
-      // A new agent starts with remote management off; a managed VM is managed by the cloud anyway.
-      await this.deleteSetting(SETTINGS_KEYS.remoteManagement);
-      await this.deleteSetting(SETTINGS_KEYS.disconnect);
-      onEnrolled(enrollment);
-      logger.info('Installation connected to the cloud account', { agentId: enrollment.agentId });
+      onEnrolled(await this.storeEnrollment(body, portalUrl, managed));
     });
+  }
+
+  /** Stores an enrolment answer (`/api/cloud/enroll`, or a claimed connect code): agent id, secret encrypted. */
+  private async storeEnrollment(body: unknown, portalUrl: string, managed: boolean): Promise<StoredCloudEnrollment> {
+    const enrolled = readEnrollResponse(body);
+    if (!enrolled) {
+      throw new CloudLinkRequestError(502, 'CLOUD_PORTAL_ERROR', 'Your cloud account returned an unreadable answer');
+    }
+    const enrollment: StoredCloudEnrollment = {
+      agentId: enrolled.agentId,
+      secret: this.cryptoService.encryptString(enrolled.secret),
+      portalUrl: this.acceptedPortalUrl(enrolled.portalUrl, portalUrl),
+      accountEmail: enrolled.accountEmail,
+      enrolledAt: new Date().toISOString(),
+      ...(managed ? { managed: true } : {}),
+    };
+    await this.setSetting(SETTINGS_KEYS.enrollment, enrollment);
+    // A new agent starts with remote management off; a managed VM is managed by the cloud anyway.
+    await this.deleteSetting(SETTINGS_KEYS.remoteManagement);
+    await this.deleteSetting(SETTINGS_KEYS.disconnect);
+    logger.info('Installation connected to the cloud account', { agentId: enrollment.agentId });
+    return enrollment;
+  }
+
+  /** The portal a connect code is claimed at: the one the license service named (https only), else the configured. */
+  claimPortalUrl(named: string | null): string {
+    return named ? this.acceptedPortalUrl(named, this.configuredPortalUrl) : this.configuredPortalUrl;
+  }
+
+  /**
+   * One poll of a connect code this installation showed (Opfield account > Installations > Add): pending until the
+   * account entered it, then the enrolment, stored as a connect with a code would store it. A refusal (unknown or
+   * expired code, used, another installation's) throws a CloudLinkRequestError that is not retryable; an unreachable or
+   * failing portal throws a retryable one.
+   */
+  async claim(
+    code: string,
+    portalUrl: string,
+    actor: { userId: string | null } = { userId: null }
+  ): Promise<{ state: 'pending' } | { state: 'connected'; status: CloudLinkStatusView }> {
+    let enrolled: StoredCloudEnrollment | null = null;
+    await this.serialized(async () => {
+      const hello = await this.helloInfo();
+      const { status, body } = await this.portalRequest(
+        `${portalUrl}/api/cloud/claim`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, ...hello }),
+        },
+        CLOUD_ENROLL_TIMEOUT_MS
+      );
+      if (status === 202) return;
+      if (status < 200 || status >= 300) throw this.claimError(status, body);
+      enrolled = await this.storeEnrollment(body, portalUrl, false);
+    });
+    const stored = enrolled as StoredCloudEnrollment | null;
+    if (!stored) return { state: 'pending' };
+    await this.writeAudit(CLOUD_AUDIT_ACTIONS.connect, actor.userId, stored.agentId, {
+      success: true,
+      source: 'connect-code',
+      portalUrl: stored.portalUrl,
+      accountEmail: stored.accountEmail || null,
+    });
+    this.notify();
+    return { state: 'connected', status: await this.getStatus() };
+  }
+
+  /** A connect code requested, refused, expired or failed; the code itself is never written. */
+  async recordConnectCode(actor: { userId: string | null }, details: Record<string, unknown>): Promise<void> {
+    await this.writeAudit(CLOUD_AUDIT_ACTIONS.connectCode, actor.userId, null, details);
+  }
+
+  private claimError(status: number, body: unknown): CloudLinkRequestError {
+    const { code, message } = portalErrorOf(body);
+    if (status === 404 || code === 'CLOUD_CLAIM_INVALID') {
+      return new CloudLinkRequestError(
+        404,
+        'CLOUD_CLAIM_INVALID',
+        'This code is not valid or has expired. Get a new code and enter it in your Opfield account.'
+      );
+    }
+    if (status === 410 || code === 'CLOUD_CLAIM_USED') {
+      return new CloudLinkRequestError(410, 'CLOUD_CLAIM_USED', 'This code was already used. Get a new code.');
+    }
+    if (status === 409 || code === 'CLOUD_CLAIM_WRONG_INSTALLATION') {
+      return new CloudLinkRequestError(
+        409,
+        'CLOUD_CLAIM_WRONG_INSTALLATION',
+        'This code belongs to another installation. Get a new code on this installation.'
+      );
+    }
+    if (status === 429) {
+      return new CloudLinkRequestError(429, 'CLOUD_RATE_LIMITED', 'Your cloud account is busy; retrying.', true);
+    }
+    return new CloudLinkRequestError(
+      502,
+      code ?? 'CLOUD_PORTAL_ERROR',
+      message ?? `Your cloud account answered HTTP ${status}`,
+      status >= 500
+    );
   }
 
   /** Revokes the agent at the portal, then forgets the enrolment here (also when the portal cannot be reached). */

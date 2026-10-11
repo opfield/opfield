@@ -12,10 +12,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/services/api";
-import type { CloudLinkStatusView } from "@/types";
+import type { CloudConnectCodeView, CloudLinkStatusView } from "@/types";
+import { ConnectCodeCountdown } from "./ConnectCodeCountdown";
 
 const CACHE_KEY = "settings:cloud-link-status";
 const POLL_INTERVAL_MS = 10_000;
+/** While a connect code is shown, whether it was entered is asked this often (Gateway polls the account). */
+const CODE_POLL_INTERVAL_MS = 3_000;
+/** A connect code that ended without connecting: a new one can be requested. */
+const ENDED_CODE_STATES = new Set(["expired", "invalid", "used", "wrong_installation", "failed"]);
 /** Code alphabet of the cloud account: A–Z without I and O, digits 2–9. */
 const CODE_ALPHABET = /^[A-HJ-NP-Z2-9]{8}$/;
 
@@ -75,6 +80,10 @@ export function CloudSection({ canManage }: CloudSectionProps) {
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [savingRemoteManagement, setSavingRemoteManagement] = useState(false);
+  const [link, setLink] = useState<CloudConnectCodeView | null>(null);
+  const [startingLink, setStartingLink] = useState(false);
+  const [cancellingLink, setCancellingLink] = useState(false);
+  const [enterCode, setEnterCode] = useState(false);
 
   const applyStatus = useCallback((next: CloudLinkStatusView) => {
     const { warning: _warning, ...view } = next;
@@ -107,6 +116,71 @@ export function CloudSection({ canManage }: CloudSectionProps) {
     const timer = setInterval(() => void loadStatus(true), POLL_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [linkState, loadStatus]);
+
+  // A code shown before a reload is shown again.
+  useEffect(() => {
+    if (!canManage || linkState === undefined || linkState === "connected") return;
+    let cancelled = false;
+    api
+      .getCloudLinkCode()
+      .then((view) => {
+        if (!cancelled && view.state === "pending") setLink(view);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [canManage, linkState]);
+
+  const refreshLink = useCallback(async () => {
+    try {
+      const view = await api.getCloudLinkCode();
+      if (view.state === "connected") {
+        setLink(null);
+        toast.success(
+          view.accountEmail
+            ? `Connected to ${view.accountEmail}`
+            : "Connected to your cloud account"
+        );
+        await loadStatus(true);
+        return;
+      }
+      setLink(view.state === "none" ? null : view);
+    } catch {
+      // The next poll asks again.
+    }
+  }, [loadStatus]);
+
+  const linkPending = link?.state === "pending";
+  useEffect(() => {
+    if (!linkPending) return;
+    const timer = setInterval(() => void refreshLink(), CODE_POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [linkPending, refreshLink]);
+
+  const handleStartLink = async () => {
+    setStartingLink(true);
+    setEnterCode(false);
+    try {
+      setLink(await api.startCloudLinkCode());
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to get a connect code");
+    } finally {
+      setStartingLink(false);
+    }
+  };
+
+  const handleCancelLink = async () => {
+    setCancellingLink(true);
+    try {
+      await api.cancelCloudLinkCode();
+      setLink(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to cancel the connect code");
+    } finally {
+      setCancellingLink(false);
+    }
+  };
 
   const normalizedCode = normalizeCloudCode(code);
 
@@ -191,6 +265,39 @@ export function CloudSection({ canManage }: CloudSectionProps) {
   const connected = status.state === "connected";
   const disconnectedByAccount = status.state === "disconnected_by_account";
 
+  const linkEnded = link !== null && ENDED_CODE_STATES.has(link.state);
+  const pendingCode = linkPending && link?.code && link.expiresAt ? link : null;
+
+  const connectButton = canManage ? (
+    <Button onClick={handleStartLink} pending={startingLink}>
+      <Cloud className="h-4 w-4" />
+      {linkEnded ? "Get a new code" : disconnectedByAccount ? "Connect again" : "Connect"}
+    </Button>
+  ) : null;
+
+  const codeDisplay = pendingCode ? (
+    <div className="flex items-center gap-3">
+      <span className="font-mono text-sm font-medium" aria-label="Connect code">
+        {pendingCode.code}
+      </span>
+      <ConnectCodeCountdown expiresAt={pendingCode.expiresAt!} onExpired={refreshLink} />
+      <Button variant="outline" onClick={handleCancelLink} pending={cancellingLink}>
+        Cancel
+      </Button>
+    </div>
+  ) : null;
+
+  const enterCodeLink =
+    canManage && !enterCode && !pendingCode ? (
+      <>
+        {" "}
+        Have a code from your account?{" "}
+        <Button variant="link" size="inline" onClick={() => setEnterCode(true)}>
+          Enter it
+        </Button>
+      </>
+    ) : null;
+
   const codeForm = canManage ? (
     <form
       className="flex items-center gap-2"
@@ -232,9 +339,11 @@ export function CloudSection({ canManage }: CloudSectionProps) {
       description={
         connected
           ? `Connected to ${status.accountEmail ?? "your cloud account"}`
-          : disconnectedByAccount
-            ? "Disconnected by the account"
-            : "Connect this Opfield installation to your cloud account"
+          : pendingCode
+            ? "Enter this code in your Opfield account → Installations → Add"
+            : disconnectedByAccount
+              ? "Disconnected by the account"
+              : "Connect this Opfield installation to your cloud account"
       }
       className="xl:col-span-2"
       style={{ borderColor: "var(--color-info)" }}
@@ -247,7 +356,7 @@ export function CloudSection({ canManage }: CloudSectionProps) {
             </Button>
           ) : null
         ) : (
-          codeForm
+          (codeDisplay ?? (enterCode ? codeForm : connectButton))
         )
       }
     >
@@ -269,13 +378,20 @@ export function CloudSection({ canManage }: CloudSectionProps) {
         </div>
       )}
 
+      {!connected && linkEnded && link?.error && (
+        <p className="px-4 pt-4 text-sm text-destructive" role="alert">
+          {link.error}
+        </p>
+      )}
+
       {disconnectedByAccount && (
         <div className="divide-y divide-border">
           <p className="p-4 text-sm text-muted-foreground">
             {status.disconnectedReason ??
               "Your cloud account disconnected this Opfield installation."}{" "}
-            To connect it again, create a new code on this installation's page in your cloud
-            account.
+            To connect it again, press Connect again and enter the code in your Opfield account
+            under Installations → Add.
+            {enterCodeLink}
             {askAdministrator}
           </p>
           {status.accountEmail && <DetailRow label="Account" value={status.accountEmail} />}
@@ -286,8 +402,9 @@ export function CloudSection({ canManage }: CloudSectionProps) {
       {!connected && !disconnectedByAccount && (
         <p className="p-4 text-sm text-muted-foreground">
           A connected Opfield keeps one outbound connection to your cloud account, so the account
-          can show this installation's state and container logs. Open this installation in your
-          cloud account, press Connect, and enter the code it shows.
+          can show this installation's state and container logs. Press Connect and enter the code it
+          shows in your Opfield account under Installations → Add.
+          {enterCodeLink}
           {askAdministrator}
         </p>
       )}
