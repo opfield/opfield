@@ -308,7 +308,7 @@ import { StorageCAService } from '@/services/storage-ca.service.js';
 import { SystemCAService } from '@/services/system-ca.service.js';
 import { SystemCertificateLifecycleService } from '@/services/system-certificate-lifecycle.service.js';
 import { SystemCertificateRenewalService } from '@/services/system-certificate-renewal.service.js';
-import { UpdateService } from '@/services/update.service.js';
+import { UpdateService, updateCommandFailure } from '@/services/update.service.js';
 import { WebIdentityService } from '@/services/web-identity.service.js';
 import { WebTransportSettingsService } from '@/services/web-transport-settings.service.js';
 
@@ -2309,6 +2309,8 @@ export async function initializeContainer(): Promise<void> {
           );
           daemonUpdateService.trackNodeUpdateCompletion(nodeId, operationId, command.result);
           await command.accepted;
+          // A refusal (a protected relay accepts no older release) fails the pool step at once.
+          return { failed: updateCommandFailure(command.result) };
         } catch (error) {
           await daemonUpdateService.clearNodeUpdateInProgress(nodeId, operationId);
           throw error;

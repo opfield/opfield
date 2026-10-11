@@ -216,7 +216,30 @@ export interface RelayPoolUpdateRuntime {
   prepareWorkerUpdate(version: string, arch: string): Promise<TrustedDaemonUpdateArtifact>;
   dispatchWorkerUpdate(nodeId: string, artifact: TrustedDaemonUpdateArtifact): Promise<void>;
   prepareSupervisorUpdate(version: string, arch: string): Promise<TrustedDaemonUpdateArtifact>;
-  dispatchSupervisorUpdate(nodeId: string, artifact: TrustedDaemonUpdateArtifact): Promise<void>;
+  /** Resolves once the node accepted the update command; `failed` tells when the command then answers failure. */
+  dispatchSupervisorUpdate(nodeId: string, artifact: TrustedDaemonUpdateArtifact): Promise<DispatchedUpdate | void>;
+}
+
+/** An update command the node accepted. */
+export interface DispatchedUpdate {
+  /** Resolves with the daemon's reason when the command answers failure; never on success. */
+  failed: Promise<string>;
+}
+
+/**
+ * The reason a dispatched update command failed with, once its result says so: a protected relay refuses an older
+ * release at once. Never resolves on success, nor on an uncertain answer (the node disconnected or the command timed
+ * out while it restarted), which the wait for the node's reconnect settles.
+ */
+export function updateCommandFailure(result: Promise<{ success: boolean; error?: string; detail?: string }>) {
+  return new Promise<string>((resolve) => {
+    result.then(
+      (answer) => {
+        if (!answer.success) resolve(answer.error || answer.detail || 'The daemon rejected the update');
+      },
+      () => undefined
+    );
+  });
 }
 
 /** The note of a member a Relay Pool update skipped. */
@@ -1539,10 +1562,13 @@ chmod 700 "$backup"
         // The supervisor goes first, so the worker update runs on the target supervisor: one before v2.11.1 could
         // restart the previous worker binary while it downloaded the new one. A retried run whose supervisor
         // already runs the target goes straight on to the worker.
+        // A failed update command (a protected relay refuses an older release) ends the wait at once: the step and
+        // the run fail with the daemon's reason and the relay is resumed, instead of waiting for a reconnect.
+        let supervisorFailed: Promise<string> | undefined;
         if (!(await this.isRelaySupervisorAt(instance.nodeId, normalizedVersion))) {
           const supervisorArtifact = await runtime.prepareSupervisorUpdate(normalizedVersion, architecture);
-          await runtime.dispatchSupervisorUpdate(instance.nodeId, supervisorArtifact);
-          await this.waitForRelaySupervisorVersion(instance.nodeId, normalizedVersion, signal);
+          supervisorFailed = (await runtime.dispatchSupervisorUpdate(instance.nodeId, supervisorArtifact))?.failed;
+          await this.waitForRelaySupervisorVersion(instance.nodeId, normalizedVersion, signal, supervisorFailed);
           throwIfAbandoned();
         }
         const workerArtifact = await runtime.prepareWorkerUpdate(normalizedVersion, architecture);
@@ -1550,7 +1576,7 @@ chmod 700 "$backup"
         await this.updatePoolStep(step.id, 'verifying');
         await Promise.all([
           this.waitForRelayInstanceVersion(instance.id, normalizedVersion, signal),
-          this.waitForRelaySupervisorVersion(instance.nodeId, normalizedVersion, signal),
+          this.waitForRelaySupervisorVersion(instance.nodeId, normalizedVersion, signal, supervisorFailed),
         ]);
         // The step stays active (so daemon updates of the relay's lease peers wait) until the relay votes again.
         await runtime.awaitLeaseSettled?.(instance.id, restartedAt, signal);
@@ -2077,22 +2103,38 @@ exit 1`,
     throw new Error(`Relay instance ${instanceId} did not become ready after update`);
   }
 
+  /** `failed`: the dispatched update command's failure (DispatchedUpdate), which ends the wait with its reason. */
   private async waitForRelaySupervisorVersion(
     nodeId: string,
     targetVersion: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    failed?: Promise<string>
   ): Promise<void> {
+    const outcome: { refusal: string | null } = { refusal: null };
+    void failed?.then((reason) => {
+      outcome.refusal = reason;
+    });
     const deadline = Date.now() + 3 * 60 * 1000;
     while (Date.now() < deadline) {
       if (signal?.aborted) throw new RelayPoolUpdateAbandonedError();
+      if (outcome.refusal !== null) throw new Error(outcome.refusal);
       const [node] = await this.db
         .select({ status: nodes.status, daemonVersion: nodes.daemonVersion, lastSeenAt: nodes.lastSeenAt })
         .from(nodes)
         .where(eq(nodes.id, nodeId))
         .limit(1);
       if (node?.status === 'online' && node.daemonVersion === targetVersion && node.lastSeenAt) return;
-      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      if (outcome.refusal !== null) throw new Error(outcome.refusal);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        new Promise((resolve) => {
+          timer = setTimeout(resolve, 2_000);
+        }),
+        ...(failed ? [failed] : []),
+      ]);
+      clearTimeout(timer);
     }
+    if (outcome.refusal !== null) throw new Error(outcome.refusal);
     throw new Error(`Relay supervisor node ${nodeId} did not reconnect after update`);
   }
 
