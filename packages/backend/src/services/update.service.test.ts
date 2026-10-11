@@ -821,7 +821,7 @@ describe('UpdateService foundation migration', () => {
     artifact.payload.image = 'ghcr.io/opfield/other';
 
     await expect(service.performUpdate('v2.4.3', artifact)).rejects.toThrow(
-      'is not an allowed Gateway image repository'
+      'is not an allowed Opfield image repository'
     );
     expect(dockerService.pullImageRef).not.toHaveBeenCalled();
   });
