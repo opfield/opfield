@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "node scripts/clean-build.mjs && tsgo -p tsconfig.json && tsc-alias -p tsconfig.alias.json",
+    "build": "node scripts/clean-build.mjs && tsgo -p tsconfig.json && tsc-alias -p tsconfig.alias.json && node scripts/check-dist-imports.mjs",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",

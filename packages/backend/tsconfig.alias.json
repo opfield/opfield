@@ -2,5 +2,10 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "baseUrl": "."
+  },
+  "tsc-alias": {
+    "replacers": {
+      "base-url": { "enabled": false }
+    }
   }
 }

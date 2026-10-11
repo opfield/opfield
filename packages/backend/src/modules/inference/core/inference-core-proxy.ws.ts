@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { WSContext, WSEvents } from 'hono/ws';
-import type WebSocketType from 'ws';
+import WebSocket from 'ws';
 import { container } from '@/container.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { EventBusService } from '@/services/event-bus.service.js';
@@ -16,11 +16,6 @@ import { coreRequestHeaders, newCoreRequestContext } from './inference-core-cont
 import { InferenceCoreProxyService } from './inference-core-proxy.service.js';
 import { startInferenceWebSocketHeartbeat } from './inference-websocket-heartbeat.js';
 
-// tsc-alias treats the bare `ws` specifier as the local `src/ws` directory
-// during production builds. Resolve the runtime dependency through Node so the
-// emitted module keeps loading the package while retaining its TypeScript type.
-const webSocketPackage = ['w', 's'].join('');
-const WebSocket = (await import(webSocketPackage)).default as typeof WebSocketType;
 const logger = createChildLogger('InferenceCoreWebSocketProxy');
 
 class CoreWebSocketUpgradeError extends Error {
@@ -59,7 +54,7 @@ interface ConnectionState {
 
 interface ActiveTurn {
   startedAt: number;
-  upstream: WebSocketType | null;
+  upstream: WebSocket | null;
   requestId: string;
   responseId: string;
   model: string;
@@ -426,7 +421,7 @@ async function connectTurnAttempt(input: {
         : 'WebSocket message exceeds the legacy core limit; update the inference core to apply Gateway limits'
     );
   }
-  let upstream: WebSocketType;
+  let upstream: WebSocket;
   try {
     upstream = new WebSocket(`${input.target.baseUrl.replace(/^http/, 'ws')}/v1/responses`, {
       headers: coreRequestHeaders(claims, input.target.credential),
@@ -765,7 +760,7 @@ function closeForRevocation(state: ConnectionState, ws: WSContext): void {
 }
 
 /** Detach request-bearing listeners now; only a tiny close deadline may linger. */
-function closeCoreSocket(upstream: WebSocketType): void {
+function closeCoreSocket(upstream: WebSocket): void {
   for (const event of ['open', 'message', 'close', 'error', 'unexpected-response']) upstream.removeAllListeners(event);
   upstream.on('error', () => undefined);
   if (upstream.readyState === WebSocket.CLOSED) return;
@@ -780,7 +775,7 @@ function closeCoreSocket(upstream: WebSocketType): void {
   }
 }
 
-function upstreamSend(upstream: WebSocketType, frame: string): void {
+function upstreamSend(upstream: WebSocket, frame: string): void {
   try {
     if (upstream.readyState === WebSocket.OPEN) upstream.send(frame);
   } catch {
