@@ -1,4 +1,3 @@
-import { Activity, FolderOpen, Key, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -418,24 +417,20 @@ function StorageDetailContent({
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col">
           <TabsList className="shrink-0">
             <TabsTrigger value="overview" className="gap-1.5">
-              <Activity className="h-3.5 w-3.5" />
               Overview
             </TabsTrigger>
             {canRead && (
               <TabsTrigger value="browser" disabled={browserDisabled} className="gap-1.5">
-                <FolderOpen className="h-3.5 w-3.5" />
                 Objects
               </TabsTrigger>
             )}
             {storage.managed && (
               <TabsTrigger value="iam-keys" className="gap-1.5">
-                <Key className="h-3.5 w-3.5" />
                 IAM Keys
               </TabsTrigger>
             )}
             {storage.managed && engine === "seaweedfs" && canViewMonitoring && (
               <TabsTrigger value="availability" className="gap-1.5">
-                <ShieldCheck className="h-3.5 w-3.5" />
                 Availability
               </TabsTrigger>
             )}

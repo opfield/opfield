@@ -1,16 +1,4 @@
-import {
-  Code2,
-  GitBranch,
-  Hammer,
-  ListTodo,
-  Pin,
-  Play,
-  RotateCcw,
-  Skull,
-  Square,
-  Trash2,
-  Truck,
-} from "lucide-react";
+import { Code2, Pin, Play, RotateCcw, Skull, Square, Trash2, Truck } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -1292,11 +1280,9 @@ export function DockerDeploymentDetail({
               Overview
             </TabsTrigger>
             <TabsTrigger value="source" className="gap-1.5">
-              <GitBranch className="h-3.5 w-3.5" />
               Source
             </TabsTrigger>
             <TabsTrigger value="builds" className="gap-1.5">
-              <Hammer className="h-3.5 w-3.5" />
               Builds
             </TabsTrigger>
             {canViewContainer && (
@@ -1325,7 +1311,6 @@ export function DockerDeploymentDetail({
               </TabsTrigger>
             )}
             <TabsTrigger value="slots" className="gap-1.5">
-              <ListTodo className="h-3.5 w-3.5" />
               Slots
             </TabsTrigger>
             {canEdit && (

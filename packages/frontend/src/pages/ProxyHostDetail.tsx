@@ -1,17 +1,4 @@
-import {
-  Cable,
-  Code2,
-  Info,
-  KeyRound,
-  Pencil,
-  Pin,
-  RefreshCw,
-  ScrollText,
-  Settings as SettingsIcon,
-  SlidersHorizontal,
-  Trash2,
-  Wrench,
-} from "lucide-react";
+import { KeyRound, Pencil, Pin, RefreshCw, Trash2, Wrench } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -1210,36 +1197,30 @@ export function ProxyHostDetail({
           <TabsList className="shrink-0">
             {visibleTabs.includes("details") && (
               <TabsTrigger value="details" className="gap-1.5">
-                <Info className="h-3.5 w-3.5" />
                 Details
               </TabsTrigger>
             )}
             {visibleTabs.includes("settings") && (
               <TabsTrigger value="settings" disabled={isRawMode} className="gap-1.5">
-                <SettingsIcon className="h-3.5 w-3.5" />
                 Settings
               </TabsTrigger>
             )}
             {visibleTabs.includes("advanced") && (
               <TabsTrigger value="advanced" disabled={isRawMode} className="gap-1.5">
-                <SlidersHorizontal className="h-3.5 w-3.5" />
                 Advanced
               </TabsTrigger>
             )}
             {visibleTabs.includes("secure-link") && (
               <TabsTrigger value="secure-link" className="gap-1.5">
-                <Cable className="h-3.5 w-3.5" />
                 Link Runtime
               </TabsTrigger>
             )}
             {visibleTabs.includes("raw") && (
               <TabsTrigger value="raw" className="gap-1.5">
-                <Code2 className="h-3.5 w-3.5" />
                 Raw Config
               </TabsTrigger>
             )}
             <TabsTrigger value="logs" className="gap-1.5">
-              <ScrollText className="h-3.5 w-3.5" />
               Logs
             </TabsTrigger>
           </TabsList>

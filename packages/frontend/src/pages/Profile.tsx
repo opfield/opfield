@@ -357,11 +357,9 @@ export function Profile() {
         <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col">
           <TabsList className="shrink-0">
             <TabsTrigger value="preferences" className="gap-1.5">
-              <SlidersHorizontal className="h-3.5 w-3.5" />
               Preferences
             </TabsTrigger>
             <TabsTrigger value="authorizations" className="gap-1.5">
-              <KeyRound className="h-3.5 w-3.5" />
               Authorizations
             </TabsTrigger>
           </TabsList>

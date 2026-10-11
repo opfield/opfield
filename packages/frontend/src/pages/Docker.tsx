@@ -1,16 +1,4 @@
-import {
-  ArchiveRestore,
-  Box,
-  Boxes,
-  FolderPlus,
-  Hammer,
-  HardDrive,
-  Layers,
-  ListTodo,
-  Network,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { ArchiveRestore, FolderPlus, Plus, Trash2 } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ContentLoading } from "@/components/common/ContentLoading";
@@ -42,13 +30,13 @@ import { DockerVolumes } from "./DockerVolumes";
 import { GwcaImportDialog } from "./docker/GwcaImportDialog";
 
 const TABS = [
-  { value: "containers", label: "Containers", icon: Box, scope: "docker:containers:view" },
-  { value: "compose", label: "Compose", icon: Boxes, scope: "docker:compose:view" },
-  { value: "images", label: "Images", icon: Layers, scope: "docker:images:view" },
-  { value: "volumes", label: "Volumes", icon: HardDrive, scope: "docker:volumes:view" },
-  { value: "networks", label: "Networks", icon: Network, scope: "docker:networks:view" },
-  { value: "tasks", label: "Tasks", icon: ListTodo, scope: "docker:tasks" },
-  { value: "builds", label: "Builds", icon: Hammer, scope: "docker:containers:view" },
+  { value: "containers", label: "Containers", scope: "docker:containers:view" },
+  { value: "compose", label: "Compose", scope: "docker:compose:view" },
+  { value: "images", label: "Images", scope: "docker:images:view" },
+  { value: "volumes", label: "Volumes", scope: "docker:volumes:view" },
+  { value: "networks", label: "Networks", scope: "docker:networks:view" },
+  { value: "tasks", label: "Tasks", scope: "docker:tasks" },
+  { value: "builds", label: "Builds", scope: "docker:containers:view" },
 ] as const;
 
 // Creation scopes list nodes too, so a folder-only creator (whose folder may still be empty) gets the same node
@@ -601,7 +589,6 @@ export function Docker() {
           <TabsList className="shrink-0">
             {visibleTabs.map((tab) => (
               <TabsTrigger key={tab.value} value={tab.value} className="gap-1.5">
-                <tab.icon className="h-3.5 w-3.5" />
                 {tab.label}
               </TabsTrigger>
             ))}

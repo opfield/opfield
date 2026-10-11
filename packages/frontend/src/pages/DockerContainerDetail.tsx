@@ -3,8 +3,6 @@ import {
   ArrowRight,
   Code2,
   Copy,
-  GitBranch,
-  Hammer,
   Loader2,
   Pin,
   Play,
@@ -1824,11 +1822,9 @@ export function DockerContainerDetail({
           <TabsList className="shrink-0">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="source" className="gap-1.5">
-              <GitBranch className="h-3.5 w-3.5" />
               Source
             </TabsTrigger>
             <TabsTrigger value="builds" className="gap-1.5">
-              <Hammer className="h-3.5 w-3.5" />
               Builds
             </TabsTrigger>
             {canViewContainer && (

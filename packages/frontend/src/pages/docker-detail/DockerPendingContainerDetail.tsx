@@ -1,4 +1,3 @@
-import { GitBranch, Hammer, KeyRound } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
@@ -139,15 +138,12 @@ export function DockerPendingContainerDetail({
         <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 min-w-0 flex-1 flex-col">
           <TabsList className="shrink-0">
             <TabsTrigger value="source" className="gap-1.5">
-              <GitBranch className="h-3.5 w-3.5" />
               Source
             </TabsTrigger>
             <TabsTrigger value="builds" className="gap-1.5">
-              <Hammer className="h-3.5 w-3.5" />
               Builds
             </TabsTrigger>
             <TabsTrigger value="environment" className="gap-1.5">
-              <KeyRound className="h-3.5 w-3.5" />
               Environment
             </TabsTrigger>
           </TabsList>

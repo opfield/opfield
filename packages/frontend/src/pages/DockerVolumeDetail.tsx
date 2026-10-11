@@ -1,11 +1,9 @@
 import {
   Boxes,
   Download,
-  Folder,
   Hash,
   Save,
   Scaling,
-  Settings,
   ShieldCheck,
   ShieldOff,
   Trash2,
@@ -756,11 +754,9 @@ export function DockerVolumeDetail({
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col min-h-0">
             <TabsList className="shrink-0">
               <TabsTrigger value="files" className="gap-1.5" disabled={!volume || unavailable}>
-                <Folder className="h-3.5 w-3.5" />
                 Files
               </TabsTrigger>
               <TabsTrigger value="settings" className="gap-1.5">
-                <Settings className="h-3.5 w-3.5" />
                 Settings
               </TabsTrigger>
             </TabsList>

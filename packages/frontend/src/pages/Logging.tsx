@@ -1,4 +1,4 @@
-import { Database, FileJson, FolderPlus, Plus } from "lucide-react";
+import { FolderPlus, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -46,8 +46,8 @@ import { LoggingEnvironmentDialog } from "./logging/LoggingEnvironmentDialog";
 import { LoggingEnvironmentsTab, LoggingSchemasTab } from "./logging/LoggingTabs";
 
 const TOP_TABS = [
-  { value: "environments", label: "Environments", icon: Database },
-  { value: "schemas", label: "Schemas", icon: FileJson },
+  { value: "environments", label: "Environments" },
+  { value: "schemas", label: "Schemas" },
 ] as const;
 
 const ENV_TABS = ["logs", "tokens", "settings"] as const;
@@ -447,7 +447,6 @@ export function Logging({
           <TabsList className="shrink-0">
             {visibleTopTabs.map((item) => (
               <TabsTrigger key={item.value} value={item.value} className="gap-1.5">
-                <item.icon className="h-3.5 w-3.5" />
                 {item.label}
               </TabsTrigger>
             ))}

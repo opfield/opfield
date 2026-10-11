@@ -1,14 +1,4 @@
-import {
-  Braces,
-  Code2,
-  Gauge,
-  KeyRound,
-  Plus,
-  Save,
-  ScrollText,
-  Settings,
-  Trash2,
-} from "lucide-react";
+import { Braces, Code2, Gauge, Plus, Save, ScrollText, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -412,15 +402,12 @@ export function LoggingEnvironmentDetail({
         >
           <TabsList className="shrink-0">
             <TabsTrigger value="logs" className="gap-1.5">
-              <ScrollText className="h-3.5 w-3.5" />
               Logs
             </TabsTrigger>
             <TabsTrigger value="tokens" className="gap-1.5">
-              <KeyRound className="h-3.5 w-3.5" />
               Tokens
             </TabsTrigger>
             <TabsTrigger value="settings" className="gap-1.5">
-              <Settings className="h-3.5 w-3.5" />
               Settings
             </TabsTrigger>
           </TabsList>

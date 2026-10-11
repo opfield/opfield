@@ -79,6 +79,30 @@ function contains(node, predicate) {
   return found;
 }
 
+const iconImportsByFile = new WeakMap();
+
+/** Names a file imports from an icon package (lucide-react). */
+function iconImports(file) {
+  let names = iconImportsByFile.get(file);
+  if (names) return names;
+  names = new Set();
+  for (const statement of file.statements) {
+    if (!ts.isImportDeclaration(statement)) continue;
+    if (!/^lucide-react/.test(statement.moduleSpecifier.text)) continue;
+    const bindings = statement.importClause?.namedBindings;
+    if (bindings && ts.isNamedImports(bindings)) {
+      for (const element of bindings.elements) names.add(element.name.text);
+    }
+  }
+  iconImportsByFile.set(file, names);
+  return names;
+}
+
+/** An icon element: an svg, an icon-package import, or a component named *Icon / *.icon. */
+function isIconTag(name, file) {
+  return name === "svg" || iconImports(file).has(name) || /(?:Icon|\.icon)$/.test(name);
+}
+
 export const RULES = [
   {
     id: "form-label-spacing",
@@ -223,6 +247,22 @@ export const RULES = [
       if (DATE_LOCALE_METHODS.has(method) || (method === "toLocaleString" && dateReceiver)) {
         report(node, `formats a date with ${method}(); use the shared date helpers`);
       }
+    },
+  },
+  {
+    id: "tab-trigger-text-only",
+    source: "owner request 2026-10-11 (2.12: tab bars without icons)",
+    description: "Tab bar items (TabsTrigger) are text only; they render no icon.",
+    visit(node, report, file) {
+      if (!ts.isJsxElement(node) || tagName(node.openingElement) !== "TabsTrigger") return;
+      const visit = (current) => {
+        const opening = openingOf(current);
+        if (opening && current !== node && isIconTag(tagName(opening), file)) {
+          report(current, `renders the icon ${tagName(opening)} in a tab; tabs are text only`);
+        }
+        ts.forEachChild(current, visit);
+      };
+      for (const child of node.children) visit(child);
     },
   },
 ];

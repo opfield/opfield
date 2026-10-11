@@ -5,8 +5,6 @@ import {
   ExternalLink,
   FilePenLine,
   FolderOpen,
-  GitBranch,
-  Hammer,
   HardDrive,
   History,
   Network,
@@ -1161,13 +1159,13 @@ export function DockerComposeProjectDetail() {
               Overview
             </TabsTrigger>
             <TabsTrigger value="services" className="gap-1.5">
-              <Boxes className="h-3.5 w-3.5" /> Services
+              Services
             </TabsTrigger>
             <TabsTrigger value="source" className="gap-1.5">
-              <GitBranch className="h-3.5 w-3.5" /> Source
+              Source
             </TabsTrigger>
             <TabsTrigger value="builds" className="gap-1.5">
-              <Hammer className="h-3.5 w-3.5" /> Builds
+              Builds
             </TabsTrigger>
             <TabsTrigger
               value="monitoring"

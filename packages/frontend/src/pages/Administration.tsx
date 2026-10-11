@@ -1,4 +1,4 @@
-import { ArchiveRestore, FolderPlus, Plus, ScrollText, Shield, Users } from "lucide-react";
+import { ArchiveRestore, FolderPlus, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
@@ -217,19 +217,16 @@ export function Administration() {
           <TabsList>
             {canUsers && (
               <TabsTrigger value="users" className="gap-1.5">
-                <Users className="h-3.5 w-3.5" />
                 Users
               </TabsTrigger>
             )}
             {canGroups && (
               <TabsTrigger value="groups" className="gap-1.5">
-                <Shield className="h-3.5 w-3.5" />
                 Groups
               </TabsTrigger>
             )}
             {canAudit && (
               <TabsTrigger value="audit" className="gap-1.5">
-                <ScrollText className="h-3.5 w-3.5" />
                 Audit Log
               </TabsTrigger>
             )}

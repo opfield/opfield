@@ -1,13 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Activity,
   ArrowUpCircle,
-  Camera,
-  Database,
-  Folder,
   KeyRound,
-  LayoutDashboard,
-  ListTodo,
   Minus,
   Pin,
   Plus,
@@ -15,11 +9,8 @@ import {
   PowerOff,
   RotateCcw,
   Scaling,
-  ScrollText,
   Server,
   Settings,
-  Shield,
-  Terminal,
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1175,7 +1166,6 @@ export function AdminNodeDetail({
         >
           <TabsList className="shrink-0">
             <TabsTrigger value="overview" className="gap-1.5">
-              <LayoutDashboard className="h-3.5 w-3.5" aria-hidden="true" />
               Overview
             </TabsTrigger>
             {!isNodeIncompatible(node) && (
@@ -1184,13 +1174,11 @@ export function AdminNodeDetail({
                 className="gap-1.5"
                 disabled={nodeUpdating || nodeOffline}
               >
-                <Activity className="h-3.5 w-3.5" aria-hidden="true" />
                 Monitoring
               </TabsTrigger>
             )}
             {canViewNodeFirewall && (
               <TabsTrigger value="firewall" className="gap-1.5">
-                <Shield className="h-3.5 w-3.5" aria-hidden="true" />
                 Firewall
               </TabsTrigger>
             )}
@@ -1198,11 +1186,6 @@ export function AdminNodeDetail({
               ["snapshots", "firewall"].includes(activeTab) &&
               !visibleTabs.includes(activeTab) && (
                 <TabsTrigger value={activeTab} className="gap-1.5">
-                  {activeTab === "snapshots" ? (
-                    <Camera className="h-3.5 w-3.5" aria-hidden="true" />
-                  ) : (
-                    <Shield className="h-3.5 w-3.5" aria-hidden="true" />
-                  )}
                   {activeTab === "snapshots" ? "Snapshots" : "Firewall"}
                 </TabsTrigger>
               )}
@@ -1210,7 +1193,6 @@ export function AdminNodeDetail({
               hasScope(`hosting:resources:view:${hosting.resourceId}`) &&
               hasScope(`hosting:snapshots:view:${hosting.resourceId}`) && (
                 <TabsTrigger value="snapshots" className="gap-1.5" disabled={nodeUpdating}>
-                  <Camera className="h-3.5 w-3.5" aria-hidden="true" />
                   Snapshots
                 </TabsTrigger>
               )}
@@ -1220,19 +1202,16 @@ export function AdminNodeDetail({
                 className="gap-1.5"
                 disabled={nodeUpdating || nodeUnavailable}
               >
-                <Database className="h-3.5 w-3.5" aria-hidden="true" />
                 Databases
               </TabsTrigger>
             )}
             {!isNodeIncompatible(node) && canReadNodeFiles && (
               <TabsTrigger value="files" className="gap-1.5" disabled={nodeUpdating || nodeOffline}>
-                <Folder className="h-3.5 w-3.5" aria-hidden="true" />
                 Files
               </TabsTrigger>
             )}
             {!isNodeIncompatible(node) && node.type === "nginx" && canViewNodeConfig && (
               <TabsTrigger value="configuration" className="gap-1.5" disabled={nodeActionsLocked}>
-                <Settings className="h-3.5 w-3.5" aria-hidden="true" />
                 Configuration
               </TabsTrigger>
             )}
@@ -1242,25 +1221,21 @@ export function AdminNodeDetail({
                 className="gap-1.5"
                 disabled={nodeUpdating || nodeOffline}
               >
-                <ScrollText className="h-3.5 w-3.5" aria-hidden="true" />
                 Nginx Logs
               </TabsTrigger>
             )}
             {node.type === "builder" && (
               <TabsTrigger value="jobs" className="gap-1.5" disabled={nodeUnavailable}>
-                <ListTodo className="h-3.5 w-3.5" aria-hidden="true" />
                 Jobs
               </TabsTrigger>
             )}
             {canShowNodeConsole && (
               <TabsTrigger value="console" className="gap-1.5" disabled={nodeOffline}>
-                <Terminal className="h-3.5 w-3.5" aria-hidden="true" />
                 Console
               </TabsTrigger>
             )}
             {canViewNodeLogs && (
               <TabsTrigger value="daemon-logs" className="gap-1.5" disabled={nodeOffline}>
-                <ScrollText className="h-3.5 w-3.5" aria-hidden="true" />
                 Logs
               </TabsTrigger>
             )}

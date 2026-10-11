@@ -1,12 +1,3 @@
-import {
-  Activity,
-  DatabaseBackup,
-  Puzzle,
-  ScrollText,
-  ShieldCheck,
-  Table2,
-  Terminal,
-} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -743,42 +734,35 @@ function DatabaseDetailContent({
           {!hideDatabaseChrome && (
             <TabsList className="shrink-0">
               <TabsTrigger value="overview" className="gap-1.5">
-                <Activity className="h-3.5 w-3.5" />
                 Overview
               </TabsTrigger>
               {canRead && supportsExplorer && (
                 <TabsTrigger value="explorer" disabled={explorerDisabled} className="gap-1.5">
-                  <Table2 className="h-3.5 w-3.5" />
                   Explorer
                 </TabsTrigger>
               )}
               {(canRead || canWrite || canAdmin) && supportsConsole && (
                 <TabsTrigger value="console" disabled={consoleDisabled} className="gap-1.5">
-                  <Terminal className="h-3.5 w-3.5" />
                   Console
                 </TabsTrigger>
               )}
               {(canRead || canWrite || canAdmin) && supportsExtensions && (
                 <TabsTrigger value="extensions" disabled={extensionsDisabled} className="gap-1.5">
-                  <Puzzle className="h-3.5 w-3.5" />
                   Extensions
                 </TabsTrigger>
               )}
               {canViewBackups && (
                 <TabsTrigger value="backups" className="gap-1.5">
-                  <DatabaseBackup className="h-3.5 w-3.5" />
                   Backups
                 </TabsTrigger>
               )}
               {database.managed && canViewMonitoring && (
                 <TabsTrigger value="logs" disabled={!managedNodeAvailable} className="gap-1.5">
-                  <ScrollText className="h-3.5 w-3.5" />
                   Logs
                 </TabsTrigger>
               )}
               {database.managed && canViewMonitoring && (
                 <TabsTrigger value="availability" className="gap-1.5">
-                  <ShieldCheck className="h-3.5 w-3.5" />
                   Availability
                 </TabsTrigger>
               )}

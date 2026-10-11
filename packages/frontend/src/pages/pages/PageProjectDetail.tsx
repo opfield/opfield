@@ -1,16 +1,10 @@
 import {
   ArrowRightLeft,
-  Code2,
   Copy,
   ExternalLink,
   FileCode2,
-  GitBranch,
-  Hammer,
-  KeyRound,
   Network,
-  PackageOpen,
   Settings,
-  Tags,
   Trash2,
   UploadCloud,
 } from "lucide-react";
@@ -640,22 +634,22 @@ export function PageProjectDetail({
         >
           <TabsList className="shrink-0">
             <TabsTrigger value="deployments" className="gap-1.5">
-              <PackageOpen className="h-3.5 w-3.5" /> Deployments
+              Deployments
             </TabsTrigger>
             <TabsTrigger value="source" className="gap-1.5">
-              <GitBranch className="h-3.5 w-3.5" /> Source
+              Source
             </TabsTrigger>
             <TabsTrigger value="builds" className="gap-1.5">
-              <Hammer className="h-3.5 w-3.5" /> Builds
+              Builds
             </TabsTrigger>
             <TabsTrigger value="tags" className="gap-1.5">
-              <Tags className="h-3.5 w-3.5" /> Tags
+              Tags
             </TabsTrigger>
             <TabsTrigger value="tokens" className="gap-1.5">
-              <KeyRound className="h-3.5 w-3.5" /> Deploy tokens
+              Deploy tokens
             </TabsTrigger>
             <TabsTrigger value="configuration" className="gap-1.5">
-              <Code2 className="h-3.5 w-3.5" /> Configuration
+              Configuration
             </TabsTrigger>
           </TabsList>
           <TabsContent value="deployments" className="pb-0">

@@ -1,14 +1,3 @@
-import {
-  Activity,
-  Bot,
-  Braces,
-  KeyRound,
-  Network,
-  Plug,
-  ServerCog,
-  SlidersHorizontal,
-  Sparkles,
-} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
@@ -157,55 +146,46 @@ export function Settings() {
           <TabsList className="shrink-0">
             {canAccessGeneralTab && (
               <TabsTrigger value="general" className="gap-1.5">
-                <ServerCog className="h-3.5 w-3.5" />
                 General
               </TabsTrigger>
             )}
             {canViewGatewaySettings && (
               <TabsTrigger value="authentication" className="gap-1.5">
-                <KeyRound className="h-3.5 w-3.5" />
                 Authentication
               </TabsTrigger>
             )}
             {canAccessAdvancedTab && (
               <TabsTrigger value="advanced" className="gap-1.5">
-                <SlidersHorizontal className="h-3.5 w-3.5" />
                 Advanced
               </TabsTrigger>
             )}
             {canViewGatewaySettings && (
               <TabsTrigger value="environment" className="gap-1.5">
-                <Braces className="h-3.5 w-3.5" />
                 Environment
               </TabsTrigger>
             )}
             {canViewGatewaySettings && (
               <TabsTrigger value="relay" className="gap-1.5">
-                <Activity className="h-3.5 w-3.5" />
                 Relay
               </TabsTrigger>
             )}
             {canAccessFeaturesTab && (
               <TabsTrigger value="features" className="gap-1.5">
-                <Sparkles className="h-3.5 w-3.5" />
                 Features
               </TabsTrigger>
             )}
             {canViewIntegrations && (
               <TabsTrigger value="integrations" className="gap-1.5">
-                <Plug className="h-3.5 w-3.5" />
                 Integrations
               </TabsTrigger>
             )}
             {canConfigAI && (
               <TabsTrigger value="ai" className="gap-1.5">
-                <Bot className="h-3.5 w-3.5" />
                 AI Workspace
               </TabsTrigger>
             )}
             {canConfigInference && (
               <TabsTrigger value="inference" className="gap-1.5">
-                <Network className="h-3.5 w-3.5" />
                 Inference
               </TabsTrigger>
             )}

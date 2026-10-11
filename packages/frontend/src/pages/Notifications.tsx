@@ -1,4 +1,4 @@
-import { AlertTriangle, Plus, Send, ShieldCheck, Webhook } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
@@ -25,11 +25,11 @@ import { requireLicenseFeature } from "@/stores/license-paywall";
 import { useSystemConfigStore } from "@/stores/system-config";
 
 const TABS = [
-  { value: "alerts", label: "Alerts", icon: AlertTriangle },
-  { value: "webhooks", label: "Webhooks", icon: Webhook },
-  { value: "deliveries", label: "Delivery Log", icon: Send },
-  { value: "siem", label: "SIEM", icon: ShieldCheck },
-  { value: "siem-deliveries", label: "SIEM Delivery Log", icon: Send },
+  { value: "alerts", label: "Alerts" },
+  { value: "webhooks", label: "Webhooks" },
+  { value: "deliveries", label: "Delivery Log" },
+  { value: "siem", label: "SIEM" },
+  { value: "siem-deliveries", label: "SIEM Delivery Log" },
 ] as const;
 
 export function Notifications() {
@@ -220,7 +220,6 @@ export function Notifications() {
           <TabsList>
             {visibleTabs.map((t) => (
               <TabsTrigger key={t.value} value={t.value} className="flex items-center gap-2">
-                <t.icon className="h-4 w-4" />
                 {t.label}
               </TabsTrigger>
             ))}

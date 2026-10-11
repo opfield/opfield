@@ -1,4 +1,4 @@
-import { Award, FileCode, FolderPlus, Plus } from "lucide-react";
+import { FolderPlus, Plus } from "lucide-react";
 import { useRef } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
@@ -21,7 +21,6 @@ const TABS = [
   {
     value: "pki",
     label: "PKI Certificates",
-    icon: Award,
     scope: "pki:templates:view",
     createScope: "pki:templates:create",
     foldersScope: "pki:templates:folders:manage",
@@ -29,7 +28,6 @@ const TABS = [
   {
     value: "nginx",
     label: "Nginx Config",
-    icon: FileCode,
     scope: "proxy:templates:view",
     createScope: "proxy:templates:manage",
     foldersScope: "proxy:templates:folders:manage",
@@ -153,7 +151,6 @@ export function TemplatesPage() {
             <TabsList className="shrink-0">
               {visibleTabs.map((tab) => (
                 <TabsTrigger key={tab.value} value={tab.value} className="gap-1.5">
-                  <tab.icon className="h-3.5 w-3.5" />
                   {tab.label}
                 </TabsTrigger>
               ))}
