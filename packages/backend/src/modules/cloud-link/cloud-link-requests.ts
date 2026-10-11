@@ -1,9 +1,14 @@
 import {
   CLOUD_LOG_TAIL_DEFAULT,
   CLOUD_LOG_TAIL_MAX,
+  CLOUD_NODE_KINDS,
+  CLOUD_PRIVILEGED_REQUEST_TYPES,
   type CloudAnswer,
+  type CloudLinkAccess,
   type CloudLinkProbe,
   type CloudRequest,
+  REMOTE_MANAGEMENT_OFF,
+  resolveCloudNodeKind,
 } from './cloud-link.types.js';
 
 const MAX_REQUEST_ID_LENGTH = 200;
@@ -33,8 +38,16 @@ function errorMessage(error: unknown): string {
 }
 
 /** Answers one portal request with what the probe reads; never throws. */
-export async function answerCloudRequest(probe: CloudLinkProbe, request: CloudRequest): Promise<CloudAnswer> {
+export async function answerCloudRequest(
+  probe: CloudLinkProbe,
+  request: CloudRequest,
+  access: CloudLinkAccess
+): Promise<CloudAnswer> {
   try {
+    // Reads are allowed once connected; actions need a managed cloud VM or "Allow remote management".
+    if (CLOUD_PRIVILEGED_REQUEST_TYPES.has(request.type) && !(await access.privilegedAllowed())) {
+      return { id: request.id, ok: false, ...REMOTE_MANAGEMENT_OFF };
+    }
     switch (request.type) {
       case 'state':
         return { id: request.id, ok: true, data: await probe.state() };
@@ -57,6 +70,48 @@ export async function answerCloudRequest(probe: CloudLinkProbe, request: CloudRe
         const name = service.trim();
         const lines = await probe.logs(name, { tail: cappedTail, ...(sinceMs !== undefined ? { sinceMs } : {}) });
         return { id: request.id, ok: true, data: { service: name, lines } };
+      }
+      case 'setup-link':
+        return { id: request.id, ok: true, data: await probe.setupLink() };
+      case 'node-token': {
+        const { name, kind, address, port } = request.params;
+        if (name !== undefined && name !== null && typeof name !== 'string') {
+          return { id: request.id, ok: false, error: 'params.name is the name of the node' };
+        }
+        const resolved = resolveCloudNodeKind(kind);
+        if (!resolved) {
+          return { id: request.id, ok: false, error: `params.kind is one of ${CLOUD_NODE_KINDS.join(', ')}` };
+        }
+        if (address !== undefined && address !== null && typeof address !== 'string') {
+          return { id: request.id, ok: false, error: 'params.address is the address a relay advertises' };
+        }
+        if (port !== undefined && port !== null && (typeof port !== 'number' || !Number.isInteger(port))) {
+          return { id: request.id, ok: false, error: 'params.port is the port a relay listens on' };
+        }
+        if (resolved === 'relay' && !address?.trim()) {
+          return {
+            id: request.id,
+            ok: false,
+            error: 'A relay node needs params.address, the reachable IP or hostname it advertises',
+          };
+        }
+        const { nodeId: _nodeId, ...data } = await probe.nodeToken({
+          kind: resolved,
+          ...(name ? { name } : {}),
+          ...(resolved === 'relay' && address ? { address: address.trim() } : {}),
+          ...(resolved === 'relay' && typeof port === 'number' ? { port } : {}),
+        });
+        return { id: request.id, ok: true, data };
+      }
+      case 'update-status':
+        return { id: request.id, ok: true, data: await probe.updateStatus() };
+      case 'update': {
+        const { version } = request.params;
+        if (version !== undefined && version !== null && typeof version !== 'string') {
+          return { id: request.id, ok: false, error: 'params.version is a release version such as v2.11.5' };
+        }
+        const { started } = await probe.update(version ?? undefined);
+        return { id: request.id, ok: true, data: { started } };
       }
       default:
         return { id: request.id, ok: false, error: `Unknown request type: ${request.type.slice(0, 64)}` };

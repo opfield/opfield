@@ -3,9 +3,14 @@ import { redactArgsForAudit } from '@/modules/ai/ai.service.tool-helpers.js';
 import { AI_TOOLS } from '@/modules/ai/ai.tools.js';
 import { classifyAIToolForApproval } from '@/modules/ai/ai-approval-policy.js';
 import { CloudLinkService, normalizeCloudCode } from './cloud-link.service.js';
-import type { CloudLinkProbe } from './cloud-link.types.js';
+import type { CloudLinkAccess, CloudLinkProbe, CloudRequest } from './cloud-link.types.js';
 import { cloudAgentSocketUrl, cloudBackoffDelay, cloudRequestAudit } from './cloud-link-agent.js';
 import { answerCloudRequest, parseCloudRequest } from './cloud-link-requests.js';
+
+const allowed: CloudLinkAccess = { privilegedAllowed: async () => true };
+const denied: CloudLinkAccess = { privilegedAllowed: async () => false };
+const ask = (probe: CloudLinkProbe, request: CloudRequest, access: CloudLinkAccess = allowed) =>
+  answerCloudRequest(probe, request, access);
 
 describe('cloud link', () => {
   it('reads a code in any of the forms the account shows', () => {
@@ -37,33 +42,51 @@ describe('cloud link', () => {
       },
       services: async () => ['app', 'postgres'],
       logs,
+      setupLink: async () => {
+        throw new Error('already set up');
+      },
+      nodeToken: async ({ name }) => ({
+        token: 'gwn_token',
+        expiresAt: '2026-10-12T10:00:00Z',
+        command: `curl … ${name ?? 'Node'}`,
+        nodeId: 'n1',
+        kind: 'nginx',
+      }),
+      updateStatus: async () => ({
+        current: 'v2.11.4',
+        latest: 'v2.11.5',
+        channel: 'stable',
+        available: true,
+        updating: false,
+      }),
+      update: async (version) => ({ started: true, version: version ?? 'v2.11.5' }),
     };
 
     const request = parseCloudRequest(
       JSON.stringify({ id: 'r1', type: 'logs', params: { service: 'app', tail: 5000 } })
     );
     expect(request).not.toBeNull();
-    await expect(answerCloudRequest(probe, request!)).resolves.toEqual({
+    await expect(ask(probe, request!)).resolves.toEqual({
       id: 'r1',
       ok: true,
       data: { service: 'app', lines: [{ t: '2026-10-11T10:00:00Z', stream: 'stdout', line: 'ready' }] },
     });
     expect(logs).toHaveBeenCalledWith('app', { tail: 2000 });
 
-    await expect(answerCloudRequest(probe, { id: 'r2', type: 'services', params: {} })).resolves.toEqual({
+    await expect(ask(probe, { id: 'r2', type: 'services', params: {} })).resolves.toEqual({
       id: 'r2',
       ok: true,
       data: { services: ['app', 'postgres'] },
     });
-    await expect(answerCloudRequest(probe, { id: 'r3', type: 'state', params: {} })).resolves.toEqual({
+    await expect(ask(probe, { id: 'r3', type: 'state', params: {} })).resolves.toEqual({
       id: 'r3',
       ok: false,
       error: 'Host readings are not available here',
     });
     await expect(
-      answerCloudRequest(probe, { id: 'r4', type: 'logs', params: { service: 'app', since: 'yesterday' } })
+      ask(probe, { id: 'r4', type: 'logs', params: { service: 'app', since: 'yesterday' } })
     ).resolves.toMatchObject({ id: 'r4', ok: false });
-    await expect(answerCloudRequest(probe, { id: 'r5', type: 'shell', params: {} })).resolves.toMatchObject({
+    await expect(ask(probe, { id: 'r5', type: 'shell', params: {} })).resolves.toMatchObject({
       id: 'r5',
       ok: false,
     });
@@ -121,5 +144,107 @@ describe('cloud link', () => {
       details: expect.objectContaining({ success: false, errorCode: 'CLOUD_CODE_INVALID' }),
     });
     expect(JSON.stringify(log.mock.calls)).not.toContain('not-a-code');
+  });
+
+  it('answers the setup-link, node-token, update-status and update requests', async () => {
+    const probe = {
+      setupLink: async () => {
+        throw new Error('already set up');
+      },
+      nodeToken: vi.fn(async ({ name, kind }: { name?: string; kind?: string }) => ({
+        token: 'gwn_token',
+        expiresAt: '2026-10-12T10:00:00Z',
+        command: `curl -fsSL … --name ${name ?? 'Node'}`,
+        nodeId: 'n1',
+        kind: kind ?? 'nginx',
+      })),
+      updateStatus: async () => ({
+        current: 'v2.11.4',
+        latest: 'v2.11.5',
+        channel: 'stable',
+        available: true,
+        updating: false,
+      }),
+      update: vi.fn(async (version?: string) => ({ started: true as const, version: version ?? 'v2.11.5' })),
+    } as unknown as CloudLinkProbe;
+    await expect(ask(probe, { id: 's', type: 'setup-link', params: {} })).resolves.toEqual({
+      id: 's',
+      ok: false,
+      error: 'already set up',
+    });
+    await expect(ask(probe, { id: 'n', type: 'node-token', params: { name: 'edge-1' } })).resolves.toEqual({
+      id: 'n',
+      ok: true,
+      data: {
+        token: 'gwn_token',
+        expiresAt: '2026-10-12T10:00:00Z',
+        command: 'curl -fsSL … --name edge-1',
+        kind: 'nginx',
+      },
+    });
+    await expect(ask(probe, { id: 'n2', type: 'node-token', params: { kind: 'databases' } })).resolves.toMatchObject({
+      ok: true,
+      data: { kind: 'storage' },
+    });
+    await expect(ask(probe, { id: 'n3', type: 'node-token', params: { kind: 'bastion' } })).resolves.toMatchObject({
+      ok: false,
+    });
+    await expect(ask(probe, { id: 'n4', type: 'node-token', params: { kind: 'relay' } })).resolves.toMatchObject({
+      ok: false,
+    });
+    await expect(
+      ask(probe, {
+        id: 'n5',
+        type: 'node-token',
+        params: { kind: 'relay', address: 'relay.example.test', port: 9443 },
+      })
+    ).resolves.toMatchObject({ ok: true, data: { kind: 'relay' } });
+    expect(probe.nodeToken).toHaveBeenLastCalledWith({ kind: 'relay', address: 'relay.example.test', port: 9443 });
+    await expect(ask(probe, { id: 'u', type: 'update-status', params: {} })).resolves.toMatchObject({
+      ok: true,
+      data: { current: 'v2.11.4', latest: 'v2.11.5', available: true, updating: false },
+    });
+    await expect(ask(probe, { id: 'p', type: 'update', params: {} })).resolves.toEqual({
+      id: 'p',
+      ok: true,
+      data: { started: true },
+    });
+    await expect(ask(probe, { id: 'q', type: 'update', params: { version: 5 } })).resolves.toMatchObject({ ok: false });
+  });
+
+  it('refuses privileged requests while remote management is off, and still answers reads', async () => {
+    const nodeToken = vi.fn();
+    const update = vi.fn();
+    const setupLink = vi.fn();
+    const probe = {
+      services: async () => ['app'],
+      updateStatus: async () => ({ current: 'v1', latest: null, channel: 'stable', available: false, updating: false }),
+      nodeToken,
+      update,
+      setupLink,
+    } as unknown as CloudLinkProbe;
+    for (const type of ['node-token', 'update', 'setup-link']) {
+      await expect(ask(probe, { id: type, type, params: {} }, denied)).resolves.toEqual({
+        id: type,
+        ok: false,
+        code: 'REMOTE_MANAGEMENT_OFF',
+        error: 'Remote management is off on this installation',
+      });
+    }
+    expect(nodeToken).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+    expect(setupLink).not.toHaveBeenCalled();
+    await expect(ask(probe, { id: 's', type: 'services', params: {} }, denied)).resolves.toMatchObject({ ok: true });
+    await expect(ask(probe, { id: 'u', type: 'update-status', params: {} }, denied)).resolves.toMatchObject({
+      ok: true,
+    });
+    expect(
+      cloudRequestAudit(
+        { id: 'x', type: 'update', params: {} },
+        { id: 'x', ok: false, code: 'REMOTE_MANAGEMENT_OFF', error: 'Remote management is off on this installation' },
+        90,
+        1
+      )
+    ).toMatchObject({ ok: false, errorCode: 'REMOTE_MANAGEMENT_OFF' });
   });
 });

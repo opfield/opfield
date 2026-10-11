@@ -98,6 +98,10 @@ export interface CloudRequestSummary {
   ok: boolean;
   error: string | null;
   resultBytes: number | null;
+  /** Reads the entry stands for: identical reads within 10 minutes share one entry. */
+  count: number;
+  /** The latest of those reads, when there is more than one. */
+  lastAt: string | null;
 }
 
 export interface CloudLinkStatusView {
@@ -108,6 +112,8 @@ export interface CloudLinkStatusView {
   socket: { state: CloudSocketState; since: string | null; lastError: string | null } | null;
   disconnectedAt: string | null;
   disconnectedReason: string | null;
+  /** Connected only: a managed cloud VM, or the admin's "Allow remote management" switch. */
+  remoteManagement: { managed: boolean; enabled: boolean } | null;
   /** The latest requests the cloud account sent over the link, newest first. */
   recentRequests: CloudRequestSummary[];
   /** Set by a disconnect the cloud account could not confirm. */

@@ -15,17 +15,21 @@ import {
   type CloudCredentials,
   type CloudDisconnectResult,
   type CloudLinkStatusView,
+  type CloudRemoteManagement,
   type CloudRequestAudit,
   type CloudRequestSummary,
   type CloudSocketStatus,
   type StoredCloudDisconnect,
   type StoredCloudEnrollment,
+  type StoredRemoteManagement,
 } from './cloud-link.types.js';
+import type { CloudRequestWindowView } from './cloud-link-request-audit.js';
 
 const logger = createChildLogger('CloudLink');
 
 const SETTINGS_KEYS = {
   enrollment: 'cloud:enrollment',
+  remoteManagement: 'cloud:remote_management',
   disconnect: 'cloud:disconnected',
 } as const;
 /** The socket state of the replica that holds the link, for the status a request on any replica reads. */
@@ -36,6 +40,8 @@ export const CLOUD_AUDIT_ACTIONS = {
   connect: 'cloud.connect',
   disconnect: 'cloud.disconnect',
   disconnectedByAccount: 'cloud.disconnected_by_account',
+  enrollFile: 'cloud.enroll_file',
+  remoteManagement: 'cloud.remote_management',
   request: 'cloud.request',
 } as const;
 export const CLOUD_AUDIT_RESOURCE_TYPE = 'cloud-link';
@@ -48,7 +54,9 @@ export class CloudLinkRequestError extends Error {
   constructor(
     readonly status: number,
     readonly code: string,
-    message: string
+    message: string,
+    /** The portal may accept the same request later (unreachable, rate limited, failing on its side). */
+    readonly retryable = false
   ) {
     super(message);
     this.name = 'CloudLinkRequestError';
@@ -115,6 +123,7 @@ export class CloudLinkService {
   private localSocketStatus: (() => CloudSocketStatus | null) | null = null;
   private queue: Promise<void> = Promise.resolve();
   private auditService: Pick<AuditService, 'log'> | null = null;
+  private liveRequestWindows: (() => CloudRequestWindowView[]) | null = null;
 
   constructor(
     private readonly db: DrizzleClient,
@@ -168,6 +177,7 @@ export class CloudLinkService {
           : { state: 'connecting', since: null, lastError: null },
         disconnectedAt: null,
         disconnectedReason: null,
+        remoteManagement: await this.remoteManagementFor(enrollment),
         recentRequests: await this.recentRequests(enrollment.agentId),
       };
     }
@@ -180,6 +190,7 @@ export class CloudLinkService {
         socket: null,
         disconnectedAt: stored.disconnect.disconnectedAt,
         disconnectedReason: stored.disconnect.reason,
+        remoteManagement: null,
         recentRequests: [],
       };
     }
@@ -191,13 +202,28 @@ export class CloudLinkService {
       socket: null,
       disconnectedAt: null,
       disconnectedReason: null,
+      remoteManagement: null,
       recentRequests: [],
     };
   }
 
   /** Enrols with a code from the account portal. Enrolling again replaces the previous agent. */
-  async connect(code: string, actor: { userId: string | null } = { userId: null }): Promise<CloudLinkStatusView> {
-    const portalUrl = this.configuredPortalUrl;
+  async connect(
+    code: string,
+    actor: { userId: string | null } = { userId: null },
+    options: {
+      /** Portal to enrol with instead of the configured one (the enrolment file names it). */
+      portalUrl?: string;
+      /** Where the code came from, for the audit entry. */
+      source?: 'settings' | 'enroll-file';
+      /** Whether a failure the portal may accept later is audited (the enrolment file retries quietly). */
+      auditRetryableFailure?: boolean;
+    } = {}
+  ): Promise<CloudLinkStatusView> {
+    const portalUrl = options.portalUrl
+      ? this.acceptedPortalUrl(options.portalUrl, this.configuredPortalUrl)
+      : this.configuredPortalUrl;
+    const source = options.source ?? 'settings';
     let agentId: string | null = null;
     let accountEmail: string | null = null;
     try {
@@ -209,21 +235,27 @@ export class CloudLinkService {
           'Enter the code exactly as your cloud account shows it, for example CLD-7K3M-Q9TX'
         );
       }
-      await this.enroll(normalized, portalUrl, (enrolled) => {
+      await this.enroll(normalized, portalUrl, source === 'enroll-file', (enrolled) => {
         agentId = enrolled.agentId;
         accountEmail = enrolled.accountEmail || null;
       });
     } catch (error) {
-      await this.writeAudit(CLOUD_AUDIT_ACTIONS.connect, actor.userId, null, {
-        success: false,
-        portalUrl,
-        errorCode: error instanceof CloudLinkRequestError ? error.code : 'CLOUD_CONNECT_FAILED',
-        error: error instanceof Error ? error.message : String(error),
-      });
+      const retryable = error instanceof CloudLinkRequestError && error.retryable;
+      if (!retryable || options.auditRetryableFailure !== false) {
+        await this.writeAudit(CLOUD_AUDIT_ACTIONS.connect, actor.userId, null, {
+          success: false,
+          source,
+          portalUrl,
+          retryable,
+          errorCode: error instanceof CloudLinkRequestError ? error.code : 'CLOUD_CONNECT_FAILED',
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
       throw error;
     }
     await this.writeAudit(CLOUD_AUDIT_ACTIONS.connect, actor.userId, agentId, {
       success: true,
+      source,
       portalUrl,
       accountEmail,
     });
@@ -234,6 +266,7 @@ export class CloudLinkService {
   private async enroll(
     normalized: string,
     portalUrl: string,
+    managed: boolean,
     onEnrolled: (enrollment: StoredCloudEnrollment) => void
   ): Promise<void> {
     await this.serialized(async () => {
@@ -258,8 +291,11 @@ export class CloudLinkService {
         portalUrl: this.acceptedPortalUrl(enrolled.portalUrl, portalUrl),
         accountEmail: enrolled.accountEmail,
         enrolledAt: new Date().toISOString(),
+        ...(managed ? { managed: true } : {}),
       };
       await this.setSetting(SETTINGS_KEYS.enrollment, enrollment);
+      // A new agent starts with remote management off; a managed VM is managed by the cloud anyway.
+      await this.deleteSetting(SETTINGS_KEYS.remoteManagement);
       await this.deleteSetting(SETTINGS_KEYS.disconnect);
       onEnrolled(enrollment);
       logger.info('Installation connected to the cloud account', { agentId: enrollment.agentId });
@@ -290,6 +326,7 @@ export class CloudLinkService {
         }
       }
       await this.deleteSetting(SETTINGS_KEYS.enrollment);
+      await this.deleteSetting(SETTINGS_KEYS.remoteManagement);
       await this.deleteSetting(SETTINGS_KEYS.disconnect);
       await this.publishSocketStatus(null);
       logger.info('Installation disconnected from the cloud account', { confirmed: !warning });
@@ -321,6 +358,7 @@ export class CloudLinkService {
       };
       await this.setSetting(SETTINGS_KEYS.disconnect, disconnect);
       await this.deleteSetting(SETTINGS_KEYS.enrollment);
+      await this.deleteSetting(SETTINGS_KEYS.remoteManagement);
       await this.publishSocketStatus(null);
       changed = true;
       logger.warn('The cloud account disconnected this installation', { agentId });
@@ -333,7 +371,85 @@ export class CloudLinkService {
     if (changed) this.notify();
   }
 
-  /** One audit entry per portal request the link served, whatever its result. */
+  /**
+   * Whether the cloud account may run privileged requests (node tokens, updates, setup codes): the installation is a
+   * managed cloud VM, or an admin turned on "Allow remote management" for the current agent.
+   */
+  async privilegedAllowed(): Promise<boolean> {
+    const { enrollment } = await this.readStored();
+    if (!enrollment) return false;
+    const access = await this.remoteManagementFor(enrollment);
+    return access.managed || access.enabled;
+  }
+
+  /** The "Allow remote management" switch. A managed cloud VM has none: the cloud manages it. */
+  async setRemoteManagement(
+    enabled: boolean,
+    actor: { userId: string | null } = { userId: null }
+  ): Promise<CloudLinkStatusView> {
+    let audit: { agentId: string; previous: boolean } | null = null;
+    await this.serialized(async () => {
+      const { enrollment } = await this.readStored();
+      if (!enrollment) {
+        throw new CloudLinkRequestError(409, 'CLOUD_NOT_CONNECTED', 'Connect this Gateway to your cloud account first');
+      }
+      if (enrollment.managed) {
+        throw new CloudLinkRequestError(
+          409,
+          'CLOUD_MANAGED',
+          'This Gateway is managed by the cloud; remote management cannot be turned off'
+        );
+      }
+      const previous = (await this.remoteManagementFor(enrollment)).enabled;
+      const stored: StoredRemoteManagement = {
+        enabled,
+        changedAt: new Date().toISOString(),
+        changedBy: actor.userId,
+        agentId: enrollment.agentId,
+      };
+      await this.setSetting(SETTINGS_KEYS.remoteManagement, stored);
+      audit = { agentId: enrollment.agentId, previous };
+    });
+    const changed = audit as { agentId: string; previous: boolean } | null;
+    if (changed) {
+      await this.writeAudit(CLOUD_AUDIT_ACTIONS.remoteManagement, actor.userId, changed.agentId, {
+        enabled,
+        previous: changed.previous,
+      });
+    }
+    return this.getStatus();
+  }
+
+  private async remoteManagementFor(enrollment: StoredCloudEnrollment): Promise<CloudRemoteManagement> {
+    if (enrollment.managed) return { managed: true, enabled: true };
+    const [row] = await this.db
+      .select({ value: settings.value })
+      .from(settings)
+      .where(eq(settings.key, SETTINGS_KEYS.remoteManagement))
+      .limit(1);
+    const stored = row?.value as StoredRemoteManagement | undefined;
+    return { managed: false, enabled: stored?.enabled === true && stored.agentId === enrollment.agentId };
+  }
+
+  /** Whether an agent is enrolled (the account may still refuse it). */
+  async isEnrolled(): Promise<boolean> {
+    return (await this.readStored()).enrollment !== null;
+  }
+
+  /** An outcome of the enrolment file other than a successful connect, which `connect` audits itself. */
+  async recordEnrollFileEvent(details: Record<string, unknown>): Promise<void> {
+    await this.writeAudit(CLOUD_AUDIT_ACTIONS.enrollFile, null, null, details);
+  }
+
+  /** The open coalescing windows of this process when it holds the link (repeats not written yet). */
+  setLiveRequestWindowsReader(reader: (() => CloudRequestWindowView[]) | null): void {
+    this.liveRequestWindows = reader;
+  }
+
+  /**
+   * Writes the audit entry of a served request: a failed read, the first read of a (type, service), or the summary
+   * of the identical reads that followed it (see CloudRequestAuditCoalescer).
+   */
   async recordRequest(agentId: string, request: CloudRequestAudit): Promise<void> {
     await this.writeAudit(CLOUD_AUDIT_ACTIONS.request, null, agentId, { ...request });
   }
@@ -353,15 +469,21 @@ export class CloudLinkService {
         )
         .orderBy(desc(auditLog.createdAt))
         .limit(RECENT_REQUESTS_SHOWN);
+      const live = new Map((this.liveRequestWindows?.() ?? []).map((window) => [window.openedBy, window]));
       return rows.map((row) => {
         const details = (row.details ?? {}) as Partial<CloudRequestAudit>;
+        const summary = details.summary;
+        const counting = typeof details.requestId === 'string' && !summary ? live.get(details.requestId) : undefined;
+        const resultBytes = typeof details.resultBytes === 'number' ? details.resultBytes : null;
         return {
-          at: row.createdAt.toISOString(),
+          at: summary?.firstAt ?? row.createdAt.toISOString(),
           type: typeof details.type === 'string' ? details.type : 'unknown',
           service: typeof details.service === 'string' ? details.service : null,
           ok: details.ok === true,
           error: typeof details.error === 'string' ? details.error : null,
-          resultBytes: typeof details.resultBytes === 'number' ? details.resultBytes : null,
+          resultBytes: counting && resultBytes !== null ? resultBytes + counting.repeatBytes : resultBytes,
+          count: summary ? summary.count : 1 + (counting?.repeats ?? 0),
+          lastAt: summary?.lastAt ?? counting?.lastAt ?? null,
         };
       });
     } catch (error) {
@@ -466,13 +588,15 @@ export class CloudLinkService {
       return new CloudLinkRequestError(
         429,
         'CLOUD_RATE_LIMITED',
-        'Too many attempts. Wait a few minutes before trying again.'
+        'Too many attempts. Wait a few minutes before trying again.',
+        true
       );
     }
     return new CloudLinkRequestError(
       502,
       code ?? 'CLOUD_PORTAL_ERROR',
-      message ?? `Your cloud account answered HTTP ${status}`
+      message ?? `Your cloud account answered HTTP ${status}`,
+      status >= 500
     );
   }
 
@@ -488,7 +612,8 @@ export class CloudLinkService {
       throw new CloudLinkRequestError(
         502,
         'CLOUD_PORTAL_UNAVAILABLE',
-        `Your cloud account could not be reached at ${new URL(url).origin}`
+        `Your cloud account could not be reached at ${new URL(url).origin}`,
+        true
       );
     }
     const text = await response.text().catch(() => '');

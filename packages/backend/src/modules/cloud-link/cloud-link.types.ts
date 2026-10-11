@@ -26,6 +26,17 @@ export interface StoredCloudEnrollment {
   portalUrl: string;
   accountEmail: string;
   enrolledAt: string;
+  /** Enrolled automatically from the provisioning file of a managed cloud VM. */
+  managed?: boolean;
+}
+
+/** The admin's "Allow remote management" switch; reset whenever the enrolment changes. */
+export interface StoredRemoteManagement {
+  enabled: boolean;
+  changedAt: string;
+  changedBy: string | null;
+  /** The agent the switch was turned on for. */
+  agentId: string;
 }
 
 /** Left behind when the account revoked the agent (a 401 on the socket). */
@@ -63,6 +74,8 @@ export interface CloudLinkStatusView {
   socket: { state: CloudSocketState; since: string | null; lastError: string | null } | null;
   disconnectedAt: string | null;
   disconnectedReason: string | null;
+  /** Connected only: who may run privileged requests (node tokens, updates, setup codes). */
+  remoteManagement: CloudRemoteManagement | null;
   /** The latest portal requests the link served (connected only), newest first. */
   recentRequests: CloudRequestSummary[];
 }
@@ -74,11 +87,31 @@ export interface CloudRequestAudit {
   service?: string;
   tail?: number;
   since?: string;
+  /** `name` of a node-token request, `version` of an update request. */
+  name?: string;
+  version?: string;
+  /** `kind` of a node-token request. */
+  kind?: string;
   ok: boolean;
   error?: string;
-  /** Size of the JSON answer sent back, in bytes. */
+  /** Machine-readable reason of a refusal, such as REMOTE_MANAGEMENT_OFF. */
+  errorCode?: string;
+  /** Size of the JSON answer sent back, in bytes (all repeats together in a summary). */
   resultBytes: number;
-  durationMs: number;
+  durationMs?: number;
+  /** On the entry of a first read: identical reads in this window are counted, not written one by one. */
+  coalescingWindowMs?: number;
+  /** A summary of the identical successful reads that followed a first read within its window. */
+  summary?: {
+    count: number;
+    firstAt: string;
+    lastAt: string;
+    windowStartedAt: string;
+    /** Request id of the first read, which has its own entry. */
+    openedBy: string;
+    firstRequestId: string;
+    lastRequestId: string;
+  };
 }
 
 export interface CloudRequestSummary {
@@ -88,6 +121,10 @@ export interface CloudRequestSummary {
   ok: boolean;
   error: string | null;
   resultBytes: number | null;
+  /** Reads this entry stands for: 1, or the repeats a summary counted (plus those still counting on the first read). */
+  count: number;
+  /** The latest read the entry covers, when it covers more than one. */
+  lastAt: string | null;
 }
 
 export interface CloudDisconnectResult extends CloudLinkStatusView {
@@ -102,7 +139,28 @@ export interface CloudRequest {
   params: Record<string, unknown>;
 }
 
-export type CloudAnswer = { id: string; ok: true; data: unknown } | { id: string; ok: false; error: string };
+export type CloudAnswer =
+  | { id: string; ok: true; data: unknown }
+  | { id: string; ok: false; error: string; code?: string };
+
+/** Request kinds that act on the installation; they need remote management (see CloudLinkAccess). */
+export const CLOUD_PRIVILEGED_REQUEST_TYPES: ReadonlySet<string> = new Set(['node-token', 'update', 'setup-link']);
+export const REMOTE_MANAGEMENT_OFF = {
+  code: 'REMOTE_MANAGEMENT_OFF',
+  error: 'Remote management is off on this installation',
+} as const;
+
+/** Whether the cloud account may run privileged requests: a managed cloud VM, or the admin allowed it. */
+export interface CloudLinkAccess {
+  privilegedAllowed(): Promise<boolean>;
+}
+
+export interface CloudRemoteManagement {
+  /** Enrolled automatically as a managed cloud VM: always managed by the cloud. */
+  managed: boolean;
+  /** The admin's "Allow remote management" switch (off by default). */
+  enabled: boolean;
+}
 
 export interface CloudServiceState {
   name: string;
@@ -130,8 +188,49 @@ export interface CloudLogLine {
   line: string;
 }
 
-/** What the socket requests read: the installation's own host and containers. */
-export interface CloudLinkProbe {
+/** Node types Nodes → Add node offers, by their identifiers. */
+export const CLOUD_NODE_KINDS = ['nginx', 'docker', 'builder', 'storage', 'monitoring', 'relay'] as const;
+export type CloudNodeKind = (typeof CLOUD_NODE_KINDS)[number];
+export const DEFAULT_CLOUD_NODE_KIND: CloudNodeKind = 'nginx';
+export const DEFAULT_RELAY_SERVICE_PORT = 9443;
+
+/** The kind a node-token request names; `databases` is the former name of `storage`, as Add node reads it. */
+export function resolveCloudNodeKind(kind: unknown): CloudNodeKind | null {
+  if (kind === undefined || kind === null || kind === '') return DEFAULT_CLOUD_NODE_KIND;
+  if (typeof kind !== 'string') return null;
+  const value = kind.trim().toLowerCase();
+  if (value === 'databases') return 'storage';
+  return (CLOUD_NODE_KINDS as readonly string[]).includes(value) ? (value as CloudNodeKind) : null;
+}
+
+/** What the cloud account may do over the link besides reading. */
+export interface CloudLinkActions {
+  /** A new first-admin setup code; fails with "already set up" once an admin exists. */
+  setupLink(): Promise<{ code: string; expiresAt: string }>;
+  /** A one-time node enrolment token and the install command, as Nodes → Add node produces. */
+  nodeToken(options: {
+    name?: string;
+    kind?: string;
+    /** Relay only: the address and port it advertises, as Add node asks for them. */
+    address?: string;
+    port?: number;
+  }): Promise<{ token: string; expiresAt: string; command: string; nodeId: string; kind: CloudNodeKind }>;
+  updateStatus(): Promise<{
+    current: string;
+    latest: string | null;
+    channel: string;
+    available: boolean;
+    updating: boolean;
+  }>;
+  /** Starts the same update as Settings → Update now (default: the latest version). */
+  update(version?: string): Promise<{ started: true; version: string }>;
+}
+
+/** Request kinds that only read; identical successful reads share one audit entry. Actions never do. */
+export const CLOUD_READ_REQUEST_TYPES: ReadonlySet<string> = new Set(['state', 'logs', 'services', 'update-status']);
+
+/** What the socket requests read and do: the installation's own host, containers and the actions above. */
+export interface CloudLinkProbe extends CloudLinkActions {
   state(): Promise<CloudStateData>;
   services(): Promise<string[]>;
   logs(service: string, options: { tail: number; sinceMs?: number }): Promise<CloudLogLine[]>;

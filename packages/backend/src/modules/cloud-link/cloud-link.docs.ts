@@ -5,6 +5,19 @@ export const ConnectCloudSchema = z.object({
   code: z.string().trim().min(1).max(64),
 });
 
+export const CloudRemoteManagementSchema = z.object({
+  enabled: z.boolean(),
+});
+
+export const cloudRemoteManagementRoute = appRoute({
+  method: 'post',
+  path: '/remote-management',
+  tags: ['Cloud'],
+  summary: 'Allow or forbid the cloud account to create node tokens, start updates and issue setup codes',
+  request: jsonBody(CloudRemoteManagementSchema),
+  responses: okJson(UnknownDataResponseSchema),
+});
+
 export const cloudStatusRoute = appRoute({
   method: 'get',
   path: '/status',
