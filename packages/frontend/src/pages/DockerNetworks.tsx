@@ -1,4 +1,4 @@
-import { Network, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Info, MoreVertical, Network, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -22,6 +22,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { RefreshButton } from "@/components/ui/refresh-button";
 import {
@@ -393,12 +400,14 @@ export function DockerNetworks({
         id: "driver",
         label: "Driver",
         width: "7rem",
+        align: "right" as const,
         renderCell: (net) => <Badge variant="secondary">{net.driver}</Badge>,
       },
       {
         id: "subnet",
         label: "Subnet",
         width: "10rem",
+        align: "right" as const,
         renderCell: (net) => {
           const ipam = getIPAM(net);
           return ipam.subnet !== "-" ? (
@@ -414,6 +423,7 @@ export function DockerNetworks({
         id: "node",
         label: "Node",
         width: "minmax(0, 1.15fr)",
+        align: "right" as const,
         renderCell: (n) => (
           <div className="min-w-0">
             <Badge variant="secondary" className={nodeBadgeClassName((n as any)._nodeColor)}>
@@ -426,6 +436,7 @@ export function DockerNetworks({
         id: "usage",
         label: "Usage",
         width: "6.5rem",
+        align: "right" as const,
         renderCell: (net) => {
           if (net.availability === "unavailable") {
             return (
@@ -453,33 +464,52 @@ export function DockerNetworks({
         align: "right" as const,
         renderCell: (net) => {
           const count = containerCount(net);
+          const canRemove =
+            (hasScope("docker:networks:delete") ||
+              hasScope(`docker:networks:delete:${net._nodeId}`) ||
+              (net.scopeResourceId &&
+                hasScope(`docker:networks:delete:${net._nodeId}/${net.scopeResourceId}`))) &&
+            count === 0 &&
+            net.availability !== "unavailable";
+          if (!canRemove) return null;
           return (
             <div
-              className="flex items-center justify-end pr-1"
+              className="flex justify-end"
               onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
             >
-              {(hasScope("docker:networks:delete") ||
-                hasScope(`docker:networks:delete:${net._nodeId}`) ||
-                (net.scopeResourceId &&
-                  hasScope(`docker:networks:delete:${net._nodeId}/${net.scopeResourceId}`))) &&
-                count === 0 &&
-                net.availability !== "unavailable" && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon-xs"
+                    size="icon-sm"
                     pending={removingNetworkId === net.id}
-                    onClick={() => handleRemove(net)}
-                    title="Remove"
+                    aria-label={`${net.name} actions`}
                   >
-                    {removingNetworkId !== net.id && <Trash2 className="h-3.5 w-3.5" />}
+                    <MoreVertical className="h-4 w-4" />
                   </Button>
-                )}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => void openNetworkDetails(net)}>
+                    <Info className="h-4 w-4" />
+                    Details
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => handleRemove(net)}
+                    className="text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Remove
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           );
         },
       },
     ],
-    [hasScope, handleRemove, containerCount, getIPAM, removingNetworkId]
+    [hasScope, handleRemove, containerCount, getIPAM, openNetworkDetails, removingNetworkId]
   );
   const networkColumns = allNetworkColumns.filter((c) => {
     if (fixedNodeId && c.id === "node") return false;
