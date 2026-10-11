@@ -139,6 +139,83 @@ describe('cloud enrolment file', () => {
     expect(keys.activate).not.toHaveBeenCalled();
   });
 
+  describe('a file written into the running app', () => {
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const noBackoff = () => 5;
+
+    it('enrols once when the file appears after start', async () => {
+      const fake = service(async () => ({}));
+      const runner = new CloudLinkEnrollFile(
+        fake as unknown as CloudLinkService,
+        leases,
+        license(async () => ({ plan: 'business', moduleRestarting: false })),
+        path,
+        noBackoff,
+        10
+      );
+      runner.start();
+      try {
+        await sleep(40);
+        expect(fake.connect).not.toHaveBeenCalled();
+        await writeFile(path, JSON.stringify({ code: 'CLD-7K3M-Q9TX' }));
+        await vi.waitFor(async () => expect(await exists(path)).toBe(false), { timeout: 2_000, interval: 10 });
+        await sleep(60);
+        expect(fake.connect).toHaveBeenCalledTimes(1);
+        // Settled: the file is no longer looked for.
+        await writeFile(path, JSON.stringify({ code: 'CLD-7K3M-Q9TX' }));
+        await sleep(60);
+        expect(fake.connect).toHaveBeenCalledTimes(1);
+      } finally {
+        await runner.stop();
+      }
+    });
+
+    it('does nothing while there is no file, and stops looking on an installation enrolled before start', async () => {
+      const fake = service(async () => ({}));
+      const keys = license(async () => ({ plan: 'business', moduleRestarting: false }));
+      const runner = new CloudLinkEnrollFile(fake as unknown as CloudLinkService, leases, keys, path, noBackoff, 10);
+      runner.start();
+      await sleep(80);
+      await runner.stop();
+      expect(fake.connect).not.toHaveBeenCalled();
+      expect(fake.recordEnrollFileEvent).not.toHaveBeenCalled();
+      // Asked once, not on every poll.
+      expect(fake.isEnrolled).toHaveBeenCalledTimes(1);
+
+      const enrolled = service(async () => ({}), true);
+      const done = new CloudLinkEnrollFile(enrolled as unknown as CloudLinkService, leases, keys, path, noBackoff, 10);
+      done.start();
+      await sleep(40);
+      await writeFile(path, JSON.stringify({ code: 'CLD-7K3M-Q9TX' }));
+      await sleep(60);
+      await done.stop();
+      expect(enrolled.connect).not.toHaveBeenCalled();
+    });
+
+    it('waits for a file still being written instead of giving up, and audits that once', async () => {
+      await writeFile(path, '{"code": "CLD-7K3M');
+      const fake = service(async () => ({}));
+      const runner = new CloudLinkEnrollFile(
+        fake as unknown as CloudLinkService,
+        leases,
+        license(async () => ({ plan: 'business', moduleRestarting: false })),
+        path,
+        noBackoff,
+        10
+      );
+      runner.start();
+      try {
+        await sleep(60);
+        expect(fake.recordEnrollFileEvent).toHaveBeenCalledTimes(1);
+        await writeFile(path, JSON.stringify({ code: 'CLD-7K3M-Q9TX' }));
+        await vi.waitFor(async () => expect(await exists(path)).toBe(false), { timeout: 2_000, interval: 10 });
+        expect(fake.connect).toHaveBeenCalledTimes(1);
+      } finally {
+        await runner.stop();
+      }
+    });
+  });
+
   describe('Opfield account sign-in', () => {
     const SECRET = 'client-secret-9f8e7d';
     const file = {

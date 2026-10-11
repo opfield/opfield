@@ -14,6 +14,11 @@ const logger = createChildLogger('CloudLinkEnrollFile');
 export const CLOUD_ENROLL_FILE_PATH = '/var/lib/gateway/cloud-enroll.json';
 /** One replica redeems the single-use code and activates the key. */
 const LEASE_KEY = operationLeaseKey('cloud-link', 'enroll-file');
+/**
+ * Provisioning may write the file into the running app (cloud-init after the installer): until an enrolment settled,
+ * a missing or unreadable file is looked for again this often (one failed open while there is none).
+ */
+export const CLOUD_ENROLL_FILE_POLL_MS = 10_000;
 
 /** The file as read (see CloudEnrollFileContract); a malformed sso or owner is left out. */
 type EnrollFile = CloudEnrollFileContract;
@@ -105,6 +110,8 @@ export function createEnrollFileLicense(
  * installation that is not enrolled, and the paid license key in it is activated. With `sso` and `owner` in the file,
  * sign-in with the Opfield account is set up first (CloudManagedSso) and the client secret leaves the file. A step
  * that may still succeed is retried with backoff; the file is removed once every step succeeded or was refused for good.
+ * The file is read at start and, since provisioning may write it into the running app, looked for every 10 s until an
+ * enrolment settled (or the installation was already enrolled at start).
  */
 export class CloudLinkEnrollFile {
   private running = false;
@@ -116,13 +123,19 @@ export class CloudLinkEnrollFile {
   private licenseSettled: StepOutcome | null = null;
   private ssoSettled: StepOutcome | null = null;
   private sso: EnrollFileSso | null = null;
+  /** The file was settled (enrolled or refused for good) or the installation is enrolled: nothing to look for. */
+  private finished = false;
+  private checkedEnrolled = false;
+  /** The last unreadable-file error audited, so a file still being written is not audited on every poll. */
+  private lastUnreadable: string | null = null;
 
   constructor(
     private readonly service: CloudLinkService,
     private readonly leases: OperationLeaseStore,
     private readonly license: EnrollFileLicense,
     private readonly path = CLOUD_ENROLL_FILE_PATH,
-    private readonly delay: (attempt: number) => number = cloudBackoffDelay
+    private readonly delay: (attempt: number) => number = cloudBackoffDelay,
+    private readonly pollMs = CLOUD_ENROLL_FILE_POLL_MS
   ) {}
 
   /** Sign-in with the Opfield account from the file's sso and owner; without it they are ignored. */
@@ -146,11 +159,25 @@ export class CloudLinkEnrollFile {
   /** One pass; true when another pass is due (a retryable failure, or another replica holds the file). */
   async runOnce(): Promise<boolean> {
     const read = await readEnrollFile(this.path);
-    if (read.kind === 'missing') return false;
+    if (read.kind === 'missing') {
+      // An installation enrolled before this start has nothing to wait for; asked once, not on every poll.
+      if (!this.checkedEnrolled) {
+        this.checkedEnrolled = true;
+        if (await this.service.isEnrolled()) this.finished = true;
+      }
+      return false;
+    }
     if (read.kind === 'unreadable') {
-      if (await this.service.isEnrolled()) return false;
-      logger.warn('The cloud enrolment file cannot be read', { path: this.path, error: read.error });
-      await this.service.recordEnrollFileEvent({ outcome: 'unreadable', path: this.path, error: read.error });
+      if (await this.service.isEnrolled()) {
+        this.finished = true;
+        return false;
+      }
+      // Possibly still being written: looked at again at the next poll, audited once per error.
+      if (this.lastUnreadable !== read.error) {
+        this.lastUnreadable = read.error;
+        logger.warn('The cloud enrolment file cannot be read', { path: this.path, error: read.error });
+        await this.service.recordEnrollFileEvent({ outcome: 'unreadable', path: this.path, error: read.error });
+      }
       return false;
     }
     const claim = await this.leases.claim([LEASE_KEY], {});
@@ -175,6 +202,7 @@ export class CloudLinkEnrollFile {
         license: read.file.licenseKey ? license : 'none',
         ...(hasSso ? { sso } : {}),
       });
+      this.finished = true;
       return false;
     } finally {
       await this.leases.release([LEASE_KEY], claim.token).catch(() => undefined);
@@ -295,10 +323,14 @@ export class CloudLinkEnrollFile {
           return true;
         })
         .then((again) => {
-          if (!again) return;
-          const wait = this.delay(this.attempt);
-          this.attempt += 1;
-          this.schedule(wait);
+          if (again) {
+            const wait = this.delay(this.attempt);
+            this.attempt += 1;
+            this.schedule(wait);
+            return;
+          }
+          // No file yet (or not readable yet): look again until an enrolment settled.
+          if (!this.finished) this.schedule(this.pollMs);
         })
         .finally(() => {
           this.current = null;
