@@ -4,9 +4,12 @@ import {
   containerLinkPlacements,
   dockerAvailabilityLeaseState,
   dockerAvailabilityPlacements,
+  managedAvailabilityMembers,
+  managedAvailabilitySets,
   managedDatabaseBindingPlacements,
   proxyAdditionalSecureLinks,
 } from '@/db/schema/index.js';
+import { MANAGED_AVAILABILITY_MEMBER_ENDPOINT_OWNER } from './lease-policy-relays.js';
 
 /** A relay endpoint or route as the policy snapshot builder knows it. */
 export interface RelayLeaseOwner {
@@ -24,9 +27,9 @@ export interface RelayLeasePolicyIds {
 /**
  * Which relay endpoints and routes the relay must admit only through its lease gate (A2.4, A8, A11): the Secure
  * Link endpoints of every Availability member (serving or dormant), the container link endpoints of every target
- * placement, and the managed-database binding routes of every placement, for policies in lease mode only.
- * Bootstrapping keeps legacy admission so the legacy serving copy keeps its registration until its first commit;
- * closing and legacy clear the field.
+ * placement, the managed-database binding routes of every placement (app-side gate), and the member endpoints of every
+ * availability set in automatic mode (endpoint gate), for lease policies in lease mode only. Bootstrapping keeps legacy
+ * admission so the serving copy keeps its registration until its first commit; closing and legacy clear the field.
  */
 export async function relayLeasePolicyIds(
   db: DrizzleClient,
@@ -37,7 +40,11 @@ export async function relayLeasePolicyIds(
   const linkIds = endpoints.filter((endpoint) => endpoint.ownerKind === 'proxy_host_secure_link').map((e) => e.ownerId);
   const projectionIds = routes.filter((route) => route.ownerKind === 'managed_database_binding').map((r) => r.ownerId);
   const targetIds = endpoints.filter((endpoint) => endpoint.ownerKind === 'container_link').map((e) => e.ownerId);
-  if (linkIds.length === 0 && projectionIds.length === 0 && targetIds.length === 0) return result;
+  const setMemberIds = endpoints
+    .filter((endpoint) => endpoint.ownerKind === MANAGED_AVAILABILITY_MEMBER_ENDPOINT_OWNER)
+    .map((endpoint) => endpoint.ownerId);
+  if (linkIds.length === 0 && projectionIds.length === 0 && targetIds.length === 0 && setMemberIds.length === 0)
+    return result;
   const leasePolicies = new Set(
     (
       await db
@@ -121,6 +128,22 @@ export async function relayLeasePolicyIds(
   for (const route of routes) {
     const policyId = route.ownerKind === 'managed_database_binding' ? projectionPolicy.get(route.ownerId) : undefined;
     if (policyId && leasePolicies.has(policyId)) result.routes.set(route.id, policyId);
+  }
+  const setMembers = setMemberIds.filter((id) => uuid.test(id));
+  if (setMembers.length > 0) {
+    // A member endpoint of an availability set admits only the holder of the set's current lease policy (subject =
+    // the member's lease identity). Member peer routes stay endpoint-gated only, never source-gated (AS12/M7).
+    const memberPolicies = await db
+      .select({ memberId: managedAvailabilityMembers.id, leasePolicyId: managedAvailabilitySets.leasePolicyId })
+      .from(managedAvailabilityMembers)
+      .innerJoin(managedAvailabilitySets, eq(managedAvailabilitySets.id, managedAvailabilityMembers.setId))
+      .where(inArray(managedAvailabilityMembers.id, setMembers));
+    const policyOfMember = new Map(memberPolicies.map((row) => [row.memberId, row.leasePolicyId]));
+    for (const endpoint of endpoints) {
+      if (endpoint.ownerKind !== MANAGED_AVAILABILITY_MEMBER_ENDPOINT_OWNER) continue;
+      const policyId = policyOfMember.get(endpoint.ownerId);
+      if (policyId && leasePolicies.has(policyId)) result.endpoints.set(endpoint.id, policyId);
+    }
   }
   return result;
 }

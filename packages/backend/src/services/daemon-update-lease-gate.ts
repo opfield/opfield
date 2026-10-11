@@ -125,6 +125,7 @@ export async function loadLeaseUpdateView(
       policyId: dockerAvailabilityLeaseState.policyId,
       quorumSets: dockerAvailabilityLeaseState.quorumSets,
       voterMembers: dockerAvailabilityLeaseState.voterMembers,
+      candidateMemberIds: dockerAvailabilityLeaseState.candidateMemberIds,
     })
     .from(dockerAvailabilityLeaseState)
     .where(ne(dockerAvailabilityLeaseState.mode, 'legacy'));
@@ -133,6 +134,8 @@ export async function loadLeaseUpdateView(
     const members = new Set<string>();
     for (const set of state.quorumSets ?? []) for (const id of set) members.add(id);
     for (const voter of state.voterMembers ?? []) if (voter.id) members.add(voter.id);
+    // Candidates of every lease policy kind (Availability's placements below are a superset of its candidates).
+    for (const id of state.candidateMemberIds ?? []) members.add(id);
     policyMembers.set(state.policyId, members);
   }
   const policyIds = [...policyMembers.keys()];

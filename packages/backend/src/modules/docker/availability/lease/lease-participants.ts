@@ -7,9 +7,11 @@ import {
   AVAILABILITY_LEASE_CAPABILITY,
   AVAILABILITY_LEASE_V1_CAPABILITY,
   AVAILABILITY_LEASE_WATCHDOG_MISSING_CAPABILITY,
+  isStorageProfileNodeType,
   LEASE_ENTRY_STABLE_MS,
   LEASE_IMPOSSIBLE_HYSTERESIS_MS,
   MEMBER_REPORT_FRESH_MS,
+  STORAGE_PROFILE_NODE_TYPES,
   VOTER_OFFLINE_REPLACE_MS,
 } from './lease-constants.js';
 import type { LeaseMemberRow } from './lease-store.js';
@@ -17,6 +19,15 @@ import type { DockerAvailabilityLeaseExclusionReason } from './lease-types.js';
 import type { LeaseVoterCandidateNode, LeaseWitnessCandidate } from './lease-voters.js';
 
 export type LeaseProtocolVersion = 'v2' | 'v1' | null;
+
+/** Capabilities of the lease protocol itself (as opposed to an application capability a source requires). */
+const LEASE_PROTOCOL_CAPABILITY_PREFIX = 'availability_lease_';
+
+/** The lease protocol itself (v2, and v1 counted as outdated) is judged by the base participant rules. */
+const AVAILABILITY_LEASE_PROTOCOL_CAPABILITIES_SET: ReadonlySet<string> = new Set([
+  AVAILABILITY_LEASE_CAPABILITY,
+  AVAILABILITY_LEASE_V1_CAPABILITY,
+]);
 
 export interface LeaseParticipant {
   id: string;
@@ -54,6 +65,11 @@ export interface LeaseParticipant {
   withinGrace: boolean;
   /** Docker and nginx daemons: control connection to Gateway now. Relays: not offline or in error. */
   online: boolean;
+  /**
+   * A storage-profile docker daemon (node type storage or databases): a lease candidate of the availability sets it
+   * runs a member of, never an automatic witness (the witness choice of existing policies stays as it was).
+   */
+  storageNode: boolean;
   /** Relays: Gateway's local relay, which stops with Gateway. */
   local: boolean;
   /** Relays: state ready. */
@@ -77,6 +93,13 @@ export interface LeaseParticipant {
    */
   entryStable: boolean;
   publicKey: string | null;
+  /** Every capability the participant advertises (relays: their features). */
+  capabilities: ReadonlySet<string>;
+  /**
+   * Set by restrictLeaseParticipants for one policy: capabilities the policy requires that the participant lacks.
+   * Empty when it has them all (or the policy needs nothing beyond the lease protocol).
+   */
+  missingCapabilities: readonly string[];
 }
 
 export interface LeaseParticipants {
@@ -207,7 +230,8 @@ export async function loadLeaseParticipants(
         status: nodes.status,
       })
       .from(nodes)
-      .where(inArray(nodes.type, ['docker', 'nginx'])),
+      // Storage-profile daemons run the lease runtime for the availability set members they host.
+      .where(inArray(nodes.type, ['docker', 'nginx', ...STORAGE_PROFILE_NODE_TYPES])),
   ]);
   const relays: LeaseParticipant[] = relayRows
     .filter((relay) => isOperatorOwnedRelayPool(relay.poolId))
@@ -224,6 +248,7 @@ export async function loadLeaseParticipants(
         nodeId: relay.nodeId,
         hostKey: relay.hostIdentityId ?? relay.nodeId ?? `relay-fault-domain:${relay.faultDomainId}`,
         faultDomain: relay.faultDomainId,
+        storageNode: false,
         protocol,
         voterCapable,
         capable: voterCapable,
@@ -238,6 +263,8 @@ export async function loadLeaseParticipants(
         incarnation: member?.incarnation ?? null,
         entryStable: false,
         publicKey: member?.identityPublicKey ?? null,
+        capabilities: new Set(features),
+        missingCapabilities: [],
       };
     });
   const latencies = new Map<string, Map<string, number>>();
@@ -267,6 +294,7 @@ export async function loadLeaseParticipants(
       nodeId: node.id,
       hostKey: node.hostIdentityId ?? node.id,
       faultDomain: null,
+      storageNode: isStorageProfileNodeType(node.type),
       protocol,
       voterCapable,
       capable: leaseMemberCapable(kind, protocol === 'v2', member),
@@ -281,6 +309,8 @@ export async function loadLeaseParticipants(
       incarnation: kind === 'docker' ? (member?.incarnation ?? null) : null,
       entryStable: false,
       publicKey: member?.identityPublicKey ?? null,
+      capabilities: connected ? connected.capabilities : new Set(persistedCapabilities(node.capabilities)),
+      missingCapabilities: [],
     };
   });
   const byId = new Map<string, LeaseParticipant>();
@@ -360,6 +390,47 @@ export class LeaseCapabilityTracker {
 }
 
 /**
+ * The participants as one lease policy sees them when it requires capabilities beyond the lease protocol (a stateful
+ * policy needs availability_lease_v3 on every participant and its application capability on every candidate, AS8): a
+ * member that lacks one cannot vote, hold, witness, keep shadow accepts or carry the policy's traffic, and keeps no
+ * grace (a v2 acceptor never counts for a stateful key). A docker candidate without them is excluded like an
+ * outdated daemon.
+ */
+export function restrictLeaseParticipants(
+  participants: LeaseParticipants,
+  requiredCapabilities: readonly string[],
+  candidateIds: ReadonlySet<string> = new Set()
+): LeaseParticipants {
+  const extra = [...new Set(requiredCapabilities)].filter(
+    (capability) => !AVAILABILITY_LEASE_PROTOCOL_CAPABILITIES_SET.has(capability)
+  );
+  if (extra.length === 0) return participants;
+  // Lease protocol capabilities (availability_lease_v3) bind every participant; an application capability (the
+  // managed-database member runtime) binds the candidates only: relays and witnesses never run the application.
+  const protocol = extra.filter((capability) => capability.startsWith(LEASE_PROTOCOL_CAPABILITY_PREFIX));
+  const restrict = (participant: LeaseParticipant): LeaseParticipant => {
+    const needed = candidateIds.has(participant.id) ? extra : protocol;
+    const missing = needed.filter((capability) => !participant.capabilities.has(capability));
+    if (missing.length === 0) return participant;
+    return {
+      ...participant,
+      voterCapable: false,
+      capable: false,
+      entryReady: false,
+      entryStable: false,
+      withinGrace: false,
+      exclusion: participant.kind === 'docker' ? (participant.exclusion ?? 'daemon_outdated') : participant.exclusion,
+      missingCapabilities: missing,
+    };
+  };
+  const relays = participants.relays.map(restrict);
+  const daemons = participants.daemons.map(restrict);
+  const byId = new Map<string, LeaseParticipant>();
+  for (const participant of [...relays, ...daemons]) byId.set(participant.id, participant);
+  return { ...participants, relays, daemons, byId };
+}
+
+/**
  * A member that may keep a voter place it already has (D3): voter-capable, or inside the grace of a short
  * incapability while it still has an identity key. Never a daemon offline for VOTER_OFFLINE_REPLACE_MS.
  */
@@ -421,20 +492,21 @@ export function leaseWitnessPool(
   participants: LeaseParticipants,
   currentWitnesses: ReadonlySet<string> = new Set()
 ): LeaseWitnessCandidate[] {
-  return [...participants.relays, ...participants.daemons.filter((daemon) => daemon.kind === 'docker')].map(
-    (participant) => ({
-      id: participant.id,
-      kind: participant.kind === 'relay' ? ('relay' as const) : ('docker' as const),
-      hostKey: participant.hostKey,
-      faultDomain: participant.faultDomain,
-      capable: participant.voterCapable || (currentWitnesses.has(participant.id) && keepsLeaseVoterPlace(participant)),
-      local: participant.local,
-      ready: participant.kind === 'relay' ? participant.ready && participant.voterCapable : participant.voterCapable,
-      publicKey: participant.publicKey,
-      rttFrom: (candidateId: string) =>
-        participant.kind === 'relay' ? participants.relayRtt(candidateId, participant.id) : undefined,
-    })
-  );
+  return [
+    ...participants.relays,
+    ...participants.daemons.filter((daemon) => daemon.kind === 'docker' && !daemon.storageNode),
+  ].map((participant) => ({
+    id: participant.id,
+    kind: participant.kind === 'relay' ? ('relay' as const) : ('docker' as const),
+    hostKey: participant.hostKey,
+    faultDomain: participant.faultDomain,
+    capable: participant.voterCapable || (currentWitnesses.has(participant.id) && keepsLeaseVoterPlace(participant)),
+    local: participant.local,
+    ready: participant.kind === 'relay' ? participant.ready && participant.voterCapable : participant.voterCapable,
+    publicKey: participant.publicKey,
+    rttFrom: (candidateId: string) =>
+      participant.kind === 'relay' ? participants.relayRtt(candidateId, participant.id) : undefined,
+  }));
 }
 
 /**

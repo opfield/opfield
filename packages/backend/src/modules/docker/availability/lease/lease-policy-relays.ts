@@ -3,6 +3,9 @@ import type { DrizzleClient } from '@/db/client.js';
 import {
   containerLinkPlacements,
   dockerAvailabilityPlacements,
+  type LeasePolicyKind,
+  managedAvailabilityMembers,
+  managedAvailabilitySets,
   managedDatabaseBindingPlacements,
   proxyAdditionalSecureLinks,
   relayEndpointAssignmentGenerations,
@@ -10,6 +13,13 @@ import {
   relayEndpoints,
   relayRoutes,
 } from '@/db/schema/index.js';
+
+/**
+ * relay_endpoints.owner_kind of an availability set member endpoint: owner id = the member row id, subject = the
+ * member's node (its lease identity). In automatic mode the endpoint is gated by the set's lease policy (relay.v1
+ * EndpointPolicy.lease_policy_id); in manual mode only the primary's endpoint serves.
+ */
+export const MANAGED_AVAILABILITY_MEMBER_ENDPOINT_OWNER = 'managed_availability_member';
 
 /**
  * The relay instances that carry each policy's lease-gated traffic: the relays assigned to the Secure Link endpoint of
@@ -101,6 +111,65 @@ export async function loadPolicyRelays(db: DrizzleClient, policyIds: string[]): 
   for (const row of endpoints) add(row.endpointId, policyOfMember.get(row.ownerId));
   for (const row of routes) add(row.endpointId, policyOfProjection.get(row.ownerId));
   for (const row of targetEndpoints) add(row.endpointId, policyOfTarget.get(row.ownerId));
+  return relaysOfEndpoints(db, policiesOfEndpoint);
+}
+
+/**
+ * The relays that carry each availability set's lease policy traffic (AS12/M7): every relay assigned to a member
+ * endpoint of the set. Every route of a set (bindings, links, Gateway tools, backups, monitoring, member peer routes)
+ * targets a member endpoint, so these are all the relays that carry it; each of them shadow-accepts the policy.
+ */
+export async function loadManagedSetLeaseRelays(
+  db: DrizzleClient,
+  leasePolicyIds: string[]
+): Promise<Map<string, Set<string>>> {
+  if (leasePolicyIds.length === 0) return new Map();
+  const members = await db
+    .select({ memberId: managedAvailabilityMembers.id, leasePolicyId: managedAvailabilitySets.leasePolicyId })
+    .from(managedAvailabilityMembers)
+    .innerJoin(managedAvailabilitySets, eq(managedAvailabilitySets.id, managedAvailabilityMembers.setId))
+    .where(inArray(managedAvailabilitySets.leasePolicyId, leasePolicyIds));
+  const policyOfMember = new Map(
+    members.flatMap((row) => (row.leasePolicyId ? [[row.memberId, row.leasePolicyId]] : []))
+  );
+  if (policyOfMember.size === 0) return new Map();
+  const endpoints = await db
+    .select({ endpointId: relayEndpoints.id, ownerId: relayEndpoints.ownerId })
+    .from(relayEndpoints)
+    .where(
+      and(
+        eq(relayEndpoints.ownerKind, MANAGED_AVAILABILITY_MEMBER_ENDPOINT_OWNER),
+        inArray(relayEndpoints.ownerId, [...policyOfMember.keys()])
+      )
+    );
+  const policiesOfEndpoint = new Map<string, Set<string>>();
+  for (const row of endpoints) {
+    const policyId = policyOfMember.get(row.ownerId);
+    if (policyId) policiesOfEndpoint.set(row.endpointId, new Set([policyId]));
+  }
+  return relaysOfEndpoints(db, policiesOfEndpoint);
+}
+
+/** Carrying relays of lease policies of any kind. */
+export async function loadLeasePolicyRelays(
+  db: DrizzleClient,
+  policies: Array<{ kind: LeasePolicyKind; leasePolicyId: string }>
+): Promise<Map<string, Set<string>>> {
+  const ids = (kind: LeasePolicyKind) =>
+    policies.filter((policy) => policy.kind === kind).map((policy) => policy.leasePolicyId);
+  const [availability, databases] = await Promise.all([
+    loadPolicyRelays(db, ids('docker_availability')),
+    loadManagedSetLeaseRelays(db, ids('managed_availability_set')),
+  ]);
+  return new Map([...availability, ...databases]);
+}
+
+/** Relays assigned (active, staging or draining) to the endpoints, collected per lease policy. */
+async function relaysOfEndpoints(
+  db: DrizzleClient,
+  policiesOfEndpoint: Map<string, Set<string>>
+): Promise<Map<string, Set<string>>> {
+  const result = new Map<string, Set<string>>();
   if (policiesOfEndpoint.size === 0) return result;
   const assignments = await db
     .select({
