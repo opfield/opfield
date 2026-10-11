@@ -25,7 +25,7 @@ import { backupRuntime } from '@/modules/backups/backup-runtime.js';
 import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
 import { createCloudLinkActions } from '@/modules/cloud-link/cloud-link-actions.js';
 import { CloudLinkAgent } from '@/modules/cloud-link/cloud-link-agent.js';
-import { CloudLinkEnrollFile } from '@/modules/cloud-link/cloud-link-enroll-file.js';
+import { CloudLinkEnrollFile, createEnrollFileLicense } from '@/modules/cloud-link/cloud-link-enroll-file.js';
 import { createCloudLinkProbe } from '@/modules/cloud-link/cloud-link-probe.js';
 import { DatabaseMonitoringService } from '@/modules/databases/database-monitoring.service.js';
 import { DiagnosticsService } from '@/modules/diagnostics/diagnostics.service.js';
@@ -58,6 +58,7 @@ import { IntegrationsService } from '@/modules/integrations/integrations.service
 import { LicenseService } from '@/modules/license/license.service.js';
 import { LICENSE_SCHEDULER_INTERVAL_MS } from '@/modules/license/license.types.js';
 import { LicenseEntitlementReconcilerService } from '@/modules/license/license-entitlement-reconciler.service.js';
+import { LicenseModuleService } from '@/modules/license/license-module.service.js';
 import { LoggingClickHouseService } from '@/modules/logging/logging-clickhouse.service.js';
 import { LoggingEnvironmentService } from '@/modules/logging/logging-environment.service.js';
 import { LoggingMaintenanceService } from '@/modules/logging/logging-maintenance.service.js';
@@ -219,7 +220,11 @@ export async function initializeBackgroundServices(): Promise<void> {
   // A managed installation enrols itself from the code its provisioning left in the app container.
   container.registerInstance(
     CloudLinkEnrollFile,
-    new CloudLinkEnrollFile(container.resolve(CloudLinkService), new OperationLeaseStore(db))
+    new CloudLinkEnrollFile(
+      container.resolve(CloudLinkService),
+      new OperationLeaseStore(db),
+      createEnrollFileLicense(licenseService, container.resolve(LicenseModuleService))
+    )
   );
   scheduler.registerInterval('gateway-diagnostics-sample', 60_000, () => diagnosticsService.sampleMinute());
   container

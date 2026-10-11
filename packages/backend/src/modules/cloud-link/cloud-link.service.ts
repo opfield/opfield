@@ -436,6 +436,18 @@ export class CloudLinkService {
     return (await this.readStored()).enrollment !== null;
   }
 
+  /** Activation of the license key in the enrolment file, audited like Settings' activation. Never the key itself. */
+  async recordLicenseActivation(details: Record<string, unknown>): Promise<void> {
+    if (!this.auditService) return;
+    try {
+      await this.auditService.log({ userId: null, action: 'license.activate', resourceType: 'license', details });
+    } catch (error) {
+      logger.warn('Could not write the license activation audit entry', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   /** An outcome of the enrolment file other than a successful connect, which `connect` audits itself. */
   async recordEnrollFileEvent(details: Record<string, unknown>): Promise<void> {
     await this.writeAudit(CLOUD_AUDIT_ACTIONS.enrollFile, null, null, details);
