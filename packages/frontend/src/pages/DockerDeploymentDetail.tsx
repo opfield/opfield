@@ -35,6 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   isDockerMigrationOwnedByTab,
   resolveMigrationTarget,
@@ -44,7 +45,11 @@ import { getReturnNavigationTarget, preserveReturnNavigationState } from "@/lib/
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { useDockerStore } from "@/stores/docker";
-import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
+import {
+  handleLicenseApiError,
+  requireLicenseFeature,
+  usePlanIncludes,
+} from "@/stores/license-paywall";
 import { usePinnedContainersStore } from "@/stores/pinned-containers";
 import type {
   DockerAvailabilityPolicy,
@@ -199,6 +204,10 @@ export function DockerDeploymentDetail({
   // First answers the header depends on (state badge, lifecycle actions, source line).
   const [activeInspectLoaded, setActiveInspectLoaded] = useState(false);
   const [sourceIdentityLoaded, setSourceIdentityLoaded] = useState(false);
+  const planIncludesGitDeploy = usePlanIncludes("git-push-to-deploy");
+  const planIncludesMigration = usePlanIncludes("cross-node-migration");
+  // Source and Builds need Git push-to-deploy; an already bound source stays manageable.
+  const gitTabsVisible = planIncludesGitDeploy || sourceIdentity !== null;
   const [runtimeSlotInspects, setRuntimeSlotInspects] = useState<
     Partial<Record<DeploymentSlotName, InspectData>>
   >({});
@@ -405,7 +414,7 @@ export function DockerDeploymentDetail({
         if (migrationHandoff) toast.error("Failed to load deployment");
         else if (deploymentRef.current) scheduleRemovalFallback("failed");
         else {
-          toast.error(err instanceof Error ? err.message : "Failed to load deployment");
+          toastApiError(err, "Failed to load deployment");
           navigate(backTarget);
         }
       } finally {
@@ -899,8 +908,8 @@ export function DockerDeploymentDetail({
   const visibleTabs = useMemo(
     () => [
       "overview",
-      "source",
-      "builds",
+      // Keep the Source and Builds tabs reachable until the bound-source lookup settles.
+      ...(gitTabsVisible || !sourceIdentityLoaded ? ["source", "builds"] : []),
       ...(canViewContainer ? ["logs"] : []),
       ...(canUseConsole ? ["console"] : []),
       ...(canReadFiles ? ["files"] : []),
@@ -909,7 +918,15 @@ export function DockerDeploymentDetail({
       "slots",
       ...(canEdit ? ["settings"] : []),
     ],
-    [canEdit, canReadFiles, canUseConsole, canUseEnvironment, canViewContainer]
+    [
+      canEdit,
+      canReadFiles,
+      canUseConsole,
+      canUseEnvironment,
+      canViewContainer,
+      gitTabsVisible,
+      sourceIdentityLoaded,
+    ]
   );
 
   const isTabDisabled = useCallback(
@@ -964,7 +981,7 @@ export function DockerDeploymentDetail({
       await load();
     } catch (err) {
       if (!handleLicenseApiError(err, "Secure Runtime")) {
-        toast.error(err instanceof Error ? err.message : "Deployment action failed");
+        toastApiError(err, "Deployment action failed");
       }
       await load().catch(() => {
         if (transition) {
@@ -1044,7 +1061,7 @@ export function DockerDeploymentDetail({
       icon: <Pin className="h-4 w-4" />,
       onClick: () => setPinOpen(true),
     },
-    ...(canMigrate && availabilityManaged === false
+    ...(planIncludesMigration && canMigrate && availabilityManaged === false
       ? [
           {
             label: "Migrate",
@@ -1279,12 +1296,16 @@ export function DockerDeploymentDetail({
             <TabsTrigger value="overview" className="gap-1.5">
               Overview
             </TabsTrigger>
-            <TabsTrigger value="source" className="gap-1.5">
-              Source
-            </TabsTrigger>
-            <TabsTrigger value="builds" className="gap-1.5">
-              Builds
-            </TabsTrigger>
+            {gitTabsVisible && (
+              <TabsTrigger value="source" className="gap-1.5">
+                Source
+              </TabsTrigger>
+            )}
+            {gitTabsVisible && (
+              <TabsTrigger value="builds" className="gap-1.5">
+                Builds
+              </TabsTrigger>
+            )}
             {canViewContainer && (
               <TabsTrigger value="logs" disabled={isTabDisabled("logs")} className="gap-1.5">
                 Logs

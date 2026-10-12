@@ -10,62 +10,17 @@ import {
   type LicenseStatus,
   type LicenseStatusView,
 } from './license.types.js';
+import { entitlementsIncludeFeature, LICENSE_FEATURE_PLANS, type LicenseFeature } from './license-features.js';
 
 const logger = createChildLogger('LicensePolicyService');
 
-export const LICENSE_FEATURE_PLANS = {
-  'storage-connections': 'personal',
-  'external-database-connections': 'personal',
-  gitlab: 'personal',
-  'ai-plan-mode': 'personal',
-  'ai-scenarios': 'personal',
-  'ai-sandboxes': 'personal',
-  'container-export': 'personal',
-  'blue-green': 'personal',
-  'cross-node-migration': 'personal',
-  'managed-databases': 'personal',
-  'managed-storage': 'personal',
-  'status-pages': 'personal',
-  'registry-discovery': 'personal',
-  pages: 'personal',
-  'secure-runtime': 'business',
-  'structured-logging': 'business',
-  'audit-export': 'business',
-  'git-push-to-deploy': 'business',
-  'multi-node-availability': 'business',
-  'compose-applications': 'personal',
-  'container-links': 'personal',
-  'internal-pki': 'enterprise',
-  'siem-export': 'enterprise',
-} as const satisfies Record<string, Exclude<LicensePlan, 'community'>>;
+export { LICENSE_FEATURE_PLANS, type LicenseFeature } from './license-features.js';
 
-export type LicenseFeature = keyof typeof LICENSE_FEATURE_PLANS;
 export type LicenseQuotaResource = 'managedNodes' | 'users' | 'customPermissionGroups';
 export type PaidLicensePlan = Exclude<LicensePlan, 'community'>;
 
-// Retained v3/v4 storage uses managed-databases; v5 explicitly includes both.
-// Never add features retroactively to the canonical v3/v4 signed contracts.
-function entitlementFeature(feature: LicenseFeature): string {
-  return feature === 'managed-storage' ? 'managed-databases' : feature;
-}
-
-// Container links came after v5 too: every paid v3-v5 contract grants them through managed-databases, so no
-// entitlement version or license server change is needed (D12).
-const PRE_V5_PERSONAL_CAPABILITIES = new Set<LicenseFeature>([
-  'storage-connections',
-  'external-database-connections',
-  'ai-plan-mode',
-  'ai-scenarios',
-  'ai-sandboxes',
-  'container-links',
-]);
-
 function includesFeature(entitlements: LicenseEntitlements, feature: LicenseFeature): boolean {
-  if (entitlements.features.includes(entitlementFeature(feature))) return true;
-  // Published paid v3/v4 grants predate these capability names. Their canonical
-  // paid maps all include managed-databases; Community never does. Validate the
-  // original canonical contract first rather than editing the cached/signed map.
-  return PRE_V5_PERSONAL_CAPABILITIES.has(feature) && entitlements.features.includes('managed-databases');
+  return entitlementsIncludeFeature(entitlements.features, feature);
 }
 
 // Statuses reached after a grace period ended. Their entitlements are Community,

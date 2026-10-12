@@ -1,6 +1,5 @@
 import { Bot, Cpu, ExternalLink, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { ChoiceCard } from "@/components/common/ChoiceCard";
 import { Notice, NoticeAction } from "@/components/common/Notice";
 import { PanelShell } from "@/components/common/PanelShell";
@@ -14,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { useAIStore } from "@/stores/ai";
 import type { InferenceLimitInput } from "@/types/inference";
@@ -120,7 +120,7 @@ export function AssistantSetupWizard({
       })
       .catch((cause) => {
         if (active) {
-          toast.error(cause instanceof Error ? cause.message : "Failed to load inference models");
+          toastApiError(cause, "Failed to load inference models");
         }
       })
       .finally(() => {
@@ -166,7 +166,7 @@ export function AssistantSetupWizard({
       await useAIStore.getState().refreshProviderStatus();
       setCompleted(true);
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Failed to configure AI Workspace");
+      toastApiError(cause, "Failed to configure AI Workspace");
     } finally {
       setSaving(false);
     }

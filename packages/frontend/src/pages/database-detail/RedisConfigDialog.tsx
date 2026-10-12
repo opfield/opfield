@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import {
   type DatabaseConnection,
@@ -197,9 +198,7 @@ export function RedisConfigDialog({
       onOpenChange(false);
       onSaved();
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to update key-value store configuration"
-      );
+      toastApiError(error, "Failed to update key-value store configuration");
     } finally {
       setSaving(false);
     }

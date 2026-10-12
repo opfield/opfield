@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { DockerHealthCheck } from "@/types";
 
@@ -102,7 +103,7 @@ export function DockerHealthCheckSection({
       setBase(data);
       setDraft(data);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load health check");
+      toastApiError(err, "Failed to load health check");
     } finally {
       setLoading(false);
     }
@@ -143,7 +144,7 @@ export function DockerHealthCheckSection({
       onSaved?.(data);
       toast.success("Health check saved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save health check");
+      toastApiError(err, "Failed to save health check");
     } finally {
       setSaving(false);
     }
@@ -161,7 +162,7 @@ export function DockerHealthCheckSection({
         `Health check ${result.status}${result.responseMs ? ` in ${result.responseMs}ms` : ""}`
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Health check failed");
+      toastApiError(err, "Health check failed");
     } finally {
       setTesting(false);
     }

@@ -58,6 +58,7 @@ import { TruncateStart } from "@/components/ui/truncate-start";
 import { useCanManageSomeFolders, useFolderAccess } from "@/hooks/use-folder-access";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { matchesDockerContainerStatus } from "@/lib/docker-container-filters";
 import { formatDisplayImageRef } from "@/lib/docker-image-ref";
 import { canCreateDockerResourceOnNode, loadVisibleDockerNodes } from "@/lib/docker-node-access";
@@ -251,7 +252,7 @@ export function DockerContainers({
       }
       setDeployOpen(true);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to check Docker nodes");
+      toastApiError(error, "Failed to check Docker nodes");
     } finally {
       setCheckingDeployNodes(false);
     }
@@ -542,7 +543,7 @@ export function DockerContainers({
         else toast.success(`Container ${action} successful`);
         await refreshData(true);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : `Failed to ${action} container`);
+        toastApiError(err, `Failed to ${action} container`);
       } finally {
         setActionLoading((prev) => {
           const copy = { ...prev };
@@ -603,7 +604,7 @@ export function DockerContainers({
       setCreateFolderOpen(false);
       setCreateFolderParentId(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create folder");
+      toastApiError(err, "Failed to create folder");
     }
   };
 
@@ -612,7 +613,7 @@ export function DockerContainers({
       await renameFolder(id, name);
       toast.success("Folder renamed");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to rename folder");
+      toastApiError(err, "Failed to rename folder");
     }
   };
 
@@ -622,7 +623,7 @@ export function DockerContainers({
       toast.success("Folder moved");
       await refreshData(true);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to move folder");
+      toastApiError(err, "Failed to move folder");
     }
   };
 
@@ -639,7 +640,7 @@ export function DockerContainers({
       toast.success("Folder deleted");
       await refreshData(true);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete folder");
+      toastApiError(err, "Failed to delete folder");
     }
   };
 
@@ -700,7 +701,7 @@ export function DockerContainers({
         await refreshData(true);
       } catch (err) {
         setOptimisticContainers(null);
-        toast.error(err instanceof Error ? err.message : "Failed to move container");
+        toastApiError(err, "Failed to move container");
       }
     },
     [applyOptimisticMove, moveContainersToFolder, refreshData]
@@ -746,7 +747,7 @@ export function DockerContainers({
           reordered.map((folder, index) => ({ id: folder.id, sortOrder: index }))
         );
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to reorder folders");
+        toastApiError(err, "Failed to reorder folders");
       }
       return;
     }
@@ -800,7 +801,7 @@ export function DockerContainers({
       await refreshData(true);
     } catch (err) {
       setOptimisticContainers(null);
-      toast.error(err instanceof Error ? err.message : "Failed to reorder containers");
+      toastApiError(err, "Failed to reorder containers");
     }
   };
 

@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import type { DockerRegistry, Node } from "@/types";
@@ -177,7 +178,7 @@ export function DockerRegistriesSection({ nodesList }: DockerRegistriesSectionPr
       closeRegDialog();
       loadRegistries();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save registry");
+      toastApiError(err, "Failed to save registry");
     } finally {
       setRegSaving(false);
     }
@@ -197,7 +198,7 @@ export function DockerRegistriesSection({ nodesList }: DockerRegistriesSectionPr
       toast.success("Registry deleted");
       loadRegistries();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete registry");
+      toastApiError(err, "Failed to delete registry");
     } finally {
       setRegDeleting(null);
     }
@@ -213,7 +214,7 @@ export function DockerRegistriesSection({ nodesList }: DockerRegistriesSectionPr
         toast.error(`Connection failed: ${result.error ?? "unknown error"}`);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Connection test failed");
+      toastApiError(err, "Connection test failed");
     } finally {
       setRegTesting(null);
     }

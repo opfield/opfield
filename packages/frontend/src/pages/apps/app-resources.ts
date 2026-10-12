@@ -1,7 +1,9 @@
 // Member rows of the app tabs: the normal list endpoints filtered to the app (`appId` + the `app` field).
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toastApiError } from "@/lib/api-error-toast";
+import { isPermissionError } from "@/lib/picker-load-error";
 import { api } from "@/services/api";
+import { planIncludes } from "@/stores/license-paywall";
 import { syncPinnedContainerMeta } from "@/stores/pinned-containers";
 import type {
   ContainerLink,
@@ -23,10 +25,40 @@ export interface AppComposeRow {
   services: DockerContainer[];
 }
 
+/** A member type the user's scopes do not show: the tab names it inline instead of failing. */
+export interface AppHiddenMembers {
+  title: string;
+  scope: string;
+}
+
+/** Which member lists the user's scopes allow (base scopes; resource scopes filter server-side). */
+export interface AppMemberAccess {
+  containers: boolean;
+  compose: boolean;
+  routes: boolean;
+}
+
+const FULL_ACCESS: AppMemberAccess = { containers: true, compose: true, routes: true };
+
 export interface AppCompute {
   /** Containers and deployments (kind "deployment"). */
   containers: DockerContainer[];
   compose: AppComposeRow[];
+  hidden: AppHiddenMembers[];
+}
+
+/**
+ * Runs `request` only when the scopes allow it; a refusal (403) counts as not allowed. `null`
+ * means hidden, so one refused member type never empties the rest of the tab.
+ */
+async function whenAllowed<T>(allowed: boolean, request: () => Promise<T>): Promise<T | null> {
+  if (!allowed) return null;
+  try {
+    return await request();
+  } catch (error) {
+    if (isPermissionError(error)) return null;
+    throw error;
+  }
 }
 
 export interface AppData {
@@ -48,16 +80,25 @@ export interface AppLinkRow {
 export interface AppNetwork {
   routes: ProxyHost[];
   links: AppLinkRow[];
+  hidden: AppHiddenMembers[];
 }
 
 /** Every visible container of the app (snapshot rows across nodes) and Compose services by project. */
-export async function loadAppCompute(appId: string): Promise<AppCompute> {
+export async function loadAppCompute(
+  appId: string,
+  access: AppMemberAccess = FULL_ACCESS
+): Promise<AppCompute> {
   const [members, projects] = await Promise.all([
-    api.listDockerContainerSnapshots({ appId }),
-    api.listDockerComposeProjects(undefined, { appId }),
+    whenAllowed(access.containers, () => api.listDockerContainerSnapshots({ appId })),
+    whenAllowed(access.compose, () => api.listDockerComposeProjects(undefined, { appId })),
   ]);
-  const memberProjects = projects.filter((project) => project.app?.id === appId);
-  const containers = members.filter(
+  const hidden: AppHiddenMembers[] = [];
+  if (members === null) {
+    hidden.push({ title: "Containers and deployments", scope: "docker:containers:view" });
+  }
+  if (projects === null) hidden.push({ title: "Compose projects", scope: "docker:compose:view" });
+  const memberProjects = (projects ?? []).filter((project) => project.app?.id === appId);
+  const containers = (members ?? []).filter(
     (row) => row.app?.id === appId && !row.labels?.[COMPOSE_PROJECT_LABEL]
   );
   syncPinnedContainerMeta(containers);
@@ -77,23 +118,25 @@ export async function loadAppCompute(appId: string): Promise<AppCompute> {
       )
       .sort((a, b) => serviceName(a).localeCompare(serviceName(b))),
   }));
-  return { containers, compose };
+  return { containers, compose, hidden };
 }
 
 export function serviceName(container: DockerContainer): string {
   return container.labels?.[COMPOSE_SERVICE_LABEL] ?? container.name;
 }
 
+/** Databases and storage of the app; a family the license plan lacks is not requested. */
 export async function loadAppData(appId: string): Promise<AppData> {
   const [databases, storage] = await Promise.all([
-    api.listAppDatabases(appId),
-    api.listAppStorage(appId),
+    planIncludes("external-database-connections") ? api.listAppDatabases(appId) : [],
+    planIncludes("storage-connections") ? api.listAppStorage(appId) : [],
   ]);
   return { databases, storage };
 }
 
+/** Pages projects of the app; none without the Pages plan feature. */
 export async function loadAppPages(appId: string): Promise<PageProject[]> {
-  return api.listAppPages(appId);
+  return planIncludes("pages") ? api.listAppPages(appId) : [];
 }
 
 const LINK_TONE: Record<string, AppLinkRow["tone"]> = {
@@ -111,8 +154,21 @@ const LINK_TONE: Record<string, AppLinkRow["tone"]> = {
  * Routes of the app, and the links its member workloads start: container links (outgoing) plus
  * managed database and storage bindings whose target workload is a member.
  */
-export async function loadAppNetwork(appId: string): Promise<AppNetwork> {
-  const [routes, compute] = await Promise.all([api.listAppRoutes(appId), loadAppCompute(appId)]);
+export async function loadAppNetwork(
+  appId: string,
+  access: AppMemberAccess = FULL_ACCESS
+): Promise<AppNetwork> {
+  const [routes, compute] = await Promise.all([
+    whenAllowed(access.routes, () => api.listAppRoutes(appId)),
+    loadAppCompute(appId, access),
+  ]);
+  const hidden: AppHiddenMembers[] = [
+    ...(routes === null ? [{ title: "Routes", scope: "proxy:view" }] : []),
+    ...compute.hidden.map((entry) => ({
+      title: `Links from ${entry.title.toLowerCase()}`,
+      scope: entry.scope,
+    })),
+  ];
 
   interface Workload {
     nodeId: string;
@@ -161,7 +217,7 @@ export async function loadAppNetwork(appId: string): Promise<AppNetwork> {
   const byKey = new Map(workloads.map((w) => [workloadKey(w.nodeId, w.type, w.resourceId), w]));
 
   const linkLists = await Promise.all(
-    workloads.map((workload) =>
+    (planIncludes("container-links") ? workloads : []).map((workload) =>
       api
         .listContainerLinks({
           nodeId: workload.nodeId,
@@ -186,8 +242,8 @@ export async function loadAppNetwork(appId: string): Promise<AppNetwork> {
 
   // Bindings are listed per managed database / storage; keep those that reach a member workload.
   const [managedDatabases, managedStorages] = await Promise.all([
-    api.listManagedDatabases().catch(() => []),
-    api.listManagedObjectStorages().catch(() => []),
+    planIncludes("external-database-connections") ? api.listManagedDatabases().catch(() => []) : [],
+    planIncludes("managed-storage") ? api.listManagedObjectStorages().catch(() => []) : [],
   ]);
   const bindingRows = await Promise.all([
     ...managedDatabases.map((database) =>
@@ -242,7 +298,7 @@ export async function loadAppNetwork(appId: string): Promise<AppNetwork> {
     ),
   ]);
 
-  return { routes, links: [...rows, ...bindingRows.flat()] };
+  return { routes: routes ?? [], links: [...rows, ...bindingRows.flat()], hidden };
 }
 
 /** Loads with `loader` whenever `key` or `version` changes; keeps the last rows while refreshing. */
@@ -263,7 +319,8 @@ export function useAppLoad<T>(key: string | null, version: number, loader: () =>
         if (!cancelled) setData(next);
       })
       .catch((error) => {
-        if (!cancelled) toast.error(error instanceof Error ? error.message : "Failed to load");
+        // A refused list is an expected state the tab shows inline, never a toast.
+        if (!cancelled && !isPermissionError(error)) toastApiError(error, "Failed to load");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

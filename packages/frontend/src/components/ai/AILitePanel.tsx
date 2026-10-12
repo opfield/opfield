@@ -9,7 +9,6 @@ import {
   useState,
 } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { InitialPageReadyContext, useContentLoading } from "@/components/common/reveal-gate";
 import { Button } from "@/components/ui/button";
@@ -29,6 +28,7 @@ import {
   confirmBypassEverythingMode,
   updateAIApprovalModeOptimistically,
 } from "@/lib/ai-user-preferences";
+import { toastApiError } from "@/lib/api-error-toast";
 import { NodeSetupWizard } from "@/pages/dashboard/finalize-setup/NodeSetupWizard";
 import { api } from "@/services/api";
 import { getConversationBlock, useAIStore } from "@/stores/ai";
@@ -308,7 +308,7 @@ export function AILitePanel({ onOpenMobileMenu }: { onOpenMobileMenu?: () => voi
       await renameConversation(activeConversationId, nextTitle);
       setRenameDialogOpen(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to rename Work Session");
+      toastApiError(error, "Failed to rename Work Session");
     } finally {
       setIsRenaming(false);
     }
@@ -332,7 +332,7 @@ export function AILitePanel({ onOpenMobileMenu }: { onOpenMobileMenu?: () => voi
       try {
         await updateAIApprovalModeOptimistically(mode, approvalMode);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to update AI mode");
+        toastApiError(error, "Failed to update AI mode");
       }
     },
     [approvalMode]
@@ -396,7 +396,7 @@ export function AILitePanel({ onOpenMobileMenu }: { onOpenMobileMenu?: () => voi
         const nextAttachments = await filesToComposerAttachments(files);
         setAttachments([...attachments, ...nextAttachments]);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to attach image");
+        toastApiError(error, "Failed to attach image");
       }
     },
     [attachments, canAttachImages, setAttachments]
@@ -456,7 +456,7 @@ export function AILitePanel({ onOpenMobileMenu }: { onOpenMobileMenu?: () => voi
         });
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to attach image");
+      toastApiError(error, "Failed to attach image");
     } finally {
       setUploadingAttachments(false);
     }
@@ -566,7 +566,7 @@ export function AILitePanel({ onOpenMobileMenu }: { onOpenMobileMenu?: () => voi
           autoResizeTextarea(textarea);
         });
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to edit message");
+        toastApiError(error, "Failed to edit message");
       }
     },
     [

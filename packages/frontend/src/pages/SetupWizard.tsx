@@ -6,6 +6,7 @@ import { AuthShell } from "@/components/auth/AuthShell";
 import { AnimatedHeight } from "@/components/common/AnimatedHeight";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { Badge } from "@/components/ui/badge";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { ConfigureAIWorkspaceWizard } from "./dashboard/finalize-setup/ConfigureAIWorkspaceWizard";
 import { DEFAULT_SMTP_DRAFT, getSmtpPresetId, type SmtpPresetId } from "./settings/smtp-presets";
@@ -364,7 +365,7 @@ export function SetupWizardPage() {
     try {
       await task();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Setup failed");
+      toastApiError(error, "Setup failed");
     } finally {
       setBusy(false);
     }

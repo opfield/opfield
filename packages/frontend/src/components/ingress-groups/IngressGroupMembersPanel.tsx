@@ -8,6 +8,7 @@ import { RelativeTime } from "@/components/common/RelativeTime";
 import { SimpleTable, type SimpleTableColumn } from "@/components/common/SimpleTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { toastApiError } from "@/lib/api-error-toast";
 import { nodeRoute } from "@/lib/resource-routes";
 import { api } from "@/services/api";
 import type { IngressGroup, IngressGroupMember } from "@/types";
@@ -39,7 +40,7 @@ export function IngressGroupMembersPanel({
       await api.reorderIngressGroup(group.id, order);
       onChanged();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to change the order");
+      toastApiError(error, "Failed to change the order");
     } finally {
       setBusy(false);
     }
@@ -67,7 +68,7 @@ export function IngressGroupMembersPanel({
       );
       onChanged();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to remove the member");
+      toastApiError(error, "Failed to remove the member");
     } finally {
       setBusy(false);
     }

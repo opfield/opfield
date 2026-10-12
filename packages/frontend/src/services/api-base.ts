@@ -32,6 +32,8 @@ export class ApiRequestError extends Error {
   readonly code?: string;
   readonly details?: unknown;
   readonly retryAfterSeconds?: number;
+  /** HTTP method of the failed request; GET/HEAD failures come from loads, not user actions. */
+  readonly method?: string;
 
   constructor(
     message: string,
@@ -40,7 +42,14 @@ export class ApiRequestError extends Error {
       code,
       details,
       retryAfterSeconds,
-    }: { status: number; code?: string; details?: unknown; retryAfterSeconds?: number }
+      method,
+    }: {
+      status: number;
+      code?: string;
+      details?: unknown;
+      retryAfterSeconds?: number;
+      method?: string;
+    }
   ) {
     super(message);
     this.name = "ApiRequestError";
@@ -48,6 +57,7 @@ export class ApiRequestError extends Error {
     this.code = code;
     this.details = details;
     this.retryAfterSeconds = retryAfterSeconds;
+    this.method = method;
   }
 }
 
@@ -105,13 +115,14 @@ function extractApiErrorDetails(payload: unknown): unknown {
   return payload && typeof payload === "object" ? (payload as ApiError).details : undefined;
 }
 
-function forbiddenError(payload: unknown, status: number): ApiRequestError {
+function forbiddenError(payload: unknown, status: number, method: string): ApiRequestError {
   const code = getApiErrorCode(payload) ?? "FORBIDDEN";
   handleDemoModeApiError(code);
   return new ApiRequestError(extractApiErrorMessage(payload, "Insufficient permissions"), {
     status,
     code,
     details: extractApiErrorDetails(payload),
+    method,
   });
 }
 
@@ -443,6 +454,7 @@ export class ApiClientBase {
           status: response.status,
           code: error.code || "SERVICE_UNAVAILABLE",
           details: error.details,
+          method,
         });
       }
 
@@ -483,7 +495,7 @@ export class ApiClientBase {
             code: "ACCOUNT_BLOCKED",
           });
         }
-        throw forbiddenError(body, response.status);
+        throw forbiddenError(body, response.status, method);
       }
 
       const error: ApiError = await response.json().catch(() => ({
@@ -495,6 +507,7 @@ export class ApiClientBase {
         status: response.status,
         code: error.code,
         details: error.details,
+        method,
       });
     }
 
@@ -627,7 +640,7 @@ export class ApiClientBase {
             code: "ACCOUNT_BLOCKED",
           });
         }
-        throw forbiddenError(parsedError, response.status);
+        throw forbiddenError(parsedError, response.status, method);
       }
 
       const fallback = response.status >= 500 ? "Service unavailable" : "An unknown error occurred";
@@ -637,6 +650,7 @@ export class ApiClientBase {
           parsedError && typeof parsedError === "object"
             ? ((parsedError as ApiError).code ?? undefined)
             : undefined,
+        method,
       });
     }
 
@@ -790,7 +804,7 @@ export class ApiClientBase {
             );
             return;
           }
-          reject(forbiddenError(parsedError, xhr.status));
+          reject(forbiddenError(parsedError, xhr.status, method));
           return;
         }
 
@@ -799,6 +813,7 @@ export class ApiClientBase {
           new ApiRequestError(extractApiErrorMessage(parsedError, fallback), {
             status: xhr.status,
             code: errorCode,
+            method,
           })
         );
       };

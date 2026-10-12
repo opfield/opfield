@@ -1,18 +1,17 @@
 import { FolderPlus, Plus } from "lucide-react";
 import { useRef } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
-import { HubTabs } from "@/components/common/HubTabs";
+import { HubTabPanel, HubTabs } from "@/components/common/HubTabs";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
-import { PageTransition } from "@/components/common/PageTransition";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
 import { LicensePlanBadge } from "@/components/license/LicensePlanBadge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePkiAvailable } from "@/hooks/use-plan-gated-features";
 import { hasCreationDestination } from "@/lib/creation-folders";
 import { useAuthStore } from "@/stores/auth";
 import { requireLicenseFeature } from "@/stores/license-paywall";
-import { useSystemConfigStore } from "@/stores/system-config";
 import { NginxTemplates } from "./NginxTemplates";
 import { Templates } from "./Templates";
 
@@ -50,7 +49,7 @@ export function TemplatesPage({ kind }: { kind?: "pki" | "nginx" } = {}) {
   const navigate = useNavigate();
   const { hasScope, hasScopedAccess } = useAuthStore();
   const scopes = useAuthStore((s) => s.user?.scopes ?? NO_SCOPES);
-  const pkiEnabled = useSystemConfigStore((s) => s.config.features.pkiEnabled);
+  const pkiEnabled = usePkiAvailable();
 
   const pkiCreateRef = useRef<(() => void) | null>(null);
   const nginxCreateRef = useRef<(() => void) | null>(null);
@@ -137,30 +136,29 @@ export function TemplatesPage({ kind }: { kind?: "pki" | "nginx" } = {}) {
         : [];
 
   return (
-    <PageTransition>
-      <div className="h-full overflow-y-auto p-6 space-y-4">
-        <PageHeader
-          className="shrink-0"
-          leading={<LiteModeBackButton />}
-          title="Templates"
-          badges={activeTab === "pki" ? <LicensePlanBadge feature="internal-pki" /> : null}
-          description={
-            kind ? KIND_DESCRIPTIONS[kind] : "Certificate and nginx configuration templates"
-          }
-          actions={
-            <ResponsiveHeaderActions actions={[...folderActions, ...createActions]}>
-              {canManageFolders && (
-                <Button variant="outline" onClick={openCreateFolder}>
-                  <FolderPlus className="h-4 w-4" />
-                  Add Folder
-                </Button>
-              )}
-              {renderCreateAction()}
-            </ResponsiveHeaderActions>
-          }
-        />
-        <HubTabs />
-
+    <div className="h-full overflow-y-auto p-6 space-y-4">
+      <PageHeader
+        className="shrink-0"
+        leading={<LiteModeBackButton />}
+        title="Templates"
+        badges={activeTab === "pki" ? <LicensePlanBadge feature="internal-pki" /> : null}
+        description={
+          kind ? KIND_DESCRIPTIONS[kind] : "Certificate and nginx configuration templates"
+        }
+        actions={
+          <ResponsiveHeaderActions actions={[...folderActions, ...createActions]}>
+            {canManageFolders && (
+              <Button variant="outline" onClick={openCreateFolder}>
+                <FolderPlus className="h-4 w-4" />
+                Add Folder
+              </Button>
+            )}
+            {renderCreateAction()}
+          </ResponsiveHeaderActions>
+        }
+      />
+      <HubTabs />
+      <HubTabPanel className="space-y-4">
         <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col">
           {pkiEnabled && !kind && (
             <TabsList className="shrink-0">
@@ -199,7 +197,7 @@ export function TemplatesPage({ kind }: { kind?: "pki" | "nginx" } = {}) {
             </TabsContent>
           )}
         </Tabs>
-      </div>
-    </PageTransition>
+      </HubTabPanel>
+    </div>
   );
 }

@@ -1,7 +1,6 @@
 import { FolderPlus, HardDrive, HardDriveDownload, Plus, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { MoveToAppDialog } from "@/components/apps/MoveToAppDialog";
 import { MoveToAppRowMenu } from "@/components/apps/MoveToAppRowMenu";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -23,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
+import { toastApiError } from "@/lib/api-error-toast";
 import { NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { refreshDynamicScopes } from "@/lib/live-scopes";
 import {
@@ -176,9 +176,19 @@ function StorageTagSummary({
   );
 }
 
+const STORAGE_FRAME: LicenseFeatureFrame = {
+  kind: "page",
+  title: "Storage",
+  description: "Saved S3-compatible object storage connections managed through Opfield",
+};
+
 export function Storage() {
   return (
-    <LicenseFeatureBoundary feature="storage-connections" capability="Storage connections">
+    <LicenseFeatureBoundary
+      feature="storage-connections"
+      capability="Storage connections"
+      frame={STORAGE_FRAME}
+    >
       <StorageContent />
     </LicenseFeatureBoundary>
   );
@@ -262,7 +272,7 @@ function StorageContent() {
       }
       if (catalog.status === "fulfilled") setManagedCatalog(catalog.value);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load storage");
+      toastApiError(error, "Failed to load storage");
     } finally {
       setLoading(false);
     }
@@ -554,4 +564,7 @@ function StorageContent() {
   );
 }
 
-import { LicenseFeatureBoundary } from "@/components/license/LicenseFeatureBoundary";
+import {
+  LicenseFeatureBoundary,
+  type LicenseFeatureFrame,
+} from "@/components/license/LicenseFeatureBoundary";

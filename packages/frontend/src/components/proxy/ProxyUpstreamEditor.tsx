@@ -5,7 +5,6 @@ import { Combobox, type ComboboxOption } from "@/components/common/Combobox";
 import { PanelShell } from "@/components/common/PanelShell";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
-import { PagesFeatureDisabledDialog } from "@/components/pages/PagesFeatureDisabledDialog";
 import { PagesTargetPicker } from "@/components/proxy/PagesTargetPicker";
 import {
   UpstreamField,
@@ -25,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
 import { api } from "@/services/api";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
@@ -282,7 +282,6 @@ export function ProxyUpstreamFields({
   const [pageTagsLoading, setPageTagsLoading] = useState(
     value.kind === "pages" && pagesEnabled && Boolean(value.pageProjectId)
   );
-  const [pagesDisabledDialogOpen, setPagesDisabledDialogOpen] = useState(false);
   // Compose details load one project at a time; the gate waits for them only
   // when the current target is a Compose service that needs them to display.
   useContentLoading(
@@ -468,10 +467,6 @@ export function ProxyUpstreamFields({
           <Select
             value={value.kind}
             onValueChange={(kind) => {
-              if (kind === "pages" && !pagesEnabled) {
-                setPagesDisabledDialogOpen(true);
-                return;
-              }
               onChange({
                 ...DEFAULT_PROXY_UPSTREAM,
                 scheme: value.scheme,
@@ -487,7 +482,10 @@ export function ProxyUpstreamFields({
               {allowManual ? <SelectItem value="manual">Manual address</SelectItem> : null}
               <SelectItem value="docker_container">Docker container</SelectItem>
               <SelectItem value="docker_deployment">Docker deployment</SelectItem>
-              <SelectItem value="pages">Pages</SelectItem>
+              {/* Pages is offered only while enabled; an existing Pages target stays shown. */}
+              {(pagesEnabled || value.kind === "pages") && (
+                <SelectItem value="pages">Pages</SelectItem>
+              )}
             </SelectContent>
           </Select>
         </UpstreamField>
@@ -688,10 +686,6 @@ export function ProxyUpstreamFields({
           </UpstreamFieldPair>
         </>
       )}
-      <PagesFeatureDisabledDialog
-        open={pagesDisabledDialogOpen}
-        onOpenChange={setPagesDisabledDialogOpen}
-      />
     </>
   );
 }
@@ -809,7 +803,7 @@ export function ProxyUpstreamPanel({
       onUpdated(updated);
       toast.success("Upstream updated");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update upstream");
+      toastApiError(error, "Failed to update upstream");
     } finally {
       setSaving(false);
     }

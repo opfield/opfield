@@ -34,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastApiError } from "@/lib/api-error-toast";
 import { formatDate } from "@/lib/utils";
 import { api } from "@/services/api";
 import type {
@@ -134,7 +135,7 @@ export function StorageIamKeysTab({
       const data = await api.listManagedStorageAccessKeys(managedId);
       setKeys(data);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load access keys");
+      toastApiError(error, "Failed to load access keys");
     } finally {
       setLoading(false);
       setLoaded(true);
@@ -184,7 +185,7 @@ export function StorageIamKeysTab({
       toast.success("Access key created");
       void load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create access key");
+      toastApiError(error, "Failed to create access key");
     } finally {
       setCreating(false);
     }
@@ -203,7 +204,7 @@ export function StorageIamKeysTab({
       toast.success("Access key revoked");
       void load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to revoke access key");
+      toastApiError(error, "Failed to revoke access key");
     }
   };
 

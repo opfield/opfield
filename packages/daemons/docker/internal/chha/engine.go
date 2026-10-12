@@ -739,6 +739,12 @@ func (e *engine) Switchover(ctx context.Context, successorMemberID string) error
 	if err != nil {
 		return err
 	}
+	// Client inserts already running on the holder end now with an error the
+	// client retries on the new primary, instead of hanging on their quorum or
+	// Keeper wait through the switch (stand rc.8: one insert hung 30 s).
+	if _, err := e.rt.Query(ctx, killClientInsertsQuery); err != nil {
+		e.logger.Warn("ClickHouse holder could not end the running client inserts before the switch", "error", err)
+	}
 	deadline := time.Now().Add(switchoverWait)
 	for {
 		caught, err := e.caughtUp(ctx, successorMemberID)
@@ -763,6 +769,10 @@ func (e *engine) Switchover(ctx context.Context, successorMemberID string) error
 		}
 	}
 }
+
+// killClientInsertsQuery ends the client inserts running on the member (the
+// daemon's own user is left alone).
+var killClientInsertsQuery = "KILL QUERY WHERE query_kind = 'Insert' AND user != " + quoteLiteral(InternalUser) + " ASYNC"
 
 // caughtUp: for every replicated table, the successor's log pointer reached
 // the log's end and its queue is empty.

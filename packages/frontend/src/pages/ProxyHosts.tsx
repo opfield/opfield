@@ -7,11 +7,10 @@ import { MoveToAppDialog } from "@/components/apps/MoveToAppDialog";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderCreateDialog } from "@/components/common/FolderCreateDialog";
-import { HubTabs } from "@/components/common/HubTabs";
+import { HubTabPanel, HubTabs } from "@/components/common/HubTabs";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { MoveToFolderDialog } from "@/components/common/MoveToFolderDialog";
 import { PageHeader } from "@/components/common/PageHeader";
-import { PageTransition } from "@/components/common/PageTransition";
 import { ResourceListForm } from "@/components/common/ResourceListForm";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
@@ -49,6 +48,7 @@ import { Switch } from "@/components/ui/switch";
 import { useFolderAccess } from "@/hooks/use-folder-access";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { findFolderTreeNode } from "@/lib/folder-tree";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
 import { isGatewayPublicRoute } from "@/lib/proxy-route-protection";
@@ -159,7 +159,7 @@ export function ProxyHosts({
       }
       setCreateDialogOpen(true);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to check Ingress nodes");
+      toastApiError(error, "Failed to check Ingress nodes");
     } finally {
       setCheckingCreateNodes(false);
     }
@@ -217,7 +217,7 @@ export function ProxyHosts({
       toast.success(currentEnabled ? "Proxy host disabled" : "Proxy host enabled");
       await fetchGroupedHosts();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to toggle route");
+      toastApiError(err, "Failed to toggle route");
     } finally {
       setTogglingIds((prev) => {
         const next = new Set(prev);
@@ -246,7 +246,7 @@ export function ProxyHosts({
       toast.success(entering ? "Maintenance mode enabled" : "Maintenance mode disabled");
       await fetchGroupedHosts();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update maintenance mode");
+      toastApiError(err, "Failed to update maintenance mode");
     } finally {
       setTogglingIds((prev) => {
         const next = new Set(prev);
@@ -263,7 +263,7 @@ export function ProxyHosts({
       setCreateFolderOpen(false);
       setCreateFolderParentId(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create folder");
+      toastApiError(err, "Failed to create folder");
     }
   };
 
@@ -272,7 +272,7 @@ export function ProxyHosts({
       await renameFolder(id, name);
       toast.success("Folder renamed");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to rename folder");
+      toastApiError(err, "Failed to rename folder");
     }
   };
 
@@ -288,7 +288,7 @@ export function ProxyHosts({
       await deleteFolder(id);
       toast.success("Folder deleted");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete folder");
+      toastApiError(err, "Failed to delete folder");
     }
   };
 
@@ -299,7 +299,7 @@ export function ProxyHosts({
       toast.success("Host moved");
       setMoveDialogHostId(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to move host");
+      toastApiError(err, "Failed to move host");
     }
   };
 
@@ -348,7 +348,7 @@ export function ProxyHosts({
           reordered.map((folder, index) => ({ id: folder.id, sortOrder: index }))
         );
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to reorder folders");
+        toastApiError(err, "Failed to reorder folders");
       }
       return;
     }
@@ -368,7 +368,7 @@ export function ProxyHosts({
         await moveHostsToFolder([hostId], targetFolderId);
         toast.success("Host moved");
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to move host");
+        toastApiError(err, "Failed to move host");
       }
       return;
     }
@@ -384,7 +384,7 @@ export function ProxyHosts({
           await moveHostsToFolder([hostId], overHost.folderId);
           toast.success("Host moved");
         } catch (err) {
-          toast.error(err instanceof Error ? err.message : "Failed to move host");
+          toastApiError(err, "Failed to move host");
         }
         return;
       }
@@ -404,7 +404,7 @@ export function ProxyHosts({
       try {
         await reorderHosts(reordered.map((h, i) => ({ id: h.id, sortOrder: i })));
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to reorder");
+        toastApiError(err, "Failed to reorder");
       }
     }
   };
@@ -462,7 +462,7 @@ export function ProxyHosts({
       await moveFolder(id, parentId);
       toast.success("Folder moved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to move folder");
+      toastApiError(err, "Failed to move folder");
     }
   };
 
@@ -616,7 +616,7 @@ export function ProxyHosts({
   ];
 
   return (
-    <PageTransition>
+    <>
       <div className="h-full overflow-y-auto px-6 pt-6 pb-3 space-y-4">
         <PageHeader
           leading={<LiteModeBackButton />}
@@ -670,131 +670,132 @@ export function ProxyHosts({
           }
         />
         <HubTabs />
-
-        <ResourceListForm<FolderTreeNode, ProxyHost>
-          columns={columns}
-          search={{
-            placeholder: "Search by domain name...",
-            search: searchInput,
-            onSearchChange: setSearchInput,
-            onSearchSubmit: handleSearch,
-            hasActiveFilters,
-            onReset: () => {
-              resetFilters();
-              setSearchInput("");
-            },
-            filters: (
-              <>
-                <div className="w-40">
-                  <Select
-                    value={filters.type}
-                    onValueChange={(v) => setFilters({ type: v as ProxyHostType | "all" })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {typeOptions.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="w-40">
-                  <Select
-                    value={filters.healthStatus}
-                    onValueChange={(v) => setFilters({ healthStatus: v as HealthStatus | "all" })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {healthOptions.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            ),
-          }}
-          loading={isLoading}
-          loadingLabel="Loading routes..."
-          hasContent={shown.folders.length > 0 || shown.ungrouped.length > 0}
-          emptyState={
-            <EmptyState
-              message="No routes."
-              {...(canCreateProxyHost
-                ? { actionLabel: "Add one", onAction: () => void openCreateProxyHost() }
-                : {})}
-              hasActiveFilters={hasActiveFilters}
-              onReset={() => {
+        <HubTabPanel className="space-y-4">
+          <ResourceListForm<FolderTreeNode, ProxyHost>
+            columns={columns}
+            search={{
+              placeholder: "Search by domain name...",
+              search: searchInput,
+              onSearchChange: setSearchInput,
+              onSearchSubmit: handleSearch,
+              hasActiveFilters,
+              onReset: () => {
                 resetFilters();
                 setSearchInput("");
-              }}
-            />
-          }
-          dnd={{
-            sensors,
-            active: activeDrag,
-            onDragStart: (event) => setActiveDrag(event.active),
-            onDragEnd: handleDragEnd,
-            onDragCancel: () => setActiveDrag(null),
-          }}
-          folders={{
-            folders: shown.folders,
-            ungroupedItems: shown.ungrouped,
-            expandedFolderIds,
-            getFolderId: (folder) => folder.id,
-            getFolderName: (folder) => folder.name,
-            getFolderChildren: (folder) => folder.children,
-            getFolderItems: (folder) => folder.hosts,
-            getFolderSortableId: (folder) => `folder-${folder.id}`,
-            getFolderSortableData: (folder) => ({
-              type: "folder",
-              folderId: folder.id,
-              folder,
-            }),
-            isFolderExpanded: (folder) =>
-              expandedFolderIds.has(folder.id) || folder.id === defaultOpenId,
-            canManageFolder,
-            canReorderFolder: (folder) => canReorderFolders && canManageFolder(folder),
-            canCreateSubfolder: (folder) => folder.depth < 2,
-            onToggleFolder: (id) => {
-              // The first fold saves the folder that started open, so it stays as the user saw it.
-              if (defaultOpenId) toggleFolder(defaultOpenId);
-              toggleFolder(id);
-            },
-            onRenameFolder: handleRenameFolder,
-            onDeleteFolder: handleDeleteFolder,
-            onRequestMoveFolder: setMoveFolderId,
-            onRequestCreateSubfolder: (parentId) => {
-              setCreateFolderParentId(parentId);
-              setCreateFolderOpen(true);
-            },
-            ungroupedDroppable: {
-              id: "folder-ungrouped",
-              data: { type: "folder", folderId: rootFolderId },
-              disabled: !canReorderFolders || !canManageFolderAt(rootFolderId),
-            },
-          }}
-          items={{
-            getItemId: (host) => host.id,
-            getItemSortableId: (host) => host.id,
-            getItemSortableData: (host) => ({ type: "host", host }),
-            canViewItem: canViewHost,
-            isItemDragDisabled: (host) =>
-              !!host.app ||
-              !canReorderFolders ||
-              !canEditHost(host) ||
-              !canManageFolderAt(host.folderId ?? null),
-            onItemClick: (host) => navigate(proxyHostRoute(host.slug)),
-          }}
-        />
+              },
+              filters: (
+                <>
+                  <div className="w-40">
+                    <Select
+                      value={filters.type}
+                      onValueChange={(v) => setFilters({ type: v as ProxyHostType | "all" })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {typeOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="w-40">
+                    <Select
+                      value={filters.healthStatus}
+                      onValueChange={(v) => setFilters({ healthStatus: v as HealthStatus | "all" })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {healthOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              ),
+            }}
+            loading={isLoading}
+            loadingLabel="Loading routes..."
+            hasContent={shown.folders.length > 0 || shown.ungrouped.length > 0}
+            emptyState={
+              <EmptyState
+                message="No routes."
+                {...(canCreateProxyHost
+                  ? { actionLabel: "Add one", onAction: () => void openCreateProxyHost() }
+                  : {})}
+                hasActiveFilters={hasActiveFilters}
+                onReset={() => {
+                  resetFilters();
+                  setSearchInput("");
+                }}
+              />
+            }
+            dnd={{
+              sensors,
+              active: activeDrag,
+              onDragStart: (event) => setActiveDrag(event.active),
+              onDragEnd: handleDragEnd,
+              onDragCancel: () => setActiveDrag(null),
+            }}
+            folders={{
+              folders: shown.folders,
+              ungroupedItems: shown.ungrouped,
+              expandedFolderIds,
+              getFolderId: (folder) => folder.id,
+              getFolderName: (folder) => folder.name,
+              getFolderChildren: (folder) => folder.children,
+              getFolderItems: (folder) => folder.hosts,
+              getFolderSortableId: (folder) => `folder-${folder.id}`,
+              getFolderSortableData: (folder) => ({
+                type: "folder",
+                folderId: folder.id,
+                folder,
+              }),
+              isFolderExpanded: (folder) =>
+                expandedFolderIds.has(folder.id) || folder.id === defaultOpenId,
+              canManageFolder,
+              canReorderFolder: (folder) => canReorderFolders && canManageFolder(folder),
+              canCreateSubfolder: (folder) => folder.depth < 2,
+              onToggleFolder: (id) => {
+                // The first fold saves the folder that started open, so it stays as the user saw it.
+                if (defaultOpenId) toggleFolder(defaultOpenId);
+                toggleFolder(id);
+              },
+              onRenameFolder: handleRenameFolder,
+              onDeleteFolder: handleDeleteFolder,
+              onRequestMoveFolder: setMoveFolderId,
+              onRequestCreateSubfolder: (parentId) => {
+                setCreateFolderParentId(parentId);
+                setCreateFolderOpen(true);
+              },
+              ungroupedDroppable: {
+                id: "folder-ungrouped",
+                data: { type: "folder", folderId: rootFolderId },
+                disabled: !canReorderFolders || !canManageFolderAt(rootFolderId),
+              },
+            }}
+            items={{
+              getItemId: (host) => host.id,
+              getItemSortableId: (host) => host.id,
+              getItemSortableData: (host) => ({ type: "host", host }),
+              canViewItem: canViewHost,
+              isItemDragDisabled: (host) =>
+                !!host.app ||
+                !canReorderFolders ||
+                !canEditHost(host) ||
+                !canManageFolderAt(host.folderId ?? null),
+              onItemClick: (host) => navigate(proxyHostRoute(host.slug)),
+            }}
+          />
+        </HubTabPanel>
       </div>
 
       <MoveToAppDialog
@@ -908,6 +909,6 @@ export function ProxyHosts({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </PageTransition>
+    </>
   );
 }

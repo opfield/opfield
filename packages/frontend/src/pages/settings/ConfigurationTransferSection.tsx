@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ProgressBar } from "@/components/ui/progress-bar";
+import { toastApiError } from "@/lib/api-error-toast";
 import { formatBytes } from "@/lib/utils";
 import { api } from "@/services/api";
 import type {
@@ -147,7 +148,7 @@ function ExportDialog({
       onStarted(result.export);
       startNativeDownload(result.downloadUrl);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to start the export");
+      toastApiError(error, "Failed to start the export");
     } finally {
       setStarting(false);
     }
@@ -358,7 +359,7 @@ function MoveDialog({
       }
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to announce the address");
+      toastApiError(error, "Failed to announce the address");
     } finally {
       setSaving(false);
     }
@@ -462,7 +463,7 @@ export function ConfigurationTransferSection() {
     try {
       setMove(await api.getGatewayMoveStatus());
     } catch (error) {
-      if (!quiet) toast.error(error instanceof Error ? error.message : "Failed to load nodes");
+      if (!quiet) toastApiError(error, "Failed to load nodes");
     }
   }, []);
 
@@ -525,7 +526,7 @@ export function ConfigurationTransferSection() {
           toast.success("Address withdrawn");
           return true;
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : "Failed to withdraw the address");
+          toastApiError(error, "Failed to withdraw the address");
           return false;
         }
       }

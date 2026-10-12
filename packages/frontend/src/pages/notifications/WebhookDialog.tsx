@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { NotificationWebhook, WebhookPreset } from "@/types";
 import {
@@ -142,7 +143,7 @@ export function WebhookDialog({
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed");
+      toastApiError(err, "Failed");
     } finally {
       setSaving(false);
     }

@@ -6,7 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { requireLicenseFeature } from "@/stores/license-paywall";
+import { requireLicenseFeature, usePlanIncludes } from "@/stores/license-paywall";
 import { AVAILABILITY_CAPABILITY, AVAILABILITY_FEATURE } from "./availability-labels";
 
 export type AvailabilityServers = "single" | "several";
@@ -24,6 +24,9 @@ export function AvailabilityServersSelect({
   onChange: (value: AvailabilityServers) => void;
   disabled?: boolean;
 }) {
+  // Without the plan feature there is only one choice, so the field is hidden.
+  const planIncludesAvailability = usePlanIncludes(AVAILABILITY_FEATURE);
+  if (!planIncludesAvailability) return null;
   return (
     <div className="space-y-1.5">
       <label className="flex items-center gap-2 text-sm font-medium" htmlFor="availability-servers">

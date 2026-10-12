@@ -4,10 +4,9 @@ import { useNavigate } from "react-router-dom";
 import { CACreateDialog } from "@/components/ca/CACreateDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderedResourceList } from "@/components/common/FolderedResourceList";
-import { HubTabs } from "@/components/common/HubTabs";
+import { HubTabPanel, HubTabs } from "@/components/common/HubTabs";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
-import { PageTransition } from "@/components/common/PageTransition";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -189,79 +188,78 @@ export function CAs() {
   };
 
   return (
-    <PageTransition>
-      <div className="h-full overflow-y-auto p-6 space-y-3">
-        <PageHeader
-          className="shrink-0"
-          leading={<LiteModeBackButton />}
-          title="Certificate Authorities"
-          badges={<LicensePlanBadge feature="internal-pki" />}
-          description={
-            <>
-              {activeCAs.length} active &middot; {totalCerts} certificate
-              {totalCerts !== 1 ? "s" : ""} issued
-            </>
-          }
-          actions={
-            <ResponsiveHeaderActions
-              actions={[
-                ...(canManageFolders && createFolderAction
-                  ? [
-                      {
-                        label: "Add Folder",
-                        icon: <FolderPlus className="h-4 w-4" />,
-                        onClick: createFolderAction,
-                      },
-                    ]
-                  : []),
-                ...(canCreateIntermediate
-                  ? [
-                      {
-                        label: "Create Intermediate",
-                        icon: <Plus className="h-4 w-4" />,
-                        onClick: () => openCreate("pick"),
-                        disabled: activeUserManagedCAs.length === 0,
-                      },
-                    ]
-                  : []),
-                ...(canCreateRoot
-                  ? [
-                      {
-                        label: "Create Root CA",
-                        icon: <Plus className="h-4 w-4" />,
-                        onClick: () => openCreate(),
-                      },
-                    ]
-                  : []),
-              ]}
-            >
-              {canManageFolders && (
-                <Button variant="outline" onClick={() => createFolderAction?.()}>
-                  <FolderPlus className="h-4 w-4" />
-                  Add Folder
-                </Button>
-              )}
-              {canCreateIntermediate && (
-                <Button
-                  variant="outline"
-                  onClick={() => openCreate("pick")}
-                  disabled={activeUserManagedCAs.length === 0}
-                >
-                  <Plus className="h-4 w-4" />
-                  Create Intermediate
-                </Button>
-              )}
-              {canCreateRoot && (
-                <Button onClick={() => openCreate()}>
-                  <Plus className="h-4 w-4" />
-                  Create Root CA
-                </Button>
-              )}
-            </ResponsiveHeaderActions>
-          }
-        />
-        <HubTabs />
-
+    <div className="h-full overflow-y-auto p-6 space-y-3">
+      <PageHeader
+        className="shrink-0"
+        leading={<LiteModeBackButton />}
+        title="Certificate Authorities"
+        badges={<LicensePlanBadge feature="internal-pki" />}
+        description={
+          <>
+            {activeCAs.length} active &middot; {totalCerts} certificate
+            {totalCerts !== 1 ? "s" : ""} issued
+          </>
+        }
+        actions={
+          <ResponsiveHeaderActions
+            actions={[
+              ...(canManageFolders && createFolderAction
+                ? [
+                    {
+                      label: "Add Folder",
+                      icon: <FolderPlus className="h-4 w-4" />,
+                      onClick: createFolderAction,
+                    },
+                  ]
+                : []),
+              ...(canCreateIntermediate
+                ? [
+                    {
+                      label: "Create Intermediate",
+                      icon: <Plus className="h-4 w-4" />,
+                      onClick: () => openCreate("pick"),
+                      disabled: activeUserManagedCAs.length === 0,
+                    },
+                  ]
+                : []),
+              ...(canCreateRoot
+                ? [
+                    {
+                      label: "Create Root CA",
+                      icon: <Plus className="h-4 w-4" />,
+                      onClick: () => openCreate(),
+                    },
+                  ]
+                : []),
+            ]}
+          >
+            {canManageFolders && (
+              <Button variant="outline" onClick={() => createFolderAction?.()}>
+                <FolderPlus className="h-4 w-4" />
+                Add Folder
+              </Button>
+            )}
+            {canCreateIntermediate && (
+              <Button
+                variant="outline"
+                onClick={() => openCreate("pick")}
+                disabled={activeUserManagedCAs.length === 0}
+              >
+                <Plus className="h-4 w-4" />
+                Create Intermediate
+              </Button>
+            )}
+            {canCreateRoot && (
+              <Button onClick={() => openCreate()}>
+                <Plus className="h-4 w-4" />
+                Create Root CA
+              </Button>
+            )}
+          </ResponsiveHeaderActions>
+        }
+      />
+      <HubTabs />
+      <HubTabPanel className="space-y-3">
         <FolderedResourceList<CAListItem>
           resourceType="pki-ca"
           realtimeChannel="ca.folder.changed"
@@ -325,7 +323,7 @@ export function CAs() {
           onOpenChange={setCreateDialogOpen}
           parentId={createIntermediateParentId}
         />
-      </div>
-    </PageTransition>
+      </HubTabPanel>
+    </div>
   );
 }

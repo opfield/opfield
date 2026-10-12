@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import type { AIAgentSkill, AIUserSkillInput } from "@/types/ai";
@@ -51,7 +52,7 @@ export function AgentSkillsPanel() {
     try {
       setSkills(await api.listAISkills());
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load agent skills");
+      toastApiError(error, "Failed to load agent skills");
     } finally {
       setLoading(false);
     }
@@ -94,7 +95,7 @@ export function AgentSkillsPanel() {
       setDialogOpen(false);
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save skill");
+      toastApiError(error, "Failed to save skill");
     } finally {
       setSaving(false);
     }
@@ -114,7 +115,7 @@ export function AgentSkillsPanel() {
       setSkills((current) => current.filter((item) => item.id !== skill.id));
       toast.success("Skill deleted");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete skill");
+      toastApiError(error, "Failed to delete skill");
     } finally {
       setDeletingId(null);
     }

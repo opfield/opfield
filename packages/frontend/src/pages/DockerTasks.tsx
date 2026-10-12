@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/select";
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { dockerMigrationError } from "@/lib/docker-migration-status";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
 import { api } from "@/services/api";
@@ -357,7 +358,7 @@ export function DockerTasks({ embedded }: { embedded?: boolean } = {}) {
       await fetchTasks();
       toast.success("Task force-cancelled");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to force-cancel task");
+      toastApiError(error, "Failed to force-cancel task");
     } finally {
       setForceCancellingTaskId(null);
     }
@@ -371,7 +372,7 @@ export function DockerTasks({ embedded }: { embedded?: boolean } = {}) {
       await loadTasks();
       toast.success("Migration cancellation requested");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to cancel migration");
+      toastApiError(error, "Failed to cancel migration");
     } finally {
       setForceCancellingTaskId(null);
     }
@@ -387,7 +388,7 @@ export function DockerTasks({ embedded }: { embedded?: boolean } = {}) {
       await loadTasks();
       toast.success("Migration resolved");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to resolve migration");
+      toastApiError(error, "Failed to resolve migration");
     } finally {
       setForceCancellingTaskId(null);
     }
@@ -401,7 +402,7 @@ export function DockerTasks({ embedded }: { embedded?: boolean } = {}) {
       await loadTasks();
       toast.success("Migration cleanup resumed");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to retry cleanup");
+      toastApiError(error, "Failed to retry cleanup");
     } finally {
       setForceCancellingTaskId(null);
     }

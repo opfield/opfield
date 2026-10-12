@@ -1,12 +1,12 @@
 // Activity: the audit log of the app and its members (canvas frame app-activity).
 import { History, Settings } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
 import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { toastApiError } from "@/lib/api-error-toast";
 import { getAuditActionLabel } from "@/pages/audit-log/audit-action-labels";
 import { getAuditEntryUserLabel, getAuditResourceDisplay } from "@/pages/audit-log/audit-format";
 import { api } from "@/services/api";
@@ -111,8 +111,7 @@ export function ActivityTab({ app, version }: { app: AppDetail; version: number 
     let cancelled = false;
     load(1)
       .catch((error) => {
-        if (!cancelled)
-          toast.error(error instanceof Error ? error.message : "Failed to load activity");
+        if (!cancelled) toastApiError(error, "Failed to load activity");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -127,7 +126,7 @@ export function ActivityTab({ app, version }: { app: AppDetail; version: number 
     try {
       await load(page + 1);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load activity");
+      toastApiError(error, "Failed to load activity");
     } finally {
       setLoadingMore(false);
     }

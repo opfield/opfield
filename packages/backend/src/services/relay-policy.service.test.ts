@@ -1745,7 +1745,7 @@ describe('RelayPolicyService gateway tunnels', () => {
     expect(ensureRoute).not.toHaveBeenCalled();
   });
 
-  it('leaves an inactive endpoint under lifecycle reconciliation ownership', async () => {
+  function inactiveEndpointFixture() {
     const update = vi.fn();
     const tx = {
       select: vi.fn(() => ({
@@ -1777,10 +1777,28 @@ describe('RelayPolicyService gateway tunnels', () => {
     vi.spyOn((service as any).grantIssuer, 'requireNodeIdentity').mockResolvedValue({
       certificateFingerprint: `sha256:${'a'.repeat(64)}`,
     });
+    return { service, update };
+  }
 
-    await expect(service.ensureManagedDatabaseEndpoint('database-1', 'node-target')).rejects.toThrow(
-      'awaiting lifecycle reconciliation'
-    );
+  it('leaves endpoint status to the lifecycle reconciliation and refuses with a code while it stays inactive', async () => {
+    const { service, update } = inactiveEndpointFixture();
+    const reconcile = vi.spyOn(service as any, 'reconcileInactiveEndpoint').mockResolvedValue(false);
+
+    await expect(service.ensureManagedDatabaseEndpoint('database-1', 'node-target')).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'MANAGED_DATABASE_RELAY_ENDPOINT_PENDING',
+    });
+    expect(reconcile).toHaveBeenCalledWith('managed_database', 'database-1');
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('serves the endpoint of a ready database once the reconciliation activated it (restore into a new database)', async () => {
+    const { service, update } = inactiveEndpointFixture();
+    vi.spyOn(service as any, 'reconcileInactiveEndpoint').mockResolvedValue(true);
+    vi.spyOn(service as any, 'ensureLegacyCompatibleAssignment').mockResolvedValue(undefined);
+    vi.spyOn(service, 'syncSnapshot').mockResolvedValue(undefined as never);
+
+    await expect(service.ensureManagedDatabaseEndpoint('database-1', 'node-target')).resolves.toBe('endpoint-1');
     expect(update).not.toHaveBeenCalled();
   });
 });

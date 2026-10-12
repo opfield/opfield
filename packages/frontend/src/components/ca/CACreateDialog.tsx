@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastApiError } from "@/lib/api-error-toast";
 import { flattenCreationFolders, placementFolderChoices } from "@/lib/creation-folders";
 import { canCreateInFolder } from "@/lib/scope-utils";
 import { api } from "@/services/api";
@@ -119,7 +120,7 @@ export function CACreateDialog({ open, onOpenChange, parentId }: CACreateDialogP
       }, 200);
     } catch (err) {
       if (!handleLicenseApiError(err, "Internal PKI")) {
-        toast.error(err instanceof Error ? err.message : "Failed to create CA");
+        toastApiError(err, "Failed to create CA");
       }
     } finally {
       setIsSaving(false);

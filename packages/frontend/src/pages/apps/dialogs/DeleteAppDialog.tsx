@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { AppDetail } from "@/types";
 import { memberTotal, plural } from "../app-shared";
@@ -44,7 +45,7 @@ export function DeleteAppDialog({
       onOpenChange(false);
       onDeleted();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete the app");
+      toastApiError(error, "Failed to delete the app");
     } finally {
       setDeleting(false);
     }

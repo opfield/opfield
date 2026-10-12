@@ -1,8 +1,8 @@
 import { Hammer } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { PanelShell } from "@/components/common/PanelShell";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { DockerBuild } from "@/types";
 import { DockerBuildDetailsDialog } from "./DockerBuildDetailsDialog";
@@ -74,7 +74,7 @@ export function DockerBuildHistoryPanel({
         }
       } catch (error) {
         if (reset && currentRequest === headRequestId.current) {
-          toast.error(error instanceof Error ? error.message : "Failed to load build history");
+          toastApiError(error, "Failed to load build history");
         }
       } finally {
         if (currentRequest === headRequestId.current) setHistoryLoading(false);
@@ -99,7 +99,7 @@ export function DockerBuildHistoryPanel({
         setNextCursor(page.nextCursor);
       } catch (error) {
         if (currentRequest === pageRequestId.current) {
-          toast.error(error instanceof Error ? error.message : "Failed to load build history");
+          toastApiError(error, "Failed to load build history");
         }
       } finally {
         if (currentRequest === pageRequestId.current) {

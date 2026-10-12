@@ -43,6 +43,7 @@ import { TruncateStart } from "@/components/ui/truncate-start";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
+import { toastApiError } from "@/lib/api-error-toast";
 import { NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { createClientUuid } from "@/lib/client-id";
 import { canAdoptComposeProject, hasComposeProjectScope } from "@/lib/compose-access";
@@ -53,7 +54,11 @@ import { createReturnNavigationState } from "@/lib/return-navigation";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { useDockerStore } from "@/stores/docker";
-import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
+import {
+  handleLicenseApiError,
+  requireLicenseFeature,
+  usePlanIncludes,
+} from "@/stores/license-paywall";
 import type { DockerComposeOperationAction, DockerComposeProjectSummary, Node } from "@/types";
 import { ComposeProjectEditor } from "./compose/ComposeProjectEditor";
 
@@ -87,6 +92,16 @@ function statusVariant(status: string) {
     return "warning" as const;
   return "secondary" as const;
 }
+
+/** Lifecycle actions an existing managed project keeps after the plan loses Compose applications. */
+const EXISTING_PROJECT_ACTIONS = new Set<DockerComposeOperationAction>([
+  "start",
+  "stop",
+  "restart",
+  "down",
+  "delete_volumes",
+  "cancel",
+]);
 
 export function DockerComposeProjects({
   embedded,
@@ -129,7 +144,9 @@ export function DockerComposeProjects({
   const visibleNodeId = fixedNodeId ?? selectedNodeId;
   const canManageSomeFolders = useCanManageSomeFolders("docker:folders:manage");
   const canManageFolders = !fixedNodeId && canManageSomeFolders;
-  const canCreate = hasScopedAccess("docker:compose:create");
+  // Creating, adopting and applying need Compose applications; existing projects keep start and stop.
+  const planIncludesCompose = usePlanIncludes("compose-applications");
+  const canCreate = planIncludesCompose && hasScopedAccess("docker:compose:create");
   // A node's view keeps app members (with an app badge); the normal list leaves them to their app.
   const loadProjects = useCallback(
     () => fetchProjects(fixedNodeId, fixedNodeId ? {} : NORMAL_LIST_FILTER),
@@ -215,7 +232,11 @@ export function DockerComposeProjects({
 
   const runAction = useCallback(
     async (project: DockerComposeProjectSummary, action: DockerComposeOperationAction) => {
-      if (!requireLicenseFeature("compose-applications", "Compose lifecycle")) return;
+      if (
+        !EXISTING_PROJECT_ACTIONS.has(action) &&
+        !requireLicenseFeature("compose-applications", "Compose lifecycle")
+      )
+        return;
       if (
         action === "stop" &&
         !(await confirm({
@@ -266,7 +287,7 @@ export function DockerComposeProjects({
           return next;
         });
         if (!handleLicenseApiError(error, "Compose lifecycle"))
-          toast.error(error instanceof Error ? error.message : "Compose operation failed");
+          toastApiError(error, "Compose operation failed");
       }
     },
     [loadProjects]
@@ -392,7 +413,8 @@ export function DockerComposeProjects({
             onClick={(event) => event.stopPropagation()}
           >
             {project.managementState === "external"
-              ? canAdoptComposeProject(user?.scopes ?? [], project.nodeId, project.id) && (
+              ? planIncludesCompose &&
+                canAdoptComposeProject(user?.scopes ?? [], project.nodeId, project.id) && (
                   <Button
                     size="icon"
                     variant="ghost"
@@ -433,16 +455,18 @@ export function DockerComposeProjects({
                         <Play />
                       </Button>
                     )}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      title="Pull & Apply"
-                      aria-label={`Pull and apply ${project.name}`}
-                      disabled={Boolean(projectTransitions[project.id])}
-                      onClick={() => void runAction(project, "pull_apply")}
-                    >
-                      <UploadCloud />
-                    </Button>
+                    {planIncludesCompose && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        title="Pull & Apply"
+                        aria-label={`Pull and apply ${project.name}`}
+                        disabled={Boolean(projectTransitions[project.id])}
+                        onClick={() => void runAction(project, "pull_apply")}
+                      >
+                        <UploadCloud />
+                      </Button>
+                    )}
                   </>
                 )}
             {canMoveToApps &&
@@ -463,7 +487,15 @@ export function DockerComposeProjects({
         ),
       },
     ],
-    [adoptProject, canMoveToApps, fixedNodeId, projectTransitions, runAction, user?.scopes]
+    [
+      adoptProject,
+      canMoveToApps,
+      fixedNodeId,
+      planIncludesCompose,
+      projectTransitions,
+      runAction,
+      user?.scopes,
+    ]
   );
 
   const nodes = embedded ? storeNodes : localNodes.length ? localNodes : storeNodes;

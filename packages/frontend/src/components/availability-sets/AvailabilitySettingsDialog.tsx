@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
 import type {
@@ -79,7 +80,7 @@ export function AvailabilitySettingsDialog({
       onOpenChange(false);
     } catch (error) {
       if (!handleLicenseApiError(error, AVAILABILITY_CAPABILITY)) {
-        toast.error(error instanceof Error ? error.message : "Failed to save the settings");
+        toastApiError(error, "Failed to save the settings");
       }
     } finally {
       setSaving(false);

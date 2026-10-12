@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { CLOUDFLARE_API_TOKEN_URL } from "@/lib/cloudflare";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
@@ -93,9 +94,7 @@ export function CloudflareIntegrationsSection() {
       api.setCache("settings:cloudflare-connectors", data ?? []);
       setConnectors(data ?? []);
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to load Cloudflare integrations"
-      );
+      toastApiError(error, "Failed to load Cloudflare integrations");
     } finally {
       setInitialLoadComplete(true);
     }
@@ -129,7 +128,7 @@ export function CloudflareIntegrationsSection() {
         settings: mergeSettings(detail.settings),
       });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load Cloudflare connector");
+      toastApiError(error, "Failed to load Cloudflare connector");
       setDialogOpen(false);
     } finally {
       setLoadingDetail(false);
@@ -175,7 +174,7 @@ export function CloudflareIntegrationsSection() {
       toast.success("Cloudflare connection test passed");
       return true;
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Cloudflare connection test failed");
+      toastApiError(error, "Cloudflare connection test failed");
       return false;
     } finally {
       setTestingConnection(false);
@@ -219,7 +218,7 @@ export function CloudflareIntegrationsSection() {
       closeDialog();
       void loadConnectors();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save Cloudflare connector");
+      toastApiError(error, "Failed to save Cloudflare connector");
     } finally {
       setSaving(false);
     }
@@ -232,7 +231,7 @@ export function CloudflareIntegrationsSection() {
       toast.success("Cloudflare connector test passed");
       void loadConnectors();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Cloudflare connector test failed");
+      toastApiError(error, "Cloudflare connector test failed");
     } finally {
       setTestingId(null);
     }
@@ -245,7 +244,7 @@ export function CloudflareIntegrationsSection() {
       toast.success("Cloudflare zones synced");
       void loadConnectors();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Cloudflare sync failed");
+      toastApiError(error, "Cloudflare sync failed");
     } finally {
       setSyncingId(null);
     }
@@ -264,7 +263,7 @@ export function CloudflareIntegrationsSection() {
       toast.success("Cloudflare connector deleted");
       void loadConnectors();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete Cloudflare connector");
+      toastApiError(error, "Failed to delete Cloudflare connector");
     } finally {
       setDeletingId(null);
     }

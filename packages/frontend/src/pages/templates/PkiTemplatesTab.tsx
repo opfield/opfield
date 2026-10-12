@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { flattenCreationFolders, placementFolderChoices } from "@/lib/creation-folders";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -251,7 +252,7 @@ export function PkiTemplatesTab({
       loadTemplates();
     } catch (err) {
       if (!handleLicenseApiError(err, "Internal PKI templates")) {
-        toast.error(err instanceof Error ? err.message : "Failed to save template");
+        toastApiError(err, "Failed to save template");
       }
     } finally {
       setIsSaving(false);
@@ -271,7 +272,7 @@ export function PkiTemplatesTab({
       loadTemplates();
     } catch (err) {
       if (!handleLicenseApiError(err, "Internal PKI templates")) {
-        toast.error(err instanceof Error ? err.message : "Failed to delete template");
+        toastApiError(err, "Failed to delete template");
       }
     }
   };

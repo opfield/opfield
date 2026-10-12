@@ -31,8 +31,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
+import { usePlanIncludes } from "@/stores/license-paywall";
 import type { DockerContainer, ManagedObjectStorage, ProxyAdditionalSecureLink } from "@/types";
 
 const EMPTY_SELECTION: ProxyUpstreamSelection = {
@@ -66,6 +68,7 @@ export function AdditionalSecureLinkBindings({
   const hiddenBindingIds = useRef(new Set<string>());
   const requestGeneration = useRef(0);
   useContentLoading(bindings === null);
+  const managedStorageIncluded = usePlanIncludes("managed-storage");
 
   const load = useCallback(async () => {
     const generation = ++requestGeneration.current;
@@ -86,9 +89,7 @@ export function AdditionalSecureLinkBindings({
   useEffect(() => {
     void load().catch((error) => {
       setBindings([]);
-      toast.error(
-        error instanceof Error ? error.message : "Failed to load additional Secure Links"
-      );
+      toastApiError(error, "Failed to load additional Secure Links");
     });
     return () => {
       requestGeneration.current++;
@@ -107,7 +108,7 @@ export function AdditionalSecureLinkBindings({
   useRealtime("docker.deployment.changed", load);
 
   useEffect(() => {
-    if (!adding || !storageTarget) return;
+    if (!adding || !storageTarget || !managedStorageIncluded) return;
     let cancelled = false;
     setStoragesLoading(true);
     setStoragesError(null);
@@ -127,7 +128,7 @@ export function AdditionalSecureLinkBindings({
     return () => {
       cancelled = true;
     };
-  }, [adding, storageTarget]);
+  }, [adding, storageTarget, managedStorageIncluded]);
 
   const validName = /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(name);
   const nameInvalid = name.length > 0 && !validName;
@@ -204,7 +205,7 @@ export function AdditionalSecureLinkBindings({
         toast.success("Additional Secure Link provisioning started");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to provision Secure Link");
+      toastApiError(error, "Failed to provision Secure Link");
     } finally {
       setPending(false);
     }
@@ -220,7 +221,7 @@ export function AdditionalSecureLinkBindings({
       if (updated.status === "active") toast.success("Secure Link provisioned");
       else toast.error(updated.lastError || "Secure Link provisioning failed");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to retry Secure Link");
+      toastApiError(error, "Failed to retry Secure Link");
     } finally {
       setRetryingId(null);
     }
@@ -253,7 +254,7 @@ export function AdditionalSecureLinkBindings({
             next.splice(removedIndex, 0, binding);
             return next;
           });
-          toast.error(error instanceof Error ? error.message : "Failed to remove Secure Link");
+          toastApiError(error, "Failed to remove Secure Link");
           return false;
         }
       }
@@ -469,7 +470,9 @@ export function AdditionalSecureLinkBindings({
                 <SelectContent>
                   <SelectItem value="docker_container">Docker container</SelectItem>
                   <SelectItem value="docker_deployment">Docker deployment</SelectItem>
-                  <SelectItem value="managed_storage">Managed S3 storage</SelectItem>
+                  {(managedStorageIncluded || storageTarget) && (
+                    <SelectItem value="managed_storage">Managed S3 storage</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>

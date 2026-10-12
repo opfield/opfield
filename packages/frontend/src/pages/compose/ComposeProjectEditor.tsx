@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toastApiError } from "@/lib/api-error-toast";
 import { createClientUuid } from "@/lib/client-id";
 import { canAdoptComposeProject, hasComposeProjectScope } from "@/lib/compose-access";
 import { loadVisibleDockerNodes } from "@/lib/docker-node-access";
@@ -38,7 +39,11 @@ import { dockerComposeProjectRoute } from "@/lib/resource-routes";
 import { canCreateInFolder } from "@/lib/scope-utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
-import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
+import {
+  handleLicenseApiError,
+  requireLicenseFeature,
+  usePlanIncludes,
+} from "@/stores/license-paywall";
 import type { DockerComposeProject, Node } from "@/types";
 import { RepositorySourceFields } from "../docker-deploy/RepositorySourceFields";
 import { useDockerSourceRepositories } from "../docker-deploy/useDockerSourceRepositories";
@@ -115,6 +120,8 @@ export function ComposeProjectEditor({
   const [yaml, setYaml] = useState(DEFAULT_YAML);
   const [variablesText, setVariablesText] = useState("{}");
   const [sourceMode, setSourceMode] = useState<"yaml" | "repository">("yaml");
+  // A repository source needs Git push-to-deploy; without it only Compose YAML is offered.
+  const planIncludesGitDeploy = usePlanIncludes("git-push-to-deploy");
   const [sourceConnectorId, setSourceConnectorId] = useState("");
   const [sourceProjectId, setSourceProjectId] = useState("");
   const [sourceBranch, setSourceBranch] = useState("main");
@@ -188,7 +195,7 @@ export function ComposeProjectEditor({
       setFolderId(destinationFolders[0]!.id);
     }
   }, [destinationFolders, folderId, foldersLoaded, fromApp, nodeId, projectId, user?.scopes]);
-  const repositoryCreation = !projectId && sourceMode === "repository";
+  const repositoryCreation = !projectId && planIncludesGitDeploy && sourceMode === "repository";
   const {
     connectorOptions: sourceConnectorOptions,
     repositories: sourceRepositories,
@@ -241,9 +248,7 @@ export function ComposeProjectEditor({
           setVariablesText(JSON.stringify(loaded.activeRevision.variables ?? {}, null, 2));
         }
       })
-      .catch((error) =>
-        toast.error(error instanceof Error ? error.message : "Failed to load Compose project")
-      )
+      .catch((error) => toastApiError(error, "Failed to load Compose project"))
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -426,7 +431,7 @@ export function ComposeProjectEditor({
           repositoryCreation ? "Git push-to-deploy" : "Compose projects"
         )
       )
-        toast.error(error instanceof Error ? error.message : "Failed to apply Compose project");
+        toastApiError(error, "Failed to apply Compose project");
     } finally {
       setSaving(false);
     }
@@ -512,18 +517,26 @@ export function ComposeProjectEditor({
             onValueChange={(value) => setSourceMode(value as "yaml" | "repository")}
             className="flex min-h-0 flex-col gap-4"
           >
-            <div className="grid gap-4 md:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
-              <div className="space-y-1.5">
-                <span className="block text-sm font-medium">Source type</span>
-                <TabsList className="grid h-9 w-full grid-cols-2">
-                  <TabsTrigger value="yaml" className="h-full px-3 py-0">
-                    Compose YAML
-                  </TabsTrigger>
-                  <TabsTrigger value="repository" className="h-full px-3 py-0">
-                    Repository
-                  </TabsTrigger>
-                </TabsList>
-              </div>
+            <div
+              className={
+                planIncludesGitDeploy
+                  ? "grid gap-4 md:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]"
+                  : "grid gap-4 md:grid-cols-2"
+              }
+            >
+              {planIncludesGitDeploy && (
+                <div className="space-y-1.5">
+                  <span className="block text-sm font-medium">Source type</span>
+                  <TabsList className="grid h-9 w-full grid-cols-2">
+                    <TabsTrigger value="yaml" className="h-full px-3 py-0">
+                      Compose YAML
+                    </TabsTrigger>
+                    <TabsTrigger value="repository" className="h-full px-3 py-0">
+                      Repository
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <label htmlFor="compose-name-modal" className="text-sm font-medium">
                   Project name

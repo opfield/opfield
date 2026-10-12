@@ -88,6 +88,10 @@ export interface TabActions {
   canCreate: boolean;
   onCreate: (type: AppCreateType, environmentId?: string | null) => void;
   onImport: (family: AppMemberFamily) => void;
+  /** The license plan includes creating this type (entry points of other types stay hidden). */
+  planCreates: (type: AppCreateType) => boolean;
+  /** The license plan includes importing existing members of this family. */
+  planImports: (family: AppMemberFamily) => boolean;
   /** May move members of this environment. */
   canMoveIn: (environmentId: string) => boolean;
   onMoveToEnvironment: (member: MemberRef) => void;
@@ -105,9 +109,12 @@ export interface MemberRef {
 
 /** Import existing + the list's create action, in a type section's header. */
 export function TypeActions({ type, actions }: { type: TypeDef; actions: TabActions }) {
+  const canImport = type.importFamily !== null && actions.planImports(type.importFamily);
+  const canCreate = actions.planCreates(type.createType);
+  if (!canImport && !canCreate) return null;
   return (
     <>
-      {type.importFamily && (
+      {canImport && (
         <Button
           variant="outline"
           onClick={() => actions.onImport(type.importFamily as AppMemberFamily)}
@@ -116,22 +123,27 @@ export function TypeActions({ type, actions }: { type: TypeDef; actions: TabActi
           Import existing
         </Button>
       )}
-      <Button onClick={() => actions.onCreate(type.createType)}>
-        <Plus className="h-3.5 w-3.5" />
-        {type.create}
-      </Button>
+      {canCreate && (
+        <Button onClick={() => actions.onCreate(type.createType)}>
+          <Plus className="h-3.5 w-3.5" />
+          {type.create}
+        </Button>
+      )}
     </>
   );
 }
 
 /** Missing types of a tab: one compact row instead of empty panels. */
 export function AddRow({ types, actions }: { types: TypeDef[]; actions: TabActions }) {
-  if (types.length === 0) return null;
-  const importable = types.find((type) => type.importFamily);
+  const creatable = types.filter((type) => actions.planCreates(type.createType));
+  const importable = types.find(
+    (type) => type.importFamily !== null && actions.planImports(type.importFamily)
+  );
+  if (creatable.length === 0 && !importable) return null;
   return (
     <div className="flex flex-wrap items-center gap-2 border border-border bg-card px-4 py-3">
       <span className="mr-2 text-sm text-muted-foreground">Not in the app yet:</span>
-      {types.map((type) => (
+      {creatable.map((type) => (
         <Button key={type.key} variant="outline" onClick={() => actions.onCreate(type.createType)}>
           <Plus className="h-3.5 w-3.5" />
           {type.addLabel}
@@ -164,15 +176,17 @@ export function EmptyGroup({
   message: string;
   actions: TabActions;
 }) {
-  const [first, ...rest] = types;
-  const importable = types.filter((type) => type.importFamily);
+  const [first, ...rest] = types.filter((type) => actions.planCreates(type.createType));
+  const importable = types.filter(
+    (type) => type.importFamily !== null && actions.planImports(type.importFamily)
+  );
   return (
     <PanelShell
       title={title}
       icon={icon}
       description="Nothing here yet"
       actions={
-        actions.canCreate ? (
+        actions.canCreate && (first || importable.length > 0) ? (
           <>
             {first && (
               <Button onClick={() => actions.onCreate(first.createType)}>
@@ -180,26 +194,31 @@ export function EmptyGroup({
                 {first.addLabel}
               </Button>
             )}
-            <MoreMenu label={`More ${title} actions`}>
-              {rest.map((type) => (
-                <DropdownMenuItem key={type.key} onClick={() => actions.onCreate(type.createType)}>
-                  <Plus className="h-4 w-4" />
-                  {type.addLabel}
-                </DropdownMenuItem>
-              ))}
-              {importable.length > 0 && rest.length > 0 && <DropdownMenuSeparator />}
-              {importable.map((type) => (
-                <DropdownMenuItem
-                  key={`import-${type.key}`}
-                  onClick={() => actions.onImport(type.importFamily as AppMemberFamily)}
-                >
-                  <Import className="h-4 w-4" />
-                  {importable.length === 1
-                    ? "Import existing"
-                    : `Import ${type.title.toLowerCase()}`}
-                </DropdownMenuItem>
-              ))}
-            </MoreMenu>
+            {rest.length + importable.length > 0 && (
+              <MoreMenu label={`More ${title} actions`}>
+                {rest.map((type) => (
+                  <DropdownMenuItem
+                    key={type.key}
+                    onClick={() => actions.onCreate(type.createType)}
+                  >
+                    <Plus className="h-4 w-4" />
+                    {type.addLabel}
+                  </DropdownMenuItem>
+                ))}
+                {importable.length > 0 && rest.length > 0 && <DropdownMenuSeparator />}
+                {importable.map((type) => (
+                  <DropdownMenuItem
+                    key={`import-${type.key}`}
+                    onClick={() => actions.onImport(type.importFamily as AppMemberFamily)}
+                  >
+                    <Import className="h-4 w-4" />
+                    {importable.length === 1
+                      ? "Import existing"
+                      : `Import ${type.title.toLowerCase()}`}
+                  </DropdownMenuItem>
+                ))}
+              </MoreMenu>
+            )}
           </>
         ) : undefined
       }

@@ -1,6 +1,5 @@
 import { Key, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { OneTimeSecretDialog } from "@/components/common/OneTimeSecretDialog";
@@ -19,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { handleLicenseApiError } from "@/stores/license-paywall";
 import type { LoggingEnvironment, LoggingIngestToken } from "@/types";
@@ -47,9 +47,7 @@ export function LoggingTokenPanel({
     api
       .listLoggingTokens(environment.id)
       .then(setTokens)
-      .catch((error) =>
-        toast.error(error instanceof Error ? error.message : "Failed to load tokens")
-      )
+      .catch((error) => toastApiError(error, "Failed to load tokens"))
       .finally(() => setTokensLoaded(true));
   }, [environment.id]);
 
@@ -77,7 +75,7 @@ export function LoggingTokenPanel({
       load();
     } catch (error) {
       if (!handleLicenseApiError(error, "Logging ingest tokens")) {
-        toast.error(error instanceof Error ? error.message : "Failed to create token");
+        toastApiError(error, "Failed to create token");
       }
     } finally {
       setCreating(false);

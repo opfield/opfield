@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
+import { toastApiError } from "@/lib/api-error-toast";
 import { storageRoute } from "@/lib/resource-routes";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
@@ -47,7 +48,11 @@ import { StorageSettingsTab } from "./storage-detail/StorageSettingsTab";
 
 export function StorageDetail(props: Parameters<typeof StorageDetailContent>[0] = {}) {
   return (
-    <LicenseFeatureBoundary feature="storage-connections" capability="Storage connections">
+    <LicenseFeatureBoundary
+      feature="storage-connections"
+      capability="Storage connections"
+      frame={{ kind: "page", title: "Storage" }}
+    >
       <StorageDetailContent {...props} />
     </LicenseFeatureBoundary>
   );
@@ -115,6 +120,9 @@ function StorageDetailContent({
     (hasScope("storage:credentials:reveal") || hasScope(`storage:credentials:reveal:${id}`))
   );
   const canViewMonitoring = !!(id && (hasScope("storage:view") || hasScope(`storage:view:${id}`)));
+  const availabilityTabVisible = useAvailabilityTabVisible(
+    storage?.managed ? { kind: "storage", id: storage.managed.id } : null
+  );
   const canManageIam = !!(id && (hasScope("storage:iam") || hasScope(`storage:iam:${id}`)));
   const monitoringLoading =
     canViewMonitoring && !!loadedStorageId && monitoringSettledFor !== loadedStorageId;
@@ -143,7 +151,7 @@ function StorageDetailContent({
       setLiveHealthStatus(storage.healthStatus);
     } catch (error) {
       if (generation !== loadGeneration.current) return;
-      toast.error(error instanceof Error ? error.message : "Failed to load storage");
+      toastApiError(error, "Failed to load storage");
       navigate("/storage");
     } finally {
       if (generation === loadGeneration.current) setLoading(false);
@@ -270,7 +278,7 @@ function StorageDetailContent({
       toast.success("Storage deleted");
       navigate("/storage");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete storage");
+      toastApiError(error, "Failed to delete storage");
     }
   };
 
@@ -346,7 +354,7 @@ function StorageDetailContent({
       }
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Connection test failed");
+      toastApiError(error, "Connection test failed");
     }
   };
 
@@ -364,7 +372,7 @@ function StorageDetailContent({
         (await api.revealObjectStorageCredentials(storage.id)) as unknown as Record<string, unknown>
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to reveal credentials");
+      toastApiError(error, "Failed to reveal credentials");
     } finally {
       setLoadingCredentials(false);
     }
@@ -429,11 +437,14 @@ function StorageDetailContent({
                 IAM Keys
               </TabsTrigger>
             )}
-            {storage.managed && engine === "seaweedfs" && canViewMonitoring && (
-              <TabsTrigger value="availability" className="gap-1.5">
-                Availability
-              </TabsTrigger>
-            )}
+            {storage.managed &&
+              engine === "seaweedfs" &&
+              canViewMonitoring &&
+              availabilityTabVisible && (
+                <TabsTrigger value="availability" className="gap-1.5">
+                  Availability
+                </TabsTrigger>
+              )}
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -473,18 +484,21 @@ function StorageDetailContent({
             </TabsContent>
           )}
 
-          {storage.managed && engine === "seaweedfs" && canViewMonitoring && (
-            <TabsContent value="availability" className="space-y-4">
-              <AvailabilityPanel
-                owner={{ kind: "storage", id: storage.managed.id }}
-                engine="seaweedfs"
-                resourceName={storage.name}
-                originNodeId={storage.managed.nodeId}
-                canManage={canEdit}
-                onChanged={() => void load()}
-              />
-            </TabsContent>
-          )}
+          {storage.managed &&
+            engine === "seaweedfs" &&
+            canViewMonitoring &&
+            availabilityTabVisible && (
+              <TabsContent value="availability" className="space-y-4">
+                <AvailabilityPanel
+                  owner={{ kind: "storage", id: storage.managed.id }}
+                  engine="seaweedfs"
+                  resourceName={storage.name}
+                  originNodeId={storage.managed.nodeId}
+                  canManage={canEdit}
+                  onChanged={() => void load()}
+                />
+              </TabsContent>
+            )}
         </Tabs>
       </div>
 
@@ -623,5 +637,6 @@ function forgetBackupHistoryDescription(history: BackupHistoryReference, managed
   return `${entries} this storage${withFiles}. Forgetting removes this history from Opfield, so those backups can no longer be restored or deleted here. ${files}`;
 }
 
+import { useAvailabilityTabVisible } from "@/components/availability-sets/use-availability-tab";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { LicenseFeatureBoundary } from "@/components/license/LicenseFeatureBoundary";

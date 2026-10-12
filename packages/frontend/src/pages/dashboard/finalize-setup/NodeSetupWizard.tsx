@@ -1,6 +1,5 @@
 import { Check, Loader2, Server } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { CopyCodeBlock } from "@/components/common/CopyCodeBlock";
 import { PanelShell } from "@/components/common/PanelShell";
@@ -17,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   DEFAULT_HOST_ACCESS_INSTALL_OPTIONS,
   withHostAccessInstallFlags,
@@ -102,7 +102,7 @@ export function NodeSetupWizard({
       } catch (cause) {
         if (active && !statusErrorShown.current) {
           statusErrorShown.current = true;
-          toast.error(cause instanceof Error ? cause.message : "Failed to refresh node status");
+          toastApiError(cause, "Failed to refresh node status");
         }
       }
     };
@@ -124,9 +124,7 @@ export function NodeSetupWizard({
       setEnrollment(await api.createNode({ type, hostname: "pending", displayName: name.trim() }));
     } catch (cause) {
       if (!handleLicenseApiError(cause, "Managed nodes")) {
-        toast.error(
-          cause instanceof Error ? cause.message : "Failed to create the node enrollment"
-        );
+        toastApiError(cause, "Failed to create the node enrollment");
       }
     } finally {
       setSaving(false);

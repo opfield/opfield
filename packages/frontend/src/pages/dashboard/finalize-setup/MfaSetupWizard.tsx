@@ -2,13 +2,13 @@ import { startRegistration } from "@simplewebauthn/browser";
 import { Check, KeyRound, ShieldCheck, Smartphone } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import { ChoiceCard } from "@/components/common/ChoiceCard";
 import { CopyButton } from "@/components/common/CopyButton";
 import { CopyValueField } from "@/components/common/CopyValueField";
 import { Notice } from "@/components/common/Notice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { FinalizeSetupCompletion } from "./FinalizeSetupCompletion";
 import { FinalizeSetupWizardDialog } from "./FinalizeSetupWizardDialog";
@@ -65,7 +65,7 @@ export function MfaSetupWizard({
       setTotp(await api.beginCurrentUserTotpSetup());
       setScreen("totp");
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Failed to start authenticator setup");
+      toastApiError(cause, "Failed to start authenticator setup");
     } finally {
       setSaving(false);
     }
@@ -78,7 +78,7 @@ export function MfaSetupWizard({
       setRecoveryCodes(await api.confirmCurrentUserTotpSetup(code));
       setScreen("recovery");
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "The authentication code is not valid");
+      toastApiError(cause, "The authentication code is not valid");
     } finally {
       setSaving(false);
     }
@@ -93,7 +93,7 @@ export function MfaSetupWizard({
       await api.finishCurrentUserPasskeyRegistration(response, passkeyName(response));
       setScreen("complete");
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Failed to add passkey");
+      toastApiError(cause, "Failed to add passkey");
     } finally {
       setSaving(false);
     }

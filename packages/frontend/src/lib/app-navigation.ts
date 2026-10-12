@@ -71,6 +71,10 @@ export interface AppNavigationVisibility {
   hasNginxNodes?: boolean;
   hasCloudflareIntegration?: boolean;
   hasDockerNodes?: boolean;
+  /** False when the plan lacks multi-node availability (hides the Ingress Groups tab). */
+  ingressGroupsInPlan?: boolean;
+  /** Items the current license plan does not grant; hidden from navigation. */
+  unlicensedItems?: readonly AppNavigationItemId[];
 }
 
 export const APP_NAVIGATION_GROUPS: readonly AppNavigationGroup[] = [
@@ -294,6 +298,7 @@ export function canAccessNavigationItem(
   context: AppNavigationVisibility
 ): boolean {
   const { scopes } = context;
+  if (context.unlicensedItems?.includes(item.id)) return false;
   switch (item.id) {
     case "dashboard":
       return hasDashboardContent(context);
@@ -374,7 +379,11 @@ export function canAccessNavigationItem(
 }
 
 function hubContext(context: AppNavigationVisibility): HubAccessContext {
-  return { scopes: context.scopes, pkiEnabled: context.pkiEnabled };
+  return {
+    scopes: context.scopes,
+    pkiEnabled: context.pkiEnabled,
+    ingressGroupsInPlan: context.ingressGroupsInPlan,
+  };
 }
 
 const HUB_BY_NAVIGATION_ITEM: Partial<Record<AppNavigationItemId, NavigationHub>> = {

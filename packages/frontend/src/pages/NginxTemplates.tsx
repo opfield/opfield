@@ -23,6 +23,7 @@ import {
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { hasCreationDestination } from "@/lib/creation-folders";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -112,7 +113,7 @@ export function NginxTemplates({
       toast.success("Template cloned");
       navigate(`/nginx-templates/${clone.id}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to clone");
+      toastApiError(err, "Failed to clone");
     }
   };
 
@@ -128,7 +129,7 @@ export function NginxTemplates({
       toast.success("Template deleted");
       load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete");
+      toastApiError(err, "Failed to delete");
     }
   };
 
@@ -138,7 +139,7 @@ export function NginxTemplates({
       setPreviewContent(result.rendered);
       setPreviewTemplate(template);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to render preview");
+      toastApiError(err, "Failed to render preview");
     }
   };
 

@@ -19,13 +19,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   isManagedStorageCandidateNode,
   listManagedDatabaseCandidateNodes,
 } from "@/lib/managed-database-nodes";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
-import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
+import {
+  handleLicenseApiError,
+  requireLicenseFeature,
+  usePlanIncludes,
+} from "@/stores/license-paywall";
 import type {
   AvailabilityEvent,
   AvailabilityMember,
@@ -141,6 +146,9 @@ export function AvailabilityPanel({
     nodes: new Map(),
   });
   const [convertOpen, setConvertOpen] = useState(false);
+  // Turning availability on, adding servers and changing settings need the plan feature; an
+  // existing set keeps its remaining actions (primary switch, rebuild, remove, turn off).
+  const planIncludesAvailability = usePlanIncludes(AVAILABILITY_FEATURE);
   const [addOpen, setAddOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [disableOpen, setDisableOpen] = useState(false);
@@ -171,7 +179,7 @@ export function AvailabilityPanel({
     } catch (error) {
       setView(null);
       if (!(error instanceof ApiRequestError && error.code && LICENSE_CODES.has(error.code))) {
-        toast.error(error instanceof Error ? error.message : "Failed to load availability");
+        toastApiError(error, "Failed to load availability");
       }
     }
   }, [stableOwner]);
@@ -242,14 +250,19 @@ export function AvailabilityPanel({
   );
 
   if (view === null) {
+    const canConvert = canManage && planIncludesAvailability;
     return (
       <>
         <PanelShell
           title={title(null)}
           icon={<ShieldCheck className="h-4 w-4" />}
-          description="Runs on one server. Add servers to keep a copy and fail over."
+          description={
+            planIncludesAvailability
+              ? "Runs on one server. Add servers to keep a copy and fail over."
+              : "Runs on one server."
+          }
           actions={
-            canManage ? (
+            canConvert ? (
               <Button onClick={openConvert}>
                 <Plus />
                 Make available…
@@ -260,11 +273,11 @@ export function AvailabilityPanel({
           <EmptyState
             embedded
             message={`This ${ownerNoun(owner)} runs on one server.`}
-            actionLabel={canManage ? "Make available…" : undefined}
-            onAction={canManage ? openConvert : undefined}
+            actionLabel={canConvert ? "Make available…" : undefined}
+            onAction={canConvert ? openConvert : undefined}
           />
         </PanelShell>
-        {canManage ? (
+        {canConvert ? (
           <ConvertDialog
             open={convertOpen}
             onOpenChange={setConvertOpen}
@@ -311,7 +324,7 @@ export function AvailabilityPanel({
           refresh();
         } catch (error) {
           if (!handleLicenseApiError(error, AVAILABILITY_CAPABILITY)) {
-            toast.error(error instanceof Error ? error.message : "Failed to rebuild the copy");
+            toastApiError(error, "Failed to rebuild the copy");
           }
           throw error;
         }
@@ -335,7 +348,7 @@ export function AvailabilityPanel({
           refresh();
         } catch (error) {
           if (!handleLicenseApiError(error, AVAILABILITY_CAPABILITY)) {
-            toast.error(error instanceof Error ? error.message : "Failed to remove the server");
+            toastApiError(error, "Failed to remove the server");
           }
           throw error;
         }
@@ -389,15 +402,17 @@ export function AvailabilityPanel({
         actions={
           canManage ? (
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                disabled={busy || !!view.changesBlocked}
-                title={view.changesBlocked ?? undefined}
-                onClick={openAdd}
-              >
-                <Plus />
-                Add server
-              </Button>
+              {planIncludesAvailability && (
+                <Button
+                  variant="outline"
+                  disabled={busy || !!view.changesBlocked}
+                  title={view.changesBlocked ?? undefined}
+                  onClick={openAdd}
+                >
+                  <Plus />
+                  Add server
+                </Button>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -410,13 +425,15 @@ export function AvailabilityPanel({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    disabled={busy || !!view.changesBlocked}
-                    onClick={() => setSettingsOpen(true)}
-                  >
-                    <ServerCog />
-                    Settings
-                  </DropdownMenuItem>
+                  {planIncludesAvailability && (
+                    <DropdownMenuItem
+                      disabled={busy || !!view.changesBlocked}
+                      onClick={() => setSettingsOpen(true)}
+                    >
+                      <ServerCog />
+                      Settings
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem
                     className="text-destructive"
                     disabled={

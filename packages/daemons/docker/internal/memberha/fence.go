@@ -160,6 +160,9 @@ func (m *Manager) Switchover(setID, successorMemberID, operationID string) error
 	return nil
 }
 
+// successorCheckTimeout bounds the successor readiness check of a switchover.
+const successorCheckTimeout = 5 * time.Second
+
 // runSwitchoverLocked runs the handoff: serving closed, the engine stops
 // writes and lets the successor catch up, a clean stop, standby at rest, the
 // record deleted, then the release to the successor.
@@ -167,8 +170,29 @@ func (m *Manager) runSwitchoverLocked(mem *member, successor Peer, operationID s
 	successorMemberID := successor.MemberID
 	key := mem.cfg.Key()
 	containerID := mem.obs.container.ID
-	m.closeServingLocked(mem)
+	setID := mem.cfg.SetID
 	m.launch(mem, opRelease, opTimeout, func(ctx context.Context) func() {
+		// The successor must be able to take the lease the holder releases to
+		// it; otherwise the holder would step down, cut its clients and take
+		// the role back once the handoff lapses (stand rc.6: an async pair
+		// whose copy did not take over). A peer from before the readiness
+		// report is not checked.
+		if m.deps.peerStateWired {
+			checkCtx, cancel := context.WithTimeout(ctx, successorCheckTimeout)
+			peer, ok := m.deps.PeerState(checkCtx, setID, successorMemberID)
+			cancel()
+			if !ok {
+				return func() {
+					m.eventLocked(mem, Event{Kind: EventSwitchoverFail, Reason: "the successor could not be reached; the primary keeps serving", OperationID: operationID})
+				}
+			}
+			if peer.Candidate && !peer.Ready {
+				reason := firstReason(peer.Reason, "not_a_candidate")
+				return func() {
+					m.eventLocked(mem, Event{Kind: EventSwitchoverFail, Reason: "the successor cannot take the primary role now (" + reason + "); the primary keeps serving", OperationID: operationID})
+				}
+			}
+		}
 		m.closeServing(mem)
 		if err := mem.engine.Switchover(ctx, successorMemberID); err != nil {
 			return func() {

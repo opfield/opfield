@@ -9,6 +9,7 @@ import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { DatabaseConnection, ManagedPostgresExtension } from "@/types";
 
@@ -47,7 +48,7 @@ export function PostgresExtensionsTab({
       api.setCache(cacheKey, next);
       setExtensions(next);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load PostgreSQL extensions");
+      toastApiError(error, "Failed to load PostgreSQL extensions");
     } finally {
       setLoading(false);
     }
@@ -85,7 +86,7 @@ export function PostgresExtensionsTab({
       setExtensions(next);
       toast.success(`${extension.name} enabled`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to enable PostgreSQL extension");
+      toastApiError(error, "Failed to enable PostgreSQL extension");
     } finally {
       setPendingExtension(null);
     }
@@ -108,9 +109,7 @@ export function PostgresExtensionsTab({
       setExtensions(next);
       toast.success(`${extension.name} disabled`);
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to disable PostgreSQL extension"
-      );
+      toastApiError(error, "Failed to disable PostgreSQL extension");
     } finally {
       setPendingExtension(null);
     }

@@ -6,7 +6,9 @@ import {
 import { extractBaseScope, hasScopeBase, scopeMatches } from "@/lib/scope-utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
+import { canServeLicenseFeature, type LicenseFeature } from "@/stores/license-paywall";
 import { useSystemConfigStore } from "@/stores/system-config";
+import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import {
   type AppMemberFamily,
   type AppMemberType,
@@ -77,11 +79,26 @@ export function reportScopeLoadError(resource: string, error: unknown) {
   });
 }
 
+const PLAN_GATED_PERMISSIONS: readonly (readonly [string, LicenseFeature])[] = [
+  ["pki:", "internal-pki"],
+  ["logs:", "structured-logging"],
+  ["audit:siem", "siem-export"],
+  ["storage:", "storage-connections"],
+  ["databases:", "external-database-connections"],
+  ["pages:", "pages"],
+  ["integrations:gitlab", "gitlab"],
+];
+
 export function canLoadScopeResource(permission: string, nodeId?: string): boolean {
   const features = useSystemConfigStore.getState().config.features;
   if (permission.startsWith("logs:") && !features.loggingEnabled) return false;
   if (permission.startsWith("domains:") && !features.domainsEnabled) return false;
   if (permission.startsWith("pki:") && !features.pkiEnabled) return false;
+  // Resources of a feature the plan does not include are not listed (their API refuses).
+  const snapshot = useUIBootstrapStore.getState().snapshot;
+  for (const [prefix, feature] of PLAN_GATED_PERMISSIONS) {
+    if (permission.startsWith(prefix) && !canServeLicenseFeature(snapshot, feature)) return false;
+  }
   const scopes = useAuthStore.getState().user?.scopes ?? [];
   if (!hasScopeBase(scopes, permission)) return false;
   if (!nodeId || scopeMatches(scopes, permission)) return true;

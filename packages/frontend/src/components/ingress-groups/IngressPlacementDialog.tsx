@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 
 export interface PlacementGroupChoice {
@@ -116,7 +117,7 @@ export function IngressPlacementDialog({
       onChanged();
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to change where it is served");
+      toastApiError(error, "Failed to change where it is served");
     } finally {
       setSaving(false);
     }

@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { toastApiError } from "@/lib/api-error-toast";
 import { appEnvironmentRoute, appRoute, appsRoute } from "@/lib/app-routes";
 import { api } from "@/services/api";
 import type { AppDetail, AppEnvironmentDetail } from "@/types";
@@ -111,7 +112,7 @@ export function SettingsTab({
       onChanged(next);
       if (next.slug !== app.slug) navigate(appRoute(next.slug, "settings"), { replace: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to rename the app");
+      toastApiError(error, "Failed to rename the app");
     } finally {
       setSaving(false);
     }
@@ -133,7 +134,7 @@ export function SettingsTab({
       toast.success(enabled ? "Maintenance on for the whole app" : "App maintenance off");
       onChanged(next);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update maintenance");
+      toastApiError(error, "Failed to update maintenance");
     } finally {
       setOverrideSaving(false);
     }
@@ -151,7 +152,7 @@ export function SettingsTab({
       toast.success(`${env.name} is now Production`);
       onChanged();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to mark as production");
+      toastApiError(error, "Failed to mark as production");
     }
   };
 
@@ -172,7 +173,7 @@ export function SettingsTab({
       toast.success(`Environment ${env.name} deleted`);
       onChanged();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete the environment");
+      toastApiError(error, "Failed to delete the environment");
     }
   };
 

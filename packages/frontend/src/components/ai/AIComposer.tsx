@@ -33,10 +33,11 @@ import {
   AI_APPROVAL_MODES,
   type AIApprovalMode,
 } from "@/lib/ai-approval-mode";
+import { toastApiError } from "@/lib/api-error-toast";
 import { cn } from "@/lib/utils";
 import { type AIContextUsage, getAIContextUsage, useAIStore } from "@/stores/ai";
 import { useAuthStore } from "@/stores/auth";
-import { requireLicenseFeature } from "@/stores/license-paywall";
+import { usePlanIncludes } from "@/stores/license-paywall";
 import type {
   AIComposerAttachment,
   AIConversationInput,
@@ -561,6 +562,8 @@ export function AIComposer({
     currentConversationPlan?.status === "drafting" ||
     currentConversationPlan?.status === "validating";
   const ModeIcon = planModeActive ? ListChecks : modeMeta.icon;
+  // Plan mode is a paid feature: the menu item is hidden without it unless already active.
+  const planModeIncluded = usePlanIncludes("ai-plan-mode");
   const [usage, setUsage] = useState<AIContextUsage | null>(null);
   const [updatingProvider, setUpdatingProvider] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -609,7 +612,7 @@ export function AIComposer({
     try {
       await onModelChange(model);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to change model");
+      toastApiError(error, "Failed to change model");
     } finally {
       setUpdatingProvider(false);
     }
@@ -621,7 +624,7 @@ export function AIComposer({
     try {
       await onReasoningEffortChange(effort);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to change reasoning effort");
+      toastApiError(error, "Failed to change reasoning effort");
     } finally {
       setUpdatingProvider(false);
     }
@@ -790,17 +793,14 @@ export function AIComposer({
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" side="top" className="w-60">
-                  <DropdownMenuItem
-                    onClick={() => {
-                      if (!requireLicenseFeature("ai-plan-mode", "AI Plan Mode")) return;
-                      setWorkMode("plan");
-                    }}
-                  >
-                    <ListChecks className="h-4 w-4 text-link" />
-                    <span className="text-link">Plan</span>
-                    <LicensePlanBadge feature="ai-plan-mode" />
-                    {planModeActive && <Check className="ml-auto h-4 w-4 text-link" />}
-                  </DropdownMenuItem>
+                  {(planModeIncluded || planModeActive) && (
+                    <DropdownMenuItem onClick={() => setWorkMode("plan")}>
+                      <ListChecks className="h-4 w-4 text-link" />
+                      <span className="text-link">Plan</span>
+                      <LicensePlanBadge feature="ai-plan-mode" />
+                      {planModeActive && <Check className="ml-auto h-4 w-4 text-link" />}
+                    </DropdownMenuItem>
+                  )}
                   {AI_APPROVAL_MODES.map((mode) => {
                     const item = AI_APPROVAL_MODE_META[mode];
                     const ItemIcon = item.icon;

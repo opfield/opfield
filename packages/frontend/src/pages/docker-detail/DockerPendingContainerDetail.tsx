@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
+import { toastApiError } from "@/lib/api-error-toast";
 import { listManagedDatabaseCandidateNodes } from "@/lib/managed-database-nodes";
 import { dockerContainerRoute } from "@/lib/resource-routes";
 import { api } from "@/services/api";
@@ -250,7 +251,7 @@ function PendingContainerLinks({
       if (storageDraft.hasChanges) await storageLinksRef.current?.applyChanges();
       toast.success("Managed links saved — they apply when the first build creates the container");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save managed links");
+      toastApiError(error, "Failed to save managed links");
     } finally {
       setSaving(false);
     }

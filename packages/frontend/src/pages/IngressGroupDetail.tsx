@@ -17,6 +17,7 @@ import { groupHealthBadge } from "@/components/ingress-groups/ingress-group-form
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { ingressGroupsRoute } from "@/lib/resource-routes";
 import { canCreateInFolder } from "@/lib/scope-utils";
 import { api } from "@/services/api";
@@ -40,7 +41,7 @@ export function IngressGroupDetail() {
       setMissing(false);
     } catch (error) {
       setMissing(true);
-      toast.error(error instanceof Error ? error.message : "Failed to load the ingress group");
+      toastApiError(error, "Failed to load the ingress group");
     }
   }, [groupId]);
 
@@ -85,7 +86,7 @@ export function IngressGroupDetail() {
       toast.success("Ingress group deleted");
       navigate(ingressGroupsRoute());
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete the ingress group");
+      toastApiError(error, "Failed to delete the ingress group");
     }
   };
 

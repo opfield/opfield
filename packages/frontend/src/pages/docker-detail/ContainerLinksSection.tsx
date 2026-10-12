@@ -11,8 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
-import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
+import {
+  handleLicenseApiError,
+  planIncludes,
+  requireLicenseFeature,
+} from "@/stores/license-paywall";
 import type {
   ContainerLink,
   ContainerLinkCreateInput,
@@ -92,6 +97,10 @@ export function ContainerLinksSection({
 
   const load = useCallback(async () => {
     const generation = ++generationRef.current;
+    if (!planIncludes("container-links")) {
+      setLoading(false);
+      return;
+    }
     try {
       const list = (direction: "outgoing" | "incoming") =>
         Promise.all(
@@ -103,7 +112,7 @@ export function ContainerLinksSection({
       setIncoming(nextIncoming);
     } catch (error) {
       if (generation === generationRef.current) {
-        toast.error(error instanceof Error ? error.message : "Failed to load container links");
+        toastApiError(error, "Failed to load container links");
       }
     } finally {
       if (generation === generationRef.current) setLoading(false);
@@ -190,7 +199,7 @@ export function ContainerLinksSection({
       // The link may exist in an error state even though creating it failed.
       void load();
       if (!handleLicenseApiError(error, "Container links")) {
-        toast.error(error instanceof Error ? error.message : "Failed to add the container link");
+        toastApiError(error, "Failed to add the container link");
       }
       return false;
     }
@@ -216,9 +225,7 @@ export function ContainerLinksSection({
           await api.deleteContainerLink(link.id);
         } catch (error) {
           if (restarts) onMutationEnd?.();
-          toast.error(
-            error instanceof Error ? error.message : "Failed to remove the container link"
-          );
+          toastApiError(error, "Failed to remove the container link");
           return false;
         }
         await finishMutation(restarts, "Container link removed");

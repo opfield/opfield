@@ -13,6 +13,7 @@ import { useContentLoading } from "@/components/common/reveal-gate";
 import { Button } from "@/components/ui/button";
 import { CodeEditor } from "@/components/ui/code-editor";
 import { Toaster } from "@/components/ui/sonner";
+import { toastApiError } from "@/lib/api-error-toast";
 import { codeEditorLanguageForFile, imageMimeForFile } from "@/lib/file-types";
 
 type ImageInfo = {
@@ -226,7 +227,7 @@ export function AIArtifactPopout() {
   const handleCopy = () => {
     if (imageInfo) {
       copyImageBlobAsPng(imageInfo.blob).then(markCopied, (err) =>
-        toast.error(err instanceof Error ? err.message : "Failed to copy image")
+        toastApiError(err, "Failed to copy image")
       );
       return;
     }

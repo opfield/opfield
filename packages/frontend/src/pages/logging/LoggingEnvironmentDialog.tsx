@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 import {
   CreateFolderSelect,
   getCreateFolderChoices,
@@ -14,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { toastApiError } from "@/lib/api-error-toast";
 import { useAuthStore } from "@/stores/auth";
 import { handleLicenseApiError } from "@/stores/license-paywall";
 import { useResourceFolderStore } from "@/stores/resource-folders";
@@ -69,9 +69,7 @@ export function LoggingEnvironmentDialog({
       onOpenChange(false);
     } catch (error) {
       if (!handleLicenseApiError(error, "Logging environments")) {
-        toast.error(
-          error instanceof Error ? error.message : "Failed to create logging environment"
-        );
+        toastApiError(error, "Failed to create logging environment");
       }
     } finally {
       setSaving(false);

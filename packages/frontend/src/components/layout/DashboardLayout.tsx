@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { pkiAvailable } from "@/hooks/use-plan-gated-features";
 import { useRouteScrollRestoration } from "@/hooks/use-route-scroll-restoration";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { getLoginRedirectUrl } from "@/lib/auth-return-to";
@@ -536,7 +537,6 @@ export function DashboardLayout() {
       }
       // Ctrl+H = new proxy host, Ctrl+S = new SSL cert, Ctrl+R = new root CA
       if (e.ctrlKey && !e.metaKey && !e.altKey) {
-        const features = useSystemConfigStore.getState().config.features;
         switch (e.key) {
           case "h":
             e.preventDefault();
@@ -549,7 +549,7 @@ export function DashboardLayout() {
             break;
           case "r":
             e.preventDefault();
-            if (!features.pkiEnabled) break;
+            if (!pkiAvailable()) break;
             navigate("/certificates/authorities");
             useUIStore.getState().openModal("createCA");
             break;

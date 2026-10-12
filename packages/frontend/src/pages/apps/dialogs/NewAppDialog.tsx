@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { AppDetail } from "@/types";
 import { AppNameDialog } from "./AppNameDialog";
@@ -27,7 +28,7 @@ export function NewAppDialog({
           toast.success(`App ${app.name} created`);
           onCreated(app);
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : "Failed to create the app");
+          toastApiError(error, "Failed to create the app");
           throw error;
         }
       }}

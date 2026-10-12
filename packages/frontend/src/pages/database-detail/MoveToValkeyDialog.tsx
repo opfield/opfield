@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { ManagedDatabaseMoveToValkeyCheck } from "@/types";
 
@@ -54,7 +55,7 @@ export function MoveToValkeyDialog({
       })
       .catch((error) => {
         if (cancelled) return;
-        toast.error(error instanceof Error ? error.message : "Failed to check the key-value store");
+        toastApiError(error, "Failed to check the key-value store");
         onOpenChange(false);
       });
     return () => {
@@ -83,7 +84,7 @@ export function MoveToValkeyDialog({
       onOpenChange(false);
       onMoved();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to move to Valkey");
+      toastApiError(error, "Failed to move to Valkey");
     } finally {
       setMoving(false);
     }

@@ -1,13 +1,11 @@
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { EmptyState } from "@/components/common/EmptyState";
-import { HubTabs } from "@/components/common/HubTabs";
+import { HubTabPanel, HubTabs } from "@/components/common/HubTabs";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
-import { PageTransition } from "@/components/common/PageTransition";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
 import { SearchFilterBar } from "@/components/common/SearchFilterBar";
 import { SimpleTable, type SimpleTableColumn } from "@/components/common/SimpleTable";
@@ -21,10 +19,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { ingressGroupRoute } from "@/lib/resource-routes";
 import { hasScopeBase } from "@/lib/scope-utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
+import { usePlanIncludes } from "@/stores/license-paywall";
 import type { IngressGroup } from "@/types";
 
 const NO_SCOPES: string[] = [];
@@ -32,7 +32,9 @@ const NO_SCOPES: string[] = [];
 export function IngressGroups() {
   const navigate = useNavigate();
   const scopes = useAuthStore((state) => state.user?.scopes ?? NO_SCOPES);
-  const canCreate = hasScopeBase(scopes, "ingress:groups:manage");
+  // New groups need multi-node availability; existing groups stay manageable.
+  const groupsInPlan = usePlanIncludes("multi-node-availability");
+  const canCreate = groupsInPlan && hasScopeBase(scopes, "ingress:groups:manage");
   const [groups, setGroups] = useState<IngressGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const initialLoading = useInitialLoading(loading);
@@ -43,7 +45,7 @@ export function IngressGroups() {
     try {
       setGroups(await api.listIngressGroups());
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load ingress groups");
+      toastApiError(error, "Failed to load ingress groups");
     } finally {
       setLoading(false);
     }
@@ -125,32 +127,32 @@ export function IngressGroups() {
   ];
 
   return (
-    <PageTransition>
-      <div className="h-full space-y-4 overflow-y-auto p-6">
-        <PageHeader
-          leading={<LiteModeBackButton />}
-          title="Ingress Groups"
-          description="Nginx nodes that serve the same routes and domains, normally one per site"
-          actions={
-            canCreate ? (
-              <ResponsiveHeaderActions
-                actions={[
-                  {
-                    label: "New Group",
-                    icon: <Plus className="h-4 w-4" />,
-                    onClick: () => setCreating(true),
-                  },
-                ]}
-              >
-                <Button onClick={() => setCreating(true)}>
-                  <Plus className="h-4 w-4" />
-                  New Group
-                </Button>
-              </ResponsiveHeaderActions>
-            ) : null
-          }
-        />
-        <HubTabs />
+    <div className="h-full space-y-4 overflow-y-auto p-6">
+      <PageHeader
+        leading={<LiteModeBackButton />}
+        title="Ingress Groups"
+        description="Nginx nodes that serve the same routes and domains, normally one per site"
+        actions={
+          canCreate ? (
+            <ResponsiveHeaderActions
+              actions={[
+                {
+                  label: "New Group",
+                  icon: <Plus className="h-4 w-4" />,
+                  onClick: () => setCreating(true),
+                },
+              ]}
+            >
+              <Button onClick={() => setCreating(true)}>
+                <Plus className="h-4 w-4" />
+                New Group
+              </Button>
+            </ResponsiveHeaderActions>
+          ) : null
+        }
+      />
+      <HubTabs />
+      <HubTabPanel className="space-y-4">
         <ContentLoading loading={initialLoading && groups.length === 0} />
         {initialLoading && groups.length === 0 ? null : groups.length > 0 ? (
           <>
@@ -190,7 +192,7 @@ export function IngressGroups() {
           onOpenChange={setCreating}
           onSaved={(group) => navigate(ingressGroupRoute(group.id))}
         />
-      </div>
-    </PageTransition>
+      </HubTabPanel>
+    </div>
   );
 }

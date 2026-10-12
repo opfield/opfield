@@ -16,7 +16,6 @@ import { ContentLoading } from "@/components/common/ContentLoading";
 import { PanelShell } from "@/components/common/PanelShell";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import { SimpleTable, type SimpleTableColumn } from "@/components/common/SimpleTable";
-import { PagesFeatureDisabledDialog } from "@/components/pages/PagesFeatureDisabledDialog";
 import { PagesTargetPicker } from "@/components/proxy/PagesTargetPicker";
 import {
   DEFAULT_PROXY_UPSTREAM,
@@ -53,6 +52,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
@@ -450,7 +450,7 @@ export function AdditionalRoutesPanel({
       upsertRoute(updated);
       toast.success(enabled ? "Additional route enabled" : "Additional route disabled");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update additional route");
+      toastApiError(error, "Failed to update additional route");
     } finally {
       setPendingRouteId(null);
     }
@@ -464,7 +464,7 @@ export function AdditionalRoutesPanel({
       upsertRoute(updated);
       toast.success("Additional route retry started");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to retry additional route");
+      toastApiError(error, "Failed to retry additional route");
     } finally {
       setPendingRouteId(null);
     }
@@ -487,7 +487,7 @@ export function AdditionalRoutesPanel({
           toast.success("Additional route deletion started");
           return true;
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : "Failed to delete additional route");
+          toastApiError(error, "Failed to delete additional route");
           return false;
         } finally {
           setPendingRouteId(null);
@@ -513,7 +513,7 @@ export function AdditionalRoutesPanel({
       setAdvancedDialogOpen(false);
       toast.success("Additional route advanced config saved");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save advanced config");
+      toastApiError(error, "Failed to save advanced config");
     } finally {
       setSavingAdvanced(false);
     }
@@ -739,7 +739,6 @@ function AdditionalRouteWizard({
   const [tags, setTags] = useState<PageTag[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [tagsLoading, setTagsLoading] = useState(false);
-  const [pagesDisabledDialogOpen, setPagesDisabledDialogOpen] = useState(false);
   const pagesEnabled = useUIBootstrapStore(
     (state) => state.snapshot?.navigation.pagesEnabled === true
   );
@@ -911,13 +910,7 @@ function AdditionalRouteWizard({
             </label>
             <Select
               value={draft.targetKind}
-              onValueChange={(value) => {
-                if (value === "pages" && !pagesEnabled) {
-                  setPagesDisabledDialogOpen(true);
-                  return;
-                }
-                setTargetKind(value as ProxyAdditionalRouteTargetKind);
-              }}
+              onValueChange={(value) => setTargetKind(value as ProxyAdditionalRouteTargetKind)}
               disabled={saving}
             >
               <SelectTrigger id="additional-route-target">
@@ -927,7 +920,10 @@ function AdditionalRouteWizard({
                 <SelectItem value="manual">Manual address</SelectItem>
                 <SelectItem value="docker_container">Docker container</SelectItem>
                 <SelectItem value="docker_deployment">Docker deployment</SelectItem>
-                <SelectItem value="pages">Pages</SelectItem>
+                {/* Pages is offered only while enabled; an existing Pages target stays shown. */}
+                {(pagesEnabled ||
+                  draft.targetKind === "pages" ||
+                  route?.targetKind === "pages") && <SelectItem value="pages">Pages</SelectItem>}
               </SelectContent>
             </Select>
           </div>
@@ -979,10 +975,6 @@ function AdditionalRouteWizard({
             Save
           </Button>
         </DialogFooter>
-        <PagesFeatureDisabledDialog
-          open={pagesDisabledDialogOpen}
-          onOpenChange={setPagesDisabledDialogOpen}
-        />
       </DialogContent>
     </Dialog>
   );

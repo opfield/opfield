@@ -54,6 +54,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { hostingNodeLabel } from "@/lib/hosting-status";
 import {
   daemonTypeForNode,
@@ -152,9 +153,7 @@ export function AdminNodes() {
     } catch (error) {
       if (request === choiceRequest.current) {
         setCheckingHosting(false);
-        toast.error(
-          error instanceof Error ? error.message : "Failed to load hosting integrations."
-        );
+        toastApiError(error, "Failed to load hosting integrations.");
       }
     }
   };
@@ -283,7 +282,7 @@ export function AdminNodes() {
         toast.success("Node removed");
         fetchNodes();
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to remove node");
+        toastApiError(err, "Failed to remove node");
       }
     },
     [fetchNodes]
@@ -299,7 +298,7 @@ export function AdminNodes() {
         );
         fetchNodes();
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to update lock");
+        toastApiError(err, "Failed to update lock");
       } finally {
         setLockingNodeId(null);
       }

@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   GATEWAY_ARCHIVE_IMAGE_REFERENCE_LABEL,
   resolveContainerImageReference,
@@ -43,7 +44,11 @@ import { formatBytes } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { useDockerStore } from "@/stores/docker";
-import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
+import {
+  handleLicenseApiError,
+  requireLicenseFeature,
+  usePlanIncludes,
+} from "@/stores/license-paywall";
 import type { DockerHealthCheck, DockerRuntimeProfile } from "@/types";
 import type { InspectData } from "./helpers";
 import { LabelsSection } from "./LabelsSection";
@@ -198,6 +203,10 @@ export function SettingsTab({
   const hostConfig = data.HostConfig ?? {};
   const savedRuntimeName = String(hostConfig.Runtime ?? "");
   const savedRuntimeProfile = normalizeDockerRuntimeProfile(savedRuntimeName);
+  // Secure is offered with Secure Runtime only; a container already on it (or on a legacy runtime) keeps the choice.
+  const secureRuntimeLicensed = usePlanIncludes("secure-runtime");
+  const secureRuntimeOptionVisible = secureRuntimeLicensed || savedRuntimeProfile === "secure";
+  const runtimeChoiceVisible = secureRuntimeOptionVisible || savedRuntimeProfile === "legacy";
   const currentRestartPolicy = hostConfig.RestartPolicy?.Name ?? "no";
   const currentMaxRetries = hostConfig.RestartPolicy?.MaximumRetryCount ?? 0;
   const currentMemory = hostConfig.Memory ?? 0;
@@ -717,7 +726,7 @@ export function SettingsTab({
       };
     } catch (err) {
       onMutationEnd?.();
-      toast.error(err instanceof Error ? err.message : "Failed to apply settings");
+      toastApiError(err, "Failed to apply settings");
     } finally {
       setLiveLoading(false);
     }
@@ -900,7 +909,7 @@ export function SettingsTab({
     } catch (err) {
       onMutationEnd?.();
       if (!handleLicenseApiError(err, "Secure Runtime")) {
-        toast.error(err instanceof Error ? err.message : "Failed to recreate container");
+        toastApiError(err, "Failed to recreate container");
       }
       setRecreateLoading(false);
     }
@@ -1046,52 +1055,56 @@ export function SettingsTab({
               </SettingsInlineControl>
             </div>
           </SettingsControlRow>
-          <SettingsControlRow
-            title="Runtime"
-            description="Container isolation profile"
-            help="Default uses the node's standard Docker runtime. Secure adds stronger isolation when the node and license support it. Changing the profile recreates the container."
-          >
-            <SettingsInlineControl label="Profile">
-              <Select
-                value={runtimeProfile}
-                onValueChange={(value) => {
-                  if (
-                    value === "secure" &&
-                    savedRuntimeProfile !== "secure" &&
-                    !requireLicenseFeature("secure-runtime", "Secure Runtime")
-                  )
-                    return;
-                  setRuntimeProfile(value as DockerRuntimeProfile);
-                }}
-                disabled={!canEdit}
-              >
-                <SelectTrigger aria-label="Runtime">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {runtimeProfile === "legacy" && (
-                    <SelectItem
-                      value="legacy"
-                      disabled
-                      description={`Custom Docker runtime: ${savedRuntimeName}`}
-                    >
-                      Legacy
+          {runtimeChoiceVisible && (
+            <SettingsControlRow
+              title="Runtime"
+              description="Container isolation profile"
+              help="Default uses the node's standard Docker runtime. Secure adds stronger isolation when the node and license support it. Changing the profile recreates the container."
+            >
+              <SettingsInlineControl label="Profile">
+                <Select
+                  value={runtimeProfile}
+                  onValueChange={(value) => {
+                    if (
+                      value === "secure" &&
+                      savedRuntimeProfile !== "secure" &&
+                      !requireLicenseFeature("secure-runtime", "Secure Runtime")
+                    )
+                      return;
+                    setRuntimeProfile(value as DockerRuntimeProfile);
+                  }}
+                  disabled={!canEdit}
+                >
+                  <SelectTrigger aria-label="Runtime">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {runtimeProfile === "legacy" && (
+                      <SelectItem
+                        value="legacy"
+                        disabled
+                        description={`Custom Docker runtime: ${savedRuntimeName}`}
+                      >
+                        Legacy
+                      </SelectItem>
+                    )}
+                    <SelectItem value="default" description={DEFAULT_DOCKER_RUNTIME_DESCRIPTION}>
+                      Default
                     </SelectItem>
-                  )}
-                  <SelectItem value="default" description={DEFAULT_DOCKER_RUNTIME_DESCRIPTION}>
-                    Default
-                  </SelectItem>
-                  <SelectItem
-                    value="secure"
-                    disabled={!secureRuntimeAvailable}
-                    description={getSecureDockerRuntimeDescription(secureRuntimeAvailable)}
-                  >
-                    Secure
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </SettingsInlineControl>
-          </SettingsControlRow>
+                    {secureRuntimeOptionVisible && (
+                      <SelectItem
+                        value="secure"
+                        disabled={!secureRuntimeAvailable}
+                        description={getSecureDockerRuntimeDescription(secureRuntimeAvailable)}
+                      >
+                        Secure
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </SettingsInlineControl>
+            </SettingsControlRow>
+          )}
           <SettingsControlRow
             title="Working Dir and Entrypoint"
             description="Initial process context"

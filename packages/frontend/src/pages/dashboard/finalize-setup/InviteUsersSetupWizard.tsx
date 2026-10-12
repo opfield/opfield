@@ -1,6 +1,5 @@
 import { Check, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { PanelShell } from "@/components/common/PanelShell";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
@@ -13,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { handleLicenseApiError } from "@/stores/license-paywall";
 import type { PermissionGroup } from "@/types";
@@ -87,9 +87,7 @@ export function InviteUsersSetupWizard({
           nextGroups[0];
         setGroupId(defaultGroup?.id ?? "");
       })
-      .catch((cause) =>
-        toast.error(cause instanceof Error ? cause.message : "Failed to load groups")
-      )
+      .catch((cause) => toastApiError(cause, "Failed to load groups"))
       .finally(() => setLoading(false));
   }, [availableMethods, open]);
 
@@ -106,7 +104,7 @@ export function InviteUsersSetupWizard({
       setCompleted(true);
     } catch (cause) {
       if (!handleLicenseApiError(cause, "Users")) {
-        toast.error(cause instanceof Error ? cause.message : "Failed to invite user");
+        toastApiError(cause, "Failed to invite user");
       }
     } finally {
       setSaving(false);

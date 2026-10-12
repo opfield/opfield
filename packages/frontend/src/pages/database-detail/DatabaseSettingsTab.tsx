@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { DatabaseConnection } from "@/types";
 import {
@@ -42,7 +43,7 @@ export function DatabaseSettingsTab({
       toast.success("Database settings updated");
       onSaved(updated);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update database");
+      toastApiError(error, "Failed to update database");
     } finally {
       setSaving(false);
     }

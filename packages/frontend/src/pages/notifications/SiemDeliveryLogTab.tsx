@@ -34,6 +34,7 @@ import {
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { formatDateTime } from "@/lib/utils";
 import { api } from "@/services/api";
 import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
@@ -219,9 +220,7 @@ export function SiemDeliveryLogTab({
       if (requestId === detailRequestIdRef.current) setDetail(full);
     } catch (error) {
       if (requestId === detailRequestIdRef.current) {
-        toast.error(
-          error instanceof Error ? error.message : "Failed to load SIEM delivery details"
-        );
+        toastApiError(error, "Failed to load SIEM delivery details");
       }
     } finally {
       if (requestId === detailRequestIdRef.current) setDetailLoading(false);
@@ -239,7 +238,7 @@ export function SiemDeliveryLogTab({
       refresh();
     } catch (error) {
       if (!handleLicenseApiError(error, "SIEM delivery requeue")) {
-        toast.error(error instanceof Error ? error.message : "Failed to requeue SIEM delivery");
+        toastApiError(error, "Failed to requeue SIEM delivery");
       }
     } finally {
       setRequeueing(false);

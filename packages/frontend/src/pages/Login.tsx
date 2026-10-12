@@ -33,6 +33,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { toastApiError } from "@/lib/api-error-toast";
 import { resolveAuthReturnTo } from "@/lib/auth-return-to";
 import { getInitials } from "@/lib/utils";
 
@@ -192,7 +193,7 @@ export function LoginPage({
       })
       .catch((error) => {
         if (!active) return;
-        toast.error(error instanceof Error ? error.message : "Invalid or expired password link");
+        toastApiError(error, "Invalid or expired password link");
         navigate("/login", { replace: true });
       });
     return () => {
@@ -235,7 +236,7 @@ export function LoginPage({
       await task();
     } catch (error) {
       if (handleError?.(error)) return;
-      toast.error(error instanceof Error ? error.message : "Sign-in failed");
+      toastApiError(error, "Sign-in failed");
     } finally {
       if (!gatewayNavigationPending.current) setBusy(false);
     }

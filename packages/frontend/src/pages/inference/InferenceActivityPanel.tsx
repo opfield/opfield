@@ -1,6 +1,5 @@
 import { Activity } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import { Combobox, type ComboboxOption } from "@/components/common/Combobox";
 import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
@@ -26,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { toastApiError } from "@/lib/api-error-toast";
 import { getInitials } from "@/lib/utils";
 import { api } from "@/services/api";
 import type {
@@ -73,7 +73,7 @@ export function InferenceActivityPanel({ refreshToken = 0 }: { refreshToken?: nu
       setRecent(page.data);
       recentInitializedRef.current = true;
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load inference activity");
+      toastApiError(error, "Failed to load inference activity");
     } finally {
       setRecentLoading(false);
     }
@@ -113,7 +113,7 @@ export function InferenceActivityPanel({ refreshToken = 0 }: { refreshToken?: nu
         setNextPage(result.nextPage);
       } catch (error) {
         if (currentRequest === requestId.current) {
-          toast.error(error instanceof Error ? error.message : "Failed to load inference activity");
+          toastApiError(error, "Failed to load inference activity");
         }
       } finally {
         if (currentRequest === requestId.current) {
@@ -142,7 +142,7 @@ export function InferenceActivityPanel({ refreshToken = 0 }: { refreshToken?: nu
       })
       .catch((error) => {
         if (currentRequest === filterRequestId.current) {
-          toast.error(error instanceof Error ? error.message : "Failed to load activity filters");
+          toastApiError(error, "Failed to load activity filters");
         }
       })
       .finally(() => {

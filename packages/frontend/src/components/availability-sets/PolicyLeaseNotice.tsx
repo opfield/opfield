@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Notice, NoticeAction } from "@/components/common/Notice";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { RECOMMENDED_POLICY_LEASE_HOURS } from "./availability-labels";
@@ -25,9 +26,7 @@ export function PolicyLeaseNotice({ hours }: { hours: number | null }) {
       setOverride(RECOMMENDED_POLICY_LEASE_HOURS);
       toast.success("Relay policies now last 7 days");
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to change the relay policy lease"
-      );
+      toastApiError(error, "Failed to change the relay policy lease");
     } finally {
       setSaving(false);
     }

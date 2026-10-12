@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { analyzeTemplateContent } from "@/lib/nginx-template-analysis";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -193,7 +194,7 @@ export function NginxTemplateEdit() {
         toast.success("Template saved");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save template");
+      toastApiError(err, "Failed to save template");
     } finally {
       setIsSaving(false);
     }
@@ -222,7 +223,7 @@ export function NginxTemplateEdit() {
         toast.error(result.errors.join(", ") || "Config test failed");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Test failed");
+      toastApiError(err, "Test failed");
     } finally {
       setIsTesting(false);
     }

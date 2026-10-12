@@ -4,10 +4,9 @@ import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { EmptyState } from "@/components/common/EmptyState";
-import { HubTabs } from "@/components/common/HubTabs";
+import { HubTabPanel, HubTabs } from "@/components/common/HubTabs";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
-import { PageTransition } from "@/components/common/PageTransition";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
 import { SimpleTable, type SimpleTableColumn } from "@/components/common/SimpleTable";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import type { AccessList } from "@/types";
@@ -80,7 +80,7 @@ export function AccessLists() {
       toast.success("Access list deleted");
       loadAccessLists();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete access list");
+      toastApiError(err, "Failed to delete access list");
     }
   };
 
@@ -175,33 +175,32 @@ export function AccessLists() {
   ];
 
   return (
-    <PageTransition>
-      <div className="h-full overflow-y-auto p-6 space-y-4">
-        <PageHeader
-          leading={<LiteModeBackButton />}
-          title="Access Lists"
-          description="Manage IP rules and basic authentication"
-          actions={
-            canCreateAccessList ? (
-              <ResponsiveHeaderActions
-                actions={[
-                  {
-                    label: "Add Access List",
-                    icon: <Plus className="h-4 w-4" />,
-                    onClick: openCreate,
-                  },
-                ]}
-              >
-                <Button onClick={openCreate}>
-                  <Plus className="h-4 w-4" />
-                  Add Access List
-                </Button>
-              </ResponsiveHeaderActions>
-            ) : null
-          }
-        />
-        <HubTabs />
-
+    <div className="h-full overflow-y-auto p-6 space-y-4">
+      <PageHeader
+        leading={<LiteModeBackButton />}
+        title="Access Lists"
+        description="Manage IP rules and basic authentication"
+        actions={
+          canCreateAccessList ? (
+            <ResponsiveHeaderActions
+              actions={[
+                {
+                  label: "Add Access List",
+                  icon: <Plus className="h-4 w-4" />,
+                  onClick: openCreate,
+                },
+              ]}
+            >
+              <Button onClick={openCreate}>
+                <Plus className="h-4 w-4" />
+                Add Access List
+              </Button>
+            </ResponsiveHeaderActions>
+          ) : null
+        }
+      />
+      <HubTabs />
+      <HubTabPanel className="space-y-4">
         {/* Table */}
         <ContentLoading loading={initialLoading && accessLists.length === 0} />
         {initialLoading && accessLists.length === 0 ? null : accessLists.length > 0 ? (
@@ -230,7 +229,7 @@ export function AccessLists() {
           accessList={editing}
           onSaved={loadAccessLists}
         />
-      </div>
-    </PageTransition>
+      </HubTabPanel>
+    </div>
   );
 }

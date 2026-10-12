@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { toastApiError } from "@/lib/api-error-toast";
 import { formatDateTime } from "@/lib/utils";
 import { api } from "@/services/api";
 import type {
@@ -144,7 +145,7 @@ export function InferenceUsersTable({
         initializedRef.current = true;
       } catch (error) {
         if (generation !== loadGeneration.current) return;
-        toast.error(error instanceof Error ? error.message : "Failed to load inference users");
+        toastApiError(error, "Failed to load inference users");
       } finally {
         if (generation === loadGeneration.current) setLoading(false);
       }
@@ -215,7 +216,7 @@ export function InferenceUsersTable({
       // refresh, and must neither delay success nor replay older policy data.
       void load({ showLoading: false, savedPolicies });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update limits");
+      toastApiError(error, "Failed to update limits");
     } finally {
       setSaving(false);
     }
@@ -242,7 +243,7 @@ export function InferenceUsersTable({
       );
       toast.success("Usage limits reset");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to reset limit usage");
+      toastApiError(error, "Failed to reset limit usage");
     } finally {
       setResetting(false);
     }
@@ -256,7 +257,7 @@ export function InferenceUsersTable({
       setLimitsOpen(false);
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to remove the limit override");
+      toastApiError(error, "Failed to remove the limit override");
     } finally {
       setRemovingOverride(false);
     }

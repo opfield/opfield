@@ -49,6 +49,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   allowedCreationFolderId,
   type CreationFolderOption,
@@ -61,6 +62,7 @@ import { canCreateInFolder } from "@/lib/scope-utils";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
+import { planIncludes } from "@/stores/license-paywall";
 import type {
   CreateProxyHostRequest,
   DockerContainer,
@@ -311,6 +313,12 @@ export function CreateProxyHostDialog({
   // Ingress groups a new route may use (every member open to the caller's grant).
   useEffect(() => {
     if (!open || existingHost) return;
+    // Placing a route on a group needs multi-node availability; without it only nodes are offered.
+    if (!planIncludes("multi-node-availability")) {
+      setIngressGroups([]);
+      setIngressGroupsLoaded(true);
+      return;
+    }
     let cancelled = false;
     void api
       .listRouteIngressGroups()
@@ -667,7 +675,7 @@ export function CreateProxyHostDialog({
       }
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save route");
+      toastApiError(err, "Failed to save route");
     } finally {
       setIsSaving(false);
     }

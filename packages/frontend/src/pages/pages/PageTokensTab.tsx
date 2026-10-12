@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { formatDate } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -47,7 +48,7 @@ export function PageTokensTab({ projectId }: { projectId: string }) {
     try {
       setTokens((await api.listPageDeployTokens(projectId)).filter((token) => !token.revokedAt));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load deploy tokens");
+      toastApiError(error, "Failed to load deploy tokens");
     } finally {
       setLoading(false);
     }
@@ -91,7 +92,7 @@ export function PageTokensTab({ projectId }: { projectId: string }) {
       setDialogOpen(false);
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create deploy token");
+      toastApiError(error, "Failed to create deploy token");
     } finally {
       setSaving(false);
     }
@@ -113,7 +114,7 @@ export function PageTokensTab({ projectId }: { projectId: string }) {
       toast.success("Deploy token revoked");
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to revoke deploy token");
+      toastApiError(error, "Failed to revoke deploy token");
     }
   };
 

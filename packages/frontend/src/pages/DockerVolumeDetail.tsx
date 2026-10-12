@@ -35,6 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
+import { toastApiError } from "@/lib/api-error-toast";
 import { canEditDockerVolume } from "@/lib/docker-volume-access";
 import {
   dockerComposeProjectRoute,
@@ -217,7 +218,7 @@ export function DockerVolumeDetail({
         setLabels(nextLabels);
         setSavedLabels(nextLabels);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to load volume");
+        toastApiError(err, "Failed to load volume");
       } finally {
         if (!silent) setIsLoading(false);
       }
@@ -445,7 +446,7 @@ export function DockerVolumeDetail({
       URL.revokeObjectURL(url);
       toast.success("Volume export started");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to export volume");
+      toastApiError(err, "Failed to export volume");
     } finally {
       setExporting(false);
     }
@@ -478,7 +479,7 @@ export function DockerVolumeDetail({
         state: location.state,
       });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to rename volume");
+      toastApiError(err, "Failed to rename volume");
     } finally {
       setActionLoading(false);
     }
@@ -508,7 +509,7 @@ export function DockerVolumeDetail({
       toast.success("Volume removed");
       navigate(backTarget);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to remove volume");
+      toastApiError(err, "Failed to remove volume");
     } finally {
       setActionLoading(false);
       setPendingAction(null);
@@ -528,7 +529,7 @@ export function DockerVolumeDetail({
       setSavedLabels(nextLabels);
       void fetchVolume(true);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save labels");
+      toastApiError(err, "Failed to save labels");
     } finally {
       setLabelsSaving(false);
     }
@@ -551,7 +552,7 @@ export function DockerVolumeDetail({
       );
       await fetchVolume(true);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update cleanup protection");
+      toastApiError(err, "Failed to update cleanup protection");
     } finally {
       setActionLoading(false);
       setPendingAction(null);
@@ -582,7 +583,7 @@ export function DockerVolumeDetail({
       setResizeOpen(false);
       await Promise.all([fetchVolume(true), fetchMetrics()]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to resize volume storage");
+      toastApiError(error, "Failed to resize volume storage");
     } finally {
       setResizing(false);
     }

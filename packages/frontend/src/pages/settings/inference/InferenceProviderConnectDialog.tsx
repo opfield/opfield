@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { InferenceOAuthSession, InferenceProviderCatalogItem } from "@/types/inference";
 
@@ -165,7 +166,7 @@ export function InferenceProviderConnectDialog({
         }
       } catch (error) {
         if (!cancelled) {
-          toast.error(error instanceof Error ? error.message : "Authorization status check failed");
+          toastApiError(error, "Authorization status check failed");
           setOauthState(null);
         }
       }
@@ -184,7 +185,7 @@ export function InferenceProviderConnectDialog({
       try {
         await finish(await api.getInferenceOAuthStatus(oauth.id));
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Authorization timed out");
+        toastApiError(error, "Authorization timed out");
         setOauthState(null);
       }
     }, remaining + 250);
@@ -212,8 +213,7 @@ export function InferenceProviderConnectDialog({
       }
       if (callbackAttempt.current === attempt) await finish(session);
     } catch (error) {
-      if (callbackAttempt.current === attempt)
-        toast.error(error instanceof Error ? error.message : "Authorization failed");
+      if (callbackAttempt.current === attempt) toastApiError(error, "Authorization failed");
     } finally {
       if (callbackAttempt.current === attempt) setSaving(false);
     }
@@ -232,7 +232,7 @@ export function InferenceProviderConnectDialog({
         setOauthState(session);
         return true;
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to connect provider");
+        toastApiError(error, "Failed to connect provider");
         return false;
       }
     };
@@ -268,7 +268,7 @@ export function InferenceProviderConnectDialog({
         await onConnected();
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to connect provider");
+      toastApiError(error, "Failed to connect provider");
     } finally {
       setSaving(false);
     }

@@ -1,5 +1,6 @@
 import { SQL } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
+import { NodeUpdatePostponedError } from './availability-members.service.js';
 import { batchUpdatesBefore, dispatchNodeDaemonUpdate, resumeQueuedDaemonUpdates } from './daemon-node-update.js';
 import {
   connectorReplacementToRecord,
@@ -82,6 +83,41 @@ function harness(
   };
   return { node, deps, service, state, sendUpdateDaemonCommand, enqueue, events, sqlWrites };
 }
+
+describe('daemon update after the availability handoff (rc.6 async pair)', () => {
+  it('never restarts the daemon under a primary that kept its role: the update is postponed with the reason', async () => {
+    const { deps, sendUpdateDaemonCommand } = harness();
+    const beforeRestart = vi.fn(async () => {
+      throw new NodeUpdatePostponedError('The update was postponed: the primary of b-pa could not hand over');
+    });
+    await expect(dispatchNodeDaemonUpdate(NODE_ID, { ...deps, beforeRestart })).rejects.toMatchObject({
+      code: 'NODE_UPDATE_POSTPONED',
+      message: 'The update was postponed: the primary of b-pa could not hand over',
+    });
+    expect(sendUpdateDaemonCommand).not.toHaveBeenCalled();
+  });
+
+  it('"update now" overrides a postponed handoff and the result says so', async () => {
+    const { deps, sendUpdateDaemonCommand, sqlWrites } = harness();
+    const beforeRestart = vi.fn(async () => {
+      throw new NodeUpdatePostponedError(
+        'The update was postponed: the primary of b-pa (rebuild running) could not hand over'
+      );
+    });
+    await dispatchNodeDaemonUpdate(NODE_ID, { ...deps, beforeRestart }, { now: true });
+    expect(sendUpdateDaemonCommand).toHaveBeenCalledTimes(1);
+    expect(sqlWrites.length).toBeGreaterThan(0);
+  });
+
+  it('goes on after any other handoff failure', async () => {
+    const { deps, sendUpdateDaemonCommand } = harness();
+    const beforeRestart = vi.fn(async () => {
+      throw new Error('relay unreachable');
+    });
+    await dispatchNodeDaemonUpdate(NODE_ID, { ...deps, beforeRestart });
+    expect(sendUpdateDaemonCommand).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('daemon update task wait', () => {
   it('sends at once when the node runs no long task', async () => {

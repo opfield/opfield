@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { toastApiError } from "@/lib/api-error-toast";
 import { getNodeAppearanceColor, NODE_APPEARANCE_COLOR_OPTIONS } from "@/lib/node-appearance";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
@@ -122,7 +123,7 @@ export function PageProjectSettingsDialog({
       onOpenChange(false);
       toast.success("Project settings saved");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save Project settings");
+      toastApiError(error, "Failed to save Project settings");
     } finally {
       setSaving(false);
     }

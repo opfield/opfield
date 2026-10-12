@@ -1,12 +1,12 @@
 import { ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
 import { DetailRow } from "@/components/common/DetailRow";
 import { PanelShell } from "@/components/common/PanelShell";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { DockerAvailabilityPolicy, DockerAvailabilityResource } from "@/types";
 import { AvailabilityLeaseSummaryRows } from "./AvailabilityLeaseSummaryRows";
@@ -91,7 +91,7 @@ export function AvailabilitySummary({
       .then(setLocalPolicy)
       .catch((error) => {
         setLocalPolicy(null);
-        toast.error(error instanceof Error ? error.message : "Failed to load Availability");
+        toastApiError(error, "Failed to load Availability");
       })
       .finally(() => setLocalLoading(false));
   }, [controlled, stableResource]);

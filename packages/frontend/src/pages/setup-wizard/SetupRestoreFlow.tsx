@@ -1,6 +1,5 @@
 import { ArchiveRestore, ArrowLeft, ArrowRight, Loader2, Sparkles, Upload } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { ChoiceCard } from "@/components/common/ChoiceCard";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { DetailRow } from "@/components/common/DetailRow";
@@ -11,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ProgressBar } from "@/components/ui/progress-bar";
+import { toastApiError } from "@/lib/api-error-toast";
 import { formatBytes, formatDateTime } from "@/lib/utils";
 import { SetupNetworkFields } from "./SetupNetworkStep";
 import { SetupRequestError, setupRequest, setupUploadChunk } from "./setup-request";
@@ -218,7 +218,7 @@ export function SetupRestoreFlow({
       })
       .catch((error) => {
         if (!active) return;
-        toast.error(errorMessage(error, "Failed to load the restore state"));
+        toastApiError(error, "Failed to load the restore state");
         setStep("file");
       });
     return () => {
@@ -307,7 +307,7 @@ export function SetupRestoreFlow({
       );
       setView(next);
     } catch (error) {
-      toast.error(errorMessage(error, "Failed to remove the uploaded file"));
+      toastApiError(error, "Failed to remove the uploaded file");
       return;
     }
     sessionStorage.removeItem(UPLOAD_MARKER_KEY);
@@ -330,7 +330,7 @@ export function SetupRestoreFlow({
         )
       );
     } catch (error) {
-      toast.error(errorMessage(error, "Failed to check the export"));
+      toastApiError(error, "Failed to check the export");
       setChecking(false);
     }
   };
@@ -391,7 +391,7 @@ export function SetupRestoreFlow({
       setView(next);
       setStep("restoring");
     } catch (error) {
-      toast.error(errorMessage(error, "Failed to start the restore"));
+      toastApiError(error, "Failed to start the restore");
     } finally {
       setStarting(false);
     }

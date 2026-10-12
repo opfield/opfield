@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
 import { handleLicenseApiError } from "@/stores/license-paywall";
@@ -159,7 +160,7 @@ export function SiemDestinationDialog({
         return;
       }
       if (!handleLicenseApiError(error, "SIEM destinations")) {
-        toast.error(error instanceof Error ? error.message : "Failed to save SIEM destination");
+        toastApiError(error, "Failed to save SIEM destination");
       }
     } finally {
       setSaving(false);

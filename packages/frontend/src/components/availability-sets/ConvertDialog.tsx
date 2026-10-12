@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
 import type { AvailabilityOwner, AvailabilityPreflightInput, Node } from "@/types";
@@ -71,7 +72,7 @@ export function ConvertDialog({
       onOpenChange(false);
     } catch (error) {
       if (!handleLicenseApiError(error, AVAILABILITY_CAPABILITY)) {
-        toast.error(error instanceof Error ? error.message : "Failed to turn on availability");
+        toastApiError(error, "Failed to turn on availability");
       }
     } finally {
       setSaving(false);

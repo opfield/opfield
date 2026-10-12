@@ -48,6 +48,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
+import { toastApiError } from "@/lib/api-error-toast";
 import { getForcedDaemonUpdateForNode } from "@/lib/dev-force-updates";
 import { performHostingAction } from "@/lib/hosting-intents";
 import {
@@ -160,7 +161,7 @@ export function AdminNodeDetail({
   const routeSlug = resolvedNodeSlug ?? params.nodeSlug ?? params.id ?? "";
   const navigate = useStableNavigate();
   const location = useLocation();
-  const { user, hasScope } = useAuthStore();
+  const { user, hasScope, hasScopedAccess } = useAuthStore();
 
   const [node, setNode] = useState<NodeDetail | null>(null);
   const [hosting, setHosting] = useState<HostingNodeProjection | null>(null);
@@ -206,7 +207,7 @@ export function AdminNodeDetail({
       setResizeContext({ resource, catalog });
     } catch (e) {
       if (generation === resizeReadGeneration.current)
-        toast.error(e instanceof Error ? e.message : "Could not load resize options");
+        toastApiError(e, "Could not load resize options");
     } finally {
       if (generation === resizeReadGeneration.current) setResizeLoading(false);
     }
@@ -285,7 +286,7 @@ export function AdminNodeDetail({
       });
       setHosting((current) => (current ? { ...current, operation } : current));
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Hosting action failed");
+      toastApiError(cause, "Hosting action failed");
     } finally {
       hostingActionPending.current = false;
     }
@@ -562,6 +563,11 @@ export function AdminNodeDetail({
     const available = isDaemonUpdateAvailable(node.daemonVersion, latestVersion);
     return { available, latestVersion: available ? latestVersion : null };
   }, [daemonUpdates, id, node]);
+  // Same any-of gate as GET /docker/builds.
+  const canViewBuildJobs =
+    hasScopedAccess("docker:containers:view") ||
+    hasScopedAccess("docker:compose:view") ||
+    hasScopedAccess("pages:view");
   const visibleTabs = useMemo(
     () => [
       "overview",
@@ -576,7 +582,8 @@ export function AdminNodeDetail({
       ...(isCompatibleNode && node.type === "nginx" && canViewNodeConfig ? ["configuration"] : []),
       ...(isCompatibleNode && node.type === "nginx" && canViewNodeLogs ? ["nginx-logs"] : []),
       ...(isCompatibleNode && canReadNodeFiles ? ["files"] : []),
-      ...(node?.type === "builder" ? ["jobs"] : []),
+      // Same any-of gate as GET /docker/builds.
+      ...(node?.type === "builder" && canViewBuildJobs ? ["jobs"] : []),
       ...(canShowNodeConsole ? ["console"] : []),
       ...(canViewNodeLogs ? ["daemon-logs"] : []),
     ],
@@ -589,6 +596,7 @@ export function AdminNodeDetail({
       isCompatibleNode,
       hosting?.resourceId,
       hasScope,
+      canViewBuildJobs,
       node,
     ]
   );
@@ -865,7 +873,7 @@ export function AdminNodeDetail({
       usePinnedNodesStore.getState().invalidate();
       toast.success("Node updated");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update");
+      toastApiError(err, "Failed to update");
     } finally {
       setAppearanceSaving(false);
     }
@@ -879,7 +887,7 @@ export function AdminNodeDetail({
       toast.success("Node removed");
       navigate("/nodes");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to remove");
+      toastApiError(err, "Failed to remove");
     }
   };
 
@@ -900,7 +908,7 @@ export function AdminNodeDetail({
         toast.success("Node daemon is already up to date");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to check daemon updates");
+      toastApiError(err, "Failed to check daemon updates");
     } finally {
       setCheckingUpdates(false);
     }
@@ -917,7 +925,7 @@ export function AdminNodeDetail({
         serviceCreationLocked ? "Service creation locked" : "Service creation unlocked"
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update lock");
+      toastApiError(err, "Failed to update lock");
     } finally {
       setLockSaving(false);
     }
@@ -1224,7 +1232,7 @@ export function AdminNodeDetail({
                 Nginx Logs
               </TabsTrigger>
             )}
-            {node.type === "builder" && (
+            {node.type === "builder" && canViewBuildJobs && (
               <TabsTrigger value="jobs" className="gap-1.5" disabled={nodeUnavailable}>
                 Jobs
               </TabsTrigger>
@@ -1377,7 +1385,7 @@ export function AdminNodeDetail({
                 )}
               </TabsContent>
             )}
-            {node.type === "builder" && (
+            {node.type === "builder" && canViewBuildJobs && (
               <TabsContent value="jobs" className="flex min-h-0 flex-1 flex-col pb-0">
                 {activeTab === "jobs" && !nodeUnavailable && <BuilderJobsTab nodeId={node.id} />}
               </TabsContent>

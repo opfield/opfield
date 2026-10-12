@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastApiError } from "@/lib/api-error-toast";
 import { getInitials } from "@/lib/utils";
 import { api } from "@/services/api";
 import type { BrowserSession, User } from "@/types";
@@ -102,8 +103,7 @@ export function AdminUserConfigDialog({
         if (active) setSessions(result);
       })
       .catch((error) => {
-        if (active)
-          toast.error(error instanceof Error ? error.message : "Failed to load active sessions");
+        if (active) toastApiError(error, "Failed to load active sessions");
       })
       .finally(() => {
         if (active) setSessionsLoadedFor(user.id);
@@ -126,7 +126,7 @@ export function AdminUserConfigDialog({
     try {
       await task();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update user");
+      toastApiError(error, "Failed to update user");
     } finally {
       setBusyAction(null);
     }
