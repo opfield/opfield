@@ -71,6 +71,8 @@ export interface AppNavigationVisibility {
   hasNginxNodes?: boolean;
   hasCloudflareIntegration?: boolean;
   hasDockerNodes?: boolean;
+  /** Some app is visible only through members the user can view (UI bootstrap). */
+  appsByMembers?: boolean;
   /** False when the plan lacks multi-node availability (hides the Ingress Groups tab). */
   ingressGroupsInPlan?: boolean;
   /** Items the current license plan does not grant; hidden from navigation. */
@@ -303,7 +305,11 @@ export function canAccessNavigationItem(
     case "dashboard":
       return hasDashboardContent(context);
     case "apps":
-      return hasScopeBase(scopes, "apps:view") || scopeMatches(scopes, "apps:create");
+      return (
+        hasScopeBase(scopes, "apps:view") ||
+        scopeMatches(scopes, "apps:create") ||
+        context.appsByMembers === true
+      );
     case "proxy-hosts":
       return visibleHubTabs(ROUTES_HUB, hubContext(context)).length > 0;
     case "ssl-certificates":

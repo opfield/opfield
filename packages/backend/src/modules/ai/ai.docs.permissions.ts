@@ -121,7 +121,7 @@ Every resource-qualified Pages scope uses the Page Project ID, including Deploym
 ### Apps
 | Scope | Description |
 |-------|-------------|
-| apps:view | View apps, environments, overview and activity (resource-scopable: <appId> or env/<envId>); members still need their own view scopes |
+| apps:view | View apps, environments, overview and activity (resource-scopable: <appId> or env/<envId>); members still need their own view scopes. Without it an app is still listed when you can view one of its members (own grants, including folder grants on its environment or app folders), limited to the environments holding those members and to those members (access members) |
 | apps:create | Create apps |
 | apps:edit | Rename the app, create, rename and delete environments, move the Production marker (resource-scopable: <appId>) |
 | apps:delete | Delete an app; members keep running and leave it (resource-scopable: <appId>) |

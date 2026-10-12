@@ -7,7 +7,7 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_apps',
     description:
-      'List apps the caller may view. An app groups containers, deployments, Compose projects, routes, databases, storage and Pages into environments (production, staging, ...). Each app lists its visible environments with health, plus the Production environment health, incident state, CPU and memory and running/failing/degraded counts.',
+      'List apps the caller may view: with apps:view, or through members it can view (access "members": only the environments holding those members, everything computed from those members). An app groups containers, deployments, Compose projects, routes, databases, storage and Pages into environments (production, staging, ...). Each app lists its visible environments with health, plus the Production environment health, incident state, CPU and memory and running/failing/degraded counts.',
     parameters: { type: 'object', properties: {} },
     destructive: false,
     category: 'Apps',
@@ -16,7 +16,7 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'get_app',
-    description: `Get one app by id or slug: visible environments with placementFolderIds (folder per resource type), allowedNodeIds, health, member counts, maintenance state, rootFolderIds and the caller's permissions. ${APP_CREATE_HINT}`,
+    description: `Get one app by id or slug: visible environments with placementFolderIds (folder per resource type), allowedNodeIds, health, member counts, maintenance state, rootFolderIds and the caller's permissions. access is "full" with apps:view, "members" when the app is visible only through members the caller can view (then environments and counts cover only those members, and allowed nodes, maintenance and root folders are left out). ${APP_CREATE_HINT}`,
     parameters: {
       type: 'object',
       properties: { appId: { type: 'string', description: 'App id or slug.' } },

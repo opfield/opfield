@@ -48,6 +48,13 @@ describe("Apps navigation item", () => {
     expect(hasApps(["apps:create"])).toBe(true);
     expect(hasApps(["proxy:view"])).toBe(false);
   });
+
+  it("shows for users who see an app only through members they can view", () => {
+    const scopes = ["docker:containers:view:folder/env-folder"];
+    expect(item(context(scopes), "apps")).toBeUndefined();
+    expect(item(context(scopes, { appsByMembers: false }), "apps")).toBeUndefined();
+    expect(item(context(scopes, { appsByMembers: true }), "apps")?.href).toBe("/apps");
+  });
 });
 
 describe("Routes and Certificates items", () => {

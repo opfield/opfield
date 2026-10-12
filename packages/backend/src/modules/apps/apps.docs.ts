@@ -23,7 +23,7 @@ import {
 const TAGS = ['Apps'];
 
 export const APPS_DESCRIPTION =
-  'An app groups resources of several types (containers, deployments, Compose projects, routes, databases, storage, Pages) into environments. A new app has one environment, production, marked as Production; exactly one environment holds the marker. Members sit in hidden folders of their own type, so create a resource inside an environment by passing folderId = placementFolderIds[type] of that environment to the normal create endpoint. Visibility: apps:view broadly, on the app (apps:view:<appId>) or on one environment (apps:view:env/<envId>); members appear by their own view permissions.';
+  'An app groups resources of several types (containers, deployments, Compose projects, routes, databases, storage, Pages) into environments. A new app has one environment, production, marked as Production; exactly one environment holds the marker. Members sit in hidden folders of their own type, so create a resource inside an environment by passing folderId = placementFolderIds[type] of that environment to the normal create endpoint. Visibility: apps:view broadly, on the app (apps:view:<appId>) or on one environment (apps:view:env/<envId>); members appear by their own view permissions. Without apps:view an app is still visible when the caller can view one of its members (access "members"): only the environments holding such members, only those members, and overview, activity, health and incident items computed from them alone.';
 
 const AppParams = pathParamSchema('id');
 const EnvParams = pathParamSchema('id', 'envId');
@@ -54,7 +54,7 @@ export const getAppRoute = appRoute({
   tags: TAGS,
   summary: 'Get an app',
   description:
-    'By id or slug. Environments the caller may view, each with placementFolderIds (the folderId to pass when creating a resource of that type inside the environment), allowedNodeIds (nodes the environment may place workloads on), health, visible member counts and maintenance state; permissions says what the caller may change.',
+    'By id or slug. Environments the caller may view, each with placementFolderIds (the folderId to pass when creating a resource of that type inside the environment), allowedNodeIds (nodes the environment may place workloads on), health, visible member counts and maintenance state; permissions says what the caller may change. access (app and each environment) is full with apps:view, members when seen only through members the caller can view: allowed nodes, maintenance state and root folders are then left out.',
   request: { params: AppParams },
   responses: okJson(UnknownDataResponseSchema),
 });

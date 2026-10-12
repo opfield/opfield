@@ -235,6 +235,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const hasCloudflareIntegration = useUIBootstrapStore(
     (state) => state.snapshot?.navigation.hasCloudflareIntegration ?? false
   );
+  const appsByMembers = useUIBootstrapStore(
+    (state) => state.snapshot?.navigation.appsByMembers ?? false
+  );
   const recentPages = useUIStore((state) => state.recentPages);
   const commandActionUsage = useUIStore((state) => state.commandActionUsage);
   const recordCommandActionUsage = useUIStore((state) => state.recordCommandActionUsage);
@@ -443,8 +446,10 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         statusPageEnabled,
         pagesEnabled,
         hasCloudflareIntegration,
+        appsByMembers,
       }),
     [
+      appsByMembers,
       dashboardInferenceUsage,
       hasCloudflareIntegration,
       inferenceEnabled,

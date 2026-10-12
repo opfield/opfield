@@ -4,7 +4,7 @@ import { openApiValidationHook } from '@/lib/openapi.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { authMiddleware, requireAnyScopeBase } from '@/modules/auth/auth.middleware.js';
 import type { AppEnv } from '@/types.js';
-import { APP_SCOPES } from './app-access.js';
+import { APP_MEMBER_VIEW_SCOPES, APP_SCOPES } from './app-access.js';
 import { registerAppActivityRoutes } from './app-activity.routes.js';
 import { registerAppIncidentRoutes } from './app-incident.routes.js';
 import { registerAppMaintenanceRoutes } from './app-maintenance.routes.js';
@@ -37,8 +37,9 @@ import { AppsService } from './apps.service.js';
 export const appsRoutes: AppsRouter = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
 
 appsRoutes.use('*', authMiddleware);
-// Any app permission reaches the API; every action checks the app or environment it touches.
-appsRoutes.use('*', requireAnyScopeBase(...APP_SCOPES));
+// Any app permission reaches the API, and so does a member view permission (an app shows through the members the caller
+// can view); every action checks the app, environment or member it touches.
+appsRoutes.use('*', requireAnyScopeBase(...APP_SCOPES, ...APP_MEMBER_VIEW_SCOPES));
 
 // Static paths first: `/members/place` must not be read as an app id.
 registerAppMembersRoutes(appsRoutes);

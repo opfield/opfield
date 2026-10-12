@@ -8,6 +8,7 @@ import {
   dockerDeploymentRoute,
 } from "@/lib/resource-routes";
 import { api } from "@/services/api";
+import { useAuthStore } from "@/stores/auth";
 import { planIncludes } from "@/stores/license-paywall";
 import { syncPinnedContainerMeta } from "@/stores/pinned-containers";
 import type {
@@ -132,11 +133,17 @@ export function serviceName(container: DockerContainer): string {
   return container.labels?.[COMPOSE_SERVICE_LABEL] ?? container.name;
 }
 
-/** Databases and storage of the app; a family the license plan lacks is not requested. */
+/** Databases and storage of the app; a family the license plan lacks or the user may not view is not requested. */
 export async function loadAppData(appId: string): Promise<AppData> {
+  // A family the user may not view is not requested (the app can be visible through other members).
+  const auth = useAuthStore.getState();
   const [databases, storage] = await Promise.all([
-    planIncludes("external-database-connections") ? api.listAppDatabases(appId) : [],
-    planIncludes("storage-connections") ? api.listAppStorage(appId) : [],
+    planIncludes("external-database-connections") && auth.hasScopedAccess("databases:view")
+      ? api.listAppDatabases(appId)
+      : [],
+    planIncludes("storage-connections") && auth.hasScopedAccess("storage:view")
+      ? api.listAppStorage(appId)
+      : [],
   ]);
   return { databases, storage };
 }
@@ -257,9 +264,15 @@ export async function loadAppNetwork(
   }));
 
   // Bindings are listed per managed database / storage; keep those that reach a member workload.
+  // Only the lists the user may read: a user who sees the app through some members gets no refusals here.
+  const auth = useAuthStore.getState();
   const [managedDatabases, managedStorages] = await Promise.all([
-    planIncludes("external-database-connections") ? api.listManagedDatabases().catch(() => []) : [],
-    planIncludes("managed-storage") ? api.listManagedObjectStorages().catch(() => []) : [],
+    planIncludes("external-database-connections") && auth.hasScopedAccess("databases:view")
+      ? api.listManagedDatabases().catch(() => [])
+      : [],
+    planIncludes("managed-storage") && auth.hasScopedAccess("storage:view")
+      ? api.listManagedObjectStorages().catch(() => [])
+      : [],
   ]);
   const bindingRows = await Promise.all([
     ...managedDatabases.map((database) =>

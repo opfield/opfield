@@ -1,5 +1,6 @@
 import { hasScope, hasScopeBase, hasScopeForResource } from '@/lib/permissions.js';
 import { MCP_TOKEN_SCOPES } from '@/lib/scopes.js';
+import { APP_MEMBER_VIEW_SCOPES } from '@/modules/apps/app-access.js';
 import { FOLDER_TOOL_REQUIREMENT_SCOPES } from './ai.folder-tool-scopes.js';
 import { NODE_LIST_TOOL_SCOPES } from './ai.node-list-scopes.js';
 import type { AIToolDefinition } from './ai.types.js';
@@ -38,16 +39,24 @@ const APP_TOOL_SCOPES = [
   'apps:operate',
 ] as const;
 
+/**
+ * App reads also reach callers that see an app only through its members (no apps:view): the member view scopes, as
+ * for /api/apps. The handlers show such a caller only the environments and members it can view.
+ */
+const APP_READ_TOOL_SCOPES = [...APP_TOOL_SCOPES, ...APP_MEMBER_VIEW_SCOPES] as const;
+
 export const AI_TOOL_ANY_SCOPE_REQUIREMENTS: Readonly<Record<string, readonly string[]>> = {
-  list_apps: APP_TOOL_SCOPES,
-  get_app: APP_TOOL_SCOPES,
+  list_apps: APP_READ_TOOL_SCOPES,
+  get_app: APP_READ_TOOL_SCOPES,
   manage_app: APP_TOOL_SCOPES,
   manage_app_environment: APP_TOOL_SCOPES,
   manage_app_variables: APP_TOOL_SCOPES,
-  manage_app_members: APP_TOOL_SCOPES,
-  get_app_overview: APP_TOOL_SCOPES,
-  get_app_activity: APP_TOOL_SCOPES,
-  manage_app_incident: APP_TOOL_SCOPES,
+  // list: members the caller can view; place checks apps:env:manage.
+  manage_app_members: APP_READ_TOOL_SCOPES,
+  get_app_overview: APP_READ_TOOL_SCOPES,
+  get_app_activity: APP_READ_TOOL_SCOPES,
+  // list and status: incidents of the visible environments; actions check apps:operate.
+  manage_app_incident: APP_READ_TOOL_SCOPES,
   promote_app_environment: APP_TOOL_SCOPES,
   manage_database_backups: [
     'databases:backups:view',

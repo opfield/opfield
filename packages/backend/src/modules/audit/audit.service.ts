@@ -1,5 +1,19 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, count as countFn, desc, eq, gte, inArray, isNull, lte, notInArray, or } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count as countFn,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  notInArray,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { inject, injectable } from 'tsyringe';
 import { TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
@@ -88,6 +102,10 @@ export interface AuditLogFilters {
   appEnvironmentIds?: string[];
   /** With appId: only rows of these members or of no member; undefined = every member. */
   appMemberIds?: string[];
+  /** With appId and appMemberIds: in these environments only rows about one of appMemberIds (no environment rows). */
+  appMemberOnlyEnvironmentIds?: string[];
+  /** With appId: leave out rows of the whole app (no environment). */
+  appExcludeAppWide?: boolean;
 }
 
 /** Tags a row with the app, environment and member it concerns (apps module); null leaves it untagged. */
@@ -451,6 +469,19 @@ export class AuditService {
             : isNull(auditLog.appMemberId)
         );
       }
+      if (params.appMemberOnlyEnvironmentIds?.length) {
+        const memberIds = params.appMemberIds ?? [];
+        conditions.push(
+          or(
+            isNull(auditLog.appEnvironmentId),
+            notInArray(auditLog.appEnvironmentId, params.appMemberOnlyEnvironmentIds),
+            memberIds.length
+              ? and(isNotNull(auditLog.appMemberId), inArray(auditLog.appMemberId, memberIds))
+              : sql`false`
+          )!
+        );
+      }
+      if (params.appExcludeAppWide) conditions.push(isNotNull(auditLog.appEnvironmentId));
     }
 
     const where = buildWhere(conditions);

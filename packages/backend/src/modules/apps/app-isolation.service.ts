@@ -17,6 +17,7 @@ import {
 } from './app-incidents.repo.js';
 import { routeTakesMaintenance } from './app-maintenance.service.js';
 import type { AppMemberFreeze } from './app-member-freeze.js';
+import { incidentForMembers, memberKeysByEnvironment } from './app-member-visibility.js';
 import { buildShutdownItems, summarizeShutdown } from './app-shutdown.service.js';
 import type { AppActor, AppEnvironmentRow, AppsService } from './apps.service.js';
 
@@ -171,6 +172,18 @@ export interface IncidentView {
    * bring those back), with the reason when known.
    */
   skipped: Array<{ id: string; kind: string; label: string; detail: string | null }>;
+}
+
+/** Incidents of environments seen only through members keep only the items about those members. */
+function filterForMembers(
+  incidents: IncidentWithItems[],
+  memberKeys: ReadonlyMap<string, ReadonlySet<string>> | undefined
+): IncidentWithItems[] {
+  if (!memberKeys || memberKeys.size === 0) return incidents;
+  return incidents.map((incident) => {
+    const keys = memberKeys.get(incident.environmentId);
+    return keys ? incidentForMembers(incident, keys) : incident;
+  });
 }
 
 function itemLabel(item: { ref: unknown; itemKey: string }): string {
@@ -399,26 +412,35 @@ export class AppIncidentService {
     return this.views(await this.repo.withItems(releasing));
   }
 
-  /** Incidents of an app the caller can see (open first, then recent ones). */
+  /**
+   * Incidents of an app the caller can see (open first, then recent ones). In environments seen only through members,
+   * each incident lists only the items about those members.
+   */
   async list(scopes: readonly string[], appIdOrSlug: string): Promise<IncidentView[]> {
-    const { app, envs } = await this.apps.resolveVisible(scopes, appIdOrSlug);
-    const visible = new Set(
-      visibleEnvironmentIds(
-        scopes,
-        app.id,
-        envs.map((env) => env.id)
-      )
-    );
+    const { app, environmentIds, memberEnvironmentIds } = await this.apps.resolveVisible(scopes, appIdOrSlug);
+    const visible = new Set(environmentIds);
     const incidents = (await this.repo.listForApp(app.id)).filter((incident) => visible.has(incident.environmentId));
-    return this.views(incidents);
+    const memberKeys = memberKeysByEnvironment(
+      memberEnvironmentIds.length ? await this.apps.visibleMembers(scopes, memberEnvironmentIds) : [],
+      memberEnvironmentIds
+    );
+    return this.views(filterForMembers(incidents, memberKeys));
   }
 
-  /** Open incidents per environment (env detail) and the app's incident state (list). */
-  async summaries(environmentIds: readonly string[]): Promise<Map<string, IncidentView[]>> {
+  /**
+   * Open incidents per environment (env detail) and the app's incident state (list). `memberKeys`: environments seen
+   * only through members, with the keys of those members; their incidents list only items about them.
+   */
+  async summaries(
+    environmentIds: readonly string[],
+    memberKeys?: ReadonlyMap<string, ReadonlySet<string>>
+  ): Promise<Map<string, IncidentView[]>> {
     const result = new Map<string, IncidentView[]>(environmentIds.map((id) => [id, []]));
     if (environmentIds.length === 0) return result;
     const open = await this.repo.withItems(await this.repo.open({ environmentIds }));
-    for (const view of await this.views(open)) result.get(view.environmentId)?.push(view);
+    for (const view of await this.views(filterForMembers(open, memberKeys))) {
+      result.get(view.environmentId)?.push(view);
+    }
     return result;
   }
 

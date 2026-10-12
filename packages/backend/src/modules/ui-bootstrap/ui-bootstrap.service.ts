@@ -1,7 +1,11 @@
 import { createHash } from 'node:crypto';
+import { container } from '@/container.js';
+import { createChildLogger } from '@/lib/logger.js';
 import { getResourceScopedIds, hasScope, hasScopeBase } from '@/lib/permissions.js';
 import type { AISettingsService } from '@/modules/ai/ai.settings.service.js';
 import type { AIProviderRuntimeService } from '@/modules/ai/ai-provider-runtime.service.js';
+import { hasAppsSectionScope } from '@/modules/apps/app-access.js';
+import { AppsService } from '@/modules/apps/apps.service.js';
 import { DEMO_MODE_CTA_URL, isDemoMode } from '@/modules/demo/demo-mode.js';
 import { dockerScopedNodeIds } from '@/modules/docker/docker-access-resource.service.js';
 import type { IntegrationsService } from '@/modules/integrations/integrations.service.js';
@@ -25,6 +29,8 @@ import type {
 } from '@/services/resource-snapshot.store.js';
 import type { UpdateService } from '@/services/update.service.js';
 import type { User } from '@/types.js';
+
+const logger = createChildLogger('UIBootstrap');
 
 const NODE_SNAPSHOT_KIND = 'ui-shell-nodes';
 const NODE_SNAPSHOT_ID = 'all';
@@ -71,6 +77,11 @@ export interface UIBootstrapShell {
     hasCloudflareIntegration: boolean;
     statusPageEnabled: boolean;
     pagesEnabled: boolean;
+    /**
+     * The caller has no apps:view or apps:create but sees at least one app through members it can view: the Apps
+     * section is shown for those apps.
+     */
+    appsByMembers: boolean;
     dockerNodes: ShellNode[];
     nodes: ResourceSnapshotEnvelope<ShellNode[]>;
   };
@@ -140,6 +151,7 @@ export class UIBootstrapService {
       installationOwner,
       license,
       pagesEnabled,
+      appsByMembers,
     ] = await Promise.all([
       this.getNodeSnapshot(),
       this.getConfigSnapshot(),
@@ -153,6 +165,7 @@ export class UIBootstrapService {
       hasScopeBase(scopes, 'pages:view') || hasScope(scopes, 'pages:folders:manage')
         ? (this.pageProfile?.isEnabled() ?? Promise.resolve(false))
         : Promise.resolve(false),
+      this.appsByMembers(scopes),
     ]);
     const config = configSnapshot.data;
     const canViewGatewaySettings = hasScope(scopes, 'settings:gateway:view');
@@ -194,6 +207,7 @@ export class UIBootstrapService {
         hasCloudflareIntegration: cloudflareSnapshot.data,
         statusPageEnabled: hasScope(scopes, 'status-page:view') && statusPageSnapshot.data.enabled,
         pagesEnabled: pagesEnabled && entitlementsIncludeFeature(license.entitlements.features, 'pages'),
+        appsByMembers,
         dockerNodes,
         nodes: { ...nodeSnapshot, data: visibleNodes },
       },
@@ -381,6 +395,17 @@ export class UIBootstrapService {
       });
     } catch (error) {
       return this.snapshots.markError(CLOUDFLARE_SNAPSHOT_KIND, CLOUDFLARE_SNAPSHOT_ID, false, error, 'unknown', lease);
+    }
+  }
+
+  /** Only for callers without apps:view and apps:create (they get the section anyway); a failure hides it. */
+  private async appsByMembers(scopes: string[]): Promise<boolean> {
+    if (hasAppsSectionScope(scopes) || !container.isRegistered(AppsService)) return false;
+    try {
+      return await container.resolve(AppsService).hasAppsByMembers(scopes);
+    } catch (error) {
+      logger.warn('Failed to read apps visible through members', { error });
+      return false;
     }
   }
 

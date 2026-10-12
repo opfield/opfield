@@ -31,9 +31,11 @@ export function NodesTab({ app, version }: { app: AppDetail; version: number }) 
   const [localVersion, setLocalVersion] = useState(0);
   const [allowEnv, setAllowEnv] = useState<AppEnvironmentDetail | null>(null);
   const shownAllowEnv = useRetainedDialogValue(allowEnv, allowEnv !== null);
+  // Environments seen only through members have no node settings to show.
+  const environments = app.environments.filter((env) => env.access !== "members");
   const usage = useAppLoad(`nodes:${app.id}`, version + localVersion, async () => {
     const entries = await Promise.all(
-      app.environments.map(async (env) => {
+      environments.map(async (env) => {
         const result: AppAllowedNodes | null = await api
           .listAppAllowedNodes(app.id, env.id)
           .catch(() => null);
@@ -44,7 +46,7 @@ export function NodesTab({ app, version }: { app: AppDetail; version: number }) 
   });
   if (usage.loading) return <ContentLoading loading />;
 
-  const groups = orderedEnvironments(app.environments).map((env) => {
+  const groups = orderedEnvironments(environments).map((env) => {
     const allowed = usage.data?.get(env.id);
     const nodeIds = allowed ? allowed.nodes.map((node) => node.nodeId) : env.allowedNodeIds;
     return {
@@ -60,7 +62,7 @@ export function NodesTab({ app, version }: { app: AppDetail; version: number }) 
   });
 
   // Allow Node per environment the user manages; with several, pick the environment first.
-  const manageable = orderedEnvironments(app.environments).filter(
+  const manageable = orderedEnvironments(environments).filter(
     (env) => app.permissions.envManage[env.id]
   );
   const allowAction =

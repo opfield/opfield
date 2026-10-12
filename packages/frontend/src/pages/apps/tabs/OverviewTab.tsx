@@ -548,7 +548,11 @@ function EnvironmentsPanel({
           <SettingsControlRow
             key={env.id}
             title={<EnvLabel env={env} />}
-            onClick={() => navigate(appEnvironmentRoute(appSlug, env.slug))}
+            onClick={
+              env.access === "members"
+                ? undefined
+                : () => navigate(appEnvironmentRoute(appSlug, env.slug))
+            }
             description={`${plural(data?.members ?? 0, "resource")} · ${env.health}`}
           >
             <div className="flex flex-wrap items-center justify-end gap-1.5">

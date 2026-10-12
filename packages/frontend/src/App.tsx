@@ -108,7 +108,7 @@ import { useSystemConfigStore } from "@/stores/system-config";
 import { syncAILiteModeFromStorageValue, UI_STORAGE_KEY, useUIStore } from "@/stores/ui";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import { useUpdateStore } from "@/stores/update";
-import { AI_SCOPE, type DockerMigration } from "@/types";
+import { AI_SCOPE, APPS_REALTIME_CHANNEL, type DockerMigration } from "@/types";
 
 const REALTIME_RECONCILIATION_CACHE_PREFIXES = [
   "req:/api/ui/bootstrap",
@@ -689,12 +689,26 @@ function DockerComposeDetailGuard() {
   return canAccess ? <DockerComposeProjectDetail /> : <Navigate to="/docker" replace />;
 }
 
+/** Member view scopes: an app is visible without apps:view when the user can view one of its members. */
+const APP_MEMBER_VIEW_SCOPES = [
+  "docker:containers:view",
+  "docker:compose:view",
+  "databases:view",
+  "storage:view",
+  "proxy:view",
+  "pages:view",
+] as const;
+
 function AppsPageGuard({ children }: { children: React.ReactElement }) {
-  const canAccess = useAuthStore(
+  const hasAppScope = useAuthStore(
     (s) => s.hasScopedAccess("apps:view") || s.hasScope("apps:create")
   );
-  if (!canAccess) return <Navigate to="/" replace />;
-  return children;
+  // Without app scopes, apps visible through members the user can view (UI bootstrap).
+  const bootstrapSettled = useUIBootstrapStore((s) => s.snapshot !== null || s.error);
+  const appsByMembers = useUIBootstrapStore((s) => s.snapshot?.navigation.appsByMembers === true);
+  if (hasAppScope || appsByMembers) return children;
+  if (!bootstrapSettled) return null;
+  return <Navigate to="/" replace />;
 }
 
 function DatabasesPageGuard() {
@@ -939,6 +953,13 @@ export function RealtimeBridge() {
   const setUser = useAuthStore((s) => s.setUser);
   const logout = useAuthStore((s) => s.logout);
   const canListNodes = useAuthStore((s) => s.hasScopedAccess("nodes:details"));
+  // Apps seen only through members: membership changes can show or hide the Apps section.
+  const seesAppsThroughMembers = useAuthStore(
+    (s) =>
+      !s.hasScopedAccess("apps:view") &&
+      !s.hasScope("apps:create") &&
+      APP_MEMBER_VIEW_SCOPES.some((scope) => s.hasScopedAccess(scope))
+  );
   const canReceiveNodeSlug = useAuthStore(
     (s) =>
       s.hasScopedAccess("nodes:details") ||
@@ -1114,6 +1135,11 @@ export function RealtimeBridge() {
       invalidateUIBootstrap();
     });
   }, [user, canListNodes, canReceiveNodeSlug, invalidateDashboardBootstrap, invalidateUIBootstrap]);
+
+  useEffect(() => {
+    if (!user || !seesAppsThroughMembers) return;
+    return eventStream.subscribe(APPS_REALTIME_CHANNEL, () => invalidateUIBootstrap());
+  }, [user, seesAppsThroughMembers, invalidateUIBootstrap]);
 
   useEffect(() => {
     if (!user || !canReceiveNodeSlug) return;

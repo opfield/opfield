@@ -45,6 +45,8 @@ export interface AppMember {
   nodeId?: string;
   /** Docker scope resource id (`<nodeId>/<id>` grants); containers: the access resource id. */
   scopeResourceId?: string;
+  /** Managed databases and storage: the instance or cluster id (incident items name it). Internal, never listed. */
+  managedId?: string;
 }
 
 export type AppMemberCounts = Record<AppMemberType, number>;
@@ -144,6 +146,7 @@ export class AppMembersReader {
           name: databaseConnections.name,
           folderId: databaseConnections.folderId,
           nodeId: managedDatabaseInstances.nodeId,
+          managedId: managedDatabaseInstances.id,
         })
         .from(databaseConnections)
         .leftJoin(managedDatabaseInstances, eq(managedDatabaseInstances.databaseConnectionId, databaseConnections.id))
@@ -157,6 +160,7 @@ export class AppMembersReader {
           name: row.name,
           environmentId,
           nodeIds: row.nodeId ? [row.nodeId] : [],
+          ...(row.managedId ? { managedId: row.managedId } : {}),
         });
       }
     }
@@ -189,7 +193,14 @@ export class AppMembersReader {
         if (!environmentId) continue;
         const nodeIds = new Set<string>(row.nodeId ? [row.nodeId] : []);
         for (const member of clusterMembers) if (member.clusterId === row.clusterId) nodeIds.add(member.nodeId);
-        members.push({ type: 'storage', id: row.id, name: row.name, environmentId, nodeIds: [...nodeIds] });
+        members.push({
+          type: 'storage',
+          id: row.id,
+          name: row.name,
+          environmentId,
+          nodeIds: [...nodeIds],
+          ...(row.clusterId ? { managedId: row.clusterId } : {}),
+        });
       }
     }
 

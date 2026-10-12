@@ -1,5 +1,5 @@
 import type { AuditService } from '@/modules/audit/audit.service.js';
-import { APP_VIEW_SCOPE, hasAppWideScope, visibleEnvironmentIds } from './app-access.js';
+import { APP_VIEW_SCOPE, hasAppWideScope } from './app-access.js';
 import { memberTagId } from './app-audit-tagger.js';
 import type { AppMembersReader } from './app-members.service.js';
 import type { AppsService } from './apps.service.js';
@@ -7,7 +7,8 @@ import type { AppsService } from './apps.service.js';
 /**
  * App activity: audit rows tagged with the app when they were written, newest first, in the audit log row shape.
  * A caller sees rows of the environments it may view (and app-wide rows) and, unless it may view every member, only
- * rows about members it may view.
+ * rows about members it may view. In environments seen only through members (no apps:view there) it sees only rows
+ * about those members, and a caller seeing the app only through members never sees app-wide rows.
  */
 export class AppActivityService {
   constructor(
@@ -17,14 +18,16 @@ export class AppActivityService {
   ) {}
 
   async list(scopes: readonly string[], appId: string, query: { page: number; limit: number; environmentId?: string }) {
-    const { app, envs } = await this.apps.resolveVisible(scopes, appId);
+    const { app, envs, access, environmentIds, memberEnvironmentIds } = await this.apps.resolveVisible(scopes, appId);
     const allEnvIds = envs.map((env) => env.id);
-    let envIds = visibleEnvironmentIds(scopes, app.id, allEnvIds);
+    let envIds = environmentIds;
     if (query.environmentId) envIds = envIds.filter((id) => id === query.environmentId);
+    const memberOnlyEnvIds = envIds.filter((id) => memberEnvironmentIds.includes(id));
     const all = await this.members.listMembers(envIds);
     const visible = await this.members.listVisibleMembers(scopes, envIds);
     // Rows about members leave the filter only when the caller views every member of these environments.
-    const memberIds = visible.length === all.length ? undefined : visible.map(memberTagId);
+    const memberIds =
+      memberOnlyEnvIds.length === 0 && visible.length === all.length ? undefined : visible.map(memberTagId);
     const appWide = hasAppWideScope(scopes, APP_VIEW_SCOPE, app.id) && !query.environmentId;
     const result = await this.audit.getAuditLog({
       page: query.page,
@@ -32,6 +35,8 @@ export class AppActivityService {
       appId: app.id,
       appEnvironmentIds: appWide && envIds.length === allEnvIds.length ? undefined : envIds,
       appMemberIds: memberIds,
+      appMemberOnlyEnvironmentIds: memberOnlyEnvIds.length > 0 ? memberOnlyEnvIds : undefined,
+      appExcludeAppWide: access === 'members',
     });
     return {
       data: result.data,

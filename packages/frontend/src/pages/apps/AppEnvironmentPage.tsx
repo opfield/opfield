@@ -51,8 +51,8 @@ export function AppEnvironmentPage() {
     return null;
   }
   const env = app.environments.find((item) => item.slug === envSlug || item.id === envSlug);
-  // A renamed or deleted environment: back to its app.
-  if (!env) return <Navigate to={appRoute(app.slug)} replace />;
+  // A renamed or deleted environment, or one seen only through members (its page is its settings): back to its app.
+  if (!env || env.access === "members") return <Navigate to={appRoute(app.slug)} replace />;
   return <EnvironmentContent app={app} env={env} version={version} refresh={refresh} />;
 }
 

@@ -55,7 +55,7 @@ export function memberTotal(counts: AppMemberCounts | undefined): number {
   return Object.values(counts).reduce((sum, value) => sum + (value ?? 0), 0);
 }
 
-type EnvLike = Pick<AppEnvironmentDetail, "name" | "isProduction" | "health">;
+type EnvLike = Pick<AppEnvironmentDetail, "name" | "isProduction" | "health" | "access">;
 
 /** Health dot, the environment's name and the Production badge. */
 export function EnvLabel({ env }: { env: EnvLike }) {
@@ -72,8 +72,9 @@ export function EnvLabel({ env }: { env: EnvLike }) {
   );
 }
 
-/** An environment's name as a link to its own page. */
+/** An environment's name as a link to its own page (a plain label when seen only through members). */
 export function EnvLink({ appSlug, env }: { appSlug: string; env: EnvLike & { slug: string } }) {
+  if (env.access === "members") return <EnvLabel env={env} />;
   return (
     <span className="inline-flex items-center gap-2">
       <span className={cn("h-2 w-2 shrink-0", statusDotClass(HEALTH_TONE[env.health]))} />

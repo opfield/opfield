@@ -61,6 +61,37 @@ export function hasAnyAppScope(scopes: readonly string[]): boolean {
   return APP_SCOPES.some((scope) => hasScopeBase([...scopes], scope));
 }
 
+/**
+ * View scopes of the member families. A caller without apps:view still sees an app, limited to its members, when it
+ * can view one of them (any qualifier here; the member check is exact).
+ */
+export const APP_MEMBER_VIEW_SCOPES = [
+  'docker:containers:view',
+  'docker:compose:view',
+  'databases:view',
+  'storage:view',
+  'proxy:view',
+  'pages:view',
+] as const;
+
+/** Any member view scope (broad, on a resource, a node or a folder). */
+export function hasAnyAppMemberViewScope(scopes: readonly string[]): boolean {
+  return APP_MEMBER_VIEW_SCOPES.some((scope) => hasScopeBase([...scopes], scope));
+}
+
+/**
+ * Who may reach the apps API and tools: any app scope, or a member view scope (apps visible through their members).
+ * Each request then checks the app, environment or member it touches.
+ */
+export function canReachApps(scopes: readonly string[]): boolean {
+  return hasAnyAppScope(scopes) || hasAnyAppMemberViewScope(scopes);
+}
+
+/** apps:view (broad, on the app or on one of its environments) or apps:create: the Apps section without members. */
+export function hasAppsSectionScope(scopes: readonly string[]): boolean {
+  return hasScopeBase([...scopes], APP_VIEW_SCOPE) || hasScope(scopes, APP_CREATE_SCOPE);
+}
+
 export function assertAppWideScope(scopes: readonly string[], base: string, appId: string): void {
   if (!hasAppWideScope(scopes, base, appId)) {
     throw new AppError(403, 'FORBIDDEN', `Missing ${base} for this app`, { requiredScope: `${base}:${appId}` });

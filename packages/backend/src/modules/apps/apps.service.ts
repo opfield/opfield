@@ -19,14 +19,20 @@ import {
   APP_VIEW_SCOPE,
   assertAppScope,
   assertAppWideScope,
-  canViewApp,
+  hasAnyAppMemberViewScope,
   hasAppScope,
   hasAppWideScope,
   visibleEnvironmentIds,
 } from './app-access.js';
 import type { AppFamily } from './app-families.js';
 import type { AppFolderService } from './app-folders.service.js';
-import { type AppMemberCounts, type AppMembersReader, emptyMemberCounts } from './app-members.service.js';
+import { type AppVisibility, memberKeysByEnvironment } from './app-member-visibility.js';
+import {
+  type AppMember,
+  type AppMemberCounts,
+  type AppMembersReader,
+  emptyMemberCounts,
+} from './app-members.service.js';
 import type {
   CreateAppEnvironmentInput,
   CreateAppInput,
@@ -78,7 +84,11 @@ export interface AppMaintenanceHooks {
 /** Hook for incidents (shutdown/isolation): refuse deletes while one is active; open incidents per environment. */
 export interface AppIncidentGuard {
   assertNoActiveIncident(appId: string, environmentId?: string): Promise<void>;
-  summaries?(environmentIds: readonly string[]): Promise<Map<string, Array<{ kind: 'shutdown' | 'isolation' }>>>;
+  /** `memberKeys`: environments seen only through members, with the keys of those members (items filtered to them). */
+  summaries?(
+    environmentIds: readonly string[],
+    memberKeys?: ReadonlyMap<string, ReadonlySet<string>>
+  ): Promise<Map<string, Array<{ kind: 'shutdown' | 'isolation' }>>>;
 }
 
 /** The app list's incident badge from the open incidents of its visible environments. */
@@ -93,6 +103,15 @@ export function appIncidentState(
   if (stopped.length > 0) return stopped.length === environmentIds.length ? 'stopped' : 'partial';
   return 'none';
 }
+
+const NO_FOLDERS: Record<AppFamily, string | null> = {
+  containers: null,
+  compose: null,
+  routes: null,
+  databases: null,
+  storage: null,
+  pages: null,
+};
 
 const DEFAULT_HEALTH: EnvironmentHealthSummary = {
   health: 'healthy',
@@ -178,24 +197,77 @@ export class AppsService {
 
   // ── Reads ──────────────────────────────────────────────────────────
 
-  /** An app by id or slug, 404 when it does not exist or the caller cannot view it. */
+  /**
+   * An app by id or slug with how the caller sees it (see AppVisibility), 404 when it does not exist or the caller
+   * can view neither the app nor any of its members. Actions still check their own scopes.
+   */
   async resolveVisible(
     scopes: readonly string[],
     idOrSlug: string
-  ): Promise<{ app: AppRow; envs: AppEnvironmentRow[] }> {
+  ): Promise<{ app: AppRow; envs: AppEnvironmentRow[] } & AppVisibility> {
     const app = await this.findApp(idOrSlug);
     if (!app) throw new AppError(404, 'APP_NOT_FOUND', 'App not found');
     const envs = await this.environmentsOf(app.id);
-    if (
-      !canViewApp(
-        scopes,
-        app.id,
-        envs.map((env) => env.id)
-      )
-    ) {
-      throw new AppError(404, 'APP_NOT_FOUND', 'App not found');
+    const visibility = (await this.visibilities(scopes, [{ app, envs }])).get(app.id);
+    if (!visibility) throw new AppError(404, 'APP_NOT_FOUND', 'App not found');
+    return { app, envs, ...visibility };
+  }
+
+  /**
+   * How the caller sees each app (missing: not at all). apps:view on the app or an environment gives `full` access to
+   * those environments; every other environment is visible when the caller can view one of its members. Members are
+   * read only for environments apps:view does not cover, and only for callers holding a member view scope.
+   */
+  async visibilities(
+    scopes: readonly string[],
+    entries: ReadonlyArray<{ app: AppRow; envs: readonly AppEnvironmentRow[] }>
+  ): Promise<Map<string, AppVisibility>> {
+    const scoped = entries.map(({ app, envs }) => {
+      const ids = envs.map((env) => env.id);
+      const viewIds = new Set(visibleEnvironmentIds(scopes, app.id, ids));
+      return {
+        app,
+        ids,
+        viewIds,
+        full: viewIds.size > 0 || hasAppWideScope(scopes, APP_VIEW_SCOPE, app.id),
+        rest: ids.filter((id) => !viewIds.has(id)),
+      };
+    });
+    const restIds = scoped.flatMap((entry) => entry.rest);
+    const memberEnvIds = new Set(
+      restIds.length > 0 && hasAnyAppMemberViewScope(scopes)
+        ? (await this.members.listVisibleMembers(scopes, restIds)).map((member) => member.environmentId)
+        : []
+    );
+    const result = new Map<string, AppVisibility>();
+    for (const entry of scoped) {
+      const memberEnvironmentIds = entry.rest.filter((id) => memberEnvIds.has(id));
+      if (!entry.full && memberEnvironmentIds.length === 0) continue;
+      result.set(entry.app.id, {
+        access: entry.full ? 'full' : 'members',
+        environmentIds: entry.ids.filter((id) => entry.viewIds.has(id) || memberEnvIds.has(id)),
+        memberEnvironmentIds,
+      });
     }
-    return { app, envs };
+    return result;
+  }
+
+  /**
+   * Whether the caller sees at least one app only through its members (no apps:view or apps:create anywhere): the
+   * Apps section is shown for it then.
+   */
+  async hasAppsByMembers(scopes: readonly string[]): Promise<boolean> {
+    if (!hasAnyAppMemberViewScope(scopes)) return false;
+    const envRows = await this.db.select({ id: appEnvironments.id }).from(appEnvironments);
+    if (envRows.length === 0) return false;
+    return (
+      (
+        await this.members.listVisibleMembers(
+          scopes,
+          envRows.map((row) => row.id)
+        )
+      ).length > 0
+    );
   }
 
   async findApp(idOrSlug: string, db: DrizzleExecutor = this.db): Promise<AppRow | null> {
@@ -250,22 +322,22 @@ export class AppsService {
     const envsByApp = new Map<string, AppEnvironmentRow[]>();
     for (const env of envRows) envsByApp.set(env.appId, [...(envsByApp.get(env.appId) ?? []), env]);
 
+    const visibilities = await this.visibilities(
+      scopes,
+      appRows.map((app) => ({ app, envs: envsByApp.get(app.id) ?? [] }))
+    );
     const visible = appRows.flatMap((app) => {
-      const envs = envsByApp.get(app.id) ?? [];
-      const envIds = visibleEnvironmentIds(
-        scopes,
-        app.id,
-        envs.map((env) => env.id)
-      );
-      if (envIds.length === 0 && !hasAppWideScope(scopes, APP_VIEW_SCOPE, app.id)) return [];
-      return [{ app, envs: envs.filter((env) => envIds.includes(env.id)) }];
+      const visibility = visibilities.get(app.id);
+      if (!visibility) return [];
+      const envs = (envsByApp.get(app.id) ?? []).filter((env) => visibility.environmentIds.includes(env.id));
+      return [{ app, envs, access: visibility.access }];
     });
     const allEnvIds = visible.flatMap(({ envs }) => envs.map((env) => env.id));
     const [health, incidents] = await Promise.all([
       this.summarize(scopes, allEnvIds),
       this.incidentSummaries(allEnvIds),
     ]);
-    return visible.map(({ app, envs }) => {
+    return visible.map(({ app, envs, access }) => {
       const production = envs.find((env) => env.isProduction) ?? null;
       const summary = (production && health.get(production.id)) || DEFAULT_HEALTH;
       return {
@@ -274,6 +346,8 @@ export class AppsService {
         name: app.name,
         description: app.description,
         logoUrl: app.logoUrl,
+        /** `members`: visible only through members the caller can view; everything shown is computed from them. */
+        access,
         environments: envs.map((env) => ({
           id: env.id,
           slug: env.slug,
@@ -296,26 +370,36 @@ export class AppsService {
   }
 
   async get(scopes: readonly string[], idOrSlug: string) {
-    const { app, envs } = await this.resolveVisible(scopes, idOrSlug);
-    return this.detail(scopes, app, envs);
+    const { app, envs, ...visibility } = await this.resolveVisible(scopes, idOrSlug);
+    return this.detail(scopes, app, envs, visibility);
   }
 
-  async detail(scopes: readonly string[], app: AppRow, allEnvs: AppEnvironmentRow[]) {
-    const envIds = visibleEnvironmentIds(
-      scopes,
-      app.id,
-      allEnvs.map((env) => env.id)
-    );
+  /**
+   * The app detail for the caller. Environments seen only through members (`access: members`) carry what is computed
+   * from those members (counts, health, incident items); their environment settings (allowed nodes, maintenance
+   * state, root folders of a members-only app) stay with apps:view.
+   */
+  async detail(scopes: readonly string[], app: AppRow, allEnvs: AppEnvironmentRow[], known?: AppVisibility) {
+    const visibility = known ?? (await this.visibilities(scopes, [{ app, envs: allEnvs }])).get(app.id);
+    const envIds = visibility?.environmentIds ?? [];
+    const memberEnvIds = new Set(visibility?.memberEnvironmentIds ?? []);
+    const access = visibility?.access ?? 'full';
     const envs = allEnvs.filter((env) => envIds.includes(env.id));
-    const [roots, folders, nodes, counts, health, maintenance, incidents] = await Promise.all([
-      this.folders.appRootFolders(app.id),
+    const fullEnvs = envs.filter((env) => !memberEnvIds.has(env.id));
+    const visibleMembers = await this.members.listVisibleMembers(scopes, envIds);
+    const counts = new Map(envIds.map((id) => [id, emptyMemberCounts()]));
+    for (const member of visibleMembers) {
+      const entry = counts.get(member.environmentId);
+      if (entry) entry[member.type] += 1;
+    }
+    const [roots, folders, nodes, health, maintenance, incidents] = await Promise.all([
+      access === 'full' ? this.folders.appRootFolders(app.id) : Promise.resolve(NO_FOLDERS),
       this.folders.envFolders(envIds),
-      this.allowedNodes(envIds),
-      this.members.countVisibleMembers(scopes, envIds),
+      this.allowedNodes(fullEnvs.map((env) => env.id)),
       this.summarize(scopes, envIds),
-      this.maintenance?.environmentMaintenance(app, envs) ??
+      this.maintenance?.environmentMaintenance(app, fullEnvs) ??
         Promise.resolve(new Map<string, Record<string, unknown>>()),
-      this.incidentSummaries(envIds),
+      this.incidentSummaries(envIds, memberKeysByEnvironment(visibleMembers, [...memberEnvIds])),
     ]);
     return {
       id: app.id,
@@ -323,6 +407,11 @@ export class AppsService {
       name: app.name,
       description: app.description,
       logoUrl: app.logoUrl,
+      /**
+       * `full`: apps:view on the app or an environment. `members`: visible only through members the caller can view;
+       * app-level blocks (settings, variables, nodes, maintenance, promote) need apps:view and are left out.
+       */
+      access,
       maintenanceOverride: app.maintenanceOverride,
       maintenanceOverrideAt: app.maintenanceOverrideAt,
       incident: appIncidentState(envIds, incidents),
@@ -332,6 +421,7 @@ export class AppsService {
       updatedAt: app.updatedAt,
       environments: envs.map((env) =>
         this.envDetail(env, {
+          access: memberEnvIds.has(env.id) ? 'members' : 'full',
           folders: folders.get(env.id),
           nodeIds: nodes.get(env.id) ?? [],
           counts: counts.get(env.id) ?? emptyMemberCounts(),
@@ -360,6 +450,7 @@ export class AppsService {
   private envDetail(
     env: AppEnvironmentRow,
     extra: {
+      access: AppVisibility['access'];
       folders?: Record<AppFamily, string | null>;
       nodeIds: string[];
       counts: AppMemberCounts;
@@ -373,18 +464,13 @@ export class AppsService {
       slug: env.slug,
       name: env.name,
       isProduction: env.isProduction,
+      /** `members`: seen only through members the caller can view (environment settings need apps:view). */
+      access: extra.access,
       maintenanceEnabled: env.maintenanceEnabled,
       maintenanceStartedAt: env.maintenanceStartedAt,
       health: extra.health.health,
       memberCounts: extra.counts,
-      placementFolderIds: extra.folders ?? {
-        containers: null,
-        compose: null,
-        routes: null,
-        databases: null,
-        storage: null,
-        pages: null,
-      },
+      placementFolderIds: extra.folders ?? NO_FOLDERS,
       allowedNodeIds: extra.nodeIds,
       maintenance: extra.maintenance ?? null,
       /** Open shutdown / kill switch incidents of the environment, with their items. */
@@ -394,20 +480,21 @@ export class AppsService {
 
   /** Members of the visible environments (or one), filtered to what the caller may view. */
   async listMembers(scopes: readonly string[], appId: string, environmentId?: string) {
-    const { app, envs } = await this.resolveVisible(scopes, appId);
-    let envIds = visibleEnvironmentIds(
-      scopes,
-      app.id,
-      envs.map((env) => env.id)
-    );
+    const { environmentIds } = await this.resolveVisible(scopes, appId);
+    let envIds = environmentIds;
     if (environmentId) {
       if (!envIds.includes(environmentId))
         throw new AppError(404, 'APP_ENVIRONMENT_NOT_FOUND', 'Environment not found');
       envIds = [environmentId];
     }
     return (await this.members.listVisibleMembers(scopes, envIds)).map(
-      ({ scopeResourceId: _scope, ...member }) => member
+      ({ scopeResourceId: _scope, managedId: _managed, ...member }) => member
     );
+  }
+
+  /** Members of these environments the caller may view. */
+  visibleMembers(scopes: readonly string[], environmentIds: readonly string[]): Promise<AppMember[]> {
+    return this.members.listVisibleMembers(scopes, environmentIds);
   }
 
   async allowedNodes(environmentIds: readonly string[]): Promise<Map<string, string[]>> {
@@ -421,11 +508,14 @@ export class AppsService {
     return result;
   }
 
-  private async incidentSummaries(environmentIds: readonly string[]) {
+  private async incidentSummaries(
+    environmentIds: readonly string[],
+    memberKeys?: ReadonlyMap<string, ReadonlySet<string>>
+  ) {
     if (!this.incidents?.summaries || environmentIds.length === 0) {
       return new Map<string, Array<{ kind: 'shutdown' | 'isolation' }>>();
     }
-    return this.incidents.summaries(environmentIds);
+    return this.incidents.summaries(environmentIds, memberKeys);
   }
 
   private async summarize(scopes: readonly string[], environmentIds: readonly string[]) {
@@ -679,12 +769,16 @@ export class AppsService {
   }
 
   async environmentDetail(scopes: readonly string[], appId: string, environmentId: string) {
-    const { app, envs } = await this.resolveVisible(scopes, appId);
+    const { app, envs, ...visibility } = await this.resolveVisible(scopes, appId);
     const env = envs.find((item) => item.id === environmentId);
-    if (!env || !visibleEnvironmentIds(scopes, app.id, [env.id]).length) {
+    if (!env || !visibility.environmentIds.includes(env.id)) {
       throw new AppError(404, 'APP_ENVIRONMENT_NOT_FOUND', 'Environment not found');
     }
-    const detail = await this.detail(scopes, app, [env]);
+    const detail = await this.detail(scopes, app, [env], {
+      access: visibility.access,
+      environmentIds: [env.id],
+      memberEnvironmentIds: visibility.memberEnvironmentIds.filter((id) => id === env.id),
+    });
     return detail.environments[0];
   }
 

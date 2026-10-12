@@ -201,6 +201,7 @@ export function AILiteSidebar({
     pagesEnabled: navigationBootstrap?.pagesEnabled ?? false,
     hasNginxNodes: navigationBootstrap?.hasNginxNodes ?? true,
     hasCloudflareIntegration: navigationBootstrap?.hasCloudflareIntegration ?? false,
+    appsByMembers: navigationBootstrap?.appsByMembers ?? false,
     hasDockerNodes:
       dockerNodes.length > 0 ||
       [

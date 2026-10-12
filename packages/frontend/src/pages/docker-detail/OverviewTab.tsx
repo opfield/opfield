@@ -12,6 +12,7 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { formatDisplayImageRef, resolveContainerImageReference } from "@/lib/docker-image-ref";
 import { normalizeDockerRuntimeProfile } from "@/lib/docker-runtime-profile";
 import { api } from "@/services/api";
+import { useAuthStore } from "@/stores/auth";
 import type { DockerAvailabilityPolicy } from "@/types";
 import { copyToClipboard, type InspectData, STATUS_BADGE } from "./helpers";
 import { type ContainerDatabaseLink, WorkloadLinkRuntime } from "./LinkRuntimeTab";
@@ -95,7 +96,15 @@ export function OverviewTab({
   // Recent Activity appears only when there are tasks: wait for the first answer.
   const [recentTasksLoaded, setRecentTasksLoaded] = useState(false);
   useContentLoading(!recentTasksLoaded);
+  // Task history needs docker:tasks on this node; without it the panel stays hidden and nothing is requested.
+  const canViewTasks = useAuthStore(
+    (state) => state.hasScope("docker:tasks") || state.hasScope(`docker:tasks:${nodeId}`)
+  );
   const refreshTasks = useCallback(() => {
+    if (!canViewTasks) {
+      setRecentTasksLoaded(true);
+      return;
+    }
     api
       .listDockerTasks({ nodeId })
       .then((tasks) => {
@@ -106,7 +115,7 @@ export function OverviewTab({
       })
       .catch(() => {})
       .finally(() => setRecentTasksLoaded(true));
-  }, [nodeId, containerId, containerName]);
+  }, [canViewTasks, nodeId, containerId, containerName]);
   useEffect(() => {
     refreshTasks();
   }, [refreshTasks]);

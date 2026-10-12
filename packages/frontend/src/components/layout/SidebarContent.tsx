@@ -142,6 +142,9 @@ export function SidebarContent({
   const hasCloudflareIntegration = useUIBootstrapStore(
     (state) => state.snapshot?.navigation.hasCloudflareIntegration ?? false
   );
+  const appsByMembers = useUIBootstrapStore(
+    (state) => state.snapshot?.navigation.appsByMembers ?? false
+  );
   const pkiEnabled = usePkiAvailable();
   const siemEnabled = useSiemAvailable();
   const loggingEnabled = useSystemConfigStore((s) => s.config.features.loggingEnabled);
@@ -186,6 +189,7 @@ export function SidebarContent({
     statusPageEnabled,
     pagesEnabled,
     hasCloudflareIntegration,
+    appsByMembers,
     hasNginxNodes,
     hasDockerNodes:
       dockerNodes.length > 0 ||

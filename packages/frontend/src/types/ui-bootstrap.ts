@@ -35,6 +35,8 @@ export interface UIBootstrapShell {
     hasCloudflareIntegration: boolean;
     statusPageEnabled: boolean;
     pagesEnabled: boolean;
+    /** No apps:view or apps:create, but some app is visible through members the user can view. */
+    appsByMembers?: boolean;
     dockerNodes: Node[];
     nodes: ReadModelSnapshot<Node[]>;
   };

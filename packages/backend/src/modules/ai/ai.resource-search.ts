@@ -1,7 +1,7 @@
 import { container } from '@/container.js';
 import { getResourceScopedIds, hasScope, hasScopeBase, hasScopeForResource } from '@/lib/permissions.js';
 import { extractBaseScope } from '@/lib/scopes.js';
-import { hasAnyAppScope } from '@/modules/apps/app-access.js';
+import { canReachApps } from '@/modules/apps/app-access.js';
 import type { AppMemberType } from '@/modules/apps/app-families.js';
 import { AppMembershipService, memberKey } from '@/modules/apps/app-membership.js';
 import { AppsService } from '@/modules/apps/apps.service.js';
@@ -143,7 +143,7 @@ export async function findResource(deps: ResourceSearchDeps, user: User, args: R
   const flattenCas = (cas: Record<string, any>[]): Record<string, any>[] =>
     cas.flatMap((ca) => [ca, ...(Array.isArray(ca.children) ? flattenCas(ca.children) : [])]);
 
-  if (typeWanted('app') && hasAnyAppScope(user.scopes) && container.isRegistered(AppsService)) {
+  if (typeWanted('app') && canReachApps(user.scopes) && container.isRegistered(AppsService)) {
     searchTasks.push(async () => {
       const batch: ResourceSearchBatch = { results: [], errors: [] };
       try {

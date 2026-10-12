@@ -17,7 +17,6 @@ import { NodeMonitoringService } from '@/modules/nodes/node-monitoring.service.j
 import { ObjectStorageMonitoringService } from '@/modules/object-storage/object-storage-monitoring.service.js';
 import { ProxyService } from '@/modules/proxy/proxy.service.js';
 import { CacheService } from '@/services/cache.service.js';
-import { visibleEnvironmentIds } from './app-access.js';
 import { availabilityOverviews } from './app-availability-overview.js';
 import { type AppHealthService, combineHealth, type MemberStatus } from './app-health.service.js';
 import type { AppMember, AppMembersReader } from './app-members.service.js';
@@ -328,12 +327,8 @@ export class AppOverviewService {
   ) {}
 
   async overview(scopes: readonly string[], appId: string, range: OverviewRange = '1h') {
-    const { app, envs } = await this.apps.resolveVisible(scopes, appId);
-    const envIds = visibleEnvironmentIds(
-      scopes,
-      app.id,
-      envs.map((env) => env.id)
-    );
+    // Environments seen only through members count only those members, like every other environment here.
+    const { app, envs, environmentIds: envIds } = await this.apps.resolveVisible(scopes, appId);
     const scopeHash = createHash('sha256')
       .update([...scopes].sort().join('\n'))
       .digest('base64url');

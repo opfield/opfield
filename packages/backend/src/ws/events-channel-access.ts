@@ -1,6 +1,6 @@
 import { hasScope, hasScopeBase } from '@/lib/permissions.js';
 import { TOOL_STORE_INVALIDATION_CHANNEL_PREFIX } from '@/modules/ai/ai-tool-store-invalidation.js';
-import { hasAnyAppScope } from '@/modules/apps/app-access.js';
+import { canReachApps } from '@/modules/apps/app-access.js';
 import { MFA_REQUIRED_CHANNEL_PREFIX } from '@/modules/auth/mfa-events.js';
 import { userResourceChannelUserId } from '@/modules/auth/user-resource-events.js';
 import { hasAnyDockerNodeRouteAccess } from '@/modules/docker/docker-route-resolvers.js';
@@ -254,8 +254,8 @@ export function hasChannelAccess(scopes: string[], channel: string): boolean {
     return hasScopeBase(scopes, 'nodes:details') || hasScopeBase(scopes, 'nodes:folders:manage');
   }
   if (channel === 'apps') {
-    // Only {appId, action} travels; the app requests apply the app and environment grants.
-    return hasAnyAppScope(scopes);
+    // Only {appId, action} travels; the app requests apply the app, environment and member grants.
+    return canReachApps(scopes);
   }
   if (channel === 'ingress_group.changed') {
     // Only the group id travels; the list and detail requests apply the folder grants.

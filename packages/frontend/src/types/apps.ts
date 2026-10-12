@@ -10,6 +10,12 @@ export type AppHealth = "healthy" | "degraded" | "failing" | "unknown";
 /** Shutdown / kill switch state of the app's visible environments. */
 export type AppIncidentState = "none" | "stopped" | "isolated" | "partial";
 
+/**
+ * How the caller sees an app or environment: `full` with apps:view, `members` when it is visible only through
+ * members the caller can view (only those members; app and environment settings need apps:view).
+ */
+export type AppAccess = "full" | "members";
+
 /** The resource families an environment holds (one hidden folder each). */
 export type AppMemberFamily =
   | "containers"
@@ -55,6 +61,7 @@ export interface AppSummary {
   description?: string | null;
   /** Uploaded logo (square image); null shows the default app icon. */
   logoUrl?: string | null;
+  access?: AppAccess;
   environments: AppSummaryEnvironment[];
   /** The Production environment's health. */
   health: AppHealth;
@@ -77,6 +84,8 @@ export interface AppEnvironmentDetail {
   slug: string;
   name: string;
   isProduction: boolean;
+  /** `members`: seen only through members; its settings (nodes, maintenance, variables, promote) stay hidden. */
+  access?: AppAccess;
   maintenanceEnabled: boolean;
   maintenanceStartedAt?: string | null;
   /** Effective maintenance state of the environment's routes (T11); shape owned by the backend. */
@@ -106,6 +115,8 @@ export interface AppDetail {
   name: string;
   description?: string | null;
   logoUrl?: string | null;
+  /** `members`: visible only through members the caller can view; app-level blocks are hidden. */
+  access?: AppAccess;
   maintenanceOverride: boolean;
   maintenanceOverrideAt?: string | null;
   /** Hidden app-root folder per family ("every environment" access lines grant these). */

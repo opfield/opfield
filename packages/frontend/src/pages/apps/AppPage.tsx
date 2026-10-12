@@ -201,13 +201,15 @@ function AppPageContent({
     planCreates("storage") ||
     planCreates("storage", "external");
   const production = app.environments.find((env) => env.isProduction) ?? app.environments[0];
+  // Allowed nodes are environment settings: shown for environments the user sees with apps:view.
+  const hasSettingsEnvironments = app.environments.some((env) => env.access !== "members");
 
   const tabs: Array<{ value: AppTab; label: string; show: boolean }> = [
     { value: "overview", label: "Overview", show: true },
     { value: "compute", label: "Compute", show: true },
     { value: "data", label: "Data", show: hasData || (canCreate && planHasData) },
     { value: "network", label: "Network", show: true },
-    { value: "nodes", label: "Nodes", show: true },
+    { value: "nodes", label: "Nodes", show: hasSettingsEnvironments },
     { value: "activity", label: "Activity", show: true },
     { value: "settings", label: "Settings", show: canSettings },
   ];
@@ -357,9 +359,11 @@ function AppPageContent({
               <NetworkTab app={app} version={version} actions={actions} />
             )}
           </TabsContent>
-          <TabsContent value="nodes">
-            {activeTab === "nodes" && <NodesTab app={app} version={version} />}
-          </TabsContent>
+          {hasSettingsEnvironments && (
+            <TabsContent value="nodes">
+              {activeTab === "nodes" && <NodesTab app={app} version={version} />}
+            </TabsContent>
+          )}
           <TabsContent value="activity">
             {activeTab === "activity" && <ActivityTab app={app} version={version} />}
           </TabsContent>
