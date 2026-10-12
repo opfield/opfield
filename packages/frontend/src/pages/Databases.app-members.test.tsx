@@ -96,7 +96,7 @@ describe("app members in the database list", () => {
       expect.objectContaining({ excludeAppMembers: true })
     );
     // A non-member offers Move to app in its row menu.
-    expect(screen.getByRole("button", { name: "orders actions" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "orders actions" })).toBeInTheDocument();
   });
 
   it("keeps members on a node's view with a badge that opens the app", async () => {
