@@ -21,6 +21,7 @@ import { injectLoginAuthMethods } from '@/lib/login-page.js';
 import { ONE_TIME_LINK_TOKEN_PATH } from '@/lib/one-time-link-path.js';
 import { tags as openApiTags, openApiValidationHook, securitySchemes } from '@/lib/openapi.js';
 import { IDEMPOTENCY_API_DESCRIPTION, withIdempotencyKeyDocumentation } from '@/lib/openapi-idempotency.js';
+import { absolutizeShareImageUrls } from '@/lib/spa-index-page.js';
 import { auditContextMiddleware } from '@/middleware/audit-context.js';
 import { emptyJsonBodyMiddleware } from '@/middleware/empty-json-body.js';
 import { type ApiError, errorHandler } from '@/middleware/error-handler.js';
@@ -1210,6 +1211,25 @@ export function createApp(): GatewayAppRuntime {
       app.get('/callback', serveLoginPage);
     }
 
+    // index.html is served from memory so its share image tags carry the absolute public URL link previews need.
+    const indexHtmlPath = resolve(publicDir, 'index.html');
+    const indexHtmlTemplate = existsSync(indexHtmlPath) ? readFileSync(indexHtmlPath, 'utf8') : null;
+    let renderedIndexHtml: { publicUrl: string; html: string } | null = null;
+    const serveIndexPage: MiddlewareHandler<AppEnv> = async (c, next) => {
+      if (indexHtmlTemplate === null) {
+        await next();
+        return;
+      }
+      const publicUrl = getCanonicalPublicUrlSync();
+      if (renderedIndexHtml?.publicUrl !== publicUrl) {
+        renderedIndexHtml = { publicUrl, html: absolutizeShareImageUrls(indexHtmlTemplate, publicUrl) };
+      }
+      c.header('Cache-Control', 'no-store');
+      return c.html(renderedIndexHtml.html);
+    };
+    app.get('/', serveIndexPage);
+    app.get('/index.html', serveIndexPage);
+
     // Serve static assets (JS, CSS, images, etc.)
     app.use(
       '/*',
@@ -1227,13 +1247,7 @@ export function createApp(): GatewayAppRuntime {
     );
 
     // SPA fallback — serve index.html for any non-API route
-    app.get(
-      '/*',
-      serveStatic({
-        path: './public/index.html',
-        onFound: (_path, c) => c.header('Cache-Control', 'no-store'),
-      })
-    );
+    app.get('/*', serveIndexPage);
   }
 
   return { app, injectWebSocket, wss };

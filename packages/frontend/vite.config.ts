@@ -4,13 +4,9 @@ import path from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
+import { VERSIONED_PUBLIC_ASSET } from "./src/lib/public-asset-versioning";
 
 const LOGIN_ENTRY_PATHS = new Set(["/login", "/reset-password", "/callback"]);
-
-// Icons and the share image keep fixed names in public/. Each reference in index.html gets ?v=<content hash>, so a new
-// icon reaches browsers, CDNs and link previews at once instead of after their caches expire.
-const VERSIONED_PUBLIC_ASSET =
-  /(href|content)="\/((?:favicon|apple-touch-icon|android-chrome|og-image|mstile)[\w.-]*\.(?:ico|svg|png))"/g;
 
 function publicAssetVersion(file: string): string | null {
   const full = path.join(import.meta.dirname, "public", file);
