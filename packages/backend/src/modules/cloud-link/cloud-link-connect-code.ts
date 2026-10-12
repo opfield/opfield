@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { createChildLogger } from '@/lib/logger.js';
 import { LicenseServerRequestError, type LicenseService } from '@/modules/license/license.service.js';
 import type { CacheService } from '@/services/cache.service.js';
-import { CloudLinkRequestError, type CloudLinkService } from './cloud-link.service.js';
+import { CloudLinkRequestError, type CloudLinkService, cloudManagedLinkError } from './cloud-link.service.js';
 
 const logger = createChildLogger('CloudLinkConnectCode');
 
@@ -112,7 +112,7 @@ export class CloudLinkConnectCode {
   constructor(
     private readonly service: Pick<
       CloudLinkService,
-      'getStatus' | 'claim' | 'configuredPortalUrl' | 'recordConnectCode'
+      'getStatus' | 'claim' | 'configuredPortalUrl' | 'recordConnectCode' | 'managedByCloud'
     >,
     private readonly license: Pick<LicenseService, 'requestConnectCode'>,
     private readonly cache: Pick<CacheService, 'get' | 'set' | 'delete'> | null,
@@ -123,6 +123,12 @@ export class CloudLinkConnectCode {
 
   /** Asks for a code and starts waiting for it; a new code replaces one still shown. */
   async start(actor: { userId: string | null } = { userId: null }): Promise<CloudConnectCodeView> {
+    // A managed installation stays on its account: no code to link it to another one.
+    if (await this.service.managedByCloud()) {
+      const refused = cloudManagedLinkError();
+      await this.service.recordConnectCode(actor, { outcome: 'refused', errorCode: refused.code });
+      throw refused;
+    }
     // Connected already: entering the code switches the installation to the account that enters it.
     const current = await this.service.getStatus();
     const replacesAccount = current.state === 'connected' ? (current.accountEmail ?? 'your cloud account') : null;

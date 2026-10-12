@@ -196,4 +196,51 @@ describe('connect with one code started from Gateway', () => {
     expect(t.actions()).toEqual([['cloud.connect_code', 'request_failed']]);
     expect(t.calls).toHaveLength(0);
   });
+
+  it('keeps a managed installation on its account: no code, connect or disconnect', async () => {
+    const t = setup([{ status: 200, body: ENROLLED }]);
+    t.db.rows.set('cloud:enrollment', {
+      agentId: ENROLLED.agentId,
+      secret: 'encrypted',
+      portalUrl: ENROLLED.portalUrl,
+      accountEmail: ENROLLED.accountEmail,
+      enrolledAt: '2026-10-01T00:00:00.000Z',
+      managed: true,
+    });
+    const refused = {
+      status: 409,
+      code: 'CLOUD_MANAGED',
+      message: 'A managed cloud installation stays connected to its account.',
+    };
+    await expect(t.flow.start({ userId: 'user-1' })).rejects.toMatchObject(refused);
+    await expect(t.service.connect('CLD-7K3M-Q9TX', { userId: 'user-1' })).rejects.toMatchObject(refused);
+    await expect(t.service.claim(CODE, ENROLLED.portalUrl)).rejects.toMatchObject(refused);
+    await expect(t.service.disconnect({ userId: 'user-1' })).rejects.toMatchObject(refused);
+    expect(t.license.requestConnectCode).not.toHaveBeenCalled();
+    expect(t.calls).toHaveLength(0);
+    expect(await t.service.getStatus()).toMatchObject({ state: 'connected', accountEmail: ENROLLED.accountEmail });
+    expect(t.actions()).toEqual([
+      ['cloud.connect_code', 'refused'],
+      ['cloud.connect', undefined],
+      ['cloud.disconnect', undefined],
+    ]);
+    expect(t.log.mock.calls.at(-1)![0]).toMatchObject({ details: { success: false, errorCode: 'CLOUD_MANAGED' } });
+  });
+
+  it('keeps the link when the account refuses to disconnect a managed installation', async () => {
+    const t = setup([
+      { status: 200, body: ENROLLED },
+      { status: 409, body: { error: { code: 'MANAGED_INSTALLATION' } } },
+    ]);
+    await t.service.connect('CLD-7K3M-Q9TX', { userId: 'user-1' });
+    const remove = vi.spyOn(t.db, 'delete');
+    await expect(t.service.disconnect({ userId: 'user-1' })).rejects.toMatchObject({
+      status: 409,
+      code: 'CLOUD_MANAGED',
+      message: 'A managed cloud installation stays connected to its account.',
+    });
+    expect(t.calls.at(-1)!.url).toBe('https://account.example.test/api/cloud/agent/disconnect');
+    expect(remove).not.toHaveBeenCalled();
+    expect(await t.service.readCredentials()).toMatchObject({ agentId: ENROLLED.agentId });
+  });
 });

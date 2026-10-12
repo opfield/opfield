@@ -276,6 +276,8 @@ export function CloudSection({ canManage }: CloudSectionProps) {
   if (loading || !status) return null;
 
   const connected = status.state === "connected";
+  // A managed installation stays on its account: no Switch account or Disconnect.
+  const managed = connected && status.remoteManagement?.managed === true;
   const disconnectedByAccount = status.state === "disconnected_by_account";
 
   const linkEnded = link !== null && ENDED_CODE_STATES.has(link.state);
@@ -350,37 +352,41 @@ export function CloudSection({ canManage }: CloudSectionProps) {
       id="gateway-cloud"
       title={<span className="text-info-text">Cloud</span>}
       description={
-        connected && pendingCode
-          ? "Enter this code in the other Opfield account → Installations → Add"
-          : connected
-            ? `Connected to ${status.accountEmail ?? "your cloud account"}`
-            : pendingCode
-              ? "Enter this code in your Opfield account → Installations → Add"
-              : disconnectedByAccount
-                ? "Disconnected by the account"
-                : "Connect this Opfield installation to your cloud account"
+        managed
+          ? `Managed by Opfield Cloud · connected to ${status.accountEmail ?? "your cloud account"}`
+          : connected && pendingCode
+            ? "Enter this code in the other Opfield account → Installations → Add"
+            : connected
+              ? `Connected to ${status.accountEmail ?? "your cloud account"}`
+              : pendingCode
+                ? "Enter this code in your Opfield account → Installations → Add"
+                : disconnectedByAccount
+                  ? "Disconnected by the account"
+                  : "Connect this Opfield installation to your cloud account"
       }
       className="xl:col-span-2"
       style={{ borderColor: "var(--color-info)" }}
       actions={
-        connected
-          ? (codeDisplay ??
-            (canManage ? (
-              <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={handleSwitchAccount} pending={startingLink}>
-                  <Cloud className="h-4 w-4" />
-                  Switch account
-                </Button>
-                <Button variant="outline" onClick={handleDisconnect} pending={disconnecting}>
-                  <Unplug className="h-4 w-4" />
-                  Disconnect
-                </Button>
-              </div>
-            ) : null))
-          : (codeDisplay ?? (enterCode ? codeForm : connectButton))
+        managed
+          ? null
+          : connected
+            ? (codeDisplay ??
+              (canManage ? (
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" onClick={handleSwitchAccount} pending={startingLink}>
+                    <Cloud className="h-4 w-4" />
+                    Switch account
+                  </Button>
+                  <Button variant="outline" onClick={handleDisconnect} pending={disconnecting}>
+                    <Unplug className="h-4 w-4" />
+                    Disconnect
+                  </Button>
+                </div>
+              ) : null))
+            : (codeDisplay ?? (enterCode ? codeForm : connectButton))
       }
     >
-      {connected && pendingCode && (
+      {connected && !managed && pendingCode && (
         <p className="px-4 pt-4 text-sm text-warning-text" role="status">
           When this code is entered, the connection to{" "}
           {pendingCode.replacesAccount ?? status.accountEmail ?? "your cloud account"} ends at once

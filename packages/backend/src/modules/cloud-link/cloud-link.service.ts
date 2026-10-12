@@ -51,6 +51,12 @@ export const CLOUD_AUDIT_ACTIONS = {
 export const CLOUD_AUDIT_RESOURCE_TYPE = 'cloud-link';
 const RECENT_REQUESTS_SHOWN = 5;
 const DISCONNECTED_BY_ACCOUNT_REASON = 'Your cloud account disconnected this installation.';
+const CLOUD_MANAGED_LINK_MESSAGE = 'A managed cloud installation stays connected to its account.';
+
+/** Refusal of a disconnect or account switch on a managed installation (and the portal's MANAGED_INSTALLATION). */
+export function cloudManagedLinkError(): CloudLinkRequestError {
+  return new CloudLinkRequestError(409, 'CLOUD_MANAGED', CLOUD_MANAGED_LINK_MESSAGE);
+}
 
 type Fetcher = typeof fetch;
 
@@ -239,6 +245,8 @@ export class CloudLinkService {
           'Enter the code exactly as your cloud account shows it, for example CLD-7K3M-Q9TX'
         );
       }
+      // A managed installation stays on its account; only its own enrolment file enrols it.
+      if (source !== 'enroll-file' && (await this.managedByCloud())) throw cloudManagedLinkError();
       await this.enroll(normalized, portalUrl, source === 'enroll-file', (enrolled) => {
         agentId = enrolled.agentId;
         accountEmail = enrolled.accountEmail || null;
@@ -324,6 +332,7 @@ export class CloudLinkService {
   ): Promise<{ state: 'pending' } | { state: 'connected'; status: CloudLinkStatusView }> {
     let enrolled: StoredCloudEnrollment | null = null;
     await this.serialized(async () => {
+      if ((await this.readStored()).enrollment?.managed) throw cloudManagedLinkError();
       const hello = await this.helloInfo();
       const { status, body } = await this.portalRequest(
         `${portalUrl}/api/cloud/claim`,
@@ -386,36 +395,26 @@ export class CloudLinkService {
     );
   }
 
-  /** Revokes the agent at the portal, then forgets the enrolment here (also when the portal cannot be reached). */
+  /**
+   * Revokes the agent at the portal, then forgets the enrolment here (also when the portal cannot be reached). A
+   * managed installation is refused with CLOUD_MANAGED, here or when the portal answers MANAGED_INSTALLATION.
+   */
   async disconnect(actor: { userId: string | null } = { userId: null }): Promise<CloudDisconnectResult> {
-    let warning: string | undefined;
-    let forgotten: StoredCloudEnrollment | null = null;
-    await this.serialized(async () => {
-      forgotten = (await this.readStored()).enrollment;
-      const credentials = await this.readCredentials();
-      if (credentials) {
-        try {
-          const { status } = await this.portalRequest(
-            `${credentials.portalUrl}/api/cloud/agent/disconnect`,
-            { method: 'POST', headers: { Authorization: `Bearer ${credentials.agentId}.${credentials.secret}` } },
-            CLOUD_DISCONNECT_TIMEOUT_MS
-          );
-          // 401/404: the account already revoked this agent.
-          if (!(status >= 200 && status < 300) && status !== 401 && status !== 404) {
-            warning = `Your cloud account answered HTTP ${status}, so it may still list this installation. Disconnect it there as well.`;
-          }
-        } catch {
-          warning =
-            'Your cloud account could not be reached, so it may still list this installation. Disconnect it there as well.';
-        }
+    let result: { previous: StoredCloudEnrollment | null; warning?: string };
+    try {
+      result = await this.disconnectLink();
+    } catch (error) {
+      if (error instanceof CloudLinkRequestError && error.code === 'CLOUD_MANAGED') {
+        const kept = (await this.readStored()).enrollment;
+        await this.writeAudit(CLOUD_AUDIT_ACTIONS.disconnect, actor.userId, kept?.agentId ?? null, {
+          success: false,
+          errorCode: error.code,
+          error: error.message,
+        });
       }
-      await this.deleteSetting(SETTINGS_KEYS.enrollment);
-      await this.deleteSetting(SETTINGS_KEYS.remoteManagement);
-      await this.deleteSetting(SETTINGS_KEYS.disconnect);
-      await this.publishSocketStatus(null);
-      logger.info('Installation disconnected from the cloud account', { confirmed: !warning });
-    });
-    const previous = forgotten as StoredCloudEnrollment | null;
+      throw error;
+    }
+    const { previous, warning } = result;
     await this.writeAudit(CLOUD_AUDIT_ACTIONS.disconnect, actor.userId, previous?.agentId ?? null, {
       success: true,
       wasConnected: previous !== null,
@@ -426,6 +425,45 @@ export class CloudLinkService {
     });
     this.notify();
     return { ...(await this.getStatus()), ...(warning ? { warning } : {}) };
+  }
+
+  /** The disconnect itself, serialized with every enrolment change; refuses a managed installation. */
+  private async disconnectLink(): Promise<{ previous: StoredCloudEnrollment | null; warning?: string }> {
+    let warning: string | undefined;
+    let forgotten: StoredCloudEnrollment | null = null;
+    await this.serialized(async () => {
+      forgotten = (await this.readStored()).enrollment;
+      if ((forgotten as StoredCloudEnrollment | null)?.managed) throw cloudManagedLinkError();
+      const credentials = await this.readCredentials();
+      if (credentials) {
+        let answer: { status: number; body: unknown } | null = null;
+        try {
+          answer = await this.portalRequest(
+            `${credentials.portalUrl}/api/cloud/agent/disconnect`,
+            { method: 'POST', headers: { Authorization: `Bearer ${credentials.agentId}.${credentials.secret}` } },
+            CLOUD_DISCONNECT_TIMEOUT_MS
+          );
+        } catch {
+          warning =
+            'Your cloud account could not be reached, so it may still list this installation. Disconnect it there as well.';
+        }
+        if (answer) {
+          const { status, body } = answer;
+          // The account keeps a managed installation: the link stays as it is.
+          if (status === 409 && portalErrorOf(body).code === 'MANAGED_INSTALLATION') throw cloudManagedLinkError();
+          // 401/404: the account already revoked this agent.
+          if (!(status >= 200 && status < 300) && status !== 401 && status !== 404) {
+            warning = `Your cloud account answered HTTP ${status}, so it may still list this installation. Disconnect it there as well.`;
+          }
+        }
+      }
+      await this.deleteSetting(SETTINGS_KEYS.enrollment);
+      await this.deleteSetting(SETTINGS_KEYS.remoteManagement);
+      await this.deleteSetting(SETTINGS_KEYS.disconnect);
+      await this.publishSocketStatus(null);
+      logger.info('Installation disconnected from the cloud account', { confirmed: !warning });
+    });
+    return { previous: forgotten as StoredCloudEnrollment | null, ...(warning ? { warning } : {}) };
   }
 
   /** The socket answered 401: the account revoked the agent. Keeps the reason for the Settings page. */
