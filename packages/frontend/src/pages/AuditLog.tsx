@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { formatDateTime } from "@/lib/utils";
+import { AUDIT_ACTION_OPTIONS, getAuditActionLabel } from "@/pages/audit-log/audit-action-labels";
 import {
   type AuditExportFormat,
   type AuditFilterUserOption,
@@ -57,147 +58,6 @@ const DEFAULT_AUDIT_VIEW_CONFIG: AuditViewConfig = {
   excludedResourceTypes: [],
 };
 const DEFAULT_AUDIT_CACHE_KEY = "admin:audit:all:all:all::";
-const AUDIT_ACTION_OPTIONS = [
-  "access_list.create",
-  "access_list.delete",
-  "access_list.update",
-  "api_token.create",
-  "api_token.rename",
-  "api_token.revoke",
-  "auth.login",
-  "auth.login_failed",
-  "auth.logout",
-  "auth.settings_update",
-  "auth.user_claimed",
-  "auth.user_profile_sync",
-  "auth.user_provisioned",
-  "ca.create",
-  "ca.delete",
-  "ca.export_key",
-  "ca.revoke",
-  "ca.update",
-  "cert.export_key",
-  "cert.issue",
-  "cert.revoke",
-  "cloud.connect",
-  "cloud.connect_code",
-  "cloud.disconnect",
-  "cloud.disconnected_by_account",
-  "cloud.enroll_file",
-  "cloud.managed_sso",
-  "cloud.remote_management",
-  "cloud.request",
-  "created",
-  "database.connection.create",
-  "database.connection.delete",
-  "database.connection.test",
-  "database.connection.update",
-  "database.clickhouse.query",
-  "database.postgres.query",
-  "database.postgres.row.delete",
-  "database.postgres.row.insert",
-  "database.postgres.row.update",
-  "database.redis.command.execute",
-  "database.redis.key.delete",
-  "database.redis.key.expire",
-  "database.redis.key.set",
-  "docker.container.create",
-  "docker.container.duplicate",
-  "docker.container.env.update",
-  "docker.container.kill",
-  "docker.container.live_update",
-  "docker.container.recreate",
-  "docker.container.remove",
-  "docker.container.rename",
-  "docker.container.restart",
-  "docker.container.start",
-  "docker.container.stop",
-  "docker.container.update",
-  "docker.deployment.create",
-  "docker.deployment.delete",
-  "docker.deployment.deploy",
-  "docker.deployment.kill",
-  "docker.deployment.restart",
-  "docker.deployment.rollback",
-  "docker.deployment.slot.stop",
-  "docker.deployment.start",
-  "docker.deployment.stop",
-  "docker.deployment.switch",
-  "docker.deployment.update",
-  "docker_container.move_to_folder",
-  "docker_container.reorder_in_folder",
-  "docker.file.write",
-  "docker_folder.create",
-  "docker_folder.delete",
-  "docker_folder.update",
-  "docker.health_check.configure",
-  "docker.health_check.test",
-  "docker.image.prune",
-  "docker.image.pull",
-  "docker.image.remove",
-  "docker.network.connect",
-  "docker.network.create",
-  "docker.network.disconnect",
-  "docker.network.remove",
-  "docker.registry.create",
-  "docker.registry.delete",
-  "docker.registry.update",
-  "docker.secret.create",
-  "docker.secret.delete",
-  "docker.secret.update",
-  "docker.volume.create",
-  "docker.volume.remove",
-  "docker.webhook.created",
-  "docker.webhook.deleted",
-  "docker.webhook.regenerated",
-  "docker.webhook.triggered",
-  "domain.create",
-  "domain.delete",
-  "domain.update",
-  "expired",
-  "group.create",
-  "group.delete",
-  "group.update",
-  "nginx_template.clone",
-  "nginx_template.create",
-  "nginx_template.delete",
-  "nginx_template.update",
-  "node.cert_deploy",
-  "node.config_push",
-  "node.create",
-  "node.disconnected",
-  "node.enroll",
-  "node.remove",
-  "node.update",
-  "notification_rule_created",
-  "notification_rule_deleted",
-  "notification_rule_updated",
-  "notification_webhook_created",
-  "notification_webhook_deleted",
-  "notification_webhook_updated",
-  "proxy_host.create",
-  "proxy_host.delete",
-  "proxy_host.move_to_folder",
-  "proxy_host.update",
-  "proxy_host_folder.create",
-  "proxy_host_folder.delete",
-  "proxy_host_folder.move",
-  "proxy_host_folder.update",
-  "pulled",
-  "renewal_failed",
-  "ssl.acme_dns01_start",
-  "ssl.acme_dns01_verify",
-  "ssl.acme_request",
-  "ssl.delete",
-  "ssl.link_internal",
-  "ssl.renew",
-  "ssl.upload",
-  "transitioning",
-  "updated",
-  "user.create",
-  "user.delete",
-  "user.group_change",
-] as const;
 const AUDIT_RESOURCE_OPTIONS = [
   "access_list",
   "api-token",
@@ -312,7 +172,7 @@ const columns: DataTableColumn<AuditLogEntry>[] = [
     width: "minmax(180px, 1fr)",
     render: (entry) => (
       <span title={entry.action} className="text-muted-foreground">
-        {formatAuditToken(entry.action)}
+        {getAuditActionLabel(entry.action)}
       </span>
     ),
   },
@@ -466,7 +326,7 @@ export function AuditLog({
       { value: "all", label: "All actions" },
       ...actionOptions.map((action) => ({
         value: action,
-        label: formatAuditToken(action),
+        label: getAuditActionLabel(action),
         keywords: action,
       })),
     ],
@@ -885,7 +745,10 @@ export function AuditLog({
             <AuditOptionChecklist
               title="Hidden Actions"
               description="Checked actions are excluded by the backend before pagination."
-              options={actionOptions.map((action) => ({ value: action, label: action }))}
+              options={actionOptions.map((action) => ({
+                value: action,
+                label: getAuditActionLabel(action),
+              }))}
               selected={draftViewConfig.excludedActions}
               onToggle={(value) =>
                 setDraftViewConfig((draft) => ({
@@ -951,7 +814,10 @@ export function AuditLog({
               <AuditOptionChecklist
                 title="Actions"
                 description="Leave empty to export all visible actions."
-                options={actionOptions.map((action) => ({ value: action, label: action }))}
+                options={actionOptions.map((action) => ({
+                  value: action,
+                  label: getAuditActionLabel(action),
+                }))}
                 selected={exportActions}
                 onToggle={(value) => setExportActions((values) => toggleValue(values, value))}
                 emptyMessage="No actions available."
@@ -1000,7 +866,9 @@ export function AuditLog({
             <div className="min-w-0 space-y-4 pr-1">
               <div className="grid gap-3 text-sm sm:grid-cols-6">
                 <ValueTile className="sm:col-span-2" label="Action">
-                  {selectedEntry.action}
+                  <span title={selectedEntry.action}>
+                    {getAuditActionLabel(selectedEntry.action)}
+                  </span>
                 </ValueTile>
                 <ValueTile className="sm:col-span-2" label="Time">
                   {formatDateTime(selectedEntry.createdAt)}

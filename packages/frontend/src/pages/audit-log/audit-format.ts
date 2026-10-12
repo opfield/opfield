@@ -1,4 +1,5 @@
 import type { AuditLogEntry } from "@/types";
+import { formatAuditToken, getAuditActionLabel } from "./audit-action-labels";
 
 export type AuditExportFormat = "csv" | "tsv" | "txt" | "html";
 
@@ -20,31 +21,7 @@ export function mergeAuditFilterUsers(
   return [...merged.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
-const AUDIT_TOKEN_ACRONYMS = new Set([
-  "acme",
-  "ai",
-  "api",
-  "ca",
-  "dns",
-  "ip",
-  "mcp",
-  "oauth",
-  "pki",
-  "ssl",
-  "tls",
-]);
-
-export function formatAuditToken(value: string): string {
-  return value
-    .split(/[._-]+/)
-    .filter(Boolean)
-    .map((word) =>
-      AUDIT_TOKEN_ACRONYMS.has(word.toLowerCase())
-        ? word.toUpperCase()
-        : word.charAt(0).toUpperCase() + word.slice(1)
-    )
-    .join(" ");
-}
+export { formatAuditToken } from "./audit-action-labels";
 
 export function getAuditEntryUserKey(entry: AuditLogEntry): string {
   return entry.userId ?? "system";
@@ -132,6 +109,7 @@ function auditEntryToExportRow(entry: AuditLogEntry): string[] {
     new Date(entry.createdAt).toLocaleString(),
     getAuditEntryUserLabel(entry),
     entry.userId ?? "",
+    getAuditActionLabel(entry.action),
     entry.action,
     entry.resourceType,
     entry.resourceId ?? "",
@@ -148,6 +126,7 @@ const AUDIT_EXPORT_HEADERS = [
   "User",
   "User ID",
   "Action",
+  "Action key",
   "Resource Type",
   "Resource ID",
   "Resource",

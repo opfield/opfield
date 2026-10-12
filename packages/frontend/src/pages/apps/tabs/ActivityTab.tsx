@@ -7,11 +7,8 @@ import { RelativeTime } from "@/components/common/RelativeTime";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
-import {
-  formatAuditToken,
-  getAuditEntryUserLabel,
-  getAuditResourceDisplay,
-} from "@/pages/audit-log/audit-format";
+import { getAuditActionLabel } from "@/pages/audit-log/audit-action-labels";
+import { getAuditEntryUserLabel, getAuditResourceDisplay } from "@/pages/audit-log/audit-format";
 import { api } from "@/services/api";
 import type { AppDetail, AuditLogEntry } from "@/types";
 
@@ -56,7 +53,7 @@ const columns: DataTableColumn<AuditLogEntry>[] = [
     width: "minmax(180px, 1fr)",
     render: (entry) => (
       <span title={entry.action} className="text-muted-foreground">
-        {formatAuditToken(entry.action)}
+        {getAuditActionLabel(entry.action)}
       </span>
     ),
   },

@@ -29,14 +29,11 @@ import {
 import { commercialModuleUnavailable } from '@/edition/unavailable.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { buildWhere } from '@/lib/utils.js';
-import {
-  CLOUD_AUDIT_RESOURCE_TYPE,
-  cloudAuditResourceName,
-  cloudAuditSummary,
-} from '@/modules/cloud-link/cloud-link-audit-format.js';
+import { CLOUD_AUDIT_RESOURCE_TYPE, cloudAuditResourceName } from '@/modules/cloud-link/cloud-link-audit-format.js';
 import { INTERNAL_DOCKER_REGISTRY_ID } from '@/modules/docker/docker-registry-internal.service.js';
 import { backgroundWrites } from '@/services/background-writes.js';
 import type { PaginatedResponse } from '@/types.js';
+import { describeAuditEntry } from './audit-describe.js';
 import { getAuditRequestContext, markAuditEmitted } from './audit-request-context.js';
 import { auditLookupType, resolveMoreResourceNames } from './audit-resource-names.js';
 import {
@@ -501,7 +498,7 @@ export class AuditService {
           resourceName:
             resourceNames.get(resourceKey(entry.resourceType, entry.resourceId)) ??
             cloudAuditResourceName(typeof accountEmail === 'string' ? accountEmail : null),
-          summary: cloudAuditSummary(entry.action, entry.details),
+          summary: describeAuditEntry(entry.action, entry.details),
         };
       }
       return {
@@ -510,7 +507,7 @@ export class AuditService {
           getResourceNameFromDetails(entry.details) ??
           resourceNames.get(resourceKey(lookupTypes[index]!, entry.resourceId)) ??
           null,
-        summary: null,
+        summary: describeAuditEntry(entry.action, entry.details),
       };
     });
     const total = Number(totalCount);
