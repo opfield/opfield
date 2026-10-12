@@ -28,6 +28,7 @@ import { encodeRelayV1Message } from '@/grpc/relay-proto.js';
 import { ResumeSessionError } from '@/grpc/relay-resume.js';
 import { RelayTunnelHost, type RemotePath } from '@/grpc/tunnel-worker/host.js';
 import { createChildLogger } from '@/lib/logger.js';
+import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import { leaseLaneNodeIds } from '@/modules/docker/availability/lease/lease-relay-lanes.js';
 import type { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
@@ -1714,10 +1715,33 @@ export class RelayPolicyService {
       }
       return { id: current.id, active: current.status === 'active' };
     });
-    if (!endpoint.active) throw new Error('Managed database relay endpoint is awaiting lifecycle reconciliation');
+    if (!endpoint.active && !(await this.reconcileInactiveEndpoint('managed_database', managedDatabaseId))) {
+      throw new AppError(
+        409,
+        'MANAGED_DATABASE_RELAY_ENDPOINT_PENDING',
+        'The managed database relay endpoint is not active yet; try again in a few seconds'
+      );
+    }
     await this.ensureLegacyCompatibleAssignment(endpoint.id);
     await this.syncSnapshot();
     return endpoint.id;
+  }
+
+  /**
+   * An endpoint of a running database or storage that is still inactive: the reconciliation pass that owns endpoint
+   * status runs now (after any pass in progress) instead of the caller failing until the next one. A database created
+   * just before (a restore into a new database) has its endpoint written as inactive by a pass that read it while it
+   * was being created. True when the endpoint is active afterwards.
+   */
+  private async reconcileInactiveEndpoint(ownerKind: 'managed_database' | 'managed_storage', ownerId: string) {
+    if (ownerKind === 'managed_database') await reconcileManagedDatabaseRelayPolicy(this.db);
+    else await reconcileManagedStorageRelayPolicy(this.db);
+    const [endpoint] = await this.db
+      .select({ status: relayEndpoints.status })
+      .from(relayEndpoints)
+      .where(and(eq(relayEndpoints.ownerKind, ownerKind), eq(relayEndpoints.ownerId, ownerId)))
+      .limit(1);
+    return endpoint?.status === 'active';
   }
 
   async ensureManagedStorageEndpoint(clusterId: string, nodeId: string): Promise<string> {
@@ -1766,7 +1790,13 @@ export class RelayPolicyService {
       }
       return { id: current.id, active: current.status === 'active' };
     });
-    if (!endpoint.active) throw new Error('Managed storage relay endpoint is awaiting lifecycle reconciliation');
+    if (!endpoint.active && !(await this.reconcileInactiveEndpoint('managed_storage', clusterId))) {
+      throw new AppError(
+        409,
+        'MANAGED_STORAGE_RELAY_ENDPOINT_PENDING',
+        'The managed storage relay endpoint is not active yet; try again in a few seconds'
+      );
+    }
     await this.ensureLegacyCompatibleAssignment(endpoint.id);
     await this.syncSnapshot();
     return endpoint.id;

@@ -72,6 +72,9 @@ export async function updateManagedDatabaseRelayStatus(
 ): Promise<boolean> {
   const status = databaseStatus === 'ready' || databaseStatus === 'updating' ? 'active' : 'inactive';
   return db.transaction(async (tx) => {
+    // After a reconciliation pass that is running: a pass that read the database before it became ready commits its
+    // endpoint as inactive, and a status change that ran beside it would not see that endpoint and leave it so.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-policy-reconciliation'))`);
     // A database served by an availability set: its endpoints follow the set (reconcileSetRelayPaths).
     const [set] = await tx
       .select({ id: managedAvailabilitySets.id })
