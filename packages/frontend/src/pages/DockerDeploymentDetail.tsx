@@ -1531,7 +1531,7 @@ export function DockerDeploymentDetail({
         </Tabs>
       </div>
       <Dialog open={configOpen} onOpenChange={setConfigOpen}>
-        <DialogContent className="sm:max-w-4xl" aria-describedby={undefined}>
+        <DialogContent className="sm:max-w-3xl" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Deployment Configuration</DialogTitle>
           </DialogHeader>

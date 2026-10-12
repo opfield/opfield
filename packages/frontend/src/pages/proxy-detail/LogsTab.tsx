@@ -412,7 +412,7 @@ export function LogsTab({ hostId }: { hostId: string }) {
       </ResourceListFrame>
 
       <Dialog open={selectedLogOpen} onOpenChange={onSelectedLogOpenChange}>
-        <DialogContent className="max-w-full sm:max-w-xl">
+        <DialogContent className="max-w-full sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Log Details</DialogTitle>
             <DialogDescription>

@@ -2040,7 +2040,7 @@ export function DockerContainerDetail({
         </Tabs>
       </div>
       <Dialog open={configOpen} onOpenChange={setConfigOpen}>
-        <DialogContent className="sm:max-w-4xl" fitViewport>
+        <DialogContent className="sm:max-w-3xl" fitViewport>
           <DialogHeader>
             <DialogTitle>Container Configuration</DialogTitle>
             <DialogDescription>

@@ -441,7 +441,7 @@ export function HostingConnectorDialog({
         if (!next && !busy) onClose();
       }}
     >
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {connector ? `Configure ${connector.name}` : "Add Hosting Connector"}

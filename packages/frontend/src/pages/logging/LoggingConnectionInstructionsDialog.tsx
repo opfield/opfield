@@ -51,7 +51,7 @@ await logger.flush();`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent clipOverflow className="sm:max-w-2xl">
+      <DialogContent clipOverflow className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Connect to This Environment</DialogTitle>
           <DialogDescription>

@@ -361,7 +361,7 @@ export function OAuthApplicationsSection({
       </PanelShell>
 
       <Dialog open={authorizationOpen} onOpenChange={onAuthorizationOpenChange}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>OAuth Application</DialogTitle>
             <DialogDescription>View and edit authorized application access</DialogDescription>

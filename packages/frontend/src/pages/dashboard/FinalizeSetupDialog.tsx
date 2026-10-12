@@ -183,7 +183,7 @@ export function FinalizeSetupDialog({
     <Dialog open={open} onOpenChange={() => {}} modal>
       <DialogContent
         hideCloseButton
-        className="sm:max-w-2xl"
+        className="sm:max-w-lg"
         onEscapeKeyDown={(event) => event.preventDefault()}
         onPointerDownOutside={(event) => event.preventDefault()}
         onInteractOutside={(event) => event.preventDefault()}

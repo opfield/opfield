@@ -282,7 +282,7 @@ export function AdminUserConfigDialog({
           onOpenChange(nextOpen);
         }}
       >
-        <DialogContent aria-describedby={undefined} className="sm:max-w-xl">
+        <DialogContent aria-describedby={undefined} className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Configure User</DialogTitle>
           </DialogHeader>
@@ -329,7 +329,7 @@ export function AdminUserConfigDialog({
                     <p className="text-sm font-medium">Name</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">Used throughout Opfield.</p>
                   </div>
-                  <div className="flex w-full border border-input bg-background sm:w-72 sm:shrink-0">
+                  <div className="flex w-full border border-input bg-background sm:w-60 sm:shrink-0">
                     <Input
                       value={name}
                       onChange={(event) => {

@@ -633,7 +633,7 @@ export function ExternalSshConnectorDialog({
         if (!nextOpen) closeDialog();
       }}
     >
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {generatedPublicKey ? "Install the Generated SSH Key" : "Add External SSH Connector"}

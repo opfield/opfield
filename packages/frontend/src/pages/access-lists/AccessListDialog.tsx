@@ -58,7 +58,7 @@ export function AccessListDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{form.isEdit ? "Edit Access List" : "Create Access List"}</DialogTitle>
           <DialogDescription>

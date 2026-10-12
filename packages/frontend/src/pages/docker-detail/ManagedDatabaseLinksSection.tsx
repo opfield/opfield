@@ -1058,7 +1058,7 @@ export const ManagedDatabaseLinksSection = forwardRef<
       </Dialog>
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Add Managed Database Link</DialogTitle>
             <DialogDescription>

@@ -358,7 +358,7 @@ export function DeliveryLogTab({
             onDetailOpenChange(open);
           }}
         >
-          <DialogContent className="max-w-xl">
+          <DialogContent className="sm:max-w-3xl">
             <DialogHeader>
               <DialogTitle>Delivery Details</DialogTitle>
             </DialogHeader>

@@ -200,7 +200,7 @@ export function TemplateCheatsheetLink({
         <HelpCircle className="h-3.5 w-3.5" /> Variables & helpers cheatsheet
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Template Cheatsheet</DialogTitle>
             <DialogDescription>

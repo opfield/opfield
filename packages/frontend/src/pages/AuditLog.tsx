@@ -730,7 +730,7 @@ export function AuditLog({
       </div>
 
       <Dialog open={configOpen} onOpenChange={handleConfigureOpenChange}>
-        <DialogContent className="sm:max-w-4xl">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Configure Audit View</DialogTitle>
           </DialogHeader>
@@ -778,7 +778,7 @@ export function AuditLog({
       </Dialog>
 
       <Dialog open={exportOpen} onOpenChange={handleExportOpenChange}>
-        <DialogContent className="sm:max-w-5xl">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Download Audit Log</DialogTitle>
           </DialogHeader>

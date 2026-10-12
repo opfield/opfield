@@ -87,7 +87,7 @@ export function FinalizeSetupWizardDialog({
     >
       <DialogContent
         hideCloseButton={!onClose}
-        className="sm:max-w-xl"
+        className="sm:max-w-lg"
         style={{ overflow: "hidden" }}
         onEscapeKeyDown={(event) => event.preventDefault()}
         onPointerDownOutside={(event) => {

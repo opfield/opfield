@@ -711,7 +711,7 @@ export function AlertDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl" onOpenAutoFocus={(e) => e.preventDefault()}>
+      <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit Alert" : "New Alert"}</DialogTitle>
           <DialogDescription>

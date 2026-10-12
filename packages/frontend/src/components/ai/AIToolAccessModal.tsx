@@ -76,7 +76,7 @@ export function AIToolAccessModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="overflow-x-hidden sm:max-w-xl">
+      <DialogContent className="overflow-x-hidden sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>AI Tool Access</DialogTitle>
           <DialogDescription>Control which tools AI Workspace can use</DialogDescription>

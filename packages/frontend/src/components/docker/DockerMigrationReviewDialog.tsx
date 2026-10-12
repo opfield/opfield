@@ -298,7 +298,7 @@ export function DockerMigrationReviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{migration ? "Migration Progress" : "Migration Preflight"}</DialogTitle>
           <DialogDescription>
