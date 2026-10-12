@@ -280,6 +280,12 @@ type clickHouseMemberRuntime struct {
 
 func (r *clickHouseMemberRuntime) record() (managedDatabaseRecord, error) {
 	record, err := r.plugin.databaseManager.loadRecord(r.databaseID)
+	if errors.Is(err, os.ErrNotExist) {
+		// The create command waits for this member's container (pendingCreates).
+		if pending, ok := r.plugin.databaseManager.pending.get(r.databaseID); ok {
+			record, err = pending, nil
+		}
+	}
 	if err != nil {
 		return managedDatabaseRecord{}, err
 	}
@@ -300,10 +306,11 @@ func (r *clickHouseMemberRuntime) Container(ctx context.Context) (memberha.Conta
 		return memberha.ContainerState{}, 0, err
 	}
 	r.ensureProxies(record)
-	if record.ContainerID == "" {
+	ref := r.containerRef(record)
+	if ref == "" {
 		return memberha.ContainerState{}, 0, nil
 	}
-	result, err := r.plugin.client.cli.ContainerInspect(ctx, record.ContainerID, mobyclient.ContainerInspectOptions{})
+	result, err := r.plugin.client.cli.ContainerInspect(ctx, ref, mobyclient.ContainerInspectOptions{})
 	if err != nil {
 		if isNotFoundErr(err) {
 			return memberha.ContainerState{}, 0, nil
@@ -330,12 +337,28 @@ func (r *clickHouseMemberRuntime) Container(ctx context.Context) (memberha.Conta
 	return state, pid, nil
 }
 
+// containerRef is the member's container: its recorded id, or its name while
+// the create command that makes it waits for it (pendingCreates).
+func (r *clickHouseMemberRuntime) containerRef(record managedDatabaseRecord) string {
+	if record.ContainerID != "" {
+		return record.ContainerID
+	}
+	if _, creating := r.plugin.databaseManager.pending.get(r.databaseID); creating {
+		return record.ContainerName
+	}
+	return ""
+}
+
 func (r *clickHouseMemberRuntime) Address(ctx context.Context) (string, error) {
 	record, err := r.record()
 	if err != nil {
 		return "", err
 	}
-	result, err := r.plugin.client.cli.ContainerInspect(ctx, record.ContainerID, mobyclient.ContainerInspectOptions{})
+	ref := r.containerRef(record)
+	if ref == "" {
+		return "", errors.New("the ClickHouse member has no container")
+	}
+	result, err := r.plugin.client.cli.ContainerInspect(ctx, ref, mobyclient.ContainerInspectOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -459,7 +482,11 @@ func (r *clickHouseMemberRuntime) KeeperClient(ctx context.Context, command stri
 		return "", err
 	}
 	var output bytes.Buffer
-	err = r.plugin.databaseManager.runManagedDatabaseExecTo(ctx, record.ContainerID,
+	ref := r.containerRef(record)
+	if ref == "" {
+		return "", errors.New("the ClickHouse member has no container")
+	}
+	err = r.plugin.databaseManager.runManagedDatabaseExecTo(ctx, ref,
 		chha.KeeperClientCommand(command), "", nil, &output)
 	text := output.String()
 	if err == nil && chha.KeeperClientFailed(text) {
