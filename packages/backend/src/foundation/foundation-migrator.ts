@@ -291,7 +291,7 @@ export function patchCompose(
     commercialPrepared ? patchCommercialCore(volumesPatched) : volumesPatched
   );
   // Before the relay and registry volumes, which those steps move to the end of the list on every run.
-  const healthcheckPatched = patchAppHealthcheck(upsertAppHostProcMounts(runtimePatched));
+  const healthcheckPatched = patchAppHealthcheck(upsertAppHostDiagnosticsMounts(runtimePatched));
   const environmentPatched = removeLegacyAppEnvironment(healthcheckPatched);
   const clickHousePatched = removeLegacyClickHouseService(environmentPatched);
   const relayPatched = patchRelayFoundation(clickHousePatched, boundedLogging);
@@ -875,23 +875,40 @@ function upsertAppRegistryAuthVolume(lines: string[]): string[] {
 }
 
 /**
- * The host's /proc files the diagnostics read. In a Proxmox LXC, LXCFS shows the LXC's own memory, load and
- * uptime there, while the container's own procfs shows the hypervisor's.
+ * The host's files the diagnostics read, as `source:target`. In a Proxmox LXC, LXCFS serves the /proc files per
+ * reading cgroup, so the LXC's own memory use comes from its cgroup root and its uptime from its init's start;
+ * MemTotal, the CPU list and the load still come from /proc.
  */
-export const HOST_PROC_FILES = ['meminfo', 'loadavg', 'stat', 'uptime'] as const;
+export const HOST_DIAGNOSTICS_MOUNTS = [
+  '/proc/meminfo:/host/proc/meminfo',
+  '/proc/loadavg:/host/proc/loadavg',
+  '/proc/stat:/host/proc/stat',
+  '/proc/1/stat:/host/proc/1/stat',
+  '/sys/fs/cgroup:/host/cgroup',
+] as const;
 
-function upsertAppHostProcMounts(lines: string[]): string[] {
+/** Earlier mounts the diagnostics no longer read: LXCFS answers /proc/uptime for the app container, not the LXC. */
+const LEGACY_HOST_DIAGNOSTICS_TARGETS = ['/host/proc/uptime'] as const;
+
+function volumeTargetPattern(target: string): RegExp {
+  return new RegExp(`^\\s*-\\s*[^#]*:${escapeRegExp(target)}(?::(?:ro|rw))?\\s*(?:#.*)?$`);
+}
+
+function upsertAppHostDiagnosticsMounts(lines: string[]): string[] {
   const app = findServiceBlock(lines, 'app');
   const volumes = app ? findNestedBlock(lines, app, 'volumes') : null;
   if (!volumes) throw new Error('foundation migration failed: services.app.volumes block not found');
+  const legacy = LEGACY_HOST_DIAGNOSTICS_TARGETS.map(volumeTargetPattern);
+  const before = lines.slice(0, volumes.start + 1);
+  const present = lines
+    .slice(volumes.start + 1, volumes.end)
+    .filter((line) => !legacy.some((pattern) => pattern.test(line)));
   const indent = ' '.repeat(volumes.indent + 2);
-  const present = lines.slice(volumes.start + 1, volumes.end);
-  const missing = HOST_PROC_FILES.filter(
-    (file) =>
-      !present.some((line) => new RegExp(`^\\s*-\\s*[^#]*:/host/proc/${file}(?::(?:ro|rw))?\\s*(?:#.*)?$`).test(line))
-  ).map((file) => `${indent}- /proc/${file}:/host/proc/${file}:ro`);
-  if (missing.length === 0) return lines;
-  return [...lines.slice(0, volumes.end), ...missing, ...lines.slice(volumes.end)];
+  const missing = HOST_DIAGNOSTICS_MOUNTS.filter((mount) => {
+    const target = mount.slice(mount.indexOf(':') + 1);
+    return !present.some((line) => volumeTargetPattern(target).test(line));
+  }).map((mount) => `${indent}- ${mount}:ro`);
+  return [...before, ...present, ...missing, ...lines.slice(volumes.end)];
 }
 
 function registryServiceBlock(logging: boolean): string[] {

@@ -93,14 +93,25 @@ describe('foundation migrator patches', () => {
     expect(preserved).toContain('    stop_grace_period: 2m');
   });
 
-  it("mounts the host's /proc readings into the app once", () => {
-    const patched = patchCompose(OLD_COMPOSE);
-    for (const file of ['meminfo', 'loadavg', 'stat', 'uptime']) {
-      expect(patched).toContain(`      - /proc/${file}:/host/proc/${file}:ro\n`);
+  it("mounts the host's diagnostics files into the app once and drops the /proc/uptime mount", () => {
+    const withLegacy = OLD_COMPOSE.replace(
+      '      - ./docker-compose.yml:/app/docker-compose.yml:ro\n',
+      '      - ./docker-compose.yml:/app/docker-compose.yml:ro\n      - /proc/uptime:/host/proc/uptime:ro\n'
+    );
+    const patched = patchCompose(withLegacy);
+    for (const mount of [
+      '/proc/meminfo:/host/proc/meminfo',
+      '/proc/loadavg:/host/proc/loadavg',
+      '/proc/stat:/host/proc/stat',
+      '/proc/1/stat:/host/proc/1/stat',
+      '/sys/fs/cgroup:/host/cgroup',
+    ]) {
+      expect(patched).toContain(`      - ${mount}:ro\n`);
     }
+    expect(patched).not.toContain('/host/proc/uptime');
     expect(patchCompose(patched)).toBe(patched);
     const app = parseDocument(patched).toJS().services.app;
-    expect(app.volumes.filter((volume: string) => volume.includes('/host/proc/'))).toHaveLength(4);
+    expect(app.volumes.filter((volume: string) => /:\/host\//.test(volume))).toHaveLength(5);
   });
 
   it('adds the managed sandbox volume and normalizes the app image reference', () => {
