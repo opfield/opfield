@@ -135,6 +135,11 @@ type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.
    * stays centered, and its body scrolls between the header and the footer.
    */
   fitViewport?: boolean;
+  /**
+   * For a dialog given a fixed height (an editor or preview): the body takes the height left under
+   * the header, so a child with `flex-1` or `height: 100%` fills it.
+   */
+  fillHeight?: boolean;
 };
 
 // Rendered inside the portal, which mounts it only while the dialog is open,
@@ -143,7 +148,7 @@ const DialogContentPanel = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
 >(({ className, children, hideCloseButton, unstyled, clipOverflow, ...rest }, ref) => {
-  const { fitViewport, ...props } = rest;
+  const { fitViewport, fillHeight, ...props } = rest;
   const [bodyScrolled, setBodyScrolled] = React.useState(false);
   // With an opener its spinner shows from the click, so there is no screen
   // indicator to delay or hold; the dialog opens as soon as the data is in.
@@ -282,6 +287,7 @@ const DialogContentPanel = React.forwardRef<
                 className={cn(
                   "relative min-h-0 min-w-0 px-4 max-sm:flex-1 max-sm:overflow-y-auto max-sm:overscroll-contain sm:px-6",
                   fitViewport && "sm:overflow-y-auto sm:overscroll-contain",
+                  fillHeight && "flex flex-1 flex-col",
                   // One column the body's width: no child can widen the dialog.
                   bodyChildren.length > 1 && "grid grid-cols-1 gap-4",
                   hasHeader ? "pt-0" : "pt-4 sm:pt-6",

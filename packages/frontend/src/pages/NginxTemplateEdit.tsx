@@ -432,20 +432,20 @@ export function NginxTemplateEdit() {
       </div>
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        {/* As tall as the rendered config, up to the window; longer configs scroll inside. */}
-        <DialogContent className="sm:max-w-5xl" fitViewport>
+        {/* The preview takes the dialog's full height; the editor fills it and scrolls inside. */}
+        <DialogContent className="h-[88vh] w-[92vw] sm:max-w-5xl" fillHeight>
           <DialogHeader>
             <DialogTitle>Rendered Preview</DialogTitle>
             <DialogDescription>Preview the template rendered with sample data.</DialogDescription>
           </DialogHeader>
-          <div className="relative">
+          <div className="relative flex min-h-0 flex-1 flex-col">
             <ContentLoading loading={isPreviewLoading} />
             <CodeEditor
               value={previewResult}
               onChange={() => {}}
               readOnly
               className="border-border"
-              minHeight="12rem"
+              height="100%"
               showGutterBorder={false}
             />
           </div>
