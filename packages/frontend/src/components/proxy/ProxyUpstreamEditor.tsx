@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
 import { api } from "@/services/api";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
@@ -809,7 +810,7 @@ export function ProxyUpstreamPanel({
       onUpdated(updated);
       toast.success("Upstream updated");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update upstream");
+      toastApiError(error, "Failed to update upstream");
     } finally {
       setSaving(false);
     }

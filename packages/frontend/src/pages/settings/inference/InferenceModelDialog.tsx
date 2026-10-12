@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { PermissionGroup, User } from "@/types";
 import type {
@@ -194,7 +195,7 @@ export function InferenceModelDialog({
       await onSaved();
       toast.success(editing ? "Inference model updated" : "Inference model added");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save inference model");
+      toastApiError(error, "Failed to save inference model");
     } finally {
       setSaving(false);
     }

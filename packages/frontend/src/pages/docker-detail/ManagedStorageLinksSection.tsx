@@ -9,7 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
+import { planIncludes } from "@/stores/license-paywall";
 import type {
   ManagedObjectStorage,
   ManagedStorageBinding,
@@ -113,6 +115,10 @@ export const ManagedStorageLinksSection = forwardRef<
   const [addOpen, setAddOpen] = useState(false);
 
   const load = useCallback(async () => {
+    if (!planIncludes("managed-storage")) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const managedClusters = await api.listManagedObjectStorages();
@@ -136,7 +142,7 @@ export const ManagedStorageLinksSection = forwardRef<
         )
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load managed storage links");
+      toastApiError(error, "Failed to load managed storage links");
     } finally {
       setLoading(false);
     }
@@ -355,7 +361,7 @@ export const ManagedStorageLinksSection = forwardRef<
       void Promise.resolve(onRecreating?.());
     } catch (error) {
       onMutationEnd?.();
-      toast.error(error instanceof Error ? error.message : "Failed to save managed storage links");
+      toastApiError(error, "Failed to save managed storage links");
     } finally {
       setSaving(false);
     }

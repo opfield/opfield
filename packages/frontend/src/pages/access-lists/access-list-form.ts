@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { AccessList, IPRule } from "@/types";
 
@@ -147,7 +148,7 @@ export function useAccessListForm({
       onOpenChange(false);
       await onSaved();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save access list");
+      toastApiError(err, "Failed to save access list");
     } finally {
       setIsSaving(false);
     }

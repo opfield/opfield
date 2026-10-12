@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import type { DockerContainer, ManagedObjectStorage, ProxyAdditionalSecureLink } from "@/types";
@@ -86,9 +87,7 @@ export function AdditionalSecureLinkBindings({
   useEffect(() => {
     void load().catch((error) => {
       setBindings([]);
-      toast.error(
-        error instanceof Error ? error.message : "Failed to load additional Secure Links"
-      );
+      toastApiError(error, "Failed to load additional Secure Links");
     });
     return () => {
       requestGeneration.current++;
@@ -204,7 +203,7 @@ export function AdditionalSecureLinkBindings({
         toast.success("Additional Secure Link provisioning started");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to provision Secure Link");
+      toastApiError(error, "Failed to provision Secure Link");
     } finally {
       setPending(false);
     }
@@ -220,7 +219,7 @@ export function AdditionalSecureLinkBindings({
       if (updated.status === "active") toast.success("Secure Link provisioned");
       else toast.error(updated.lastError || "Secure Link provisioning failed");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to retry Secure Link");
+      toastApiError(error, "Failed to retry Secure Link");
     } finally {
       setRetryingId(null);
     }
@@ -253,7 +252,7 @@ export function AdditionalSecureLinkBindings({
             next.splice(removedIndex, 0, binding);
             return next;
           });
-          toast.error(error instanceof Error ? error.message : "Failed to remove Secure Link");
+          toastApiError(error, "Failed to remove Secure Link");
           return false;
         }
       }

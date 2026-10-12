@@ -1,10 +1,10 @@
 import { GitBranch, RotateCcw, Square } from "lucide-react";
 import { type RefObject, useCallback, useMemo, useState } from "react";
-import { toast } from "sonner";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { DockerBuild } from "@/types";
 import { formatDockerBuildDuration, useDockerBuildClock } from "./docker-build-duration";
@@ -87,7 +87,7 @@ export function DockerBuildsTable({
         else await api.retryDockerBuild(build.id);
         await onBuildsChanged();
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : `Failed to ${action} build`);
+        toastApiError(error, `Failed to ${action} build`);
       } finally {
         setActingBuildId((current) => (current === build.id ? null : current));
       }

@@ -31,6 +31,7 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
+import { toastApiError } from "@/lib/api-error-toast";
 import { isGatewayPublicRoute } from "@/lib/proxy-route-protection";
 import { proxyHostRoute } from "@/lib/resource-routes";
 import { cn } from "@/lib/utils";
@@ -429,7 +430,7 @@ export function ProxyHostDetail({
           `${field.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase())} updated`
         );
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to update");
+        toastApiError(err, "Failed to update");
       }
     },
     [canEditProxyHost, id, host, syncHostState]
@@ -452,7 +453,7 @@ export function ProxyHostDetail({
       syncHostState(updated, { forceSections: ["ssl"] });
       toast.success("SSL settings updated");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update SSL settings");
+      toastApiError(err, "Failed to update SSL settings");
     } finally {
       setIsSavingSsl(false);
     }
@@ -630,7 +631,7 @@ export function ProxyHostDetail({
       syncHostState(updated, { forceSections: ["template"] });
       toast.success("Template settings updated");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update template settings");
+      toastApiError(err, "Failed to update template settings");
     } finally {
       setIsSavingTemplate(false);
     }
@@ -666,7 +667,7 @@ export function ProxyHostDetail({
       syncHostState(updated, { forceSections: ["headers"] });
       toast.success("Custom headers saved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save custom headers");
+      toastApiError(err, "Failed to save custom headers");
     } finally {
       setIsSavingCustom(false);
     }
@@ -682,7 +683,7 @@ export function ProxyHostDetail({
       syncHostState(updated, { forceSections: ["rewrites"] });
       toast.success("URL rewrites saved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save URL rewrites");
+      toastApiError(err, "Failed to save URL rewrites");
     } finally {
       setIsSavingCustom(false);
     }
@@ -704,7 +705,7 @@ export function ProxyHostDetail({
       setHealthHistory(updated.healthCheckEnabled ? (updated.healthHistory ?? []) : []);
       toast.success("Health check settings updated");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update health checks");
+      toastApiError(err, "Failed to update health checks");
     } finally {
       setIsSavingHealthCheck(false);
     }
@@ -747,7 +748,7 @@ export function ProxyHostDetail({
       setEditorErrorLines(lineNums);
       return false;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Validation failed");
+      toastApiError(err, "Validation failed");
       return false;
     }
   };
@@ -765,7 +766,7 @@ export function ProxyHostDetail({
       syncHostState(updated, { forceSections: ["advanced"] });
       toast.success("Advanced config saved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save advanced config");
+      toastApiError(err, "Failed to save advanced config");
     } finally {
       setIsSavingAdvanced(false);
     }
@@ -782,7 +783,7 @@ export function ProxyHostDetail({
       syncHostState(updated, { forceSections: ["raw"] });
       toast.success("Raw config saved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save raw config");
+      toastApiError(err, "Failed to save raw config");
     } finally {
       setIsSavingRaw(false);
     }
@@ -804,7 +805,7 @@ export function ProxyHostDetail({
           await api.deleteProxyHost(deletingHostId);
           return true;
         } catch (err) {
-          toast.error(err instanceof Error ? err.message : "Failed to delete route");
+          toastApiError(err, "Failed to delete route");
           return false;
         }
       }
@@ -837,7 +838,7 @@ export function ProxyHostDetail({
       toast.success(entering ? "Maintenance mode enabled" : "Maintenance mode disabled");
       if (!entering && updated.healthCheckEnabled) setHealthHistory([]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update maintenance mode");
+      toastApiError(err, "Failed to update maintenance mode");
     } finally {
       setIsMaintenanceToggling(false);
     }
@@ -850,7 +851,7 @@ export function ProxyHostDetail({
       const { code } = await api.createProxyMaintenanceAccessCode(host.id);
       setMaintenanceAccessCode(code);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create maintenance access code");
+      toastApiError(err, "Failed to create maintenance access code");
     } finally {
       setIsCreatingMaintenanceAccessCode(false);
     }
@@ -868,7 +869,7 @@ export function ProxyHostDetail({
       await loadHost(true);
       toast.success("TLS synchronization completed");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to synchronize TLS configuration");
+      toastApiError(err, "Failed to synchronize TLS configuration");
     } finally {
       setIsTlsResyncing(false);
     }
@@ -903,7 +904,7 @@ export function ProxyHostDetail({
         toast.success("Access list updated");
       } catch (err) {
         setAccessListId(host?.accessListId || "");
-        toast.error(err instanceof Error ? err.message : "Failed to update");
+        toastApiError(err, "Failed to update");
       }
     },
     [canEditProxyHost, host?.accessListId, id, syncHostState]

@@ -1,6 +1,5 @@
 import { Download, ExternalLink, ScrollText } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { AnsiText } from "@/components/ui/ansi-text";
@@ -55,7 +54,37 @@ function isTerminalLogError(message: string): boolean {
   return (
     lower.includes("no such container") ||
     lower.includes("not found") ||
-    lower.includes("access denied")
+    lower.includes("access denied") ||
+    /\b(forbidden|unauthori[sz]ed)\b/.test(lower)
+  );
+}
+
+/**
+ * How the Logs tab treats an error frame from the log stream. A stream error is never toasted:
+ * it describes the stream's state (node not connected, no containers yet), which the tab shows
+ * inline. "terminal" stops reconnecting; "retry" reconnects with a growing delay until the
+ * stream delivers logs again.
+ */
+export function classifyLogStreamError(
+  message: string,
+  type: "error" | "auth_error" = "error"
+): "terminal" | "retry" {
+  return type === "auth_error" || isTerminalLogError(message) ? "terminal" : "retry";
+}
+
+const LOG_RECONNECT_BASE_MS = 3000;
+const LOG_RECONNECT_MAX_MS = 30000;
+
+/** Delay before reconnect attempt `attempt` (0-based): 3 s, doubling up to 30 s. */
+export function logReconnectDelay(attempt: number): number {
+  return Math.min(LOG_RECONNECT_BASE_MS * 2 ** Math.max(0, attempt), LOG_RECONNECT_MAX_MS);
+}
+
+function LogStreamNotice({ message }: { message: string }) {
+  return (
+    <div className="shrink-0 border-b border-border px-4 py-2 font-mono text-xs text-muted-foreground">
+      {message}
+    </div>
   );
 }
 
@@ -131,6 +160,7 @@ function AggregatedLogsTab({
 }) {
   const [lines, setLines] = useState<AggregatedLogLine[]>([]);
   const [connecting, setConnecting] = useState(true);
+  const [sourceErrors, setSourceErrors] = useState<Record<string, string>>({});
   const sourcesRef = useRef(sources);
   sourcesRef.current = sources;
   const sourceIdentity = JSON.stringify(
@@ -146,6 +176,7 @@ function AggregatedLogsTab({
     let batchId = 0;
     setLines([]);
     setConnecting(true);
+    setSourceErrors({});
     let pending = sources.length;
     const ready = () => {
       pending -= 1;
@@ -166,6 +197,18 @@ function AggregatedLogsTab({
         if (initialized) return;
         initialized = true;
         ready();
+      };
+      const setSourceError = (message: string | null) => {
+        if (!active) return;
+        setSourceErrors((current) => {
+          if (message === null) {
+            if (!(source.channelId in current)) return current;
+            const { [source.channelId]: _cleared, ...rest } = current;
+            return rest;
+          }
+          if (current[source.channelId] === message) return current;
+          return { ...current, [source.channelId]: message };
+        });
       };
       const append = (incoming: unknown[], reconnectTail = false) => {
         if (!active || incoming.length === 0) return;
@@ -198,7 +241,9 @@ function AggregatedLogsTab({
           .getLogs({ tail: 500, timestamps: true })
           .then((result) => append(result ?? []))
           .catch((error) => {
-            if (active) toast.error(error instanceof Error ? error.message : "Log stream error");
+            setSourceError(
+              error instanceof Error && error.message ? error.message : "Log stream error"
+            );
           })
           .finally(readyOnce);
         continue;
@@ -206,12 +251,13 @@ function AggregatedLogsTab({
       let socket: WebSocket | null = null;
       let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
       let terminalError = false;
+      let reconnectAttempt = 0;
       const scheduleReconnect = () => {
         if (!active || terminalError || reconnectTimer !== null) return;
         reconnectTimer = setTimeout(() => {
           reconnectTimer = null;
           connect();
-        }, 3000);
+        }, logReconnectDelay(reconnectAttempt++));
       };
       const closeSocket = (ws: WebSocket) => {
         ws.onmessage = null;
@@ -226,8 +272,6 @@ function AggregatedLogsTab({
         readyOnce();
         scheduleReconnect();
       };
-      const terminalMessage = (message: string) =>
-        isTerminalLogError(message) || /\b(forbidden|unauthori[sz]ed)\b/i.test(message);
       const connect = () => {
         if (!active || terminalError) return;
         let ws: WebSocket;
@@ -235,8 +279,8 @@ function AggregatedLogsTab({
           ws = currentSource().createWebSocket(200);
         } catch (error) {
           const message = error instanceof Error ? error.message : "Log stream error";
-          terminalError = terminalMessage(message);
-          toast.error(message);
+          terminalError = classifyLogStreamError(message) === "terminal";
+          setSourceError(message);
           readyOnce();
           scheduleReconnect();
           return;
@@ -247,14 +291,18 @@ function AggregatedLogsTab({
           try {
             const message = JSON.parse(event.data);
             if (message.type === "initial" || message.type === "new") {
+              if (message.type === "initial") {
+                reconnectAttempt = 0;
+                setSourceError(null);
+              }
               append(message.lines ?? [], message.type === "initial");
               readyOnce();
             } else if (message.type === "logs_ended") {
               finishSocket(ws);
             } else if (message.type === "error" || message.type === "auth_error") {
               const detail = message.message || "Log stream error";
-              terminalError = message.type === "auth_error" || terminalMessage(detail);
-              toast.error(detail);
+              terminalError = classifyLogStreamError(detail, message.type) === "terminal";
+              setSourceError(detail);
               finishSocket(ws);
             }
           } catch {
@@ -294,6 +342,10 @@ function AggregatedLogsTab({
     URL.revokeObjectURL(url);
   };
 
+  const errorLines = sources
+    .filter((source) => sourceErrors[source.channelId])
+    .map((source) => `${source.title}: ${sourceErrors[source.channelId]}`);
+
   return (
     <PanelShell
       title="Container Logs"
@@ -311,6 +363,9 @@ function AggregatedLogsTab({
         </>
       }
     >
+      {lines.length > 0 && errorLines.length > 0 && (
+        <LogStreamNotice message={errorLines.join(" · ")} />
+      )}
       <DockerLogViewport
         lines={lines}
         keyFn={(line) => line.key}
@@ -321,8 +376,12 @@ function AggregatedLogsTab({
           </>
         )}
         emptyState={
-          <div className="px-4 font-mono text-xs text-muted-foreground">
-            {connecting ? "Connecting to serving instances..." : "No logs available"}
+          <div className="space-y-1 px-4 font-mono text-xs text-muted-foreground">
+            {connecting
+              ? "Connecting to serving instances..."
+              : errorLines.length > 0
+                ? errorLines.map((line) => <div key={line}>{line}</div>)
+                : "No logs available"}
           </div>
         }
         className="flex-1"
@@ -362,6 +421,8 @@ function SingleLogsTab(props: SingleLogsTabProps) {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
   const terminalErrorRef = useRef(false);
+  const reconnectAttemptRef = useRef(0);
+  const [streamError, setStreamError] = useState<string | null>(null);
 
   // ── Popout tracking via BroadcastChannel ──
   const [isPopout, setIsPopout] = useState(false);
@@ -469,6 +530,8 @@ function SingleLogsTab(props: SingleLogsTabProps) {
         setLines([]);
         setHistoryPrependVersion(0);
         setHasMore(true);
+        setStreamError(null);
+        reconnectAttemptRef.current = 0;
       }
       setLoadingMore(false);
       terminalErrorRef.current = false;
@@ -489,6 +552,8 @@ function SingleLogsTab(props: SingleLogsTabProps) {
             );
             setHasMore(msg.hasMore ?? false);
             setIsConnecting(false);
+            setStreamError(null);
+            reconnectAttemptRef.current = 0;
           } else if (msg.type === "history") {
             const historyLines = processLogs(msg.lines ?? []);
             setLines((prev) => {
@@ -514,8 +579,8 @@ function SingleLogsTab(props: SingleLogsTabProps) {
             ws.close(1012, "Log stream ended");
           } else if (msg.type === "error" || msg.type === "auth_error") {
             const message = msg.message || "Log stream error";
-            terminalErrorRef.current = msg.type === "auth_error" || isTerminalLogError(message);
-            toast.error(message);
+            terminalErrorRef.current = classifyLogStreamError(message, msg.type) === "terminal";
+            setStreamError(message);
             setWsConnected(false);
             setIsConnecting(false);
             if (terminalErrorRef.current) {
@@ -536,9 +601,12 @@ function SingleLogsTab(props: SingleLogsTabProps) {
         // Don't auto-reconnect if popout is active — the popout-closes effect handles it
         if (isPopoutRef.current) return;
         if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-        reconnectTimer.current = setTimeout(() => {
-          if (mountedRef.current && !isPopoutRef.current) connectWs();
-        }, 3000);
+        reconnectTimer.current = setTimeout(
+          () => {
+            if (mountedRef.current && !isPopoutRef.current) connectWs();
+          },
+          logReconnectDelay(reconnectAttemptRef.current++)
+        );
       };
 
       ws.onerror = () => {
@@ -561,8 +629,13 @@ function SingleLogsTab(props: SingleLogsTabProps) {
       if (!mountedRef.current || sourceRef.current.channelId !== requestedSource.channelId) return;
       setLines(capNewestLogs(processLogs(data ?? [])));
       setHasMore(false);
-    } catch {
-      /* */
+      setStreamError(null);
+    } catch (error) {
+      if (mountedRef.current && sourceRef.current.channelId === requestedSource.channelId) {
+        setStreamError(
+          error instanceof Error && error.message ? error.message : "Log stream error"
+        );
+      }
     }
     setIsConnecting(false);
   }, [processLogs]);
@@ -573,6 +646,8 @@ function SingleLogsTab(props: SingleLogsTabProps) {
     const channelId = source.channelId;
     mountedRef.current = true;
     setLines([]);
+    setStreamError(null);
+    reconnectAttemptRef.current = 0;
     setHistoryPrependVersion(0);
     setHasMore(true);
     setLoadingMore(false);
@@ -692,6 +767,7 @@ function SingleLogsTab(props: SingleLogsTabProps) {
         </>
       }
     >
+      {lines.length > 0 && streamError && <LogStreamNotice message={streamError} />}
       <DockerLogViewport
         lines={lines}
         keyFn={(_, i) => i}
@@ -703,7 +779,9 @@ function SingleLogsTab(props: SingleLogsTabProps) {
         className="flex-1 min-h-0 overflow-auto bg-card py-4"
         emptyState={
           <div className="px-4 font-mono text-xs text-foreground/80">
-            {isConnecting ? (
+            {streamError ? (
+              <span className="text-muted-foreground">{streamError}</span>
+            ) : isConnecting ? (
               <span className="text-muted-foreground">Connecting to log stream...</span>
             ) : (
               <div className="text-muted-foreground space-y-2">

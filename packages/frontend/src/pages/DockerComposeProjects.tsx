@@ -43,6 +43,7 @@ import { TruncateStart } from "@/components/ui/truncate-start";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
+import { toastApiError } from "@/lib/api-error-toast";
 import { NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { createClientUuid } from "@/lib/client-id";
 import { canAdoptComposeProject, hasComposeProjectScope } from "@/lib/compose-access";
@@ -266,7 +267,7 @@ export function DockerComposeProjects({
           return next;
         });
         if (!handleLicenseApiError(error, "Compose lifecycle"))
-          toast.error(error instanceof Error ? error.message : "Compose operation failed");
+          toastApiError(error, "Compose operation failed");
       }
     },
     [loadProjects]

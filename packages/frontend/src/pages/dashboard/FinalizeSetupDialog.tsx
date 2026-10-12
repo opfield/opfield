@@ -1,6 +1,5 @@
 import { ArrowRight, Bot, Check, Cloud, KeyRound, Server, Sparkles, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import { ChoiceCard } from "@/components/common/ChoiceCard";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toastApiError } from "@/lib/api-error-toast";
 import type { FinalizeSetupState, FinalizeSetupStep, FinalizeSetupStepStatus } from "@/types";
 
 export type FinalizeSetupRootStep =
@@ -150,7 +150,7 @@ export function FinalizeSetupDialog({
     try {
       await onSkipForNow();
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Failed to skip setup for now");
+      toastApiError(cause, "Failed to skip setup for now");
     } finally {
       setDismissing(false);
     }

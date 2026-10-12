@@ -2,6 +2,8 @@ import { useMemo } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { HubTabsProvider } from "@/components/common/HubTabs";
 import { PageTransition } from "@/components/common/PageTransition";
+import { LicenseFeatureBoundary } from "@/components/license/LicenseFeatureBoundary";
+import { usePkiAvailable } from "@/hooks/use-plan-gated-features";
 import {
   legacyNavigationRedirect,
   type NavigationHubId,
@@ -20,6 +22,13 @@ import { useAuthStore } from "@/stores/auth";
 import { useSystemConfigStore } from "@/stores/system-config";
 
 const NO_SCOPES: string[] = [];
+
+/** Page titles of the plan-gated tabs, kept when the plan notice replaces the tab body. */
+const PLAN_TAB_TITLES: Record<string, string> = {
+  authorities: "Certificate Authorities",
+  pki: "Certificates",
+  templates: "Templates",
+};
 
 function hasPkiListFilter(search: string): boolean {
   const params = new URLSearchParams(search);
@@ -69,15 +78,36 @@ export function NavigationHubPage({
   create?: boolean;
 }) {
   const scopes = useAuthStore((state) => state.user?.scopes ?? NO_SCOPES);
-  const pkiEnabled = useSystemConfigStore((state) => state.config.features.pkiEnabled);
+  const pkiSwitchedOn = useSystemConfigStore((state) => state.config.features.pkiEnabled);
+  const pkiEnabled = usePkiAvailable();
   const tabs = useMemo(
     () => visibleHubTabs(navigationHub(hubId), { scopes, pkiEnabled }),
     [hubId, pkiEnabled, scopes]
   );
   const active = tabs.find((candidate) => candidate.value === tab);
-  const value = useMemo(() => ({ tabs, active: tab }), [tab, tabs]);
+  // A page left with one tab shows no tab row.
+  const value = useMemo(() => (tabs.length > 1 ? { tabs, active: tab } : null), [tab, tabs]);
   const location = useLocation();
+  // A tab the plan does not include is hidden; its URL keeps the page header and shows the plan notice.
+  const planHidden =
+    !active &&
+    pkiSwitchedOn &&
+    !pkiEnabled &&
+    visibleHubTabs(navigationHub(hubId), { scopes, pkiEnabled: true }).some(
+      (candidate) => candidate.value === tab
+    );
 
+  if (planHidden) {
+    return (
+      <LicenseFeatureBoundary
+        feature="internal-pki"
+        capability="Internal PKI"
+        frame={{ kind: "page", title: PLAN_TAB_TITLES[tab] ?? "Certificates" }}
+      >
+        {null}
+      </LicenseFeatureBoundary>
+    );
+  }
   if (tabs.length === 0) return <Navigate to="/" replace />;
   // /certificates was the PKI certificate list; its filter links (?ca=, ?status=) still open that list.
   if (hubId === "certificates" && tab === "ssl" && hasPkiListFilter(location.search)) {
@@ -112,7 +142,7 @@ function HubTabBody({
 export function LegacyNavigationRedirect() {
   const location = useLocation();
   const scopes = useAuthStore((state) => state.user?.scopes ?? NO_SCOPES);
-  const pkiEnabled = useSystemConfigStore((state) => state.config.features.pkiEnabled);
+  const pkiEnabled = usePkiAvailable();
   const target = legacyNavigationRedirect(location, { scopes, pkiEnabled }) ?? "/";
   return <Navigate to={target} replace state={location.state} />;
 }

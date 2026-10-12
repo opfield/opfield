@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { toastApiError } from "@/lib/api-error-toast";
 import { formatDateTime } from "@/lib/utils";
 import { api } from "@/services/api";
 import type {
@@ -152,7 +153,7 @@ export function InferenceProviderDialog({
       onOpenChange(false);
       toast.success("Provider settings updated");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update provider");
+      toastApiError(error, "Failed to update provider");
     } finally {
       setSaving(false);
     }
@@ -174,7 +175,7 @@ export function InferenceProviderDialog({
         toast.success("Provider synchronized");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Provider sync failed");
+      toastApiError(error, "Provider sync failed");
     } finally {
       setSyncing(false);
     }
@@ -194,7 +195,7 @@ export function InferenceProviderDialog({
       await onChanged();
       toast.success("Provider disconnected");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to disconnect provider");
+      toastApiError(error, "Failed to disconnect provider");
     } finally {
       setDisconnecting(false);
     }

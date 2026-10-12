@@ -25,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toastApiError } from "@/lib/api-error-toast";
 import { storageRoute } from "@/lib/resource-routes";
 import { canCreateInFolder } from "@/lib/scope-utils";
 import { api } from "@/services/api";
@@ -101,7 +102,7 @@ export function StorageConnectionCreateDialog({
       if (onCreated) onCreated(created);
       else navigate(storageRoute(created.slug, "overview"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create storage connection");
+      toastApiError(error, "Failed to create storage connection");
     } finally {
       setSaving(false);
     }

@@ -1,6 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type {
   DatabaseConnection,
@@ -100,7 +101,7 @@ export function useSqlExplorer(database: DatabaseConnection, canAdmin: boolean) 
       })
       .catch((error) => {
         if (!cancelled) {
-          toast.error(error instanceof Error ? error.message : "Failed to load schemas");
+          toastApiError(error, "Failed to load schemas");
         }
       })
       .finally(() => {
@@ -128,7 +129,7 @@ export function useSqlExplorer(database: DatabaseConnection, canAdmin: boolean) 
       })
       .catch((error) => {
         if (!cancelled) {
-          toast.error(error instanceof Error ? error.message : "Failed to load tables");
+          toastApiError(error, "Failed to load tables");
         }
       })
       .finally(() => {
@@ -181,7 +182,7 @@ export function useSqlExplorer(database: DatabaseConnection, canAdmin: boolean) 
         }
       } catch (error) {
         if (rowRequestRef.current !== requestId) return;
-        toast.error(error instanceof Error ? error.message : "Failed to load rows");
+        toastApiError(error, "Failed to load rows");
         if (!append) resetRows();
       } finally {
         if (!append && rowRequestRef.current === requestId) setLoadingRows(false);
@@ -348,7 +349,7 @@ export function useSqlExplorer(database: DatabaseConnection, canAdmin: boolean) 
       toast.success("Table changes saved");
       await loadRows();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save table changes");
+      toastApiError(error, "Failed to save table changes");
     } finally {
       setSaving(false);
     }
@@ -388,7 +389,7 @@ export function useSqlExplorer(database: DatabaseConnection, canAdmin: boolean) 
       toast.success("Row deleted");
       await loadRows();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete row");
+      toastApiError(error, "Failed to delete row");
     }
   };
   return {

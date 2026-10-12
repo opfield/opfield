@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { DatabaseConnection } from "@/types";
 
@@ -58,9 +59,7 @@ export function ClickHouseConfigDialog({
       onOpenChange(false);
       onSaved();
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to update ClickHouse configuration"
-      );
+      toastApiError(error, "Failed to update ClickHouse configuration");
     } finally {
       setSaving(false);
     }

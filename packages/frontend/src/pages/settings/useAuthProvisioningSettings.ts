@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { useAppStatusStore } from "@/stores/app-status";
 import { handleLicenseApiError } from "@/stores/license-paywall";
@@ -368,7 +369,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       setSiemEnabled(settingsData.generalSettings.features?.siemEnabled ?? true);
       setInferenceEnabled(settingsData.generalSettings.features?.inferenceEnabled ?? false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load Opfield settings");
+      toastApiError(err, "Failed to load Opfield settings");
     } finally {
       setInitialLoadComplete(true);
     }
@@ -414,7 +415,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       }
     } catch (err) {
       setSettings(previous);
-      toast.error(err instanceof Error ? err.message : "Failed to update Opfield settings");
+      toastApiError(err, "Failed to update Opfield settings");
     } finally {
       setIsSavingAutoCreate(false);
     }
@@ -431,7 +432,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       toast.success("Default OIDC group updated");
     } catch (err) {
       setSettings(previous);
-      toast.error(err instanceof Error ? err.message : "Failed to update default OIDC group");
+      toastApiError(err, "Failed to update default OIDC group");
     } finally {
       setIsSavingGroup(false);
     }
@@ -450,9 +451,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       toast.success("OIDC email verification setting updated");
     } catch (err) {
       setSettings(previous);
-      toast.error(
-        err instanceof Error ? err.message : "Failed to update OIDC email verification setting"
-      );
+      toastApiError(err, "Failed to update OIDC email verification setting");
     } finally {
       setIsSavingVerifiedEmail(false);
     }
@@ -474,7 +473,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
           );
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update internal HTTPS");
+      toastApiError(err, "Failed to update internal HTTPS");
     } finally {
       setIsSavingWebTls(false);
     }
@@ -498,7 +497,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       setOidcDraft((current) => ({ ...current, clientSecret: "" }));
       toast.success("OIDC provider updated");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update OIDC provider");
+      toastApiError(err, "Failed to update OIDC provider");
     } finally {
       setIsSavingOidc(false);
     }
@@ -533,7 +532,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       );
     } catch (err) {
       if (!handleLicenseApiError(err, "Structured logging")) {
-        toast.error(err instanceof Error ? err.message : "Failed to update structured logging");
+        toastApiError(err, "Failed to update structured logging");
       }
     } finally {
       setIsSavingLogging(false);
@@ -604,7 +603,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
           ? "SIEM audit export"
           : "Opfield settings";
       if (!handleLicenseApiError(err, capability)) {
-        toast.error(err instanceof Error ? err.message : "Failed to update Opfield settings");
+        toastApiError(err, "Failed to update Opfield settings");
       }
     } finally {
       setIsSavingGeneral(false);
@@ -749,7 +748,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       toast.success("MCP server setting updated");
     } catch (err) {
       setSettings(previous);
-      toast.error(err instanceof Error ? err.message : "Failed to update MCP server setting");
+      toastApiError(err, "Failed to update MCP server setting");
     } finally {
       setIsSavingMcp(false);
     }
@@ -768,7 +767,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       toast.success("MCP compatibility setting updated");
     } catch (err) {
       setSettings(previous);
-      toast.error(err instanceof Error ? err.message : "Failed to update MCP compatibility");
+      toastApiError(err, "Failed to update MCP compatibility");
     } finally {
       setIsSavingMcpCompatibility(false);
     }
@@ -799,9 +798,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       toast.success("OAuth compatibility setting updated");
     } catch (err) {
       setSettings(previous);
-      toast.error(
-        err instanceof Error ? err.message : "Failed to update OAuth compatibility setting"
-      );
+      toastApiError(err, "Failed to update OAuth compatibility setting");
     } finally {
       setIsSavingOAuthCompatibility(false);
     }
@@ -827,7 +824,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
     } catch (err) {
       setSettings(previous);
       setTrustedProxyCidrs(previous.networkSecurity.trustedProxyCidrs.join(", "));
-      toast.error(err instanceof Error ? err.message : "Failed to update network settings");
+      toastApiError(err, "Failed to update network settings");
     } finally {
       setIsSavingNetwork(false);
     }
@@ -861,7 +858,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
     } catch (err) {
       setSettings(previous);
       setWebhookPrivateCidrs(previous.outboundWebhookPolicy.allowedPrivateCidrs.join(", "));
-      toast.error(err instanceof Error ? err.message : "Failed to update outbound webhook policy");
+      toastApiError(err, "Failed to update outbound webhook policy");
     } finally {
       setIsSavingWebhookPolicy(false);
     }
@@ -889,7 +886,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       toast.success(successMessage);
       return true;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update authentication settings");
+      toastApiError(err, "Failed to update authentication settings");
       return false;
     } finally {
       setIsSavingLocalAuth(false);
@@ -921,7 +918,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       setMfaGracePeriodInputKey((key) => key + 1);
       toast.success("MFA grace period updated");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update MFA grace period");
+      toastApiError(err, "Failed to update MFA grace period");
     } finally {
       setIsSavingMfaGracePeriod(false);
     }

@@ -1,7 +1,9 @@
+import { useMemo } from "react";
 import { create } from "zustand";
 import { ApiRequestError } from "@/services/api-base";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import type { LicensePlan } from "@/types";
+import type { UIBootstrapShell } from "@/types/ui-bootstrap";
 
 export const LICENSE_FEATURE_PLANS = {
   "storage-connections": "personal",
@@ -77,8 +79,21 @@ const PRE_V5_PERSONAL_CAPABILITIES = new Set<LicenseFeature>([
   "ai-sandboxes",
 ]);
 
+type LicenseSnapshot =
+  | Partial<Pick<UIBootstrapShell, "license" | "commercialModule">>
+  | null
+  | undefined;
+
 export function hasLicenseFeature(feature: LicenseFeature): boolean | null {
-  const license = useUIBootstrapStore.getState().snapshot?.license;
+  return snapshotHasLicenseFeature(useUIBootstrapStore.getState().snapshot, feature);
+}
+
+/** Whether the license in a bootstrap snapshot grants a feature; null while unknown. */
+export function snapshotHasLicenseFeature(
+  snapshot: LicenseSnapshot,
+  feature: LicenseFeature
+): boolean | null {
+  const license = snapshot?.license;
   if (!license) return null;
   if (
     license.entitlements.features.includes(
@@ -90,6 +105,54 @@ export function hasLicenseFeature(feature: LicenseFeature): boolean | null {
     license.entitlementsVersion < 5 &&
     PRE_V5_PERSONAL_CAPABILITIES.has(feature) &&
     license.entitlements.features.includes("managed-databases")
+  );
+}
+
+/**
+ * Whether this installation can serve a paid screen: the plan grants it and the
+ * commercial module is ready. Unknown state counts as available.
+ */
+export function canServeLicenseFeature(
+  snapshot: LicenseSnapshot,
+  feature: LicenseFeature
+): boolean {
+  const moduleReady = !snapshot?.commercialModule || snapshot.commercialModule === "ready";
+  return moduleReady && snapshotHasLicenseFeature(snapshot, feature) !== false;
+}
+
+/** {@link canServeLicenseFeature} for the current bootstrap snapshot, outside React. */
+export function planIncludes(feature: LicenseFeature): boolean {
+  return canServeLicenseFeature(useUIBootstrapStore.getState().snapshot, feature);
+}
+
+/** Navigation items backed by one paid feature. */
+const LICENSED_NAVIGATION_ITEMS = {
+  pages: "pages",
+  storage: "storage-connections",
+  databases: "external-database-connections",
+} as const satisfies Record<string, LicenseFeature>;
+
+/** Navigation items the current plan does not grant, for `unlicensedItems`. */
+export function unlicensedNavigationItems(
+  snapshot: LicenseSnapshot
+): (keyof typeof LICENSED_NAVIGATION_ITEMS)[] {
+  return (
+    Object.entries(LICENSED_NAVIGATION_ITEMS) as [
+      keyof typeof LICENSED_NAVIGATION_ITEMS,
+      LicenseFeature,
+    ][]
+  )
+    .filter(([, feature]) => !canServeLicenseFeature(snapshot, feature))
+    .map(([item]) => item);
+}
+
+/** `unlicensedItems` for navigation, from the current bootstrap snapshot. */
+export function useUnlicensedNavigationItems() {
+  const license = useUIBootstrapStore((state) => state.snapshot?.license);
+  const commercialModule = useUIBootstrapStore((state) => state.snapshot?.commercialModule);
+  return useMemo(
+    () => unlicensedNavigationItems({ license, commercialModule }),
+    [license, commercialModule]
   );
 }
 

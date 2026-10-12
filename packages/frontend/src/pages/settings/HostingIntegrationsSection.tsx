@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useScrollToNavigationTarget } from "@/hooks/use-scroll-to-navigation-target";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
+import { toastApiError } from "@/lib/api-error-toast";
 import { createReturnNavigationState } from "@/lib/return-navigation";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
@@ -107,7 +108,7 @@ export function HostingIntegrationsSection({
       toast.success(`${connector.name} connection test passed`);
       void loadConnectors();
     } catch (error) {
-      toast.error(errorMessage(error, "Hosting connection test failed."));
+      toastApiError(error, "Hosting connection test failed.");
     } finally {
       setTestingId(null);
     }
@@ -120,7 +121,7 @@ export function HostingIntegrationsSection({
       toast.success(`${connector.name} resources synced`);
       void loadConnectors();
     } catch (error) {
-      toast.error(errorMessage(error, "Hosting resource sync failed."));
+      toastApiError(error, "Hosting resource sync failed.");
     } finally {
       setSyncingId(null);
     }
@@ -140,7 +141,7 @@ export function HostingIntegrationsSection({
       toast.success("Hosting connector deleted");
       void loadConnectors();
     } catch (error) {
-      toast.error(errorMessage(error, "Failed to delete hosting connector."));
+      toastApiError(error, "Failed to delete hosting connector.");
     } finally {
       setDeletingId(null);
     }

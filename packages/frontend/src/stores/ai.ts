@@ -1,5 +1,5 @@
-import { toast } from "sonner";
 import { create } from "zustand";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   createConversationFolder,
   deleteConversation,
@@ -468,7 +468,7 @@ export const useAIStore = create<AIState>()((set, get) => ({
     } catch (error) {
       cancelledPlanTombstones.delete(activeConversationId);
       pendingPlanCancellationCommands.delete(clientCommandId);
-      toast.error(error instanceof Error ? error.message : "Failed to cancel plan");
+      toastApiError(error, "Failed to cancel plan");
       return;
     }
     set((state) => ({
@@ -802,7 +802,7 @@ export const useAIStore = create<AIState>()((set, get) => ({
       set({ pendingSetupInteraction: null });
     } catch (error) {
       pendingSetupCommands.delete(clientCommandId);
-      toast.error(error instanceof Error ? error.message : "Failed to continue setup");
+      toastApiError(error, "Failed to continue setup");
     }
   },
 

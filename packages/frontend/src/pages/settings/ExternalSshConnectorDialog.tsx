@@ -1,7 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, KeyRound, Plus, Server, ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { AnimatedHeight } from "@/components/common/AnimatedHeight";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { CopyValueField } from "@/components/common/CopyValueField";
@@ -24,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { ExternalSshConnector, ExternalSshConnectorRequest } from "@/types/integrations";
 
@@ -137,7 +137,7 @@ export function ExternalSshConnectorDialog({
       })
       .catch((error) => {
         if (isCancelled(error)) return;
-        toast.error(error instanceof Error ? error.message : "Failed to load SSH connectors");
+        toastApiError(error, "Failed to load SSH connectors");
         setConnectorsLoaded(true);
       });
     return () => controller.abort();
@@ -208,7 +208,7 @@ export function ExternalSshConnectorDialog({
       }
     } catch (error) {
       if (!isCancelled(error)) {
-        toast.error(error instanceof Error ? error.message : "Failed to read SSH host key");
+        toastApiError(error, "Failed to read SSH host key");
       }
     } finally {
       finishOperation(controller);
@@ -290,7 +290,7 @@ export function ExternalSshConnectorDialog({
       }
     } catch (error) {
       if (!isCancelled(error)) {
-        toast.error(error instanceof Error ? error.message : "Failed to create jump connector");
+        toastApiError(error, "Failed to create jump connector");
       }
     } finally {
       finishOperation(controller);
@@ -326,7 +326,7 @@ export function ExternalSshConnectorDialog({
       }
     } catch (error) {
       if (!isCancelled(error)) {
-        toast.error(error instanceof Error ? error.message : "Failed to create SSH connector");
+        toastApiError(error, "Failed to create SSH connector");
       }
     } finally {
       finishOperation(controller);

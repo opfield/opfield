@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { IngressGroup, Node } from "@/types";
 import { ingressGroupCandidateNodes } from "./IngressGroupDialog";
@@ -78,7 +79,7 @@ export function AddIngressGroupMemberDialog({
       onAdded?.(updated);
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to add the member");
+      toastApiError(error, "Failed to add the member");
     } finally {
       setSaving(false);
     }

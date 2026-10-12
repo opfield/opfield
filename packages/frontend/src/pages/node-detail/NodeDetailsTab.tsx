@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { isDevForceUpdatesEnabled } from "@/lib/dev-force-updates";
 import { nodeTypeLabel } from "@/lib/node-appearance";
 import {
@@ -366,7 +367,7 @@ export function NodeDetailsTab({
     try {
       result = await api.triggerDaemonUpdate(node.id);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to trigger update");
+      toastApiError(err, "Failed to trigger update");
       setIsUpdating(false);
       return;
     }
@@ -406,7 +407,7 @@ export function NodeDetailsTab({
         try {
           await api.triggerDaemonUpdate(node.id, { now: true });
         } catch (err) {
-          toast.error(err instanceof Error ? err.message : "Failed to update now");
+          toastApiError(err, "Failed to update now");
           throw err;
         }
         toast.success("Daemon update starts now");
@@ -429,7 +430,7 @@ export function NodeDetailsTab({
       await refreshNode();
     } catch (err) {
       if (!handleLicenseApiError(err, "Secure Runtime setup")) {
-        toast.error(err instanceof Error ? err.message : "Secure runtime setup failed");
+        toastApiError(err, "Secure runtime setup failed");
       }
     } finally {
       setRuntimeAction(null);

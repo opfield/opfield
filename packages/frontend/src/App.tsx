@@ -15,7 +15,12 @@ import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { RequireScope } from "@/components/common/RequireScope";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
+import {
+  LicenseFeatureBoundary,
+  type LicenseFeatureFrame,
+} from "@/components/license/LicenseFeatureBoundary";
 import { Button } from "@/components/ui/button";
+import { usePkiAvailable, useSiemAvailable } from "@/hooks/use-plan-gated-features";
 import { hasDashboardContent } from "@/lib/app-navigation";
 import { getLoginRedirectUrl } from "@/lib/auth-return-to";
 import { hasCreationDestination } from "@/lib/creation-folders";
@@ -96,7 +101,7 @@ import {
 import { accessContextKey, useAuthStore } from "@/stores/auth";
 import { useDashboardBootstrapStore } from "@/stores/dashboard-bootstrap";
 import { useDockerStore } from "@/stores/docker";
-import { requireLicenseFeature } from "@/stores/license-paywall";
+import { canServeLicenseFeature } from "@/stores/license-paywall";
 import { usePinnedContainersStore } from "@/stores/pinned-containers";
 import { useResolvedPageRoute } from "@/stores/resolved-page-context";
 import { useSystemConfigStore } from "@/stores/system-config";
@@ -177,10 +182,12 @@ function DashboardPageGuard() {
   const features = useSystemConfigStore((state) => state.config.features);
   const uiBootstrap = useUIBootstrapStore((state) => state.snapshot);
   const dashboardBootstrap = useDashboardBootstrapStore((state) => state.snapshot);
+  const pkiAvailable = usePkiAvailable();
+  const siemAvailable = useSiemAvailable();
   const canAccess = hasDashboardContent({
     scopes,
-    pkiEnabled: features.pkiEnabled,
-    siemEnabled: features.siemEnabled,
+    pkiEnabled: pkiAvailable,
+    siemEnabled: siemAvailable,
     loggingEnabled: features.loggingEnabled,
     inferenceEnabled: features.inferenceEnabled,
     hasLowInferenceUsage: hasLowInferenceUsage(dashboardBootstrap?.inferenceUsage ?? null),
@@ -492,14 +499,13 @@ function ProxyHostDetailGuard() {
   );
 }
 
+const PAGES_FRAME: LicenseFeatureFrame = { kind: "page", title: "Pages" };
+
 function PagesPageGuard() {
   const hasScope = useAuthStore((state) => state.hasScope);
   const hasScopedAccess = useAuthStore((state) => state.hasScopedAccess);
   const license = useUIBootstrapStore((state) => state.snapshot?.license);
   const entitled = license ? license.entitlements.features.includes("pages") : null;
-  useEffect(() => {
-    if (entitled === false) requireLicenseFeature("pages", "Pages");
-  }, [entitled]);
   if (
     !hasScopedAccess("pages:view") &&
     !hasScopedAccess("pages:create") &&
@@ -508,8 +514,11 @@ function PagesPageGuard() {
     return <Navigate to="/" replace />;
   }
   if (entitled === null) return null;
-  if (!entitled) return <Navigate to="/" replace />;
-  return <Pages />;
+  return (
+    <LicenseFeatureBoundary feature="pages" capability="Pages" frame={PAGES_FRAME}>
+      <Pages />
+    </LicenseFeatureBoundary>
+  );
 }
 
 function PageProjectDetailGuard() {
@@ -528,12 +537,15 @@ function PageProjectDetailGuard() {
       label: project.name,
     })
   );
-  useEffect(() => {
-    if (entitled === false) requireLicenseFeature("pages", "Pages");
-  }, [entitled]);
   if (!canAccess) return <Navigate to="/" replace />;
   if (entitled === null) return null;
-  if (!entitled) return <Navigate to="/" replace />;
+  if (!entitled) {
+    return (
+      <LicenseFeatureBoundary feature="pages" capability="Pages" frame={PAGES_FRAME}>
+        {null}
+      </LicenseFeatureBoundary>
+    );
+  }
   if (resolved.loading) return <DetailRouteLoading />;
   if (resolved.error) return <DetailRouteFailure error={resolved.error} fallbackPath="/pages" />;
   if (!resolved.data) return <Navigate to="/pages" replace />;
@@ -551,10 +563,12 @@ function CADetailGuard() {
   const { id } = useParams<{ id: string }>();
   const hasScope = useAuthStore((s) => s.hasScope);
   const pkiEnabled = useSystemConfigStore((s) => s.config.features.pkiEnabled);
+  const pkiAvailable = usePkiAvailable();
 
   if (!pkiEnabled || !id || !hasScope(`pki:ca:view:${id}`)) {
     return <Navigate to="/" replace />;
   }
+  if (!pkiAvailable) return <PkiPlanNotice title="Certificate Authorities" />;
 
   return <CADetail />;
 }
@@ -563,12 +577,27 @@ function CertificateDetailGuard() {
   const { id } = useParams<{ id: string }>();
   const hasScope = useAuthStore((s) => s.hasScope);
   const pkiEnabled = useSystemConfigStore((s) => s.config.features.pkiEnabled);
+  const pkiAvailable = usePkiAvailable();
 
   if (!pkiEnabled || (!hasScope("pki:cert:view") && !(id && hasScope(`pki:cert:view:${id}`)))) {
     return <Navigate to="/" replace />;
   }
+  if (!pkiAvailable) return <PkiPlanNotice title="Certificates" />;
 
   return <CertificateDetail />;
+}
+
+/** A PKI page the plan does not include: its header and the plan notice, no requests. */
+function PkiPlanNotice({ title }: { title: string }) {
+  return (
+    <LicenseFeatureBoundary
+      feature="internal-pki"
+      capability="Internal PKI"
+      frame={{ kind: "page", title }}
+    >
+      {null}
+    </LicenseFeatureBoundary>
+  );
 }
 
 function NginxTemplateEditGuard() {
@@ -682,8 +711,12 @@ function DatabasesPageGuard() {
 function DatabaseDetailGuard() {
   const { databaseSlug } = useParams<{ databaseSlug: string }>();
   const canAccess = useAuthStore((s) => s.hasScopedAccess("databases:view"));
+  // A plan without database connections shows the plan notice instead of resolving the slug.
+  const servable = useUIBootstrapStore((s) =>
+    canServeLicenseFeature(s.snapshot, "external-database-connections")
+  );
   const resolved = useResolvedPageRoute(
-    canAccess && databaseSlug ? databaseRoute(databaseSlug) : undefined,
+    canAccess && servable && databaseSlug ? databaseRoute(databaseSlug) : undefined,
     () => api.getDatabaseBySlug(databaseSlug!),
     (database) => ({
       resourceType: "database",
@@ -693,6 +726,7 @@ function DatabaseDetailGuard() {
   );
 
   if (!canAccess) return <Navigate to="/" replace />;
+  if (!servable) return <DatabaseDetail />;
   if (resolved.loading) return <DetailRouteLoading />;
   if (resolved.error) {
     return <DetailRouteFailure error={resolved.error} fallbackPath="/databases" />;
@@ -725,8 +759,12 @@ function StoragePageGuard() {
 function StorageDetailGuard() {
   const { storageSlug } = useParams<{ storageSlug: string }>();
   const canAccess = useAuthStore((s) => s.hasScopedAccess("storage:view"));
+  // A plan without storage connections shows the plan notice instead of resolving the slug.
+  const servable = useUIBootstrapStore((s) =>
+    canServeLicenseFeature(s.snapshot, "storage-connections")
+  );
   const resolved = useResolvedPageRoute(
-    canAccess && storageSlug ? storageRoute(storageSlug) : undefined,
+    canAccess && servable && storageSlug ? storageRoute(storageSlug) : undefined,
     () => api.getObjectStorageBySlug(storageSlug!),
     (database) => ({
       resourceType: "storage",
@@ -736,6 +774,7 @@ function StorageDetailGuard() {
   );
 
   if (!canAccess) return <Navigate to="/" replace />;
+  if (!servable) return <StorageDetail />;
   if (resolved.loading) return <DetailRouteLoading />;
   if (resolved.error) {
     return <DetailRouteFailure error={resolved.error} fallbackPath="/storage" />;

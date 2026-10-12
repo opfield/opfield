@@ -71,6 +71,8 @@ export interface AppNavigationVisibility {
   hasNginxNodes?: boolean;
   hasCloudflareIntegration?: boolean;
   hasDockerNodes?: boolean;
+  /** Items the current license plan does not grant; hidden from navigation. */
+  unlicensedItems?: readonly AppNavigationItemId[];
 }
 
 export const APP_NAVIGATION_GROUPS: readonly AppNavigationGroup[] = [
@@ -294,6 +296,7 @@ export function canAccessNavigationItem(
   context: AppNavigationVisibility
 ): boolean {
   const { scopes } = context;
+  if (context.unlicensedItems?.includes(item.id)) return false;
   switch (item.id) {
     case "dashboard":
       return hasDashboardContent(context);

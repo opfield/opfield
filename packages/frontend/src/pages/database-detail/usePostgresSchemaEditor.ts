@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { DatabaseConnection, SqlTableMetadata } from "@/types";
 import {
@@ -114,7 +115,7 @@ export function usePostgresSchemaEditor(input: {
       setDeletedColumnNames([]);
       await input.reloadRows(1, false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update columns");
+      toastApiError(error, "Failed to update columns");
     } finally {
       setChangingColumn(null);
     }

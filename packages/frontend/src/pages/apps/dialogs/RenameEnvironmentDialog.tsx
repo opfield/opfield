@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { AppDetail, AppEnvironmentDetail } from "@/types";
 import { AppNameDialog } from "./AppNameDialog";
@@ -31,7 +32,7 @@ export function RenameEnvironmentDialog({
           toast.success(`Environment renamed to ${next.name}`);
           onRenamed(next);
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : "Failed to rename the environment");
+          toastApiError(error, "Failed to rename the environment");
           throw error;
         }
       }}

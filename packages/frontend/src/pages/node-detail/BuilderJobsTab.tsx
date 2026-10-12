@@ -1,8 +1,8 @@
 import { Hammer } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { PanelShell } from "@/components/common/PanelShell";
 import { useRealtime } from "@/hooks/use-realtime";
+import { pickerLoadError } from "@/lib/picker-load-error";
 import { api } from "@/services/api";
 import type { DockerBuild } from "@/types";
 import { DockerBuildDetailsDialog } from "../docker-detail/DockerBuildDetailsDialog";
@@ -14,6 +14,7 @@ export function BuilderJobsTab({ nodeId }: { nodeId: string }) {
   const [rows, setRows] = useState<DockerBuild[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<DockerBuild | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const requestId = useRef(0);
@@ -34,9 +35,11 @@ export function BuilderJobsTab({ nodeId }: { nodeId: string }) {
         if (currentRequest !== requestId.current) return;
         setRows((current) => (replace ? page.data : [...current, ...page.data]));
         setNextCursor(page.nextCursor);
+        setLoadError(null);
       } catch (error) {
+        // Shown in the table: opening the tab or scrolling is not an action to toast about.
         if (currentRequest === requestId.current) {
-          toast.error(error instanceof Error ? error.message : "Failed to load Build Worker jobs");
+          setLoadError(pickerLoadError(error, "Build Worker jobs"));
         }
       } finally {
         if (currentRequest === requestId.current) {
@@ -138,7 +141,7 @@ export function BuilderJobsTab({ nodeId }: { nodeId: string }) {
           className="h-fit w-full max-h-full [&_[data-route-scroll-container]]:flex-1"
           scrollRef={tableScrollRef}
           sentinelRef={sentinelRef}
-          emptyMessage="No jobs have been assigned to this Build Worker."
+          emptyMessage={loadError ?? "No jobs have been assigned to this Build Worker."}
         />
       </PanelShell>
 

@@ -20,6 +20,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
+import { toastApiError } from "@/lib/api-error-toast";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -54,7 +55,7 @@ export function ExternalSshIntegrationsSection() {
       api.setCache(CACHE_KEY, data);
       setConnectors(data);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load SSH connectors");
+      toastApiError(error, "Failed to load SSH connectors");
     } finally {
       setInitialLoadComplete(true);
     }
@@ -74,7 +75,7 @@ export function ExternalSshIntegrationsSection() {
       await api.testExternalSshConnector(connector.id);
       toast.success(`SSH connection to ${connector.name} passed`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "SSH connection test failed");
+      toastApiError(error, "SSH connection test failed");
     } finally {
       setTestingId(null);
     }
@@ -93,7 +94,7 @@ export function ExternalSshIntegrationsSection() {
       toast.success("SSH connector deleted");
       await refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete SSH connector");
+      toastApiError(error, "Failed to delete SSH connector");
     } finally {
       setDeletingId(null);
     }
@@ -106,7 +107,7 @@ export function ExternalSshIntegrationsSection() {
       toast.success(`SSH connector ${connector.name} synchronized`);
       await refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "SSH connector sync failed");
+      toastApiError(error, "SSH connector sync failed");
     } finally {
       setSyncingId(null);
     }
@@ -126,7 +127,7 @@ export function ExternalSshIntegrationsSection() {
       setEditingConnector(null);
       await refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save SSH connector");
+      toastApiError(error, "Failed to save SSH connector");
     } finally {
       setSavingEdit(false);
     }

@@ -16,6 +16,7 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { formatBytes } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
+import { planIncludes } from "@/stores/license-paywall";
 import type {
   ManagedDatabaseBinding,
   ManagedDatabaseBindingRuntime,
@@ -520,6 +521,11 @@ export function WorkloadLinkRuntime({
 
   const loadDatabases = useCallback(async () => {
     if (!listsDatabases) return;
+    if (!planIncludes("external-database-connections")) {
+      setListedDatabaseLinks([]);
+      setDatabasesLoading(false);
+      return;
+    }
     const current = ++databaseLoadRef.current;
     try {
       const databases = await api.listManagedDatabases();
@@ -550,7 +556,7 @@ export function WorkloadLinkRuntime({
 
   const loadStorage = useCallback(async () => {
     const current = ++storageLoadRef.current;
-    if (!storageTarget || !canViewStorage) {
+    if (!storageTarget || !canViewStorage || !planIncludes("managed-storage")) {
       setStorageLinks([]);
       setStorageLoading(false);
       return;

@@ -27,6 +27,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
@@ -214,7 +215,7 @@ export function StatusPageSection({ nodesList }: StatusPageSectionProps) {
       toast.success("Status page settings updated");
     } catch (err) {
       if (!handleLicenseApiError(err, "Status Page")) {
-        toast.error(err instanceof Error ? err.message : "Failed to update status page");
+        toastApiError(err, "Failed to update status page");
       }
       loadStatusPage();
     } finally {
@@ -531,7 +532,7 @@ export function ServiceDialog({
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save service");
+      toastApiError(err, "Failed to save service");
     } finally {
       setSaving(false);
     }
@@ -683,7 +684,7 @@ export function IncidentDialog({
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save incident");
+      toastApiError(err, "Failed to save incident");
     } finally {
       setSaving(false);
     }

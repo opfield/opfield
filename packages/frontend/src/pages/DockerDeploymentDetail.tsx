@@ -35,6 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   isDockerMigrationOwnedByTab,
   resolveMigrationTarget,
@@ -405,7 +406,7 @@ export function DockerDeploymentDetail({
         if (migrationHandoff) toast.error("Failed to load deployment");
         else if (deploymentRef.current) scheduleRemovalFallback("failed");
         else {
-          toast.error(err instanceof Error ? err.message : "Failed to load deployment");
+          toastApiError(err, "Failed to load deployment");
           navigate(backTarget);
         }
       } finally {
@@ -964,7 +965,7 @@ export function DockerDeploymentDetail({
       await load();
     } catch (err) {
       if (!handleLicenseApiError(err, "Secure Runtime")) {
-        toast.error(err instanceof Error ? err.message : "Deployment action failed");
+        toastApiError(err, "Deployment action failed");
       }
       await load().catch(() => {
         if (transition) {

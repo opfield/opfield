@@ -68,6 +68,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -270,7 +271,7 @@ export function StatusPage() {
       setIncidents(visibleIncidents);
       setHasMoreIncidents(incidentRows.length > INCIDENT_PAGE_SIZE);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load status page");
+      toastApiError(err, "Failed to load status page");
     } finally {
       setLoading(false);
     }
@@ -294,7 +295,7 @@ export function StatusPage() {
       });
       setHasMoreIncidents(incidentRows.length > INCIDENT_PAGE_SIZE);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load more incidents");
+      toastApiError(error, "Failed to load more incidents");
     } finally {
       setLoadingMoreIncidents(false);
     }
@@ -374,7 +375,7 @@ export function StatusPage() {
     } catch (error) {
       setServices(previous);
       api.setCache("status-page:services", previous);
-      toast.error(error instanceof Error ? error.message : "Failed to reorder service groups");
+      toastApiError(error, "Failed to reorder service groups");
     }
   };
 
@@ -406,7 +407,7 @@ export function StatusPage() {
       toast.success("Service removed");
       loadStatusPage();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to remove service");
+      toastApiError(err, "Failed to remove service");
     }
   };
 
@@ -429,7 +430,7 @@ export function StatusPage() {
       setSavedConfig(updated);
       toast.success("Status page details updated");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update status page details");
+      toastApiError(err, "Failed to update status page details");
       loadStatusPage();
     } finally {
       setSavingConfig(false);
@@ -443,7 +444,7 @@ export function StatusPage() {
       toast.success("Incident resolved");
       loadStatusPage();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to resolve incident");
+      toastApiError(err, "Failed to resolve incident");
     }
   };
 
@@ -454,7 +455,7 @@ export function StatusPage() {
       toast.success("Incident is now manually managed");
       loadStatusPage();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update incident");
+      toastApiError(err, "Failed to update incident");
     }
   };
 
@@ -472,7 +473,7 @@ export function StatusPage() {
       toast.success("Incident deleted");
       loadStatusPage();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete incident");
+      toastApiError(err, "Failed to delete incident");
     }
   };
 
@@ -1180,7 +1181,7 @@ function IncidentUpdateDialog({
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to post incident update");
+      toastApiError(err, "Failed to post incident update");
     } finally {
       setSaving(false);
     }

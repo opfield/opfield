@@ -29,6 +29,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
+import { toastApiError } from "@/lib/api-error-toast";
 import { allowedCreationFolderId, creationFolderChoices } from "@/lib/creation-folders";
 import { nodeChangesFor } from "@/lib/node-changed";
 import {
@@ -277,7 +278,7 @@ export function NodeEnrollmentDialog({
       onOpenChange(false);
     } catch (error) {
       if (!handleLicenseApiError(error, "Managed nodes")) {
-        toast.error(error instanceof Error ? error.message : "Failed to create node");
+        toastApiError(error, "Failed to create node");
       }
     } finally {
       setCreating(false);
@@ -308,7 +309,7 @@ export function NodeEnrollmentDialog({
         setHostAccess(DEFAULT_HOST_ACCESS_INSTALL_OPTIONS);
       } catch (error) {
         if (!cancelled) {
-          toast.error(error instanceof Error ? error.message : "Failed to generate a new token");
+          toastApiError(error, "Failed to generate a new token");
         }
       } finally {
         if (!cancelled) onReissueHandledRef.current?.();

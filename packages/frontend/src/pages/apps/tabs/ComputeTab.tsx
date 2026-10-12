@@ -3,7 +3,6 @@
 import { Box, Boxes, GitBranch, Globe2, Play, RefreshCw, Square } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
@@ -15,6 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { toastApiError } from "@/lib/api-error-toast";
 import { formatDisplayImageRef } from "@/lib/docker-image-ref";
 import { nodeBadgeClassName, nodeIconClassNames } from "@/lib/node-appearance";
 import {
@@ -36,7 +36,14 @@ import {
   serviceName,
   useAppLoad,
 } from "../app-resources";
-import { CountTitle, GroupedList, groupByEnvironment, groupTotal, RowMenu } from "../app-shared";
+import {
+  CountTitle,
+  GroupedList,
+  groupByEnvironment,
+  groupTotal,
+  HiddenMembersNotice,
+  RowMenu,
+} from "../app-shared";
 import {
   AddRow,
   EmptyGroup,
@@ -106,14 +113,30 @@ export function ComputeTab({
 }) {
   const navigate = useNavigate();
   const canManage = useAuthStore((state) => state.hasScopedAccess("docker:containers:manage"));
+  // Each member type has its own view scope: list only what the user may see, name the rest.
+  const canViewContainers = useAuthStore((state) =>
+    state.hasScopedAccess("docker:containers:view")
+  );
+  const canViewCompose = useAuthStore((state) => state.hasScopedAccess("docker:compose:view"));
+  const canViewPages = useAuthStore((state) => state.hasScopedAccess("pages:view"));
   const [busy, setBusy] = useState<Record<string, string>>({});
   const [localVersion, setLocalVersion] = useState(0);
   const compute = useAppLoad(`compute:${app.id}`, version + localVersion, () =>
-    loadAppCompute(app.id)
+    loadAppCompute(app.id, {
+      containers: canViewContainers,
+      compose: canViewCompose,
+      routes: false,
+    })
   );
-  const pages = useAppLoad(`pages:${app.id}`, version, () => loadAppPages(app.id));
+  const pages = useAppLoad(`pages:${app.id}`, version, () =>
+    canViewPages ? loadAppPages(app.id) : Promise.resolve([])
+  );
 
   if (compute.loading || pages.loading) return <ContentLoading loading />;
+  const hidden = [
+    ...(compute.data?.hidden ?? []),
+    ...(canViewPages ? [] : [{ title: "Pages projects", scope: "pages:view" }]),
+  ];
 
   const containers = groupByEnvironment(
     app.environments,
@@ -154,7 +177,7 @@ export function ComputeTab({
       }
       setLocalVersion((current) => current + 1);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : `Failed to ${action} ${container.name}`);
+      toastApiError(error, `Failed to ${action} ${container.name}`);
     } finally {
       setBusy((current) => {
         const next = { ...current };
@@ -492,7 +515,7 @@ export function ComputeTab({
 
   const total = groupTotal(containers) + groupTotal(compose) + groupTotal(pageGroups);
   if (total === 0) {
-    return (
+    const empty = (
       <EmptyGroup
         title="Compute"
         icon={<Box className="h-4 w-4" />}
@@ -501,10 +524,18 @@ export function ComputeTab({
         actions={actions}
       />
     );
+    if (hidden.length === 0) return empty;
+    return (
+      <div className="space-y-4 pb-6">
+        <HiddenMembersNotice hidden={hidden} />
+        {empty}
+      </div>
+    );
   }
 
   return (
     <div className="space-y-4 pb-6">
+      <HiddenMembersNotice hidden={hidden} />
       {groupTotal(containers) > 0 && (
         <TypeSection
           app={app}

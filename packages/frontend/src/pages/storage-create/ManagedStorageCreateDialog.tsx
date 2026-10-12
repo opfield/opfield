@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   isManagedStorageCandidateNode,
   listManagedDatabaseCandidateNodes,
@@ -667,7 +668,7 @@ export function ManagedStorageCreateDialog({
       }
       await openStorage(provisioned.objectStorageConnectionId);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to retry provisioning");
+      toastApiError(error, "Failed to retry provisioning");
     } finally {
       setRetrying(false);
     }

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { DockerImageCleanupSettings, DockerWebhook } from "@/types";
 
@@ -141,7 +142,7 @@ export function WebhookSection(props: WebhookSectionProps) {
         : await api.upsertContainerWebhook(nodeId, targetName, { enabled: true });
       setWebhook(data);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to enable webhook");
+      toastApiError(err, "Failed to enable webhook");
     }
   };
 
@@ -155,7 +156,7 @@ export function WebhookSection(props: WebhookSectionProps) {
         setCleanupEnabled(data.enabled);
         setRetentionCount(String(data.retentionCount));
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to save");
+        toastApiError(err, "Failed to save");
       }
     },
     [isDeployment, nodeId, targetName]
@@ -193,7 +194,7 @@ export function WebhookSection(props: WebhookSectionProps) {
       setWebhook(data);
       toast.success("Webhook URL regenerated");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to regenerate");
+      toastApiError(err, "Failed to regenerate");
     }
   };
 
@@ -214,7 +215,7 @@ export function WebhookSection(props: WebhookSectionProps) {
       }
       setWebhook(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to disable");
+      toastApiError(err, "Failed to disable");
     }
   };
 

@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { IngressGroup, Node } from "@/types";
 import { isNodeIncompatible } from "@/types";
@@ -104,7 +105,7 @@ export function IngressGroupDialog({
       onSaved?.(saved);
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save the ingress group");
+      toastApiError(error, "Failed to save the ingress group");
     } finally {
       setSaving(false);
     }

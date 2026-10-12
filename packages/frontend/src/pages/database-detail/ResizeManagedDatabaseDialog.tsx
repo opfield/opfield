@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { DatabaseConnection } from "@/types";
 import { type ManagedDatabaseCapacity, managedDatabaseCapacity } from "./managed-database-capacity";
@@ -81,7 +82,7 @@ export function ResizeManagedDatabaseDialog({
       onOpenChange(false);
       onResized();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to resize database storage");
+      toastApiError(error, "Failed to resize database storage");
     } finally {
       setSaving(false);
     }

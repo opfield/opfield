@@ -43,6 +43,7 @@ import { TruncateStart } from "@/components/ui/truncate-start";
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { formatDisplayImageRef } from "@/lib/docker-image-ref";
 import { loadVisibleDockerNodes } from "@/lib/docker-node-access";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
@@ -273,7 +274,7 @@ export function DockerImages({
         toast.success("Image removed");
         fetchImages(undefined, search);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to remove image");
+        toastApiError(err, "Failed to remove image");
       } finally {
         setRemovingImageId(null);
       }
@@ -301,7 +302,7 @@ export function DockerImages({
       );
       fetchImages(undefined, search);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Prune failed");
+      toastApiError(err, "Prune failed");
     } finally {
       setPruning(false);
     }
@@ -346,7 +347,7 @@ export function DockerImages({
       setTimeout(() => fetchImages(undefined, search), 15000);
       setTimeout(() => fetchImages(undefined, search), 30000);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to pull image");
+      toastApiError(err, "Failed to pull image");
     } finally {
       setPulling(false);
     }

@@ -1,7 +1,6 @@
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { EmptyState } from "@/components/common/EmptyState";
 import { HubTabPanel, HubTabs } from "@/components/common/HubTabs";
@@ -20,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { ingressGroupRoute } from "@/lib/resource-routes";
 import { hasScopeBase } from "@/lib/scope-utils";
 import { api } from "@/services/api";
@@ -42,7 +42,7 @@ export function IngressGroups() {
     try {
       setGroups(await api.listIngressGroups());
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load ingress groups");
+      toastApiError(error, "Failed to load ingress groups");
     } finally {
       setLoading(false);
     }

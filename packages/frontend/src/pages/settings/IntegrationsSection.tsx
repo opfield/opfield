@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -174,7 +175,16 @@ function GitLabIntegrationsSection() {
   const { hasScope } = useAuthStore();
   if (!hasScope("integrations:gitlab:manage") && !hasScope("integrations:gitlab:view")) return null;
   return (
-    <LicenseFeatureBoundary feature="gitlab" capability="GitLab integration">
+    <LicenseFeatureBoundary
+      feature="gitlab"
+      capability="GitLab integration"
+      frame={{
+        kind: "panel",
+        title: "GitLab Integrations",
+        description: "System connectors for GitLab repositories, CI, and registries.",
+        icon: <Gitlab className="h-4 w-4" />,
+      }}
+    >
       <GitLabIntegrationsContent />
     </LicenseFeatureBoundary>
   );
@@ -253,7 +263,7 @@ function GitLabIntegrationsContent() {
       api.setCache("settings:gitlab-connectors", data ?? []);
       setConnectors(data ?? []);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load integrations");
+      toastApiError(error, "Failed to load integrations");
     } finally {
       setInitialLoadComplete(true);
     }
@@ -286,7 +296,7 @@ function GitLabIntegrationsContent() {
       } catch (error) {
         if (!cancelled) {
           setSearchResults([]);
-          toast.error(error instanceof Error ? error.message : "GitLab search failed");
+          toastApiError(error, "GitLab search failed");
         }
       } finally {
         if (!cancelled) setSearching(false);
@@ -332,7 +342,7 @@ function GitLabIntegrationsContent() {
           detail.allowlistEntries
         );
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to load GitLab projects");
+        toastApiError(error, "Failed to load GitLab projects");
       }
       setEditingConnector(detail);
       setForm({
@@ -346,7 +356,7 @@ function GitLabIntegrationsContent() {
       });
       setAvailableAllowlistEntries(allowlistOptions);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load connector");
+      toastApiError(error, "Failed to load connector");
       setDialogOpen(false);
     } finally {
       setLoadingDetail(false);
@@ -372,7 +382,7 @@ function GitLabIntegrationsContent() {
       setSearchResults([]);
       toast.success("GitLab projects updated");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update GitLab projects");
+      toastApiError(error, "Failed to update GitLab projects");
     } finally {
       setRefreshingAllowlist(false);
     }
@@ -468,7 +478,7 @@ function GitLabIntegrationsContent() {
       if (advance) setDialogStep(2);
       return true;
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "GitLab connection test failed");
+      toastApiError(error, "GitLab connection test failed");
       return false;
     } finally {
       setTestingConnection(false);
@@ -529,7 +539,7 @@ function GitLabIntegrationsContent() {
       closeDialog();
       loadConnectors();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save connector");
+      toastApiError(error, "Failed to save connector");
     } finally {
       setSaving(false);
     }
@@ -542,7 +552,7 @@ function GitLabIntegrationsContent() {
       toast.success("GitLab connector test passed");
       loadConnectors();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "GitLab connector test failed");
+      toastApiError(error, "GitLab connector test failed");
     } finally {
       setTestingId(null);
     }
@@ -555,7 +565,7 @@ function GitLabIntegrationsContent() {
       toast.success("GitLab connector synced");
       loadConnectors();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "GitLab sync failed");
+      toastApiError(error, "GitLab sync failed");
     } finally {
       setSyncingId(null);
     }
@@ -574,7 +584,7 @@ function GitLabIntegrationsContent() {
       toast.success("GitLab connector deleted");
       loadConnectors();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete connector");
+      toastApiError(error, "Failed to delete connector");
     } finally {
       setDeletingId(null);
     }

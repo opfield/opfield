@@ -8,10 +8,10 @@ import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderAct
 import { LicensePlanBadge } from "@/components/license/LicensePlanBadge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePkiAvailable } from "@/hooks/use-plan-gated-features";
 import { hasCreationDestination } from "@/lib/creation-folders";
 import { useAuthStore } from "@/stores/auth";
 import { requireLicenseFeature } from "@/stores/license-paywall";
-import { useSystemConfigStore } from "@/stores/system-config";
 import { NginxTemplates } from "./NginxTemplates";
 import { Templates } from "./Templates";
 
@@ -49,7 +49,7 @@ export function TemplatesPage({ kind }: { kind?: "pki" | "nginx" } = {}) {
   const navigate = useNavigate();
   const { hasScope, hasScopedAccess } = useAuthStore();
   const scopes = useAuthStore((s) => s.user?.scopes ?? NO_SCOPES);
-  const pkiEnabled = useSystemConfigStore((s) => s.config.features.pkiEnabled);
+  const pkiEnabled = usePkiAvailable();
 
   const pkiCreateRef = useRef<(() => void) | null>(null);
   const nginxCreateRef = useRef<(() => void) | null>(null);

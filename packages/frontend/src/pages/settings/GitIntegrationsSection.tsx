@@ -42,6 +42,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -136,7 +137,7 @@ function GitConnectorPanel({
       api.setCache(cacheKey, data);
       setConnectors(data);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : `Failed to load ${title}`);
+      toastApiError(error, `Failed to load ${title}`);
     } finally {
       setInitialLoadComplete(true);
     }
@@ -273,7 +274,7 @@ function GitConnectorPanel({
       closeForm();
       await refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : `Failed to save ${title} connector`);
+      toastApiError(error, `Failed to save ${title} connector`);
     } finally {
       setSaving(false);
     }
@@ -299,7 +300,7 @@ function GitConnectorPanel({
       toast.success(`Connected to GitHub as ${result.username}`);
     } catch (error) {
       setTestedTokenSignature(null);
-      toast.error(error instanceof Error ? error.message : "GitHub connection test failed");
+      toastApiError(error, "GitHub connection test failed");
     } finally {
       setTesting(false);
     }
@@ -321,7 +322,7 @@ function GitConnectorPanel({
       toast.success("Git connection test passed");
     } catch (error) {
       setTestedTokenSignature(null);
-      toast.error(error instanceof Error ? error.message : "Git connection test failed");
+      toastApiError(error, "Git connection test failed");
     } finally {
       setTesting(false);
     }
@@ -353,7 +354,7 @@ function GitConnectorPanel({
       toast.success(`${provider === "github" ? "GitHub" : "Git"} connector test passed`);
       await refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Connector test failed");
+      toastApiError(error, "Connector test failed");
     } finally {
       setTestingId(null);
     }
@@ -366,7 +367,7 @@ function GitConnectorPanel({
       toast.success(`${provider === "github" ? "GitHub" : "Git"} connector synchronized`);
       await refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Connector sync failed");
+      toastApiError(error, "Connector sync failed");
     } finally {
       setSyncingId(null);
     }
@@ -385,7 +386,7 @@ function GitConnectorPanel({
       toast.success(`${provider === "github" ? "GitHub" : "Git"} connector deleted`);
       await refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete connector");
+      toastApiError(error, "Failed to delete connector");
     } finally {
       setDeletingId(null);
     }

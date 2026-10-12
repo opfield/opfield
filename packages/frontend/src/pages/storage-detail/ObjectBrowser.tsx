@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import {
   isFileProtocolProvider,
@@ -84,7 +85,7 @@ export function ObjectBrowser({
       await loadBuckets();
       setBucket(name);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create bucket");
+      toastApiError(error, "Failed to create bucket");
     } finally {
       setCreatingBucket(false);
     }

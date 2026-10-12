@@ -5,9 +5,11 @@ import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
+import { LicenseFeatureBoundary } from "@/components/license/LicenseFeatureBoundary";
 import { LicensePlanBadge } from "@/components/license/LicensePlanBadge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useSiemAvailable } from "@/hooks/use-plan-gated-features";
 import { AlertsTab } from "@/pages/notifications/AlertsTab";
 import { DELIVERY_PAGE_SIZE, DeliveryLogTab } from "@/pages/notifications/DeliveryLogTab";
 import {
@@ -37,7 +39,8 @@ export function Notifications() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { hasAnyScope } = useAuthStore();
-  const siemEnabled = useSystemConfigStore((state) => state.config.features.siemEnabled);
+  const siemEnabled = useSiemAvailable();
+  const siemSwitchedOn = useSystemConfigStore((state) => state.config.features.siemEnabled);
   // Same scopes as the notification routes: *:view to read, *:manage to change (manage implies view).
   const canReadAlerts = hasAnyScope("notifications:alerts:view", "notifications:alerts:manage");
   const canAccessAlerts = canReadAlerts;
@@ -60,6 +63,12 @@ export function Notifications() {
     if (tab.value === "siem-deliveries") return canViewSiem;
     return false;
   });
+  // A SIEM tab the plan does not include: the page keeps its header and shows the plan notice.
+  const siemPlanLocked =
+    siemSwitchedOn &&
+    !siemEnabled &&
+    hasAnyScope("audit:siem:view", "audit:siem:manage") &&
+    (tabParam === "siem" || tabParam === "siem-deliveries" || visibleTabs.length === 0);
   const activeTab =
     tabParam && visibleTabs.some((t) => t.value === tabParam)
       ? tabParam
@@ -185,7 +194,8 @@ export function Notifications() {
     }
   }, [activeTab, navigate, tabParam, visibleTabs]);
 
-  const usesFillLayout = activeTab === "deliveries" || activeTab === "siem-deliveries";
+  const usesFillLayout =
+    !siemPlanLocked && (activeTab === "deliveries" || activeTab === "siem-deliveries");
 
   return (
     <PageTransition>
@@ -212,89 +222,97 @@ export function Notifications() {
             </ResponsiveHeaderActions>
           }
         />
-        <Tabs
-          value={activeTab}
-          onValueChange={(v) => navigate(`/notifications/${v}`, { replace: true })}
-          className={`flex flex-col ${usesFillLayout ? "flex-1 min-h-0" : ""}`}
-        >
-          <TabsList>
-            {visibleTabs.map((t) => (
-              <TabsTrigger key={t.value} value={t.value} className="flex items-center gap-2">
-                {t.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          {canAccessAlerts && (
-            <TabsContent value="alerts" className="mt-4">
-              <AlertsTab
-                canManage={canManageAlerts}
-                canRead={canReadAlerts}
-                openCreateToken={openCreateAlertToken}
-              />
-            </TabsContent>
-          )}
-          {canAccessWebhooks && (
-            <TabsContent value="webhooks" className="mt-4">
-              <WebhooksTab
-                canManage={canManageWebhooks}
-                canRead={canReadWebhooks}
-                openCreateToken={openCreateWebhookToken}
-              />
-            </TabsContent>
-          )}
-          {canViewDeliveries && (
-            <TabsContent
-              value="deliveries"
-              className="mt-4 flex flex-col flex-1 min-h-0 overflow-hidden"
-            >
-              <DeliveryLogTab
-                refreshToken={refreshDeliveriesToken}
-                onConfigureWebhook={
-                  canAccessWebhooks
-                    ? () => navigate("/notifications/webhooks", { replace: true })
-                    : undefined
-                }
-              />
-            </TabsContent>
-          )}
-          {canViewSiem && (
-            <TabsContent value="siem" className="mt-4">
-              <SiemDestinationsTab
-                canManage={canManageSiem}
-                canRead={canViewSiem}
-                openCreateToken={openCreateSiemToken}
-                onViewDeliveryLog={(destination) =>
-                  navigate(
-                    `/notifications/siem-deliveries?destinationId=${encodeURIComponent(destination.id)}`
-                  )
-                }
-              />
-            </TabsContent>
-          )}
-          {canViewSiem && (
-            <TabsContent
-              value="siem-deliveries"
-              className="mt-4 flex flex-col flex-1 min-h-0 overflow-hidden"
-            >
-              <SiemDeliveryLogTab
-                canManage={canManageSiem}
-                initialDestinationId={searchParams.get("destinationId")}
-                onDestinationFilterChange={(destinationId) => {
-                  setSearchParams(
-                    (current) => {
-                      const next = new URLSearchParams(current);
-                      if (destinationId) next.set("destinationId", destinationId);
-                      else next.delete("destinationId");
-                      return next;
-                    },
-                    { replace: true }
-                  );
-                }}
-                refreshToken={refreshSiemDeliveriesToken}
-              />
-            </TabsContent>
-          )}
-        </Tabs>
+        {siemPlanLocked ? (
+          <LicenseFeatureBoundary feature="siem-export" capability="SIEM export">
+            {null}
+          </LicenseFeatureBoundary>
+        ) : (
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => navigate(`/notifications/${v}`, { replace: true })}
+            className={`flex flex-col ${usesFillLayout ? "flex-1 min-h-0" : ""}`}
+          >
+            {visibleTabs.length > 1 && (
+              <TabsList>
+                {visibleTabs.map((t) => (
+                  <TabsTrigger key={t.value} value={t.value} className="flex items-center gap-2">
+                    {t.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            )}
+            {canAccessAlerts && (
+              <TabsContent value="alerts" className="mt-4">
+                <AlertsTab
+                  canManage={canManageAlerts}
+                  canRead={canReadAlerts}
+                  openCreateToken={openCreateAlertToken}
+                />
+              </TabsContent>
+            )}
+            {canAccessWebhooks && (
+              <TabsContent value="webhooks" className="mt-4">
+                <WebhooksTab
+                  canManage={canManageWebhooks}
+                  canRead={canReadWebhooks}
+                  openCreateToken={openCreateWebhookToken}
+                />
+              </TabsContent>
+            )}
+            {canViewDeliveries && (
+              <TabsContent
+                value="deliveries"
+                className="mt-4 flex flex-col flex-1 min-h-0 overflow-hidden"
+              >
+                <DeliveryLogTab
+                  refreshToken={refreshDeliveriesToken}
+                  onConfigureWebhook={
+                    canAccessWebhooks
+                      ? () => navigate("/notifications/webhooks", { replace: true })
+                      : undefined
+                  }
+                />
+              </TabsContent>
+            )}
+            {canViewSiem && (
+              <TabsContent value="siem" className="mt-4">
+                <SiemDestinationsTab
+                  canManage={canManageSiem}
+                  canRead={canViewSiem}
+                  openCreateToken={openCreateSiemToken}
+                  onViewDeliveryLog={(destination) =>
+                    navigate(
+                      `/notifications/siem-deliveries?destinationId=${encodeURIComponent(destination.id)}`
+                    )
+                  }
+                />
+              </TabsContent>
+            )}
+            {canViewSiem && (
+              <TabsContent
+                value="siem-deliveries"
+                className="mt-4 flex flex-col flex-1 min-h-0 overflow-hidden"
+              >
+                <SiemDeliveryLogTab
+                  canManage={canManageSiem}
+                  initialDestinationId={searchParams.get("destinationId")}
+                  onDestinationFilterChange={(destinationId) => {
+                    setSearchParams(
+                      (current) => {
+                        const next = new URLSearchParams(current);
+                        if (destinationId) next.set("destinationId", destinationId);
+                        else next.delete("destinationId");
+                        return next;
+                      },
+                      { replace: true }
+                    );
+                  }}
+                  refreshToken={refreshSiemDeliveriesToken}
+                />
+              </TabsContent>
+            )}
+          </Tabs>
+        )}
       </div>
     </PageTransition>
   );

@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { toastApiError } from "@/lib/api-error-toast";
 import { AnimatedHeight, STEP_ANIMATION } from "@/pages/notifications/template-editor";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -427,8 +428,7 @@ export function HostingConnectorDialog({
         }
       } else setStep((current) => current + 1);
     } catch (cause) {
-      if (run === generation.current)
-        toast.error(cause instanceof Error ? cause.message : "Hosting connector request failed");
+      if (run === generation.current) toastApiError(cause, "Hosting connector request failed");
     } finally {
       if (run === generation.current) setPendingAction(null);
     }

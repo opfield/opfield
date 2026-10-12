@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { AppDetail } from "@/types";
 import { APP_DIALOG_WIDTH } from "./AppNameDialog";
@@ -53,7 +54,7 @@ export function ShutdownDialog({
       onOpenChange(false);
       onDone();
     } catch (reason) {
-      toast.error(reason instanceof Error ? reason.message : "Failed to shut down the app");
+      toastApiError(reason, "Failed to shut down the app");
     } finally {
       setPending(false);
     }

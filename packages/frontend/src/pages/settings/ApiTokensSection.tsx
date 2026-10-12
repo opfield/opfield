@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   deriveAllowedResourceIdsByScope,
   hasSelectableScopeBase,
@@ -187,7 +188,7 @@ export function ApiTokensSection({
       setCreateDialogOpen(false);
       loadTokens();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update token");
+      toastApiError(err, "Failed to update token");
     } finally {
       setIsUpdating(false);
     }
@@ -222,7 +223,7 @@ export function ApiTokensSection({
       loadTokens();
       toast.success("API token created");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create token");
+      toastApiError(err, "Failed to create token");
     } finally {
       setIsCreating(false);
     }
@@ -241,7 +242,7 @@ export function ApiTokensSection({
       toast.success("Token revoked");
       loadTokens();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to revoke token");
+      toastApiError(err, "Failed to revoke token");
     } finally {
       setRevokingId(null);
     }

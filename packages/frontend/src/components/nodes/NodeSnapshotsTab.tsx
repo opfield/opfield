@@ -6,6 +6,7 @@ import { confirm } from "@/components/common/ConfirmDialog";
 import { DetailRow } from "@/components/common/DetailRow";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderedResourceList } from "@/components/common/FolderedResourceList";
+import { Notice } from "@/components/common/Notice";
 import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
@@ -23,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
+import { toastApiError } from "@/lib/api-error-toast";
 import { createClientUuid } from "@/lib/client-id";
 import { formatHostingAmount } from "@/lib/hosting-money";
 import {
@@ -159,7 +161,7 @@ export function NodeSnapshotsTab({
   const authKey = useAuthStore(accessContextKey);
   const [view, setView] = useState<HostingSnapshotsView | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -175,7 +177,8 @@ export function NodeSnapshotsTab({
   const clientOnlyEntities = useRef(new Set<string>());
   const reconcileClientEntities = useRef(new Set<string>());
   const eventGeneration = useRef(0);
-  const notificationRef = useRef("");
+  // The read model's last refresh error as last shown, to toast only a new one after a refresh click.
+  const lastErrorRef = useRef<string | null>(null);
   const sending = useRef(false);
   const restoreEntityId = useRef<string | null>(null);
   const context = useRef({ resourceId, authKey, mutationLocked });
@@ -189,69 +192,79 @@ export function NodeSnapshotsTab({
       mounted.current = false;
     };
   }, []);
-  const load = useCallback(async () => {
-    const current = ++generation.current;
-    const beforeEvents = eventGeneration.current;
-    setLoading(true);
-    try {
-      const next = await api.getHostingSnapshots(resourceId);
-      if (
-        current !== generation.current ||
-        beforeEvents !== eventGeneration.current ||
-        authKey !== accessContextKey(useAuthStore.getState())
-      )
-        return;
-      if (next.resourceId !== resourceId)
-        throw new Error("The VM identity changed. Reopen this node.");
-      setView((currentView) => {
-        const previous =
-          currentView?.resourceId === resourceId && currentView.incarnation === next.incarnation
-            ? currentView
-            : null;
-        let operation = next.operation;
+  const load = useCallback(
+    async ({ notify = false }: { notify?: boolean } = {}) => {
+      const current = ++generation.current;
+      const beforeEvents = eventGeneration.current;
+      const shownLastError = lastErrorRef.current;
+      setLoading(true);
+      try {
+        const next = await api.getHostingSnapshots(resourceId);
         if (
-          currentView?.resourceId === resourceId &&
-          currentView.incarnation === next.incarnation
-        ) {
-          if (!next.operation) operation = currentView.operation;
-          else if (
-            currentView.operation &&
-            isStaleHostingOperation(currentView.operation, next.operation)
-          )
-            operation = currentView.operation;
-        }
-        const snapshots = previous
-          ? mergeLoadedSnapshots(
-              previous.snapshots.filter((snapshot) => {
-                if (!reconcileClientEntities.current.has(snapshot.entityId)) return true;
-                reconcileClientEntities.current.delete(snapshot.entityId);
-                clientOnlyEntities.current.delete(snapshot.entityId);
-                return next.snapshots.some((incoming) => incoming.entityId === snapshot.entityId);
-              }),
-              next.snapshots,
-              deletedRevisions.current
+          current !== generation.current ||
+          beforeEvents !== eventGeneration.current ||
+          authKey !== accessContextKey(useAuthStore.getState())
+        )
+          return;
+        if (next.resourceId !== resourceId)
+          throw new Error("The VM identity changed. Reopen this node.");
+        setView((currentView) => {
+          const previous =
+            currentView?.resourceId === resourceId && currentView.incarnation === next.incarnation
+              ? currentView
+              : null;
+          let operation = next.operation;
+          if (
+            currentView?.resourceId === resourceId &&
+            currentView.incarnation === next.incarnation
+          ) {
+            if (!next.operation) operation = currentView.operation;
+            else if (
+              currentView.operation &&
+              isStaleHostingOperation(currentView.operation, next.operation)
             )
-          : next.snapshots
-              .map(normalizeSnapshot)
-              .filter((snapshot) => !deletedRevisions.current.has(snapshot.entityId));
-        return {
-          ...next,
-          snapshots,
-          operation,
-          busy:
-            !!next.busy ||
-            (!!operation && hostingOperationPending(operation)) ||
-            snapshots.some(snapshotIsActive),
-        };
-      });
-      setError(null);
-    } catch (e) {
-      if (current === generation.current)
-        setError(e instanceof Error ? e.message : "Could not load snapshots");
-    } finally {
-      if (current === generation.current) setLoading(false);
-    }
-  }, [authKey, resourceId]);
+              operation = currentView.operation;
+          }
+          const snapshots = previous
+            ? mergeLoadedSnapshots(
+                previous.snapshots.filter((snapshot) => {
+                  if (!reconcileClientEntities.current.has(snapshot.entityId)) return true;
+                  reconcileClientEntities.current.delete(snapshot.entityId);
+                  clientOnlyEntities.current.delete(snapshot.entityId);
+                  return next.snapshots.some((incoming) => incoming.entityId === snapshot.entityId);
+                }),
+                next.snapshots,
+                deletedRevisions.current
+              )
+            : next.snapshots
+                .map(normalizeSnapshot)
+                .filter((snapshot) => !deletedRevisions.current.has(snapshot.entityId));
+          return {
+            ...next,
+            snapshots,
+            operation,
+            busy:
+              !!next.busy ||
+              (!!operation && hostingOperationPending(operation)) ||
+              snapshots.some(snapshotIsActive),
+          };
+        });
+        setLoadError(null);
+        const lastError = next.readModel?.lastError ?? null;
+        if (notify && lastError && lastError !== shownLastError) {
+          toast.error(lastError, { id: `snapshots:${resourceId}` });
+        }
+      } catch (e) {
+        if (current === generation.current) {
+          setLoadError(e instanceof Error ? e.message : "Could not load snapshots");
+          if (notify) toastApiError(e, "Could not load snapshots");
+        }
+      } finally {
+        if (current === generation.current) setLoading(false);
+      }
+    },
+    [authKey, resourceId]
+  );
   useEffect(() => {
     setView(null);
     setCreateOpen(false);
@@ -381,12 +394,10 @@ export function NodeSnapshotsTab({
     !active &&
     (!includeRam || (view?.provider === "proxmox" && view.powerState === "running"));
   const restoreRequiresShutdown = view?.provider !== "proxmox" && view?.powerState !== "stopped";
-  const notification = error || view?.readModel?.lastError || "";
-  useEffect(() => {
-    if (notification && notificationRef.current !== notification)
-      toast.error(notification, { id: `snapshots:${resourceId}` });
-    notificationRef.current = notification;
-  }, [notification, resourceId]);
+  // Load and background refresh errors are shown inline; only the user's own actions toast.
+  const readModelError = view?.readModel?.lastError ?? null;
+  lastErrorRef.current = readModelError;
+  const inlineError = loadError || readModelError;
   const run = async (action: HostingSnapshotAction, snapshot?: SnapshotRow) => {
     if (!view || view.resourceId !== resourceId || sending.current || mutationLocked || active)
       return;
@@ -399,7 +410,6 @@ export function NodeSnapshotsTab({
       (restoreSubmitted || !context.current.mutationLocked);
     sending.current = true;
     setBusy(true);
-    setError(null);
     let entityId: string | undefined;
     try {
       if (
@@ -539,7 +549,7 @@ export function NodeSnapshotsTab({
             reconcileClientEntities.current.add(entityId);
           void load();
         }
-        setError(e instanceof Error ? e.message : "Snapshot operation failed");
+        toastApiError(e, "Snapshot operation failed");
       }
     } finally {
       sending.current = false;
@@ -656,6 +666,17 @@ export function NodeSnapshotsTab({
   ];
   return (
     <>
+      {inlineError ? (
+        <Notice
+          tone="warning"
+          className="mb-4"
+          title={
+            loadError ? "Snapshots could not be loaded" : "Last snapshot inventory refresh failed"
+          }
+        >
+          {inlineError}
+        </Notice>
+      ) : null}
       <PanelShell
         title="Snapshots"
         icon={<Camera className="h-4 w-4" />}
@@ -669,7 +690,7 @@ export function NodeSnapshotsTab({
               size="icon"
               aria-label="Refresh snapshots"
               disabled={loading}
-              onClick={() => void load()}
+              onClick={() => void load({ notify: true })}
             >
               <RefreshCw />
             </Button>
@@ -734,7 +755,7 @@ export function NodeSnapshotsTab({
             canReorganizeItem={() => !!view?.canManageFolders && !busy}
             getResourceLabel={(s) => s.name}
             onItemClick={(s) => setDetailsId(s.entityId)}
-            onRefresh={load}
+            onRefresh={() => load()}
             onCreateFolderRef={(fn) => setCreateFolderAction(() => fn)}
           />
         )}

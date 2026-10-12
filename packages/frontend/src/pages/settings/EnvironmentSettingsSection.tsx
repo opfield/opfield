@@ -6,6 +6,7 @@ import { useContentLoading } from "@/components/common/reveal-gate";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { Button } from "@/components/ui/button";
 import { NumericInput } from "@/components/ui/numeric-input";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type {
   EnvironmentSettings,
@@ -222,7 +223,7 @@ export function EnvironmentSettingsSection({ canEdit }: { canEdit: boolean }) {
       setSaved(response.data);
       setDefaults(response.defaults);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load environment settings");
+      toastApiError(error, "Failed to load environment settings");
     } finally {
       setLoading(false);
     }
@@ -312,7 +313,7 @@ export function EnvironmentSettingsSection({ canEdit }: { canEdit: boolean }) {
       setSaved(updated);
       toast.success(`${panelLabel(group)} settings updated`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update environment settings");
+      toastApiError(error, "Failed to update environment settings");
     } finally {
       setSavingSection(null);
     }

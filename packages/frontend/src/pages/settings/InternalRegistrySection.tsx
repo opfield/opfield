@@ -19,8 +19,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
+import { pickerLoadError } from "@/lib/picker-load-error";
 import { formatBytes, formatDateTime } from "@/lib/utils";
 import { api } from "@/services/api";
+import { useAuthStore } from "@/stores/auth";
 import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
 import type { DockerInternalRegistryState, Node, SSLCertificate } from "@/types";
 
@@ -103,6 +106,8 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
   const [certificateId, setCertificateId] = useState("");
   const [saving, setSaving] = useState(false);
   const [certificates, setCertificates] = useState<SSLCertificate[]>([]);
+  const [certificatesError, setCertificatesError] = useState<string | null>(null);
+  const canViewCertificates = useAuthStore((store) => store.hasScopedAccess("ssl:cert:view"));
   const [loading, setLoading] = useState(true);
   useContentLoading(loading);
 
@@ -115,20 +120,28 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
     setCertificateId(next.externalCertificateId ?? "");
   }, []);
 
+  // The certificate list has its own scope: without it, or when it fails, only the picker says so.
   useEffect(() => {
-    void Promise.all([
-      api.getDockerInternalRegistryState(),
-      api.listSSLCertificates({ limit: 100, status: "active" }),
-    ])
-      .then(([next, certificateResponse]) => {
-        applyState(next);
-        setCertificates(certificateResponse.data ?? []);
-      })
-      .catch((error) =>
-        toast.error(error instanceof Error ? error.message : "Failed to load internal registry")
-      )
+    void api
+      .getDockerInternalRegistryState()
+      .then((next) => applyState(next))
+      .catch((error) => toastApiError(error, "Failed to load internal registry"))
       .finally(() => setLoading(false));
   }, [applyState]);
+
+  useEffect(() => {
+    if (!canViewCertificates) {
+      setCertificatesError("You cannot list certificates: needs ssl:cert:view.");
+      return;
+    }
+    void api
+      .listSSLCertificates({ limit: 100, status: "active" })
+      .then((response) => {
+        setCertificates(response.data ?? []);
+        setCertificatesError(null);
+      })
+      .catch((error) => setCertificatesError(pickerLoadError(error, "certificates")));
+  }, [canViewCertificates]);
 
   const nginxNodes = useMemo(() => nodesList.filter((node) => node.type === "nginx"), [nodesList]);
   const matchingCertificates = useMemo(
@@ -158,7 +171,7 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
       toast.success("Internal registry settings updated");
     } catch (error) {
       if (!handleLicenseApiError(error, "External internal registry access")) {
-        toast.error(error instanceof Error ? error.message : "Failed to update internal registry");
+        toastApiError(error, "Failed to update internal registry");
       }
     } finally {
       setSaving(false);
@@ -338,7 +351,11 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
                 <SelectValue placeholder="Select certificate" />
               </SelectTrigger>
               <SelectContent>
-                {matchingCertificates.length === 0 ? (
+                {certificatesError ? (
+                  <SelectItem value="__none" disabled>
+                    {certificatesError}
+                  </SelectItem>
+                ) : matchingCertificates.length === 0 ? (
                   <SelectItem value="__none" disabled>
                     No active certificate covers this domain
                   </SelectItem>

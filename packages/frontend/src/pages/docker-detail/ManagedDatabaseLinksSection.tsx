@@ -38,11 +38,13 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { databaseTypeLabel } from "@/lib/database-type";
 import { listManagedDatabaseCandidateNodes } from "@/lib/managed-database-nodes";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
+import { planIncludes } from "@/stores/license-paywall";
 import type {
   DatabaseType,
   ManagedDatabase,
@@ -241,6 +243,10 @@ export const ManagedDatabaseLinksSection = forwardRef<
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
+    if (!planIncludes("external-database-connections")) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const [nextDatabases, nodeResult] = await Promise.all([
@@ -267,7 +273,7 @@ export const ManagedDatabaseLinksSection = forwardRef<
           )
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load database links");
+      toastApiError(error, "Failed to load database links");
     } finally {
       setLoading(false);
     }
@@ -753,7 +759,7 @@ export const ManagedDatabaseLinksSection = forwardRef<
       void Promise.resolve(onRecreating?.());
     } catch (error) {
       onMutationEnd?.();
-      toast.error(error instanceof Error ? error.message : "Failed to save managed database links");
+      toastApiError(error, "Failed to save managed database links");
     } finally {
       setSaving(false);
     }

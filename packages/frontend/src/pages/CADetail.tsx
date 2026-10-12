@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { daysUntil, formatDate, formatSerialNumber, hoursUntil } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -125,7 +126,7 @@ export function CADetail() {
       await selectCA(selectedCA.id);
       await fetchCAs();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to revoke CA");
+      toastApiError(err, "Failed to revoke CA");
     }
   };
 
@@ -158,7 +159,7 @@ export function CADetail() {
       setEndpointsDialogOpen(false);
       fetchCAs();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update endpoints");
+      toastApiError(err, "Failed to update endpoints");
     } finally {
       setIsSavingEndpoints(false);
     }

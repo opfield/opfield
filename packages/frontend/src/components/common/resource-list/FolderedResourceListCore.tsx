@@ -9,6 +9,7 @@ import { ResourceListForm } from "@/components/common/ResourceListForm";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { collectFolderTreeIds, findFolderTreeNode } from "@/lib/folder-tree";
 import { applyRootFolderView, canMoveFolderInto, defaultOpenFolderId } from "./folder-view";
 import type { ResourceListSearchProps } from "./types";
@@ -350,7 +351,7 @@ export function FolderedResourceListCore<TItem extends FolderedListItem, TRef>({
       setCreateFolderOpen(false);
       setCreateFolderParentId(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create folder");
+      toastApiError(err, "Failed to create folder");
     }
   };
 
@@ -365,7 +366,7 @@ export function FolderedResourceListCore<TItem extends FolderedListItem, TRef>({
       toast.success("Folder moved");
       await onRefresh(true);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to move folder");
+      toastApiError(err, "Failed to move folder");
     }
   };
 
@@ -374,7 +375,7 @@ export function FolderedResourceListCore<TItem extends FolderedListItem, TRef>({
       await store.renameFolder(id, name);
       toast.success("Folder renamed");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to rename folder");
+      toastApiError(err, "Failed to rename folder");
     }
   };
 
@@ -391,7 +392,7 @@ export function FolderedResourceListCore<TItem extends FolderedListItem, TRef>({
       toast.success("Folder deleted");
       await onRefresh(true);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete folder");
+      toastApiError(err, "Failed to delete folder");
     }
   };
 
@@ -435,7 +436,7 @@ export function FolderedResourceListCore<TItem extends FolderedListItem, TRef>({
       await onRefresh(true);
     } catch (err) {
       setOptimisticResources(null);
-      toast.error(err instanceof Error ? err.message : "Failed to move resource");
+      toastApiError(err, "Failed to move resource");
     }
   };
 
@@ -467,7 +468,7 @@ export function FolderedResourceListCore<TItem extends FolderedListItem, TRef>({
           reordered.map((folder, index) => ({ id: folder.id, sortOrder: index }))
         );
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to reorder folders");
+        toastApiError(err, "Failed to reorder folders");
       }
       return;
     }
@@ -514,7 +515,7 @@ export function FolderedResourceListCore<TItem extends FolderedListItem, TRef>({
       await onRefresh(true);
     } catch (err) {
       setOptimisticResources(null);
-      toast.error(err instanceof Error ? err.message : "Failed to reorder resources");
+      toastApiError(err, "Failed to reorder resources");
     }
   };
 

@@ -49,6 +49,7 @@ import {
 import { TruncateStart } from "@/components/ui/truncate-start";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { canCreateDockerResourceOnNode, loadVisibleDockerNodes } from "@/lib/docker-node-access";
 import { canEditDockerVolume } from "@/lib/docker-volume-access";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
@@ -206,7 +207,7 @@ export function DockerVolumes({
         toast.success("Volume removed");
         fetchVolumes(undefined, search);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to remove volume");
+        toastApiError(err, "Failed to remove volume");
       } finally {
         setPendingVolumeAction(null);
       }
@@ -241,7 +242,7 @@ export function DockerVolumes({
       fetchVolumes(undefined, search);
     } catch (err) {
       if (!handleLicenseApiError(err, "Disk image volumes")) {
-        toast.error(err instanceof Error ? err.message : "Failed to create volume");
+        toastApiError(err, "Failed to create volume");
       }
     } finally {
       setCreating(false);
@@ -260,7 +261,7 @@ export function DockerVolumes({
         toast.success("Volume migrated to Opfield management");
         await fetchVolumes(undefined, search);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to migrate volume");
+        toastApiError(err, "Failed to migrate volume");
       } finally {
         setPendingVolumeAction(null);
       }

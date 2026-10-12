@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
 import { useAuthStore } from "@/stores/auth";
@@ -273,14 +274,14 @@ export function AddDomainDialog({
             handleOpenChange(false);
             onCreated();
           } catch (retryError) {
-            toast.error(retryError instanceof Error ? retryError.message : "Failed to add domain");
+            toastApiError(retryError, "Failed to add domain");
           }
         }
         setIsSaving(false);
         return;
       }
       setPreviewError(err instanceof Error ? err.message : "Failed to add domain");
-      toast.error(err instanceof Error ? err.message : "Failed to add domain");
+      toastApiError(err, "Failed to add domain");
     } finally {
       setIsSaving(false);
     }

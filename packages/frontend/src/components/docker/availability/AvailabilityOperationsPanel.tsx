@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import type { DockerAvailabilityOperation } from "@/types";
@@ -99,9 +100,7 @@ export function AvailabilityOperationsPanel({
       });
       setRecent(result.data.slice(0, 5));
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to load Availability operations"
-      );
+      toastApiError(error, "Failed to load Availability operations");
     } finally {
       setRecentLoading(false);
     }
@@ -132,9 +131,7 @@ export function AvailabilityOperationsPanel({
         setNextPage(result.nextPage);
       } catch (error) {
         if (currentRequest === requestId.current) {
-          toast.error(
-            error instanceof Error ? error.message : "Failed to load Availability operations"
-          );
+          toastApiError(error, "Failed to load Availability operations");
         }
       } finally {
         if (currentRequest === requestId.current) {
@@ -174,9 +171,7 @@ export function AvailabilityOperationsPanel({
         await loadRecent();
         if (open) await loadPage(1, true);
       } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "Failed to retry Availability operation"
-        );
+        toastApiError(error, "Failed to retry Availability operation");
       } finally {
         setRetryingId(null);
       }

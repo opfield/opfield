@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useLoadDashboardBootstrap } from "@/hooks/use-dashboard-bootstrap";
+import { usePkiAvailable } from "@/hooks/use-plan-gated-features";
 import { dockerResourceKey } from "@/lib/dashboard-attention";
 import { refreshDynamicScopes } from "@/lib/live-scopes";
 import { formatDateTime } from "@/lib/utils";
@@ -366,7 +367,7 @@ export function Dashboard() {
   const dashboardBootstrapLoading = useDashboardBootstrapStore((s) => s.loading);
   const dashboardBootstrapError = useDashboardBootstrapStore((s) => s.error);
   const invalidateDashboardBootstrap = useDashboardBootstrapStore((s) => s.invalidate);
-  const pkiEnabled = useSystemConfigStore((s) => s.config.features.pkiEnabled);
+  const pkiEnabled = usePkiAvailable();
   const inferenceEnabled = useSystemConfigStore((s) => s.config.features.inferenceEnabled);
   useLoadDashboardBootstrap();
   const [activity, setActivity] = useState<AuditLogEntry[]>([]);

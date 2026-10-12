@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastApiError } from "@/lib/api-error-toast";
 import { flattenCreationFolders, placementFolderChoices } from "@/lib/creation-folders";
 import { formatDate } from "@/lib/utils";
 import { api } from "@/services/api";
@@ -177,7 +178,7 @@ export function CertificateIssueDialog({
       onSuccess?.();
     } catch (err) {
       if (!handleLicenseApiError(err, "Internal PKI certificates")) {
-        toast.error(err instanceof Error ? err.message : "Failed to issue certificate");
+        toastApiError(err, "Failed to issue certificate");
       }
     } finally {
       setIsIssuing(false);

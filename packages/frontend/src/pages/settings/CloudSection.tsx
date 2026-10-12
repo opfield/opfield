@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { CloudConnectCodeView, CloudLinkStatusView } from "@/types";
 import { ConnectCodeCountdown } from "./ConnectCodeCountdown";
@@ -96,8 +97,7 @@ export function CloudSection({ canManage }: CloudSectionProps) {
       try {
         applyStatus(await api.getCloudLinkStatus());
       } catch (err) {
-        if (!quiet)
-          toast.error(err instanceof Error ? err.message : "Failed to load the cloud status");
+        if (!quiet) toastApiError(err, "Failed to load the cloud status");
       } finally {
         setLoading(false);
       }
@@ -164,7 +164,7 @@ export function CloudSection({ canManage }: CloudSectionProps) {
     try {
       setLink(await api.startCloudLinkCode());
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to get a connect code");
+      toastApiError(err, "Failed to get a connect code");
     } finally {
       setStartingLink(false);
     }
@@ -189,7 +189,7 @@ export function CloudSection({ canManage }: CloudSectionProps) {
       await api.cancelCloudLinkCode();
       setLink(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to cancel the connect code");
+      toastApiError(err, "Failed to cancel the connect code");
     } finally {
       setCancellingLink(false);
     }
@@ -210,7 +210,7 @@ export function CloudSection({ canManage }: CloudSectionProps) {
           : "Connected to your cloud account"
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to connect to your cloud account");
+      toastApiError(err, "Failed to connect to your cloud account");
     } finally {
       setConnecting(false);
     }
@@ -223,7 +223,7 @@ export function CloudSection({ canManage }: CloudSectionProps) {
       toast.success(enabled ? "Remote management allowed" : "Remote management turned off");
       return true;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to change remote management");
+      toastApiError(err, "Failed to change remote management");
       return false;
     } finally {
       setSavingRemoteManagement(false);
@@ -264,9 +264,7 @@ export function CloudSection({ canManage }: CloudSectionProps) {
       if (updated.warning) toast.warning(updated.warning);
       else toast.success("Disconnected from your cloud account");
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to disconnect from your cloud account"
-      );
+      toastApiError(err, "Failed to disconnect from your cloud account");
     } finally {
       setDisconnecting(false);
     }

@@ -33,6 +33,7 @@ import {
   AI_APPROVAL_MODES,
   type AIApprovalMode,
 } from "@/lib/ai-approval-mode";
+import { toastApiError } from "@/lib/api-error-toast";
 import { cn } from "@/lib/utils";
 import { type AIContextUsage, getAIContextUsage, useAIStore } from "@/stores/ai";
 import { useAuthStore } from "@/stores/auth";
@@ -609,7 +610,7 @@ export function AIComposer({
     try {
       await onModelChange(model);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to change model");
+      toastApiError(error, "Failed to change model");
     } finally {
       setUpdatingProvider(false);
     }
@@ -621,7 +622,7 @@ export function AIComposer({
     try {
       await onReasoningEffortChange(effort);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to change reasoning effort");
+      toastApiError(error, "Failed to change reasoning effort");
     } finally {
       setUpdatingProvider(false);
     }

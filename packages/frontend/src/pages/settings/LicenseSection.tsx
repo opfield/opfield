@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useScrollToNavigationTarget } from "@/hooks/use-scroll-to-navigation-target";
+import { toastApiError } from "@/lib/api-error-toast";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
@@ -151,7 +152,7 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
       api.setCache("settings:license-status", data);
       setStatus(data);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load license status");
+      toastApiError(err, "Failed to load license status");
     } finally {
       setLoading(false);
     }
@@ -169,7 +170,7 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
       setStatus(updated);
       toast.success("License checked");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to check license");
+      toastApiError(err, "Failed to check license");
     } finally {
       setChecking(false);
     }
@@ -194,7 +195,7 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
         toast.error(updated.errorMessage ?? "License was not accepted");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to activate license");
+      toastApiError(err, "Failed to activate license");
       void loadStatus();
     } finally {
       setSaving(false);
@@ -211,7 +212,7 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
           : "Paid features are ready"
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to enable paid features");
+      toastApiError(error, "Failed to enable paid features");
     } finally {
       setActivatingModule(false);
     }
@@ -233,7 +234,7 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
       setStatus(updated);
       toast.success("License deactivated");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to deactivate license");
+      toastApiError(err, "Failed to deactivate license");
     } finally {
       setDeactivating(false);
     }

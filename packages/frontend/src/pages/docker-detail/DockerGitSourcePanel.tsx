@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
 import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
@@ -295,9 +296,7 @@ export function DockerGitSourcePanel({
     void api
       .getDockerSource(sourceTarget)
       .then(setSource)
-      .catch((error) =>
-        toast.error(error instanceof Error ? error.message : "Failed to load repository source")
-      )
+      .catch((error) => toastApiError(error, "Failed to load repository source"))
       .finally(() => setLoading(false));
   }, [suppliedSource, targetKind, targetNodeId, targetResourceId]);
 
@@ -320,9 +319,7 @@ export function DockerGitSourcePanel({
     void api
       .listDockerBuildSecrets(sourceTarget)
       .then(setBuildSecrets)
-      .catch((error) =>
-        toast.error(error instanceof Error ? error.message : "Failed to load Build Secrets")
-      )
+      .catch((error) => toastApiError(error, "Failed to load Build Secrets"))
       .finally(() => setBuildSecretsLoadedFor(sourceId));
   }, [sourceId, targetKind, targetNodeId, targetResourceId]);
 
@@ -427,9 +424,7 @@ export function DockerGitSourcePanel({
       toast.success(SECTION_SAVED[section]);
     } catch (error) {
       if (!handleLicenseApiError(error, "Git push-to-deploy")) {
-        toast.error(
-          error instanceof Error ? error.message : "Failed to update repository settings"
-        );
+        toastApiError(error, "Failed to update repository settings");
       }
     } finally {
       setSavingSection(null);
@@ -530,7 +525,7 @@ export function DockerGitSourcePanel({
       return true;
     } catch (error) {
       clearPagesBuildDiscovery();
-      toast.error(error instanceof Error ? error.message : "Failed to inspect package.json");
+      toastApiError(error, "Failed to inspect package.json");
       return false;
     } finally {
       setDiscovering(false);
@@ -608,7 +603,7 @@ export function DockerGitSourcePanel({
       toast.success("Build Secret saved");
     } catch (error) {
       if (!handleLicenseApiError(error, "Git push-to-deploy")) {
-        toast.error(error instanceof Error ? error.message : "Failed to save Build Secret");
+        toastApiError(error, "Failed to save Build Secret");
       }
     } finally {
       setSecretSaving(false);
@@ -638,7 +633,7 @@ export function DockerGitSourcePanel({
       );
       toast.success("Build Secret removed");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to remove Build Secret");
+      toastApiError(error, "Failed to remove Build Secret");
     } finally {
       setDeletingSecretName(null);
     }
@@ -664,7 +659,7 @@ export function DockerGitSourcePanel({
         return;
       }
       if (!handleLicenseApiError(error, "Git push-to-deploy")) {
-        toast.error(error instanceof Error ? error.message : "Failed to queue build");
+        toastApiError(error, "Failed to queue build");
       }
     } finally {
       setBuilding(false);
@@ -695,7 +690,7 @@ export function DockerGitSourcePanel({
       }
     } catch (error) {
       if (!handleLicenseApiError(error, "Git push-to-deploy")) {
-        toast.error(error instanceof Error ? error.message : "Failed to sync repository");
+        toastApiError(error, "Failed to sync repository");
       }
     } finally {
       setSyncing(false);
@@ -724,7 +719,7 @@ export function DockerGitSourcePanel({
       if (pendingContainer) navigate("/docker/containers", { replace: true });
     } catch (error) {
       if (!handleLicenseApiError(error, "Git push-to-deploy")) {
-        toast.error(error instanceof Error ? error.message : "Failed to disconnect repository");
+        toastApiError(error, "Failed to disconnect repository");
       }
     } finally {
       setDisconnecting(false);

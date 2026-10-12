@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import type {
@@ -130,7 +131,7 @@ export function MoveToAppDialog({
       .catch((error) => {
         if (cancelled) return;
         setApps([]);
-        toast.error(error instanceof Error ? error.message : "Failed to load apps");
+        toastApiError(error, "Failed to load apps");
       });
     return () => {
       cancelled = true;
@@ -201,7 +202,7 @@ export function MoveToAppDialog({
       }
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to move to the app");
+      toastApiError(error, "Failed to move to the app");
     } finally {
       setMoving(false);
     }

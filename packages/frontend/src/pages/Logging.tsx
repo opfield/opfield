@@ -32,6 +32,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { loggingEnvironmentRoute, loggingSchemaRoute } from "@/lib/resource-routes";
 import { scopeMatches } from "@/lib/scope-utils";
 import { cn } from "@/lib/utils";
@@ -192,7 +193,7 @@ export function Logging({
       setEnvironments(environmentList);
       setSchemas(schemaList);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load logging");
+      toastApiError(error, "Failed to load logging");
     } finally {
       setEnvironmentsLoading(false);
       setSchemasLoading(false);
@@ -552,7 +553,7 @@ function LoggingSchemaDialog({
       onOpenChange(false);
     } catch (error) {
       if (!handleLicenseApiError(error, "Logging schemas")) {
-        toast.error(error instanceof Error ? error.message : "Failed to create logging schema");
+        toastApiError(error, "Failed to create logging schema");
       }
     } finally {
       setSaving(false);

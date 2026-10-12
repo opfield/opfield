@@ -30,9 +30,12 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
+import { toastApiError } from "@/lib/api-error-toast";
+import { pickerLoadError } from "@/lib/picker-load-error";
 import { formatBytes } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAIStore } from "@/stores/ai";
+import { useAuthStore } from "@/stores/auth";
 import { useSystemConfigStore } from "@/stores/system-config";
 import type {
   AIInferenceModelOption,
@@ -126,13 +129,17 @@ function SandboxJobsPanel() {
   } = useDeferredDialogState<AISandboxJob>();
   const [outputText, setOutputText] = useState("");
   const [outputLoading, setOutputLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const loadJobs = useCallback(async (options: { silent?: boolean } = {}) => {
+  // Load and poll failures show in the table; only a refresh the user clicked toasts.
+  const loadJobs = useCallback(async (options: { silent?: boolean; notify?: boolean } = {}) => {
     if (!options.silent) setLoading(true);
     try {
       setJobs(await api.listAISandboxJobs({ limit: 100, status: "running" }));
+      setLoadError(null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load sandbox jobs");
+      setLoadError(pickerLoadError(error, "sandbox jobs"));
+      if (options.notify) toastApiError(error, "Failed to load sandbox jobs");
     } finally {
       if (!options.silent) setLoading(false);
     }
@@ -156,7 +163,7 @@ function SandboxJobsPanel() {
       toast.success("Sandbox job killed");
       await loadJobs({ silent: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to kill sandbox job");
+      toastApiError(error, "Failed to kill sandbox job");
     } finally {
       setKillingId(null);
     }
@@ -281,14 +288,19 @@ function SandboxJobsPanel() {
         title="Running Sandbox Jobs"
         description="Low-priority Docker sandboxes. Workspace reservations are soft; new jobs stop at 80% host-disk use."
         icon={<Container className="h-4 w-4" />}
-        actions={<RefreshButton minDurationMs={1400} onClick={() => loadJobs({ silent: true })} />}
+        actions={
+          <RefreshButton
+            minDurationMs={1400}
+            onClick={() => loadJobs({ silent: true, notify: true })}
+          />
+        }
       >
         <SimpleTable
           columns={columns}
           rows={jobs}
           getRowKey={(job) => job.id}
           loading={loading}
-          emptyMessage="No running sandbox jobs"
+          emptyMessage={loadError ?? "No running sandbox jobs"}
           tableClassName="table-fixed"
         />
       </PanelShell>
@@ -358,18 +370,24 @@ function SandboxArtifactsPanel() {
   const loadingMore = useRef(false);
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const loadArtifacts = useCallback(async (options: { silent?: boolean } = {}) => {
-    if (!options.silent) setLoading(true);
-    try {
-      const result = await api.listAISandboxArtifacts({ page: 1, limit: 10 });
-      setArtifacts(result.data);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load artifacts");
-    } finally {
-      if (!options.silent) setLoading(false);
-    }
-  }, []);
+  const loadArtifacts = useCallback(
+    async (options: { silent?: boolean; notify?: boolean } = {}) => {
+      if (!options.silent) setLoading(true);
+      try {
+        const result = await api.listAISandboxArtifacts({ page: 1, limit: 10 });
+        setArtifacts(result.data);
+        setLoadError(null);
+      } catch (error) {
+        setLoadError(pickerLoadError(error, "artifacts"));
+        if (options.notify) toastApiError(error, "Failed to load artifacts");
+      } finally {
+        if (!options.silent) setLoading(false);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     loadArtifacts();
@@ -392,7 +410,7 @@ function SandboxArtifactsPanel() {
       setNextPage(result.nextPage);
     } catch (error) {
       if (requestId === allRequestId.current) {
-        toast.error(error instanceof Error ? error.message : "Failed to load artifacts");
+        toastApiError(error, "Failed to load artifacts");
       }
     } finally {
       if (requestId === allRequestId.current) {
@@ -447,7 +465,7 @@ function SandboxArtifactsPanel() {
       await loadArtifacts({ silent: true });
       if (allOpen) await loadAllPage(1, true);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete artifact");
+      toastApiError(error, "Failed to delete artifact");
     } finally {
       setDeletingId(null);
     }
@@ -660,7 +678,10 @@ function SandboxArtifactsPanel() {
             <Button variant="quiet" size="inline" className="text-sm font-normal" onClick={openAll}>
               View all
             </Button>
-            <RefreshButton minDurationMs={1400} onClick={() => loadArtifacts({ silent: true })} />
+            <RefreshButton
+              minDurationMs={1400}
+              onClick={() => loadArtifacts({ silent: true, notify: true })}
+            />
           </div>
         }
       >
@@ -669,7 +690,7 @@ function SandboxArtifactsPanel() {
           rows={artifacts}
           getRowKey={(artifact) => artifact.id}
           loading={loading}
-          emptyMessage="No stored artifacts"
+          emptyMessage={loadError ?? "No stored artifacts"}
           tableClassName="table-fixed"
           onRowClick={openArtifactPreview}
         />
@@ -723,6 +744,10 @@ function SandboxArtifactsPanel() {
 
 export function AIConfigSection() {
   const inferenceEnabled = useSystemConfigStore((state) => state.config.features.inferenceEnabled);
+  // Sandbox jobs and artifacts have their own scopes, separate from the AI settings tab gate.
+  const hasScope = useAuthStore((state) => state.hasScope);
+  const canUseSandbox = hasScope("ai:sandbox:use");
+  const canUseWorkspace = hasScope("ai:workspace:use");
   const [aiConfig, setAiConfig] = useState<AIConfigState | null>(() => {
     const cached = api.getCached<AIConfigState>("settings:ai-config");
     return cached ? normalizeAIConfigState(cached) : null;
@@ -839,7 +864,7 @@ export function AIConfigSection() {
         .catch(() => {});
       toast.success("AI settings updated");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update AI settings");
+      toastApiError(err, "Failed to update AI settings");
     } finally {
       setAiSavingSection(null);
     }
@@ -1453,8 +1478,8 @@ export function AIConfigSection() {
         </SettingsControlRow>
       </PanelShell>
 
-      <SandboxJobsPanel />
-      <SandboxArtifactsPanel />
+      {canUseSandbox && <SandboxJobsPanel />}
+      {canUseWorkspace && <SandboxArtifactsPanel />}
 
       <AIToolAccessModal
         open={aiToolsModalOpen}

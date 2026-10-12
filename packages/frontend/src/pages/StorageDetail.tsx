@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
+import { toastApiError } from "@/lib/api-error-toast";
 import { storageRoute } from "@/lib/resource-routes";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
@@ -47,7 +48,11 @@ import { StorageSettingsTab } from "./storage-detail/StorageSettingsTab";
 
 export function StorageDetail(props: Parameters<typeof StorageDetailContent>[0] = {}) {
   return (
-    <LicenseFeatureBoundary feature="storage-connections" capability="Storage connections">
+    <LicenseFeatureBoundary
+      feature="storage-connections"
+      capability="Storage connections"
+      frame={{ kind: "page", title: "Storage" }}
+    >
       <StorageDetailContent {...props} />
     </LicenseFeatureBoundary>
   );
@@ -143,7 +148,7 @@ function StorageDetailContent({
       setLiveHealthStatus(storage.healthStatus);
     } catch (error) {
       if (generation !== loadGeneration.current) return;
-      toast.error(error instanceof Error ? error.message : "Failed to load storage");
+      toastApiError(error, "Failed to load storage");
       navigate("/storage");
     } finally {
       if (generation === loadGeneration.current) setLoading(false);
@@ -270,7 +275,7 @@ function StorageDetailContent({
       toast.success("Storage deleted");
       navigate("/storage");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete storage");
+      toastApiError(error, "Failed to delete storage");
     }
   };
 
@@ -346,7 +351,7 @@ function StorageDetailContent({
       }
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Connection test failed");
+      toastApiError(error, "Connection test failed");
     }
   };
 
@@ -364,7 +369,7 @@ function StorageDetailContent({
         (await api.revealObjectStorageCredentials(storage.id)) as unknown as Record<string, unknown>
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to reveal credentials");
+      toastApiError(error, "Failed to reveal credentials");
     } finally {
       setLoadingCredentials(false);
     }

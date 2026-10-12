@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   isManagedStorageCandidateNode,
   listManagedDatabaseCandidateNodes,
@@ -171,7 +172,7 @@ export function AvailabilityPanel({
     } catch (error) {
       setView(null);
       if (!(error instanceof ApiRequestError && error.code && LICENSE_CODES.has(error.code))) {
-        toast.error(error instanceof Error ? error.message : "Failed to load availability");
+        toastApiError(error, "Failed to load availability");
       }
     }
   }, [stableOwner]);
@@ -311,7 +312,7 @@ export function AvailabilityPanel({
           refresh();
         } catch (error) {
           if (!handleLicenseApiError(error, AVAILABILITY_CAPABILITY)) {
-            toast.error(error instanceof Error ? error.message : "Failed to rebuild the copy");
+            toastApiError(error, "Failed to rebuild the copy");
           }
           throw error;
         }
@@ -335,7 +336,7 @@ export function AvailabilityPanel({
           refresh();
         } catch (error) {
           if (!handleLicenseApiError(error, AVAILABILITY_CAPABILITY)) {
-            toast.error(error instanceof Error ? error.message : "Failed to remove the server");
+            toastApiError(error, "Failed to remove the server");
           }
           throw error;
         }

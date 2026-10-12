@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { inferenceTokenChangedChannel } from "@/services/user-resource-events";
 import { useAuthStore } from "@/stores/auth";
@@ -43,7 +44,7 @@ export function InferenceTokensSection({ canManage }: { canManage: boolean }) {
       const result = await api.listInferenceTokens();
       setTokens(result.filter((token) => token.status === "active"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load inference tokens");
+      toastApiError(error, "Failed to load inference tokens");
     } finally {
       setLoading(false);
     }
@@ -70,7 +71,7 @@ export function InferenceTokensSection({ canManage }: { canManage: boolean }) {
       await load();
       toast.success("Inference token created");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create inference token");
+      toastApiError(error, "Failed to create inference token");
     } finally {
       setCreating(false);
     }
@@ -89,7 +90,7 @@ export function InferenceTokensSection({ canManage }: { canManage: boolean }) {
       await load();
       toast.success("Inference token revoked");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to revoke inference token");
+      toastApiError(error, "Failed to revoke inference token");
     } finally {
       setRevokingId(null);
     }

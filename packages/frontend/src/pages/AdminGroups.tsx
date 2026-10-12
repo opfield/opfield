@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/select";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   canCreateInFolder,
   deriveAllowedResourceIdsByScope,
@@ -358,7 +359,7 @@ function AdminGroupsContent({
         setDialogOpen(false);
         fetchGroups();
       } catch (err: any) {
-        toast.error(err?.message ?? "Failed to update MFA policy");
+        toastApiError(err, "Failed to update MFA policy");
       } finally {
         setSaving(false);
       }
@@ -400,7 +401,7 @@ function AdminGroupsContent({
       fetchGroups();
     } catch (err: any) {
       if (!handleLicenseApiError(err, "Permission groups")) {
-        toast.error(err?.message ?? "Failed to save group");
+        toastApiError(err, "Failed to save group");
       }
     } finally {
       setSaving(false);
@@ -419,7 +420,7 @@ function AdminGroupsContent({
       toast.success("Group deleted");
       fetchGroups();
     } catch (err: any) {
-      toast.error(err?.message ?? "Failed to delete group");
+      toastApiError(err, "Failed to delete group");
     }
   };
 

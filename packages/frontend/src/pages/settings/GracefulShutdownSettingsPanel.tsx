@@ -5,6 +5,7 @@ import { PanelShell } from "@/components/common/PanelShell";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { Button } from "@/components/ui/button";
 import { NumericInput } from "@/components/ui/numeric-input";
+import { toastApiError } from "@/lib/api-error-toast";
 import type { AuthProvisioningSettings } from "@/types";
 
 type ShutdownSettings = AuthProvisioningSettings["generalSettings"]["shutdown"];
@@ -71,9 +72,7 @@ export function GracefulShutdownSettingsPanel({
       setRaw(toRaw(saved));
       toast.success("Graceful shutdown settings updated");
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to update graceful shutdown settings"
-      );
+      toastApiError(error, "Failed to update graceful shutdown settings");
     } finally {
       setIsSaving(false);
     }

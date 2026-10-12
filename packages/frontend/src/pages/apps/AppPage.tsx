@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { Navigate, useParams } from "react-router-dom";
-import { toast } from "sonner";
 import type { AppCreateContext } from "@/components/apps/app-create-context";
 import { openAppIncidents } from "@/components/apps/app-incidents";
 import { IsolatedNotice } from "@/components/apps/IsolatedNotice";
@@ -36,6 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUrlTab } from "@/hooks/use-url-tab";
+import { toastApiError } from "@/lib/api-error-toast";
 import { APP_TABS, type AppTab, appRoute } from "@/lib/app-routes";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
@@ -222,9 +222,7 @@ function AppPageContent({
       const env = app.environments.find((item) => item.id === environmentId);
       setAccessCode({ ...result, scopeLabel: env ? `${env.name} of ${app.name}` : app.name });
     } catch (reason) {
-      toast.error(
-        reason instanceof Error ? reason.message : "Failed to create a maintenance access code"
-      );
+      toastApiError(reason, "Failed to create a maintenance access code");
     }
   };
 
