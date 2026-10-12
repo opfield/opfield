@@ -17,6 +17,7 @@ import {
 } from './transfer-archive.js';
 import {
   type ComposeInstallation,
+  detachManagedSignIn,
   dropDatabaseRollback,
   findInstallation,
   flushRedis,
@@ -92,6 +93,11 @@ export interface ExportSummary {
   includes: { registry: boolean; logs: boolean };
   commercial: boolean;
   parts: Array<{ name: string; bytes: number }>;
+  /**
+   * Set by the restore when the source was a managed cloud installation: OIDC sign-in is off and the owner sets a
+   * password through the link `node dist/cli/owner-password-link.js` prints.
+   */
+  ownerSignIn?: 'password-link';
 }
 
 export interface RestoreOptions {
@@ -404,7 +410,9 @@ export async function restoreExport(docker: DockerService, options: RestoreOptio
       if (part.name === manifest.database.part) {
         await step('Restoring the database');
         await restoreDatabase(docker, installation, part.stream, manifest.database.file);
-        // The copy is not the installation the cloud account linked (or manages).
+        // The copy is not the installation the cloud account linked (or manages); a managed source's owner gets a
+        // password instead of the cloud's sign-in.
+        if (await detachManagedSignIn(docker, installation)) summary.ownerSignIn = 'password-link';
         await forgetCloudLink(docker, installation);
         continue;
       }

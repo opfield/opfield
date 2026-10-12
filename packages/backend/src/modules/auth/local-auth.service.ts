@@ -90,6 +90,37 @@ interface AuthChallenge {
   attempts: number;
 }
 
+async function storeAuthChallenge(
+  cache: Pick<CacheService, 'set'>,
+  userId: string,
+  purpose: ChallengePurpose,
+  secret: string,
+  ttlSeconds: number
+): Promise<string> {
+  const id = nanoid(24);
+  await cache.set<AuthChallenge>(
+    `local_auth:challenge:${id}`,
+    { userId, purpose, secretHash: hashSecret(secret), attempts: 0 },
+    ttlSeconds
+  );
+  return id;
+}
+
+/**
+ * A one-time password setup link for a user, without email (the link a restored copy's owner opens, see
+ * cli/owner-password-link). The same token the emailed link carries; `/reset-password` completes it.
+ */
+export async function issuePasswordSetupLink(
+  cache: Pick<CacheService, 'set'>,
+  userId: string,
+  baseUrl: string,
+  ttlSeconds: number
+): Promise<string> {
+  const secret = nanoid(32);
+  const challengeId = await storeAuthChallenge(cache, userId, 'password_setup', secret, ttlSeconds);
+  return new URL(`/reset-password?token=${encodeURIComponent(`${challengeId}.${secret}`)}`, baseUrl).toString();
+}
+
 function hashSecret(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
@@ -281,13 +312,7 @@ export class LocalAuthService {
     secret: string,
     ttlSeconds: number
   ): Promise<string> {
-    const id = nanoid(24);
-    await this.cacheService.set<AuthChallenge>(
-      `local_auth:challenge:${id}`,
-      { userId, purpose, secretHash: hashSecret(secret), attempts: 0 },
-      ttlSeconds
-    );
-    return id;
+    return storeAuthChallenge(this.cacheService, userId, purpose, secret, ttlSeconds);
   }
 
   private async reservePasswordReset(userId: string): Promise<boolean> {

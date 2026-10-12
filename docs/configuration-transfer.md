@@ -59,6 +59,8 @@ The installer reads the version from the file, installs exactly that version int
 
 The first start after a restore applies the new address, reissues the gRPC and web certificates for it, and records `system.configuration_restored` in the audit log.
 
+The restored copy is not linked to an Opfield account: the cloud link of the exported installation is dropped. An export of an Opfield Cloud installation also comes back without its Opfield account sign-in, which works only on the cloud's address: OIDC sign-in is turned off, password sign-in on, and the owner moves to password sign-in. The installer prints a one-time link (valid 24 hours) that sets the owner's password; for a new link, or after a restore in the setup wizard, run `docker compose exec app node dist/cli/owner-password-link.js` in the installation directory. Other users and roles stay as they were; accounts that signed in with the Opfield account need another sign-in method.
+
 ## Nodes And Relays
 
 Enrolled nodes and remote relays keep their identities: the restored installation has the same System CA, so their certificates stay valid. They reconnect to the address in their daemon configuration (`gateway.address`).

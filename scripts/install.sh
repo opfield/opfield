@@ -836,6 +836,7 @@ run_restore() {
     esac
   done
   RESTORED_PUBLIC_URL="${RESTORE_PUBLIC_URL:-$(restore_result_field "$result" sourcePublicUrl)}"
+  RESTORED_OWNER_SIGN_IN="$(restore_result_field "$result" ownerSignIn)"
   ok "Export restored"
 }
 
@@ -935,6 +936,7 @@ validate_console_options
 show_header
 
 RESTORED_PUBLIC_URL=""
+RESTORED_OWNER_SIGN_IN=""
 if [[ -n "$RESTORE_FILE" ]]; then
   [[ -f "$RESTORE_FILE" && -r "$RESTORE_FILE" ]] || die "Cannot read the export file ${RESTORE_FILE}"
   RESTORE_FILE="$(cd "$(dirname "$RESTORE_FILE")" && pwd)/$(basename "$RESTORE_FILE")"
@@ -1443,7 +1445,26 @@ guide_blank
 if [[ -n "$RESTORE_FILE" ]]; then
   guide "${BRAND_MINT}Restored from:${NC} ${RESTORE_FILE}"
   [[ -z "$RESTORED_PUBLIC_URL" ]] || guide "${BRAND_MINT}Open:${NC} ${RESTORED_PUBLIC_URL}"
-  guide "${GRAY}Sign in with the accounts of the exported installation.${NC}"
+  if [[ "$RESTORED_OWNER_SIGN_IN" == password-link ]]; then
+    # The export came from a managed cloud installation: its Opfield account sign-in does not work here.
+    owner_json="$("${DOCKER[@]}" compose exec -T app node dist/cli/owner-password-link.js </dev/null 2>>"$LOG_FILE" | sed -n '/^{"email":/p' | tail -n1 || true)"
+    owner_email="$(printf '%s' "$owner_json" | sed -n 's/.*"email":"\([^"]*\)".*/\1/p')"
+    owner_link="$(printf '%s' "$owner_json" | sed -n 's/.*"url":"\([^"]*\)".*/\1/p')"
+    owner_expires="$(printf '%s' "$owner_json" | sed -n 's/.*"expiresAt":"\([^"]*\)".*/\1/p')"
+    guide "${GRAY}The export came from an Opfield Cloud installation: sign-in with the Opfield account is off here${NC}"
+    guide "${GRAY}and password sign-in is on. Set the owner's password with this one-time link:${NC}"
+    if [[ -n "$owner_link" ]]; then
+      guide "${BRAND_MINT}Owner:${NC}      ${owner_email}"
+      guide "${BRAND_MINT}Password:${NC}   ${owner_link}"
+      guide "${GRAY}Expires:${NC}    ${owner_expires}"
+    else
+      warn "The owner password link could not be issued. Check ${LOG_FILE} for details."
+    fi
+    guide "${GRAY}New link:${NC}   cd ${INSTALL_DIR} && docker compose exec app node dist/cli/owner-password-link.js"
+    guide "${GRAY}Other accounts that signed in with the Opfield account need a new sign-in method.${NC}"
+  else
+    guide "${GRAY}Sign in with the accounts of the exported installation.${NC}"
+  fi
   guide "${GRAY}Nodes and relays reconnect to this host's address; see the docs on moving Opfield.${NC}"
   rm -f "$INSTALL_PENDING_MARKER"
 elif [[ "$FRESH" == 1 ]]; then

@@ -460,6 +460,13 @@ export function SetupRestoreFlow({
           Opfield restarts on the way, so this page may lose it for a few minutes. Sign-in opens at
           the restored address when it is done.
         </p>
+        <p className="text-sm text-muted-foreground">
+          An export of an Opfield Cloud installation comes back with password sign-in instead of the
+          Opfield account. Set the owner's password with the link this command prints on the host:{" "}
+          <code className="font-mono text-xs">
+            docker compose exec app node dist/cli/owner-password-link.js
+          </code>
+        </p>
       </section>
     );
   }

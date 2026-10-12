@@ -365,6 +365,54 @@ export async function restoreDatabase(
 }
 
 /**
+ * Sign-in of a copy restored from a managed cloud installation: its Opfield account provider is bound to the cloud
+ * (redirect URI on the cloud domain, client of that installation) and password sign-in is off, so the restorer would
+ * be locked out. OIDC sign-in goes off, password sign-in on, and the owner signs in with a password set through a
+ * one-time link (cli/owner-password-link). Users, roles and the provider's settings stay. Runs before
+ * {@link forgetCloudLink}, which drops the enrolment it reads. True when the source was managed.
+ */
+export async function detachManagedSignIn(docker: DockerService, installation: ComposeInstallation): Promise<boolean> {
+  const psql = (sql: string) => [
+    'psql',
+    '-X',
+    '-At',
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-U',
+    'gateway',
+    '-d',
+    'gateway',
+    '-c',
+    sql,
+  ];
+  const managed = await execChecked(
+    docker,
+    installation.postgres,
+    psql("SELECT coalesce((SELECT value->>'managed' FROM settings WHERE key = 'cloud:enrollment'), 'false')"),
+    'Reading the cloud link of the export'
+  );
+  if (managed.trim().split('\n').at(-1) !== 'true') return false;
+  await execChecked(
+    docker,
+    installation.postgres,
+    psql(MANAGED_SIGN_IN_DETACH_SQL),
+    'Opening password sign-in for the owner'
+  );
+  return true;
+}
+
+/** OIDC off and password on (other methods as they were), and the owner on password sign-in; all or nothing. */
+export const MANAGED_SIGN_IN_DETACH_SQL = [
+  'BEGIN;',
+  "INSERT INTO settings (key, value, updated_at) VALUES ('auth:methods', " +
+    `'{"oidc":false,"password":true,"emailOtp":false,"passkeyLogin":false}'::jsonb, now()) ` +
+    `ON CONFLICT (key) DO UPDATE SET value = settings.value || '{"oidc":false,"password":true}'::jsonb, updated_at = now();`,
+  "UPDATE users SET auth_method = 'password' WHERE id::text = " +
+    "(SELECT value->>'ownerUserId' FROM settings WHERE key = 'onboarding:finalize_setup');",
+  'COMMIT;',
+].join(' ');
+
+/**
  * Settings a restored copy must not keep: the cloud link belongs to the installation the export was taken from (its
  * agent and secret, remote management, a disconnect notice). Kept, both would share one agent and the copy would
  * read as a managed cloud VM.
