@@ -45,7 +45,7 @@ export const listInferenceCatalogRoute = appRoute({
   tags: ['Inference'],
   summary: 'List the inference models the current user can call',
   description:
-    'The same catalog GET /api/inference/v1/models returns to the user\'s inference keys, read with the session so no key is used.',
+    "The same catalog GET /api/inference/v1/models returns to the user's inference keys, read with the session so no key is used.",
   responses: okJson(
     z
       .object({

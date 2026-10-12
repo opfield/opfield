@@ -27,6 +27,7 @@ import {
   inferenceSelfUsageRoute,
   inferenceSystemUsageRoute,
   inferenceUsersUsageRoute,
+  listInferenceCatalogRoute,
   listInferenceLimitsRoute,
   listInferenceModelsAdminRoute,
   listInferenceProviderCatalogRoute,
@@ -42,7 +43,6 @@ import {
   syncInferenceProviderConnectionRoute,
   updateInferenceProviderConnectionRoute,
   updateInferenceProviderRoutingRoute,
-  listInferenceCatalogRoute,
 } from './inference.docs.js';
 import {
   CompleteInferenceOAuthSchema,
