@@ -278,8 +278,8 @@ export function SettingsTab({
               >
                 <AppMark logoUrl={app.logoUrl} size="sm" />
                 {permissions.edit && (
-                  <span className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                    <ImageUp className="h-4 w-4 text-white" />
+                  <span className="absolute inset-0 flex items-center justify-center bg-scrim/60 text-on-scrim opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                    <ImageUp className="h-4 w-4" />
                   </span>
                 )}
               </button>
