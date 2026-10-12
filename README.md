@@ -36,7 +36,6 @@ Opfield is the operational control plane between them: one governed place for ev
 
 Opfield is already being integrated into product, enterprise, trading, and fintech environments by:
 
-- [Wiolett Industries](https://docs.opfield.dev/en/success-stories/wiolett-industries/) — product engineering and infrastructure delivery.
 - [Remedy Trade](https://docs.opfield.dev/en/success-stories/remedy-trade/) — systematic trading operations.
 - [Just Working](https://docs.opfield.dev/en/success-stories/just-working/) — enterprise platforms and cloud integration.
 - [DFK Algotrade](https://docs.opfield.dev/en/success-stories/dfk-algotrade/) — fintech engineering and portfolio infrastructure.

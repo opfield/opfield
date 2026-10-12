@@ -151,7 +151,7 @@ export const inferenceCoreStatusSchema = z
   .strict();
 export type InferenceCoreStatus = z.infer<typeof inferenceCoreStatusSchema>;
 
-/** Identity the core reports on its health/readiness endpoints in Good Gateway mode.
+/** Identity the core reports on its health/readiness endpoints in Opfield mode.
  *  These fields are embedded in a larger health payload; unknown keys are
  *  stripped, not rejected. */
 export const inferenceCoreHealthIdentitySchema = z.object({
