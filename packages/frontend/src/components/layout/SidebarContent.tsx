@@ -385,7 +385,7 @@ export function SidebarContent({
             >
               {/* The lockup: mark and the lowercase wordmark in the display face, as in the brand files. */}
               <span className="flex items-center gap-1.5 font-display text-base font-semibold text-foreground/80 whitespace-nowrap pl-1">
-                <OpfieldMark className="h-5 w-5" />
+                <OpfieldMark className="h-6 w-6" />
                 opfield
               </span>
 
