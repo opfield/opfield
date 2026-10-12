@@ -150,6 +150,13 @@ export const UpdateAuthProvisioningSettingsSchema = z.object({
       displayName: z.string().trim().max(64).nullable().optional(),
     })
     .optional(),
+  /**
+   * remove: removes the OIDC provider and turns OIDC sign-in off. opfield_account: Use Opfield account for sign-in;
+   * brings back the "Opfield account" provider with the client Opfield Cloud gave this installation and turns OIDC
+   * sign-in on, or, without such a client, asks the cloud account for one (the provider is set up when it arrives).
+   * cancel_opfield_account: withdraws that pending request. Not with oidc.
+   */
+  oidcProviderAction: z.enum(['remove', 'opfield_account', 'cancel_opfield_account']).optional(),
   mcpServerEnabled: z.boolean().optional(),
   mcpExtendedCompatibility: z.boolean().optional(),
   webTlsEnabled: z.boolean().optional(),

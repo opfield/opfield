@@ -35,7 +35,10 @@ export interface ManagedSsoInput {
 
 export interface CloudManagedSsoDeps {
   db: DrizzleClient;
-  oidcSettings: Pick<OidcSettingsService, 'saveOpfieldAccountProvider' | 'getPublicConfig' | 'getIssuer'>;
+  oidcSettings: Pick<
+    OidcSettingsService,
+    'saveOpfieldAccountProvider' | 'keepOpfieldAccountClient' | 'getPublicConfig' | 'getIssuer'
+  >;
   authSettings: Pick<AuthSettingsService, 'enableOidcSignIn' | 'getConfig'>;
   generalSettings: Pick<GeneralSettingsService, 'getConfig' | 'updateConfig' | 'restoreFields'>;
   setupPolicy: Pick<SetupTokenPolicyService, 'isGatewayConfigured' | 'markSetupCompleteIn'>;
@@ -96,7 +99,8 @@ function validIssuer(value: string): string {
  * administrator bound to issuer + sub, and marks setup complete. The owner, the provider, sign-in and the setup marker
  * are written in one transaction: an installation is never set up without its administrator. The public URL is
  * written first and restored when the transaction fails. On an installation that has administrators (a restore or a
- * reinstall) a new client in the file replaces the client of the Opfield account provider; nobody is created.
+ * reinstall) a new client in the file replaces the client of the Opfield account provider; nobody is created. When
+ * the admin removed that provider or replaced it with their own, the new client is only kept for a later return.
  */
 export class CloudManagedSso {
   constructor(private readonly deps: CloudManagedSsoDeps) {}
@@ -274,17 +278,14 @@ export class CloudManagedSso {
     });
   }
 
-  /** An installation with administrators: a new client replaces the client of the Opfield account provider. */
+  /**
+   * An installation with administrators: a new client replaces the client of the Opfield account provider, or is kept
+   * for a later return when the admin removed that provider or chose another one.
+   */
   private async replaceClient(input: ManagedSsoInput): Promise<ManagedSsoOutcome> {
     const sso = input.sso;
     if (!sso?.clientSecret) return 'done';
     const current = await this.deps.oidcSettings.getPublicConfig();
-    if (!current.configured) {
-      throw new Rejected('no_opfield_provider', 'The installation has administrators and no Opfield account provider');
-    }
-    if (!current.opfieldAccount) {
-      throw new Rejected('another_provider', 'The installation signs in with another OIDC provider; it is kept');
-    }
     const issuer = validIssuer(sso.issuer);
     let origin: string | null;
     try {
@@ -294,6 +295,31 @@ export class CloudManagedSso {
     }
     origin ??= current.redirectUri ? new URL(current.redirectUri).origin : null;
     if (!origin) throw new Rejected('public_url_missing', 'Neither the file nor the settings have a public URL');
+
+    if (!current.configured || !current.opfieldAccount) {
+      // The admin removed the Opfield account provider or signs in with another one: that choice stays. The new
+      // client is kept, so "Use Opfield account for sign-in" brings the Opfield account back with it.
+      try {
+        await this.deps.oidcSettings.keepOpfieldAccountClient({
+          issuer,
+          clientId: sso.clientId,
+          clientSecret: sso.clientSecret,
+          redirectUri: redirectUriFor(origin),
+        });
+      } catch (error) {
+        if (error instanceof AppError && error.statusCode === 400) throw new Rejected('sso_invalid', error.message);
+        throw error;
+      }
+      await this.deps.audit({
+        step: 'client_kept',
+        reason: current.configured ? 'another_provider' : 'no_opfield_provider',
+        issuer,
+        clientId: sso.clientId,
+        redirectUri: redirectUriFor(origin),
+      });
+      logger.info('Kept the new Opfield account client; the installation keeps the sign-in its admin chose');
+      return 'done';
+    }
 
     if (normalizeOidcIssuer(issuer) !== normalizeOidcIssuer(current.issuer)) {
       // Accounts are bound to the issuer: another one must leave an administrator who can still sign in.

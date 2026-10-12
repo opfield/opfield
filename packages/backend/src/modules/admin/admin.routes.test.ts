@@ -31,7 +31,7 @@ import { WebTransportSettingsService } from '@/services/web-transport-settings.s
 import type { AppEnv, SessionData, User } from '@/types.js';
 import { adminRoutes, generalSettingsRollbackFields, generalSettingsRollbackPatch } from './admin.routes.js';
 import { AdminUserFolderService } from './admin-user-folders.service.js';
-import { findCloudManagedChanges, findOpfieldSignInChanges } from './cloud-managed-settings.js';
+import { findCloudManagedChanges } from './cloud-managed-settings.js';
 import { findIdentityTrustChanges } from './identity-trust-settings.js';
 
 process.env.NODE_ENV = 'test';
@@ -523,6 +523,7 @@ describe('admin Gateway settings route permissions', () => {
       },
       availableGroups: [],
       cloudManaged: false,
+      opfieldAccountSignIn: { available: false, clientIssued: false, pendingRequest: null, detached: false },
     });
   });
 
@@ -1752,13 +1753,13 @@ describe('what a managed installation keeps', () => {
     expect(await status.json()).toMatchObject({ data: { status: 'valid', cloudManaged: true } });
   });
 
-  it('refuses switching the owner of a managed installation away from the Opfield account sign-in', async () => {
+  it('lets the owner of a managed installation move to password sign-in like on any installation', async () => {
     registerSession(['admin:users', 'nodes:details:node-1']);
     managed();
     container.registerInstance(FinalizeSetupService, {
       isOwner: vi.fn().mockResolvedValue(true),
     } as unknown as FinalizeSetupService);
-    const updateUserAuthMethod = vi.fn();
+    const updateUserAuthMethod = vi.fn().mockResolvedValue({ ...TARGET_USER, authMethod: 'password' });
     container.registerInstance(AuthService, {
       getUserById: vi.fn().mockResolvedValue({ ...TARGET_USER, authMethod: 'oidc' }),
       updateUserAuthMethod,
@@ -1766,6 +1767,10 @@ describe('what a managed installation keeps', () => {
     container.registerInstance(AuthMailService, {
       getPublicConfig: vi.fn().mockResolvedValue({ verifiedAt: '2026-08-27T00:00:00.000Z' }),
     } as unknown as AuthMailService);
+    container.registerInstance(LocalAuthService, {
+      requestPasswordLink: vi.fn().mockResolvedValue(undefined),
+      sendEmailOtpOnboarding: vi.fn(),
+    } as unknown as LocalAuthService);
     container.registerInstance(AuditService, { log: vi.fn().mockResolvedValue(undefined) } as unknown as AuditService);
 
     const response = await createApp().request(`/api/admin/users/${TARGET_USER.id}/auth-method`, {
@@ -1773,68 +1778,207 @@ describe('what a managed installation keeps', () => {
       headers: sessionHeaders(),
       body: JSON.stringify({ authMethod: 'password' }),
     });
-    expect(response.status).toBe(409);
-    expect(await response.json()).toMatchObject({ code: 'CLOUD_MANAGED' });
-    expect(updateUserAuthMethod).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(updateUserAuthMethod).toHaveBeenCalledWith(TARGET_USER.id, 'password');
+  });
+});
+
+describe('sign-in on a managed installation', () => {
+  const OPFIELD = {
+    configured: true,
+    issuer: 'https://account.opfield.dev/',
+    clientId: 'gw-client',
+    clientSecretLast4: 'abcd',
+    redirectUri: 'https://gw.example.com/auth/callback',
+    scopes: 'openid email profile',
+    displayName: 'Opfield account',
+    opfieldAccount: true,
+  };
+  const PASSWORD_ADMIN = { authMethod: 'password', oidcIssuer: null };
+  const OPFIELD_OWNER = { authMethod: 'oidc', oidcIssuer: OPFIELD.issuer };
+
+  /** A managed installation signed in with the Opfield account; `admins` are its active system administrators. */
+  function registerManagedSignIn(
+    admins: Array<{ authMethod: string; oidcIssuer: string | null }>,
+    options: { enrolled?: boolean; managed?: boolean; clientIssued?: boolean; publicUrl?: string | null } = {}
+  ) {
+    registerSession(['settings:gateway:edit', 'admin:system']);
+    const db = container.resolve<DrizzleClient>(TOKENS.DrizzleClient) as unknown as Record<string, unknown>;
+    const chain = { from: () => chain, innerJoin: () => chain, where: async () => admins };
+    container.registerInstance(TOKENS.DrizzleClient, { ...db, select: () => chain } as unknown as DrizzleClient);
+    const cloud = {
+      managedByCloud: vi.fn().mockResolvedValue(options.managed ?? true),
+      isEnrolled: vi.fn().mockResolvedValue(options.enrolled ?? true),
+      pendingSsoClientRequest: vi.fn().mockResolvedValue(null),
+      requestSsoClient: vi.fn().mockResolvedValue({ redirectUri: 'x', requestedAt: 'y' }),
+      cancelSsoClientRequest: vi.fn().mockResolvedValue(true),
+    };
+    container.registerInstance(CloudLinkService, cloud as unknown as CloudLinkService);
+    const oidc = {
+      getPublicConfig: vi.fn().mockResolvedValue(OPFIELD),
+      getIssuer: vi.fn().mockResolvedValue(OPFIELD.issuer),
+      getOpfieldAccountClient: vi.fn().mockResolvedValue(
+        options.clientIssued === false
+          ? null
+          : {
+              issuer: OPFIELD.issuer,
+              clientId: OPFIELD.clientId,
+              clientSecret: 'kept-secret',
+              redirectUri: OPFIELD.redirectUri,
+            }
+      ),
+      saveConfig: vi.fn().mockResolvedValue(OPFIELD),
+      removeConfig: vi.fn().mockResolvedValue(undefined),
+      restoreOpfieldAccountProvider: vi.fn().mockResolvedValue(OPFIELD),
+    };
+    container.registerInstance(OidcSettingsService, oidc as unknown as OidcSettingsService);
+    const authSettings = {
+      getConfig: vi.fn().mockResolvedValue({ methods: { oidc: true, password: true, emailOtp: false } }),
+      updateConfig: vi.fn().mockResolvedValue({}),
+    };
+    container.registerInstance(AuthSettingsService, authSettings as unknown as AuthSettingsService);
+    container.registerInstance(AuthMailService, {
+      getPublicConfig: vi.fn().mockResolvedValue({ configured: true, verifiedAt: '2026-08-27T00:00:00.000Z' }),
+    } as unknown as AuthMailService);
+    container.registerInstance(AuthService, {
+      invalidateOidcConfiguration: vi.fn(),
+    } as unknown as AuthService);
+    container.registerInstance(McpSettingsService, {
+      getConfig: vi.fn().mockResolvedValue({ serverEnabled: true, extendedCompatibility: false }),
+      updateConfig: vi.fn().mockResolvedValue({ serverEnabled: true, extendedCompatibility: false }),
+    } as unknown as McpSettingsService);
+    container.registerInstance(GeneralSettingsService, {
+      getConfig: vi.fn().mockResolvedValue({
+        publicUrl: options.publicUrl === undefined ? 'https://gw.example.com' : options.publicUrl,
+      }),
+    } as unknown as GeneralSettingsService);
+    container.registerInstance(NetworkSettingsService, {
+      getConfig: vi.fn().mockResolvedValue({
+        clientIpSource: 'auto',
+        trustedProxyCidrs: [],
+        trustCloudflareHeaders: false,
+      }),
+    } as unknown as NetworkSettingsService);
+    container.registerInstance(OutboundWebhookPolicyService, {
+      getConfig: vi.fn().mockResolvedValue({ allowPrivateNetworks: false, allowedPrivateCidrs: [] }),
+    } as unknown as OutboundWebhookPolicyService);
+    container.registerInstance(GroupService, { listGroups: vi.fn().mockResolvedValue([]) } as unknown as GroupService);
+    container.registerInstance(AuditService, { log: vi.fn() } as unknown as AuditService);
+    return { oidc, authSettings, cloud };
+  }
+
+  const put = (body: unknown) =>
+    createApp().request('/api/admin/auth-settings', {
+      method: 'PUT',
+      headers: sessionHeaders(),
+      body: JSON.stringify(body),
+    });
+
+  it('edits the Opfield account provider, adds another one and turns OIDC sign-in off', async () => {
+    const own = {
+      issuer: 'https://id.customer.example',
+      clientId: 'customer',
+      clientSecret: 'customer-secret',
+      redirectUri: 'https://gw.example.com/auth/callback',
+      scopes: 'openid email',
+    };
+    let { oidc } = registerManagedSignIn([OPFIELD_OWNER, PASSWORD_ADMIN]);
+    let response = await put({ oidc: { ...own, issuer: OPFIELD.issuer, clientId: 'other-client' } });
+    expect(response.status).toBe(200);
+    expect(oidc.saveConfig).toHaveBeenCalledWith(expect.objectContaining({ clientId: 'other-client' }));
+
+    ({ oidc } = registerManagedSignIn([OPFIELD_OWNER, PASSWORD_ADMIN]));
+    response = await put({ oidc: own });
+    expect(response.status).toBe(200);
+    expect(oidc.saveConfig).toHaveBeenCalledWith(expect.objectContaining({ issuer: own.issuer }));
+
+    const { authSettings } = registerManagedSignIn([OPFIELD_OWNER, PASSWORD_ADMIN]);
+    response = await put({ methods: { oidc: false } });
+    expect(response.status).toBe(200);
+    expect(authSettings.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ methods: { oidc: false } }));
   });
 
-  it('keeps the Opfield account provider client and OIDC sign-in; unchanged values and other providers pass', async () => {
-    const current = {
-      configured: true,
-      issuer: 'https://account.opfield.dev/',
-      clientId: 'gw-client',
-      clientSecretLast4: 'abcd',
-      redirectUri: 'https://gw.example.com/api/auth/oidc/callback',
-      scopes: 'openid email profile',
-      displayName: 'Opfield account',
-      opfieldAccount: true,
-    };
-    const oidc = {
-      issuer: current.issuer,
-      clientId: current.clientId,
-      redirectUri: current.redirectUri,
-      scopes: current.scopes,
-    };
-    for (const [body, status] of [
-      [{ oidc: { ...oidc, clientId: 'other-client' } }, 409],
-      [{ oidc: { ...oidc, clientSecret: 'new-secret' } }, 409],
-      [{ oidc: { ...oidc, redirectUri: 'https://evil.example.com/cb' } }, 409],
-      [{ oidc: { ...oidc, scopes: 'openid email' } }, 409],
-      [{ methods: { oidc: false } }, 409],
-    ] as const) {
-      registerSession(['settings:gateway:edit', 'admin:system']);
-      managed();
-      const saveConfig = vi.fn();
-      container.registerInstance(OidcSettingsService, {
-        getPublicConfig: vi.fn().mockResolvedValue(current),
-        saveConfig,
-      } as unknown as OidcSettingsService);
-      container.registerInstance(AuthSettingsService, {
-        getConfig: vi.fn().mockResolvedValue({ methods: { oidc: true } }),
-        updateConfig: vi.fn(),
-      } as unknown as AuthSettingsService);
-      for (const service of [
-        McpSettingsService,
-        GeneralSettingsService,
-        NetworkSettingsService,
-        OutboundWebhookPolicyService,
-      ]) {
-        container.registerInstance(service as never, { getConfig: vi.fn(), updateConfig: vi.fn() } as never);
-      }
-      container.registerInstance(GroupService, {
-        listGroups: vi.fn().mockResolvedValue([]),
-      } as unknown as GroupService);
-      container.registerInstance(AuditService, { log: vi.fn() } as unknown as AuditService);
-      const response = await createApp().request('/api/admin/auth-settings', {
-        method: 'PUT',
-        headers: sessionHeaders(),
-        body: JSON.stringify(body),
-      });
-      expect(response.status).toBe(status);
-      expect(await response.json()).toMatchObject({ code: 'CLOUD_MANAGED' });
-      expect(saveConfig).not.toHaveBeenCalled();
+  it('removes the provider and brings the Opfield account back', async () => {
+    let { oidc, authSettings } = registerManagedSignIn([OPFIELD_OWNER, PASSWORD_ADMIN]);
+    let response = await put({ oidcProviderAction: 'remove' });
+    expect(response.status).toBe(200);
+    expect(oidc.removeConfig).toHaveBeenCalledOnce();
+    expect(authSettings.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ methods: { oidc: false } }));
+
+    ({ oidc, authSettings } = registerManagedSignIn([PASSWORD_ADMIN]));
+    response = await put({ oidcProviderAction: 'opfield_account' });
+    expect(response.status).toBe(200);
+    expect(oidc.restoreOpfieldAccountProvider).toHaveBeenCalledOnce();
+    expect(authSettings.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ methods: { oidc: true } }));
+    expect(await response.json()).toMatchObject({
+      opfieldAccountSignIn: { available: true, clientIssued: true, pendingRequest: null, detached: false },
+      cloudManaged: true,
+    });
+
+    // Both at once is ambiguous.
+    registerManagedSignIn([PASSWORD_ADMIN]);
+    response = await put({ oidcProviderAction: 'remove', oidc: { ...OPFIELD, clientSecret: 'x' } });
+    expect(response.status).toBe(400);
+  });
+
+  it('asks the Opfield account for a client on a self-hosted installation without one, and cancels the request', async () => {
+    let { cloud, authSettings, oidc } = registerManagedSignIn([PASSWORD_ADMIN], {
+      managed: false,
+      clientIssued: false,
+    });
+    let response = await put({ oidcProviderAction: 'opfield_account' });
+    expect(response.status).toBe(200);
+    expect(cloud.requestSsoClient).toHaveBeenCalledWith('https://gw.example.com/auth/callback', { userId: USER.id });
+    expect(oidc.restoreOpfieldAccountProvider).not.toHaveBeenCalled();
+    // OIDC sign-in turns on only when the client arrives.
+    expect(authSettings.updateConfig.mock.calls[0]?.[0]).not.toHaveProperty('methods');
+
+    ({ cloud } = registerManagedSignIn([PASSWORD_ADMIN], { managed: false, clientIssued: false }));
+    response = await put({ oidcProviderAction: 'cancel_opfield_account' });
+    expect(response.status).toBe(200);
+    expect(cloud.cancelSsoClientRequest).toHaveBeenCalledWith({ userId: USER.id });
+
+    // The redirect URI comes from the public URL.
+    ({ cloud } = registerManagedSignIn([PASSWORD_ADMIN], { managed: false, clientIssued: false, publicUrl: null }));
+    response = await put({ oidcProviderAction: 'opfield_account' });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: 'PUBLIC_URL_REQUIRED' });
+    expect(cloud.requestSsoClient).not.toHaveBeenCalled();
+  });
+
+  it('keeps the generic rules: an administrator must still sign in, and the Opfield account needs a cloud client', async () => {
+    // The owner is the only administrator and signs in with the Opfield account.
+    for (const body of [
+      { oidcProviderAction: 'remove' },
+      { methods: { oidc: false } },
+      { oidc: { issuer: 'https://id.customer.example', clientId: 'c', redirectUri: OPFIELD.redirectUri } },
+    ]) {
+      const { oidc, authSettings } = registerManagedSignIn([OPFIELD_OWNER]);
+      const response = await put(body);
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({ code: 'LAST_ADMIN_SIGN_IN' });
+      expect(oidc.removeConfig).not.toHaveBeenCalled();
+      expect(oidc.saveConfig).not.toHaveBeenCalled();
+      expect(authSettings.updateConfig).not.toHaveBeenCalled();
     }
-    expect(findOpfieldSignInChanges({ ...oidc, issuer: 'https://account.opfield.dev' }, current)).toEqual([]);
-    expect(findOpfieldSignInChanges({ ...oidc, clientId: 'x' }, { ...current, opfieldAccount: false })).toEqual([]);
+
+    // Not connected to Opfield Cloud: nothing to bring back.
+    const { oidc } = registerManagedSignIn([PASSWORD_ADMIN], { enrolled: false });
+    const response = await put({ oidcProviderAction: 'opfield_account' });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: 'OPFIELD_ACCOUNT_CLIENT_MISSING' });
+    expect(oidc.restoreOpfieldAccountProvider).not.toHaveBeenCalled();
+
+    // Bringing it back is an identity provider change: admin:system only.
+    await expect(
+      findIdentityTrustChanges(
+        { oidcProviderAction: 'opfield_account' },
+        {
+          smtp: async () => ({}) as never,
+          generalSettings: async () => ({ publicUrl: null }),
+          authSettings: async () => ({ oidcRequireVerifiedEmail: true }),
+        }
+      )
+    ).resolves.toEqual(['the OIDC provider']);
   });
 });

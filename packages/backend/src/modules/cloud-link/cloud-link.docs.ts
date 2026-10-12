@@ -39,6 +39,7 @@ export const disconnectCloudRoute = appRoute({
   method: 'post',
   path: '/disconnect',
   tags: ['Cloud'],
-  summary: 'Disconnect this installation from its cloud account',
+  summary:
+    'Disconnect this installation from its cloud account; the Opfield account sign-in the cloud gave goes with it unless no administrator could sign in',
   responses: okJson(UnknownDataResponseSchema),
 });

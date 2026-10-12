@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { afterAll, describe, expect, it, vi } from 'vitest';
+import { OPFIELD_ACCOUNT_CLIENT_KEY } from '@/modules/auth/oidc-settings.service.js';
 import { RestoreError, singleFileTar, verifyExport } from './configuration-restore.js';
 import { withDefaultPort } from './gateway-move.service.js';
 import { ExportArchiveError, ExportArchiveWriter, MANIFEST_PART } from './transfer-archive.js';
@@ -193,9 +194,16 @@ describe('a restored copy and the cloud link', () => {
     const [container, command] = exec.mock.calls[0]!;
     expect(container).toBe('pg-1');
     expect(command.at(-1)).toBe(
-      "DELETE FROM settings WHERE key IN ('cloud:enrollment', 'cloud:remote_management', 'cloud:disconnected')"
+      "DELETE FROM settings WHERE key IN ('cloud:enrollment', 'cloud:remote_management', 'cloud:disconnected', " +
+        "'cloud:opfield_account_client', 'cloud:sso_client_request')"
     );
-    expect(RESTORE_FORGOTTEN_SETTINGS).toEqual(['cloud:enrollment', 'cloud:remote_management', 'cloud:disconnected']);
+    expect(RESTORE_FORGOTTEN_SETTINGS).toEqual([
+      'cloud:enrollment',
+      'cloud:remote_management',
+      'cloud:disconnected',
+      OPFIELD_ACCOUNT_CLIENT_KEY,
+      'cloud:sso_client_request',
+    ]);
   });
 
   it('stops the restore when the link cannot be forgotten', async () => {

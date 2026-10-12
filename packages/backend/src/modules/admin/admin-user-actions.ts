@@ -18,11 +18,9 @@ import {
 import { assertSmtpVerified, inviteCreatedUser, sendSignInOnboarding } from '@/modules/admin/admin-user-invitation.js';
 import { LocalAuthService } from '@/modules/auth/local-auth.service.js';
 import { MfaService } from '@/modules/auth/mfa.service.js';
-import { CLOUD_MANAGED_MESSAGES, managedByCloud } from '@/modules/cloud-link/cloud-link-managed-locks.js';
 import { isDemoVisitor } from '@/modules/demo/demo-mode.js';
 import { GroupService } from '@/modules/groups/group.service.js';
 import { resolveGitScopePathQualifiers } from '@/modules/integrations/git-scope-paths.js';
-import { FinalizeSetupService } from '@/modules/onboarding/finalize-setup.service.js';
 import { SessionService } from '@/services/session.service.js';
 import type { User } from '@/types.js';
 
@@ -109,10 +107,6 @@ export async function createAdminUser(
   }
 }
 
-async function isInstallationOwner(userId: string): Promise<boolean> {
-  return container.isRegistered(FinalizeSetupService) && container.resolve(FinalizeSetupService).isOwner(userId);
-}
-
 export async function updateAdminUserAuthMethod(
   actor: AdminUserActor,
   userId: string,
@@ -121,10 +115,6 @@ export async function updateAdminUserAuthMethod(
 ): Promise<User> {
   assertNotOwnSignInFromProgrammaticCaller(actor, userId);
   const targetUser = await requireManageableUser(actor, userId, services);
-  // The owner of a managed installation signs in with the Opfield account, and so OIDC sign-in can never go away.
-  if (authMethod !== 'oidc' && (await managedByCloud()) && (await isInstallationOwner(userId))) {
-    throw new AppError(409, 'CLOUD_MANAGED', CLOUD_MANAGED_MESSAGES.ownerSignIn);
-  }
   if (authMethod === 'password' || authMethod === 'email_otp') {
     await assertSmtpVerified('SMTP must be verified before switching to email sign-in');
   }

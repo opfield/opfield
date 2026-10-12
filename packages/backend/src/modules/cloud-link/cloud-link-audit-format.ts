@@ -25,6 +25,14 @@ const MANAGED_SSO_STEPS: Record<string, string> = {
   owner: 'Owner made administrator',
   setup_complete: 'Setup completed',
   client_replaced: 'Sign-in client secret replaced',
+  client_kept: 'New Opfield account client kept; the chosen sign-in stays',
+  client_requested: 'Asked the Opfield account for a sign-in client',
+  client_request_cancelled: 'Request for a sign-in client cancelled',
+  client_received: 'Opfield account sign-in set up from the cloud account',
+  client_forgotten: 'Opfield account client forgotten: the cloud link ended',
+  provider_removed: 'Opfield account sign-in removed: the cloud link ended',
+  provider_kept: 'Opfield account sign-in kept after the cloud link ended: no other administrator could sign in',
+  secret_rotated: 'Sign-in client secret replaced',
   secret_removed: 'Client secret removed from the enrolment file',
 };
 

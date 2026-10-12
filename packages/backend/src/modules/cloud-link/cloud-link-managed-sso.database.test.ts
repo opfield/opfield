@@ -52,7 +52,8 @@ const PUBLIC_URL = 'https://acme.opfield.cloud:3000';
  * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): a managed installation whose enrolment file carries the Opfield
  * account client and owner comes up set up: owner as system administrator, the provider, setup complete and the
  * secret out of the file, all or nothing; retries are idempotent; sign-in through the provider lands on the owner;
- * replacing the provider is refused while the owner is the only administrator.
+ * replacing the provider is refused while the owner is the only administrator; once another administrator can sign in,
+ * the admin edits or removes the provider and brings the Opfield account back, and the portal's secret rotation follows.
  */
 describe.skipIf(!url)('managed installation signed in with the Opfield account (PostgreSQL)', () => {
   let database: Awaited<ReturnType<typeof disposableDatabase>>;
@@ -135,7 +136,7 @@ describe.skipIf(!url)('managed installation signed in with the Opfield account (
     // A fresh managed installation: setup open, nobody signed up yet.
     await q(`delete from users where oidc_subject is null or oidc_subject not like 'system:%'`);
     await q(
-      `delete from settings where key like 'setup:%' or key like 'auth:%' or key = 'onboarding:finalize_setup' or key = 'general:settings'`
+      `delete from settings where key like 'setup:%' or key like 'auth:%' or key = 'onboarding:finalize_setup' or key = 'general:settings' or key = 'cloud:opfield_account_client'`
     );
     await new SetupTokenPolicyService(db, true).ensureSetupStarted();
     return () => rm(dir, { recursive: true, force: true });
@@ -368,6 +369,108 @@ describe.skipIf(!url)('managed installation signed in with the Opfield account (
     expect(await oidcSettings.getPublicConfig()).toMatchObject({ opfieldAccount: false, displayName: 'Customer SSO' });
     await expect(oidcSettings.rotateOpfieldAccountSecret('nope')).rejects.toMatchObject({
       code: 'OPFIELD_ACCOUNT_PROVIDER_MISSING',
+    });
+  });
+
+  it('lets the admin edit, remove and bring back the Opfield account provider; secret rotation follows', async () => {
+    await managedSso().apply({
+      publicUrl: PUBLIC_URL,
+      sso: { issuer: ISSUER, clientId: 'gw-acme', clientSecret: SECRET },
+      owner: OWNER,
+    });
+    const { oidcSettings, authSettings } = services();
+    // Another administrator signs in with a password, so sign-in can change.
+    await authSettings.updateConfig({ methods: { password: true } });
+    const [adminGroup] = await db
+      .select({ id: schema.permissionGroups.id })
+      .from(schema.permissionGroups)
+      .where(eq(schema.permissionGroups.name, 'system-admin'));
+    await db
+      .insert(schema.users)
+      .values({ email: 'ops@example.com', name: 'Ops', authMethod: 'password', groupId: adminGroup!.id });
+    const kept = async () => (await oidcSettings.getOpfieldAccountClient())?.clientSecret;
+    const callback = `${PUBLIC_URL}/auth/callback`;
+
+    // In use: the portal's rotation replaces the provider's secret and the kept one.
+    await oidcSettings.rotateOpfieldAccountSecret('rotated-secret-0002');
+    expect((await oidcSettings.getPublicConfig()).clientSecretLast4).toBe('0002');
+    expect(await kept()).toBe('rotated-secret-0002');
+    const keptRow = await q(`select value::text from settings where key = 'cloud:opfield_account_client'`);
+    expect(keptRow.rows[0].value).not.toContain('rotated-secret-0002');
+
+    // Another client at the same issuer is the customer's own: rotation is refused and changes nothing.
+    await oidcSettings.saveConfig({
+      issuer: ISSUER,
+      clientId: 'customer-client',
+      clientSecret: 'customer-secret-0003',
+      redirectUri: callback,
+    });
+    expect(await oidcSettings.getPublicConfig()).toMatchObject({ opfieldAccount: false, clientSecretLast4: '0003' });
+    await expect(oidcSettings.rotateOpfieldAccountSecret('refused-0009')).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'OPFIELD_ACCOUNT_PROVIDER_MISSING',
+    });
+    expect((await oidcSettings.getPublicConfig()).clientSecretLast4).toBe('0003');
+    expect(await kept()).toBe('rotated-secret-0002');
+
+    // Removed: no provider, rotation refused, the cloud's client still kept.
+    await oidcSettings.removeConfig();
+    expect((await oidcSettings.getPublicConfig()).configured).toBe(false);
+    await expect(oidcSettings.rotateOpfieldAccountSecret('refused-0009')).rejects.toMatchObject({
+      code: 'OPFIELD_ACCOUNT_PROVIDER_MISSING',
+    });
+    expect(await kept()).toBe('rotated-secret-0002');
+
+    // Use Opfield account for sign-in: the provider comes back with the cloud's client and its latest secret.
+    await oidcSettings.restoreOpfieldAccountProvider();
+    expect(await oidcSettings.getPublicConfig()).toMatchObject({
+      issuer: `${ISSUER}/`,
+      clientId: 'gw-acme',
+      clientSecretLast4: '0002',
+      redirectUri: callback,
+      displayName: 'Opfield account',
+      opfieldAccount: true,
+    });
+    await oidcSettings.rotateOpfieldAccountSecret('rotated-secret-0005');
+    expect((await oidcSettings.getPublicConfig()).clientSecretLast4).toBe('0005');
+
+    // A reinstall delivers a new client while the admin signs in with their own SSO: theirs stays, the client is kept.
+    await oidcSettings.saveConfig({
+      issuer: 'https://id.customer.example',
+      clientId: 'customer',
+      clientSecret: 'customer-secret',
+      redirectUri: callback,
+      displayName: 'Customer SSO',
+    });
+    await expect(
+      managedSso().apply({
+        publicUrl: PUBLIC_URL,
+        sso: { issuer: ISSUER, clientId: 'gw-acme-3', clientSecret: 'reinstall-0006' },
+      })
+    ).resolves.toBe('done');
+    expect(await oidcSettings.getPublicConfig()).toMatchObject({ clientId: 'customer', opfieldAccount: false });
+    expect(audit).toHaveBeenCalledWith(
+      expect.objectContaining({ step: 'client_kept', reason: 'another_provider', clientId: 'gw-acme-3' })
+    );
+    expect(JSON.stringify(audit.mock.calls)).not.toContain('reinstall-0006');
+    await oidcSettings.restoreOpfieldAccountProvider();
+    expect(await oidcSettings.getPublicConfig()).toMatchObject({
+      clientId: 'gw-acme-3',
+      clientSecretLast4: '0006',
+      opfieldAccount: true,
+    });
+
+    // An installation provisioned before the client was kept apart: removing the provider keeps it first.
+    await q(`delete from settings where key = 'cloud:opfield_account_client'`);
+    await oidcSettings.removeConfig();
+    expect(await oidcSettings.getOpfieldAccountClient()).toMatchObject({
+      clientId: 'gw-acme-3',
+      clientSecret: 'reinstall-0006',
+    });
+    // Nothing from the cloud at all: nothing to bring back.
+    await q(`delete from settings where key = 'cloud:opfield_account_client'`);
+    await expect(oidcSettings.restoreOpfieldAccountProvider()).rejects.toMatchObject({
+      code: 'OPFIELD_ACCOUNT_CLIENT_MISSING',
     });
   });
 });

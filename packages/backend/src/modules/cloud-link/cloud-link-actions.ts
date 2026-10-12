@@ -19,6 +19,7 @@ import {
   DEFAULT_RELAY_SERVICE_PORT,
   resolveCloudNodeKind,
 } from './cloud-link.types.js';
+import { createCloudSsoClient } from './cloud-link-sso-client.js';
 
 const logger = createChildLogger('CloudLinkActions');
 
@@ -29,8 +30,8 @@ const MAX_NODE_NAME_LENGTH = 255;
 
 /**
  * What the cloud account may do over the link besides reading, each the same mechanism the product already has:
- * the first-admin setup code of setup-code.js, Nodes → Add node, the Update now of Settings, and a new client secret
- * of the Opfield account sign-in (managed installations only).
+ * the first-admin setup code of setup-code.js, Nodes → Add node, the Update now of Settings, and the client and
+ * client secret of the Opfield account sign-in.
  */
 export function createCloudLinkActions(): CloudLinkActions {
   return {
@@ -91,12 +92,31 @@ export function createCloudLinkActions(): CloudLinkActions {
     },
 
     // The account portal rotated the client of the Opfield account sign-in: stored encrypted, used at the next sign-in
-    // on every replica (the discovery cache follows the stored client).
+    // on every replica (the discovery cache follows the stored client). Refused with OPFIELD_ACCOUNT_PROVIDER_MISSING
+    // and nothing changed when the admin removed that provider or chose another client; the portal keeps the old
+    // secret then.
     async ssoSecret(clientSecret) {
-      await container.resolve(OidcSettingsService).rotateOpfieldAccountSecret(clientSecret);
+      const oidcSettings = container.resolve(OidcSettingsService);
+      // A self-hosted installation takes it only for a client the account gave it (Use Opfield account for sign-in).
+      if (
+        !(await container.resolve(CloudLinkService).managedByCloud()) &&
+        !(await oidcSettings.hasKeptOpfieldAccountClient())
+      ) {
+        throw new AppError(
+          409,
+          'OPFIELD_ACCOUNT_PROVIDER_MISSING',
+          'Opfield Cloud gave this installation no sign-in client; the new client secret was not stored'
+        );
+      }
+      await oidcSettings.rotateOpfieldAccountSecret(clientSecret);
       container.resolve(AuthService).invalidateOidcConfiguration();
       await container.resolve(CloudLinkService).recordManagedSso({ step: 'secret_rotated', source: 'cloud-link' });
       return { saved: true };
+    },
+
+    // The client the account created after Use Opfield account for sign-in asked for one (see CloudSsoClient).
+    async ssoClient(client) {
+      return createCloudSsoClient().accept(client);
     },
 
     // Mirrors POST /api/system/update (Settings → Update now).

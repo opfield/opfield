@@ -192,6 +192,17 @@ export interface AuthProvisioningSettings {
   availableGroups: AuthProvisioningGroupOption[];
   /** Managed cloud installation: the public URL and gRPC addresses belong to the cloud. */
   cloudManaged?: boolean;
+  /** Use Opfield account for sign-in, as Settings > Authentication > OIDC provider shows it. */
+  opfieldAccountSignIn?: {
+    /** Connected to Opfield Cloud: the action brings the provider back or asks the account for a client. */
+    available: boolean;
+    /** The cloud gave this installation a client: the action brings the provider back at once. */
+    clientIssued: boolean;
+    /** Asked the Opfield account for a client; waiting for it. */
+    pendingRequest: { redirectUri: string; requestedAt: string } | null;
+    /** The cloud link ended but the Opfield account provider stayed: no administrator could sign in without it. */
+    detached: boolean;
+  };
 }
 
 export interface OAuthConsentPreview {

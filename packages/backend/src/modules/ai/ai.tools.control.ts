@@ -176,7 +176,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'update_gateway_settings',
     description:
-      'Update Opfield settings exactly like the Settings UI. Pass only fields to change. SMTP, the OIDC provider, the public URL, and relaxing OIDC verified-email enforcement require admin:system. smtp.testRecipient sends a test email; enabling password or email-code sign-in requires verified SMTP; enabling OIDC sign-in requires a configured provider. environmentSettings patches the environment (limits/timeouts) settings.',
+      'Update Opfield settings exactly like the Settings UI. Pass only fields to change. SMTP, the OIDC provider (oidc, oidcProviderAction), the public URL, and relaxing OIDC verified-email enforcement require admin:system. smtp.testRecipient sends a test email; enabling password or email-code sign-in requires verified SMTP; enabling OIDC sign-in requires a configured provider; turning a sign-in method off is refused (LAST_ADMIN_SIGN_IN) when no administrator could sign in afterwards. environmentSettings patches the environment (limits/timeouts) settings.',
     parameters: {
       type: 'object',
       properties: {
@@ -248,7 +248,13 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
           required: ['issuer', 'clientId', 'redirectUri'],
           additionalProperties: false,
           description:
-            'OIDC/SSO identity provider. Requires admin:system. Another issuer is refused (LAST_ADMIN_SIGN_IN) when no administrator could sign in afterwards.',
+            'OIDC/SSO identity provider. Requires admin:system. Another issuer is refused (LAST_ADMIN_SIGN_IN) when no administrator could sign in afterwards. Editing the "Opfield account" provider is allowed on every installation, managed ones included; another issuer or client ID makes it the customer\'s own provider.',
+        },
+        oidcProviderAction: {
+          type: 'string',
+          enum: ['remove', 'opfield_account', 'cancel_opfield_account'],
+          description:
+            'Requires admin:system; not together with oidc. remove: removes the OIDC provider and turns OIDC sign-in off. opfield_account: Use Opfield account for sign-in on an installation connected to Opfield Cloud (opfieldAccountSignIn.available in get_gateway_settings, otherwise 409 OPFIELD_ACCOUNT_CLIENT_MISSING): with a client from the cloud (opfieldAccountSignIn.clientIssued) it brings back the "Opfield account" provider and turns OIDC sign-in on at once; without one it asks the Opfield account for a client (needs the public URL, PUBLIC_URL_REQUIRED otherwise) and opfieldAccountSignIn.pendingRequest shows the wait until the account answers and the provider is set up with OIDC sign-in on. Asking again does not add a request. cancel_opfield_account withdraws the pending request. Changes after which no administrator could sign in are refused (LAST_ADMIN_SIGN_IN).',
         },
         logging: {
           type: 'object',

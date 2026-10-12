@@ -1,14 +1,12 @@
 import {
   CLOUD_LOG_TAIL_DEFAULT,
   CLOUD_LOG_TAIL_MAX,
-  CLOUD_MANAGED_ONLY_REQUEST_TYPES,
   CLOUD_NODE_KINDS,
   CLOUD_PRIVILEGED_REQUEST_TYPES,
   type CloudAnswer,
   type CloudLinkAccess,
   type CloudLinkProbe,
   type CloudRequest,
-  NOT_MANAGED_BY_CLOUD,
   REMOTE_MANAGEMENT_OFF,
   resolveCloudNodeKind,
 } from './cloud-link.types.js';
@@ -16,6 +14,8 @@ import {
 const MAX_REQUEST_ID_LENGTH = 200;
 const MAX_SERVICE_NAME_LENGTH = 128;
 const MAX_CLIENT_SECRET_LENGTH = 4096;
+const MAX_CLIENT_ID_LENGTH = 512;
+const MAX_URL_LENGTH = 2048;
 
 /** A text frame from the portal as a request; null for anything that is not one (pings, unknown messages). */
 export function parseCloudRequest(text: string): CloudRequest | null {
@@ -40,6 +40,12 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** The code of an AppError (or any error that carries one); null otherwise. */
+function errorCode(error: unknown): string | null {
+  const code = error instanceof Error ? (error as { code?: unknown }).code : undefined;
+  return typeof code === 'string' && /^[A-Z][A-Z0-9_]{1,63}$/.test(code) ? code : null;
+}
+
 /** Answers one portal request with what the probe reads; never throws. */
 export async function answerCloudRequest(
   probe: CloudLinkProbe,
@@ -47,12 +53,10 @@ export async function answerCloudRequest(
   access: CloudLinkAccess
 ): Promise<CloudAnswer> {
   try {
-    // Reads are allowed once connected; actions need a managed cloud VM or "Allow remote management".
+    // Reads are allowed once connected; actions need a managed cloud VM or "Allow remote management". The sign-in
+    // client kinds check on their own (sso-client answers the installation's own request).
     if (CLOUD_PRIVILEGED_REQUEST_TYPES.has(request.type) && !(await access.privilegedAllowed())) {
       return { id: request.id, ok: false, ...REMOTE_MANAGEMENT_OFF };
-    }
-    if (CLOUD_MANAGED_ONLY_REQUEST_TYPES.has(request.type) && !(await access.managedByCloud())) {
-      return { id: request.id, ok: false, ...NOT_MANAGED_BY_CLOUD };
     }
     switch (request.type) {
       case 'state':
@@ -131,8 +135,52 @@ export async function answerCloudRequest(
         try {
           return { id: request.id, ok: true, data: await probe.ssoSecret(clientSecret) };
         } catch (error) {
-          // The answer and its audit entry never carry the secret.
-          return { id: request.id, ok: false, error: errorMessage(error).replaceAll(clientSecret, '[REDACTED]') };
+          // The answer and its audit entry never carry the secret. A refusal keeps its code (the admin removed the
+          // Opfield account provider or chose another one: OPFIELD_ACCOUNT_PROVIDER_MISSING).
+          const code = errorCode(error);
+          return {
+            id: request.id,
+            ok: false,
+            error: errorMessage(error).replaceAll(clientSecret, '[REDACTED]'),
+            ...(code ? { code } : {}),
+          };
+        }
+      }
+      case 'sso-client': {
+        const { issuer, clientId, clientSecret, redirectUri } = request.params;
+        const field = (value: unknown, max: number) =>
+          typeof value === 'string' && value.trim() && value.length <= max ? value.trim() : null;
+        const client = {
+          issuer: field(issuer, MAX_URL_LENGTH),
+          clientId: field(clientId, MAX_CLIENT_ID_LENGTH),
+          clientSecret: field(clientSecret, MAX_CLIENT_SECRET_LENGTH),
+          redirectUri: field(redirectUri, MAX_URL_LENGTH),
+        };
+        const secret = typeof clientSecret === 'string' ? clientSecret : '';
+        if (!client.issuer || !client.clientId || !client.clientSecret || !client.redirectUri) {
+          return {
+            id: request.id,
+            ok: false,
+            code: 'INVALID_SSO_CLIENT',
+            error: 'params needs issuer, clientId, clientSecret and redirectUri',
+          };
+        }
+        try {
+          return {
+            id: request.id,
+            ok: true,
+            data: await probe.ssoClient(client as { [K in keyof typeof client]: string }),
+          };
+        } catch (error) {
+          // Never the secret, in the answer or its audit entry.
+          const code = errorCode(error);
+          const message = errorMessage(error);
+          return {
+            id: request.id,
+            ok: false,
+            error: secret ? message.replaceAll(secret, '[REDACTED]') : message,
+            ...(code ? { code } : {}),
+          };
         }
       }
       default:

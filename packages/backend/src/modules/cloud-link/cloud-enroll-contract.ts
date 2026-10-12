@@ -52,10 +52,42 @@ export interface CloudEnrollFileContract {
   owner?: CloudEnrollOwner;
 }
 
-/** Portal request (over the cloud link socket) that hands over a new client secret; managed installations only. */
+/**
+ * Portal request (over the cloud link socket) that hands over a new client secret of the installation's Opfield
+ * account client: a managed installation, or a self-hosted one the account gave a client (sso-client). It needs no
+ * "Allow remote management". Answered ok:false with code OPFIELD_ACCOUNT_PROVIDER_MISSING, nothing stored, when the
+ * account gave this installation no client or it does not sign in with it (its admin removed the provider or chose
+ * another one); the portal keeps the old secret then.
+ */
 export const CLOUD_SSO_SECRET_REQUEST = 'sso-secret';
 export interface CloudSsoSecretRequestParams {
   clientSecret: string;
+}
+
+/**
+ * Use Opfield account for sign-in on an installation without a client from the cloud: every hello carries
+ *
+ * ```json
+ * { "type": "hello", ..., "ssoClientRequest": { "redirectUri": "https://gw.example.com/auth/callback",
+ *   "requestedAt": "2026-10-13T10:00:00.000Z" } }
+ * ```
+ *
+ * until the account answers or an admin cancels it (the hello is sent again whenever it changes). The account creates
+ * an OIDC client registered for that redirect URI and sends the sso-client request with `{ issuer, clientId,
+ * clientSecret, redirectUri }`. It is taken only while the request is pending and for the same redirect URI (a managed
+ * installation also takes a client it did not ask for, as from its enrolment file): the installation keeps the client
+ * (secret encrypted), sets up the "Opfield account" provider, turns OIDC sign-in on, drops the request from the hello
+ * and answers `{ saved: true, applied }` (applied false: kept only, because no administrator could sign in after the
+ * switch). Refusals: SSO_CLIENT_NOT_REQUESTED, INVALID_SSO_CLIENT. It needs no "Allow remote management" and is
+ * audited like every request, without the secret. When the cloud link ends (disconnect, or the account revokes the
+ * agent), the installation forgets the client and removes the provider on it, unless no administrator could sign in.
+ */
+export const CLOUD_SSO_CLIENT_REQUEST = 'sso-client';
+export interface CloudSsoClientRequestParams {
+  issuer: string;
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
 }
 
 const MAX_FIELD = 2048;

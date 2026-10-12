@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { AppError } from '@/middleware/error-handler.js';
 import { redactArgsForAudit } from '@/modules/ai/ai.service.tool-helpers.js';
 import { AI_TOOLS } from '@/modules/ai/ai.tools.js';
 import { classifyAIToolForApproval } from '@/modules/ai/ai-approval-policy.js';
@@ -62,6 +63,7 @@ describe('cloud link', () => {
       }),
       update: async (version) => ({ started: true, version: version ?? 'v2.11.5' }),
       ssoSecret: async () => ({ saved: true }),
+      ssoClient: async () => ({ saved: true, applied: true }),
     };
 
     const request = parseCloudRequest(
@@ -214,7 +216,7 @@ describe('cloud link', () => {
     await expect(ask(probe, { id: 'q', type: 'update', params: { version: 5 } })).resolves.toMatchObject({ ok: false });
   });
 
-  it('reports remote management in the hello and sends it again when it changes', async () => {
+  it('reports remote management and a sign-in client request in the hello, and sends it again when they change', async () => {
     const service = new CloudLinkService(
       {} as never,
       {} as never,
@@ -223,8 +225,11 @@ describe('cloud link', () => {
       null
     );
     let allowedNow = false;
+    let pending: { redirectUri: string; requestedAt: string } | null = null;
     vi.spyOn(service, 'privilegedAllowed').mockImplementation(async () => allowedNow);
-    await expect(service.helloInfo()).resolves.toEqual({
+    vi.spyOn(service, 'pendingSsoClientRequest').mockImplementation(async () => pending);
+    const first = await service.helloInfo();
+    expect(first).toEqual({
       installationId: 'installation',
       name: 'gw',
       version: 'v2.12.0',
@@ -235,17 +240,32 @@ describe('cloud link', () => {
     const send = vi.fn();
     const internals = agent as unknown as {
       socket: unknown;
-      helloRemoteManagement: boolean | null;
+      helloSent: string | null;
       refreshHello: () => Promise<void>;
     };
     internals.socket = { readyState: 1, send };
-    internals.helloRemoteManagement = false;
+    internals.helloSent = JSON.stringify(first);
     await internals.refreshHello();
     expect(send).not.toHaveBeenCalled();
     allowedNow = true;
     await internals.refreshHello();
     expect(send).toHaveBeenCalledTimes(1);
     expect(JSON.parse(send.mock.calls[0][0])).toMatchObject({ type: 'hello', remoteManagement: true });
+
+    // Use Opfield account for sign-in asked for a client: every hello carries the request until it is answered.
+    pending = { redirectUri: 'https://gw.example.test/auth/callback', requestedAt: '2026-10-13T10:00:00.000Z' };
+    await internals.refreshHello();
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(send.mock.calls[1][0])).toMatchObject({
+      type: 'hello',
+      ssoClientRequest: { redirectUri: 'https://gw.example.test/auth/callback' },
+    });
+    await internals.refreshHello();
+    expect(send).toHaveBeenCalledTimes(2);
+    pending = null;
+    await internals.refreshHello();
+    expect(send).toHaveBeenCalledTimes(3);
+    expect(JSON.parse(send.mock.calls[2][0])).not.toHaveProperty('ssoClientRequest');
   });
 
   it('refuses privileged requests while remote management is off, and still answers reads', async () => {
@@ -284,17 +304,19 @@ describe('cloud link', () => {
     ).toMatchObject({ ok: false, errorCode: 'REMOTE_MANAGEMENT_OFF' });
   });
 
-  it('takes a new sign-in client secret only on a managed installation, and never echoes or audits it', async () => {
+  it('passes a new sign-in client secret to the installation without remote management, and never echoes or audits it', async () => {
     const SECRET = 'portal-secret-6f1d2c';
     const ssoSecret = vi.fn(async (secret: string) => {
       if (secret === 'fails') throw new Error(`could not store ${secret}`);
+      if (secret === 'removed') {
+        throw new AppError(409, 'OPFIELD_ACCOUNT_PROVIDER_MISSING', 'Sign-in with the Opfield account is not in use');
+      }
       return { saved: true as const };
     });
     const probe = { ssoSecret } as unknown as CloudLinkProbe;
     const request = { id: 'k', type: 'sso-secret', params: { clientSecret: SECRET } };
-    await expect(ask(probe, request, denied)).resolves.toMatchObject({ ok: false, code: 'REMOTE_MANAGEMENT_OFF' });
-    await expect(ask(probe, request, allowed)).resolves.toMatchObject({ ok: false, code: 'NOT_MANAGED_BY_CLOUD' });
-    expect(ssoSecret).not.toHaveBeenCalled();
+    // The installation decides (a client the account gave it); remote management is not needed.
+    await expect(ask(probe, request, denied)).resolves.toMatchObject({ ok: true });
     const answer = await ask(probe, request, managed);
     expect(answer).toEqual({ id: 'k', ok: true, data: { saved: true } });
     expect(ssoSecret).toHaveBeenCalledWith(SECRET);
@@ -303,8 +325,57 @@ describe('cloud link', () => {
     });
     const failed = await ask(probe, { id: 'f', type: 'sso-secret', params: { clientSecret: 'fails' } }, managed);
     expect(failed).toEqual({ id: 'f', ok: false, error: 'could not store [REDACTED]' });
+    // The admin removed the Opfield account provider or chose another client: a clean refusal with its code.
+    await expect(
+      ask(probe, { id: 'g', type: 'sso-secret', params: { clientSecret: 'removed' } }, managed)
+    ).resolves.toEqual({
+      id: 'g',
+      ok: false,
+      code: 'OPFIELD_ACCOUNT_PROVIDER_MISSING',
+      error: 'Sign-in with the Opfield account is not in use',
+    });
     const audit = cloudRequestAudit(request, answer, 20, 1);
     expect(JSON.stringify(audit)).not.toContain(SECRET);
     expect(audit).toMatchObject({ type: 'sso-secret', ok: true });
+  });
+
+  it('takes a sign-in client only through the installation, with a coded refusal and never the secret', async () => {
+    const SECRET = 'client-secret-7c2e';
+    const ssoClient = vi.fn(async (client: { clientSecret: string; redirectUri: string }) => {
+      if (client.redirectUri.includes('other')) {
+        throw new AppError(409, 'SSO_CLIENT_NOT_REQUESTED', `not asked for ${client.clientSecret}`);
+      }
+      return { saved: true as const, applied: true };
+    });
+    const probe = { ssoClient } as unknown as CloudLinkProbe;
+    const params = {
+      issuer: 'https://account.example.test',
+      clientId: 'gw-self',
+      clientSecret: SECRET,
+      redirectUri: 'https://gw.example.test/auth/callback',
+    };
+    const request = { id: 'c', type: 'sso-client', params };
+    // An answer to the installation's own request: no remote management needed.
+    const answer = await ask(probe, request, denied);
+    expect(answer).toEqual({ id: 'c', ok: true, data: { saved: true, applied: true } });
+    expect(ssoClient).toHaveBeenCalledWith(params);
+    await expect(
+      ask(probe, { id: 'd', type: 'sso-client', params: { ...params, clientSecret: '' } }, denied)
+    ).resolves.toMatchObject({ ok: false, code: 'INVALID_SSO_CLIENT' });
+    const refused = await ask(
+      probe,
+      { id: 'e', type: 'sso-client', params: { ...params, redirectUri: 'https://other.example.test/cb' } },
+      denied
+    );
+    expect(refused).toEqual({
+      id: 'e',
+      ok: false,
+      code: 'SSO_CLIENT_NOT_REQUESTED',
+      error: 'not asked for [REDACTED]',
+    });
+    const audit = cloudRequestAudit(request, answer, 30, 1);
+    expect(audit).toMatchObject({ type: 'sso-client', clientId: 'gw-self', ok: true });
+    expect(JSON.stringify(audit)).not.toContain(SECRET);
+    expect(JSON.stringify(cloudRequestAudit(request, refused, 0, 1))).not.toContain(SECRET);
   });
 });

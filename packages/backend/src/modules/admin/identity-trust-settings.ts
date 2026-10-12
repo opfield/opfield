@@ -39,7 +39,7 @@ export async function findIdentityTrustChanges(
       smtp.senderEmail === input.smtp.senderEmail.trim().toLowerCase();
     if (!unchanged) changes.push('SMTP');
   }
-  if (input.oidc) changes.push('the OIDC provider');
+  if (input.oidc || input.oidcProviderAction) changes.push('the OIDC provider');
   if (input.generalSettings?.publicUrl !== undefined) {
     const { publicUrl } = await current.generalSettings();
     if (normalizePublicUrl(input.generalSettings.publicUrl) !== publicUrl) changes.push('the public URL');

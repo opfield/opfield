@@ -712,6 +712,8 @@ class ApiClient extends withAppsApi(
       scopes?: string;
       displayName?: string | null;
     };
+    /** remove: removes the OIDC provider; opfield_account: Use Opfield account for sign-in; cancel_opfield_account. */
+    oidcProviderAction?: "remove" | "opfield_account" | "cancel_opfield_account";
     logging?: {
       mode: "disabled" | "local" | "external";
       url?: string;

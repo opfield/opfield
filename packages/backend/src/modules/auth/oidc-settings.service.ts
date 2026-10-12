@@ -5,6 +5,11 @@ import { AppError } from '@/middleware/error-handler.js';
 import type { CryptoService } from '@/services/crypto.service.js';
 
 const OIDC_SETTING_KEY = 'auth:oidc';
+/**
+ * The Opfield account client the cloud gave this installation, kept apart from the provider: the admin may edit or
+ * remove the provider and bring the Opfield account back later. A restored copy forgets it with the cloud link.
+ */
+export const OPFIELD_ACCOUNT_CLIENT_KEY = 'cloud:opfield_account_client';
 /** Marks the provider a managed installation's provisioning configured: sign-in with the Opfield account. */
 export const OPFIELD_ACCOUNT_OIDC_SOURCE = 'opfield-account';
 export const OPFIELD_ACCOUNT_DISPLAY_NAME = 'Opfield account';
@@ -75,6 +80,22 @@ export interface OpfieldAccountProviderInput {
   redirectUri: string;
 }
 
+interface StoredOpfieldAccountClient {
+  issuer: string;
+  clientId: string;
+  clientSecret: EncryptedSecret;
+  redirectUri: string;
+}
+
+/** The provider is the cloud's client: marked as the Opfield account and on the kept issuer and client ID. */
+function isCloudClient(provider: StoredOidcConfig | null, client: { issuer: string; clientId: string }): boolean {
+  return (
+    provider?.source === OPFIELD_ACCOUNT_OIDC_SOURCE &&
+    provider.issuer === client.issuer &&
+    provider.clientId === client.clientId
+  );
+}
+
 export class OidcSettingsService {
   constructor(
     private readonly db: DrizzleClient,
@@ -138,9 +159,11 @@ export class OidcSettingsService {
     if (!clientSecret) throw invalidOidcConfig('OIDC client secret is required');
     const displayName =
       input.displayName === undefined ? (previous?.displayName ?? null) : normalizeDisplayName(input.displayName);
-    // The provider stays the Opfield account while it keeps the account portal's issuer; another issuer is the
-    // customer's own SSO.
-    const source = previous?.source && previous.issuer === issuer ? previous.source : undefined;
+    // The provider stays the Opfield account while it keeps the account portal's issuer and the cloud's client; another
+    // issuer or client is the customer's own SSO.
+    const source =
+      previous?.source && previous.issuer === issuer && previous.clientId === clientId ? previous.source : undefined;
+    await this.keepCloudClientOf(previous);
 
     const stored: StoredOidcConfig = {
       issuer,
@@ -171,16 +194,18 @@ export class OidcSettingsService {
     if (!clientId) throw invalidOidcConfig('OIDC client ID is required');
     if (!secret) throw invalidOidcConfig('OIDC client secret is required');
     const wasOpfield = previous?.source === OPFIELD_ACCOUNT_OIDC_SOURCE;
+    const clientSecret = this.cryptoService.encryptString(secret);
     const stored: StoredOidcConfig = {
       issuer,
       clientId,
-      clientSecret: this.cryptoService.encryptString(secret),
+      clientSecret,
       redirectUri,
       scopes: wasOpfield ? previous.scopes : normalizeScopes(undefined),
       displayName: (wasOpfield ? previous.displayName : null) || OPFIELD_ACCOUNT_DISPLAY_NAME,
       source: OPFIELD_ACCOUNT_OIDC_SOURCE,
     };
     await this.setStoredConfig(stored, executor);
+    await this.setKeptClient({ issuer, clientId, clientSecret, redirectUri }, executor);
     return {
       replaced: previous !== null,
       clientChanged:
@@ -192,15 +217,105 @@ export class OidcSettingsService {
     };
   }
 
-  /** A new client secret for the Opfield account provider (sent by the account portal); refused for any other. */
+  /**
+   * Keeps a new Opfield account client (a reinstall delivered one) without touching the provider the admin chose, so
+   * the Opfield account can be brought back with it.
+   */
+  async keepOpfieldAccountClient(input: OpfieldAccountProviderInput): Promise<void> {
+    const clientId = input.clientId.trim();
+    const secret = input.clientSecret.trim();
+    if (!clientId) throw invalidOidcConfig('OIDC client ID is required');
+    if (!secret) throw invalidOidcConfig('OIDC client secret is required');
+    await this.setKeptClient({
+      issuer: normalizeUrl(input.issuer, 'OIDC issuer'),
+      clientId,
+      clientSecret: this.cryptoService.encryptString(secret),
+      redirectUri: normalizeUrl(input.redirectUri, 'OIDC redirect URI'),
+    });
+  }
+
+  /**
+   * The Opfield account client the cloud gave this installation: the kept one, or the provider's own on an
+   * installation provisioned before the client was kept apart. Null on an installation the cloud gave no client.
+   */
+  async getOpfieldAccountClient(executor: DrizzleExecutor = this.db): Promise<OpfieldAccountProviderInput | null> {
+    const kept = await this.getKeptClient(executor);
+    if (kept) return { ...kept, clientSecret: this.cryptoService.decryptString(kept.clientSecret) };
+    const provider = await this.getStoredConfig(executor);
+    if (provider?.source !== OPFIELD_ACCOUNT_OIDC_SOURCE) return null;
+    return {
+      issuer: provider.issuer,
+      clientId: provider.clientId,
+      clientSecret: this.cryptoService.decryptString(provider.clientSecret),
+      redirectUri: provider.redirectUri,
+    };
+  }
+
+  /** Brings the Opfield account provider back with the client the cloud gave this installation. */
+  async restoreOpfieldAccountProvider(): Promise<OidcPublicConfig> {
+    const client = await this.getOpfieldAccountClient();
+    if (!client) {
+      throw new AppError(
+        409,
+        'OPFIELD_ACCOUNT_CLIENT_MISSING',
+        'Opfield Cloud has not given this installation a sign-in client for the Opfield account'
+      );
+    }
+    await this.saveOpfieldAccountProvider(client);
+    return this.getPublicConfig();
+  }
+
+  /**
+   * Removes the OIDC provider; the Opfield account client the cloud gave stays kept for a later return unless
+   * `keepCloudClient` is false (the cloud link ended).
+   */
+  async removeConfig(options: { keepCloudClient?: boolean } = {}): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      if (options.keepCloudClient !== false) await this.keepCloudClientOf(await this.getStoredConfig(tx), tx);
+      await tx.delete(settings).where(eq(settings.key, OIDC_SETTING_KEY));
+    });
+  }
+
+  /** Whether the cloud gave this installation a client and it is kept (not only inferred from the provider). */
+  async hasKeptOpfieldAccountClient(): Promise<boolean> {
+    return (await this.getKeptClient()) !== null;
+  }
+
+  /** Forgets the kept Opfield account client (the cloud link ended); the provider is left as it is. */
+  async forgetOpfieldAccountClient(): Promise<void> {
+    await this.db.delete(settings).where(eq(settings.key, OPFIELD_ACCOUNT_CLIENT_KEY));
+  }
+
+  /**
+   * A new client secret from the account portal for the Opfield account client. Stored only while the provider is
+   * still that client: after the admin removed it or switched to another client the request is refused and nothing
+   * changes, so the portal keeps the secret this installation still holds.
+   */
   async rotateOpfieldAccountSecret(clientSecret: string): Promise<void> {
     const secret = clientSecret.trim();
     if (!secret) throw invalidOidcConfig('OIDC client secret is required');
-    const previous = await this.getStoredConfig();
-    if (previous?.source !== OPFIELD_ACCOUNT_OIDC_SOURCE) {
-      throw new AppError(409, 'OPFIELD_ACCOUNT_PROVIDER_MISSING', 'Sign-in with the Opfield account is not configured');
-    }
-    await this.setStoredConfig({ ...previous, clientSecret: this.cryptoService.encryptString(secret) });
+    await this.db.transaction(async (tx) => {
+      const provider = await this.getStoredConfig(tx);
+      const kept = await this.getKeptClient(tx);
+      if (!provider || !isCloudClient(provider, kept ?? provider)) {
+        throw new AppError(
+          409,
+          'OPFIELD_ACCOUNT_PROVIDER_MISSING',
+          'Sign-in with the Opfield account is not in use on this installation; the new client secret was not stored'
+        );
+      }
+      const encrypted = this.cryptoService.encryptString(secret);
+      await this.setStoredConfig({ ...provider, clientSecret: encrypted }, tx);
+      await this.setKeptClient(
+        {
+          issuer: provider.issuer,
+          clientId: provider.clientId,
+          clientSecret: encrypted,
+          redirectUri: kept?.redirectUri ?? provider.redirectUri,
+        },
+        tx
+      );
+    });
   }
 
   async importLegacyEnv(env: LegacyOidcEnvironment): Promise<boolean> {
@@ -235,6 +350,36 @@ export class OidcSettingsService {
       .where(eq(settings.key, OIDC_SETTING_KEY))
       .limit(1);
     return (row?.value as StoredOidcConfig | undefined) ?? null;
+  }
+
+  /** Before the provider changes: an Opfield account provider not kept apart yet is kept as the cloud's client. */
+  private async keepCloudClientOf(previous: StoredOidcConfig | null, executor: DrizzleExecutor = this.db) {
+    if (previous?.source !== OPFIELD_ACCOUNT_OIDC_SOURCE || (await this.getKeptClient(executor))) return;
+    await this.setKeptClient(
+      {
+        issuer: previous.issuer,
+        clientId: previous.clientId,
+        clientSecret: previous.clientSecret,
+        redirectUri: previous.redirectUri,
+      },
+      executor
+    );
+  }
+
+  private async getKeptClient(executor: DrizzleExecutor = this.db): Promise<StoredOpfieldAccountClient | null> {
+    const [row] = await executor
+      .select({ value: settings.value })
+      .from(settings)
+      .where(eq(settings.key, OPFIELD_ACCOUNT_CLIENT_KEY))
+      .limit(1);
+    return (row?.value as StoredOpfieldAccountClient | undefined) ?? null;
+  }
+
+  private async setKeptClient(value: StoredOpfieldAccountClient, executor: DrizzleExecutor = this.db): Promise<void> {
+    await executor
+      .insert(settings)
+      .values({ key: OPFIELD_ACCOUNT_CLIENT_KEY, value, updatedAt: new Date() })
+      .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: new Date() } });
   }
 
   private async setStoredConfig(value: StoredOidcConfig, executor: DrizzleExecutor = this.db): Promise<void> {

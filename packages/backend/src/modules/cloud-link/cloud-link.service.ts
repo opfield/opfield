@@ -14,14 +14,17 @@ import {
   CLOUD_ENROLL_TIMEOUT_MS,
   type CloudCredentials,
   type CloudDisconnectResult,
+  type CloudHello,
   type CloudLinkStatusView,
   type CloudRemoteManagement,
   type CloudRequestAudit,
   type CloudRequestSummary,
   type CloudSocketStatus,
+  type CloudSsoClientRequest,
   type StoredCloudDisconnect,
   type StoredCloudEnrollment,
   type StoredRemoteManagement,
+  type StoredSsoClientRequest,
 } from './cloud-link.types.js';
 import type { CloudRequestWindowView } from './cloud-link-request-audit.js';
 
@@ -31,6 +34,7 @@ const SETTINGS_KEYS = {
   enrollment: 'cloud:enrollment',
   remoteManagement: 'cloud:remote_management',
   disconnect: 'cloud:disconnected',
+  ssoClientRequest: 'cloud:sso_client_request',
 } as const;
 /** The socket state of the replica that holds the link, for the status a request on any replica reads. */
 const SOCKET_STATUS_CACHE_KEY = 'cloud:link:socket';
@@ -136,6 +140,7 @@ export class CloudLinkService {
   private queue: Promise<void> = Promise.resolve();
   private auditService: Pick<AuditService, 'log'> | null = null;
   private liveRequestWindows: (() => CloudRequestWindowView[]) | null = null;
+  private signInDetacher: (() => Promise<void>) | null = null;
 
   constructor(
     private readonly db: DrizzleClient,
@@ -172,9 +177,113 @@ export class CloudLinkService {
     return trimBaseUrl(this.env.CLOUD_PORTAL_URL);
   }
 
-  /** What the socket hello tells the account: the installation and whether it may be managed remotely. */
-  async helloInfo(): Promise<{ installationId: string; name: string; version: string; remoteManagement: boolean }> {
-    return { ...(await this.identity()), remoteManagement: await this.privilegedAllowed() };
+  /**
+   * What the socket hello tells the account: the installation, whether it may be managed remotely and, while an admin
+   * asked for it, the request for an Opfield account sign-in client (answered with an sso-client request).
+   */
+  async helloInfo(): Promise<CloudHello> {
+    const [identity, remoteManagement, ssoClientRequest] = await Promise.all([
+      this.identity(),
+      this.privilegedAllowed(),
+      this.pendingSsoClientRequest(),
+    ]);
+    return { ...identity, remoteManagement, ...(ssoClientRequest ? { ssoClientRequest } : {}) };
+  }
+
+  /** The admin's pending request for an Opfield account sign-in client of the current agent; null when none. */
+  async pendingSsoClientRequest(): Promise<CloudSsoClientRequest | null> {
+    const { enrollment } = await this.readStored();
+    if (!enrollment) return null;
+    const [row] = await this.db
+      .select({ value: settings.value })
+      .from(settings)
+      .where(eq(settings.key, SETTINGS_KEYS.ssoClientRequest))
+      .limit(1);
+    const stored = row?.value as StoredSsoClientRequest | undefined;
+    if (!stored || stored.agentId !== enrollment.agentId) return null;
+    return { redirectUri: stored.redirectUri, requestedAt: stored.requestedAt };
+  }
+
+  /**
+   * Asks the cloud account for an Opfield account sign-in client: the request rides on every hello until the account
+   * answers with sso-client or an admin cancels it. Asking again for the same redirect URI keeps the pending request.
+   */
+  async requestSsoClient(
+    redirectUri: string,
+    actor: { userId: string | null } = { userId: null }
+  ): Promise<CloudSsoClientRequest> {
+    let result: CloudSsoClientRequest | null = null;
+    let created = false;
+    await this.serialized(async () => {
+      const { enrollment } = await this.readStored();
+      if (!enrollment) {
+        throw new CloudLinkRequestError(
+          409,
+          'CLOUD_NOT_CONNECTED',
+          'Connect this Opfield installation to your cloud account first'
+        );
+      }
+      const pending = await this.pendingSsoClientRequest();
+      if (pending?.redirectUri === redirectUri) {
+        result = pending;
+        return;
+      }
+      const stored: StoredSsoClientRequest = {
+        agentId: enrollment.agentId,
+        redirectUri,
+        requestedAt: new Date().toISOString(),
+        requestedBy: actor.userId,
+      };
+      await this.setSetting(SETTINGS_KEYS.ssoClientRequest, stored);
+      result = { redirectUri, requestedAt: stored.requestedAt };
+      created = true;
+    });
+    if (created) {
+      await this.writeAudit(CLOUD_AUDIT_ACTIONS.managedSso, actor.userId, null, {
+        step: 'client_requested',
+        redirectUri,
+      });
+      this.notifyHello();
+    }
+    return result as unknown as CloudSsoClientRequest;
+  }
+
+  /** Withdraws the pending sign-in client request; false when there was none. */
+  async cancelSsoClientRequest(actor: { userId: string | null } = { userId: null }): Promise<boolean> {
+    const pending = await this.pendingSsoClientRequest();
+    await this.deleteSetting(SETTINGS_KEYS.ssoClientRequest);
+    if (!pending) return false;
+    await this.writeAudit(CLOUD_AUDIT_ACTIONS.managedSso, actor.userId, null, {
+      step: 'client_request_cancelled',
+      redirectUri: pending.redirectUri,
+    });
+    this.notifyHello();
+    return true;
+  }
+
+  /** The account answered the request (sso-client): it leaves the hello. */
+  async clearSsoClientRequest(): Promise<void> {
+    await this.deleteSetting(SETTINGS_KEYS.ssoClientRequest);
+    this.notifyHello();
+  }
+
+  /**
+   * Runs after the link is forgotten (disconnect, or the account revoked the agent): drops what the cloud gave the
+   * sign-in (see CloudSsoClient.detach). Registered at start; a failure is logged, never fails the disconnect.
+   */
+  setSignInDetacher(detacher: (() => Promise<void>) | null): void {
+    this.signInDetacher = detacher;
+  }
+
+  private async detachSignIn(): Promise<void> {
+    if (!this.signInDetacher) return;
+    try {
+      await this.signInDetacher();
+    } catch (error) {
+      logger.warn('Could not detach the Opfield account sign-in after the cloud link ended', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   /** The installation as an enrolment names it. */
@@ -361,6 +470,7 @@ export class CloudLinkService {
       confirmedByAccount: previous !== null && !warning,
       ...(warning ? { warning } : {}),
     });
+    if (previous) await this.detachSignIn();
     this.notify();
     return { ...(await this.getStatus()), ...(warning ? { warning } : {}) };
   }
@@ -398,6 +508,7 @@ export class CloudLinkService {
       await this.deleteSetting(SETTINGS_KEYS.enrollment);
       await this.deleteSetting(SETTINGS_KEYS.remoteManagement);
       await this.deleteSetting(SETTINGS_KEYS.disconnect);
+      await this.deleteSetting(SETTINGS_KEYS.ssoClientRequest);
       await this.publishSocketStatus(null);
       logger.info('Installation disconnected from the cloud account', { confirmed: !warning });
     });
@@ -419,6 +530,7 @@ export class CloudLinkService {
       await this.setSetting(SETTINGS_KEYS.disconnect, disconnect);
       await this.deleteSetting(SETTINGS_KEYS.enrollment);
       await this.deleteSetting(SETTINGS_KEYS.remoteManagement);
+      await this.deleteSetting(SETTINGS_KEYS.ssoClientRequest);
       await this.publishSocketStatus(null);
       changed = true;
       logger.warn('The cloud account disconnected this installation', { agentId });
@@ -428,7 +540,10 @@ export class CloudLinkService {
         reason: 'The cloud account refused the agent (HTTP 401)',
       });
     });
-    if (changed) this.notify();
+    if (changed) {
+      await this.detachSignIn();
+      this.notify();
+    }
   }
 
   /**

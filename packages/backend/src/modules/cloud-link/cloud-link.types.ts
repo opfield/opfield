@@ -39,6 +39,37 @@ export interface StoredRemoteManagement {
   agentId: string;
 }
 
+/** An admin asked the cloud account for an Opfield account sign-in client (Use Opfield account for sign-in). */
+export interface CloudSsoClientRequest {
+  /** `<public URL>/auth/callback`: the client must be registered for it, and sso-client must name it. */
+  redirectUri: string;
+  requestedAt: string;
+}
+
+/** The pending request as stored; bound to the agent it was made for, like remote management. */
+export interface StoredSsoClientRequest extends CloudSsoClientRequest {
+  agentId: string;
+  requestedBy: string | null;
+}
+
+/** The hello the installation sends on every new socket and whenever what it reports changes. */
+export interface CloudHello {
+  installationId: string;
+  name: string;
+  version: string;
+  remoteManagement: boolean;
+  /** Present while an admin's request for a sign-in client waits for the account's sso-client. */
+  ssoClientRequest?: CloudSsoClientRequest;
+}
+
+/** The sso-client request: the Opfield account sign-in client the account created for this installation. */
+export interface CloudSsoClient {
+  issuer: string;
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+}
+
 /** Left behind when the account revoked the agent (a 401 on the socket). */
 export interface StoredCloudDisconnect {
   accountEmail: string | null;
@@ -92,6 +123,8 @@ export interface CloudRequestAudit {
   version?: string;
   /** `kind` of a node-token request. */
   kind?: string;
+  /** sso-client: the client the account created (never its secret). */
+  clientId?: string;
   ok: boolean;
   error?: string;
   /** Machine-readable reason of a refusal, such as REMOTE_MANAGEMENT_OFF. */
@@ -143,19 +176,12 @@ export type CloudAnswer =
   | { id: string; ok: true; data: unknown }
   | { id: string; ok: false; error: string; code?: string };
 
-/** Request kinds that act on the installation; they need remote management (see CloudLinkAccess). */
-export const CLOUD_PRIVILEGED_REQUEST_TYPES: ReadonlySet<string> = new Set([
-  'node-token',
-  'update',
-  'setup-link',
-  'sso-secret',
-]);
-/** Privileged kinds only a managed cloud VM answers; "Allow remote management" does not open them. */
-export const CLOUD_MANAGED_ONLY_REQUEST_TYPES: ReadonlySet<string> = new Set(['sso-secret']);
-export const NOT_MANAGED_BY_CLOUD = {
-  code: 'NOT_MANAGED_BY_CLOUD',
-  error: 'Only an installation managed by the cloud accepts this request',
-} as const;
+/**
+ * Request kinds that act on the installation; they need remote management (see CloudLinkAccess). The sign-in client
+ * kinds do not: sso-client answers the installation's own request, and sso-secret rotates the secret of a client the
+ * account gave it; both check that themselves.
+ */
+export const CLOUD_PRIVILEGED_REQUEST_TYPES: ReadonlySet<string> = new Set(['node-token', 'update', 'setup-link']);
 export const REMOTE_MANAGEMENT_OFF = {
   code: 'REMOTE_MANAGEMENT_OFF',
   error: 'Remote management is off on this installation',
@@ -237,8 +263,16 @@ export interface CloudLinkActions {
   }>;
   /** Starts the same update as Settings → Update now (default: the latest version). */
   update(version?: string): Promise<{ started: true; version: string }>;
-  /** Stores (encrypted) a new client secret of the Opfield account sign-in provider; answers once saved. */
+  /**
+   * Stores (encrypted) a new client secret of the Opfield account sign-in provider; answers once saved. Refused with
+   * OPFIELD_ACCOUNT_PROVIDER_MISSING when the account gave this installation no client or it is not in use.
+   */
   ssoSecret(clientSecret: string): Promise<{ saved: true }>;
+  /**
+   * Takes the sign-in client the account created after the installation asked for it (or a new client of a managed
+   * installation). Refused with SSO_CLIENT_NOT_REQUESTED or INVALID_SSO_CLIENT.
+   */
+  ssoClient(client: CloudSsoClient): Promise<{ saved: true; applied: boolean }>;
 }
 
 /** Request kinds that only read; identical successful reads share one audit entry. Actions never do. */

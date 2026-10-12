@@ -6,6 +6,7 @@ import {
   Save,
   ShieldCheck,
   SlidersHorizontal,
+  Trash2,
   UserCog,
   Webhook,
 } from "lucide-react";
@@ -124,6 +125,7 @@ export function AuthProvisioningSection({
     handleToggleRequireVerifiedEmail,
     handleToggleWebTls,
     saveOidc,
+    runOidcProviderAction,
     saveLogging,
     accessSettingsHaveChanges,
     featureSettingsHaveChanges,
@@ -167,8 +169,14 @@ export function AuthProvisioningSection({
   if (!initialLoadComplete || !settings) return null;
   // A managed cloud installation keeps the public URL and gRPC addresses the cloud set up.
   const cloudManaged = settings.cloudManaged === true;
-  // Its Opfield account provider keeps the client the cloud set up; only the display name is the admin's.
-  const opfieldProviderLocked = cloudManaged && settings.oidc?.opfieldAccount === true;
+  // Use Opfield account for sign-in: connected to Opfield Cloud and not signing in with it now. Without a client from
+  // the cloud the action asks the Opfield account for one and waits for it.
+  const opfieldAccountSignIn = settings.opfieldAccountSignIn;
+  const waitingForOpfieldAccount = Boolean(opfieldAccountSignIn?.pendingRequest);
+  const canUseOpfieldAccount =
+    opfieldAccountSignIn?.available === true &&
+    settings.oidc?.opfieldAccount !== true &&
+    !waitingForOpfieldAccount;
   // Logging storage stays visible once configured, so it can still be switched off.
   const showLoggingStorage =
     structuredLoggingInPlan || (settings.logging?.mode ?? "disabled") !== "disabled";
@@ -678,13 +686,7 @@ export function AuthProvisioningSection({
       >
         <div className="divide-y divide-border">
           {[
-            [
-              "oidc",
-              "OIDC",
-              cloudManaged
-                ? "Redirect users to the configured identity provider · Managed by Opfield Cloud"
-                : "Redirect users to the configured identity provider",
-            ],
+            ["oidc", "OIDC", "Redirect users to the configured identity provider"],
             [
               "password",
               "Email and password",
@@ -704,7 +706,7 @@ export function AuthProvisioningSection({
               </div>
               <Switch
                 checked={settings.methods?.[key as keyof typeof DEFAULT_AUTH_METHODS] ?? false}
-                disabled={!canEdit || isSavingLocalAuth || (cloudManaged && key === "oidc")}
+                disabled={!canEdit || isSavingLocalAuth}
                 onChange={(checked) =>
                   updateLocalAuth({
                     methods: { [key]: checked } as Partial<
@@ -767,26 +769,61 @@ export function AuthProvisioningSection({
         description={
           identityTrustLocked ? (
             <IdentityTrustHint />
-          ) : opfieldProviderLocked ? (
-            "Sign-in with the Opfield account this installation was provisioned with · Managed by Opfield Cloud"
+          ) : waitingForOpfieldAccount ? (
+            "Waiting for your Opfield account… Sign-in with it is set up as soon as it answers"
+          ) : opfieldAccountSignIn?.detached && settings.oidc?.opfieldAccount ? (
+            "Opfield Cloud is disconnected. This Opfield account provider stays because no other administrator could sign in; give an administrator another sign-in method, then remove it"
           ) : settings.oidc?.opfieldAccount ? (
-            "Sign-in with the Opfield account this installation was provisioned with. Client secret is stored encrypted"
+            "Sign-in with the Opfield account. Client secret is stored encrypted"
           ) : settings.oidc?.configured ? (
             "Client secret is stored encrypted"
+          ) : canUseOpfieldAccount ? (
+            "Configure the identity provider used for OIDC sign-in, or use the Opfield account"
           ) : (
             "Configure the identity provider used for OIDC sign-in"
           )
         }
         actions={
-          <Button
-            aria-label="Save OIDC provider"
-            onClick={saveOidc}
-            pending={isSavingOidc}
-            disabled={!canEditIdentityTrust || !oidcHasChanges}
-          >
-            <Save className="h-4 w-4" />
-            Save
-          </Button>
+          <div className="flex items-center gap-2">
+            {waitingForOpfieldAccount ? (
+              <Button
+                variant="outline"
+                onClick={() => runOidcProviderAction("cancel_opfield_account")}
+                disabled={!canEditIdentityTrust || isSavingOidc}
+              >
+                Cancel request
+              </Button>
+            ) : null}
+            {canUseOpfieldAccount ? (
+              <Button
+                variant="outline"
+                onClick={() => runOidcProviderAction("opfield_account")}
+                disabled={!canEditIdentityTrust || isSavingOidc}
+              >
+                <KeyRound className="h-4 w-4" />
+                Use Opfield account
+              </Button>
+            ) : null}
+            {settings.oidc?.configured ? (
+              <Button
+                variant="outline"
+                onClick={() => runOidcProviderAction("remove")}
+                disabled={!canEditIdentityTrust || isSavingOidc}
+              >
+                <Trash2 className="h-4 w-4" />
+                Remove
+              </Button>
+            ) : null}
+            <Button
+              aria-label="Save OIDC provider"
+              onClick={saveOidc}
+              pending={isSavingOidc}
+              disabled={!canEditIdentityTrust || !oidcHasChanges}
+            >
+              <Save className="h-4 w-4" />
+              Save
+            </Button>
+          </div>
         }
         dirty={oidcHasChanges}
       >
@@ -794,7 +831,7 @@ export function AuthProvisioningSection({
           <SettingsControlRow
             title="Display name"
             description="Shown on the sign-in button as Sign in with this name."
-            help="Leave empty to show Sign in with SSO. The provider a managed installation was provisioned with is named Opfield account."
+            help="Leave empty to show Sign in with SSO. The provider a managed installation was provisioned with, or brought back with Use Opfield account, is named Opfield account."
           >
             <Input
               value={oidcDraft.displayName}
@@ -815,7 +852,7 @@ export function AuthProvisioningSection({
               type="url"
               value={oidcDraft.issuer}
               placeholder="https://id.example.com/application/o/opfield/"
-              disabled={!canEditIdentityTrust || isSavingOidc || opfieldProviderLocked}
+              disabled={!canEditIdentityTrust || isSavingOidc}
               onChange={(event) =>
                 setOidcDraft((current) => ({ ...current, issuer: event.target.value }))
               }
@@ -829,7 +866,7 @@ export function AuthProvisioningSection({
             <Input
               value={oidcDraft.clientId}
               placeholder="opfield"
-              disabled={!canEditIdentityTrust || isSavingOidc || opfieldProviderLocked}
+              disabled={!canEditIdentityTrust || isSavingOidc}
               onChange={(event) =>
                 setOidcDraft((current) => ({ ...current, clientId: event.target.value }))
               }
@@ -850,7 +887,7 @@ export function AuthProvisioningSection({
               placeholder={
                 settings.oidc?.configured ? "Leave blank to keep current secret" : "Client secret"
               }
-              disabled={!canEditIdentityTrust || isSavingOidc || opfieldProviderLocked}
+              disabled={!canEditIdentityTrust || isSavingOidc}
               onChange={(event) =>
                 setOidcDraft((current) => ({ ...current, clientSecret: event.target.value }))
               }
@@ -865,7 +902,7 @@ export function AuthProvisioningSection({
               type="url"
               value={oidcDraft.redirectUri}
               placeholder="https://opfield.example.com/auth/callback"
-              disabled={!canEditIdentityTrust || isSavingOidc || opfieldProviderLocked}
+              disabled={!canEditIdentityTrust || isSavingOidc}
               onChange={(event) =>
                 setOidcDraft((current) => ({ ...current, redirectUri: event.target.value }))
               }
@@ -878,7 +915,7 @@ export function AuthProvisioningSection({
           >
             <Input
               value={oidcDraft.scopes}
-              disabled={!canEditIdentityTrust || isSavingOidc || opfieldProviderLocked}
+              disabled={!canEditIdentityTrust || isSavingOidc}
               onChange={(event) =>
                 setOidcDraft((current) => ({ ...current, scopes: event.target.value }))
               }

@@ -435,13 +435,16 @@ export const MANAGED_SIGN_IN_DETACH_SQL = [
 
 /**
  * Settings a restored copy must not keep: the cloud link belongs to the installation the export was taken from (its
- * agent and secret, remote management, a disconnect notice). Kept, both would share one agent and the copy would
- * read as a managed cloud VM.
+ * agent and secret, remote management, a disconnect notice, the Opfield account sign-in client the cloud gave it or a
+ * pending request for one).
+ * Kept, both would share one agent and the copy would read as a managed cloud VM.
  */
 export const RESTORE_FORGOTTEN_SETTINGS = [
   'cloud:enrollment',
   'cloud:remote_management',
   'cloud:disconnected',
+  'cloud:opfield_account_client',
+  'cloud:sso_client_request',
 ] as const;
 
 /** Drops {@link RESTORE_FORGOTTEN_SETTINGS} from the restored database; the export itself keeps them. */

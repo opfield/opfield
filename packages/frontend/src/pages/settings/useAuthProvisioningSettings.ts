@@ -503,6 +503,58 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
     }
   };
 
+  // Remove the provider (OIDC sign-in turns off); bring back the Opfield account provider (OIDC sign-in turns on), or
+  // ask the Opfield account for a client when the cloud gave none yet; or withdraw that request.
+  const runOidcProviderAction = async (
+    action: "remove" | "opfield_account" | "cancel_opfield_account"
+  ) => {
+    if (!settings || !canEdit) return;
+    if (action === "remove") {
+      const ok = await confirm({
+        title: "Remove OIDC provider",
+        description:
+          "Remove the OIDC provider and turn OIDC sign-in off? Users who sign in only with it need another sign-in method.",
+        confirmLabel: "Remove",
+        variant: "destructive",
+      });
+      if (!ok) return;
+    }
+    setIsSavingOidc(true);
+    try {
+      const updated = await api.updateAuthProvisioningSettings({ oidcProviderAction: action });
+      applySettings(withDefaultGeneralSettings(updated)!);
+      setOidcDraft(oidcDraftFrom(updated));
+      toast.success(
+        action === "remove"
+          ? "OIDC provider removed"
+          : action === "cancel_opfield_account"
+            ? "Request to your Opfield account cancelled"
+            : updated.opfieldAccountSignIn?.pendingRequest
+              ? "Waiting for your Opfield account"
+              : "Sign-in with the Opfield account is on"
+      );
+    } catch (err) {
+      toastApiError(
+        err,
+        action === "remove"
+          ? "Failed to remove OIDC provider"
+          : action === "cancel_opfield_account"
+            ? "Failed to cancel the request"
+            : "Failed to use the Opfield account for sign-in"
+      );
+    } finally {
+      setIsSavingOidc(false);
+    }
+  };
+
+  // While the Opfield account has not answered, look again every few seconds besides the realtime update.
+  const waitingForOpfieldAccount = Boolean(settings?.opfieldAccountSignIn?.pendingRequest);
+  useEffect(() => {
+    if (!waitingForOpfieldAccount) return;
+    const timer = setInterval(reloadIfDraftClean, 5000);
+    return () => clearInterval(timer);
+  }, [waitingForOpfieldAccount, reloadIfDraftClean]);
+
   const saveLogging = async () => {
     if (!settings || !canEdit || !loggingHasChanges) return;
     setIsSavingLogging(true);
@@ -1109,6 +1161,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
     handleToggleRequireVerifiedEmail,
     handleToggleWebTls,
     saveOidc,
+    runOidcProviderAction,
     saveLogging,
     accessSettingsHaveChanges,
     featureSettingsHaveChanges,

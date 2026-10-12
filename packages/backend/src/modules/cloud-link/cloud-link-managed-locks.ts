@@ -4,14 +4,11 @@ import { CloudLinkService } from './cloud-link.service.js';
 
 /**
  * What a managed cloud installation keeps as the cloud set it up. These locks sit on the user-facing paths (REST,
- * MCP); the system paths (enrolment file, cloud link requests, setup, restore) call the services directly.
+ * MCP); the system paths (enrolment file, cloud link requests, setup, restore) call the services directly. Sign-in is
+ * not among them: the owner of a managed installation sets it up as on any installation.
  */
 export const CLOUD_MANAGED_MESSAGES = {
   license: 'This Opfield installation is managed by the cloud; its license is managed by your Opfield account.',
-  opfieldSignIn:
-    'This Opfield installation is managed by the cloud; the Opfield account sign-in provider cannot be changed here.',
-  oidcMethod: 'This Opfield installation is managed by the cloud; sign-in with the Opfield account stays on.',
-  ownerSignIn: 'This Opfield installation is managed by the cloud; its owner signs in with the Opfield account.',
 } as const;
 
 /** Whether the installation is a managed cloud VM (a process without the cloud link, such as a tool, is not). */

@@ -58,7 +58,7 @@ export function cloudRequestAudit(
   resultBytes: number,
   durationMs: number
 ): CloudRequestAudit {
-  const { service, tail, since, name, version, kind } = request.params;
+  const { service, tail, since, name, version, kind, clientId } = request.params;
   return {
     requestId: request.id,
     type: request.type.slice(0, 64),
@@ -68,6 +68,7 @@ export function cloudRequestAudit(
     ...(typeof name === 'string' && name ? { name: name.slice(0, 255) } : {}),
     ...(typeof version === 'string' && version ? { version: version.slice(0, 64) } : {}),
     ...(typeof kind === 'string' && kind ? { kind: kind.slice(0, 32) } : {}),
+    ...(typeof clientId === 'string' && clientId ? { clientId: clientId.slice(0, 255) } : {}),
     ok: answer.ok,
     ...(answer.ok ? {} : { error: answer.error.slice(0, 500), ...(answer.code ? { errorCode: answer.code } : {}) }),
     resultBytes,
@@ -100,8 +101,8 @@ export class CloudLinkAgent {
   private inFlight = 0;
   private unsubscribe: (() => void) | null = null;
   private unsubscribeHello: (() => void) | null = null;
-  /** The remote management the open socket's last hello reported; null before the hello. */
-  private helloRemoteManagement: boolean | null = null;
+  /** The hello the open socket last sent (JSON); null before the hello. */
+  private helloSent: string | null = null;
   private readonly requestAudit: CloudRequestAuditCoalescer;
 
   constructor(
@@ -193,13 +194,17 @@ export class CloudLinkAgent {
     if (this.status) await this.service.publishSocketStatus(this.status);
   }
 
-  /** Sends the hello again when remote management changed since the open socket's last one. */
+  /**
+   * Sends the hello again when what it reports changed since the open socket's last one (remote management, a sign-in
+   * client request made or answered).
+   */
   private async refreshHello(): Promise<void> {
     const socket = this.socket;
-    if (!socket || socket.readyState !== WebSocket.OPEN || this.helloRemoteManagement === null) return;
+    if (!socket || socket.readyState !== WebSocket.OPEN || this.helloSent === null) return;
     const hello = await this.service.helloInfo();
-    if (hello.remoteManagement === this.helloRemoteManagement || this.socket !== socket) return;
-    this.helloRemoteManagement = hello.remoteManagement;
+    const json = JSON.stringify(hello);
+    if (json === this.helloSent || this.socket !== socket) return;
+    this.helloSent = json;
     this.send(socket, { type: 'hello', ...hello });
   }
 
@@ -274,12 +279,12 @@ export class CloudLinkAgent {
       this.setStatus('online', null);
       this.armIdleTimer(socket);
       logger.info('Cloud link socket is online');
-      this.helloRemoteManagement = null;
+      this.helloSent = null;
       void this.service
         .helloInfo()
         .then((hello) => {
           if (this.socket !== socket) return;
-          this.helloRemoteManagement = hello.remoteManagement;
+          this.helloSent = JSON.stringify(hello);
           this.send(socket, { type: 'hello', ...hello });
         })
         .catch((error) =>
@@ -303,7 +308,7 @@ export class CloudLinkAgent {
     socket.on('close', (code) => {
       if (this.socket === socket) {
         this.socket = null;
-        this.helloRemoteManagement = null;
+        this.helloSent = null;
       }
       this.clearIdleTimer();
       // The socket stopped: the repeated reads it counted are written as their summaries now.
