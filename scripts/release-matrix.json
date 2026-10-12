@@ -2814,6 +2814,60 @@
       ]
     },
     {
+      "id": "GW-06",
+      "area": "installer",
+      "title": "Gateway restored on a new host from a configuration export",
+      "where": "stand",
+      "os": [
+        "debian"
+      ],
+      "covers": [
+        "install.sh --restore",
+        "install.sh --public-url",
+        "install.sh --grpc-target"
+      ],
+      "preconditions": [
+        "A Gateway of <candidate> with nodes, a paid licence and a configuration export downloaded from Settings.",
+        "A clean second host with Docker Engine and Compose v2, curl and openssl."
+      ],
+      "steps": [
+        "On the second host: install.sh --restore <export file> --public-url https://<new host>:3000 --grpc-target <new host>:9443.",
+        "Run it once more without --public-url and --grpc-target in a terminal.",
+        "Stop the old Gateway."
+      ],
+      "expect": [
+        "The installer installs the release that made the export, restores it without prompts and prints the sign-in link; the licence is not carried over and a cloud enrollment is dropped.",
+        "Without the options it asks for the address and keeps the answers.",
+        "The nodes of the old Gateway move to the new address by themselves and show online."
+      ]
+    },
+    {
+      "id": "GW-07",
+      "area": "installer",
+      "title": "Gateway console on its own domain with a Let's Encrypt certificate",
+      "where": "stand",
+      "os": [
+        "debian"
+      ],
+      "covers": [
+        "install.sh --domain",
+        "install.sh --acme-email"
+      ],
+      "preconditions": [
+        "A clean host reachable from the internet on ports 80 and 443, with a DNS name pointing to it."
+      ],
+      "steps": [
+        "install.sh --domain <name> --acme-email <email>.",
+        "install.sh --domain <name> without --acme-email, and install.sh --acme-email <email> alone.",
+        "Open http://<name>/ and https://<name>/."
+      ],
+      "expect": [
+        "The console answers on https://<name>/ on port 443 with a Let's Encrypt certificate that renews by itself; the public URL is https://<name>.",
+        "Both runs stop with the message that --domain needs --acme-email and that --acme-email is used with --domain.",
+        "http redirects to https; no port appears in the URL."
+      ]
+    },
+    {
       "id": "HOST-01",
       "area": "feature",
       "title": "Hosting: adoption and node creation on Proxmox",
