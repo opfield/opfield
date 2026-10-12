@@ -61,7 +61,7 @@ function CredentialField({
           readOnly
           value={value}
           type={showValue ? "text" : "password"}
-          className="border-0 bg-transparent font-mono focus-visible:ring-0"
+          className="min-w-0 border-0 bg-transparent font-mono focus-visible:ring-0"
         />
         {sensitive && (
           <Button
@@ -126,7 +126,7 @@ export function DatabaseCredentialsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{managed ? "Direct-Access Credentials" : "Stored Credentials"}</DialogTitle>
         </DialogHeader>

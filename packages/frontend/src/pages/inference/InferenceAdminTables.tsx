@@ -398,7 +398,7 @@ export function InferenceUsersTable({
       </PanelShell>
 
       <Dialog open={limitsOpen} onOpenChange={setLimitsOpen}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Configure Inference Limits</DialogTitle>
             <DialogDescription>Control inference access and usage budgets.</DialogDescription>

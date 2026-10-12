@@ -318,7 +318,7 @@ export function CloudflareIntegrationsSection() {
         open={dialogOpen}
         onOpenChange={(open) => (open ? setDialogOpen(true) : closeDialog())}
       >
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader className="shrink-0">
             <DialogTitle>
               {editingConnector ? "Cloudflare Connector" : "Add Cloudflare Connector"}

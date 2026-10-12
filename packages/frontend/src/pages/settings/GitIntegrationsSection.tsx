@@ -441,7 +441,7 @@ function GitConnectorPanel({
 
       {provider === "github" ? (
         <Dialog open={methodOpen} onOpenChange={setMethodOpen}>
-          <DialogContent className="sm:max-w-xl">
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Add GitHub Connector</DialogTitle>
               <DialogDescription>

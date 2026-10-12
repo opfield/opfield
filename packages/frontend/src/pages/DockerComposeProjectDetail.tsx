@@ -1637,7 +1637,7 @@ export function DockerComposeProjectDetail() {
       </Dialog>
       <Dialog open={activityDetailsOpen} onOpenChange={setActivityDetailsOpen}>
         <DialogContent
-          className="sm:max-w-xl"
+          className="sm:max-w-lg"
           onAnimationEnd={(event) => {
             if (
               event.target === event.currentTarget &&

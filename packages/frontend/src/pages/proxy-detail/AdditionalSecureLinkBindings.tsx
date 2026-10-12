@@ -413,7 +413,7 @@ export function AdditionalSecureLinkBindings({
           else resetDraft();
         }}
       >
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Add Binding</DialogTitle>
             <DialogDescription>
@@ -447,7 +447,7 @@ export function AdditionalSecureLinkBindings({
                 ) : (
                   <>
                     The variable includes the scheme. Use it in Advanced config as{" "}
-                    <code className="font-mono">{`proxy_pass {{additionalSecureLinks.${name || "name"}}};`}</code>
+                    <code className="break-all font-mono">{`proxy_pass {{additionalSecureLinks.${name || "name"}}};`}</code>
                   </>
                 )}
               </p>

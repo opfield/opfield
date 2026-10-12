@@ -300,7 +300,7 @@ export function AIWorkspaceScenarioStart({
       )}
 
       <Dialog open={catalogOpen} onOpenChange={setCatalogOpen}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Scenarios</DialogTitle>
             <DialogDescription>
