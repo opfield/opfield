@@ -295,6 +295,16 @@ func (m *Manager) holderDownLocked(mem *member, status HolderStatus, cert Certif
 // container, then the holder path promotes it again.
 func (m *Manager) restartHolderLocked(mem *member, status HolderStatus) {
 	key := mem.cfg.Key()
+	// The record of a stopped container is not renewed (holderStepLocked arms
+	// running containers only), so after a crash loop it names a deadline long
+	// past: the watchdog killed every restart at once ("past its lease
+	// deadline", then "cannot start a stopped process"), and a disk-full
+	// primary never came back after its resize. The holder's current deadline
+	// covers the start.
+	if mem.obs.container.Exists && !m.armRecordLocked(mem, status.Deadline) {
+		m.setErrorLocked(mem, "local restart failed: the primary's deadline record could not be armed")
+		return
+	}
 	m.launch(mem, opLocalRestart, opTimeout, func(ctx context.Context) func() {
 		err := m.stopConfirmed(ctx, mem, true)
 		if err == nil {

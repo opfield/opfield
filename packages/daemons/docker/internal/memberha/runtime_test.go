@@ -2,6 +2,7 @@ package memberha
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"sync/atomic"
@@ -212,6 +213,37 @@ func TestAFailedHolderReleasesToAnEligibleCopyOrRestartsLocally(t *testing.T) {
 	release := indexOf(log, "lease.release node-b")
 	if release < 0 || indexOf(log, "endpoints false") > release || indexOf(log, "engine.prepare_standby") > release {
 		t.Fatalf("health release must close serving and write standby at rest before releasing to the copy: %v", log)
+	}
+}
+
+// A primary whose engine crash-loops (container stopped, its deadline record
+// no longer renewed) restarts with its record armed at the holder's current
+// deadline: a record left in the past made the watchdog kill every restart
+// (rc.13 stand C-R13, a disk-full primary that never came back).
+func TestAHolderRestartsAStoppedEngineWithItsRecordArmed(t *testing.T) {
+	h := newHarness(t, ModeAutomatic)
+	h.engine.container.Running = true
+	h.engine.status = EngineStatus{Answering: true, Writable: true}
+	h.step(2, time.Second)
+	h.holding(h.clock.now + 60*time.Second)
+	h.lease.committed = &CertifiedState{State: HolderState{Value: []byte("v"), Holder: testNodeA, PromotedHolder: testNodeA}}
+	h.step(2, time.Second)
+	// The engine dies and stays down past the deadline it was armed with; the lease is renewed meanwhile.
+	h.engine.container.Running = false
+	h.engine.status = EngineStatus{}
+	h.step(2, time.Second)
+	h.clock.now += 5 * time.Minute
+	current := h.clock.now + 60*time.Second
+	h.holding(current)
+	h.calls.take()
+	h.step(14, time.Second)
+	log := h.calls.take()
+	if indexOf(log, "engine.start") < 0 {
+		t.Fatalf("the holder restarts its engine: %v", log)
+	}
+	armed := indexOf(log, fmt.Sprintf("record.write %d", int64(current)))
+	if armed < 0 || armed > indexOf(log, "engine.start") {
+		t.Fatalf("the restart must start under a record armed at the current deadline %v: %v", current, log)
 	}
 }
 
