@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { asc, count as countFn, desc, eq, gte, inArray, isNull, lte, notInArray, or } from 'drizzle-orm';
+import { and, asc, count as countFn, desc, eq, gte, inArray, isNull, lte, notInArray, or } from 'drizzle-orm';
 import { inject, injectable } from 'tsyringe';
 import { TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
@@ -29,6 +29,11 @@ import {
 import { commercialModuleUnavailable } from '@/edition/unavailable.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { buildWhere } from '@/lib/utils.js';
+import {
+  CLOUD_AUDIT_RESOURCE_TYPE,
+  cloudAuditResourceName,
+  cloudAuditSummary,
+} from '@/modules/cloud-link/cloud-link-audit-format.js';
 import { INTERNAL_DOCKER_REGISTRY_ID } from '@/modules/docker/docker-registry-internal.service.js';
 import { backgroundWrites } from '@/services/background-writes.js';
 import type { PaginatedResponse } from '@/types.js';
@@ -104,6 +109,8 @@ interface AuditLogRow {
   resourceType: string;
   resourceId: string | null;
   resourceName: string | null;
+  /** A plain line describing the entry, for actions that have one (the cloud link's). */
+  summary: string | null;
   details: Record<string, unknown> | null;
   ipAddress: string | null;
   userAgent: string | null;
@@ -480,13 +487,27 @@ export class AuditService {
     ]);
 
     const resourceNames = await this.resolveResourceNames(entries);
-    const data = entries.map((entry) => ({
-      ...entry,
-      resourceName:
-        getResourceNameFromDetails(entry.details) ??
-        resourceNames.get(resourceKey(entry.resourceType, entry.resourceId)) ??
-        null,
-    }));
+    const data = entries.map((entry) => {
+      if (entry.resourceType === CLOUD_AUDIT_RESOURCE_TYPE) {
+        // The Opfield account, never the agent id; and what the account did, in plain words.
+        const accountEmail = (entry.details as { accountEmail?: unknown } | null)?.accountEmail;
+        return {
+          ...entry,
+          resourceName:
+            resourceNames.get(resourceKey(entry.resourceType, entry.resourceId)) ??
+            cloudAuditResourceName(typeof accountEmail === 'string' ? accountEmail : null),
+          summary: cloudAuditSummary(entry.action, entry.details),
+        };
+      }
+      return {
+        ...entry,
+        resourceName:
+          getResourceNameFromDetails(entry.details) ??
+          resourceNames.get(resourceKey(entry.resourceType, entry.resourceId)) ??
+          null,
+        summary: null,
+      };
+    });
     const total = Number(totalCount);
 
     return {
@@ -716,6 +737,27 @@ export class AuditService {
         .from(users)
         .where(inArray(users.id, userIds));
       for (const row of rows) add('user', row.id, row.name || row.email);
+    }
+
+    // The cloud link's resource id is its agent id: named after the Opfield account it connected to.
+    const cloudAgentIds = ids(CLOUD_AUDIT_RESOURCE_TYPE);
+    if (cloudAgentIds.length) {
+      const rows = await this.db
+        .select({ id: auditLog.resourceId, details: auditLog.details })
+        .from(auditLog)
+        .where(
+          and(
+            eq(auditLog.resourceType, CLOUD_AUDIT_RESOURCE_TYPE),
+            eq(auditLog.action, 'cloud.connect'),
+            inArray(auditLog.resourceId, cloudAgentIds)
+          )
+        );
+      const emails = new Map<string, string>();
+      for (const row of rows) {
+        const email = (row.details as { accountEmail?: unknown } | null)?.accountEmail;
+        if (row.id && typeof email === 'string' && email.trim()) emails.set(row.id, email);
+      }
+      for (const id of cloudAgentIds) add(CLOUD_AUDIT_RESOURCE_TYPE, id, cloudAuditResourceName(emails.get(id)));
     }
 
     return names;

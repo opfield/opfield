@@ -131,6 +131,8 @@ export interface AuditLogEntry {
   resourceType: string;
   resourceId: string | null;
   resourceName?: string | null;
+  /** A plain line describing the entry, for actions that have one (the cloud link's). */
+  summary?: string | null;
   details: Record<string, unknown> | null;
   ipAddress: string | null;
   userAgent: string | null;

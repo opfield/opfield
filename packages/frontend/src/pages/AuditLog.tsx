@@ -992,6 +992,11 @@ export function AuditLog({
                 <ValueTile className="sm:col-span-2" label="Resource Type">
                   {selectedEntry.resourceType}
                 </ValueTile>
+                {selectedEntry.resourceName || selectedEntry.summary ? (
+                  <ValueTile className="sm:col-span-6" label="Resource" wrap>
+                    {getAuditResourceDisplay(selectedEntry).label}
+                  </ValueTile>
+                ) : null}
                 <ValueTile className="sm:col-span-3" label="Resource ID">
                   {selectedEntry.resourceId}
                 </ValueTile>

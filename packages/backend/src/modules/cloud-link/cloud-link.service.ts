@@ -48,7 +48,10 @@ export const CLOUD_AUDIT_ACTIONS = {
   remoteManagement: 'cloud.remote_management',
   request: 'cloud.request',
 } as const;
-export const CLOUD_AUDIT_RESOURCE_TYPE = 'cloud-link';
+export { CLOUD_AUDIT_RESOURCE_TYPE } from './cloud-link-audit-format.js';
+
+import { CLOUD_AUDIT_RESOURCE_TYPE } from './cloud-link-audit-format.js';
+
 const RECENT_REQUESTS_SHOWN = 5;
 const DISCONNECTED_BY_ACCOUNT_REASON = 'Your cloud account disconnected this installation.';
 const CLOUD_MANAGED_LINK_MESSAGE = 'A managed cloud installation stays connected to its account.';
