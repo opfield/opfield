@@ -227,10 +227,7 @@ export function CloudSection({ canManage }: CloudSectionProps) {
     codeMessage && (!connected || switching) ? (
       <p
         id="cloud-connection-code-message"
-        className={cn(
-          "px-4 pt-4 text-sm",
-          codeMessage.error ? "text-destructive" : "text-muted-foreground"
-        )}
+        className={cn("text-sm", codeMessage.error ? "text-destructive" : "text-muted-foreground")}
         role={codeMessage.error ? "alert" : undefined}
         aria-live="polite"
       >
@@ -333,12 +330,17 @@ export function CloudSection({ canManage }: CloudSectionProps) {
     >
       {showBody ? (
         <>
-          {codeMessageLine}
-          {connected && !managed && switching && (
-            <p className="px-4 pt-4 text-sm text-warning-text" role="status">
-              Copy the code from the installation's page in the other Opfield account. Connecting
-              with it ends the connection to {status.accountEmail ?? "your cloud account"} at once.
-            </p>
+          {(codeMessageLine || (connected && !managed && switching)) && (
+            <div className="space-y-2 border-b border-border p-4 last:border-b-0">
+              {codeMessageLine}
+              {connected && !managed && switching && (
+                <p className="text-sm text-warning-text" role="status">
+                  Copy the code from the installation's page in the other Opfield account.
+                  Connecting with it ends the connection to{" "}
+                  {status.accountEmail ?? "your cloud account"} at once.
+                </p>
+              )}
+            </div>
           )}
 
           {connected && (
