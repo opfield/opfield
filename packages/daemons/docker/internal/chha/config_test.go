@@ -3,6 +3,7 @@ package chha
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
 )
@@ -154,7 +155,9 @@ func TestRenderUsersAndRole(t *testing.T) {
 	users := string(RenderUsersConfig(2, 10000, strings.Repeat("ab", 32)))
 	for _, want := range []string{"<insert_quorum>2</insert_quorum>", "<insert_quorum_timeout>10000</insert_quorum_timeout>",
 		"<database_replicated_allow_only_replicated_engine>1</database_replicated_allow_only_replicated_engine>",
-		"<default_table_engine>ReplicatedMergeTree</default_table_engine>", "<gateway_member><password_sha256_hex>"} {
+		"<default_table_engine>ReplicatedMergeTree</default_table_engine>", "<gateway_member><password_sha256_hex>",
+		// The daemon's user gives client users the client profile (ALTER USER).
+		"<access_management>1</access_management></gateway_member>"} {
 		if !strings.Contains(users, want) {
 			t.Fatalf("missing %q in\n%s", want, users)
 		}
@@ -201,4 +204,12 @@ func TestGatewayEngineConfigContract(t *testing.T) {
 func joiningConfigOf(config memberha.Config, ec EngineConfig) memberha.Config {
 	config.EngineConfig = mustJSON(ec)
 	return config
+}
+
+// A switch does not wait out ClickHouse's own 30 s shutdown.
+func TestClickHouseCleanStopIsShort(t *testing.T) {
+	var e engine
+	if grace := e.StopGrace(); grace <= 0 || grace > 10*time.Second {
+		t.Fatalf("clean stop grace %v", grace)
+	}
 }

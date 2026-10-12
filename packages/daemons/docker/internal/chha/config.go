@@ -467,7 +467,10 @@ func RenderUsersConfig(quorum int, quorumTimeoutMs uint32, internalPasswordSHA25
 	b.WriteString("            <database_replicated_allow_only_replicated_engine>1</database_replicated_allow_only_replicated_engine>\n")
 	b.WriteString("            <default_table_engine>ReplicatedMergeTree</default_table_engine>\n")
 	b.WriteString("        </default>\n    </profiles>\n    <users>\n")
-	fmt.Fprintf(&b, "        <%s><password_sha256_hex>%s</password_sha256_hex><profile>default</profile><quota>default</quota><networks><ip>::/0</ip></networks></%s>\n",
+	// access_management: the daemon gives every replicated client user the
+	// client profile (the read-only guard of a copy and of a switching
+	// primary), which takes ALTER USER (stand rc.9: "Not enough privileges").
+	fmt.Fprintf(&b, "        <%s><password_sha256_hex>%s</password_sha256_hex><profile>default</profile><quota>default</quota><networks><ip>::/0</ip></networks><access_management>1</access_management></%s>\n",
 		InternalUser, internalPasswordSHA256, InternalUser)
 	b.WriteString("    </users>\n</clickhouse>\n")
 	return []byte(b.String())

@@ -770,6 +770,14 @@ func (e *engine) Switchover(ctx context.Context, successorMemberID string) error
 	}
 }
 
+// StopGrace: a ClickHouse member stops cleanly within a few seconds or is
+// killed: its parts and the Keeper log are safe on disk, and the server's own
+// shutdown waits up to 30 s for its Keeper and connections, which held a
+// planned switch up for 30 s (stand rc.9).
+func (e *engine) StopGrace() time.Duration { return cleanStopGraceClickHouse }
+
+const cleanStopGraceClickHouse = 8 * time.Second
+
 // killClientInsertsQuery ends the client inserts running on the member (the
 // daemon's own user is left alone).
 var killClientInsertsQuery = "KILL QUERY WHERE query_kind = 'Insert' AND user != " + quoteLiteral(InternalUser) + " ASYNC"

@@ -341,6 +341,40 @@ func waitFor(t *testing.T, what string, cond func() bool) {
 	}
 }
 
+// A failover: the old primary's volume server never registered with the
+// promoted master, so degrading keeps the master (and S3) running.
+func TestWorkerDegradesWithoutARestartForAPeerThatNeverRegistered(t *testing.T) {
+	setWorkerTimings(t)
+	cluster := newFakeCluster()
+	engine, host := newTestEngine(t, cluster)
+	peer := newFakeHost(cluster, t.TempDir(), testPeer, testMembers())
+	host.peers[testPeer] = peer
+	peer.setRunning(RoleVolume, false)
+	cluster.addVolume(host.selfURL, 1, "b", "001")
+	ctx := context.Background()
+	if err := engine.Promote(ctx, certified(t, Value{MaxVolumeID: 1})); err != nil {
+		t.Fatal(err)
+	}
+	if status, _ := engine.Status(ctx); !status.Writable {
+		t.Fatal("promoted")
+	}
+	defer engine.stopWorker()
+	waitFor(t, "degraded", func() bool {
+		engine.mu.Lock()
+		defer engine.mu.Unlock()
+		return engine.st.DegradedSince != 0
+	})
+	engine.mu.Lock()
+	restart := engine.restartWanted
+	engine.mu.Unlock()
+	if restart {
+		t.Fatal("no master restart for a volume server that never registered with it")
+	}
+	if status, _ := engine.Status(ctx); !status.Writable {
+		t.Fatal("the promoted member keeps serving while degraded")
+	}
+}
+
 func TestWorkerDegradesWhenThePeerIsLostAndRepairsWhenItReturns(t *testing.T) {
 	setWorkerTimings(t)
 	cluster := newFakeCluster()
