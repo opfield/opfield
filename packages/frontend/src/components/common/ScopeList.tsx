@@ -1,6 +1,7 @@
 import { ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { EmptyState } from "@/components/common/EmptyState";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import type { ScopeSelectionFilter } from "@/components/common/ScopeSearchFilter";
 import { Button } from "@/components/ui/button";
@@ -553,6 +554,18 @@ export function ScopeList({
 
   return (
     <div className={cn("max-sm:max-h-[40vh] max-sm:overflow-y-auto", viewportClassName)}>
+      {visibleScopes.length === 0 && (q || selectionFilter !== "all") && (
+        <EmptyState
+          embedded
+          message={
+            q
+              ? `Nothing matches “${search.trim()}”.`
+              : selectionFilter === "selected"
+                ? "Nothing selected yet."
+                : "Everything is selected."
+          }
+        />
+      )}
       {categories.map((cat) => {
         const catScopes = visibleScopes.filter((s) => s.group === cat);
         if (catScopes.length === 0) return null;
