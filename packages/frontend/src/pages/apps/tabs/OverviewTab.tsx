@@ -35,6 +35,7 @@ import type {
   AppDetail,
   AppEnvironmentDetail,
   AppOverviewAlert,
+  AppOverviewContainers,
   AppOverviewDatabase,
   AppOverviewEnvironment,
   AppOverviewIssue,
@@ -104,6 +105,68 @@ interface EnvView {
   data: AppOverviewEnvironment | undefined;
 }
 
+/** Local HH:MM of an ISO time. */
+const clock = (iso: string) => {
+  const date = new Date(iso);
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+};
+
+/**
+ * Restarts card: restarts since sampling began (0 from the first reading), "since HH:MM" until the samples cover
+ * the hour, then "last hour"; "—" until any environment has a reading.
+ */
+export function restartsCard(containers: readonly AppOverviewContainers[]): {
+  count: number | null;
+  value: string;
+  subtitle: string;
+} {
+  const known = containers.filter((c) => c.restarts !== null);
+  if (known.length === 0) return { count: null, value: "—", subtitle: "No data yet" };
+  const count = known.reduce((sum, c) => sum + (c.restarts ?? 0), 0);
+  const sinces = known.map((c) => c.restartsSince);
+  const covered = sinces.some((since) => !since);
+  const earliest = sinces.filter((since): since is string => Boolean(since)).sort()[0];
+  return {
+    count,
+    value: String(count),
+    subtitle: covered || !earliest ? "last hour" : `since ${clock(earliest)}`,
+  };
+}
+
+/**
+ * Healthy card: healthy containers among those with a health check; containers without one are counted apart
+ * (running counts as healthy for them, so they would read as healthy without being checked).
+ */
+export function healthyCard(
+  views: ReadonlyArray<{ env: { name: string }; data: AppOverviewEnvironment }>
+): {
+  value: string;
+  subtitle: string;
+  progress?: { percent: number; color: string };
+} {
+  const containers = views.map((item) => item.data.containers);
+  const noCheck = containers.reduce((sum, c) => sum + c.noHealthCheck, 0);
+  const checked = containers.reduce((sum, c) => sum + c.total - c.noHealthCheck, 0);
+  const healthy = containers.reduce((sum, c) => sum + c.checkedHealthy, 0);
+  if (checked === 0) return { value: "—", subtitle: "No health checks" };
+  const unhealthy = views.flatMap((item) =>
+    item.data.containers.unhealthy.map((name) => `${name} in ${item.env.name}`)
+  );
+  return {
+    value: `${healthy}/${checked}`,
+    progress: {
+      percent: (healthy / checked) * 100,
+      color: healthy < checked ? "var(--color-destructive)" : "var(--color-success)",
+    },
+    subtitle:
+      unhealthy.length > 0
+        ? `${unhealthy.slice(0, 2).join(", ")} ${unhealthy.length === 1 ? "is" : "are"} not healthy`
+        : noCheck > 0
+          ? `${noCheck} without a health check`
+          : "Every container is healthy",
+  };
+}
+
 export function OverviewTab({ app, version }: { app: AppDetail; version: number }) {
   const { data: overview, loading } = useAppLoad(`overview:${app.id}`, version, () =>
     api.getAppOverview(app.id, "1h")
@@ -137,16 +200,11 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
   );
   const containers = withData.map((item) => item.data.containers);
   const containerTotal = containers.reduce((sum, c) => sum + c.total, 0);
-  const containerHealthy = containers.reduce((sum, c) => sum + c.healthy, 0);
+  const healthCard = healthyCard(withData);
   const cpu = containers.reduce((sum, c) => sum + c.cpuPercent, 0);
   const memory = containers.reduce((sum, c) => sum + c.memoryBytes, 0);
   const memoryLimit = containers.reduce((sum, c) => sum + (c.memoryLimitBytes ?? 0), 0);
-  const knownRestarts = containers.filter((c) => c.restarts !== null);
-  const restarts =
-    knownRestarts.length > 0 ? knownRestarts.reduce((sum, c) => sum + (c.restarts ?? 0), 0) : null;
-  const unhealthy = withData.flatMap((item) =>
-    item.data.containers.unhealthy.map((name) => `${name} in ${item.env.name}`)
-  );
+  const restartCard = restartsCard(containers);
   const routes = withData.map((item) => item.data.routes);
   const routeTotal = routes.reduce((sum, r) => sum + r.total, 0);
   // The slowest environment's latency: request p95 with traffic, else health-check probes.
@@ -206,34 +264,24 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
             />
             <StatCard
               label="Restarts"
-              value={restarts === null ? "—" : String(restarts)}
+              value={restartCard.value}
               icon={RotateCcw}
               history={sumSeries(
                 containers.map((c) => c.restartsHistory),
                 false
               )}
-              color={restarts ? "var(--color-hue-red)" : "var(--color-hue-slate)"}
-              subtitle={restarts === null ? "No data yet" : "last hour"}
+              color={restartCard.count ? "var(--color-hue-red)" : "var(--color-hue-slate)"}
+              subtitle={restartCard.subtitle}
             />
             <StatCard
               label="Healthy"
-              value={`${containerHealthy}/${containerTotal}`}
+              value={healthCard.value}
               icon={Activity}
               history={averageSeries(containers.map((c) => c.healthyHistory ?? []))}
               sparklineMax={100}
               color="var(--color-success)"
-              progress={{
-                percent: containerTotal > 0 ? (containerHealthy / containerTotal) * 100 : 100,
-                color:
-                  containerHealthy < containerTotal
-                    ? "var(--color-destructive)"
-                    : "var(--color-success)",
-              }}
-              subtitle={
-                unhealthy.length > 0
-                  ? `${unhealthy.slice(0, 2).join(", ")} ${unhealthy.length === 1 ? "is" : "are"} not healthy`
-                  : "Every container is healthy"
-              }
+              progress={healthCard.progress}
+              subtitle={healthCard.subtitle}
             />
           </CardRow>
         </Section>

@@ -32,6 +32,8 @@ export interface MemberStatus {
   memoryLimitBytes: number | null;
   /** Docker runtime container name: the container itself, or the active slot of a deployment. */
   runtimeName?: string | null;
+  /** A container or deployment with an enabled Gateway health check (without one, running counts as healthy). */
+  hasHealthCheck?: boolean;
 }
 
 /** failing beats degraded beats healthy; no member is healthy. */
@@ -302,12 +304,14 @@ export class AppHealthService implements AppHealthProvider {
           return { ...base, health: composeHealth(composeById.get(member.id)?.status) };
         case 'deployment': {
           const row = deploymentById.get(member.id);
-          const check = deploymentChecks.find((item) => item.deploymentId === member.id)?.healthStatus;
+          const checkRow = deploymentChecks.find((item) => item.deploymentId === member.id);
+          const check = checkRow?.healthStatus;
           const slot = slots.find((item) => item.deploymentId === member.id && item.slot === row?.activeSlot);
           const stats = slot ? runtime.get(`${member.nodeId}\u0000${slot.containerName}`) : undefined;
           return {
             ...base,
             runtimeName: slot?.containerName ?? null,
+            hasHealthCheck: checkRow !== undefined,
             health: deploymentHealth(row?.status, check),
             cpuPercent: stats?.cpuPercent ?? null,
             memoryBytes: stats?.memoryBytes ?? null,
@@ -316,12 +320,14 @@ export class AppHealthService implements AppHealthProvider {
         }
         case 'container': {
           const stats = runtime.get(`${member.nodeId}\u0000${member.id}`);
-          const check = containerChecks.find(
+          const checkRow = containerChecks.find(
             (item) => item.nodeId === member.nodeId && item.containerName === member.id
-          )?.healthStatus;
+          );
+          const check = checkRow?.healthStatus;
           return {
             ...base,
             runtimeName: member.id,
+            hasHealthCheck: checkRow !== undefined,
             health: containerHealth(stats?.state, check),
             cpuPercent: stats?.cpuPercent ?? null,
             memoryBytes: stats?.memoryBytes ?? null,

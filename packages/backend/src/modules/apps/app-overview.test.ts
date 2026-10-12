@@ -8,6 +8,7 @@ import {
   healthySeries,
   OVERVIEW_POINTS,
   restartSeries,
+  restartsSince,
   routeLatency,
   sumSeries,
   throughputOf,
@@ -92,12 +93,31 @@ describe('app overview restarts and health samples', () => {
     expect(history[0]).toBe(null);
   });
 
-  it('is unknown until two readings with a count exist, and a new runtime counts from 0', () => {
-    expect(restartSeries([], '1h', now)).toEqual({ total: null, history: [] });
-    expect(restartSeries([sample(5, 2)], '1h', now)).toEqual({ total: null, history: [] });
-    expect(restartSeries([sample(5, null), sample(4, null)], '1h', now).total).toBe(null);
+  it('is unknown until a reading with a count exists, then counts from 0; a new runtime counts from 0', () => {
+    expect(restartSeries([], '1h', now)).toEqual({ total: null, history: [], since: null });
+    const single = restartSeries([sample(5, 2)], '1h', now);
+    expect(single.total).toBe(0);
+    expect(single.since).toBe(now - 5 * minute);
+    expect(single.history).toHaveLength(OVERVIEW_POINTS);
+    expect(restartSeries([sample(5, null), sample(4, null)], '1h', now)).toEqual({
+      total: null,
+      history: [],
+      since: null,
+    });
+    expect(restartSeries([sample(5, null), sample(4, 3)], '1h', now).since).toBe(now - 4 * minute);
     expect(restartSeries([sample(5, 4, 'slot-a'), sample(4, 0, 'slot-b')], '1h', now).total).toBe(0);
     expect(restartSeries([sample(5, 4), sample(4, 1)], '1h', now).total).toBe(0);
+  });
+
+  it('says since when restart sampling began until the samples cover the range', () => {
+    expect(restartsSince([], '1h', now)).toBe(null);
+    expect(restartsSince([null], '1h', now)).toBe(null);
+    expect(restartsSince([now - 5 * minute, null, now - 20 * minute], '1h', now)).toBe(
+      new Date(now - 20 * minute).toISOString()
+    );
+    // The sampler keeps 60 one-minute samples: the oldest, 59 minutes back, covers the hour.
+    expect(restartsSince([now - 59 * minute], '1h', now)).toBe(null);
+    expect(restartsSince([now - 59 * minute], '24h', now)).toBe(new Date(now - 59 * minute).toISOString());
   });
 
   it('reads the restart count from a container inspect', () => {

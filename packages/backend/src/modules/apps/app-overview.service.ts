@@ -105,24 +105,30 @@ export function sumSeries(
 /**
  * Restarts of one workload from its per-minute samples: the increase of Docker's RestartCount between consecutive
  * samples (a new runtime counts its own restarts from 0), summed over the range and per bucket. Unknown (null total,
- * empty series) until two samples with a count fall in the range; a bucket with samples but no restart is 0.
+ * empty series, null since) until a sample with a count falls in the range; from the first such sample (`since`) on
+ * the total starts at 0, and a bucket with samples but no restart is 0.
  */
 export function restartSeries(
   samples: readonly WorkloadSample[],
   range: OverviewRange,
   now = Date.now()
-): { total: number | null; history: Array<number | null> } {
+): { total: number | null; history: Array<number | null>; since: number | null } {
   const span = RANGE_MS[range];
   const start = now - span;
   const width = span / OVERVIEW_POINTS;
   const sorted = [...samples].sort((left, right) => left.at - right.at);
   const buckets = new Array<number | null>(OVERVIEW_POINTS).fill(null);
   let total: number | null = null;
+  let since: number | null = null;
   for (let index = 0; index < sorted.length; index += 1) {
     const current = sorted[index]!;
     if (current.at < start || current.at > now) continue;
     const bucket = Math.min(OVERVIEW_POINTS - 1, Math.floor((current.at - start) / width));
     buckets[bucket] = buckets[bucket] ?? 0;
+    if (current.restartCount !== null && since === null) {
+      since = current.at;
+      total = 0;
+    }
     const previous = sorted[index - 1];
     if (!previous || previous.restartCount === null || current.restartCount === null) continue;
     const increase =
@@ -132,8 +138,26 @@ export function restartSeries(
     buckets[bucket] = (buckets[bucket] ?? 0) + increase;
     total = (total ?? 0) + increase;
   }
-  if (total === null) return { total: null, history: [] };
-  return { total, history: buckets };
+  if (total === null) return { total: null, history: [], since: null };
+  return { total, history: buckets, since };
+}
+
+/**
+ * When the restart samples of an environment's workloads start (ISO), while they do not yet cover the whole range
+ * (the sampler keeps one hour); null once the range is covered or nothing is known.
+ */
+export function restartsSince(
+  sinces: ReadonlyArray<number | null>,
+  range: OverviewRange,
+  now = Date.now()
+): string | null {
+  const known = sinces.filter((value): value is number => value !== null);
+  if (known.length === 0) return null;
+  const earliest = Math.min(...known);
+  const span = RANGE_MS[range];
+  // Samples are a minute apart and kept for one hour: the first one within a bucket of the range start covers it.
+  const covered = earliest <= now - span + span / OVERVIEW_POINTS;
+  return covered ? null : new Date(earliest).toISOString();
 }
 
 /** Healthy share (percent) of one workload per bucket from its per-minute samples. */
@@ -345,6 +369,7 @@ export class AppOverviewService {
         const workloads = own.filter(
           (status) => status.member.type === 'container' || status.member.type === 'deployment'
         );
+        const checked = workloads.filter((status) => status.hasHealthCheck === true);
         const sum = (values: Array<number | null>) => {
           const present = values.filter((value): value is number => value !== null);
           return present.length ? Math.round(present.reduce((total, value) => total + value, 0) * 10) / 10 : null;
@@ -374,18 +399,28 @@ export class AppOverviewService {
           containers: {
             total: workloads.length,
             healthy: workloads.filter((status) => status.health === 'healthy').length,
+            // Workloads with a Gateway health check: the Healthy card counts these; the rest only by number.
+            checkedHealthy: checked.filter((status) => status.health === 'healthy').length,
+            noHealthCheck: workloads.length - checked.length,
             cpuPercent: sum(workloads.map((status) => status.cpuPercent)),
             cpuHistory: sumSeries(envContainers.map((entry) => entry.cpu)),
             memoryBytes: sum(workloads.map((status) => status.memoryBytes)),
             memoryLimitBytes: sum(workloads.map((status) => status.memoryLimitBytes)),
             memoryHistory: sumSeries(envContainers.map((entry) => entry.memory)),
-            // Increase of Docker restart counts over the range (null until the sampler has two readings).
+            // Increase of Docker restart counts since sampling began (null until the sampler has a reading);
+            // restartsSince is when that began while the samples do not yet cover the range.
             restarts: sum(envContainers.map((entry) => entry.restarts)),
+            restartsSince: restartsSince(
+              envContainers.map((entry) => entry.restartsSince),
+              range
+            ),
             restartsHistory: sumSeries(
               envContainers.map((entry) => entry.restartsHistory),
               { carry: false }
             ),
-            healthyHistory: averageSeries(envContainers.map((entry) => entry.healthy)),
+            healthyHistory: averageSeries(
+              envContainers.filter((entry) => entry.hasHealthCheck).map((entry) => entry.healthy)
+            ),
             unhealthy: workloads.filter((status) => status.health !== 'healthy').map((status) => status.member.name),
           },
           databases: envDatabases.map(({ environmentId: _env, ...entry }) => entry),
@@ -444,8 +479,10 @@ export class AppOverviewService {
         const restarts = restartSeries(samples, range);
         return {
           environmentId: status.member.environmentId,
+          hasHealthCheck: status.hasHealthCheck === true,
           restarts: restarts.total,
           restartsHistory: restarts.history,
+          restartsSince: restarts.since,
           healthy: healthySeries(samples, range),
           cpu: bucketSeries(
             history.map((entry) => ({

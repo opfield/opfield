@@ -238,13 +238,19 @@ export interface AppOverviewAlert {
 export interface AppOverviewContainers {
   total: number;
   healthy: number;
+  /** Healthy workloads among those with a health check. */
+  checkedHealthy: number;
+  /** Workloads without a health check (running counts as healthy, so the Healthy card leaves them out). */
+  noHealthCheck: number;
   cpuPercent: number;
   cpuHistory: Array<number | null>;
   memoryBytes: number;
   memoryLimitBytes: number | null;
   memoryHistory: Array<number | null>;
-  /** Restarts over the range; null until the sampler has two readings. */
+  /** Restarts since sampling began within the range; null until the sampler has a reading. */
   restarts: number | null;
+  /** When restart sampling began (ISO) while the samples do not yet cover the range; null once they do. */
+  restartsSince: string | null;
   restartsHistory: Array<number | null>;
   /** Percent of healthy workloads per point. */
   healthyHistory: Array<number | null>;

@@ -105,7 +105,15 @@ describe.skipIf(!url)('app overview on disposable PostgreSQL', () => {
     expect(production.alerts).toEqual([
       { tone: 'warning', title: 'shop-db disk is 90% full', detail: 'Free space or grow the volume' },
     ]);
-    expect(production.containers).toMatchObject({ total: 0, unhealthy: [], restarts: null, healthyHistory: [] });
+    expect(production.containers).toMatchObject({
+      total: 0,
+      checkedHealthy: 0,
+      noHealthCheck: 0,
+      unhealthy: [],
+      restarts: null,
+      restartsSince: null,
+      healthyHistory: [],
+    });
     expect(production.routes).toMatchObject({ total: 0, requestsPerSecond: null, latencySource: null });
 
     const partial = (await overview.overview(ALL, app.id, '1h')) as any;
