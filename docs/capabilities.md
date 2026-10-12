@@ -412,7 +412,7 @@ Inference features:
 - Show each user a 30-day usage overview and let administrators reset one user's usage baselines without deleting immutable accounting history.
 - Expose a base OpenAI-compatible API plus optional Codex- and Anthropic-specific adapters.
 - Issue dedicated `gwi_` runtime tokens that are accepted only by inference data-plane routes.
-- Configure Codex CLI/Desktop and Claude Code through the interactive [`@sqgateway/inference`](../packages/gateway-inference) companion, including optional macOS/Linux user-session startup for the Codex helper.
+- Connect any harness natively (DeepSeek harness recommended) from **Set Up an Inference Harness**: OpenAI- and Anthropic-compatible base URLs, a key created for the user and shown once, and the user's models.
 
 Inference is disabled by default. See the [inference guide](inference.md) for provider, model, limit, token, and client setup.
 

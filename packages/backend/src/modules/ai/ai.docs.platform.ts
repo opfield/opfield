@@ -141,36 +141,16 @@ The \`gwi_\` secret is shown once. Never repeat it after creation, store it in a
 
 ### Recommended harness setup
 
-No global installation or PATH change is required:
+An administrator must first enable **Inference** in **Settings > General**. Before giving harness setup instructions, call \`get_gateway_settings\` when it is available and report \`generalSettings.features.inferenceEnabled\`. Without that read permission, do not guess its value: explain that an administrator must confirm it.
 
-\`\`\`bash
-npx -y @sqgateway/inference@latest
-\`\`\`
+Recommend [DeepSeek harness](https://www.deepseek.com/en/harness/), configured natively with Opfield as its OpenAI- or Anthropic-compatible provider. Any other harness or tool that accepts such a provider is set up the same way. In the UI, **Settings > Inference > Endpoint > Set up** opens **Set Up an Inference Harness**, which shows everything to paste into the harness's provider settings:
 
-An administrator must first enable **Inference** in **Settings > General**. Before giving harness setup instructions, call \`get_gateway_settings\` when it is available and report \`generalSettings.features.inferenceEnabled\`. Without that read permission, do not guess its value: explain that an administrator must confirm it. The interactive manager asks for the Opfield URL and offers either isolated browser OAuth/PKCE or a masked existing \`gwi_\` token, then can configure, diagnose, repair, or remove supported harness integrations. Browser OAuth always prints the complete authorization URL before attempting to open it, preserving a manual fallback when the browser does not start. The token is validated before it is saved, identifies its owning user, and requires no email. Direct commands are \`login [gateway]\`, \`logout\`, \`setup [harness]\`, \`startup install|status|uninstall\`, and the offline recovery command \`uninstall codex-usage\`; non-interactive token login uses \`--token\`. \`--home /data/inference\` or \`GATEWAY_INFERENCE_HOME=/data/inference\` keeps all companion-owned filesystem state and mode-0600 credentials below one directory and is propagated to installed helper processes. Harness configuration still remains in the native Codex or Claude Code directory. If the user does not name a harness, ask whether they use Codex or Claude Code before giving harness-specific instructions.
+- OpenAI-compatible base URL: \`https://gateway.example.com/api/inference/v1\`;
+- Anthropic-compatible base URL: \`https://gateway.example.com/api/inference\` (Anthropic clients append \`/v1/messages\` themselves);
+- API key: a new \`gwi_\` inference token the dialog creates for the current user and shows once; unused keys from earlier openings of the dialog are revoked;
+- Model: any model the user can call (\`GET <OpenAI base URL>/models\`).
 
-#### Codex CLI and Desktop
-
-\`\`\`bash
-npx -y @sqgateway/inference@latest login https://gateway.example.com
-npx -y @sqgateway/inference@latest login https://gateway.example.com --token gwi_...
-npx -y @sqgateway/inference@latest setup codex
-npx -y @sqgateway/inference@latest setup codex --url https://gateway.example.com --startup
-\`\`\`
-
-Codex setup issues a dedicated runtime token, writes only package-managed Codex configuration sections, installs a private helper and loopback proxy, and maintains the authoritative Opfield model catalog. It does not replace native Codex usage or quota displays. Catalog changes apply after starting a new Codex process. Codex Desktop must also be signed in to an OpenAI account through Codex's normal login flow; after Opfield setup or login changes, fully quit and reopen Codex. On macOS and Linux, \`startup install\` enables user-session startup for the already installed private helper; it does not depend on npm, \`npx\`, or shell \`PATH\`, install a privileged system service, or enable systemd lingering.
-
-#### Claude Code CLI
-
-Claude Code 2.1.129 or newer is required:
-
-\`\`\`bash
-npx -y @sqgateway/inference@latest login https://gateway.example.com
-npx -y @sqgateway/inference@latest login https://gateway.example.com --token gwi_...
-npx -y @sqgateway/inference@latest setup claude-code
-\`\`\`
-
-Claude Code setup issues a separate dedicated runtime token and configures the native Anthropic gateway contract with \`ANTHROPIC_BASE_URL\`, model discovery, and a private \`apiKeyHelper\`. It does not use the Codex loopback proxy. This setup supports the Claude Code CLI only; Claude Desktop and the Claude Code VS Code extension are separate and are not modified automatically.
+Without the UI, create the key with \`manage_inference_token\` and give the same values. The \`@sqgateway/inference\` companion CLI is deprecated: do not recommend it for new setups; mention it only when the user already runs it.
 
 ### Manual OpenAI-compatible setup
 

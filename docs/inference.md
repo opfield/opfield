@@ -27,7 +27,7 @@ Administrators manage the core from **Settings > Inference** (and during initial
 
 Only one lifecycle operation runs at a time. Operations interrupted by an Opfield restart are marked failed and reconciled from observed container state on boot.
 
-Opfield and inference-core upgrades do not invalidate provider connections, runtime tokens, or an installed harness integration. The companion helper refreshes the Codex model catalog automatically. Rerun `setup` only when repairing or replacing the local integration, changing Opfield identity, or adopting a future explicitly incompatible endpoint contract.
+Opfield and inference-core upgrades do not invalidate provider connections, inference tokens, or harnesses already connected with them.
 
 ## Administrator setup
 
@@ -39,10 +39,10 @@ Opfield and inference-core upgrades do not invalidate provider connections, runt
 6. In **Models**, publish a stable public model ID with one or more compatible sources.
 7. Configure context/input/output/auto-compaction limits, modalities, and access. Subscription-backed models also have a credit multiplier; API-backed models use versioned provider/manual pricing and do not expose a subscription multiplier.
 8. Configure reasoning overrides such as `ultra=max`. Efforts without an override map to the same provider name. Drag efforts into the order that clients and the AI Workspace reasoning selector should display them.
-9. Optionally set a **System prompt** for the model. **Append** keeps the Codex default instructions and adds the prompt after them; **Replace** substitutes the default entirely, so a replacement must restate any tool or patch-format rules the model still needs. The prompt is delivered through the Codex model catalog that the companion package maintains, reaches a device on its next catalog refresh, and takes effect after Codex restarts. It applies to the Codex harness only: Opfield never rewrites the `instructions` or `system` field of a client request, so Claude Code and direct API clients keep their own prompts.
+9. Optionally set a **System prompt** for the model. **Append** keeps the harness default instructions and adds the prompt after them; **Replace** substitutes the default entirely, so a replacement must restate any tool or patch-format rules the model still needs. The prompt is published in the model catalog (`GET /models`, `system_prompt`) and applies only to harnesses that read it from there: Opfield never rewrites the `instructions` or `system` field of a client request, so other clients keep their own prompts.
 10. In **Settings > Inference > Limits**, set default limits and optional per-user overrides.
 
-Drag model rows to set the order returned by the management and data-plane catalogs. The companion preserves that order in the Codex manifest, and AI Workspace uses it for its model selector and default-model fallback.
+Drag model rows to set the order returned by the management and data-plane catalogs. AI Workspace uses the same order for its model selector and default-model fallback.
 
 There is no user-visible or administrator-managed Pool entity. Provider administration remains grouped by provider, while one logical model may include compatible sources from more than one provider or upstream model. Opfield validates every enabled source against the model's published contract and keeps failover inside one request/accounting lineage; it never switches after output has begun.
 
@@ -50,9 +50,18 @@ There is no user-visible or administrator-managed Pool entity. Provider administ
 
 Users need `feat:ai:use` for Opfield Inference access, personal usage visibility, and creation or revocation of their own inference tokens. AI Workspace access is controlled separately by `ai:workspace:use`.
 
-Create a token under **Profile > Authorizations > Inference API tokens**. The `gwi_` secret is shown once.
+To connect a harness, open **Set up a harness** on the Inference usage panel or in **Settings > Inference**. The **Set Up an Inference Harness** dialog shows the values to paste into the harness's own provider settings:
 
-All clients use the single stable base URL:
+- **OpenAI-compatible base URL**: `https://gateway.example.com/api/inference/v1`;
+- **Anthropic-compatible base URL**: `https://gateway.example.com/api/inference`. Anthropic clients append `/v1/messages` themselves;
+- **API key**: a new `gwi_` token that the dialog creates for this harness. It is shown once;
+- **Model**: any model available to you.
+
+The recommended harness is [DeepSeek harness](https://www.deepseek.com/en/harness/): add Opfield as a provider in its settings with these values. Any other harness or tool that accepts an OpenAI- or Anthropic-compatible provider works the same way.
+
+Each opening of the dialog creates a token named `Harness — <date>` and revokes earlier dialog tokens that no client has used. Tokens a harness has used are kept. To create a token without the dialog, use **Profile > Authorizations > Inference API tokens**; the `gwi_` secret is also shown once.
+
+All clients use the same base URLs:
 
 ```text
 OpenAI SDK baseURL:    https://gateway.example.com/api/inference/v1
@@ -62,38 +71,7 @@ API key:               gwi_...
 
 The `/api/inference/v1` endpoint exposes the OpenAI-compatible Models, Responses, Chat Completions, Anthropic Messages, images, search, and realtime surfaces. Anthropic SDKs append `/v1` themselves, so their `baseURL` omits that segment.
 
-For Codex and Claude Code, prefer the companion package instead of editing configuration or copying tokens manually:
-
-```bash
-npx -y @sqgateway/inference@latest
-```
-
-The interactive package asks for the Opfield URL and then offers browser OAuth with resource-isolated PKCE or a masked existing `gwi_` token. Before attempting to open the browser, OAuth always prints the complete authorization URL to the console so it can be opened manually. The token is validated before it is saved and already identifies its user, so no email is required. Direct `login [gateway]`, `logout`, and `setup [harness]` commands are also available; non-interactive token login uses `--token`:
-
-```bash
-npx -y @sqgateway/inference@latest login https://gateway.example.com --token gwi_...
-npx -y @sqgateway/inference@latest setup codex
-npx -y @sqgateway/inference@latest setup codex --url https://gateway.example.com --startup
-npx -y @sqgateway/inference@latest setup claude-code
-```
-
-Codex setup issues a dedicated runtime token, installs a private stable helper and loopback proxy, and maintains the authoritative Opfield model catalog. Codex Desktop must also be signed in to an OpenAI account through its normal login flow; after setup or login changes, fully quit and reopen Codex so it reloads the custom model catalog. Native Codex usage and quota displays are not overridden.
-
-Use `--home /data/inference` or `GATEWAY_INFERENCE_HOME=/data/inference` to keep profiles, credentials, catalogs, helper, and proxy state below one companion directory. The package propagates that home into its installed long-lived processes. Codex and Claude Code configuration still remains in the harness-native configuration directory.
-
-On macOS and Linux, Codex helper startup can be managed independently after setup:
-
-```bash
-npx -y @sqgateway/inference@latest startup install
-npx -y @sqgateway/inference@latest startup status
-npx -y @sqgateway/inference@latest startup uninstall
-```
-
-The startup entry runs the already installed private helper directly at user login. It does not depend on npm, `npx`, or shell `PATH`, does not install a privileged system service, and does not enable systemd lingering.
-
-Claude Code setup requires Claude Code 2.1.129 or newer. It configures Claude Code's native Anthropic gateway contract through `ANTHROPIC_BASE_URL`, model discovery, and a private `apiKeyHelper`; it does not run a loopback proxy. The integration applies only to the Claude Code CLI, not Claude Desktop or the VS Code extension.
-
-For ChatGPT subscription-backed models whose upstream catalog advertises it, Codex also exposes `/fast`. Opfield forwards the `priority` service tier and charges a fixed 2x subscription-credit multiplier; API dollar accounting is unchanged.
+For ChatGPT subscription-backed models whose upstream catalog advertises it, a client may request the `priority` service tier (Codex `/fast`). Opfield forwards it and charges a fixed 2x subscription-credit multiplier; API dollar accounting is unchanged.
 
 Supported primary operations include:
 
@@ -187,7 +165,7 @@ Back up the PostgreSQL inference tables with the normal database backup and pres
 Troubleshooting:
 
 - Core unhealthy or missing: use **Repair** in **Settings > Inference**; check the lifecycle operation log shown there for the failing step.
-- A broken local Codex/Claude Code integration after an upgrade: run the companion manager's diagnose/repair flow; rerun `setup` only if the package-managed integration itself must be replaced.
+- A harness that stops authenticating: its token was revoked or its owner lost `feat:ai:use`. Open **Set up a harness** again and paste the new API key into the harness settings.
 - A failed core update rolls back automatically; if rollback also fails, **Repair** reinstalls the last known-good pinned release.
 
 To disable inference:

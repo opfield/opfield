@@ -21,6 +21,12 @@ import type {
 } from "@/types/inference";
 import type { ApiClientBaseConstructor } from "./api-mixins";
 
+/** A model as the inference data plane lists it to a client (`GET /api/inference/v1/models`). */
+export interface InferenceClientModel {
+  id: string;
+  display_name?: string | null;
+}
+
 export function withInferenceApi<TBase extends ApiClientBaseConstructor>(Base: TBase) {
   return class InferenceApi extends Base {
     listInferenceTokens(): Promise<InferenceToken[]> {
@@ -32,6 +38,12 @@ export function withInferenceApi<TBase extends ApiClientBaseConstructor>(Base: T
         method: "POST",
         body: JSON.stringify({ name }),
       });
+    }
+
+    /** The models the current user can call: the catalog their inference keys see, read with the session. */
+    async listInferenceCatalog(): Promise<InferenceClientModel[]> {
+      const body = await this.request<{ data?: InferenceClientModel[] }>("/inference/catalog");
+      return body?.data ?? [];
     }
 
     revokeInferenceToken(id: string): Promise<void> {

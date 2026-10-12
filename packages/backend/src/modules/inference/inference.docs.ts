@@ -39,6 +39,23 @@ export const listInferenceTokensRoute = appRoute({
   responses: okJson(z.array(InferenceTokenResponseSchema)),
 });
 
+export const listInferenceCatalogRoute = appRoute({
+  method: 'get',
+  path: '/catalog',
+  tags: ['Inference'],
+  summary: 'List the inference models the current user can call',
+  description:
+    'The same catalog GET /api/inference/v1/models returns to the user\'s inference keys, read with the session so no key is used.',
+  responses: okJson(
+    z
+      .object({
+        object: z.literal('list'),
+        data: z.array(z.object({ id: z.string() }).passthrough()),
+      })
+      .passthrough()
+  ),
+});
+
 export const createInferenceTokenRoute = appRoute({
   method: 'post',
   path: '/tokens',

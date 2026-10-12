@@ -264,15 +264,10 @@ const SYSTEM_SKILLS: readonly AIAgentSkill[] = [
 - Treat API and subscription limits separately. A zero monthly API budget disables API-funded usage and hides API-only models for that user; do not describe such models as merely selectable but temporarily failing.
 
 ### Recommended harness setup
-- Prefer the companion manager; it requires no global installation or PATH change:
-  npx -y @sqgateway/inference@latest
-- The manager asks for the Opfield URL, completes isolated OAuth/PKCE, and offers the harnesses advertised by Opfield. Direct setup is:
-  npx -y @sqgateway/inference@latest login https://gateway.example.com
-  npx -y @sqgateway/inference@latest setup codex
-  npx -y @sqgateway/inference@latest setup claude-code
-- Codex setup installs package-managed configuration, a private helper/loopback proxy, and the Opfield model catalog. Codex Desktop must also remain signed in through its normal OpenAI login; fully quit and reopen Codex after setup or login changes.
-- Claude Code setup requires Claude Code 2.1.129 or newer and configures its native Anthropic gateway contract with ANTHROPIC_BASE_URL, model discovery, and a private apiKeyHelper. It applies to the Claude Code CLI, not Claude Desktop or the VS Code extension.
-- If the user asks how to configure a harness but does not name one, ask whether they use Codex or Claude Code before giving harness-specific instructions.
+- Recommend DeepSeek harness (https://www.deepseek.com/en/harness/), configured natively with Opfield as its OpenAI- or Anthropic-compatible provider; any other harness that accepts such a provider is set up the same way.
+- In the UI: Settings > Inference > Endpoint > Set up opens Set Up an Inference Harness. It shows the OpenAI-compatible base URL (https://<gateway>/api/inference/v1), the Anthropic-compatible base URL (https://<gateway>/api/inference), a new gwi_ key it creates for the current user and shows once (unused keys from earlier openings are revoked), and the models the user can call. The user pastes these into the harness's provider settings.
+- Without the UI, create the key with the current-user token tool and give the same values.
+- The @sqgateway/inference companion CLI is deprecated: do not recommend it for new setups; mention it only when the user already runs it.
 
 ### Manual clients and verification
 - OpenAI-compatible SDKs and clients use https://<gateway>/api/inference/v1 with a dedicated gwi_ token. The base adapter exposes the supported Models, Responses, and Chat Completions surfaces while inference is enabled.

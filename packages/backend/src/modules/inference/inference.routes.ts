@@ -42,6 +42,7 @@ import {
   syncInferenceProviderConnectionRoute,
   updateInferenceProviderConnectionRoute,
   updateInferenceProviderRoutingRoute,
+  listInferenceCatalogRoute,
 } from './inference.docs.js';
 import {
   CompleteInferenceOAuthSchema,
@@ -67,6 +68,7 @@ inferenceManagementRoutes.use('*', authMiddleware);
 // Personal gwi_ inference keys need feat:ai:use on the caller itself, so a bearer token must hold it.
 inferenceManagementRoutes.use('/tokens', requireScope('feat:ai:use'));
 inferenceManagementRoutes.use('/tokens/*', requireScope('feat:ai:use'));
+inferenceManagementRoutes.use('/catalog', requireScope('feat:ai:use'));
 // Administration routes below require their own delegated inference:* scopes; bearer callers may
 // satisfy the feat:ai:use baseline through the token owner's live account.
 inferenceManagementRoutes.use('*', requireAccountScope('feat:ai:use'));
@@ -75,6 +77,10 @@ inferenceManagementRoutes.openapi(listInferenceTokensRoute, async (c) => {
   const user = c.get('user')!;
   const tokens = await container.resolve(InferenceTokenService).listTokens(user.id);
   return c.json(tokens);
+});
+
+inferenceManagementRoutes.openapi(listInferenceCatalogRoute, async (c) => {
+  return c.json(await container.resolve(InferenceModelService).listForUser(c.get('user')!));
 });
 
 inferenceManagementRoutes.openapi(createInferenceTokenRoute, async (c) => {
