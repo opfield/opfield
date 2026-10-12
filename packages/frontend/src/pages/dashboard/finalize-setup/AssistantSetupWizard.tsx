@@ -5,6 +5,7 @@ import { Notice, NoticeAction } from "@/components/common/Notice";
 import { PanelShell } from "@/components/common/PanelShell";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { Button } from "@/components/ui/button";
+import { useDialogPresence } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -94,9 +95,11 @@ export function AssistantSetupWizard({
   const [saving, setSaving] = useState(false);
   const [completed, setCompleted] = useState(false);
 
+  const present = useDialogPresence(open);
+  // Reset once the close animation has played, so the closing dialog keeps its content.
   useEffect(() => {
-    if (!open) setCompleted(false);
-  }, [open]);
+    if (!present) setCompleted(false);
+  }, [present]);
 
   // Load the models once per choice of Gateway Inference: picking a model
   // changes the draft and must not reload the list under the open Select.

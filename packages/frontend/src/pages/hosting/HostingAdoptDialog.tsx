@@ -12,6 +12,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import { api } from "@/services/api";
 import type { HostingAdoptionCandidates } from "@/types/hosting";
@@ -68,9 +69,11 @@ export function HostingAdoptDialog({
       generation.current++;
     };
   }, [load]);
+  const present = useDialogPresence(open);
+  // Reset once the close animation has played, so the closing dialog keeps its content.
   useEffect(() => {
-    if (!open) setCandidatesSettled(false);
-  }, [open]);
+    if (!present) setCandidatesSettled(false);
+  }, [present]);
   const adopt = async () => {
     if (submitting.current || !resourceId || !nodeId) return;
     submitting.current = true;

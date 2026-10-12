@@ -35,6 +35,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
@@ -225,6 +226,11 @@ export function DockerGitSourcePanel({
   const [secretSaving, setSecretSaving] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
   const [connectStep, setConnectStep] = useState<1 | 2>(1);
+  const connectPresent = useDialogPresence(connectOpen);
+  // Reset once the close animation has played, so the closing dialog keeps its content.
+  useEffect(() => {
+    if (!connectPresent) setConnectStep(1);
+  }, [connectPresent]);
   const [connecting, setConnecting] = useState(false);
   const [connectorId, setConnectorId] = useState("");
   const [projectId, setProjectId] = useState("");
@@ -909,7 +915,6 @@ export function DockerGitSourcePanel({
           open={connectOpen}
           onOpenChange={(open) => {
             setConnectOpen(open);
-            if (!open) setConnectStep(1);
           }}
         >
           <DialogContent className={pagesTarget ? "sm:max-w-lg" : "sm:max-w-2xl"}>

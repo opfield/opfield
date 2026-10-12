@@ -36,6 +36,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -150,6 +151,11 @@ function AdminUsersContent({
   const [deletedUsersLoaded, setDeletedUsersLoaded] = useState(false);
   const [deletedUsersOpen, setDeletedUsersOpen] = useState(false);
   const [deletedUsersSearch, setDeletedUsersSearch] = useState("");
+  const deletedUsersPresent = useDialogPresence(deletedUsersOpen);
+  // Reset once the close animation has played, so the closing dialog keeps its content.
+  useEffect(() => {
+    if (!deletedUsersPresent) setDeletedUsersSearch("");
+  }, [deletedUsersPresent]);
   const [restoreUser, setRestoreUser] = useState<DeletedUser | null>(null);
   const displayedRestoreUser = useRetainedDialogValue(restoreUser, restoreUser !== null);
   const [restoreGroupId, setRestoreGroupId] = useState("");
@@ -854,7 +860,6 @@ function AdminUsersContent({
         open={deletedUsersOpen}
         onOpenChange={(open) => {
           setDeletedUsersOpen(open);
-          if (!open) setDeletedUsersSearch("");
         }}
       >
         <DialogContent className="max-w-2xl">

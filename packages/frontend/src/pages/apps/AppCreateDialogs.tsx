@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { type LicenseFeature, requireLicenseFeature } from "@/stores/license-paywall";
 import type { AppMemberFamily } from "@/types";
 import { ComposeProjectEditor } from "../compose/ComposeProjectEditor";
@@ -125,7 +126,8 @@ export function AppCreateDialogs({
     setActive(key);
   }, [request]);
 
-  const requestedEnvironmentId = request?.environmentId;
+  // The closing dialog keeps the environment it was opened for.
+  const requestedEnvironmentId = useRetainedDialogValue(request?.environmentId, request !== null);
   const appContext = useMemo<AppCreateContext>(
     () => ({ ...context, environmentId: requestedEnvironmentId ?? context.environmentId }),
     [context, requestedEnvironmentId]

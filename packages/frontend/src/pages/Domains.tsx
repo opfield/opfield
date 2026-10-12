@@ -36,6 +36,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -161,6 +162,11 @@ export function Domains() {
   const [detailInitialView, setDetailInitialView] = useState<"details" | "ingress-migration">(
     "details"
   );
+  const detailPresent = useDialogPresence(detailOpen);
+  // Reset once the close animation has played, so the closing dialog keeps its content.
+  useEffect(() => {
+    if (!detailPresent) setDetailInitialView("details");
+  }, [detailPresent]);
   const [routeCreateDomain, setRouteCreateDomain] = useState<Pick<
     Domain,
     "domain" | "nginxNodeId" | "ingressGroupId"
@@ -697,7 +703,6 @@ export function Domains() {
           initialView={detailInitialView}
           onOpenChange={(nextOpen) => {
             setDetailOpen(nextOpen);
-            if (!nextOpen) setDetailInitialView("details");
           }}
           onUpdated={loadDomains}
         />

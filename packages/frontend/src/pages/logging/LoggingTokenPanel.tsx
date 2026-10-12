@@ -15,6 +15,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useRealtime } from "@/hooks/use-realtime";
@@ -38,6 +39,11 @@ export function LoggingTokenPanel({
   // The first list holds the tab; refreshes after changes update it in place.
   const [tokensLoaded, setTokensLoaded] = useState(false);
   const [name, setName] = useState("");
+  const createDialogPresent = useDialogPresence(createDialogOpen);
+  // Reset once the close animation has played, so the closing dialog keeps its content.
+  useEffect(() => {
+    if (!createDialogPresent) setName("");
+  }, [createDialogPresent]);
   const [creating, setCreating] = useState(false);
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const [createdTokenOpen, setCreatedTokenOpen] = useState(false);
@@ -84,7 +90,6 @@ export function LoggingTokenPanel({
 
   const setCreateDialogOpen = (nextOpen: boolean) => {
     onCreateDialogOpenChange(nextOpen);
-    if (!nextOpen) setName("");
   };
 
   const revoke = async (token: LoggingIngestToken) => {

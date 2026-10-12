@@ -16,6 +16,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
@@ -189,9 +190,11 @@ export function NodeEnrollmentDialog({
     if (next !== folderId) setFolderId(next);
   }, [creationChoices, folderId, open]);
 
+  const present = useDialogPresence(open);
+  // Reset once the close animation has played, so the closing dialog keeps its content.
   useEffect(() => {
-    if (!open) setHostingModeLocked(false);
-  }, [open]);
+    if (!present) setHostingModeLocked(false);
+  }, [present]);
 
   useEffect(() => {
     if (!result) completedNodeRef.current = null;

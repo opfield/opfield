@@ -322,6 +322,27 @@ const DialogContent = React.forwardRef<
 ));
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
+/** The longest dialog close animation (css/animations.css: 250ms on mobile, 200ms from sm). */
+const DIALOG_CLOSE_ANIMATION_MS = 250;
+
+/**
+ * `open`, held true until the close animation has played. Data a dialog loads while open (and
+ * clears or reloads by `open`) keys on this instead, so the content stays as it was while the
+ * dialog closes and is dropped only once it is gone.
+ */
+function useDialogPresence(open: boolean): boolean {
+  const [present, setPresent] = React.useState(open);
+  React.useEffect(() => {
+    if (open) {
+      setPresent(true);
+      return;
+    }
+    const timer = setTimeout(() => setPresent(false), DIALOG_CLOSE_ANIMATION_MS);
+    return () => clearTimeout(timer);
+  }, [open]);
+  return open || present;
+}
+
 const DialogTitle = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
@@ -359,4 +380,5 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
+  useDialogPresence,
 };

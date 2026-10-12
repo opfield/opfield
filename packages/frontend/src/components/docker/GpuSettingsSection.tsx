@@ -12,6 +12,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -67,6 +68,11 @@ export function GpuSettingsSection({
   // Without GPUs the section is omitted, so the tab waits for the inventory and usage first.
   useContentLoading(!gpuInventoryLoaded || !gpuUsageLoaded);
   const [gpuCandidateId, setGpuCandidateId] = useState("");
+  const gpuAddPresent = useDialogPresence(gpuAddOpen);
+  // Reset once the close animation has played, so the closing dialog keeps its content.
+  useEffect(() => {
+    if (!gpuAddPresent) setGpuCandidateId("");
+  }, [gpuAddPresent]);
 
   useEffect(() => {
     let cancelled = false;
@@ -258,7 +264,6 @@ export function GpuSettingsSection({
         open={gpuAddOpen}
         onOpenChange={(open) => {
           setGpuAddOpen(open);
-          if (!open) setGpuCandidateId("");
         }}
       >
         <DialogContent className="sm:max-w-md">

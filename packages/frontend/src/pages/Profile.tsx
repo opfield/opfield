@@ -50,6 +50,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -745,6 +746,11 @@ function LocalAccountSecurityPanel() {
   const [passkeysOpen, setPasskeysOpen] = useState(false);
   const [statusLoaded, setStatusLoaded] = useState(false);
   const [passkeysSearch, setPasskeysSearch] = useState("");
+  const passkeysPresent = useDialogPresence(passkeysOpen);
+  // Reset once the close animation has played, so the closing dialog keeps its content.
+  useEffect(() => {
+    if (!passkeysPresent) setPasskeysSearch("");
+  }, [passkeysPresent]);
   const [addingPasskey, setAddingPasskey] = useState(false);
   const [removingPasskeyId, setRemovingPasskeyId] = useState<string | null>(null);
   const [totpSetupOpen, setTotpSetupOpen] = useState(false);
@@ -1028,7 +1034,6 @@ function LocalAccountSecurityPanel() {
         open={passkeysOpen}
         onOpenChange={(open) => {
           setPasskeysOpen(open);
-          if (!open) setPasskeysSearch("");
         }}
       >
         <DialogContent className="sm:max-w-lg">

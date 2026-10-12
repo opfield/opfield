@@ -23,6 +23,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import { toastApiError } from "@/lib/api-error-toast";
 import { loadVisibleDockerNodes } from "@/lib/docker-node-access";
@@ -83,8 +84,10 @@ export function DockerDeployDialog({
   const effectiveScopes = useAuthStore((state) => state.user?.scopes ?? []);
   const [creationNodes, setCreationNodes] = useState<Node[]>([]);
   const [creationNodesLoaded, setCreationNodesLoaded] = useState(false);
+  // Loaded lists stay while the dialog closes; they are dropped once it is gone.
+  const present = useDialogPresence(open);
   useEffect(() => {
-    if (!open) {
+    if (!present) {
       setCreationNodesLoaded(false);
       return;
     }
@@ -102,7 +105,7 @@ export function DockerDeployDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, effectiveScopes]);
+  }, [present, effectiveScopes]);
   const [deployFolderId, setDeployFolderId] = useState<string | null>(null);
   const [loadedFolderOptions, setFolderOptions] = useState<ComboboxOption[]>([]);
   const [loadedFolderOptionsReady, setFolderOptionsLoaded] = useState(false);
@@ -172,7 +175,7 @@ export function DockerDeployDialog({
       allNodes.filter((node) => !isNodeIncompatible(node))
     ).length === 0;
   useEffect(() => {
-    if (!open || appContext) {
+    if (!present || appContext) {
       setFolderOptionsLoaded(false);
       return;
     }
@@ -200,7 +203,7 @@ export function DockerDeployDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, appContext, effectiveScopes, deployNodeId]);
+  }, [present, appContext, effectiveScopes, deployNodeId]);
   const {
     checkingSourceAdmission,
     initialLoading: deployDataLoading,
@@ -218,7 +221,7 @@ export function DockerDeployDialog({
     allNodes,
     deployNodeId,
     hasScope,
-    open,
+    open: present,
     sourceConnectorId,
     sourceMode,
   });
