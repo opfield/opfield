@@ -4,7 +4,7 @@ import { AI_TOOLS } from '@/modules/ai/ai.tools.js';
 import { classifyAIToolForApproval } from '@/modules/ai/ai-approval-policy.js';
 import { CloudLinkService, normalizeCloudCode } from './cloud-link.service.js';
 import type { CloudLinkAccess, CloudLinkProbe, CloudRequest } from './cloud-link.types.js';
-import { cloudAgentSocketUrl, cloudBackoffDelay, cloudRequestAudit } from './cloud-link-agent.js';
+import { CloudLinkAgent, cloudAgentSocketUrl, cloudBackoffDelay, cloudRequestAudit } from './cloud-link-agent.js';
 import { answerCloudRequest, parseCloudRequest } from './cloud-link-requests.js';
 
 const managed: CloudLinkAccess = { privilegedAllowed: async () => true, managedByCloud: async () => true };
@@ -212,6 +212,40 @@ describe('cloud link', () => {
       data: { started: true },
     });
     await expect(ask(probe, { id: 'q', type: 'update', params: { version: 5 } })).resolves.toMatchObject({ ok: false });
+  });
+
+  it('reports remote management in the hello and sends it again when it changes', async () => {
+    const service = new CloudLinkService(
+      {} as never,
+      {} as never,
+      { CLOUD_PORTAL_URL: 'https://account.example.test', APP_VERSION: 'v2.12.0' },
+      { getInstallationId: async () => 'installation', getInstallationName: () => 'gw' },
+      null
+    );
+    let allowedNow = false;
+    vi.spyOn(service, 'privilegedAllowed').mockImplementation(async () => allowedNow);
+    await expect(service.helloInfo()).resolves.toEqual({
+      installationId: 'installation',
+      name: 'gw',
+      version: 'v2.12.0',
+      remoteManagement: false,
+    });
+
+    const agent = new CloudLinkAgent(service, {} as never, {} as never);
+    const send = vi.fn();
+    const internals = agent as unknown as {
+      socket: unknown;
+      helloRemoteManagement: boolean | null;
+      refreshHello: () => Promise<void>;
+    };
+    internals.socket = { readyState: 1, send };
+    internals.helloRemoteManagement = false;
+    await internals.refreshHello();
+    expect(send).not.toHaveBeenCalled();
+    allowedNow = true;
+    await internals.refreshHello();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(send.mock.calls[0][0])).toMatchObject({ type: 'hello', remoteManagement: true });
   });
 
   it('refuses privileged requests while remote management is off, and still answers reads', async () => {

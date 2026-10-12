@@ -34,7 +34,6 @@ import {
 import { readGatewaySettings, updateGatewaySettings } from '@/modules/admin/gateway-settings.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { CloudLinkRequestError, CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
-import { CloudLinkConnectCode } from '@/modules/cloud-link/cloud-link-connect-code.js';
 import {
   assertNotCloudManaged,
   CLOUD_MANAGED_MESSAGES,
@@ -371,12 +370,6 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
         const service = container.resolve(CloudLinkService);
         try {
           switch (a.operation) {
-            case 'start_link':
-              return await container.resolve(CloudLinkConnectCode).start({ userId: user.id });
-            case 'link_status':
-              return await container.resolve(CloudLinkConnectCode).status();
-            case 'cancel_link':
-              return await container.resolve(CloudLinkConnectCode).cancel({ userId: user.id });
             case 'connect': {
               const code = String(a.code ?? '').trim();
               if (!code) throw new AppError(400, 'CLOUD_CODE_INVALID', 'code is required');

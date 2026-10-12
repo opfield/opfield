@@ -99,6 +99,9 @@ export class CloudLinkAgent {
   private status: CloudSocketStatus | null = null;
   private inFlight = 0;
   private unsubscribe: (() => void) | null = null;
+  private unsubscribeHello: (() => void) | null = null;
+  /** The remote management the open socket's last hello reported; null before the hello. */
+  private helloRemoteManagement: boolean | null = null;
   private readonly requestAudit: CloudRequestAuditCoalescer;
 
   constructor(
@@ -116,6 +119,7 @@ export class CloudLinkAgent {
     this.service.setLocalSocketStatusReader(() => (this.leaseToken ? this.status : null));
     this.service.setLiveRequestWindowsReader(() => this.requestAudit.live());
     this.unsubscribe = this.service.onEnrollmentChanged(() => this.kick());
+    this.unsubscribeHello = this.service.onHelloChanged(() => this.kick());
     this.tickTimer = setInterval(() => this.kick(), this.options.tickMs ?? DEFAULT_TICK_MS);
     this.tickTimer.unref?.();
     this.kick();
@@ -128,6 +132,8 @@ export class CloudLinkAgent {
     this.tickTimer = null;
     this.unsubscribe?.();
     this.unsubscribe = null;
+    this.unsubscribeHello?.();
+    this.unsubscribeHello = null;
     await this.ticking?.catch(() => undefined);
     this.closeSocket(1001, 'Opfield is stopping');
     this.credentials = null;
@@ -183,7 +189,18 @@ export class CloudLinkAgent {
     } else if (!this.socket && !this.reconnectTimer) {
       this.connect();
     }
+    await this.refreshHello();
     if (this.status) await this.service.publishSocketStatus(this.status);
+  }
+
+  /** Sends the hello again when remote management changed since the open socket's last one. */
+  private async refreshHello(): Promise<void> {
+    const socket = this.socket;
+    if (!socket || socket.readyState !== WebSocket.OPEN || this.helloRemoteManagement === null) return;
+    const hello = await this.service.helloInfo();
+    if (hello.remoteManagement === this.helloRemoteManagement || this.socket !== socket) return;
+    this.helloRemoteManagement = hello.remoteManagement;
+    this.send(socket, { type: 'hello', ...hello });
   }
 
   private async holdLease(): Promise<boolean> {
@@ -257,9 +274,14 @@ export class CloudLinkAgent {
       this.setStatus('online', null);
       this.armIdleTimer(socket);
       logger.info('Cloud link socket is online');
+      this.helloRemoteManagement = null;
       void this.service
         .helloInfo()
-        .then((hello) => this.send(socket, { type: 'hello', ...hello }))
+        .then((hello) => {
+          if (this.socket !== socket) return;
+          this.helloRemoteManagement = hello.remoteManagement;
+          this.send(socket, { type: 'hello', ...hello });
+        })
         .catch((error) =>
           logger.warn('Could not send the cloud link hello', {
             error: error instanceof Error ? error.message : String(error),
@@ -279,7 +301,10 @@ export class CloudLinkAgent {
       lastError = status ? `Your cloud account refused the connection (HTTP ${status})` : error.message;
     });
     socket.on('close', (code) => {
-      if (this.socket === socket) this.socket = null;
+      if (this.socket === socket) {
+        this.socket = null;
+        this.helloRemoteManagement = null;
+      }
       this.clearIdleTimer();
       // The socket stopped: the repeated reads it counted are written as their summaries now.
       void this.requestAudit.flush();
