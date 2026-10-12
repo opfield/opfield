@@ -667,6 +667,9 @@ func (m *managedDatabaseManager) create(ctx context.Context, id string, input ma
 	if err := m.createNetwork(ctx, record.NetworkName); err != nil {
 		return managedDatabaseRecord{}, err
 	}
+	// A set member's runtime sees the container while the create waits for it.
+	m.pending.set(record)
+	defer m.pending.clear(record.ID)
 	containerID, err := m.createContainer(ctx, &record, input)
 	if err != nil {
 		return managedDatabaseRecord{}, err

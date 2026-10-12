@@ -299,6 +299,8 @@ type managedDatabaseRuntimeStats struct {
 }
 
 type managedDatabaseManager struct {
+	// pending are the records of creates that wait for their container.
+	pending pendingCreates
 	cfg     *config.Config
 	client  *Client
 	logger  *slog.Logger
