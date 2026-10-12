@@ -33,11 +33,35 @@ import type { NetworkDraft } from "./setup-wizard-model";
 
 const UPLOAD_MARKER_KEY = "gateway:setup-restore-upload";
 const RESTORE_URL_KEY = "gateway:setup-restore-public-url";
+/** A secret of this browser: after a managed source's restore it fetches the owner's password link, once. */
+const OWNER_LINK_CLAIM_KEY = "gateway:setup-restore-owner-link-claim";
+const OWNER_LINK_COMMAND = "docker compose exec app node dist/cli/owner-password-link.js";
+
+interface OwnerPasswordLink {
+  email: string;
+  url: string;
+  expiresAt: string;
+}
+
+function newOwnerLinkClaim(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
 const VERIFY_POLL_MS = 1_000;
 const RESTORE_POLL_MS = 3_000;
 const CHUNK_ATTEMPTS = 3;
 
-type RestoreStep = "loading" | "file" | "passphrase" | "address" | "restoring" | "failed";
+type RestoreStep =
+  | "loading"
+  | "file"
+  | "passphrase"
+  | "address"
+  | "restoring"
+  | "owner-link"
+  | "failed";
 
 interface UploadMarker {
   fingerprint: string;
@@ -149,6 +173,9 @@ export function SetupRestoreFlow({
   onBack: () => void;
 }) {
   const [step, setStep] = useState<RestoreStep>("loading");
+  const [ownerLink, setOwnerLink] = useState<{ link: OwnerPasswordLink; signIn: string } | null>(
+    null
+  );
   const [view, setView] = useState<SetupRestoreView | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -345,6 +372,8 @@ export function SetupRestoreFlow({
     if (!ok) return;
     setStarting(true);
     try {
+      const ownerLinkClaim = newOwnerLinkClaim();
+      sessionStorage.setItem(OWNER_LINK_CLAIM_KEY, ownerLinkClaim);
       const next = await setupRequest<SetupRestoreView>(
         "/wizard/restore/start",
         "POST",
@@ -353,6 +382,7 @@ export function SetupRestoreFlow({
           publicUrl: publicUrl.trim(),
           grpcPublicTarget: network.grpcPublicTarget.trim(),
           grpcLocalIp: network.grpcLocalIp.trim(),
+          ownerLinkClaim,
         },
         csrfToken
       );
@@ -392,9 +422,24 @@ export function SetupRestoreFlow({
         const outcome = restoreWaitOutcome(status?.state ?? null, next);
         if (outcome.kind === "done") {
           const target = sessionStorage.getItem(RESTORE_URL_KEY) || status?.publicUrl || "";
+          const signIn = target ? restoredLoginUrl(target) : "/login";
+          // An export of an Opfield Cloud installation: the owner sets a password with a one-time link first.
+          const claim = sessionStorage.getItem(OWNER_LINK_CLAIM_KEY);
+          const link = claim
+            ? await setupRequest<OwnerPasswordLink>("/restore/owner-link", "POST", { claim }).catch(
+                () => null
+              )
+            : null;
+          if (!active) return;
           sessionStorage.removeItem(RESTORE_URL_KEY);
           sessionStorage.removeItem(UPLOAD_MARKER_KEY);
-          window.location.assign(target ? restoredLoginUrl(target) : "/login");
+          sessionStorage.removeItem(OWNER_LINK_CLAIM_KEY);
+          if (link) {
+            setOwnerLink({ link, signIn });
+            setStep("owner-link");
+            return;
+          }
+          window.location.assign(signIn);
           return;
         }
         if (outcome.kind === "failed") {
@@ -447,6 +492,32 @@ export function SetupRestoreFlow({
     );
   }
 
+  if (step === "owner-link" && ownerLink) {
+    return (
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold">Opfield is restored</h2>
+        <p className="text-sm text-muted-foreground">
+          The export came from an Opfield Cloud installation, so sign-in with the Opfield account is
+          off here and password sign-in is on. Set the password of the owner, {ownerLink.link.email}
+          , with this one-time link (valid until {formatDateTime(ownerLink.link.expiresAt)}), then
+          sign in.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild>
+            <a href={ownerLink.link.url}>Set the owner's password</a>
+          </Button>
+          <Button variant="outline" asChild>
+            <a href={ownerLink.signIn}>Go to sign-in</a>
+          </Button>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          For a new link, run on the host:{" "}
+          <code className="font-mono text-xs">{OWNER_LINK_COMMAND}</code>
+        </p>
+      </section>
+    );
+  }
+
   if (step === "restoring") {
     return (
       <section className="space-y-3 text-center">
@@ -461,11 +532,9 @@ export function SetupRestoreFlow({
           the restored address when it is done.
         </p>
         <p className="text-sm text-muted-foreground">
-          An export of an Opfield Cloud installation comes back with password sign-in instead of the
-          Opfield account. Set the owner's password with the link this command prints on the host:{" "}
-          <code className="font-mono text-xs">
-            docker compose exec app node dist/cli/owner-password-link.js
-          </code>
+          An export of an Opfield Cloud installation comes back with password sign-in; this page
+          then shows the owner's one-time password link. If it does not, run on the host:{" "}
+          <code className="font-mono text-xs">{OWNER_LINK_COMMAND}</code>
         </p>
       </section>
     );

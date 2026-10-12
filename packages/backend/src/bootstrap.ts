@@ -80,6 +80,7 @@ import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
 import { CloudLinkConnectCode } from '@/modules/cloud-link/cloud-link-connect-code.js';
 import { ConfigurationExportService } from '@/modules/configuration-transfer/configuration-export.service.js';
 import { GatewayMoveService } from '@/modules/configuration-transfer/gateway-move.service.js';
+import { issueOwnerPasswordLink, keepRestoredOwnerLink } from '@/modules/configuration-transfer/owner-password-link.js';
 import { completeConfigurationRestore } from '@/modules/configuration-transfer/restore-startup.js';
 import { SetupRestoreService } from '@/modules/configuration-transfer/setup-restore.service.js';
 import { databaseCommercialRuntime } from '@/modules/databases/database-commercial-runtime.js';
@@ -455,9 +456,10 @@ export async function initializeContainer(): Promise<void> {
   if (env.NODE_ENV === 'production') {
     // After a configuration restore: the address entered for this host applies before the listener
     // certificates are checked below, so they are issued for it.
-    await completeConfigurationRestore(generalSettingsService, auditService).catch((error) =>
-      logger.error('Could not complete the configuration restore', { error })
-    );
+    await completeConfigurationRestore(generalSettingsService, auditService, undefined, async (claimHash) => {
+      const publicUrl = (await generalSettingsService.getPublicUrl()) ?? env.APP_URL;
+      await keepRestoredOwnerLink(cacheService, claimHash, await issueOwnerPasswordLink(db, cacheService, publicUrl));
+    }).catch((error) => logger.error('Could not complete the configuration restore', { error }));
   }
 
   const avatarStorageService = new AvatarStorageService(resolveAvatarStorageDir(env.NODE_ENV));

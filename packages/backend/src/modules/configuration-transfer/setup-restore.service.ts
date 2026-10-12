@@ -10,6 +10,7 @@ import { AppError } from '@/middleware/error-handler.js';
 import { normalizeHostPortTarget, normalizePublicUrl } from '@/modules/settings/general-settings.service.js';
 import type { DockerService } from '@/services/docker.service.js';
 import { type ExportSummary, type RestoreStatus, restoreErrorMessage, verifyExport } from './configuration-restore.js';
+import { ownerLinkClaimHash } from './owner-password-link.js';
 import { validatePassphrase } from './transfer-archive.js';
 import { composeVolumeName, currentSchemaMigration, RESTORE_STAGING_DIR } from './transfer-layout.js';
 
@@ -39,6 +40,8 @@ export interface SetupRestoreStartInput {
   publicUrl: string;
   grpcPublicTarget: string;
   grpcLocalIp: string;
+  /** A random secret of this browser: it fetches the owner's password link after a managed source's restore. */
+  ownerLinkClaim?: string;
 }
 
 /**
@@ -259,6 +262,7 @@ export class SetupRestoreService {
             input.grpcPublicTarget,
             '--grpc-local-ip',
             input.grpcLocalIp,
+            ...(input.ownerLinkClaim ? ['--owner-link-claim-hash', ownerLinkClaimHash(input.ownerLinkClaim)] : []),
           ],
           // Not the helper label: the restore removes leftover helpers and must not remove itself.
           Labels: { 'com.wiolett.gateway.configuration-restore': project },

@@ -16,7 +16,9 @@ const logger = createChildLogger('ConfigurationRestore');
 export async function completeConfigurationRestore(
   generalSettings: Pick<GeneralSettingsService, 'updateConfig'>,
   audit: Pick<AuditService, 'log'>,
-  dataDir = '/var/lib/gateway'
+  dataDir = '/var/lib/gateway',
+  /** Issues the owner's password link for the wizard browser holding the claim (a managed source's export). */
+  issueOwnerLink?: (claimHash: string) => Promise<void>
 ): Promise<RestoredMarker | null> {
   const stagingDir = join(dataDir, RESTORE_STAGING_DIR);
   let marker: RestoredMarker;
@@ -37,6 +39,11 @@ export async function completeConfigurationRestore(
     await generalSettings.updateConfig(updates);
     logger.info('Applied the address entered for the restored installation', { ...updates });
   }
+  if (marker.ownerSignIn === 'password-link' && marker.ownerLinkClaimHash && issueOwnerLink) {
+    await issueOwnerLink(marker.ownerLinkClaimHash).catch((error) =>
+      logger.warn('Could not issue the owner password link for the restore; the CLI issues one', { error })
+    );
+  }
   await audit
     .log({
       userId: null,
@@ -50,6 +57,7 @@ export async function completeConfigurationRestore(
         sourceGrpcPublicTarget: marker.sourceGrpcPublicTarget,
         includes: marker.includes,
         address: updates,
+        ...(marker.ownerSignIn ? { ownerSignIn: marker.ownerSignIn } : {}),
       },
     })
     .catch((error) => logger.warn('Could not audit the configuration restore', { error }));

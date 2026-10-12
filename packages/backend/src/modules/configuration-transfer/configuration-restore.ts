@@ -72,6 +72,13 @@ export interface RestoredMarker {
   sourceGrpcPublicTarget: string | null;
   includes: { registry: boolean; logs: boolean };
   address: RestoreAddress;
+  /** The source was a managed cloud installation: the owner moved to password sign-in (see ExportSummary). */
+  ownerSignIn?: 'password-link';
+  /**
+   * SHA-256 of the claim the setup wizard's browser holds: the first start issues the owner's password link and
+   * that browser alone fetches it once (POST /api/setup/restore/owner-link).
+   */
+  ownerLinkClaimHash?: string;
 }
 
 export interface RestoreStatus {
@@ -122,6 +129,8 @@ export interface RestoreOptions {
   archiveInGatewayData?: boolean;
   /** Where to report progress (the wizard reads it). */
   statusFile?: string;
+  /** SHA-256 hex of the wizard browser's owner-link claim (see RestoredMarker.ownerLinkClaimHash). */
+  ownerLinkClaimHash?: string;
   current: { gatewayVersion: string; schemaMigration: string };
   log?: (line: string) => void;
 }
@@ -479,6 +488,8 @@ export async function restoreExport(docker: DockerService, options: RestoreOptio
       sourceGrpcPublicTarget: manifest.source.grpcPublicTarget,
       includes: manifest.includes,
       address,
+      ...(summary.ownerSignIn ? { ownerSignIn: summary.ownerSignIn } : {}),
+      ...(summary.ownerSignIn && options.ownerLinkClaimHash ? { ownerLinkClaimHash: options.ownerLinkClaimHash } : {}),
     };
     await writeMarker(docker, installation, volumeName('gateway_data'), marker);
     await flushRedis(docker, installation);

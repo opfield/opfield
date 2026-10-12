@@ -1,7 +1,19 @@
 import 'reflect-metadata';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { issueOwnerPasswordLink, OWNER_PASSWORD_LINK_TTL_SECONDS } from './owner-password-link.js';
+import { RESTORED_MARKER_FILE } from './configuration-restore.js';
+import {
+  claimRestoredOwnerLink,
+  issueOwnerPasswordLink,
+  keepRestoredOwnerLink,
+  OWNER_PASSWORD_LINK_TTL_SECONDS,
+  ownerLinkClaimHash,
+} from './owner-password-link.js';
+import { completeConfigurationRestore } from './restore-startup.js';
 import { detachManagedSignIn, MANAGED_SIGN_IN_DETACH_SQL } from './transfer-docker.js';
+import { RESTORE_STAGING_DIR } from './transfer-layout.js';
 
 function fakeDb(owner: { id: string; email: string; authMethod: string; isBlocked: boolean } | null) {
   const chain = {
@@ -59,5 +71,42 @@ describe('the owner of a copy restored from a managed installation', () => {
       )
     ).rejects.toThrow('does not sign in with a password');
     expect(set).not.toHaveBeenCalled();
+  });
+});
+
+describe('the owner password link in the setup wizard', () => {
+  function memoryCache() {
+    const values = new Map<string, unknown>();
+    return {
+      values,
+      set: vi.fn(async (key: string, value: unknown) => void values.set(key, value)),
+      get: vi.fn(async (key: string) => (values.get(key) ?? null) as never),
+      delete: vi.fn(async (key: string) => void values.delete(key)),
+    };
+  }
+  const link = { email: 'owner@example.com', url: 'https://gw.example.com/reset-password?token=a.b', expiresAt: 'x' };
+
+  it('gives the link once, and only to the browser holding the claim', async () => {
+    const cache = memoryCache();
+    const claim = 'c'.repeat(43);
+    await keepRestoredOwnerLink(cache, ownerLinkClaimHash(claim), link);
+    expect(JSON.stringify([...cache.values])).not.toContain(claim);
+    await expect(claimRestoredOwnerLink(cache, 'd'.repeat(43))).resolves.toBeNull();
+    await expect(claimRestoredOwnerLink(cache, claim)).resolves.toEqual(link);
+    await expect(claimRestoredOwnerLink(cache, claim)).resolves.toBeNull();
+  });
+
+  it('is issued on the first start after a wizard restore of a managed source', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'restore-owner-'));
+    try {
+      mkdirSync(join(dataDir, RESTORE_STAGING_DIR), { recursive: true });
+      const marker = { address: {}, ownerSignIn: 'password-link', ownerLinkClaimHash: 'f'.repeat(64) };
+      writeFileSync(join(dataDir, RESTORE_STAGING_DIR, RESTORED_MARKER_FILE), JSON.stringify(marker));
+      const issue = vi.fn(async () => undefined);
+      await completeConfigurationRestore({ updateConfig: vi.fn() }, { log: vi.fn(async () => true) }, dataDir, issue);
+      expect(issue).toHaveBeenCalledWith('f'.repeat(64));
+    } finally {
+      rmSync(dataDir, { recursive: true, force: true });
+    }
   });
 });

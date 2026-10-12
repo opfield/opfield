@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { settings, users } from '@/db/schema/index.js';
@@ -47,4 +48,34 @@ export async function issueOwnerPasswordLink(
     url,
     expiresAt: new Date(now() + OWNER_PASSWORD_LINK_TTL_SECONDS * 1000).toISOString(),
   };
+}
+
+/** Where the first start after a wizard restore keeps the owner's link until the restorer's browser fetches it. */
+const RESTORED_OWNER_LINK_KEY = 'setup:restore:owner-link';
+
+export function ownerLinkClaimHash(claim: string): string {
+  return createHash('sha256').update(claim).digest('hex');
+}
+
+/** Keeps the link for the browser holding the claim (first start after a wizard restore). */
+export async function keepRestoredOwnerLink(
+  cache: Pick<CacheService, 'set'>,
+  claimHash: string,
+  link: OwnerPasswordLink
+): Promise<void> {
+  await cache.set(RESTORED_OWNER_LINK_KEY, { claimHash, ...link }, OWNER_PASSWORD_LINK_TTL_SECONDS);
+}
+
+/** The link once, for the browser whose claim matches; null otherwise (nothing kept, another claim, already taken). */
+export async function claimRestoredOwnerLink(
+  cache: Pick<CacheService, 'get' | 'delete'>,
+  claim: string
+): Promise<OwnerPasswordLink | null> {
+  const kept = await cache.get<OwnerPasswordLink & { claimHash: string }>(RESTORED_OWNER_LINK_KEY);
+  if (!kept || typeof kept.claimHash !== 'string' || !claim) return null;
+  const expected = Buffer.from(kept.claimHash, 'hex');
+  const given = Buffer.from(ownerLinkClaimHash(claim), 'hex');
+  if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
+  await cache.delete(RESTORED_OWNER_LINK_KEY);
+  return { email: kept.email, url: kept.url, expiresAt: kept.expiresAt };
 }

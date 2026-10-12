@@ -61,6 +61,7 @@ async function main(): Promise<number> {
       'replace-existing': { type: 'boolean', default: false },
       wizard: { type: 'boolean', default: false },
       'status-file': { type: 'string' },
+      'owner-link-claim-hash': { type: 'string' },
     },
   });
   const [command, file] = positionals;
@@ -114,6 +115,9 @@ async function main(): Promise<number> {
     replaceConfigured: values['replace-existing'] ?? false,
     archiveInGatewayData: values.wizard ?? false,
     statusFile: values['status-file'],
+    ...(values['owner-link-claim-hash'] && /^[a-f0-9]{64}$/.test(values['owner-link-claim-hash'])
+      ? { ownerLinkClaimHash: values['owner-link-claim-hash'] }
+      : {}),
     current,
     log,
   });

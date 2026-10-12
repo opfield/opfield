@@ -11,6 +11,7 @@ import { AuthSettingsService } from '@/modules/auth/auth.settings.service.js';
 import { AuthMailService } from '@/modules/auth/auth-mail.service.js';
 import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
 import { getAcceptedSessionCookieNames, getSessionCookieName } from '@/modules/auth/session-cookie.js';
+import { claimRestoredOwnerLink } from '@/modules/configuration-transfer/owner-password-link.js';
 import { SetupRestoreService } from '@/modules/configuration-transfer/setup-restore.service.js';
 import { toLicenseAppError } from '@/modules/license/license.errors.js';
 import { LicenseService } from '@/modules/license/license.service.js';
@@ -21,6 +22,7 @@ import {
   isValidGatewayHostPortTarget,
   isValidGatewayIpPortTarget,
 } from '@/modules/settings/general-settings.service.js';
+import { CacheService } from '@/services/cache.service.js';
 import { RuntimeRestartService } from '@/services/runtime-restart.service.js';
 import { SessionService } from '@/services/session.service.js';
 import { WebTransportSettingsService } from '@/services/web-transport-settings.service.js';
@@ -59,7 +61,7 @@ function isDockerSocketUnavailable(error: unknown): boolean {
 
 async function setupApiDisabledResponse(c: Context<AppEnv>): Promise<Response | null> {
   const path = new URL(c.req.url).pathname;
-  if (path === '/api/setup/status') return null;
+  if (path === '/api/setup/status' || path === '/api/setup/restore/owner-link') return null;
 
   const policy = container.resolve(SetupTokenPolicyService);
   const enabled = await policy.isSetupApiEnabled();
@@ -383,6 +385,10 @@ const SetupRestoreStartSchema = z.object({
     .refine((value) => value === '' || isValidGatewayIpPortTarget(value), {
       message: 'Must be an IPv4 or IPv6 address, optionally with a port',
     }),
+  ownerLinkClaim: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{32,128}$/)
+    .optional(),
 });
 
 async function requireFreshForRestore(): Promise<void> {
@@ -413,6 +419,19 @@ setupRoutes.post('/wizard/restore/verify', async (c) => {
   await requireFreshForRestore();
   const { passphrase } = SetupRestorePassphraseSchema.parse(await c.req.json());
   return c.json({ data: await container.resolve(SetupRestoreService).startVerify(passphrase) });
+});
+
+// After a wizard restore of a managed cloud installation's export, the browser that started it gets the owner's
+// one-time password link, once. Open after setup completes (see setupApiDisabledResponse); the claim is a secret
+// only that browser holds.
+setupRoutes.post('/restore/owner-link', async (c) => {
+  const body = (await c.req.json().catch(() => null)) as { claim?: unknown } | null;
+  const claim = typeof body?.claim === 'string' ? body.claim : '';
+  const link = /^[A-Za-z0-9_-]{32,128}$/.test(claim)
+    ? await claimRestoredOwnerLink(container.resolve(CacheService), claim)
+    : null;
+  if (!link) throw new AppError(404, 'NOT_FOUND', 'No owner password link for this browser');
+  return c.json({ data: link });
 });
 
 setupRoutes.post('/wizard/restore/start', async (c) => {
