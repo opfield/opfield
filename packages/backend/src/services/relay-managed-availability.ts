@@ -591,8 +591,8 @@ async function reconcileWitnessPaths(
               )
             )
         ).filter(
+          // A retired witness keeps its paths until the holder's Keeper dropped it (relay-witness.service.ts).
           (witness) =>
-            witness.desiredState !== 'removed' &&
             witness.relayLocalPort &&
             ((witness.hostKind === 'relay' && witness.relayInstanceId) ||
               (witness.hostKind === 'node' && witness.nodeId && fingerprints.has(witness.nodeId)))
@@ -605,7 +605,8 @@ async function reconcileWitnessPaths(
     .where(
       and(
         eq(relayEndpoints.ownerKind, SET_WITNESS_ENDPOINT_KIND),
-        sql`${relayEndpoints.ownerId} in (select ${managedAvailabilityWitnesses.id}::text from ${managedAvailabilityWitnesses} where ${managedAvailabilityWitnesses.setId} = ${view.setId})`
+        // The set's witnesses, and witnesses dropped since (their row is gone once the holder's Keeper dropped them).
+        sql`(${relayEndpoints.ownerId} in (select ${managedAvailabilityWitnesses.id}::text from ${managedAvailabilityWitnesses} where ${managedAvailabilityWitnesses.setId} = ${view.setId}) or ${relayEndpoints.ownerId} not in (select ${managedAvailabilityWitnesses.id}::text from ${managedAvailabilityWitnesses}))`
       )
     );
   const endpointOf = new Map<string, string>();

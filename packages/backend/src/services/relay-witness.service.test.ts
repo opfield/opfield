@@ -64,8 +64,10 @@ describe('relay witness desired state', () => {
     const artifacts = new Map(rows.map((row) => [row.id, artifact]));
     const plan = planRelayWitnesses(relay(), rows, artifacts, new Map());
     expect(plan.refused).toEqual([]);
-    expect(plan.specs.map((spec) => [spec.id, spec.role])).toEqual([
+    // A retired witness runs until the holder's Keeper dropped it (its row is deleted then).
+    expect(plan.specs.map((spec) => [spec.id, spec.role]).sort()).toEqual([
       ['w-active', 'active'],
+      ['w-removed', 'active'],
       ['w-standby', 'standby'],
     ]);
     for (const spec of plan.specs) {
@@ -75,7 +77,7 @@ describe('relay witness desired state', () => {
       expect(spec.raftPort).toBeLessThanOrEqual(RELAY_LOCAL_PORT_MAX);
       expect(spec.leasePolicyId).toBe('policy-1');
     }
-    expect(plan.specs[0].clientPort).not.toBe(plan.specs[1].clientPort);
+    expect(new Set(plan.specs.map((spec) => spec.clientPort)).size).toBe(plan.specs.length);
     // Another witness joining keeps the ports of the existing ones.
     const later = planRelayWitnesses(
       relay(),

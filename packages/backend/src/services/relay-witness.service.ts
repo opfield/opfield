@@ -146,9 +146,10 @@ export function planRelayWitnesses(
   peers: ReadonlyMap<string, WitnessPeer[]>,
   raftHosts: ReadonlyMap<string, string> = new Map()
 ): RelayWitnessPlan {
-  const keepers = witnesses.filter(
-    (witness) => witness.purpose === 'keeper' && witness.hostKind === 'relay' && witness.desiredState !== 'removed'
-  );
+  // A retired witness keeps running until the holder's Keeper dropped it (the orchestrator deletes the row then): a
+  // pair's holder can only remove a voter while it has its quorum, which in a pair without its copy needs the
+  // witness itself (disable stuck at lift, rc.5 stand B).
+  const keepers = witnesses.filter((witness) => witness.purpose === 'keeper' && witness.hostKind === 'relay');
   const refusal = relayWitnessRefusal(relay);
   if (refusal) return { specs: [], refused: keepers.map((witness) => ({ id: witness.id, reason: refusal })) };
   const ports = allocateWitnessPorts(keepers);
@@ -288,7 +289,7 @@ export class RelayWitnessService {
     const peers = new Map<string, WitnessPeer[]>();
     const raftHosts = new Map<string, string>();
     for (const witness of witnesses) {
-      if (witness.purpose !== 'keeper' || witness.hostKind !== 'relay' || witness.desiredState === 'removed') continue;
+      if (witness.purpose !== 'keeper' || witness.hostKind !== 'relay') continue;
       artifacts.set(
         witness.id,
         witness.artifactVersion && relay.architecture && this.artifacts
