@@ -30,6 +30,7 @@ vi.mock('openid-client', () => ({
   randomPKCECodeVerifier: () => 'verifier',
   calculatePKCECodeChallenge: async () => 'challenge',
   randomState: () => 'state-1',
+  randomNonce: () => 'nonce-1',
   buildAuthorizationUrl: (_config: unknown, parameters: Record<string, string>) =>
     new URL(`https://account.opfield.dev/oauth/authorize?${new URLSearchParams(parameters)}`),
   authorizationCodeGrant: vi.fn(async () => ({
