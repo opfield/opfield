@@ -29,7 +29,11 @@ export function ResourceListFrame({
 }: ResourceListFrameProps) {
   return (
     <div className={cn("overflow-x-auto border border-border bg-card", className)}>
-      <div className={cn("w-full", innerClassName)} style={{ minWidth }}>
+      {/* The frame draws the bottom edge: the list's last row has no border of its own. */}
+      <div
+        className={cn("w-full [&>*:last-child_tbody>tr:last-child]:border-b-0", innerClassName)}
+        style={{ minWidth }}
+      >
         {children}
       </div>
     </div>
