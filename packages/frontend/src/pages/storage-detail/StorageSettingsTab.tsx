@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { DialogFooter } from "@/components/ui/dialog";
+import { DialogClose, DialogFooter } from "@/components/ui/dialog";
 import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { ObjectStorageConnection } from "@/types";
@@ -60,6 +60,11 @@ export function StorageSettingsTab({
     <div className="space-y-4">
       <StorageConnectionForm draft={draft} onChange={setDraft} />
       <DialogFooter>
+        <DialogClose asChild>
+          <Button type="button" variant="outline">
+            Cancel
+          </Button>
+        </DialogClose>
         <Button variant="outline" onClick={() => void testConnection()} pending={testing}>
           Test connection
         </Button>

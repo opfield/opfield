@@ -167,15 +167,21 @@ export function RecreateWorkloadsDialog({
   workloads,
   onClose,
   onFinished,
+  confirmFirst = false,
   pollMs = TASK_POLL_MS,
 }: {
   appId: string;
   environmentId: string;
   environmentName: string;
-  /** Non-null opens the dialog and starts the run. */
+  /** Non-null opens the dialog and starts the run (after Start when `confirmFirst`). */
   workloads: AppPendingWorkload[] | null;
   onClose: () => void;
   onFinished: () => void;
+  /**
+   * Open with the list and a Start button instead of running at once: the banner's Recreate link
+   * opens it this way, whereas "Save and recreate" already is the confirmation.
+   */
+  confirmFirst?: boolean;
   /** How often a running container recreate is read. */
   pollMs?: number;
 }) {
@@ -184,15 +190,21 @@ export function RecreateWorkloadsDialog({
   const [progress, setProgress] = useState<{ index: number; text: string | null } | null>(null);
   const [failure, setFailure] = useState<{ name: string; message: string } | null>(null);
   const [running, setRunning] = useState(false);
+  const [started, setStarted] = useState(false);
+  const awaitingStart = confirmFirst && !started;
   const cancelledRef = useRef(false);
   const onFinishedRef = useRef(onFinished);
   onFinishedRef.current = onFinished;
 
   useEffect(() => {
-    if (!workloads) return;
+    if (!workloads) {
+      setStarted(false);
+      return;
+    }
     cancelledRef.current = false;
     setFailure(null);
     setStates(workloads.map(() => "waiting"));
+    if (awaitingStart) return;
     setRunning(true);
     const set = (index: number, state: RowState) =>
       setStates((current) => current.map((value, i) => (i === index ? state : value)));
@@ -229,7 +241,7 @@ export function RecreateWorkloadsDialog({
     return () => {
       cancelledRef.current = true;
     };
-  }, [workloads, appId, environmentId, pollMs]);
+  }, [workloads, appId, environmentId, pollMs, awaitingStart]);
 
   const done = states.filter((state) => state === "done").length;
   const queued = states.filter((state) => state === "queued").length;
@@ -303,7 +315,14 @@ export function RecreateWorkloadsDialog({
           </div>
         </div>
         <DialogFooter>
-          {running ? (
+          {awaitingStart ? (
+            <>
+              <Button variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button onClick={() => setStarted(true)}>Start</Button>
+            </>
+          ) : running ? (
             <Button
               variant="outline"
               onClick={() => {

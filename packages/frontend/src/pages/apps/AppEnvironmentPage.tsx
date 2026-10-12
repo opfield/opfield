@@ -23,9 +23,16 @@ import { appRoute } from "@/lib/app-routes";
 import { nodeRoute } from "@/lib/resource-routes";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
+import { useAuthStore } from "@/stores/auth";
 import type { AppAllowedNodes, AppDetail, AppEnvironmentDetail, ProxyHost } from "@/types";
 import { AppRouteFailure } from "./AppPage";
-import { type AllowedNodeRow, allowedNodeColumns, usageCount, usageText } from "./allowed-nodes";
+import {
+  type AllowedNodeRow,
+  allowedNodeColumns,
+  allowedNodeName,
+  usageCount,
+  usageText,
+} from "./allowed-nodes";
 import {
   CountTitle,
   FlatList,
@@ -40,7 +47,7 @@ import { AllowNodeDialog } from "./dialogs/AllowNodeDialog";
 import { PromotePanel } from "./env/PromotePanel";
 import { VariablesPanel } from "./env/VariablesPanel";
 import { useAppDetail } from "./use-app";
-import { nodeDisplayName, useNodeIndex } from "./use-node-index";
+import { useNodeIndex } from "./use-node-index";
 
 export function AppEnvironmentPage() {
   const { appSlug, envSlug } = useParams<{ appSlug: string; envSlug: string }>();
@@ -71,6 +78,7 @@ function EnvironmentContent({
   const [searchParams, setSearchParams] = useSearchParams();
   const canManage = Boolean(app.permissions.envManage[env.id]);
   const canIssueCode = canManage || app.permissions.edit || app.permissions.operate;
+  const canViewRoutes = useAuthStore((state) => state.hasScopedAccess("proxy:view"));
   const { nodes, byId: nodesById } = useNodeIndex(version);
   const [refreshing, setRefreshing] = useState(false);
   const [allowOpen, setAllowOpen] = useState(false);
@@ -91,13 +99,14 @@ function EnvironmentContent({
   const loadExtras = useCallback(async () => {
     const [nodesResult, routesResult] = await Promise.all([
       api.listAppAllowedNodes(app.id, env.id).catch(() => null),
-      api.listAppRoutes(app.id).catch(() => null),
+      // Routes need proxy:view: without it the count comes from the app (no refused request).
+      canViewRoutes ? api.listAppRoutes(app.id).catch(() => null) : Promise.resolve(null),
     ]);
     setAllowed(nodesResult);
     setRoutes(
       routesResult ? routesResult.filter((route) => route.app?.environmentId === env.id) : null
     );
-  }, [app.id, env.id]);
+  }, [app.id, env.id, canViewRoutes]);
 
   useEffect(() => {
     void version;
@@ -143,7 +152,7 @@ function EnvironmentContent({
 
   const removeNode = async (row: AllowedNodeRow) => {
     const used = usageCount(row.usedBy);
-    const name = nodeDisplayName(row.node, row.nodeId);
+    const name = allowedNodeName(row);
     const ok = await confirm({
       title: `Remove ${name} from ${env.name}`,
       description:
@@ -167,10 +176,11 @@ function EnvironmentContent({
   const nodeRows: AllowedNodeRow[] = nodeIds.map((nodeId) => ({
     nodeId,
     node: nodesById.get(nodeId),
+    allowed: allowed?.nodes.find((node) => node.nodeId === nodeId),
     usedBy: allowed?.nodes.find((node) => node.nodeId === nodeId)?.usedBy,
   }));
   const columns = allowedNodeColumns((row) => (
-    <RowMenu label={`Actions for ${nodeDisplayName(row.node, row.nodeId)}`}>
+    <RowMenu label={`Actions for ${allowedNodeName(row)}`}>
       <DropdownMenuItem
         disabled={!row.node}
         onClick={() => row.node && navigate(nodeRoute(row.node.slug))}
@@ -188,8 +198,16 @@ function EnvironmentContent({
     </RowMenu>
   ));
 
-  const routeTotal = routes?.length ?? env.memberCounts.route ?? 0;
-  const routesInMaintenance = routes?.filter((route) => route.maintenanceEnabled).length ?? 0;
+  // Without the route list (no proxy:view) the environment's maintenance summary has the counts.
+  const summaryCount = (key: string) => {
+    const value = env.maintenance?.[key];
+    return typeof value === "number" ? value : null;
+  };
+  const routeTotal = routes?.length ?? summaryCount("routeCount") ?? env.memberCounts.route ?? 0;
+  const routesInMaintenance =
+    routes?.filter((route) => route.maintenanceEnabled).length ??
+    summaryCount("ownMaintenanceCount") ??
+    0;
   const overridden = app.maintenanceOverride;
   const maintenanceBadge = overridden ? (
     <Badge variant="warning" size="inline">

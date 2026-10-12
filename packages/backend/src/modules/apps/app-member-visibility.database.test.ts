@@ -136,6 +136,8 @@ describe.skipIf(!url)('apps visible through members on disposable PostgreSQL', (
     expect(detail.environments[0]?.memberCounts).toMatchObject({ container: 2, database: 0, route: 0 });
     expect(Object.values(detail.rootFolderIds).every((id) => id === null)).toBe(true);
     expect(detail.permissions).toMatchObject({ edit: false, delete: false, operate: false });
+    // A view through members learns nothing about the members it does not see.
+    expect(detail.environments[0]?.hiddenMemberTypes).toEqual([]);
 
     const members = await apps.listMembers(scopes, app.id);
     expect(members.map((member) => member.name).sort()).toEqual(['db-admin', 'web']);
@@ -173,6 +175,12 @@ describe.skipIf(!url)('apps visible through members on disposable PostgreSQL', (
       [staging.id, 'full'],
     ]);
     expect(Object.values(full.rootFolderIds).every(Boolean)).toBe(true);
+    // apps:view without member scopes: the types the user cannot see are named, nothing more.
+    const prod = full.environments.find((env) => env.id === production.id);
+    expect(prod?.hiddenMemberTypes).toEqual(['container', 'database']);
+    expect(full.environments.find((env) => env.id === staging.id)?.hiddenMemberTypes).toEqual(['route']);
+    const seeing = await apps.get([...ALL, 'docker:containers:view', 'databases:view', 'proxy:view'], app.id);
+    expect(seeing.environments.every((env) => env.hiddenMemberTypes.length === 0)).toBe(true);
 
     const mixed = await apps.get([`apps:view:env/${staging.id}`, ...(await webOnly())], app.id);
     expect(mixed.access).toBe('full');

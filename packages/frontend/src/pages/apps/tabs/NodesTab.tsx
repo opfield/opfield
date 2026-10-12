@@ -55,6 +55,7 @@ export function NodesTab({ app, version }: { app: AppDetail; version: number }) 
         (nodeId): AllowedNodeRow => ({
           nodeId,
           node: nodesById.get(nodeId),
+          allowed: allowed?.nodes.find((node) => node.nodeId === nodeId),
           usedBy: allowed?.nodes.find((node) => node.nodeId === nodeId)?.usedBy,
         })
       ),

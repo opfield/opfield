@@ -355,7 +355,20 @@ function AdminGroupsContent({
     setDialogOpen(true);
   };
 
+  // One save at a time: a second click or Enter before the first request settles must not send
+  // another POST (a repeated create answers 409 "already exists").
+  const saveInFlightRef = useRef(false);
   const handleSave = async () => {
+    if (saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
+    try {
+      await saveGroup();
+    } finally {
+      saveInFlightRef.current = false;
+    }
+  };
+
+  const saveGroup = async () => {
     if (editingGroup?.isBuiltin) {
       setSaving(true);
       try {
@@ -818,7 +831,12 @@ function AdminGroupsContent({
               {groupDialogReadOnly ? "Close" : "Cancel"}
             </Button>
             {!groupDialogReadOnly && (
-              <Button onClick={handleSave} pending={saving}>
+              <Button
+                onClick={() => void handleSave()}
+                pending={saving}
+                // Stays disabled while the dialog closes after a save, so a late click cannot submit again.
+                disabled={!dialogOpen}
+              >
                 {editingGroup ? "Save Changes" : "Create Group"}
               </Button>
             )}

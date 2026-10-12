@@ -21,7 +21,13 @@ import { useAuthStore } from "@/stores/auth";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import type { AppDetail, ProxyHost } from "@/types";
 import { type AppLinkRow, loadAppNetwork, useAppLoad } from "../app-resources";
-import { groupByEnvironment, groupTotal, HiddenMembersNotice, RowMenu } from "../app-shared";
+import {
+  groupByEnvironment,
+  groupTotal,
+  HiddenMembersNotice,
+  presentHiddenMembers,
+  RowMenu,
+} from "../app-shared";
 import { nodeDisplayName, useNodeIndex } from "../use-node-index";
 import {
   AddRow,
@@ -282,7 +288,8 @@ export function NetworkTab({
     },
   ];
 
-  const hidden = network.data?.hidden ?? [];
+  // Named only when the app has members of that type the user cannot see.
+  const hidden = presentHiddenMembers(app, network.data?.hidden ?? []);
   if (groupTotal(routes) + groupTotal(links) === 0) {
     const empty = (
       <EmptyGroup

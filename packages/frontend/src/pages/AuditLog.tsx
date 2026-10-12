@@ -42,6 +42,7 @@ import {
   mergeAuditFilterValues,
 } from "@/pages/audit-log/audit-format";
 import { api } from "@/services/api";
+import { ApiRequestError } from "@/services/api-base";
 import {
   handleLicenseApiError,
   requireLicenseFeature,
@@ -64,13 +65,19 @@ const DEFAULT_AUDIT_VIEW_CONFIG: AuditViewConfig = {
   excludedActions: [],
   excludedResourceTypes: [],
 };
+/** The download starts at this window; the server refuses exports above its entry cap. */
+const AUDIT_EXPORT_DEFAULT_WINDOW_MS = 24 * 60 * 60 * 1000;
+/**
+ * Resource keys no audit entry is written with ("certificate_authority" is an alert
+ * resource; CA audit entries use "ca"). Dropped from saved views so the lists show no near-duplicates.
+ */
+const NON_AUDIT_RESOURCE_TYPES = new Set(["certificate_authority"]);
 const DEFAULT_AUDIT_CACHE_KEY = "admin:audit:all:all:all::";
 const AUDIT_RESOURCE_OPTIONS = [
   "access_list",
   "api-token",
   "ca",
   "certificate",
-  "certificate_authority",
   "cloud-link",
   "database",
   "docker-container",
@@ -107,7 +114,7 @@ function readAuditViewConfig(): AuditViewConfig {
     return {
       excludedActions: Array.isArray(parsed.excludedActions) ? parsed.excludedActions : [],
       excludedResourceTypes: Array.isArray(parsed.excludedResourceTypes)
-        ? parsed.excludedResourceTypes
+        ? parsed.excludedResourceTypes.filter((type) => !NON_AUDIT_RESOURCE_TYPES.has(type))
         : [],
     };
   } catch {
@@ -133,6 +140,12 @@ function localDateTimeToIso(value: string): string | undefined {
   if (!value) return undefined;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+/** A Date as a `datetime-local` input value (local time, minute precision). */
+function dateToLocalDateTimeInput(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function getAuditUserLabel(entry: AuditLogEntry): string {
@@ -508,7 +521,7 @@ export function AuditLog({
     setExportActions(actionFilter !== "all" ? [actionFilter] : []);
     setExportResourceTypes(resourceFilter !== "all" ? [resourceFilter] : []);
     setExportUserIds(userFilter !== "all" ? [userFilter] : []);
-    setExportFrom("");
+    setExportFrom(dateToLocalDateTimeInput(new Date(Date.now() - AUDIT_EXPORT_DEFAULT_WINDOW_MS)));
     setExportTo("");
     setExportOpen(true);
   };
@@ -560,7 +573,11 @@ export function AuditLog({
       closeExportDialog();
       toast.success(`Exported ${exportedEntries.length} audit log entries`);
     } catch (error) {
-      if (!handleLicenseApiError(error, "Audit log export")) {
+      if (error instanceof ApiRequestError && error.code === "AUDIT_EXPORT_TOO_LARGE") {
+        toast.error(
+          "Too many entries for one file (50,000 at most). Choose a later From date or an earlier To date and download again."
+        );
+      } else if (!handleLicenseApiError(error, "Audit log export")) {
         toastApiError(error, "Failed to export audit log");
       }
     } finally {
@@ -806,6 +823,10 @@ export function AuditLog({
                   className="audit-date-input [&::-webkit-calendar-picker-indicator]:hidden"
                 />
               </div>
+              <p className="text-xs text-muted-foreground md:col-span-2">
+                Starts at the last 24 hours. Leave To empty to export up to now. One file holds up
+                to 50,000 entries.
+              </p>
             </div>
             <div className="grid gap-4 lg:grid-cols-3">
               <AuditOptionChecklist

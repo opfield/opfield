@@ -86,6 +86,8 @@ export function VariablesPanel({
   const [deletedSecrets, setDeletedSecrets] = useState<Map<string, string>>(new Map());
   const [saving, setSaving] = useState<"variables" | "secrets" | "both" | null>(null);
   const [recreating, setRecreating] = useState<AppPendingWorkload[] | null>(null);
+  // The banner's link asks before recreating; "Save and recreate" starts at once.
+  const [recreateConfirm, setRecreateConfirm] = useState(false);
 
   const apply = useCallback((next: AppVariables) => {
     setData(next);
@@ -184,6 +186,7 @@ export function VariablesPanel({
       setRawMode(false);
       const pending = next.pendingWorkloads.length;
       if (recreate && pending > 0) {
+        setRecreateConfirm(false);
         setRecreating(next.pendingWorkloads);
       } else {
         toast.success(
@@ -223,7 +226,13 @@ export function VariablesPanel({
           tone="warning"
           title={`${plural(pending.length, "workload")} ${pending.length === 1 ? "runs" : "run"} older values`}
           actions={
-            <NoticeAction tone="warning" onClick={() => setRecreating(pending)}>
+            <NoticeAction
+              tone="warning"
+              onClick={() => {
+                setRecreateConfirm(true);
+                setRecreating(pending);
+              }}
+            >
               Recreate {plural(pending.length, "workload")}
             </NoticeAction>
           }
@@ -369,6 +378,7 @@ export function VariablesPanel({
         environmentId={env.id}
         environmentName={env.name}
         workloads={recreating}
+        confirmFirst={recreateConfirm}
         onClose={() => setRecreating(null)}
         onFinished={() => void load()}
       />

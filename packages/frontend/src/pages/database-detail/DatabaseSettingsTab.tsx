@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { DialogFooter } from "@/components/ui/dialog";
+import { DialogClose, DialogFooter } from "@/components/ui/dialog";
 import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { DatabaseConnection } from "@/types";
@@ -53,6 +53,11 @@ export function DatabaseSettingsTab({
     <div className="space-y-4">
       <DatabaseConnectionForm draft={draft} onChange={setDraft} disableType mode="metadata" />
       <DialogFooter>
+        <DialogClose asChild>
+          <Button type="button" variant="outline">
+            Cancel
+          </Button>
+        </DialogClose>
         <Button onClick={() => void save()} pending={saving} disabled={passwordConfirmationMissing}>
           Save Changes
         </Button>

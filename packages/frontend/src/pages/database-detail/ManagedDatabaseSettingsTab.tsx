@@ -6,7 +6,7 @@ import { confirm } from "@/components/common/ConfirmDialog";
 import { PanelShell } from "@/components/common/PanelShell";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { Button } from "@/components/ui/button";
-import { DialogFooter } from "@/components/ui/dialog";
+import { DialogClose, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { toastApiError } from "@/lib/api-error-toast";
@@ -310,7 +310,7 @@ export function ManagedDatabaseSettingsTab({
             <SettingsControlRow
               controlsClassName="sm:min-w-0"
               title="Interactive query budget"
-              description="Total SQL Console execution budget shared dynamically between statements (30–600 seconds)"
+              description="Total SQL Console time per session, 30–600 s"
             >
               <Input
                 aria-label="Interactive query budget"
@@ -327,7 +327,7 @@ export function ManagedDatabaseSettingsTab({
               <SettingsControlRow
                 controlsClassName="sm:min-w-0"
                 title="Maximum connections"
-                description={`PostgreSQL max_connections, ${MANAGED_POSTGRES_MIN_CONNECTIONS}–${MANAGED_POSTGRES_MAX_CONNECTIONS}. Changing it recreates the container.`}
+                description={`PostgreSQL max_connections, ${MANAGED_POSTGRES_MIN_CONNECTIONS}–${MANAGED_POSTGRES_MAX_CONNECTIONS}`}
               >
                 <Input
                   aria-label="Maximum connections"
@@ -436,6 +436,11 @@ export function ManagedDatabaseSettingsTab({
         </PanelShell>
 
         <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Cancel
+            </Button>
+          </DialogClose>
           <Button
             onClick={() => void save()}
             pending={saving || operationPending}

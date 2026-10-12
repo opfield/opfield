@@ -76,6 +76,7 @@ export class AppNodesService {
           nodeId: row.nodeId,
           type: row.type,
           name: row.displayName || row.hostname,
+          hostname: row.hostname,
           status: row.status,
           usedBy,
         };

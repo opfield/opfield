@@ -8,14 +8,15 @@ import type {
   AvailabilityView,
   DashboardRelayInstance,
 } from "@/types";
-import { ApiRequestError } from "./api-base";
 import type { ApiClientBaseConstructor } from "./api-mixins";
 
-function availabilityPath(owner: AvailabilityOwner): string {
+function ownerPath(owner: AvailabilityOwner): string {
   const id = encodeURIComponent(owner.id);
-  return owner.kind === "database"
-    ? `/databases/managed/${id}/availability`
-    : `/managed-storage/${id}/availability`;
+  return owner.kind === "database" ? `/databases/managed/${id}` : `/managed-storage/${id}`;
+}
+
+function availabilityPath(owner: AvailabilityOwner): string {
+  return `${ownerPath(owner)}/availability`;
 }
 
 /** Both kinds answer one page shape: `{data, page, limit}`. */
@@ -26,22 +27,16 @@ function eventRows(body: unknown): AvailabilityEvent[] {
 
 export function withAvailabilitySetsApi<TBase extends ApiClientBaseConstructor>(Base: TBase) {
   return class AvailabilitySetsApiClient extends Base {
-    /** The availability view, or null when the resource runs on one server. */
+    /**
+     * The availability view, or null when the resource runs on one server. Read from the managed
+     * resource itself, which carries `availability` only while a set exists: the dedicated
+     * `/availability` read answers 404 for a single server, a failed request on every poll.
+     */
     async getAvailability(owner: AvailabilityOwner): Promise<AvailabilityView | null> {
-      try {
-        return await this.unwrapData(
-          this.request<{ data: AvailabilityView }>(availabilityPath(owner))
-        );
-      } catch (error) {
-        if (
-          error instanceof ApiRequestError &&
-          error.status === 404 &&
-          error.code === "AVAILABILITY_SET_NOT_FOUND"
-        ) {
-          return null;
-        }
-        throw error;
-      }
+      const resource = await this.unwrapData(
+        this.request<{ data: { availability?: AvailabilityView | null } }>(ownerPath(owner))
+      );
+      return resource.availability ?? null;
     }
 
     async preflightAvailability(

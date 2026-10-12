@@ -689,9 +689,44 @@ describe("app environment lines", () => {
     expect(parsed).toEqual([lines[0], lines[1], lines[3], lines[2]]);
   });
 
-  it("leaves hidden-folder grants without app scopes as custom scopes", () => {
-    const scopes = ["docker:containers:view:folder/hidden-env-staging-containers"];
-    expect(scopesToLines(scopes, appCtx)).toEqual([{ kind: "custom", scopes }]);
+  it("reads hidden-folder grants without app scopes as the role in the place, resources only", () => {
+    const scopes = [
+      "docker:containers:view:folder/hidden-env-staging-containers",
+      "docker:containers:view:folder/rw-f1",
+    ];
+    const ctx: AccessContext = {
+      ...appCtx,
+      folders: [
+        ...appCtx.folders,
+        { id: "rw-f1", label: "rw-f1", family: "docker", ancestorIds: [] },
+      ],
+    };
+    const lines = scopesToLines(scopes, ctx);
+    const labels = contextLabels(ctx);
+    expect(lines.map((line) => describeLine(line, labels).title)).toEqual([
+      "Viewer in folder rw-f1",
+      "Viewer in Shop · staging",
+    ]);
+    expect(describeLine(lines[1]!, labels).detail).toBe(
+      "Containers and deployments · resources only"
+    );
+    expect(lines.some((line) => line.kind === "custom")).toBe(false);
+    expect(sorted(linesToScopes(lines, ctx))).toEqual(sorted(scopes));
+  });
+
+  it("keeps a resources-only app line without app scopes when it is saved again", () => {
+    const roots = Object.fromEntries(FAMILIES.map((family) => [family, `root-shop-${family}`]));
+    const rootCtx: AccessContext = { ...appCtx, apps: [{ ...shop, rootFolderIds: roots }] };
+    for (const where of [staging, everyEnvironment]) {
+      const line: ResourceAccessLine = {
+        ...appLine("developer", where),
+        types: ["containers", "routes"],
+        appScopes: false,
+      };
+      const scopes = linesToScopes([line], rootCtx);
+      expect(scopes.some((scope) => scope.startsWith("apps:"))).toBe(false);
+      expect(scopesToLines(scopes, rootCtx)).toEqual([line]);
+    }
   });
 
   it("names the app and environment and the six types", () => {

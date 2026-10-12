@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { AnimatedHeight } from "@/components/common/AnimatedHeight";
 import { SwitchCard } from "@/components/common/SwitchCard";
 import { Button } from "@/components/ui/button";
-import { DialogFooter } from "@/components/ui/dialog";
+import { DialogClose, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { api } from "@/services/api";
 import type { ObjectStorageConnection } from "@/types";
@@ -203,6 +203,11 @@ export function ManagedObjectStorageSettingsTab({
         </div>
 
         <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Cancel
+            </Button>
+          </DialogClose>
           <Button onClick={() => void save()} pending={saving} disabled={!portIsValid}>
             Save Changes
           </Button>

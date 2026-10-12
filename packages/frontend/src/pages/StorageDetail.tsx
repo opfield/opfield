@@ -567,7 +567,7 @@ function StorageDetailContent({
 
       {canEdit && (
         <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-xl">
             <DialogHeader>
               <DialogTitle>Storage Settings</DialogTitle>
             </DialogHeader>

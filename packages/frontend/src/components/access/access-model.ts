@@ -366,6 +366,11 @@ export interface ResourceAccessLine {
   mayDelete: boolean;
   /** Folder lines only: also manage the folder's subfolders (types with `foldersManage`). */
   manageFolders?: boolean;
+  /**
+   * App lines only: false when the line grants the resources of the place without the app's own
+   * permissions (`apps:view` and the like), as limiting scopes to an app place does.
+   */
+  appScopes?: false;
 }
 
 export type GitRepositories =
@@ -570,7 +575,7 @@ export function lineScopes(line: AccessLine, ctx: AccessContext): string[] {
       ...line.types.flatMap((typeId) =>
         typeScopesAt(accessType(typeId), line.role, line.mayDelete, place, ctx)
       ),
-      ...appRoleScopes(line.role, where),
+      ...(line.appScopes === false ? [] : appRoleScopes(line.role, where)),
     ];
   }
   if (where.kind === "resources") {
@@ -823,6 +828,29 @@ export function scopesToLines(scopes: readonly string[], ctx: AccessContext): Ac
     (where) => appLine(where, beforeApps, broad, ctx) ?? []
   ))
     consume(line);
+
+  // Folder grants in an app place without the app's own scopes (a place limit picked in the scope
+  // picker) read as the role in that place too, marked as granting the resources only.
+  for (const where of appPlaces(remaining, ctx)) {
+    const place: Place = { kind: "app", where };
+    const matches = APP_ACCESS_TYPE_IDS.flatMap((typeId) => {
+      const match = matchType(accessType(typeId), place, remaining, broad, ctx);
+      return match ? [match] : [];
+    });
+    const available = APP_ACCESS_TYPE_IDS.filter(
+      (typeId) => appLineFolderIds(ctx, where, typeId).length > 0
+    ).length;
+    for (const group of groupMatches(matches, available)) {
+      consume({
+        kind: "resources",
+        role: group.role,
+        mayDelete: group.mayDelete,
+        types: group.matches.map((match) => match.type.id).sort(typeOrder),
+        where,
+        appScopes: false,
+      });
+    }
+  }
 
   // A resource joins a line only through a scope stored for it.
   const resourceMatches = resourcePlaces.flatMap((place) => {
@@ -1161,7 +1189,7 @@ export function describeLine(
     title: `${roleTitle(line.role)} ${whereLabel(line.where, labels)}`,
     detail: `${coversLabel(line.types, placeTypeIds(line.where))}${line.mayDelete ? " · may delete" : ""}${
       line.manageFolders ? " · manages subfolders" : ""
-    }`,
+    }${line.appScopes === false ? " · resources only" : ""}`,
   };
 }
 

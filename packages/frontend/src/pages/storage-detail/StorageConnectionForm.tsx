@@ -400,8 +400,8 @@ export function StorageConnectionForm({
         </>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
-          {descriptionField}
           {tagsField}
+          {descriptionField}
         </div>
       )}
 

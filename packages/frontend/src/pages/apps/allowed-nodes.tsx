@@ -6,14 +6,22 @@ import { nodeStatusTone } from "@/components/common/resource-status";
 import { Badge } from "@/components/ui/badge";
 import { nodeIconClassNames, nodeTypeLabel } from "@/lib/node-appearance";
 import { cn } from "@/lib/utils";
-import type { AppNodeUsage, Node } from "@/types";
+import type { AppAllowedNode, AppNodeUsage, Node } from "@/types";
 import { plural } from "./app-shared";
 import { nodeDisplayName } from "./use-node-index";
 
 export interface AllowedNodeRow {
   nodeId: string;
+  /** The node from the node list (only with node permissions: health and usage). */
   node: Node | undefined;
+  /** The allowed node as the app reports it (name, hostname, type: shown with apps:view alone). */
+  allowed?: AppAllowedNode;
   usedBy: AppNodeUsage | undefined;
+}
+
+/** The node's name: from the node list, else from the app, else its short id. */
+export function allowedNodeName(row: AllowedNodeRow): string {
+  return row.node || !row.allowed?.name ? nodeDisplayName(row.node, row.nodeId) : row.allowed.name;
 }
 
 export function usageText(usage: AppNodeUsage | undefined): string {
@@ -49,10 +57,10 @@ export function allowedNodeColumns(
               <Server className={cn("h-5 w-5", icon.icon)} />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium">
-                {nodeDisplayName(row.node, row.nodeId)}
+              <p className="truncate text-sm font-medium">{allowedNodeName(row)}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {row.node?.hostname ?? row.allowed?.hostname ?? ""}
               </p>
-              <p className="truncate text-xs text-muted-foreground">{row.node?.hostname ?? ""}</p>
             </div>
           </div>
         );
@@ -62,8 +70,10 @@ export function allowedNodeColumns(
       id: "type",
       label: "Type",
       width: "8rem",
-      renderCell: (row) =>
-        row.node ? <Badge variant="outline">{nodeTypeLabel(row.node.type)}</Badge> : null,
+      renderCell: (row) => {
+        const type = row.node?.type ?? row.allowed?.type;
+        return type ? <Badge variant="outline">{nodeTypeLabel(type)}</Badge> : null;
+      },
     },
     {
       id: "usage",
@@ -94,10 +104,10 @@ export function allowedNodeColumns(
       id: "health",
       label: "Health",
       width: "7rem",
-      renderCell: (row) => {
-        const status = row.node?.status ?? "unknown";
-        return <Badge variant={nodeStatusTone(status)}>{status}</Badge>;
-      },
+      cellContentClassName: "text-sm text-muted-foreground",
+      // Health comes from the node list: without node permissions it stays neutral.
+      renderCell: (row) =>
+        row.node ? <Badge variant={nodeStatusTone(row.node.status)}>{row.node.status}</Badge> : "—",
     },
     ...(actions
       ? [

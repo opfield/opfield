@@ -76,6 +76,8 @@ interface Draft {
   mayDelete: boolean;
   /** Folder lines: also manage the folder's subfolders. */
   manageFolders: boolean;
+  /** App lines: also the app's own permissions (false for a line read from a place limit). */
+  appScopes: boolean;
   /** `<provider>:<connectorId>`, or `<provider>:*` for every connector of the provider. */
   connector: string;
   repositories: RepositoriesKind;
@@ -119,6 +121,7 @@ function draftFor(line: AccessLine | null, firstApp: string, firstConnector: str
     types: [...ACCESS_TYPE_IDS],
     mayDelete: false,
     manageFolders: false,
+    appScopes: true,
     connector: firstConnector,
     repositories: "all",
     group: "",
@@ -142,6 +145,7 @@ function draftFor(line: AccessLine | null, firstApp: string, firstConnector: str
       types: [...line.types],
       mayDelete: line.mayDelete,
       manageFolders: !!line.manageFolders,
+      appScopes: line.appScopes !== false,
     };
   }
   if (line?.kind === "git") {
@@ -201,7 +205,14 @@ function lineFor(
     const where = splitAppKey(draft.app);
     const types = sortTypes(draft.types.filter((type) => APP_ACCESS_TYPE_IDS.includes(type)));
     if (!where || types.length === 0) return null;
-    return { kind: "resources", role: draft.role, types, where, mayDelete };
+    return {
+      kind: "resources",
+      role: draft.role,
+      types,
+      where,
+      mayDelete,
+      ...(draft.appScopes ? {} : { appScopes: false as const }),
+    };
   }
   if (draft.where === "folder") {
     const types = folderTypes(draft.types);

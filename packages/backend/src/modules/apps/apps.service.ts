@@ -24,13 +24,14 @@ import {
   hasAppWideScope,
   visibleEnvironmentIds,
 } from './app-access.js';
-import type { AppFamily } from './app-families.js';
+import type { AppFamily, AppMemberType } from './app-families.js';
 import type { AppFolderService } from './app-folders.service.js';
 import { type AppVisibility, memberKeysByEnvironment } from './app-member-visibility.js';
 import {
   type AppMember,
   type AppMemberCounts,
   type AppMembersReader,
+  canViewMember,
   emptyMemberCounts,
 } from './app-members.service.js';
 import type {
@@ -386,11 +387,19 @@ export class AppsService {
     const access = visibility?.access ?? 'full';
     const envs = allEnvs.filter((env) => envIds.includes(env.id));
     const fullEnvs = envs.filter((env) => !memberEnvIds.has(env.id));
-    const visibleMembers = await this.members.listVisibleMembers(scopes, envIds);
+    const allMembers = await this.members.listMembers(envIds);
+    const visibleMembers = allMembers.filter((member) => canViewMember(scopes, member));
     const counts = new Map(envIds.map((id) => [id, emptyMemberCounts()]));
     for (const member of visibleMembers) {
       const entry = counts.get(member.environmentId);
       if (entry) entry[member.type] += 1;
+    }
+    // Types with members the caller cannot view, for apps:view environments only: a members-only view learns nothing
+    // about what it does not see.
+    const hiddenTypes = new Map<string, Set<AppMemberType>>();
+    for (const member of allMembers) {
+      if (memberEnvIds.has(member.environmentId) || canViewMember(scopes, member)) continue;
+      hiddenTypes.set(member.environmentId, (hiddenTypes.get(member.environmentId) ?? new Set()).add(member.type));
     }
     const [roots, folders, nodes, health, maintenance, incidents] = await Promise.all([
       access === 'full' ? this.folders.appRootFolders(app.id) : Promise.resolve(NO_FOLDERS),
@@ -425,6 +434,7 @@ export class AppsService {
           folders: folders.get(env.id),
           nodeIds: nodes.get(env.id) ?? [],
           counts: counts.get(env.id) ?? emptyMemberCounts(),
+          hiddenTypes: [...(hiddenTypes.get(env.id) ?? [])].sort(),
           health: health.get(env.id) ?? DEFAULT_HEALTH,
           maintenance: maintenance.get(env.id),
           incidents: incidents.get(env.id) ?? [],
@@ -454,6 +464,7 @@ export class AppsService {
       folders?: Record<AppFamily, string | null>;
       nodeIds: string[];
       counts: AppMemberCounts;
+      hiddenTypes: AppMemberType[];
       health: EnvironmentHealthSummary;
       maintenance?: Record<string, unknown>;
       incidents?: unknown[];
@@ -470,6 +481,8 @@ export class AppsService {
       maintenanceStartedAt: env.maintenanceStartedAt,
       health: extra.health.health,
       memberCounts: extra.counts,
+      /** Member types with members the caller cannot view (apps:view environments; empty when seen through members). */
+      hiddenMemberTypes: extra.hiddenTypes,
       placementFolderIds: extra.folders ?? NO_FOLDERS,
       allowedNodeIds: extra.nodeIds,
       maintenance: extra.maintenance ?? null,

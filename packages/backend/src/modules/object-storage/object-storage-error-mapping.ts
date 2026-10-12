@@ -1,4 +1,7 @@
+import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
+
+const logger = createChildLogger('ObjectStorageErrors');
 
 export type ObjectStorageOperation = 'connect' | 'object';
 
@@ -54,6 +57,38 @@ interface AwsLikeError extends Error {
 }
 
 /**
+ * The SDK could not parse the reply (an HTML error page, a proxy or a non-S3 server): the message is the
+ * parser's text plus a hint about the hidden `$response` field. Neither belongs in the UI. Modeled S3 errors
+ * (AccessDenied, NoSuchBucket) also carry `$response`, so the message decides, not the field.
+ */
+function isUnparsableResponse(message: string): boolean {
+  return message.includes('Deserialization error') || message.includes('XML parse error');
+}
+
+/** Short user message for a reply the SDK could not read; the raw SDK text goes to the server log only. */
+function unparsableResponseError(err: AwsLikeError, operation: ObjectStorageOperation): AppError {
+  const httpStatus = err.$metadata?.httpStatusCode;
+  logger.warn('Object storage endpoint returned a response the S3 client could not read', {
+    operation,
+    httpStatus,
+    error: err.message,
+  });
+  const status = httpStatus !== undefined ? ` (HTTP ${httpStatus})` : '';
+  if (httpStatus !== undefined && UNAVAILABLE_HTTP_STATUSES.has(httpStatus)) {
+    return new AppError(
+      503,
+      'STORAGE_UNAVAILABLE',
+      `The storage server could not handle the request right now${status}. Retry shortly.`
+    );
+  }
+  return new AppError(
+    422,
+    'STORAGE_CONNECTION_FAILED',
+    `The endpoint is reachable but did not return a valid S3 response${status}. Check the endpoint URL and credentials.`
+  );
+}
+
+/**
  * Map an AWS SDK / networking error to an AppError. Returns null when the caller
  * should keep its own generic handling.
  */
@@ -66,6 +101,8 @@ export function mapObjectStorageError(error: unknown, operation: ObjectStorageOp
   const code = typeof err.code === 'string' ? err.code : '';
   const message = err.message || `object storage ${operation} failed`;
   const lower = message.toLowerCase();
+
+  if (isUnparsableResponse(message)) return unparsableResponseError(err, operation);
 
   if (AUTH_ERROR_NAMES.has(name) || lower.includes('access denied') || lower.includes('signature')) {
     // Not 401: that status means the Gateway session itself is invalid and signs the user out.

@@ -14,7 +14,7 @@ import {
   Plus,
   RefreshCw,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { AppMark } from "@/components/apps/AppMark";
 import type { AppCreateContext } from "@/components/apps/app-create-context";
@@ -214,11 +214,18 @@ function AppPageContent({
     { value: "settings", label: "Settings", show: canSettings },
   ];
   const visibleTabs = tabs.filter((tab) => tab.show).map((tab) => tab.value);
+  const { tab: tabParam } = useParams<{ tab?: string }>();
   const [activeTab, setActiveTab] = useUrlTab(
     visibleTabs.filter((tab) => (APP_TABS as readonly string[]).includes(tab)),
     "overview",
     (tab) => appRoute(app.slug, tab)
   );
+
+  // A tab the user cannot open (Settings, Data or Nodes in a view through members, a stale link): replace the URL.
+  const tabUnavailable = !!tabParam && !(visibleTabs as string[]).includes(tabParam);
+  useEffect(() => {
+    if (tabUnavailable) navigate(appRoute(app.slug), { replace: true });
+  }, [tabUnavailable, navigate, app.slug]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [createRequest, setCreateRequest] = useState<AppCreateRequest | null>(null);

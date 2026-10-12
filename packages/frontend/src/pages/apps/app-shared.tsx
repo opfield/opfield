@@ -22,7 +22,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { appEnvironmentRoute } from "@/lib/app-routes";
 import { cn } from "@/lib/utils";
-import type { AppEnvironmentDetail, AppHealth, AppMemberCounts } from "@/types";
+import type {
+  AppDetail,
+  AppEnvironmentDetail,
+  AppHealth,
+  AppMemberCounts,
+  AppMemberType,
+} from "@/types";
 
 export const HEALTH_BADGE: Record<AppHealth, "success" | "warning" | "destructive" | "secondary"> =
   {
@@ -274,6 +280,27 @@ export function groupByEnvironment<T>(
 }
 
 /** Member types the user's scopes do not show, named inline so the empty space is explained. */
+const HIDDEN_SCOPE_TYPES: Record<string, AppMemberType[]> = {
+  "docker:containers:view": ["container", "deployment"],
+  "docker:compose:view": ["compose"],
+  "pages:view": ["pages"],
+  "proxy:view": ["route"],
+};
+
+/**
+ * The hidden-member entries of types the app really has out of the user's sight (the API names those types per
+ * environment it shows with apps:view; an environment seen only through members names none).
+ */
+export function presentHiddenMembers<T extends { scope: string }>(
+  app: AppDetail,
+  hidden: T[]
+): T[] {
+  const types = new Set(app.environments.flatMap((env) => env.hiddenMemberTypes ?? []));
+  return hidden.filter((entry) =>
+    (HIDDEN_SCOPE_TYPES[entry.scope] ?? []).some((type) => types.has(type))
+  );
+}
+
 export function HiddenMembersNotice({ hidden }: { hidden: { title: string; scope: string }[] }) {
   if (hidden.length === 0) return null;
   return (

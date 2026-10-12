@@ -2,6 +2,7 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   BrowserRouter,
+  Link,
   Navigate,
   Route,
   Routes,
@@ -287,16 +288,27 @@ function DetailRouteFailure({
   error,
   fallbackPath,
   preserveNotFound = false,
+  unavailable,
 }: {
   error: unknown;
   fallbackPath: string;
   preserveNotFound?: boolean;
+  /** Say this on 403 / 404 (with a way back to the list) instead of silently opening the list. */
+  unavailable?: { message: string; backLabel: string };
 }) {
   if (
     error instanceof ApiRequestError &&
     (error.status === 403 || (error.status === 404 && !preserveNotFound))
   ) {
-    return <Navigate to={fallbackPath} replace />;
+    if (!unavailable) return <Navigate to={fallbackPath} replace />;
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+        <p className="text-sm text-muted-foreground">{unavailable.message}</p>
+        <Button variant="outline" asChild>
+          <Link to={fallbackPath}>{unavailable.backLabel}</Link>
+        </Button>
+      </div>
+    );
   }
 
   return (
@@ -355,6 +367,10 @@ function DockerContainerDetailGuard() {
         error={resolved.error}
         fallbackPath="/docker/containers"
         preserveNotFound={!!migrationHandoff}
+        unavailable={{
+          message: "This container does not exist or you have no access to it.",
+          backLabel: "Open Docker",
+        }}
       />
     );
   }

@@ -31,6 +31,7 @@ import { CloudLinkAgent } from '@/modules/cloud-link/cloud-link-agent.js';
 import { CloudLinkEnrollFile, createEnrollFileLicense } from '@/modules/cloud-link/cloud-link-enroll-file.js';
 import { CloudManagedSso } from '@/modules/cloud-link/cloud-link-managed-sso.js';
 import { createCloudLinkProbe } from '@/modules/cloud-link/cloud-link-probe.js';
+import { createCloudSsoClient } from '@/modules/cloud-link/cloud-link-sso-client.js';
 import { DatabaseMonitoringService } from '@/modules/databases/database-monitoring.service.js';
 import { DiagnosticsService } from '@/modules/diagnostics/diagnostics.service.js';
 import { createGatewayAlertObserver } from '@/modules/diagnostics/diagnostics-alerts.js';
@@ -228,6 +229,9 @@ export async function initializeBackgroundServices(): Promise<void> {
       createCloudLinkProbe(diagnosticsService, env.APP_VERSION, createCloudLinkActions())
     )
   );
+  // When the cloud link ends, the sign-in the cloud gave goes with it (see CloudSsoClient.detach).
+  const cloudSsoClient = createCloudSsoClient();
+  container.resolve(CloudLinkService).setSignInDetacher(() => cloudSsoClient.detach());
   // A managed installation enrols itself from the code its provisioning left in the app container.
   const cloudEnrollFile = new CloudLinkEnrollFile(
     container.resolve(CloudLinkService),

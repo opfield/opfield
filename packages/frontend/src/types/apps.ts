@@ -1,3 +1,4 @@
+import type { NodeType } from "./nodes";
 import type { AuditLogEntry } from "./pki";
 
 // Apps: an application as its own resource, with environments that hold its members.
@@ -92,6 +93,8 @@ export interface AppEnvironmentDetail {
   maintenance?: Record<string, unknown> | null;
   health: AppHealth;
   memberCounts: AppMemberCounts;
+  /** Member types with members the user cannot view (apps:view environments; empty when seen through members). */
+  hiddenMemberTypes?: AppMemberType[];
   /** Hidden env folder per family: pass as `folderId` to create inside the environment. */
   placementFolderIds: AppPlacementFolderIds;
   allowedNodeIds: string[];
@@ -212,6 +215,10 @@ export type AppNodeUsage = Partial<Record<AppMemberFamily, number>>;
 
 export interface AppAllowedNode {
   nodeId: string;
+  /** Node name, hostname and type: part of the app's details, shown without node permissions. */
+  name?: string;
+  hostname?: string;
+  type?: NodeType;
   usedBy: AppNodeUsage;
 }
 

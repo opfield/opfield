@@ -88,6 +88,8 @@ export function assertNoNestedDialogVerticalScroll(children: React.ReactNode[]) 
  */
 export const DIALOG_LIST_CLASS = "dialog-list";
 const DIALOG_LIST_MIN_HEIGHT_PX = 256;
+/** Lists stacked one under another (a scope list and a webhook list) share the room: each keeps less. */
+const DIALOG_STACKED_LIST_MIN_HEIGHT_PX = 128;
 
 function fitDialogLists(panel: HTMLElement) {
   const lists = [...panel.querySelectorAll<HTMLElement>(`.${DIALOG_LIST_CLASS}`)];
@@ -127,8 +129,10 @@ function fitDialogLists(panel: HTMLElement) {
     const byHeight = [...rows.values()]
       .map((row) => ({ row, height: Math.max(...row.map((list) => list.offsetHeight)) }))
       .sort((a, b) => b.height - a.height);
+    const minHeight =
+      byHeight.length > 1 ? DIALOG_STACKED_LIST_MIN_HEIGHT_PX : DIALOG_LIST_MIN_HEIGHT_PX;
     for (const { row, height } of byHeight) {
-      const shrink = Math.min(overflow, height - DIALOG_LIST_MIN_HEIGHT_PX);
+      const shrink = Math.min(overflow, height - minHeight);
       if (shrink <= 0) continue;
       const target = height - shrink;
       for (const list of row) {
@@ -276,10 +280,15 @@ const DialogContentPanel = React.forwardRef<
     // Rows added, filtered or expanded change the room the list needs.
     const observer = new MutationObserver(schedule);
     observer.observe(panel, { childList: true, subtree: true, characterData: true });
+    // Animated steps change the panel's size without changing the DOM; a refit that changes
+    // nothing leaves the size as it is, so this settles after one round.
+    const resizeObserver = new ResizeObserver(schedule);
+    resizeObserver.observe(panel);
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener("resize", schedule);
       observer.disconnect();
+      resizeObserver.disconnect();
     };
   }, []);
   const showScreenIndicator = waiting && opener === null && gate.phase === "loading";

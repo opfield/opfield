@@ -42,6 +42,7 @@ import {
   groupByEnvironment,
   groupTotal,
   HiddenMembersNotice,
+  presentHiddenMembers,
   RowMenu,
 } from "../app-shared";
 import {
@@ -148,10 +149,11 @@ export function ComputeTab({
   );
 
   if (compute.loading || pages.loading) return <ContentLoading loading />;
-  const hidden = [
+  // Named only when the app has members of that type the user cannot see.
+  const hidden = presentHiddenMembers(app, [
     ...(compute.data?.hidden ?? []),
     ...(canViewPages ? [] : [{ title: "Pages projects", scope: "pages:view" }]),
-  ];
+  ]);
 
   const containers = groupByEnvironment(
     app.environments,
