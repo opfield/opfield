@@ -1,7 +1,7 @@
 // Apps: the top-level list (canvas frames apps-list, apps-empty, apps-new-app).
 // Same page frame and rows as Databases and Docker containers.
 import { AppWindow, Plus, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ContentLoading } from "@/components/common/ContentLoading";
@@ -17,8 +17,16 @@ import {
   ResourceListTable,
 } from "@/components/common/ResourceListLayout";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
+import { SearchFilterBar } from "@/components/common/SearchFilterBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
 import { appRoute } from "@/lib/app-routes";
@@ -31,13 +39,30 @@ import { APPS_REALTIME_CHANNEL, type AppSummary } from "@/types";
 import { HEALTH_BADGE, orderedEnvironments } from "./app-shared";
 import { NewAppDialog } from "./dialogs/NewAppDialog";
 
-function AppHealthCell({ app }: { app: AppSummary }) {
-  if (app.incident === "isolated" || app.incident === "partial") {
-    return <Badge variant="destructive">isolated</Badge>;
-  }
-  if (app.incident === "stopped") return <Badge variant="secondary">stopped</Badge>;
-  return <Badge variant={HEALTH_BADGE[app.health]}>{app.health}</Badge>;
+type AppStatus = AppSummary["health"] | "stopped" | "isolated";
+
+/** The status the Health column shows: an incident first, then the Production health. */
+function appStatus(app: AppSummary): AppStatus {
+  if (app.incident === "isolated" || app.incident === "partial") return "isolated";
+  if (app.incident === "stopped") return "stopped";
+  return app.health;
 }
+
+function AppHealthCell({ app }: { app: AppSummary }) {
+  const status = appStatus(app);
+  if (status === "isolated") return <Badge variant="destructive">isolated</Badge>;
+  if (status === "stopped") return <Badge variant="secondary">stopped</Badge>;
+  return <Badge variant={HEALTH_BADGE[status]}>{status}</Badge>;
+}
+
+const STATUS_OPTIONS: Array<{ value: AppStatus; label: string }> = [
+  { value: "healthy", label: "Healthy" },
+  { value: "degraded", label: "Degraded" },
+  { value: "failing", label: "Failing" },
+  { value: "unknown", label: "Unknown" },
+  { value: "stopped", label: "Stopped" },
+  { value: "isolated", label: "Isolated" },
+];
 
 const columns: ResourceListColumn<AppSummary>[] = [
   {
@@ -105,6 +130,26 @@ export function AppsList() {
   const [refreshing, setRefreshing] = useState(false);
   const initialLoading = useInitialLoading(loading);
   const [newOpen, setNewOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | AppStatus>("all");
+  const hasActiveFilters = search !== "" || statusFilter !== "all";
+  const resetFilters = () => {
+    setSearch("");
+    setStatusFilter("all");
+  };
+
+  // The list is not paginated: search and filters apply to the apps already loaded.
+  const visibleApps = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return apps.filter(
+      (app) =>
+        (statusFilter === "all" || appStatus(app) === statusFilter) &&
+        (!query ||
+          app.name.toLowerCase().includes(query) ||
+          app.slug.toLowerCase().includes(query) ||
+          app.environments.some((env) => env.name.toLowerCase().includes(query)))
+    );
+  }, [apps, search, statusFilter]);
 
   const load = useCallback(async () => {
     try {
@@ -169,37 +214,72 @@ export function AppsList() {
           }
         />
 
-        {initialLoading ? null : apps.length === 0 ? (
-          <EmptyState
-            message="No apps yet. An app keeps the containers, databases, storage, routes and Pages of one application together."
-            {...(canCreate
-              ? { actionLabel: "Create an app", onAction: () => setNewOpen(true) }
-              : {})}
-          />
-        ) : (
-          <ResourceListFrame minWidth={920}>
-            <ResourceListHeaderTable columns={columns} />
-            <ResourceListTable columns={columns}>
-              {apps.map((app) => (
-                <ResourceListRow
-                  key={app.id}
-                  interactive
-                  className="last:border-b-0"
-                  onClick={() => navigate(appRoute(app.slug))}
+        {initialLoading ? null : (
+          <div className="space-y-3">
+            <SearchFilterBar
+              placeholder="Search apps..."
+              search={search}
+              onSearchChange={setSearch}
+              hasActiveFilters={hasActiveFilters}
+              onReset={resetFilters}
+              filters={
+                <Select
+                  value={statusFilter}
+                  onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}
                 >
-                  {columns.map((column) => (
-                    <ResourceListCell
-                      key={column.id}
-                      align={column.align}
-                      contentClassName={column.cellContentClassName}
+                  <SelectTrigger className="w-[180px]" aria-label="Status">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    {STATUS_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              }
+            />
+            {apps.length === 0 ? (
+              <EmptyState
+                message="No apps yet. An app keeps the containers, databases, storage, routes and Pages of one application together."
+                {...(canCreate
+                  ? { actionLabel: "Create an app", onAction: () => setNewOpen(true) }
+                  : {})}
+              />
+            ) : visibleApps.length === 0 ? (
+              <EmptyState
+                message="No apps match the search or filters."
+                hasActiveFilters={hasActiveFilters}
+                onReset={resetFilters}
+              />
+            ) : (
+              <ResourceListFrame minWidth={920}>
+                <ResourceListHeaderTable columns={columns} />
+                <ResourceListTable columns={columns}>
+                  {visibleApps.map((app) => (
+                    <ResourceListRow
+                      key={app.id}
+                      interactive
+                      className="last:border-b-0"
+                      onClick={() => navigate(appRoute(app.slug))}
                     >
-                      {column.renderCell?.(app)}
-                    </ResourceListCell>
+                      {columns.map((column) => (
+                        <ResourceListCell
+                          key={column.id}
+                          align={column.align}
+                          contentClassName={column.cellContentClassName}
+                        >
+                          {column.renderCell?.(app)}
+                        </ResourceListCell>
+                      ))}
+                    </ResourceListRow>
                   ))}
-                </ResourceListRow>
-              ))}
-            </ResourceListTable>
-          </ResourceListFrame>
+                </ResourceListTable>
+              </ResourceListFrame>
+            )}
+          </div>
         )}
       </div>
       <NewAppDialog

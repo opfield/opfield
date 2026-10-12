@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "@/stores/auth";
@@ -73,5 +73,36 @@ describe("Apps list", () => {
     expect(screen.getByText("failing")).toBeInTheDocument();
     // Without apps:create there is no New App.
     expect(screen.queryByRole("button", { name: /New App/ })).not.toBeInTheDocument();
+  });
+
+  it("searches apps and clears the search", async () => {
+    signIn(["apps:view"]);
+    const blog: AppSummary = {
+      ...shop,
+      id: "app-2",
+      slug: "blog",
+      name: "Blog",
+      health: "healthy",
+    };
+    api.listApps.mockResolvedValue([shop, blog]);
+    render(
+      <MemoryRouter>
+        <AppsList />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("Blog")).toBeInTheDocument();
+    await waitForReveal();
+    fireEvent.change(screen.getByPlaceholderText("Search apps..."), { target: { value: "sho" } });
+    expect(screen.getByText("Shop")).toBeInTheDocument();
+    expect(screen.queryByText("Blog")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText("Search apps..."), {
+      target: { value: "nothing" },
+    });
+    expect(screen.getByText(/No apps match/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(screen.getByText("Shop")).toBeInTheDocument();
+    expect(screen.getByText("Blog")).toBeInTheDocument();
   });
 });
