@@ -22,8 +22,17 @@ const MemberReadinessQuery = "SELECT 1"
 // the copy never gets a Keeper session (rc.1 stand B blocker).
 func StageMemberFiles(config memberha.Config, ec EngineConfig, keeperLogEmpty, standalone bool, quorumTimeoutMs uint32,
 	internalPasswordSHA256 string) map[string][]byte {
+	server := RenderServerConfig(config, ec, keeperLogEmpty)
+	if standalone && !keeperLogEmpty {
+		// Lift (availability off): the kept member's Keeper becomes the only
+		// voter whatever its cluster configuration still lists. Keeper ignores
+		// a changed raft list while reconfiguration is on, and the other
+		// servers may be gone for good (a witness stopped, a copy deleted), so
+		// it is forced: reconfiguration off, force_recovery, itself alone.
+		server = RenderServerConfigMode(config, ec, false, RenderRecovery)
+	}
 	files := map[string][]byte{
-		ServerConfigFile: RenderServerConfig(config, ec, keeperLogEmpty),
+		ServerConfigFile: server,
 		UsersConfigFile:  RenderUsersConfig(1, quorumTimeoutMs, internalPasswordSHA256),
 		RoleConfigFile:   RenderRoleConfig(standalone),
 	}

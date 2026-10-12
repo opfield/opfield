@@ -108,8 +108,8 @@ export class NodeKeeperWitnessService {
           and(
             eq(managedAvailabilityWitnesses.nodeId, nodeId),
             eq(managedAvailabilityWitnesses.hostKind, 'node'),
-            eq(managedAvailabilityWitnesses.purpose, 'keeper'),
-            ne(managedAvailabilityWitnesses.desiredState, 'removed')
+            // A retired witness keeps running until the holder's Keeper dropped it (relay-witness.service.ts).
+            eq(managedAvailabilityWitnesses.purpose, 'keeper')
           )
         );
       const witnesses = rows.filter(

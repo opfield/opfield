@@ -388,8 +388,15 @@ describe.skipIf(!url)('availability set relay paths on disposable PostgreSQL', (
       []
     );
     expect(gate.endpoints.size).toBe(0);
-    // A removed witness takes its endpoint and routes along.
+    // A retired witness keeps its paths until the holder's Keeper dropped it (the orchestrator deletes the row):
+    // the holder can only remove it while it reaches it.
     await q(`update managed_availability_witnesses set desired_state = 'removed' where id = $1`, [witness]);
+    await reconcile();
+    expect(
+      (await q(`select count(*)::int as n from relay_routes where owner_kind = 'managed_witness_peer'`)).rows[0].n
+    ).toBeGreaterThan(0);
+    // A dropped witness takes its endpoint and routes along.
+    await q(`delete from managed_availability_witnesses where id = $1`, [witness]);
     await reconcile();
     expect(
       (await q(`select count(*)::int as n from relay_routes where owner_kind = 'managed_witness_peer'`)).rows[0].n

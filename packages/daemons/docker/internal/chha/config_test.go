@@ -100,6 +100,11 @@ func TestRenderServerConfigThreeMembersAndBootstrap(t *testing.T) {
 	if files := StageMemberFiles(origin, ec, false, false, 10000, "hash"); files[joiningMarker] != nil {
 		t.Fatal("a Keeper with a log is not joining")
 	}
+	lifted := string(StageMemberFiles(origin, ec, false, true, 10000, "hash")[ServerConfigFile])
+	if !strings.Contains(lifted, "<force_recovery>true</force_recovery>") || strings.Count(lifted, "<server>") != 1 ||
+		!strings.Contains(lifted, "<enable_reconfiguration>false</enable_reconfiguration>") {
+		t.Fatalf("a lifted member's Keeper is forced to be its only voter:\n%s", lifted)
+	}
 	ec.ConvertDatabases = nil
 	// A member that joins lists the current voters and itself.
 	ec.BootstrapVoters = nil

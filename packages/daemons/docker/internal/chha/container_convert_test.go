@@ -217,19 +217,31 @@ func TestContainerConvertedPairJoins(t *testing.T) {
 		return err == nil, fmt.Sprint(err)
 	})
 
-	// 5. Disable keeping the copy: the witness and the origin leave, the kept Keeper narrows to itself.
-	leaving := []KeeperServer{{ID: 1001, Port: 39433, WitnessID: testWitness, Role: RoleLeaving}}
-	narrowed := ctEngineConfig(2, leaving)
-	narrowed.KeeperServers[0].Role = RoleLeaving
-	h.setConfig("ch2", narrowed, 3)
-	waitFor(t, "the kept member's Keeper is its only voter", 2*time.Minute, func() (bool, string) {
-		current, err := e2.keeperConfig(ctx)
-		if err != nil {
-			return false, err.Error()
-		}
-		return voterList(current) == "2", voterList(current)
+	// 5. Disable keeping the copy while the witness is gone too (its Keeper has no quorum and cannot
+	// reconfigure): the lift restarts it as a single node that is its Keeper's only voter.
+	h.must("kill", "kw")
+	witnessForwarders.close()
+	waitFor(t, "the copy's Keeper lost its quorum", time.Minute, func() (bool, string) {
+		s := status(t, e2)
+		return !keeperServing(s.Position[posKeeper]), s.Position[posKeeper]
 	})
-	if _, err := rt2.Query(ctx, "INSERT INTO app.ledger SELECT number + 9000 FROM numbers(10)"); err != nil {
-		t.Fatalf("insert on the single node: %v", err)
+	standalone := ctEngineConfig(2, nil)
+	standalone.KeeperServers = standalone.KeeperServers[1:]
+	h.setConfig("ch2", standalone, 3)
+	config3, _ := rt2.Config()
+	hash, _ := rt2.InternalPasswordSHA256()
+	for name, data := range StageMemberFiles(config3, standalone, false, true, 10000, hash) {
+		if err := rt2.WriteFile(name, data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.must("restart", "ch2")
+	waitFor(t, "the lifted single node inserts", 2*time.Minute, func() (bool, string) {
+		_, err := rt2.Query(ctx, "INSERT INTO app.ledger SELECT number + 9000 FROM numbers(10)")
+		return err == nil, fmt.Sprint(err)
+	})
+	n, err := count(rt2)
+	if err != nil || n < 1020 {
+		t.Fatalf("rows after the lift: %d %v", n, err)
 	}
 }
