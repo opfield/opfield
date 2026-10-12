@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import type { GitScopeProvider } from "@/types";
 import { AccessDialogFooter } from "./AccessDialogFooter";
 import type { AccessCatalog } from "./access-catalog";
@@ -530,7 +531,13 @@ export function AddAccessDialog({
                 </p>
               </Field>
               <Field label="Where">
-                <div className="grid grid-cols-2 gap-2">
+                {/* Everywhere has no second choice: the select takes the whole row. */}
+                <div
+                  className={cn(
+                    "grid gap-2",
+                    draft.where === "everywhere" ? "grid-cols-1" : "grid-cols-2"
+                  )}
+                >
                   <Select
                     value={draft.where}
                     onValueChange={(value) => update({ where: value as WhereKind })}

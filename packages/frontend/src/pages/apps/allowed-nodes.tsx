@@ -41,7 +41,6 @@ export function allowedNodeColumns(
     {
       id: "name",
       label: "Node",
-      width: "26%",
       renderCell: (row) => {
         const icon = nodeIconClassNames(row.node?.appearanceColor);
         return (
@@ -69,6 +68,7 @@ export function allowedNodeColumns(
     {
       id: "usage",
       label: "CPU · Memory · Disk",
+      width: "12rem",
       cellContentClassName: "text-sm text-muted-foreground",
       renderCell: (row) => {
         const health = row.node?.lastHealthReport;
@@ -86,6 +86,7 @@ export function allowedNodeColumns(
     {
       id: "used",
       label: "Used by",
+      width: "15rem",
       cellContentClassName: "text-sm text-muted-foreground",
       renderCell: (row) => usageText(row.usedBy),
     },

@@ -276,6 +276,7 @@ export function TypeSection<T>({
   groups,
   rowKey,
   onRowClick,
+  minWidth,
 }: {
   app: AppDetail;
   title: string;
@@ -286,6 +287,8 @@ export function TypeSection<T>({
   groups: EnvGroup<T>[];
   rowKey: (row: T) => string;
   onRowClick?: (row: T) => void;
+  /** Below this width the list scrolls sideways instead of squeezing its columns. */
+  minWidth?: number;
 }) {
   return (
     <PanelShell
@@ -300,6 +303,7 @@ export function TypeSection<T>({
         groups={groups}
         rowKey={rowKey}
         onRowClick={onRowClick}
+        minWidth={minWidth}
       />
     </PanelShell>
   );

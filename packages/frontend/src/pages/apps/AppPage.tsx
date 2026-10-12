@@ -276,7 +276,7 @@ function AppPageContent({
           leading={
             <div className="flex items-center gap-3">
               <PageBackButton onClick={() => navigate(appsRoute())} />
-              <AppMark logoUrl={app.logoUrl} />
+              <AppMark logoUrl={app.logoUrl} size="lg" />
             </div>
           }
           title={app.name}

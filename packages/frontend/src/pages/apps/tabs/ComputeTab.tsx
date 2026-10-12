@@ -114,6 +114,9 @@ function NodeCellBadge({ name, color }: { name?: string; color?: DockerContainer
   );
 }
 
+/** Name 28 %, image 22 %, node 15 % plus status, health and actions: narrower, the list scrolls sideways. */
+const COMPUTE_MIN_WIDTH = 1080;
+
 export function ComputeTab({
   app,
   version,
@@ -232,7 +235,7 @@ export function ComputeTab({
     {
       id: "image",
       label: "Image",
-      width: "28%",
+      width: "22%",
       renderCell: (row) => (
         <Badge variant="secondary" className="max-w-full font-mono">
           {row.pendingSourceBuild ? "Awaiting build" : formatDisplayImageRef(row.image ?? "")}
@@ -242,6 +245,7 @@ export function ComputeTab({
     {
       id: "node",
       label: "Node",
+      width: "15%",
       renderCell: (row) => <NodeCellBadge name={row._nodeName} color={row._nodeColor} />,
     },
     {
@@ -337,8 +341,8 @@ export function ComputeTab({
 
   const composeColumns: ResourceListColumn<AppComposeRow>[] = [
     { id: "name", label: "Project / service", width: "28%" },
-    { id: "image", label: "Image", width: "28%" },
-    { id: "node", label: "Node" },
+    { id: "image", label: "Image", width: "22%" },
+    { id: "node", label: "Node", width: "15%" },
     { id: "status", label: "Status", width: "8.5rem" },
     { id: "health", label: "Health", width: "7rem" },
     { id: "actions", label: "Actions", width: "7.5rem", align: "right" },
@@ -564,6 +568,7 @@ export function ComputeTab({
           }
           columns={containerColumns}
           groups={containers}
+          minWidth={COMPUTE_MIN_WIDTH}
           rowKey={(row) => `${nodeIdOf(row)}:${row.id}`}
           onRowClick={(row) => openContainer(row)}
         />
@@ -580,6 +585,7 @@ export function ComputeTab({
           <GroupedList
             appSlug={app.slug}
             columns={composeColumns}
+            minWidth={COMPUTE_MIN_WIDTH}
             groups={compose}
             rowKey={(row) => row.project.id}
             renderRows={composeRows}
