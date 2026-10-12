@@ -100,7 +100,10 @@ export interface OpfieldAccountSignInState {
   clientIssued: boolean;
   /** The admin asked the cloud account for a client and it has not answered yet. */
   pendingRequest: { redirectUri: string; requestedAt: string } | null;
-  /** The cloud link ended but the Opfield account provider stayed: no administrator could sign in without it. */
+  /**
+   * The cloud link ended or moved to another account but the Opfield account provider stayed: no administrator could
+   * sign in without it.
+   */
   detached: boolean;
 }
 
@@ -126,7 +129,7 @@ async function readOpfieldAccountSignIn(): Promise<OpfieldAccountSignInState> {
       available: enrolled,
       clientIssued: enrolled && client !== null,
       pendingRequest,
-      detached: !enrolled && provider.opfieldAccount,
+      detached: Boolean(provider.detachedOpfieldAccount),
     };
   } catch {
     return NO_OPFIELD_ACCOUNT_SIGN_IN;
@@ -229,6 +232,7 @@ export async function readGatewaySettings(
       scopes: 'openid email profile',
       displayName: null,
       opfieldAccount: false,
+      detachedOpfieldAccount: null,
     },
     logging: {
       mode: 'disabled' as const,

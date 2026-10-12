@@ -200,7 +200,7 @@ export interface AuthProvisioningSettings {
     clientIssued: boolean;
     /** Asked the Opfield account for a client; waiting for it. */
     pendingRequest: { redirectUri: string; requestedAt: string } | null;
-    /** The cloud link ended but the Opfield account provider stayed: no administrator could sign in without it. */
+    /** The cloud link ended or switched accounts but the Opfield account provider stayed: no other admin could sign in. */
     detached: boolean;
   };
 }

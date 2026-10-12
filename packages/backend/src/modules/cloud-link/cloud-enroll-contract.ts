@@ -80,7 +80,8 @@ export interface CloudSsoSecretRequestParams {
  * and answers `{ saved: true, applied }` (applied false: kept only, because no administrator could sign in after the
  * switch). Refusals: SSO_CLIENT_NOT_REQUESTED, INVALID_SSO_CLIENT. It needs no "Allow remote management" and is
  * audited like every request, without the secret. When the cloud link ends (disconnect, or the account revokes the
- * agent), the installation forgets the client and removes the provider on it, unless no administrator could sign in.
+ * agent) or the installation connects to another account (Switch account), it forgets the client and removes the
+ * provider on it, unless no administrator could sign in; a pending request is dropped on Switch account.
  */
 export const CLOUD_SSO_CLIENT_REQUEST = 'sso-client';
 export interface CloudSsoClientRequestParams {

@@ -19,6 +19,7 @@ import {
   type CloudRemoteManagement,
   type CloudRequestAudit,
   type CloudRequestSummary,
+  type CloudSignInDetachReason,
   type CloudSocketStatus,
   type CloudSsoClientRequest,
   type StoredCloudDisconnect,
@@ -86,6 +87,11 @@ export function normalizeCloudCode(input: string): string | null {
   return `CLD-${compact.slice(0, 4)}-${compact.slice(4)}`;
 }
 
+/** Whether two enrolments are the same cloud account (by its email; an unknown email counts as another account). */
+function sameAccount(a: string | null | undefined, b: string | null | undefined): boolean {
+  return Boolean(a && b && a.trim().toLowerCase() === b.trim().toLowerCase());
+}
+
 function trimBaseUrl(url: string): string {
   return url.replace(/\/+$/, '');
 }
@@ -140,7 +146,7 @@ export class CloudLinkService {
   private queue: Promise<void> = Promise.resolve();
   private auditService: Pick<AuditService, 'log'> | null = null;
   private liveRequestWindows: (() => CloudRequestWindowView[]) | null = null;
-  private signInDetacher: (() => Promise<void>) | null = null;
+  private signInDetacher: ((reason: CloudSignInDetachReason) => Promise<void>) | null = null;
 
   constructor(
     private readonly db: DrizzleClient,
@@ -268,17 +274,17 @@ export class CloudLinkService {
   }
 
   /**
-   * Runs after the link is forgotten (disconnect, or the account revoked the agent): drops what the cloud gave the
-   * sign-in (see CloudSsoClient.detach). Registered at start; a failure is logged, never fails the disconnect.
+   * Runs after the link is forgotten (disconnect, or the account revoked the agent) or moved to another account
+   * (Switch account): drops what the cloud gave the sign-in (see CloudSsoClient.detach). Registered at start; a failure is logged, never fails the disconnect.
    */
-  setSignInDetacher(detacher: (() => Promise<void>) | null): void {
+  setSignInDetacher(detacher: ((reason: CloudSignInDetachReason) => Promise<void>) | null): void {
     this.signInDetacher = detacher;
   }
 
-  private async detachSignIn(): Promise<void> {
+  private async detachSignIn(reason: CloudSignInDetachReason = 'cloud_disconnected'): Promise<void> {
     if (!this.signInDetacher) return;
     try {
-      await this.signInDetacher();
+      await this.signInDetacher(reason);
     } catch (error) {
       logger.warn('Could not detach the Opfield account sign-in after the cloud link ended', {
         error: error instanceof Error ? error.message : String(error),
@@ -359,6 +365,7 @@ export class CloudLinkService {
     const source = options.source ?? 'settings';
     let agentId: string | null = null;
     let accountEmail: string | null = null;
+    let replaced: StoredCloudEnrollment | null = null;
     try {
       const normalized = normalizeCloudCode(code);
       if (!normalized) {
@@ -370,9 +377,10 @@ export class CloudLinkService {
       }
       // A managed installation stays on its account; only its own enrolment file enrols it.
       if (source !== 'enroll-file' && (await this.managedByCloud())) throw cloudManagedLinkError();
-      await this.enroll(normalized, portalUrl, source === 'enroll-file', (enrolled) => {
+      await this.enroll(normalized, portalUrl, source === 'enroll-file', (enrolled, previous) => {
         agentId = enrolled.agentId;
         accountEmail = enrolled.accountEmail || null;
+        replaced = previous;
       });
     } catch (error) {
       const retryable = error instanceof CloudLinkRequestError && error.retryable;
@@ -388,12 +396,17 @@ export class CloudLinkService {
       }
       throw error;
     }
+    const previous = replaced as StoredCloudEnrollment | null;
+    const switchedAccount = previous !== null && !sameAccount(previous.accountEmail, accountEmail);
     await this.writeAudit(CLOUD_AUDIT_ACTIONS.connect, actor.userId, agentId, {
       success: true,
       source,
       portalUrl,
       accountEmail,
+      ...(previous ? { previousAccountEmail: previous.accountEmail || null, switchedAccount } : {}),
     });
+    // Switch account: the Opfield account client and the provider on it belong to the previous account.
+    if (switchedAccount) await this.detachSignIn('account_switched');
     this.notify();
     return this.getStatus();
   }
@@ -402,7 +415,7 @@ export class CloudLinkService {
     normalized: string,
     portalUrl: string,
     managed: boolean,
-    onEnrolled: (enrollment: StoredCloudEnrollment) => void
+    onEnrolled: (enrollment: StoredCloudEnrollment, previous: StoredCloudEnrollment | null) => void
   ): Promise<void> {
     await this.serialized(async () => {
       const hello = await this.identity();
@@ -416,7 +429,8 @@ export class CloudLinkService {
         CLOUD_ENROLL_TIMEOUT_MS
       );
       if (status < 200 || status >= 300) throw this.enrollError(status, body);
-      onEnrolled(await this.storeEnrollment(body, portalUrl, managed));
+      const previous = (await this.readStored()).enrollment;
+      onEnrolled(await this.storeEnrollment(body, portalUrl, managed), previous);
     });
   }
 
@@ -435,9 +449,11 @@ export class CloudLinkService {
       ...(managed ? { managed: true } : {}),
     };
     await this.setSetting(SETTINGS_KEYS.enrollment, enrollment);
-    // A new agent starts with remote management off; a managed VM is managed by the cloud anyway.
+    // A new agent starts with remote management off (a managed VM is managed by the cloud anyway) and without a
+    // sign-in client request: the admin asks the new account again.
     await this.deleteSetting(SETTINGS_KEYS.remoteManagement);
     await this.deleteSetting(SETTINGS_KEYS.disconnect);
+    await this.deleteSetting(SETTINGS_KEYS.ssoClientRequest);
     logger.info('Installation connected to the cloud account', { agentId: enrollment.agentId });
     return enrollment;
   }

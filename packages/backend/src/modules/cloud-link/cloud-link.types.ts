@@ -1,3 +1,4 @@
+import type { OpfieldAccountDetachReason } from '@/modules/auth/oidc-settings.service.js';
 /** Code alphabet of the account portal: A–Z without I and O, digits 2–9. */
 export const CLOUD_CODE_ALPHABET = /^[A-HJ-NP-Z2-9]{8}$/;
 export const CLOUD_ENROLL_TIMEOUT_MS = 15_000;
@@ -61,6 +62,9 @@ export interface CloudHello {
   /** Present while an admin's request for a sign-in client waits for the account's sso-client. */
   ssoClientRequest?: CloudSsoClientRequest;
 }
+
+/** Why the sign-in the cloud gave is detached: the link ended, or it now belongs to another account. */
+export type CloudSignInDetachReason = OpfieldAccountDetachReason;
 
 /** The sso-client request: the Opfield account sign-in client the account created for this installation. */
 export interface CloudSsoClient {

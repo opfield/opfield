@@ -97,7 +97,7 @@ A self-hosted installation connected to Opfield Cloud (Settings > Cloud) can use
 
 People who sign in with the Opfield account are matched like with any OIDC provider of the installation: automatic user creation, the default group and the verified-email rule in Identity provisioning apply. The provider can be edited or removed like any other. The account can replace the client's secret over the link; while you use another provider, that is refused and changes nothing.
 
-When you disconnect the installation from Opfield Cloud, or the account disconnects it, Opfield forgets the client and removes the "Opfield account" provider (OIDC sign-in turns off). If no other administrator could sign in then, the provider stays, the audit log entry `cloud.managed_sso` (provider_kept) and the OIDC provider panel say so; give an administrator another sign-in method, then remove the provider.
+When you disconnect the installation from Opfield Cloud, the account disconnects it, or you connect it to another account (**Switch account**), Opfield forgets the client and removes the "Opfield account" provider (OIDC sign-in turns off). If no other administrator could sign in then, the provider stays and keeps signing in, but no longer as the cloud's client; the audit log entry `cloud.managed_sso` (provider_kept) and the OIDC provider panel say so. Give an administrator another sign-in method, then remove the provider, or choose **Use Opfield account** to ask the new account for a client. A request still waiting is dropped on Switch account. Connecting again to the same account keeps the sign-in.
 
 ## Native HTTPS And Reverse Proxies
 

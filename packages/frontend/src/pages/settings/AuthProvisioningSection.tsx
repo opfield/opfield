@@ -771,8 +771,8 @@ export function AuthProvisioningSection({
             <IdentityTrustHint />
           ) : waitingForOpfieldAccount ? (
             "Waiting for your Opfield account… Sign-in with it is set up as soon as it answers"
-          ) : opfieldAccountSignIn?.detached && settings.oidc?.opfieldAccount ? (
-            "Opfield Cloud is disconnected. This Opfield account provider stays because no other administrator could sign in; give an administrator another sign-in method, then remove it"
+          ) : opfieldAccountSignIn?.detached ? (
+            "This provider is the Opfield account of a previous Opfield Cloud connection. It stays because no other administrator could sign in; give an administrator another sign-in method, then remove or replace it"
           ) : settings.oidc?.opfieldAccount ? (
             "Sign-in with the Opfield account. Client secret is stored encrypted"
           ) : settings.oidc?.configured ? (

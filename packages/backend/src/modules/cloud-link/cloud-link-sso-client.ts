@@ -8,7 +8,7 @@ import { AuthSettingsService } from '@/modules/auth/auth.settings.service.js';
 import { normalizeUrl, OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
 import { EventBusService } from '@/services/event-bus.service.js';
 import { CloudLinkService } from './cloud-link.service.js';
-import type { CloudSsoClient as CloudSsoClientInput } from './cloud-link.types.js';
+import type { CloudSignInDetachReason, CloudSsoClient as CloudSsoClientInput } from './cloud-link.types.js';
 
 const logger = createChildLogger('CloudSsoClient');
 
@@ -22,6 +22,7 @@ export interface CloudSsoClientDeps {
     | 'keepOpfieldAccountClient'
     | 'forgetOpfieldAccountClient'
     | 'removeConfig'
+    | 'markOpfieldAccountDetached'
   >;
   authSettings: Pick<AuthSettingsService, 'getConfig' | 'enableOidcSignIn' | 'updateConfig'>;
   cloud: Pick<
@@ -129,10 +130,10 @@ export class CloudSsoClient {
   }
 
   /**
-   * The cloud link ended: the kept client is forgotten and the Opfield account provider on it is removed with OIDC
+   * The cloud link ended or moved to another account: the kept client is forgotten and the Opfield account provider on it is removed with OIDC
    * sign-in turned off, unless no administrator could sign in then; the provider stays and the audit says why.
    */
-  async detach(): Promise<void> {
+  async detach(reason: CloudSignInDetachReason = 'cloud_disconnected'): Promise<void> {
     const client = await this.deps.oidcSettings.getOpfieldAccountClient();
     await this.deps.oidcSettings.forgetOpfieldAccountClient();
     if (!client) return;
@@ -144,7 +145,7 @@ export class CloudSsoClient {
       provider.issuer !== null &&
       normalizeOidcIssuer(provider.issuer) === normalizeOidcIssuer(client.issuer);
     if (!inUse) {
-      await this.deps.cloud.recordManagedSso({ step: 'client_forgotten', reason: 'cloud_disconnected' });
+      await this.deps.cloud.recordManagedSso({ step: 'client_forgotten', reason });
       this.deps.configChanged?.();
       return;
     }
@@ -160,16 +161,19 @@ export class CloudSsoClient {
       this.deps.invalidateOidc();
       await this.deps.cloud.recordManagedSso({
         step: 'provider_removed',
-        reason: 'cloud_disconnected',
+        reason,
         clientId: client.clientId,
       });
       logger.info('Removed the Opfield account sign-in provider: the cloud link ended');
     } catch (error) {
       if (!(error instanceof AppError)) throw error;
-      // LAST_ADMIN_SIGN_IN, or no sign-in method would be left: the provider stays until an admin changes sign-in.
+      // LAST_ADMIN_SIGN_IN, or no sign-in method would be left: the provider stays until an admin changes sign-in,
+      // no longer as the cloud's (no rotation, Use Opfield account asks the current account for a client).
+      await this.deps.oidcSettings.markOpfieldAccountDetached(reason);
+      this.deps.invalidateOidc();
       await this.deps.cloud.recordManagedSso({
         step: 'provider_kept',
-        reason: 'cloud_disconnected',
+        reason,
         clientId: client.clientId,
         warning:
           'The Opfield account provider stays because no administrator could sign in without it. Give an administrator another sign-in method, then remove it in Settings > Authentication.',

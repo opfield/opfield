@@ -30,7 +30,14 @@ export interface StoredOidcConfig {
   displayName?: string | null;
   /** Set on the provider the managed installation's provisioning configured (the Opfield account). */
   source?: typeof OPFIELD_ACCOUNT_OIDC_SOURCE;
+  /**
+   * Set instead of `source` on an Opfield account provider kept after the cloud link ended or moved to another
+   * account, because no administrator could sign in without it: it signs in as before, but is no longer the cloud's.
+   */
+  detachedOpfieldAccount?: OpfieldAccountDetachReason;
 }
+
+export type OpfieldAccountDetachReason = 'cloud_disconnected' | 'account_switched';
 
 export interface OidcConfigInput {
   issuer: string;
@@ -50,6 +57,7 @@ export interface OidcRuntimeConfig {
   scopes: string;
   displayName: string | null;
   opfieldAccount: boolean;
+  detachedOpfieldAccount: OpfieldAccountDetachReason | null;
 }
 
 export interface LegacyOidcEnvironment {
@@ -70,6 +78,8 @@ export interface OidcPublicConfig {
   displayName: string | null;
   /** The provider is the Opfield account the managed installation was provisioned with. */
   opfieldAccount: boolean;
+  /** An Opfield account provider kept after the cloud link ended or switched accounts (see StoredOidcConfig). */
+  detachedOpfieldAccount: OpfieldAccountDetachReason | null;
 }
 
 /** What the enrolment of a managed installation sets: the account portal's issuer and this installation's client. */
@@ -113,6 +123,7 @@ export class OidcSettingsService {
       scopes: stored.scopes,
       displayName: stored.displayName ?? null,
       opfieldAccount: stored.source === OPFIELD_ACCOUNT_OIDC_SOURCE,
+      detachedOpfieldAccount: stored.detachedOpfieldAccount ?? null,
     };
   }
 
@@ -128,6 +139,7 @@ export class OidcSettingsService {
           scopes: runtime.scopes,
           displayName: runtime.displayName,
           opfieldAccount: runtime.opfieldAccount,
+          detachedOpfieldAccount: runtime.detachedOpfieldAccount,
         }
       : {
           configured: false,
@@ -138,6 +150,7 @@ export class OidcSettingsService {
           scopes: 'openid email profile',
           displayName: null,
           opfieldAccount: false,
+          detachedOpfieldAccount: null,
         };
   }
 
@@ -279,6 +292,17 @@ export class OidcSettingsService {
   /** Whether the cloud gave this installation a client and it is kept (not only inferred from the provider). */
   async hasKeptOpfieldAccountClient(): Promise<boolean> {
     return (await this.getKeptClient()) !== null;
+  }
+
+  /**
+   * Keeps the Opfield account provider signing in as it does, but no longer as the cloud's (the cloud link ended or
+   * moved to another account while no administrator could sign in without it).
+   */
+  async markOpfieldAccountDetached(reason: OpfieldAccountDetachReason): Promise<void> {
+    const provider = await this.getStoredConfig();
+    if (!provider) return;
+    const { source: _source, ...rest } = provider;
+    await this.setStoredConfig({ ...rest, detachedOpfieldAccount: reason });
   }
 
   /** Forgets the kept Opfield account client (the cloud link ended); the provider is left as it is. */

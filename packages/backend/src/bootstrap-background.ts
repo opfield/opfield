@@ -229,9 +229,9 @@ export async function initializeBackgroundServices(): Promise<void> {
       createCloudLinkProbe(diagnosticsService, env.APP_VERSION, createCloudLinkActions())
     )
   );
-  // When the cloud link ends, the sign-in the cloud gave goes with it (see CloudSsoClient.detach).
+  // When the cloud link ends or switches accounts, the sign-in the cloud gave goes with it (see CloudSsoClient.detach).
   const cloudSsoClient = createCloudSsoClient();
-  container.resolve(CloudLinkService).setSignInDetacher(() => cloudSsoClient.detach());
+  container.resolve(CloudLinkService).setSignInDetacher((reason) => cloudSsoClient.detach(reason));
   // A managed installation enrols itself from the code its provisioning left in the app container.
   const cloudEnrollFile = new CloudLinkEnrollFile(
     container.resolve(CloudLinkService),

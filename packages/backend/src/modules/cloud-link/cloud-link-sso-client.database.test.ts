@@ -45,6 +45,8 @@ describe.skipIf(!url)('Opfield account sign-in client over the cloud link (Postg
   let oidcSettings: OidcSettingsService;
   let authSettings: AuthSettingsService;
   let ssoClient: CloudSsoClient;
+  // What the portal answers to a code (Switch account): a new agent of the account named here.
+  let enrollAnswer: Record<string, string>;
 
   const enrol = async (managed = false) => {
     await q(
@@ -88,13 +90,21 @@ describe.skipIf(!url)('Opfield account sign-in client over the cloud link (Postg
     audit.mockClear();
     await q(`delete from users where oidc_subject is null or oidc_subject not like 'system:%'`);
     await q(`delete from settings where key like 'auth:%' or key like 'cloud:%'`);
+    enrollAnswer = {
+      agentId: 'agent-0002',
+      secret: 'agent-secret-abcdefghijklmnop',
+      accountEmail: 'other@example.com',
+    };
     cloud = new CloudLinkService(
       db,
       crypto,
       { CLOUD_PORTAL_URL: 'https://account.opfield.dev', APP_VERSION: 'v2.12.1' },
       { getInstallationId: async () => 'installation-1', getInstallationName: () => 'gw' },
       null,
-      (async () => new Response('{}', { status: 200 })) as typeof fetch
+      (async (input: string | URL | Request) =>
+        String(input).endsWith('/api/cloud/enroll')
+          ? new Response(JSON.stringify({ data: enrollAnswer }), { status: 200 })
+          : new Response('{}', { status: 200 })) as typeof fetch
     );
     cloud.setAuditService({ log: audit } as never);
     oidcSettings = new OidcSettingsService(db, crypto);
@@ -106,7 +116,7 @@ describe.skipIf(!url)('Opfield account sign-in client over the cloud link (Postg
       cloud,
       invalidateOidc: () => undefined,
     });
-    cloud.setSignInDetacher(() => ssoClient.detach());
+    cloud.setSignInDetacher((reason) => ssoClient.detach(reason));
     // A self-hosted installation: one administrator signing in with a password.
     await authSettings.updateConfig({ methods: { password: true, oidc: false } });
     await db
@@ -220,7 +230,13 @@ describe.skipIf(!url)('Opfield account sign-in client over the cloud link (Postg
     });
 
     await cloud.markDisconnectedByAccount('agent-1');
-    expect(await oidcSettings.getPublicConfig()).toMatchObject({ configured: true, opfieldAccount: true });
+    // It keeps signing in, but is no longer the cloud's.
+    expect(await oidcSettings.getPublicConfig()).toMatchObject({
+      configured: true,
+      clientId: 'gw-self',
+      opfieldAccount: false,
+      detachedOpfieldAccount: 'cloud_disconnected',
+    });
     expect((await authSettings.getConfig()).methods.oidc).toBe(true);
     const kept = audit.mock.calls
       .map(([entry]) => entry.details as Record<string, unknown>)
@@ -229,6 +245,85 @@ describe.skipIf(!url)('Opfield account sign-in client over the cloud link (Postg
     expect(String(kept?.warning)).toContain('no administrator could sign in');
     // The kept cloud client is forgotten either way.
     expect(await oidcSettings.hasKeptOpfieldAccountClient()).toBe(false);
+    expect(await oidcSettings.getOpfieldAccountClient()).toBeNull();
+  });
+
+  it('drops the sign-in of the previous account on Switch account, and asks the new one afresh', async () => {
+    await cloud.requestSsoClient(REDIRECT, { userId: null });
+    await ssoClient.accept(CLIENT);
+    await cloud.requestSsoClient('https://gw2.example.com/auth/callback', { userId: null });
+
+    await cloud.connect('CLD-7K3M-Q9TX', { userId: null });
+    expect((await oidcSettings.getPublicConfig()).configured).toBe(false);
+    expect((await authSettings.getConfig()).methods).toMatchObject({ oidc: false, password: true });
+    expect(await oidcSettings.getOpfieldAccountClient()).toBeNull();
+    const removed = audit.mock.calls
+      .map(([entry]) => entry.details as Record<string, unknown>)
+      .find((details) => details.step === 'provider_removed');
+    expect(removed).toMatchObject({ reason: 'account_switched', clientId: 'gw-self' });
+    // The pending request was for the previous account: gone, and the hello of the new agent carries none.
+    expect(await cloud.helloInfo()).not.toHaveProperty('ssoClientRequest');
+    expect(await q(`select 1 from settings where key = 'cloud:sso_client_request'`)).toMatchObject({ rowCount: 0 });
+    // Use Opfield account asks the new account.
+    await cloud.requestSsoClient(REDIRECT, { userId: null });
+    await expect(ssoClient.accept({ ...CLIENT, clientId: 'gw-other' })).resolves.toEqual({
+      saved: true,
+      applied: true,
+    });
+    expect(await oidcSettings.getPublicConfig()).toMatchObject({ clientId: 'gw-other', opfieldAccount: true });
+  });
+
+  it('keeps the provider on Switch account when nobody else could sign in, no longer as the cloud client', async () => {
+    await cloud.requestSsoClient(REDIRECT, { userId: null });
+    await ssoClient.accept(CLIENT);
+    await q(`update users set is_blocked = true where email = 'ops@example.com'`);
+    await db.insert(schema.users).values({
+      email: 'ada@example.com',
+      name: 'Ada',
+      authMethod: 'oidc',
+      oidcSubject: 'account-ada',
+      oidcIssuer: ISSUER,
+      groupId: await adminGroupId(),
+    });
+
+    await cloud.connect('CLD-7K3M-Q9TX', { userId: null });
+    expect(await oidcSettings.getPublicConfig()).toMatchObject({
+      configured: true,
+      clientId: 'gw-self',
+      opfieldAccount: false,
+      detachedOpfieldAccount: 'account_switched',
+    });
+    expect((await authSettings.getConfig()).methods.oidc).toBe(true);
+    const kept = audit.mock.calls
+      .map(([entry]) => entry.details as Record<string, unknown>)
+      .find((details) => details.step === 'provider_kept');
+    expect(kept).toMatchObject({ reason: 'account_switched', errorCode: 'LAST_ADMIN_SIGN_IN' });
+    // The new account cannot rotate the previous account's client.
+    await expect(oidcSettings.rotateOpfieldAccountSecret('rotated-0009')).rejects.toMatchObject({
+      code: 'OPFIELD_ACCOUNT_PROVIDER_MISSING',
+    });
+    // Asking the new account replaces it once its client arrives, and the warning goes with it.
+    await cloud.requestSsoClient(REDIRECT, { userId: null });
+    await ssoClient.accept({ ...CLIENT, clientId: 'gw-other' });
+    expect(await oidcSettings.getPublicConfig()).toMatchObject({
+      clientId: 'gw-other',
+      opfieldAccount: true,
+      detachedOpfieldAccount: null,
+    });
+  });
+
+  it('keeps the sign-in when the same account connects again, and a managed installation cannot switch', async () => {
+    await cloud.requestSsoClient(REDIRECT, { userId: null });
+    await ssoClient.accept(CLIENT);
+    enrollAnswer = { ...enrollAnswer, accountEmail: 'ADA@example.com' };
+    await cloud.connect('CLD-7K3M-Q9TX', { userId: null });
+    expect(await oidcSettings.getPublicConfig()).toMatchObject({ clientId: 'gw-self', opfieldAccount: true });
+    expect(await oidcSettings.hasKeptOpfieldAccountClient()).toBe(true);
+
+    await enrol(true);
+    await expect(cloud.connect('CLD-7K3M-Q9TX', { userId: null })).rejects.toMatchObject({ code: 'CLOUD_MANAGED' });
+    expect(await oidcSettings.getPublicConfig()).toMatchObject({ clientId: 'gw-self', opfieldAccount: true });
+    expect(steps()).not.toContain('provider_removed');
   });
 
   it('keeps an unrequested client of a managed installation while the admin uses no Opfield account provider', async () => {
