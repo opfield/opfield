@@ -314,11 +314,18 @@ class ApiClient extends withAppsApi(
       "ai-settings",
       cache("settings:ai-config", () => this.getAIConfig())
     );
-    add(auth.hasScope("inference:providers:view"), "inference-provider-catalog", () =>
-      this.listInferenceProviderCatalog()
+    // The inference API answers 404 (INFERENCE_DISABLED) while Inference is switched off.
+    const inferenceEnabled =
+      useUIBootstrapStore.getState().snapshot?.systemConfig.features.inferenceEnabled === true;
+    add(
+      inferenceEnabled && auth.hasScope("inference:providers:view"),
+      "inference-provider-catalog",
+      () => this.listInferenceProviderCatalog()
     );
-    add(auth.hasScope("inference:providers:view"), "inference-provider-connections", () =>
-      this.listInferenceProviderConnections()
+    add(
+      inferenceEnabled && auth.hasScope("inference:providers:view"),
+      "inference-provider-connections",
+      () => this.listInferenceProviderConnections()
     );
     add(
       auth.hasScope("admin:update"),

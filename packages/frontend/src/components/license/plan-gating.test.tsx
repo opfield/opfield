@@ -228,3 +228,23 @@ describe("features without an entitlement of their own", () => {
     expect(planIncludes("disk-image-volumes")).toBe(false);
   });
 });
+
+describe("Status Page on a plan without status pages", () => {
+  it("keeps the header and shows the plan notice instead of the editor", () => {
+    setPlan("community", []);
+    render(
+      <MemoryRouter>
+        <LicenseFeatureBoundary
+          feature="status-pages"
+          capability="Status Page"
+          frame={{ kind: "page", title: "Status Page" }}
+        >
+          <p>editor</p>
+        </LicenseFeatureBoundary>
+      </MemoryRouter>
+    );
+    expect(screen.getByRole("heading", { name: "Status Page" })).toBeInTheDocument();
+    expect(screen.getByText("Available on the Personal plan and higher.")).toBeInTheDocument();
+    expect(screen.queryByText("editor")).not.toBeInTheDocument();
+  });
+});
