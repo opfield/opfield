@@ -13,15 +13,10 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
-import type { CloudConnectCodeView, CloudLinkStatusView } from "@/types";
-import { ConnectCodeCountdown } from "./ConnectCodeCountdown";
+import type { CloudLinkStatusView } from "@/types";
 
 const CACHE_KEY = "settings:cloud-link-status";
 const POLL_INTERVAL_MS = 10_000;
-/** While a connect code is shown, whether it was entered is asked this often (Gateway polls the account). */
-const CODE_POLL_INTERVAL_MS = 3_000;
-/** A connect code that ended without connecting: a new one can be requested. */
-const ENDED_CODE_STATES = new Set(["expired", "invalid", "used", "wrong_installation", "failed"]);
 /** Code alphabet of the cloud account: A–Z without I and O, digits 2–9. */
 const CODE_ALPHABET = /^[A-HJ-NP-Z2-9]{8}$/;
 
@@ -81,9 +76,8 @@ export function CloudSection({ canManage }: CloudSectionProps) {
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [savingRemoteManagement, setSavingRemoteManagement] = useState(false);
-  const [link, setLink] = useState<CloudConnectCodeView | null>(null);
-  const [startingLink, setStartingLink] = useState(false);
-  const [cancellingLink, setCancellingLink] = useState(false);
+  /** Connected and pasting a code from another account. */
+  const [switching, setSwitching] = useState(false);
 
   const applyStatus = useCallback((next: CloudLinkStatusView) => {
     const { warning: _warning, ...view } = next;
@@ -116,92 +110,28 @@ export function CloudSection({ canManage }: CloudSectionProps) {
     return () => clearInterval(timer);
   }, [linkState, loadStatus]);
 
-  // A code shown before a reload is shown again.
-  useEffect(() => {
-    if (!canManage || linkState === undefined) return;
-    let cancelled = false;
-    api
-      .getCloudLinkCode()
-      .then((view) => {
-        if (!cancelled && view.state === "pending") setLink(view);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [canManage, linkState]);
-
-  const refreshLink = useCallback(async () => {
-    try {
-      const view = await api.getCloudLinkCode();
-      if (view.state === "connected") {
-        setLink(null);
-        toast.success(
-          view.accountEmail
-            ? `Connected to ${view.accountEmail}`
-            : "Connected to your cloud account"
-        );
-        await loadStatus(true);
-        return;
-      }
-      setLink(view.state === "none" ? null : view);
-    } catch {
-      // The next poll asks again.
-    }
-  }, [loadStatus]);
-
-  const linkPending = link?.state === "pending";
-  useEffect(() => {
-    if (!linkPending) return;
-    const timer = setInterval(() => void refreshLink(), CODE_POLL_INTERVAL_MS);
-    return () => clearInterval(timer);
-  }, [linkPending, refreshLink]);
-
-  const handleStartLink = async () => {
-    setStartingLink(true);
-    try {
-      setLink(await api.startCloudLinkCode());
-    } catch (err) {
-      toastApiError(err, "Failed to get a connect code");
-    } finally {
-      setStartingLink(false);
-    }
-  };
-
-  // Entering a new code in an account ends the current connection at once, so switching is confirmed.
-  const handleSwitchAccount = async () => {
-    const ok = await confirm({
-      title: "Connect to another account",
-      description: `Get a code for another Opfield account? When it is entered there, the connection to ${
-        status?.accountEmail ?? "your cloud account"
-      } ends at once and this installation connects to the new account.`,
-      confirmLabel: "Get a code",
-      variant: "default",
-    });
-    if (ok) await handleStartLink();
-  };
-
-  const handleCancelLink = async () => {
-    setCancellingLink(true);
-    try {
-      await api.cancelCloudLinkCode();
-      setLink(null);
-    } catch (err) {
-      toastApiError(err, "Failed to cancel the connect code");
-    } finally {
-      setCancellingLink(false);
-    }
-  };
-
   const normalizedCode = normalizeCloudCode(code);
 
   const handleConnect = async () => {
     if (!normalizedCode) return;
+    // A code from another account ends the current connection at once, so switching is confirmed.
+    if (status?.state === "connected") {
+      const ok = await confirm({
+        title: "Connect to another account",
+        description: `The connection to ${
+          status.accountEmail ?? "your cloud account"
+        } ends at once and this installation connects to the account the code is from.`,
+        confirmLabel: "Connect",
+        variant: "default",
+      });
+      if (!ok) return;
+    }
     setConnecting(true);
     try {
       const updated = await api.connectCloud(normalizedCode);
       applyStatus(updated);
       setCode("");
+      setSwitching(false);
       toast.success(
         updated.accountEmail
           ? `Connected to ${updated.accountEmail}`
@@ -276,21 +206,6 @@ export function CloudSection({ canManage }: CloudSectionProps) {
   const managed = connected && status.remoteManagement?.managed === true;
   const disconnectedByAccount = status.state === "disconnected_by_account";
 
-  const linkEnded = link !== null && ENDED_CODE_STATES.has(link.state);
-  const pendingCode = linkPending && link?.code && link.expiresAt ? link : null;
-
-  const codeDisplay = pendingCode ? (
-    <div className="flex items-center gap-3">
-      <span className="font-mono text-sm font-medium" aria-label="Connect code">
-        {pendingCode.code}
-      </span>
-      <ConnectCodeCountdown expiresAt={pendingCode.expiresAt!} onExpired={refreshLink} />
-      <Button variant="outline" onClick={handleCancelLink} pending={cancellingLink}>
-        Cancel
-      </Button>
-    </div>
-  ) : null;
-
   const codeForm = canManage ? (
     <form
       className="flex items-center gap-2"
@@ -317,6 +232,18 @@ export function CloudSection({ canManage }: CloudSectionProps) {
         <Cloud className="h-4 w-4" />
         {disconnectedByAccount ? "Connect again" : "Connect"}
       </Button>
+      {switching && (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            setSwitching(false);
+            setCode("");
+          }}
+        >
+          Cancel
+        </Button>
+      )}
     </form>
   ) : null;
 
@@ -332,8 +259,8 @@ export function CloudSection({ canManage }: CloudSectionProps) {
       description={
         managed
           ? `Managed by Opfield Cloud · connected to ${status.accountEmail ?? "your cloud account"}`
-          : connected && pendingCode
-            ? "Enter this code in the other Opfield account → Installations → Add"
+          : connected && switching
+            ? "Paste the code from the other Opfield account and press Connect"
             : connected
               ? `Connected to ${status.accountEmail ?? "your cloud account"}`
               : disconnectedByAccount
@@ -343,30 +270,30 @@ export function CloudSection({ canManage }: CloudSectionProps) {
       className="xl:col-span-2"
       style={{ borderColor: "var(--color-info)" }}
       actions={
-        managed
-          ? null
-          : connected
-            ? (codeDisplay ??
-              (canManage ? (
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" onClick={handleSwitchAccount} pending={startingLink}>
-                    <Cloud className="h-4 w-4" />
-                    Switch account
-                  </Button>
-                  <Button variant="outline" onClick={handleDisconnect} pending={disconnecting}>
-                    <Unplug className="h-4 w-4" />
-                    Disconnect
-                  </Button>
-                </div>
-              ) : null))
-            : codeForm
+        managed ? null : connected ? (
+          switching ? (
+            codeForm
+          ) : canManage ? (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setSwitching(true)}>
+                <Cloud className="h-4 w-4" />
+                Switch account
+              </Button>
+              <Button variant="outline" onClick={handleDisconnect} pending={disconnecting}>
+                <Unplug className="h-4 w-4" />
+                Disconnect
+              </Button>
+            </div>
+          ) : null
+        ) : (
+          codeForm
+        )
       }
     >
-      {connected && !managed && pendingCode && (
+      {connected && !managed && switching && (
         <p className="px-4 pt-4 text-sm text-warning-text" role="status">
-          When this code is entered, the connection to{" "}
-          {pendingCode.replacesAccount ?? status.accountEmail ?? "your cloud account"} ends at once
-          and this installation connects to the account that entered it.
+          Copy the code from the installation's page in the other Opfield account. Connecting with
+          it ends the connection to {status.accountEmail ?? "your cloud account"} at once.
         </p>
       )}
 
@@ -388,12 +315,6 @@ export function CloudSection({ canManage }: CloudSectionProps) {
         </div>
       )}
 
-      {linkEnded && link?.error && (
-        <p className="px-4 pt-4 text-sm text-destructive" role="alert">
-          {link.error}
-        </p>
-      )}
-
       {disconnectedByAccount && (
         <div className="divide-y divide-border">
           <p className="p-4 text-sm text-muted-foreground">
@@ -407,38 +328,12 @@ export function CloudSection({ canManage }: CloudSectionProps) {
         </div>
       )}
 
-      {!connected && (
-        <div className="space-y-3 p-4 text-sm text-muted-foreground">
-          {!disconnectedByAccount && (
-            <p>
-              A connected Opfield keeps one outbound connection to your cloud account, so the
-              account can show this installation's state and container logs. Get the code in your
-              Opfield account under Installations → Add and paste it above.
-              {askAdministrator}
-            </p>
-          )}
-          {/* The other way round: Opfield shows a code to enter in the account. */}
-          {canManage &&
-            (pendingCode ? (
-              <div className="space-y-2">
-                <p>Or enter this code in your Opfield account → Installations → Add:</p>
-                {codeDisplay}
-              </div>
-            ) : (
-              <p>
-                No code from the account?{" "}
-                <Button
-                  variant="link"
-                  size="inline"
-                  onClick={handleStartLink}
-                  disabled={startingLink}
-                >
-                  {linkEnded ? "Get a new code here" : "Get a code here"}
-                </Button>{" "}
-                and enter it in your Opfield account under Installations → Add.
-              </p>
-            ))}
-        </div>
+      {!connected && !disconnectedByAccount && (
+        <p className="p-4 text-sm text-muted-foreground">
+          {canManage
+            ? "Copy the code from your Opfield account and paste it above."
+            : "Ask an administrator who manages the license to connect this Opfield installation."}
+        </p>
       )}
     </PanelShell>
   );

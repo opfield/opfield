@@ -38,8 +38,6 @@ const SOCKET_STATUS_TTL_SECONDS = 60;
 /** Audit actions of the cloud link; every entry has resource type `cloud-link` and the agent id as resource id. */
 export const CLOUD_AUDIT_ACTIONS = {
   connect: 'cloud.connect',
-  /** A connect code shown on this installation: requested, expired or refused (the code itself is never written). */
-  connectCode: 'cloud.connect_code',
   disconnect: 'cloud.disconnect',
   disconnectedByAccount: 'cloud.disconnected_by_account',
   enrollFile: 'cloud.enroll_file',
@@ -133,6 +131,7 @@ function readEnrollResponse(body: unknown): EnrollResponse | null {
  */
 export class CloudLinkService {
   private readonly listeners = new Set<() => void>();
+  private readonly helloListeners = new Set<() => void>();
   private localSocketStatus: (() => CloudSocketStatus | null) | null = null;
   private queue: Promise<void> = Promise.resolve();
   private auditService: Pick<AuditService, 'log'> | null = null;
@@ -158,6 +157,12 @@ export class CloudLinkService {
     return () => this.listeners.delete(listener);
   }
 
+  /** Called when what the hello reports changes on this replica (remote management turned on or off). */
+  onHelloChanged(listener: () => void): () => void {
+    this.helloListeners.add(listener);
+    return () => this.helloListeners.delete(listener);
+  }
+
   /** The socket state of this process when it holds the link; null otherwise. */
   setLocalSocketStatusReader(reader: (() => CloudSocketStatus | null) | null): void {
     this.localSocketStatus = reader;
@@ -167,7 +172,13 @@ export class CloudLinkService {
     return trimBaseUrl(this.env.CLOUD_PORTAL_URL);
   }
 
-  async helloInfo(): Promise<{ installationId: string; name: string; version: string }> {
+  /** What the socket hello tells the account: the installation and whether it may be managed remotely. */
+  async helloInfo(): Promise<{ installationId: string; name: string; version: string; remoteManagement: boolean }> {
+    return { ...(await this.identity()), remoteManagement: await this.privilegedAllowed() };
+  }
+
+  /** The installation as an enrolment names it. */
+  private async identity(): Promise<{ installationId: string; name: string; version: string }> {
     return {
       installationId: await this.licenseService.getInstallationId(),
       name: this.licenseService.getInstallationName(),
@@ -285,7 +296,7 @@ export class CloudLinkService {
     onEnrolled: (enrollment: StoredCloudEnrollment) => void
   ): Promise<void> {
     await this.serialized(async () => {
-      const hello = await this.helloInfo();
+      const hello = await this.identity();
       const { status, body } = await this.portalRequest(
         `${portalUrl}/api/cloud/enroll`,
         {
@@ -300,7 +311,7 @@ export class CloudLinkService {
     });
   }
 
-  /** Stores an enrolment answer (`/api/cloud/enroll`, or a claimed connect code): agent id, secret encrypted. */
+  /** Stores an enrolment answer (`/api/cloud/enroll`): agent id, secret encrypted. */
   private async storeEnrollment(body: unknown, portalUrl: string, managed: boolean): Promise<StoredCloudEnrollment> {
     const enrolled = readEnrollResponse(body);
     if (!enrolled) {
@@ -320,82 +331,6 @@ export class CloudLinkService {
     await this.deleteSetting(SETTINGS_KEYS.disconnect);
     logger.info('Installation connected to the cloud account', { agentId: enrollment.agentId });
     return enrollment;
-  }
-
-  /**
-   * One poll of a connect code this installation showed (Opfield account > Installations > Add): pending until the
-   * account entered it, then the enrolment, stored as a connect with a code would store it. A refusal (unknown or
-   * expired code, used, another installation's) throws a CloudLinkRequestError that is not retryable; an unreachable or
-   * failing portal throws a retryable one.
-   */
-  async claim(
-    code: string,
-    portalUrl: string,
-    actor: { userId: string | null } = { userId: null }
-  ): Promise<{ state: 'pending' } | { state: 'connected'; status: CloudLinkStatusView }> {
-    let enrolled: StoredCloudEnrollment | null = null;
-    await this.serialized(async () => {
-      if ((await this.readStored()).enrollment?.managed) throw cloudManagedLinkError();
-      const hello = await this.helloInfo();
-      const { status, body } = await this.portalRequest(
-        `${portalUrl}/api/cloud/claim`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code, ...hello }),
-        },
-        CLOUD_ENROLL_TIMEOUT_MS
-      );
-      if (status === 202) return;
-      if (status < 200 || status >= 300) throw this.claimError(status, body);
-      enrolled = await this.storeEnrollment(body, portalUrl, false);
-    });
-    const stored = enrolled as StoredCloudEnrollment | null;
-    if (!stored) return { state: 'pending' };
-    await this.writeAudit(CLOUD_AUDIT_ACTIONS.connect, actor.userId, stored.agentId, {
-      success: true,
-      source: 'connect-code',
-      portalUrl: stored.portalUrl,
-      accountEmail: stored.accountEmail || null,
-    });
-    this.notify();
-    return { state: 'connected', status: await this.getStatus() };
-  }
-
-  /** A connect code requested, refused, expired or failed; the code itself is never written. */
-  async recordConnectCode(actor: { userId: string | null }, details: Record<string, unknown>): Promise<void> {
-    await this.writeAudit(CLOUD_AUDIT_ACTIONS.connectCode, actor.userId, null, details);
-  }
-
-  private claimError(status: number, body: unknown): CloudLinkRequestError {
-    const { code, message } = portalErrorOf(body);
-    if (status === 404 || code === 'CLOUD_CLAIM_INVALID') {
-      return new CloudLinkRequestError(
-        404,
-        'CLOUD_CLAIM_INVALID',
-        'This code is not valid or has expired. Get a new code and enter it in your Opfield account.'
-      );
-    }
-    if (status === 410 || code === 'CLOUD_CLAIM_USED') {
-      return new CloudLinkRequestError(410, 'CLOUD_CLAIM_USED', 'This code was already used. Get a new code.');
-    }
-    if (status === 409 || code === 'CLOUD_CLAIM_WRONG_INSTALLATION') {
-      return new CloudLinkRequestError(
-        409,
-        'CLOUD_CLAIM_WRONG_INSTALLATION',
-        'This code belongs to another installation. Get a new code on this installation.'
-      );
-    }
-    if (status === 429) {
-      // 30 claims a minute per address and installation: the poller backs off.
-      return new CloudLinkRequestError(429, 'CLOUD_RATE_LIMITED', 'Your cloud account is busy; retrying.', true);
-    }
-    return new CloudLinkRequestError(
-      502,
-      code ?? 'CLOUD_PORTAL_ERROR',
-      message ?? `Your cloud account answered HTTP ${status}`,
-      status >= 500
-    );
   }
 
   /**
@@ -551,6 +486,8 @@ export class CloudLinkService {
         enabled,
         previous: changed.previous,
       });
+      // The open link tells the account at once; a replica holding it elsewhere notices on its next tick.
+      if (changed.previous !== enabled) this.notifyHello();
     }
     return this.getStatus();
   }
@@ -782,6 +719,16 @@ export class CloudLinkService {
 
   private notify(): void {
     for (const listener of this.listeners) {
+      try {
+        listener();
+      } catch (error) {
+        logger.warn('A cloud link listener failed', { error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  }
+
+  private notifyHello(): void {
+    for (const listener of this.helloListeners) {
       try {
         listener();
       } catch (error) {

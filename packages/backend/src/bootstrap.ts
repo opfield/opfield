@@ -77,7 +77,6 @@ import { MfaService } from '@/modules/auth/mfa.service.js';
 import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
 import { PasskeyService } from '@/modules/auth/passkey.service.js';
 import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
-import { CloudLinkConnectCode } from '@/modules/cloud-link/cloud-link-connect-code.js';
 import { ConfigurationExportService } from '@/modules/configuration-transfer/configuration-export.service.js';
 import { GatewayMoveService } from '@/modules/configuration-transfer/gateway-move.service.js';
 import { issueOwnerPasswordLink, keepRestoredOwnerLink } from '@/modules/configuration-transfer/owner-password-link.js';
@@ -408,11 +407,6 @@ export async function initializeContainer(): Promise<void> {
   container.registerInstance(
     CloudLinkService,
     new CloudLinkService(db, cryptoService, env, licenseService, cacheService)
-  );
-  // Connect started from Gateway: one code entered in the Opfield account.
-  container.registerInstance(
-    CloudLinkConnectCode,
-    new CloudLinkConnectCode(container.resolve(CloudLinkService), licenseService, cacheService)
   );
   const licensePolicyService = new LicensePolicyService(licenseService);
   container.registerInstance(LicensePolicyService, licensePolicyService);
