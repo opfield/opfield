@@ -499,6 +499,12 @@ function ProxyHostDetailGuard() {
   );
 }
 
+const STATUS_PAGE_FRAME: LicenseFeatureFrame = {
+  kind: "page",
+  title: "Status Page",
+  description: "Manage public services and incident communication",
+};
+
 const PAGES_FRAME: LicenseFeatureFrame = { kind: "page", title: "Pages" };
 
 function PagesPageGuard() {
@@ -1611,7 +1617,16 @@ function GatewayApp() {
               <Route path="/notifications/:tab?" element={<NotificationsPageGuard />} />
               <Route
                 path="/status-page/:tab?"
-                element={scoped("status-page:view", <StatusPage />)}
+                element={scoped(
+                  "status-page:view",
+                  <LicenseFeatureBoundary
+                    feature="status-pages"
+                    capability="Status Page"
+                    frame={STATUS_PAGE_FRAME}
+                  >
+                    <StatusPage />
+                  </LicenseFeatureBoundary>
+                )}
               />
               <Route path="/databases" element={<DatabasesPageGuard />} />
               <Route path="/storage" element={<StoragePageGuard />} />
