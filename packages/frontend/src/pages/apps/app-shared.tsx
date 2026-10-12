@@ -182,7 +182,7 @@ export function GroupedList<T>({
             <ResourceListSectionHeader
               label={<EnvLink appSlug={appSlug} env={group.env} />}
               count={group.rows.length}
-              className="bg-muted/40"
+              className="bg-muted/30"
             />
             <ResourceListTable columns={columns}>
               {renderRows

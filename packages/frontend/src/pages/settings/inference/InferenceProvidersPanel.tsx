@@ -485,7 +485,7 @@ export function InferenceProvidersPanel({
                   else setSelectedId(row.connection.id);
                 }}
                 rowClassName={(row) =>
-                  row.kind === "group" ? "bg-muted/40" : row.grouped ? "bg-card" : undefined
+                  row.kind === "group" ? "bg-muted/30" : row.grouped ? "bg-card" : undefined
                 }
                 rowRenderer={(props) => (
                   <ProviderTableRowRenderer {...props} disabled={reordering} sortable />
@@ -520,7 +520,7 @@ export function InferenceProvidersPanel({
               else setSelectedId(row.connection.id);
             }}
             rowClassName={(row) =>
-              row.kind === "group" ? "bg-muted/40" : row.grouped ? "bg-card" : undefined
+              row.kind === "group" ? "bg-muted/30" : row.grouped ? "bg-card" : undefined
             }
             rowRenderer={(props) => (
               <ProviderTableRowRenderer {...props} disabled={reordering} sortable={false} />
