@@ -158,6 +158,10 @@ function AdminUsersContent({
   }, [deletedUsersPresent]);
   const [restoreUser, setRestoreUser] = useState<DeletedUser | null>(null);
   const displayedRestoreUser = useRetainedDialogValue(restoreUser, restoreUser !== null);
+  const displayedPermissionsUser = useRetainedDialogValue(
+    permissionsUser,
+    permissionsUser !== null
+  );
   const [restoreGroupId, setRestoreGroupId] = useState("");
   const [restoreAdditionalGroupIds, setRestoreAdditionalGroupIds] = useState<string[]>([]);
   const [restoring, setRestoring] = useState(false);
@@ -823,7 +827,7 @@ function AdminUsersContent({
 
       <UserAdditionalPermissionsDialog
         open={permissionsUser !== null}
-        user={permissionsUser}
+        user={displayedPermissionsUser}
         onOpenChange={(open) => {
           if (!open) setPermissionsUser(null);
         }}

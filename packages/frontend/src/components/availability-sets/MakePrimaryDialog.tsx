@@ -80,6 +80,9 @@ export function MakePrimaryDialog({
   const [loss, setLoss] = useState<LossEstimate | null>(null);
   const [confirmation, setConfirmation] = useState("");
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   const [error, setError] = useState<string | null>(null);
 
   // Each opening starts from what the view says about this copy; later view refreshes do not
@@ -103,6 +106,7 @@ export function MakePrimaryDialog({
       onDone();
       onClose();
     } catch (failure) {
+      setSaving(false);
       if (failure instanceof ApiRequestError && failure.code === "AVAILABILITY_LOSSY_PROMOTION") {
         const details = (failure.details ?? {}) as {
           lossBytes?: unknown;
@@ -117,8 +121,6 @@ export function MakePrimaryDialog({
       } else if (!handleLicenseApiError(failure, AVAILABILITY_CAPABILITY)) {
         setError(failure instanceof Error ? failure.message : "Failed to switch the primary");
       }
-    } finally {
-      setSaving(false);
     }
   };
 

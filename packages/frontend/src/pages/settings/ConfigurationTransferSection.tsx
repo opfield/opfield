@@ -333,6 +333,9 @@ function MoveDialog({
 }) {
   const [address, setAddress] = useState("");
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   const normalized = normalizeMoveAddress(address);
   const sameAsCurrent =
     normalized !== null &&
@@ -359,9 +362,8 @@ function MoveDialog({
       }
       onOpenChange(false);
     } catch (error) {
-      toastApiError(error, "Failed to announce the address");
-    } finally {
       setSaving(false);
+      toastApiError(error, "Failed to announce the address");
     }
   };
 

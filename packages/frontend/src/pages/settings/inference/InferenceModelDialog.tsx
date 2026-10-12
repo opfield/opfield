@@ -80,6 +80,9 @@ export function InferenceModelDialog({
   const [accessMode, setAccessMode] = useState<"everyone" | "selected" | "disabled">("everyone");
   const [accessSubjects, setAccessSubjects] = useState<InferenceAccessSubject[]>([]);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   const initializedDraftRef = useRef<string | null>(null);
   const selected =
     options.find((option) => option.key === providerModelKey(providerId, remoteModelId)) ?? null;
@@ -157,7 +160,10 @@ export function InferenceModelDialog({
       const manualMetadata = manualMetadataForProviderModel(form, selected);
       const subscriptionMultiplier =
         selected.sourceType === "api" ? 1 : parsePositiveNumber(form.subscriptionMultiplier);
-      if (subscriptionMultiplier === null || !hasCompletePricing(pricing)) return;
+      if (subscriptionMultiplier === null || !hasCompletePricing(pricing)) {
+        setSaving(false);
+        return;
+      }
       const payload = {
         publicId: form.publicId.trim(),
         displayName: form.displayName.trim(),
@@ -195,9 +201,8 @@ export function InferenceModelDialog({
       await onSaved();
       toast.success(editing ? "Inference model updated" : "Inference model added");
     } catch (error) {
-      toastApiError(error, "Failed to save inference model");
-    } finally {
       setSaving(false);
+      toastApiError(error, "Failed to save inference model");
     }
   };
 

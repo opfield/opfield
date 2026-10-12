@@ -11,6 +11,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import { toastApiError } from "@/lib/api-error-toast";
 import type { FinalizeSetupState, FinalizeSetupStep, FinalizeSetupStepStatus } from "@/types";
@@ -135,11 +136,12 @@ export function FinalizeSetupDialog({
   const [dismissing, setDismissing] = useState(false);
   const [skipPromptShown, setSkipPromptShown] = useState(() => readSkipPromptShown(userId));
 
+  const present = useDialogPresence(open);
   useEffect(() => {
-    if (!open) {
+    if (!present) {
       setDismissing(false);
     }
-  }, [open]);
+  }, [present]);
 
   useEffect(() => {
     setSkipPromptShown(readSkipPromptShown(userId));

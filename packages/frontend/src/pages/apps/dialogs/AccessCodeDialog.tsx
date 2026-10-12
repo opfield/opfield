@@ -26,6 +26,7 @@ export function AccessCodeDialog({
 }) {
   const shown = useRetainedDialogValue(value, value !== null);
   return (
+    // close-reset-ok: false positive, `value` is the code display prop; content reads `shown`
     <Dialog
       open={value !== null}
       onOpenChange={(open) => {

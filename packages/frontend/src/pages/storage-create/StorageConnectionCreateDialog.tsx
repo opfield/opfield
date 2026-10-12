@@ -67,6 +67,9 @@ export function StorageConnectionCreateDialog({
   const [draft, setDraft] = useState<StorageConnectionDraft>(draftFromConnection(null));
   const [folderId, setFolderId] = useState("");
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   // Same destination rule as the create route: folder-scoped creators only get their folders.
   const folderChoices = useMemo(
     () =>
@@ -102,9 +105,8 @@ export function StorageConnectionCreateDialog({
       if (onCreated) onCreated(created);
       else navigate(storageRoute(created.slug, "overview"));
     } catch (error) {
-      toastApiError(error, "Failed to create storage connection");
-    } finally {
       setSaving(false);
+      toastApiError(error, "Failed to create storage connection");
     }
   };
 

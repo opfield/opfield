@@ -484,6 +484,7 @@ export function SettingsTab({
         </PanelShell>
       )}
 
+      {/* close-reset-ok: AvatarCropDialog retains the file itself */}
       <AvatarCropDialog
         title="Adjust Logo"
         file={logoFile}

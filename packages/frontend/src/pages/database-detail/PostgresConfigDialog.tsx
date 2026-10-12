@@ -45,6 +45,9 @@ export function PostgresConfigDialog({
     managed.postgresConfig?.maxConnections ?? DEFAULT_MANAGED_POSTGRES_CONFIG.maxConnections;
   const [draft, setDraft] = useState(String(savedMaxConnections));
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
@@ -74,9 +77,8 @@ export function PostgresConfigDialog({
       onOpenChange(false);
       onSaved();
     } catch (error) {
-      toastApiError(error, "Failed to update PostgreSQL configuration");
-    } finally {
       setSaving(false);
+      toastApiError(error, "Failed to update PostgreSQL configuration");
     }
   };
 

@@ -566,6 +566,7 @@ export function ManagedDatabaseCreateDialog({
       setServers("single");
       setAvailabilityDraft(EMPTY_AVAILABILITY_DRAFT);
       setStep(1);
+      setSaving(false);
       setSession((current) => current + 1);
       setProvisioning(null);
       setFolderId("");
@@ -758,6 +759,7 @@ export function ManagedDatabaseCreateDialog({
     setSaving(true);
     setProvisioning({ phase: "waiting" });
     let created: ManagedDatabase | null = null;
+    let closed = false;
     try {
       created = await api.createManagedDatabase({
         ...draft,
@@ -783,6 +785,7 @@ export function ManagedDatabaseCreateDialog({
       }
       toast.success("Managed database is ready");
       setProvisioning(null);
+      closed = true;
       onOpenChange(false);
       if (onCreated) {
         onCreated(created.databaseConnectionId);
@@ -803,7 +806,7 @@ export function ManagedDatabaseCreateDialog({
         if (!handleLicenseApiError(error, "Managed databases")) toast.error(message);
       }
     } finally {
-      setSaving(false);
+      if (!closed) setSaving(false);
     }
   };
 

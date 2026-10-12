@@ -521,6 +521,9 @@ function LoggingSchemaDialog({
   const [fieldSchema, setFieldSchema] = useState<LoggingSchema["fieldSchema"]>([]);
   const [folderId, setFolderId] = useState("");
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   const folders = useResourceFolderStore((state) => state.foldersByType["logging-schema"]);
   const foldersLoading = useResourceFolderStore((state) => state.loadingByType["logging-schema"]);
   const fetchFolders = useResourceFolderStore((state) => state.fetchFolders);
@@ -552,11 +555,10 @@ function LoggingSchemaDialog({
       });
       onOpenChange(false);
     } catch (error) {
+      setSaving(false);
       if (!handleLicenseApiError(error, "Logging schemas")) {
         toastApiError(error, "Failed to create logging schema");
       }
-    } finally {
-      setSaving(false);
     }
   };
 

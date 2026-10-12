@@ -886,6 +886,7 @@ export function Dashboard() {
               onConfigured={() => completeFinalizeSetupStep("nodes", "configured")}
               onSkipped={() => completeFinalizeSetupStep("nodes", "skipped")}
             />
+            {/* close-reset-ok: inviteUserMethods comes from bootstrap and is not cleared on close */}
             {inviteUserMethods && (
               <InviteUsersSetupWizard
                 open={activeFinalizeWizard === "invite_users"}

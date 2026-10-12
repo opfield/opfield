@@ -49,6 +49,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import { HealthBars } from "@/components/ui/health-bars";
 import { Input } from "@/components/ui/input";
@@ -447,6 +448,10 @@ export function DockerContainerDetail({
   const [configOpen, setConfigOpen] = useState(false);
   const [migrationOpen, setMigrationOpen] = useState(false);
   const [restoredMigration, setRestoredMigration] = useState<DockerMigration | null>(null);
+  const migrationPresent = useDialogPresence(migrationOpen);
+  useEffect(() => {
+    if (!migrationPresent) setRestoredMigration(null);
+  }, [migrationPresent]);
   const [renameValue, setRenameValue] = useState("");
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveImageMode, setArchiveImageMode] = useState<"portable" | "registry">("portable");
@@ -658,7 +663,6 @@ export function DockerContainerDetail({
 
   const handleMigrationOpenChange = useCallback((nextOpen: boolean) => {
     setMigrationOpen(nextOpen);
-    if (!nextOpen) setRestoredMigration(null);
   }, []);
   const navigatePreservingContext = useCallback(
     (to: string, options?: { replace?: boolean }) =>
@@ -2109,11 +2113,6 @@ export function DockerContainerDetail({
         onOpenChange={(nextOpen) => {
           if (!nextOpen && archiveExporting) return;
           setArchiveOpen(nextOpen);
-          if (!nextOpen) {
-            setArchiveIncludeEnvironment(false);
-            setArchiveIncludeSecrets(false);
-            setArchiveDevPreview(false);
-          }
         }}
       >
         <DialogContent

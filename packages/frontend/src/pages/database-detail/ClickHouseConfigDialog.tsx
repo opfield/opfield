@@ -30,6 +30,9 @@ export function ClickHouseConfigDialog({
   const savedConfig = managed.clickhouseConfigXml ?? "";
   const [configXml, setConfigXml] = useState(savedConfig);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
@@ -59,9 +62,8 @@ export function ClickHouseConfigDialog({
       onOpenChange(false);
       onSaved();
     } catch (error) {
-      toastApiError(error, "Failed to update ClickHouse configuration");
-    } finally {
       setSaving(false);
+      toastApiError(error, "Failed to update ClickHouse configuration");
     }
   };
 

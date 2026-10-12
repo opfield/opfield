@@ -68,6 +68,9 @@ export function DatabaseConnectionCreateDialog({
   const [draft, setDraft] = useState<DatabaseConnectionDraft>(draftFromConnection(null));
   const [folderId, setFolderId] = useState("");
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   // Same destination rule as the create route: folder-scoped creators only get their folders.
   const folderChoices = useMemo(
     () =>
@@ -101,9 +104,8 @@ export function DatabaseConnectionCreateDialog({
       if (onCreated) onCreated(created);
       else navigate(databaseRoute(created.slug, "overview"));
     } catch (error) {
-      toastApiError(error, "Failed to create database connection");
-    } finally {
       setSaving(false);
+      toastApiError(error, "Failed to create database connection");
     }
   };
 

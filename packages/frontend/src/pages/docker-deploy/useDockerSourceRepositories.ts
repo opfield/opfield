@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ComboboxOption } from "@/components/common/Combobox";
 import { gitScopeTruncationHint } from "@/components/common/git-scope-targets";
+import { useDialogPresence } from "@/components/ui/dialog";
 import { pickerLoadError } from "@/lib/picker-load-error";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -86,9 +87,11 @@ export function useDockerSourceRepositories(
   const [listTruncation, setListTruncation] = useState<GitScopeTargetTruncation>();
   const [search, setSearch] = useState("");
   const [searchTruncation, setSearchTruncation] = useState<GitScopeTargetTruncation>();
+  // Loaded lists stay while the dialog closes; they are dropped once it is gone.
+  const present = useDialogPresence(open);
 
   useEffect(() => {
-    if (!open) {
+    if (!present) {
       setConnectorsLoaded(false);
       return;
     }
@@ -123,13 +126,13 @@ export function useDockerSourceRepositories(
     return () => {
       cancelled = true;
     };
-  }, [open, target]);
+  }, [present, target]);
 
   useEffect(() => {
     setListTruncation(undefined);
     setSearch("");
     setRepositoriesError(null);
-    if (!open || !connectorId) {
+    if (!present || !connectorId) {
       setRepositories([]);
       setRepositoriesLoading(false);
       return;
@@ -179,13 +182,13 @@ export function useDockerSourceRepositories(
     return () => {
       cancelled = true;
     };
-  }, [connectorId, open, target]);
+  }, [connectorId, present, target]);
 
   // A cut list (a GitHub account past the listing bound) is searched on the server as the user
   // types; found repositories join the list, so a picked one stays selectable.
   const query = search.trim();
   useEffect(() => {
-    if (!open || !connectorId || !listTruncation || !query) {
+    if (!present || !connectorId || !listTruncation || !query) {
       setSearchTruncation(undefined);
       return;
     }
@@ -213,7 +216,7 @@ export function useDockerSourceRepositories(
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [connectorId, listTruncation, open, query, target]);
+  }, [connectorId, listTruncation, present, query, target]);
 
   const loadErrors: SourcePickerErrors = {
     connectors: connectorsError,
@@ -222,10 +225,10 @@ export function useDockerSourceRepositories(
   // The integration picker a repository form opens with; repositories follow the user's choice.
   return {
     connectorOptions,
-    connectorsLoading: open && !connectorsLoaded,
+    connectorsLoading: present && !connectorsLoaded,
     repositories,
     /** The selected integration's repositories are loading (no list to show yet). */
-    repositoriesLoading: open && !!connectorId && repositoriesLoading,
+    repositoriesLoading: present && !!connectorId && repositoriesLoading,
     loadErrors,
     /** "More may exist, refine the search." while the list or the current search is cut. */
     repositoriesHint: gitScopeTruncationHint(query ? searchTruncation : listTruncation),

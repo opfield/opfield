@@ -7,7 +7,13 @@ import { CopyCodeBlock } from "@/components/common/CopyCodeBlock";
 import { DownloadButton } from "@/components/common/DownloadButton";
 import { Notice } from "@/components/common/Notice";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  useDialogPresence,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
@@ -169,8 +175,9 @@ export function StorageCredentialsDialog({
   const [ca, setCa] = useState<ManagedObjectStorageCaCertificate | null>(null);
   const [caError, setCaError] = useState<string | null>(null);
 
+  const present = useDialogPresence(open);
   useEffect(() => {
-    if (!open) {
+    if (!present) {
       // Clear secrets from state as soon as the dialog closes so a stale
       // reopen can never flash a previous cluster's credentials, and a
       // fresh fetch always runs the next time the dialog is opened.
@@ -182,6 +189,7 @@ export function StorageCredentialsDialog({
       setSettled(false);
       return;
     }
+    if (!open) return;
 
     let cancelled = false;
     setLoading(true);
@@ -221,7 +229,7 @@ export function StorageCredentialsDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, managedId, tlsEnabled]);
+  }, [open, present, managedId, tlsEnabled]);
 
   const resolvedEndpoint = endpoint || `http://<node-host>:${publishedPort}`;
   const quickStart = credentials

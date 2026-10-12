@@ -63,6 +63,7 @@ export function FinalizeSetupFlow({
         onConfigured={() => completeStep("nodes", "configured")}
         onSkipped={() => completeStep("nodes", "skipped")}
       />
+      {/* close-reset-ok: inviteUserMethods comes from permissions, not cleared on close */}
       {inviteUserMethods && (
         <InviteUsersSetupWizard
           open={open && activeWizard === "invite_users"}

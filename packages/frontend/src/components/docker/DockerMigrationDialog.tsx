@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useDialogPresence } from "@/components/ui/dialog";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
 import {
@@ -104,9 +105,10 @@ export function DockerMigrationDialog({
 
   useEffect(() => () => clearTransitionTimer(), [clearTransitionTimer]);
 
+  const present = useDialogPresence(open);
   useEffect(() => {
     if (!open || initialMigration) {
-      setTargetsLoaded(false);
+      if (!present || initialMigration) setTargetsLoaded(false);
       return;
     }
     let cancelled = false;
@@ -134,8 +136,8 @@ export function DockerMigrationDialog({
     return () => {
       cancelled = true;
     };
-  }, [initialMigration, open, resource.nodeId]);
-  const loadingTargets = open && !initialMigration && !targetsLoaded;
+  }, [initialMigration, open, present, resource.nodeId]);
+  const loadingTargets = present && !initialMigration && !targetsLoaded;
 
   const loadMigration = useCallback(async (id: string) => {
     try {

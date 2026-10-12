@@ -207,7 +207,7 @@ export function HostingResourcesTab({
   // The retry target whose SSH connections have loaded; the dialog opens with them.
   const [sshLoadedFor, setSshLoadedFor] = useState<typeof retryTarget>(null);
   const sshOptionsLoading =
-    !!retryTarget && hasScope("integrations:ssh:use") && sshLoadedFor !== retryTarget;
+    !!displayedRetry && hasScope("integrations:ssh:use") && sshLoadedFor !== displayedRetry;
   useEffect(() => {
     if (!retryTarget) return;
     let cancelled = false;

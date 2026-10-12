@@ -63,6 +63,9 @@ export function UserAdditionalPermissionsDialog({
   const hasScopedAccess = useAuthStore((state) => state.hasScopedAccess);
   const { cas, fetchCAs } = useCAStore();
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   const [scopesOpen, setScopesOpen] = useState(false);
   const [nodes, setNodes] = useState<Node[]>([]);
   const [proxyHosts, setProxyHosts] = useState<ProxyHost[]>([]);
@@ -168,9 +171,8 @@ export function UserAdditionalPermissionsDialog({
       onOpenChange(false);
       toast.success("Permissions updated");
     } catch (error) {
-      toastApiError(error, "Failed to update permissions");
-    } finally {
       setSaving(false);
+      toastApiError(error, "Failed to update permissions");
     }
   };
 

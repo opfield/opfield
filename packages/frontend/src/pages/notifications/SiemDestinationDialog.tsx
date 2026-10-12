@@ -45,6 +45,9 @@ export function SiemDestinationDialog({
 }) {
   const isEdit = !!destination;
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [authType, setAuthType] = useState<SiemAuthType>("bearer");
@@ -155,6 +158,7 @@ export function SiemDestinationDialog({
       onOpenChange(false);
       onSaved();
     } catch (error) {
+      setSaving(false);
       if (error instanceof ApiRequestError && error.code === "SIEM_SECRET_REQUIRED") {
         setSecretError(error.message);
         return;
@@ -162,8 +166,6 @@ export function SiemDestinationDialog({
       if (!handleLicenseApiError(error, "SIEM destinations")) {
         toastApiError(error, "Failed to save SIEM destination");
       }
-    } finally {
-      setSaving(false);
     }
   };
 

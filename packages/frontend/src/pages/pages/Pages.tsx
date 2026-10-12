@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { nodeIconClassNames } from "@/lib/node-appearance";
@@ -122,6 +123,8 @@ export function Pages() {
   const [createFolderAction, setCreateFolderAction] = useState<(() => void) | null>(null);
   const [moveToAppProject, setMoveToAppProject] = useState<PageProject | null>(null);
   const [deployProject, setDeployProject] = useState<PageProject | null>(null);
+  const shownMoveToAppProject = useRetainedDialogValue(moveToAppProject, moveToAppProject !== null);
+  const shownDeployProject = useRetainedDialogValue(deployProject, deployProject !== null);
 
   const load = useCallback(async () => {
     const version = ++loadVersion.current;
@@ -394,19 +397,20 @@ export function Pages() {
           onOpenChange={(open) => {
             if (!open) setMoveToAppProject(null);
           }}
-          members={moveToAppProject ? [{ type: "pages", id: moveToAppProject.id }] : []}
-          resourceLabel={moveToAppProject?.name ?? "the Page Project"}
+          members={shownMoveToAppProject ? [{ type: "pages", id: shownMoveToAppProject.id }] : []}
+          resourceLabel={shownMoveToAppProject?.name ?? "the Page Project"}
           onMoved={() => void load()}
         />
       )}
-      {deployProject && (
+      {/* close-reset-ok: the retained project keeps the dialog mounted through its exit animation */}
+      {shownDeployProject && (
         <PageManualDeployDialog
-          open
+          open={deployProject !== null}
           onOpenChange={(open) => {
             if (!open) setDeployProject(null);
           }}
-          projectId={deployProject.id}
-          onUploaded={() => navigate(`/pages/${deployProject.slug}/deployments`)}
+          projectId={shownDeployProject.id}
+          onUploaded={() => navigate(`/pages/${shownDeployProject.slug}/deployments`)}
         />
       )}
       <CreatePageProjectDialog

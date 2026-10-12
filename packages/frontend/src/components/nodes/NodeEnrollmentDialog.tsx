@@ -147,6 +147,9 @@ export function NodeEnrollmentDialog({
   const [relayAddress, setRelayAddress] = useState("");
   const [relayPort, setRelayPort] = useState(String(DEFAULT_RELAY_PORT));
   const [creating, setCreating] = useState(false);
+  useEffect(() => {
+    if (open) setCreating(false);
+  }, [open]);
   const {
     open: resultOpen,
     value: result,
@@ -283,7 +286,6 @@ export function NodeEnrollmentDialog({
       if (!handleLicenseApiError(error, "Managed nodes")) {
         toastApiError(error, "Failed to create node");
       }
-    } finally {
       setCreating(false);
     }
   };

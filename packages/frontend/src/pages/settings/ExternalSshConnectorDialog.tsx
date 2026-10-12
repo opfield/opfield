@@ -14,6 +14,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
@@ -110,8 +111,9 @@ export function ExternalSshConnectorDialog({
     if (operationController.current === controller) operationController.current = null;
   };
 
+  const present = useDialogPresence(open);
   useEffect(() => {
-    if (!open) {
+    if (!present) {
       operationController.current?.abort();
       operationController.current = null;
       setSaving(null);
@@ -119,6 +121,7 @@ export function ExternalSshConnectorDialog({
       setConnectorsLoaded(false);
       return;
     }
+    if (!open) return;
     setForm(initialForm(initialHost));
     setJumpForm(initialForm());
     setJumpSelection("direct");
@@ -141,7 +144,7 @@ export function ExternalSshConnectorDialog({
         setConnectorsLoaded(true);
       });
     return () => controller.abort();
-  }, [initialHost, open]);
+  }, [initialHost, open, present]);
 
   const targetBasicsReady = Boolean(
     form.name.trim() &&
@@ -349,7 +352,9 @@ export function ExternalSshConnectorDialog({
   };
 
   const closeDialog = () => {
-    abortPendingOperation();
+    // The pending-state resets run once the dialog has finished closing.
+    operationController.current?.abort();
+    operationController.current = null;
     if (createdConnector && generatedKeyPurpose === "target") {
       onCreated(createdConnector);
       return;

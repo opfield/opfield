@@ -114,6 +114,7 @@ export function DeletedDatabaseBackupsPanel() {
       </PanelShell>
       <RestoreDialog
         run={restoreRun}
+        // close-reset-ok: RestoreDialog retains the run itself
         onOpenChange={(open) => !open && setRestoreRun(null)}
         executors={executors}
         onRestore={async (input) => {

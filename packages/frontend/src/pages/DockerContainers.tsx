@@ -58,6 +58,7 @@ import { TruncateStart } from "@/components/ui/truncate-start";
 import { useCanManageSomeFolders, useFolderAccess } from "@/hooks/use-folder-access";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { matchesDockerContainerStatus } from "@/lib/docker-container-filters";
 import { formatDisplayImageRef } from "@/lib/docker-image-ref";
@@ -219,11 +220,20 @@ export function DockerContainers({
   const [createFolderParentId, setCreateFolderParentId] = useState<string | null>(null);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [moveFolderId, setMoveFolderId] = useState<string | null>(null);
+  const shownMoveFolderId = useRetainedDialogValue(moveFolderId, moveFolderId !== null);
   const [moveDialogContainer, setMoveDialogContainer] = useState<DockerContainerListItem | null>(
     null
   );
+  const shownMoveDialogContainer = useRetainedDialogValue(
+    moveDialogContainer,
+    moveDialogContainer !== null
+  );
   const [moveToAppContainer, setMoveToAppContainer] = useState<DockerContainerListItem | null>(
     null
+  );
+  const shownMoveToAppContainer = useRetainedDialogValue(
+    moveToAppContainer,
+    moveToAppContainer !== null
   );
   const isMobile = useIsMobile();
   const [activeDrag, setActiveDrag] = useState<DragEndEvent["active"] | null>(null);
@@ -602,7 +612,6 @@ export function DockerContainers({
       await createFolder(name, createFolderParentId ?? rootFolderId ?? undefined);
       toast.success("Folder created");
       setCreateFolderOpen(false);
-      setCreateFolderParentId(null);
     } catch (err) {
       toastApiError(err, "Failed to create folder");
     }
@@ -1281,9 +1290,11 @@ export function DockerContainers({
           onOpenChange={(open) => {
             if (!open) setMoveToAppContainer(null);
           }}
-          members={moveToAppContainer ? [containerAppMember(moveToAppContainer)] : []}
+          members={shownMoveToAppContainer ? [containerAppMember(shownMoveToAppContainer)] : []}
           resourceLabel={
-            moveToAppContainer ? containerDisplayName(moveToAppContainer.name) : "the container"
+            shownMoveToAppContainer
+              ? containerDisplayName(shownMoveToAppContainer.name)
+              : "the container"
           }
           onMoved={() => void refreshData(true)}
         />
@@ -1295,7 +1306,7 @@ export function DockerContainers({
           if (!open) setMoveDialogContainer(null);
         }}
         folders={folders}
-        currentFolderId={moveDialogContainer?.folderId ?? null}
+        currentFolderId={shownMoveDialogContainer?.folderId ?? null}
         // Same destination rule as POST /docker/folders/move-containers: container edit access on the
         // destination folder, or on the node (broadly) for the root.
         canMoveTo={(folderId) =>
@@ -1303,11 +1314,11 @@ export function DockerContainers({
             user?.scopes ?? [],
             "docker:containers:edit",
             folderId,
-            moveDialogContainer?._nodeId
+            shownMoveDialogContainer?._nodeId
           ) && canManageFolderAt(folderId)
         }
         onMove={(folderId) => {
-          if (moveDialogContainer) void moveContainer(moveDialogContainer, folderId);
+          if (shownMoveDialogContainer) void moveContainer(shownMoveDialogContainer, folderId);
         }}
       />
 
@@ -1325,25 +1336,23 @@ export function DockerContainers({
             : { id: null, label: "Top level" }
         }
         currentFolderId={
-          (moveFolderId ? findFolderTreeNode(folders, moveFolderId)?.parentId : null) ?? null
+          (shownMoveFolderId ? findFolderTreeNode(folders, shownMoveFolderId)?.parentId : null) ??
+          null
         }
         canMoveTo={(parentId) =>
-          !!moveFolderId &&
-          canMoveFolderInto(generalFolders, moveFolderId, parentId) &&
+          !!shownMoveFolderId &&
+          canMoveFolderInto(generalFolders, shownMoveFolderId, parentId) &&
           canManageFolderAt(parentId) &&
           !(parentId && findFolderTreeNode(generalFolders, parentId)?.isSystem)
         }
         onMove={(parentId) => {
-          if (moveFolderId) void handleMoveFolder(moveFolderId, parentId);
+          if (shownMoveFolderId) void handleMoveFolder(shownMoveFolderId, parentId);
         }}
       />
 
       <FolderCreateDialog
         open={createFolderOpen}
-        onOpenChange={(open) => {
-          setCreateFolderOpen(open);
-          if (!open) setCreateFolderParentId(null);
-        }}
+        onOpenChange={setCreateFolderOpen}
         title={createFolderParentId ? "Create Subfolder" : "Create Folder"}
         description={
           createFolderParentId

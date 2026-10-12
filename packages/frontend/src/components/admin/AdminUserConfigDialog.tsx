@@ -9,7 +9,13 @@ import { useContentLoading } from "@/components/common/reveal-gate";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  useDialogPresence,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -72,6 +78,17 @@ export function AdminUserConfigDialog({
   const [passwordLinkCoolingDown, setPasswordLinkCoolingDown] = useState(false);
   const nameSavedTimer = useRef<number | null>(null);
   const passwordLinkCooldownTimer = useRef<number | null>(null);
+
+  const present = useDialogPresence(open);
+  useEffect(() => {
+    if (present) return;
+    setSessionsDialogOpen(false);
+    setPasswordLinkCoolingDown(false);
+    if (passwordLinkCooldownTimer.current !== null) {
+      window.clearTimeout(passwordLinkCooldownTimer.current);
+      passwordLinkCooldownTimer.current = null;
+    }
+  }, [present]);
 
   useEffect(
     () => () => {
@@ -262,14 +279,6 @@ export function AdminUserConfigDialog({
       <Dialog
         open={open}
         onOpenChange={(nextOpen) => {
-          if (!nextOpen) {
-            setSessionsDialogOpen(false);
-            setPasswordLinkCoolingDown(false);
-            if (passwordLinkCooldownTimer.current !== null) {
-              window.clearTimeout(passwordLinkCooldownTimer.current);
-              passwordLinkCooldownTimer.current = null;
-            }
-          }
           onOpenChange(nextOpen);
         }}
       >

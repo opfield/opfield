@@ -13,6 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { nodeRoute } from "@/lib/resource-routes";
 import { api } from "@/services/api";
 import type { AppAllowedNodes, AppDetail, AppEnvironmentDetail } from "@/types";
@@ -29,6 +30,7 @@ export function NodesTab({ app, version }: { app: AppDetail; version: number }) 
   const { nodes, byId: nodesById } = useNodeIndex(version);
   const [localVersion, setLocalVersion] = useState(0);
   const [allowEnv, setAllowEnv] = useState<AppEnvironmentDetail | null>(null);
+  const shownAllowEnv = useRetainedDialogValue(allowEnv, allowEnv !== null);
   const usage = useAppLoad(`nodes:${app.id}`, version + localVersion, async () => {
     const entries = await Promise.all(
       app.environments.map(async (env) => {
@@ -110,12 +112,13 @@ export function NodesTab({ app, version }: { app: AppDetail; version: number }) 
           />
         )}
       </PanelShell>
-      {allowEnv && (
+      {/* close-reset-ok: kept mounted through shownAllowEnv, open follows allowEnv */}
+      {shownAllowEnv && (
         <AllowNodeDialog
           app={app}
-          env={allowEnv}
+          env={shownAllowEnv}
           nodes={nodes}
-          open
+          open={allowEnv !== null}
           onOpenChange={(open) => {
             if (!open) setAllowEnv(null);
           }}

@@ -575,7 +575,8 @@ export function DockerGitSourcePanel({
     );
     setVariablesTextOpen(false);
   };
-  const variablesTextErrorLines = variablesTextOpen ? envTextErrorLines(variablesText) : [];
+  const variablesTextPresent = useDialogPresence(variablesTextOpen);
+  const variablesTextErrorLines = variablesTextPresent ? envTextErrorLines(variablesText) : [];
 
   const removeBuildVariable = (name: string) => {
     const next = { ...settings.buildVariables };

@@ -47,6 +47,9 @@ export function ConvertDialog({
     pending: false,
   });
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -71,11 +74,10 @@ export function ConvertDialog({
       onDone();
       onOpenChange(false);
     } catch (error) {
+      setSaving(false);
       if (!handleLicenseApiError(error, AVAILABILITY_CAPABILITY)) {
         toastApiError(error, "Failed to turn on availability");
       }
-    } finally {
-      setSaving(false);
     }
   };
 

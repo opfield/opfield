@@ -56,7 +56,6 @@ export function AppNameDialog({
       onOpenChange(false);
     } catch {
       // The caller reported the error; the form stays open for a retry.
-    } finally {
       setSubmitting(false);
     }
   };

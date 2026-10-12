@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useDialogPresence } from "@/components/ui/dialog";
 import { canonicalizeScopeSelection } from "@/lib/scope-utils";
 import { type AccessCatalog, useAccessCatalog } from "./access-catalog";
 import {
@@ -83,14 +84,16 @@ export function useAccessEditor({
   const initialKey = canonicalizeScopeSelection(initialScopes).join("\n");
 
   // Parse the stored scopes once per opening, when the folders they name are known.
+  // The parsed lines stay while the dialog closes; they are dropped once it is gone.
+  const present = useDialogPresence(open);
   useEffect(() => {
-    if (!open) {
+    if (!present) {
       setLines(null);
       return;
     }
     if (!ready) return;
     setLines((current) => current ?? scopesToLines(initialKey ? initialKey.split("\n") : [], ctx));
-  }, [open, ready, ctx, initialKey]);
+  }, [present, ready, ctx, initialKey]);
 
   const ownLines = useMemo(() => lines ?? [], [lines]);
   const scopes = useMemo(() => {

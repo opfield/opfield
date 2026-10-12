@@ -11,6 +11,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
@@ -41,12 +42,15 @@ export function MoveToValkeyDialog({
   const [moving, setMoving] = useState(false);
   const check = useRetainedDialogValue(loadedCheck, open);
 
+  const present = useDialogPresence(open);
+
   useEffect(() => {
-    if (!open) {
+    if (!present) {
       setLoadedCheck(null);
       setAcceptPendingStreamLoss(false);
       return;
     }
+    if (!open) return;
     let cancelled = false;
     api
       .getManagedDatabaseMoveToValkeyCheck(managedDatabaseId)
@@ -61,7 +65,7 @@ export function MoveToValkeyDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, managedDatabaseId, onOpenChange]);
+  }, [present, open, managedDatabaseId, onOpenChange]);
 
   const blocked = (check?.blockers.length ?? 0) > 0;
   const hasPendingStreamEntries = (check?.pendingStreamEntries ?? 0) > 0;

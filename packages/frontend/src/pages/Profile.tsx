@@ -61,6 +61,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import {
   AI_APPROVAL_MODE_META,
   AI_APPROVAL_MODES,
@@ -194,6 +195,7 @@ export function Profile() {
   const [resourceListsLoading, setResourceListsLoading] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const shownAvatarFile = useRetainedDialogValue(avatarFile, avatarFile !== null);
   const [inferenceHarnessDevOpen, setInferenceHarnessDevOpen] = useState(false);
   const [inferenceProfileDevPreview, setInferenceProfileDevPreview] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -432,7 +434,7 @@ export function Profile() {
               </PanelShell>
 
               <AvatarCropDialog
-                file={avatarFile}
+                file={shownAvatarFile}
                 open={avatarFile !== null}
                 uploading={avatarUploading}
                 onOpenChange={(open) => {
@@ -863,7 +865,6 @@ function LocalAccountSecurityPanel() {
     const retry = pendingStepUpAction.current;
     pendingStepUpAction.current = null;
     setStepUpOpen(false);
-    setStepUpCode("");
     if (retry) await retry();
   };
 

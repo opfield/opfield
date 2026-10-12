@@ -2,6 +2,7 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { Button } from "@/components/ui/button";
+import { useDialogPresence } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SelectItemCheck, selectItemClassName } from "@/components/ui/select";
@@ -307,22 +308,21 @@ function GitScopeTargetPicker({
     };
   }, [open, provider, connector.id, query, noun]);
 
-  const onOpenChange = (next: boolean) => {
-    setOpen(next);
-    if (!next) {
-      setSearch("");
-      setResults(null);
-      setSearching(false);
-      hasResults.current = false;
-    }
-  };
+  const present = useDialogPresence(open);
+  useEffect(() => {
+    if (present) return;
+    setSearch("");
+    setResults(null);
+    setSearching(false);
+    hasResults.current = false;
+  }, [present]);
 
   const options = (results?.options ?? []).filter((option) => stateOf(option).allowed);
   const refreshing = results !== null && (searching || results.query !== query);
   const truncationHint = results?.error ? null : gitScopeTruncationHint(results?.truncated);
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           type="button"

@@ -732,6 +732,9 @@ function AdditionalRouteWizard({
 }: AdditionalRouteWizardProps) {
   const [draft, setDraft] = useState<AdditionalRouteDraft>(defaultDraft);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   const [containers, setContainers] = useState<DockerContainer[]>([]);
   // Loads started on open; true from the first open render, reset on close.
   const [containersLoading, setContainersLoading] = useState(true);
@@ -845,10 +848,9 @@ function AdditionalRouteWizard({
       toast.success(route ? "Additional route updated" : "Additional route created");
       onOpenChange(false);
     } catch (caught) {
+      setSaving(false);
       const message = caught instanceof Error ? caught.message : "Failed to save additional route";
       toast.error(message);
-    } finally {
-      setSaving(false);
     }
   };
 

@@ -968,6 +968,7 @@ function DatabaseDetailContent({
         />
       )}
 
+      {/* close-reset-ok: database is loaded page data, not cleared on close */}
       {canManageSettings && database.type === "clickhouse" && database.managed && (
         <ClickHouseConfigDialog
           database={database}
@@ -977,6 +978,7 @@ function DatabaseDetailContent({
         />
       )}
 
+      {/* close-reset-ok: database is loaded page data, not cleared on close */}
       {canMoveToValkey && database.managed && (
         <MoveToValkeyDialog
           open={moveToValkeyOpen}
@@ -986,6 +988,7 @@ function DatabaseDetailContent({
         />
       )}
 
+      {/* close-reset-ok: database is loaded page data, not cleared on close */}
       {canManageSettings && database.type === "redis" && database.managed && (
         <RedisConfigDialog
           database={database}
@@ -995,6 +998,7 @@ function DatabaseDetailContent({
         />
       )}
 
+      {/* close-reset-ok: database is loaded page data, not cleared on close */}
       {canManageSettings && database.type === "postgres" && database.managed && (
         <PostgresConfigDialog
           database={database}

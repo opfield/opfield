@@ -1157,6 +1157,9 @@ function IncidentUpdateDialog({
   const [status, setStatus] = useState<StatusPageIncidentUpdateStatus>("update");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
 
   useEffect(() => {
     if (!incident) return;
@@ -1181,9 +1184,8 @@ function IncidentUpdateDialog({
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      toastApiError(err, "Failed to post incident update");
-    } finally {
       setSaving(false);
+      toastApiError(err, "Failed to post incident update");
     }
   };
 

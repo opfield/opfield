@@ -28,7 +28,13 @@ import { DockerMigrationDialog } from "@/components/docker/DockerMigrationDialog
 import { ImageReference } from "@/components/docker/ImageReference";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  useDialogPresence,
+} from "@/components/ui/dialog";
 import { HealthBars } from "@/components/ui/health-bars";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -231,6 +237,10 @@ export function DockerDeploymentDetail({
   const [configOpen, setConfigOpen] = useState(false);
   const [migrationOpen, setMigrationOpen] = useState(false);
   const [restoredMigration, setRestoredMigration] = useState<DockerMigration | null>(null);
+  const migrationPresent = useDialogPresence(migrationOpen);
+  useEffect(() => {
+    if (!migrationPresent) setRestoredMigration(null);
+  }, [migrationPresent]);
   const { isPinnedDashboard, isPinnedSidebar, toggleDashboard, toggleSidebar, updateMeta } =
     usePinnedContainersStore();
 
@@ -337,7 +347,6 @@ export function DockerDeploymentDetail({
 
   const handleMigrationOpenChange = useCallback((nextOpen: boolean) => {
     setMigrationOpen(nextOpen);
-    if (!nextOpen) setRestoredMigration(null);
   }, []);
 
   useEffect(() => {

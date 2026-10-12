@@ -54,6 +54,7 @@ import {
 } from "@/components/ui/select";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { hasCreationDestination } from "@/lib/creation-folders";
 import { canCreateInFolder } from "@/lib/scope-utils";
@@ -138,6 +139,7 @@ export function Domains() {
     scope.startsWith("proxy:create:folder/")
   );
   const [issueCertDomain, setIssueCertDomain] = useState<Domain | null>(null);
+  const shownIssueCertDomain = useRetainedDialogValue(issueCertDomain, issueCertDomain !== null);
   const hasCloudflareIntegration = useUIBootstrapStore(
     (state) => state.snapshot?.navigation.hasCloudflareIntegration ?? false
   );
@@ -171,6 +173,10 @@ export function Domains() {
     Domain,
     "domain" | "nginxNodeId" | "ingressGroupId"
   > | null>(null);
+  const shownRouteCreateDomain = useRetainedDialogValue(
+    routeCreateDomain,
+    routeCreateDomain !== null
+  );
   const cloudflareConfigured = cloudflareReady ?? hasCloudflareIntegration;
   const creationBlockerCopy = creationBlocker
     ? DOMAIN_CREATION_BLOCKER_COPY[creationBlocker]
@@ -711,9 +717,9 @@ export function Domains() {
           onOpenChange={(open) => {
             if (!open) setIssueCertDomain(null);
           }}
-          domainName={issueCertDomain?.domain ?? null}
+          domainName={shownIssueCertDomain?.domain ?? null}
           onIssue={async (folderId) => {
-            if (issueCertDomain) await issueCertificate(issueCertDomain, folderId);
+            if (shownIssueCertDomain) await issueCertificate(shownIssueCertDomain, folderId);
           }}
         />
         <CreateProxyHostDialog
@@ -721,13 +727,13 @@ export function Domains() {
           onOpenChange={(open) => {
             if (!open) setRouteCreateDomain(null);
           }}
-          initialDomainName={routeCreateDomain?.domain}
+          initialDomainName={shownRouteCreateDomain?.domain}
           initialNodeId={
-            routeCreateDomain?.ingressGroupId
+            shownRouteCreateDomain?.ingressGroupId
               ? undefined
-              : (routeCreateDomain?.nginxNodeId ?? undefined)
+              : (shownRouteCreateDomain?.nginxNodeId ?? undefined)
           }
-          initialIngressGroupId={routeCreateDomain?.ingressGroupId ?? undefined}
+          initialIngressGroupId={shownRouteCreateDomain?.ingressGroupId ?? undefined}
           onSuccess={() => {
             setRouteCreateDomain(null);
             void loadDomains();

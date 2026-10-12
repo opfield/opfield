@@ -15,6 +15,7 @@ import {
   loadFolderFamily,
   reportScopeLoadError,
 } from "@/components/common/scope-list-helpers";
+import { useDialogPresence } from "@/components/ui/dialog";
 import { extractBaseScope } from "@/lib/scope-utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -230,8 +231,10 @@ export function useAccessCatalog(open: boolean, scopes: readonly string[]): Acce
   const scopesRef = useRef(scopes);
   scopesRef.current = scopes;
 
+  // Loaded catalogs stay while the dialog closes; they are dropped once it is gone.
+  const present = useDialogPresence(open);
   useEffect(() => {
-    if (!open) {
+    if (!present) {
       // Each opening loads current folders and resources again.
       setFolders(null);
       setApps(null);
@@ -253,7 +256,7 @@ export function useAccessCatalog(open: boolean, scopes: readonly string[]): Acce
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [present]);
 
   const loadResources = useCallback(() => {
     if (resourcesRequested.current) return;

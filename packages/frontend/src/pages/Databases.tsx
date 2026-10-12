@@ -38,6 +38,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { DATABASE_TYPE_LABELS, databaseTypeLabel } from "@/lib/database-type";
@@ -269,6 +270,10 @@ function DatabasesContent({
   );
   const [createFolderAction, setCreateFolderAction] = useState<(() => void) | null>(null);
   const [moveToAppDatabase, setMoveToAppDatabase] = useState<DatabaseConnection | null>(null);
+  const shownMoveToAppDatabase = useRetainedDialogValue(
+    moveToAppDatabase,
+    moveToAppDatabase !== null
+  );
   const openConnectionCreate = () => {
     if (requireLicenseFeature("external-database-connections", "External database connections"))
       setCreateOpen(true);
@@ -668,8 +673,10 @@ function DatabasesContent({
           onOpenChange={(open) => {
             if (!open) setMoveToAppDatabase(null);
           }}
-          members={moveToAppDatabase ? [{ type: "database", id: moveToAppDatabase.id }] : []}
-          resourceLabel={moveToAppDatabase?.name ?? "the database"}
+          members={
+            shownMoveToAppDatabase ? [{ type: "database", id: shownMoveToAppDatabase.id }] : []
+          }
+          resourceLabel={shownMoveToAppDatabase?.name ?? "the database"}
           onMoved={() => void load({ background: true })}
         />
       )}

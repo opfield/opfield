@@ -54,6 +54,9 @@ export function PageProjectSettingsDialog({
   );
   const [accessListId, setAccessListId] = useState(project.accessListId ?? "");
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
 
   // Seed the form when the dialog opens (or shows another Project) only. A
   // refreshed Project while open, e.g. after a link rotation, keeps the edits.
@@ -123,9 +126,8 @@ export function PageProjectSettingsDialog({
       onOpenChange(false);
       toast.success("Project settings saved");
     } catch (error) {
-      toastApiError(error, "Failed to save Project settings");
-    } finally {
       setSaving(false);
+      toastApiError(error, "Failed to save Project settings");
     }
   };
 

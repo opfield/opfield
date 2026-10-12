@@ -7,7 +7,7 @@ import { PanelShell } from "@/components/common/PanelShell";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { type FolderOption, flattenFolderTree } from "@/components/common/scope-list-helpers";
 import { Button } from "@/components/ui/button";
-import { DialogFooter } from "@/components/ui/dialog";
+import { DialogFooter, useDialogPresence } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -115,10 +115,11 @@ export function HostingNodeWizard({
     ssh: false,
     catalogFor: null as string | null,
   });
+  const present = useDialogPresence(open);
   useEffect(() => {
-    if (!open)
+    if (!present)
       setOptionsLoaded({ folders: false, connectors: false, ssh: false, catalogFor: null });
-  }, [open]);
+  }, [present]);
   useEffect(() => {
     if (!open || !actorId) return;
     let cancelled = false;

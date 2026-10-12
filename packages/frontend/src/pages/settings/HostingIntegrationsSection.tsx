@@ -10,6 +10,7 @@ import { useContentLoading } from "@/components/common/reveal-gate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { useScrollToNavigationTarget } from "@/hooks/use-scroll-to-navigation-target";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { toastApiError } from "@/lib/api-error-toast";
@@ -43,6 +44,7 @@ export function HostingIntegrationsSection({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingConnector, setEditingConnector] = useState<HostingConnector | null>(null);
+  const shownEditingConnector = useRetainedDialogValue(editingConnector, dialogOpen);
   const [testingId, setTestingId] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -286,7 +288,7 @@ export function HostingIntegrationsSection({
       </PanelShell>
       <HostingConnectorDialog
         open={dialogOpen}
-        connector={editingConnector}
+        connector={shownEditingConnector}
         onClose={closeDialog}
         onSaved={() => void loadConnectors()}
       />

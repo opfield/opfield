@@ -169,6 +169,9 @@ export function RedisConfigDialog({
   const savedConfig = managed.redisConfig ?? DEFAULT_MANAGED_REDIS_CONFIG;
   const [draft, setDraft] = useState<RedisConfigDraft>(() => toDraft(savedConfig));
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
@@ -198,9 +201,8 @@ export function RedisConfigDialog({
       onOpenChange(false);
       onSaved();
     } catch (error) {
-      toastApiError(error, "Failed to update key-value store configuration");
-    } finally {
       setSaving(false);
+      toastApiError(error, "Failed to update key-value store configuration");
     }
   };
 

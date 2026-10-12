@@ -1,5 +1,6 @@
 // The app page: its own resource with tabs Overview · Compute · Data · Network · Nodes · Activity ·
 // Settings (canvas `.design/canvas/apps/screens/AppPage.tsx`, section "app").
+
 import {
   Box,
   Boxes,
@@ -35,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { useUrlTab } from "@/hooks/use-url-tab";
 import { toastApiError } from "@/lib/api-error-toast";
 import { APP_TABS, type AppTab, appRoute, appsRoute } from "@/lib/app-routes";
@@ -221,6 +223,7 @@ function AppPageContent({
   const [importRequest, setImportRequest] = useState<ImportRequest | null>(null);
   const [moveEnvMember, setMoveEnvMember] = useState<MemberRef | null>(null);
   const [moveAppMember, setMoveAppMember] = useState<MemberRef | null>(null);
+  const shownMoveAppMember = useRetainedDialogValue(moveAppMember, moveAppMember !== null);
   const [newEnvOpen, setNewEnvOpen] = useState(false);
   const [accessCode, setAccessCode] = useState<AccessCodeState | null>(null);
 
@@ -406,17 +409,17 @@ function AppPageContent({
           if (!open) setMoveAppMember(null);
         }}
         members={
-          moveAppMember
+          shownMoveAppMember
             ? [
                 {
-                  type: moveAppMember.type,
-                  id: moveAppMember.id,
-                  nodeId: moveAppMember.nodeId ?? undefined,
+                  type: shownMoveAppMember.type,
+                  id: shownMoveAppMember.id,
+                  nodeId: shownMoveAppMember.nodeId ?? undefined,
                 },
               ]
             : []
         }
-        resourceLabel={moveAppMember?.name ?? ""}
+        resourceLabel={shownMoveAppMember?.name ?? ""}
         currentAppId={app.id}
         onMoved={() => void refresh()}
       />

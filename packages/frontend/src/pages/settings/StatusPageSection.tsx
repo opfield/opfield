@@ -486,6 +486,9 @@ export function ServiceDialog({
   const [group, setGroup] = useState("");
   const [enabled, setEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   // Only the first load of the picker holds the dialog; later refreshes keep
   // the known sources usable.
   const sourcesPending = sourceOptionsLoading && sources.length === 0;
@@ -572,9 +575,8 @@ export function ServiceDialog({
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      toastApiError(err, "Failed to save service");
-    } finally {
       setSaving(false);
+      toastApiError(err, "Failed to save service");
     }
   };
 
@@ -696,6 +698,9 @@ export function IncidentDialog({
   const [severity, setSeverity] = useState<StatusPageIncidentSeverity>("warning");
   const [affectedServiceIds, setAffectedServiceIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -724,9 +729,8 @@ export function IncidentDialog({
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      toastApiError(err, "Failed to save incident");
-    } finally {
       setSaving(false);
+      toastApiError(err, "Failed to save incident");
     }
   };
 

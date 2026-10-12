@@ -47,6 +47,9 @@ export function WebhookDialog({
 }) {
   const isEdit = !!webhook;
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   const [presets, setPresets] = useState<WebhookPreset[]>([]);
   // The presets are fetched on every opening, but the dialog only waits for the first list.
   const [presetsLoaded, setPresetsLoaded] = useState(false);
@@ -143,9 +146,8 @@ export function WebhookDialog({
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      toastApiError(err, "Failed");
-    } finally {
       setSaving(false);
+      toastApiError(err, "Failed");
     }
   };
 

@@ -40,6 +40,9 @@ export function AddIngressGroupMemberDialog({
   const [nodeId, setNodeId] = useState("");
   const [position, setPosition] = useState(END_POSITION);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -79,9 +82,8 @@ export function AddIngressGroupMemberDialog({
       onAdded?.(updated);
       onOpenChange(false);
     } catch (error) {
-      toastApiError(error, "Failed to add the member");
-    } finally {
       setSaving(false);
+      toastApiError(error, "Failed to add the member");
     }
   };
 

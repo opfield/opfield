@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useDialogPresence } from "@/components/ui/dialog";
 import { isInternalAvailabilityImage, isUserDockerRegistry } from "@/lib/docker-image-visibility";
 import { api } from "@/services/api";
 import type { DockerBuildAdmissionStatus, DockerRegistry, Node } from "@/types";
@@ -32,6 +33,8 @@ export function useDockerDeployData({
   sourceConnectorId,
   sourceMode,
 }: UseDockerDeployDataOptions) {
+  // Loaded lists stay while the dialog closes; they are dropped once it is gone.
+  const present = useDialogPresence(open);
   const [registries, setRegistries] = useState<DockerRegistry[]>([]);
   const [registriesLoaded, setRegistriesLoaded] = useState(false);
   const [deployLocalImages, setDeployLocalImages] = useState<string[]>([]);
@@ -47,11 +50,11 @@ export function useDockerDeployData({
     repositoriesLoading: sourceRepositoriesLoading,
     repositoriesHint: sourceRepositoriesHint,
     onRepositorySearch: onSourceRepositorySearch,
-  } = useDockerSourceRepositories(open && sourceMode === "repository", sourceConnectorId);
+  } = useDockerSourceRepositories(present && sourceMode === "repository", sourceConnectorId);
 
   const canViewRegistries = hasScope("docker:registries:view");
   useEffect(() => {
-    if (!open || !canViewRegistries) {
+    if (!present || !canViewRegistries) {
       setRegistries([]);
       setRegistriesLoaded(false);
       return;
@@ -71,10 +74,10 @@ export function useDockerDeployData({
     return () => {
       cancelled = true;
     };
-  }, [canViewRegistries, open]);
+  }, [canViewRegistries, present]);
 
   useEffect(() => {
-    if (!open || sourceMode !== "repository" || !deployNodeId) {
+    if (!present || sourceMode !== "repository" || !deployNodeId) {
       setSourceAdmission(null);
       setCheckingSourceAdmission(false);
       return;
@@ -102,7 +105,7 @@ export function useDockerDeployData({
     return () => {
       cancelled = true;
     };
-  }, [deployNodeId, open, sourceMode]);
+  }, [deployNodeId, present, sourceMode]);
 
   useEffect(() => {
     if (!deployNodeId) {
@@ -164,7 +167,7 @@ export function useDockerDeployData({
   // Options the dialog's first render depends on. Pullable images from other nodes stay a background
   // suggestion list: it fans out to every node and only adds entries to the image picker.
   const initialLoading =
-    open &&
+    present &&
     ((canViewRegistries && !registriesLoaded) ||
       (!!deployNodeId && localImagesNodeId !== deployNodeId));
 

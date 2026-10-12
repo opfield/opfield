@@ -81,6 +81,112 @@ function hasSizeException(source, node) {
   return SIZE_EXCEPTION_RE.test(above);
 }
 
+// --- dialog close retention (a closing dialog keeps its content for the exit animation) ---
+const CLOSE_OK_RE = /close-reset-ok:\s*\S/;
+const OVERLAY_TAG_RE = /^(?:Dialog|AlertDialog|Sheet|Drawer|CommandDialog|[A-Z]\w*(?:Dialog|Sheet|Drawer|Wizard))$/;
+const OPEN_NAME_RE = /^(?:open|isOpen|\w*Open)$/;
+const RESET_CALL_RE = /^(?:set[A-Z]\w*|reset\w*|clear\w*)$/;
+
+function hasCloseOk(source, node) {
+  const { line } = source.getLineAndCharacterOfPosition(node.getStart(source));
+  const lines = source.text.split("\n");
+  for (let index = line - 1; index >= Math.max(0, line - 3); index -= 1) {
+    if (CLOSE_OK_RE.test(lines[index] ?? "")) return true;
+  }
+  return false;
+}
+
+function unwrap(node) {
+  let current = node;
+  while (current && (ts.isParenthesizedExpression(current) || ts.isNonNullExpression(current))) {
+    current = current.expression;
+  }
+  return current;
+}
+
+/** Name tested by `!name` / `name === false`, or undefined. */
+function negatedName(condition) {
+  const expression = unwrap(condition);
+  if (ts.isPrefixUnaryExpression(expression) && expression.operator === ts.SyntaxKind.ExclamationToken) {
+    const operand = unwrap(expression.operand);
+    if (ts.isIdentifier(operand)) return operand.text;
+  }
+  if (
+    ts.isBinaryExpression(expression) &&
+    expression.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken &&
+    expression.right.kind === ts.SyntaxKind.FalseKeyword &&
+    ts.isIdentifier(expression.left)
+  ) {
+    return expression.left.text;
+  }
+  return undefined;
+}
+
+/** Reset-like calls (setX(...), resetX(), form.reset()) inside a statement. */
+function resetCalls(node) {
+  const calls = [];
+  const visit = (current) => {
+    if (ts.isFunctionLike(current) && current !== node) return;
+    if (ts.isCallExpression(current)) {
+      const callee = current.expression;
+      if (ts.isIdentifier(callee) && RESET_CALL_RE.test(callee.text)) calls.push(callee.text);
+      if (ts.isPropertyAccessExpression(callee) && /^reset/.test(callee.name.text)) {
+        calls.push(callee.getText());
+      }
+    }
+    ts.forEachChild(current, visit);
+  };
+  visit(node);
+  return calls;
+}
+
+/** setFoo -> foo */
+function stateOfSetter(setter) {
+  return setter.startsWith("set") ? setter.charAt(3).toLowerCase() + setter.slice(4) : undefined;
+}
+
+function identifiersIn(node) {
+  const names = new Set();
+  const visit = (current) => {
+    if (ts.isIdentifier(current)) names.add(current.text);
+    ts.forEachChild(current, visit);
+  };
+  if (node) visit(node);
+  return names;
+}
+
+/** The payload an `open` expression tests: `x !== null`, `!!x`, `Boolean(x)`, `x != null`, `x !== undefined`. */
+function openPayload(expression) {
+  const node = unwrap(expression);
+  if (!node) return undefined;
+  if (ts.isBinaryExpression(node)) {
+    const kind = node.operatorToken.kind;
+    const nullish =
+      node.right.kind === ts.SyntaxKind.NullKeyword ||
+      (ts.isIdentifier(node.right) && node.right.text === "undefined");
+    if (
+      nullish &&
+      (kind === ts.SyntaxKind.ExclamationEqualsEqualsToken || kind === ts.SyntaxKind.ExclamationEqualsToken)
+    ) {
+      return unwrap(node.left).getText();
+    }
+  }
+  if (ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.ExclamationToken) {
+    const inner = unwrap(node.operand);
+    if (ts.isPrefixUnaryExpression(inner) && inner.operator === ts.SyntaxKind.ExclamationToken) {
+      return unwrap(inner.operand).getText();
+    }
+  }
+  if (ts.isCallExpression(node) && node.expression.getText() === "Boolean" && node.arguments.length === 1) {
+    return unwrap(node.arguments[0]).getText();
+  }
+  return undefined;
+}
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function meaningfulChildren(element) {
   return element.children.filter((child) => !ts.isJsxText(child) || child.getText().trim() !== "");
 }
@@ -302,6 +408,150 @@ export const RULES = [
         ts.forEachChild(current, visit);
       };
       for (const child of node.children) visit(child);
+    },
+  },
+  {
+    id: "dialog-close-keeps-content",
+    source: "owner request 2026-10-12 (dialogs jump while closing)",
+    description:
+      "A closing dialog keeps its content for the exit animation: no state resets when open turns false (reset on open or after useDialogPresence ends), no payload read straight from state the close clears (useRetainedDialogValue), no `{x && <Dialog>}` mounts. Exceptions need `// close-reset-ok: <reason>` above.",
+    visit(node, report, source) {
+      // 1. onOpenChange={(open) => { if (!open) resetSomething() }} on an overlay.
+      if (ts.isJsxAttribute(node) && node.name.getText() === "onOpenChange") {
+        const opening = node.parent.parent;
+        const handler = unwrap(node.initializer?.expression);
+        if (!handler || !(ts.isArrowFunction(handler) || ts.isFunctionExpression(handler))) return;
+        const parameter = handler.parameters[0]?.name;
+        if (!parameter || !ts.isIdentifier(parameter)) return;
+        const openNames = identifiersIn(attribute(opening, "open")?.initializer);
+        const visit = (current) => {
+          const guarded =
+            (ts.isIfStatement(current) && negatedName(current.expression) === parameter.text
+              ? current.thenStatement
+              : undefined) ??
+            (ts.isBinaryExpression(current) &&
+            current.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken &&
+            negatedName(current.left) === parameter.text
+              ? current.right
+              : undefined);
+          if (guarded) {
+            const offending = resetCalls(guarded).filter((call) => {
+              const state = stateOfSetter(call);
+              return !(state && openNames.has(state));
+            });
+            if (offending.length > 0 && !hasCloseOk(source, current)) {
+              report(
+                current,
+                `resets ${offending.join(", ")} while the dialog is closing; reset on open or after useDialogPresence ends`
+              );
+            }
+          }
+          ts.forEachChild(current, visit);
+        };
+        visit(handler.body);
+        return;
+      }
+      // 1b. A named open-change handler: function handleOpenChange(next) { if (!next) reset() }.
+      const handlerName =
+        (ts.isFunctionDeclaration(node) && node.name?.text) ||
+        ((ts.isArrowFunction(node) || ts.isFunctionExpression(node)) &&
+          ts.isVariableDeclaration(node.parent) &&
+          ts.isIdentifier(node.parent.name) &&
+          node.parent.name.text);
+      if (handlerName && /OpenChange$/.test(handlerName)) {
+        const parameter = node.parameters[0]?.name;
+        if (!parameter || !ts.isIdentifier(parameter) || !node.body) return;
+        const visit = (current) => {
+          if (ts.isFunctionLike(current) && current !== node) return;
+          if (ts.isIfStatement(current) && negatedName(current.expression) === parameter.text) {
+            const offending = resetCalls(current.thenStatement).filter(
+              (call) => !/Open$/.test(call)
+            );
+            if (offending.length > 0 && !hasCloseOk(source, current)) {
+              report(
+                current,
+                `resets ${offending.join(", ")} while the dialog is closing; reset on open or after useDialogPresence ends`
+              );
+            }
+          }
+          ts.forEachChild(current, visit);
+        };
+        visit(node.body);
+        return;
+      }
+      // 2. useEffect(() => { if (!open) resetSomething() }, [open]).
+      if (ts.isCallExpression(node) && /^(?:React\.)?use(?:Layout)?Effect$/.test(node.expression.getText())) {
+        const effect = unwrap(node.arguments[0]);
+        if (!effect || !(ts.isArrowFunction(effect) || ts.isFunctionExpression(effect))) return;
+        const visit = (current) => {
+          if (ts.isFunctionLike(current) && current !== effect) return;
+          if (ts.isIfStatement(current)) {
+            const name = negatedName(current.expression);
+            if (name && OPEN_NAME_RE.test(name)) {
+              const offending = resetCalls(current.thenStatement);
+              if (offending.length > 0 && !hasCloseOk(source, current)) {
+                report(
+                  current,
+                  `resets ${offending.join(", ")} as soon as ${name} turns false; gate on useDialogPresence(${name}) instead`
+                );
+              }
+            }
+          }
+          ts.forEachChild(current, visit);
+        };
+        visit(effect.body);
+        return;
+      }
+      // 3. {payload && <SomeDialog payload={payload} />} unmounts the dialog without its exit animation.
+      if (
+        ts.isBinaryExpression(node) &&
+        node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken &&
+        ts.isJsxExpression(node.parent)
+      ) {
+        const element = unwrap(node.right);
+        const opening = element && openingOf(element);
+        if (!opening || !OVERLAY_TAG_RE.test(tagName(opening))) return;
+        const guard = identifiersIn(node.left);
+        // A guard the open state does not follow (a permission, loaded page data) does not unmount on close.
+        const openAttribute = attribute(opening, "open");
+        if (openAttribute?.initializer) {
+          const openNames = identifiersIn(openAttribute.initializer);
+          if (![...guard].some((name) => openNames.has(name))) return;
+        }
+        const used = identifiersIn(opening.attributes);
+        const shared = [...guard].filter((name) => used.has(name) && !/^(?:true|false|null|undefined)$/.test(name));
+        if (shared.length > 0 && !hasCloseOk(source, node)) {
+          report(
+            node,
+            `mounts ${tagName(opening)} only while ${shared.join(", ")} is set, so it vanishes without its exit animation; keep it mounted and retain the value with useRetainedDialogValue`
+          );
+        }
+        return;
+      }
+      // 4. open={x !== null} with the content reading x directly.
+      const opening = openingOf(node);
+      if (!opening || !OVERLAY_TAG_RE.test(tagName(opening))) return;
+      const openExpression = attribute(opening, "open")?.initializer;
+      const payload = openExpression && ts.isJsxExpression(openExpression) && openPayload(openExpression.expression);
+      if (!payload || !/^[A-Za-z_$][\w$]*$/.test(payload)) return;
+      const reads = new RegExp(`(?<![\\w$.])${escapeRegExp(payload)}(?![\\w$])`);
+      const rest = [
+        ...opening.attributes.properties
+          .filter((property) => !(ts.isJsxAttribute(property) && ["open", "onOpenChange", "key"].includes(property.name.getText())))
+          .map((property) => property.getText()),
+        ...(ts.isJsxElement(node) ? node.children.map((child) => child.getText()) : []),
+      ];
+      const readsPayload = rest.some((text) =>
+        text
+          .split(/\n/)
+          .some((line) => reads.test(line.replace(new RegExp(`set\\w*\\(\\s*${escapeRegExp(payload)}`), "")))
+      );
+      if (readsPayload && !hasCloseOk(source, node)) {
+        report(
+          opening,
+          `opens on ${payload} and renders it directly; the close clears it mid-animation — read useRetainedDialogValue(${payload}, open) instead`
+        );
+      }
     },
   },
 ];

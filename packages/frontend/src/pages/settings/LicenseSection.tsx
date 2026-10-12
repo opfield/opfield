@@ -14,6 +14,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useScrollToNavigationTarget } from "@/hooks/use-scroll-to-navigation-target";
@@ -142,6 +143,10 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
   const [checking, setChecking] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [licenseKey, setLicenseKey] = useState("");
+  const dialogPresent = useDialogPresence(dialogOpen);
+  useEffect(() => {
+    if (!dialogPresent) setLicenseKey("");
+  }, [dialogPresent]);
   const [saving, setSaving] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
   // A managed cloud installation runs on its Opfield account's key: no Update license or Deactivate.
@@ -188,7 +193,6 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
       const updated = await api.activateLicense(licenseKey.trim());
       api.setCache("settings:license-status", updated);
       setStatus(updated);
-      setLicenseKey("");
       setDialogOpen(false);
       if (updated.status === "valid") {
         toast.success(

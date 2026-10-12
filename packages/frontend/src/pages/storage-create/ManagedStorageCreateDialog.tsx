@@ -443,6 +443,8 @@ export function ManagedStorageCreateDialog({
       setStep(1);
       setSession((current) => current + 1);
       setProvisioning(null);
+      setSaving(false);
+      setRetrying(false);
       if (!appContext) void fetchFolders("storage");
     }
     wasOpen.current = open;
@@ -602,6 +604,8 @@ export function ManagedStorageCreateDialog({
     setSaving(true);
     setProvisioning({ phase: "waiting" });
     let created: ManagedObjectStorage | null = null;
+    // Once the dialog is closing, the busy state stays until the next opening resets it.
+    let closing = false;
     try {
       created = await api.createManagedObjectStorage({
         ...draft,
@@ -617,6 +621,7 @@ export function ManagedStorageCreateDialog({
       const provisioned = await waitForManagedObjectStorageReady(created.id);
       if (provisioned.status !== "ready" || !provisioned.objectStorageConnectionId) {
         onCreated?.(provisioned.id);
+        closing = true;
         showProvisioningError({
           managedStorageId: provisioned.id,
           error: provisioned.lastError ?? "Managed storage provisioning failed",
@@ -624,6 +629,7 @@ export function ManagedStorageCreateDialog({
         return;
       }
       toast.success("Managed storage is ready");
+      closing = true;
       onOpenChange(false);
       setProvisioning(null);
       if (onCreated) {
@@ -635,19 +641,21 @@ export function ManagedStorageCreateDialog({
       const message = error instanceof Error ? error.message : "Failed to create managed storage";
       if (created) {
         onCreated?.(created.id);
+        closing = true;
         showProvisioningError({ managedStorageId: created.id, error: message });
       } else {
         setProvisioning(null);
         if (!handleLicenseApiError(error, "Managed storage")) toast.error(message);
       }
     } finally {
-      setSaving(false);
+      if (!closing) setSaving(false);
     }
   };
 
   const retryProvisioning = async () => {
     if (!provisioningError) return;
     setRetrying(true);
+    let closing = false;
     try {
       const retried = await api.retryManagedObjectStorageProvisioning(
         provisioningError.managedStorageId
@@ -661,6 +669,7 @@ export function ManagedStorageCreateDialog({
         return;
       }
       toast.success("Managed storage is ready");
+      closing = true;
       setProvisioningError(null);
       if (onCreated) {
         onCreated(provisioned.id);
@@ -670,7 +679,7 @@ export function ManagedStorageCreateDialog({
     } catch (error) {
       toastApiError(error, "Failed to retry provisioning");
     } finally {
-      setRetrying(false);
+      if (!closing) setRetrying(false);
     }
   };
 

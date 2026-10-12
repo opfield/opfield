@@ -21,6 +21,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
@@ -151,13 +152,16 @@ export function AdditionalSecureLinkBindings({
     actionColumnCount > 0 ? ` repeat(${actionColumnCount}, 2.25rem)` : ""
   }`;
 
-  const resetDraft = () => {
-    setAdding(false);
+  const resetDraft = () => setAdding(false);
+
+  const addingPresent = useDialogPresence(adding);
+  useEffect(() => {
+    if (addingPresent) return;
     setName("");
     setSelection(EMPTY_SELECTION);
     setStorageTarget(false);
     setManagedStorageId("");
-  };
+  }, [addingPresent]);
 
   const provision = async () => {
     if (

@@ -1140,6 +1140,7 @@ export function AILiteSidebar({
           </SheetContent>
         </Sheet>
       )}
+      {/* close-reset-ok: useDeferredDialogState keeps the value until the exit animation ends */}
       {folderDialog && (
         <ConversationFolderDialog
           open={folderDialogOpen}

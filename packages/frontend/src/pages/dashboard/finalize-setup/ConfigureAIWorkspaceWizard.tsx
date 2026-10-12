@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useDialogPresence } from "@/components/ui/dialog";
 import {
   type AssistantSetupDraft,
   AssistantSetupWizard,
@@ -28,12 +29,13 @@ export function ConfigureAIWorkspaceWizard({
   const [draft, setDraft] = useState<AssistantSetupDraft>(EMPTY_ASSISTANT_SETUP_DRAFT);
   const [screen, setScreen] = useState<"workspace" | "inference">("workspace");
 
+  const present = useDialogPresence(open);
   useEffect(() => {
-    if (!open) {
+    if (!present) {
       setDraft(EMPTY_ASSISTANT_SETUP_DRAFT);
       setScreen("workspace");
     }
-  }, [open]);
+  }, [present]);
 
   return (
     <>

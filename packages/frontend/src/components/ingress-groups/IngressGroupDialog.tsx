@@ -57,6 +57,9 @@ export function IngressGroupDialog({
   const [nodes, setNodes] = useState<Node[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -105,9 +108,8 @@ export function IngressGroupDialog({
       onSaved?.(saved);
       onOpenChange(false);
     } catch (error) {
-      toastApiError(error, "Failed to save the ingress group");
-    } finally {
       setSaving(false);
+      toastApiError(error, "Failed to save the ingress group");
     }
   };
 

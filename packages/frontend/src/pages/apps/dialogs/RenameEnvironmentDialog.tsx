@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { AppDetail, AppEnvironmentDetail } from "@/types";
@@ -15,6 +16,7 @@ export function RenameEnvironmentDialog({
   onClose: () => void;
   onRenamed: (env: AppEnvironmentDetail) => void;
 }) {
+  const shownEnv = useRetainedDialogValue(env, env !== null);
   return (
     <AppNameDialog
       open={env !== null}
@@ -23,12 +25,12 @@ export function RenameEnvironmentDialog({
       }}
       title="Rename Environment"
       description="Members, variables, secrets and allowed nodes stay as they are."
-      initialName={env?.name ?? ""}
+      initialName={shownEnv?.name ?? ""}
       submitLabel="Rename"
       onSubmit={async (name) => {
-        if (!env) return;
+        if (!shownEnv) return;
         try {
-          const next = await api.updateAppEnvironment(app.id, env.id, { name });
+          const next = await api.updateAppEnvironment(app.id, shownEnv.id, { name });
           toast.success(`Environment renamed to ${next.name}`);
           onRenamed(next);
         } catch (error) {

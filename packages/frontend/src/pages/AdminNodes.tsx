@@ -36,6 +36,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -120,6 +121,10 @@ export function AdminNodes() {
   const [enrollMode, setEnrollMode] = useState<"external" | "hosting">("external");
   const [hostingUnavailable, setHostingUnavailable] = useState(false);
   const [checkingHosting, setCheckingHosting] = useState(false);
+  const choicePresent = useDialogPresence(choiceOpen);
+  useEffect(() => {
+    if (!choicePresent) setCheckingHosting(false);
+  }, [choicePresent]);
   const choiceRequest = useRef(0);
   useEffect(
     () => () => {
@@ -130,7 +135,6 @@ export function AdminNodes() {
   const closeChoice = () => {
     choiceRequest.current += 1;
     setChoiceOpen(false);
-    setCheckingHosting(false);
   };
   const chooseExternal = () => {
     closeChoice();

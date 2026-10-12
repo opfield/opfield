@@ -523,6 +523,7 @@ function StorageDetailContent({
         </DialogContent>
       </Dialog>
 
+      {/* close-reset-ok: storage is loaded page data, not cleared on close */}
       {storage.managed && (
         <StorageCredentialsDialog
           managedId={storage.managed.id}

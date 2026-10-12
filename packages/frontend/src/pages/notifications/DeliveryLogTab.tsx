@@ -14,7 +14,13 @@ import {
 } from "@/components/common/ResourceListLayout";
 import { SearchFilterBar } from "@/components/common/SearchFilterBar";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  useDialogPresence,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -77,6 +83,12 @@ export function DeliveryLogTab({
   const pageRef = useRef(0);
   const requestIdRef = useRef(0);
   const detailRequestIdRef = useRef(0);
+  const detailPresent = useDialogPresence(detailOpen);
+  useEffect(() => {
+    if (detailPresent) return;
+    setDetailLoadFailed(false);
+    setDetailLoading(false);
+  }, [detailPresent]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -342,11 +354,7 @@ export function DeliveryLogTab({
         <Dialog
           open={detailOpen}
           onOpenChange={(open) => {
-            if (!open) {
-              detailRequestIdRef.current++;
-              setDetailLoadFailed(false);
-              setDetailLoading(false);
-            }
+            if (!open) detailRequestIdRef.current++;
             onDetailOpenChange(open);
           }}
         >

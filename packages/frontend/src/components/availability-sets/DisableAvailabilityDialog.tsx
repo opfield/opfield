@@ -41,6 +41,9 @@ export function DisableAvailabilityDialog({
 }) {
   const [confirmation, setConfirmation] = useState("");
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   const primary = primaryOf(view);
   // No member holds the primary role (members that cannot take over): the admin picks the server whose data stays.
   const noHolder = view.mode === "automatic" && !!view.lease && !view.lease.holderNodeId;
@@ -65,11 +68,10 @@ export function DisableAvailabilityDialog({
       onDone();
       onOpenChange(false);
     } catch (error) {
+      setSaving(false);
       if (!handleLicenseApiError(error, AVAILABILITY_CAPABILITY)) {
         toastApiError(error, "Failed to turn off availability");
       }
-    } finally {
-      setSaving(false);
     }
   };
 

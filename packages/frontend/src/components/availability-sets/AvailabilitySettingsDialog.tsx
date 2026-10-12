@@ -53,6 +53,9 @@ export function AvailabilitySettingsDialog({
   const [priorityMode, setPriorityMode] = useState(view.priorityMode);
   const [failbackDelay, setFailbackDelay] = useState(String(view.failbackDelaySeconds));
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
 
   // Each opening starts from the saved settings.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the view is read when the dialog opens
@@ -79,11 +82,10 @@ export function AvailabilitySettingsDialog({
       onDone();
       onOpenChange(false);
     } catch (error) {
+      setSaving(false);
       if (!handleLicenseApiError(error, AVAILABILITY_CAPABILITY)) {
         toastApiError(error, "Failed to save the settings");
       }
-    } finally {
-      setSaving(false);
     }
   };
 

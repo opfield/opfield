@@ -14,6 +14,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
@@ -74,6 +75,10 @@ export function InferenceProviderConnectDialog({
   const [oauth, setOAuth] = useState<InferenceOAuthSession | null>(null);
   const [callback, setCallback] = useState("");
   const [saving, setSaving] = useState(false);
+  const present = useDialogPresence(open);
+  useEffect(() => {
+    if (!present) setSaving(false);
+  }, [present]);
   const initializedDraftRef = useRef<string | null>(null);
   const callbackAttempt = useRef(0);
   const onOpenChangeRef = useRef(onOpenChange);
@@ -204,6 +209,7 @@ export function InferenceProviderConnectDialog({
       return;
     const attempt = ++callbackAttempt.current;
     setSaving(true);
+    let completed = false;
     try {
       let session = await api.completeInferenceOAuth(oauth.id, value);
       while (session.status === "pending" && callbackAttempt.current === attempt) {
@@ -211,11 +217,14 @@ export function InferenceProviderConnectDialog({
         if (callbackAttempt.current !== attempt) return;
         session = await api.getInferenceOAuthStatus(oauth.id);
       }
-      if (callbackAttempt.current === attempt) await finish(session);
+      if (callbackAttempt.current === attempt) {
+        if (session.status === "complete") completed = true;
+        await finish(session);
+      }
     } catch (error) {
       if (callbackAttempt.current === attempt) toastApiError(error, "Authorization failed");
     } finally {
-      if (callbackAttempt.current === attempt) setSaving(false);
+      if (callbackAttempt.current === attempt && !completed) setSaving(false);
     }
   };
 
@@ -251,6 +260,7 @@ export function InferenceProviderConnectDialog({
       return;
     }
     setSaving(true);
+    let closed = false;
     try {
       if (authType === "oauth") {
         await startOAuth();
@@ -264,20 +274,20 @@ export function InferenceProviderConnectDialog({
           allowPrivateNetwork,
         });
         toast.success("Provider connected");
+        closed = true;
         onOpenChange(false);
         await onConnected();
       }
     } catch (error) {
       toastApiError(error, "Failed to connect provider");
     } finally {
-      setSaving(false);
+      if (!closed) setSaving(false);
     }
   };
 
   const close = (nextOpen: boolean) => {
     if (!nextOpen) {
       callbackAttempt.current += 1;
-      setSaving(false);
       if (oauth?.status === "pending") void api.cancelInferenceOAuth(oauth.id).catch(() => {});
     }
     onOpenChange(nextOpen);

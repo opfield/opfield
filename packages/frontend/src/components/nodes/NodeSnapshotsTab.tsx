@@ -760,6 +760,7 @@ export function NodeSnapshotsTab({
           />
         )}
       </PanelShell>
+      {/* close-reset-ok: clears the payload that drives open; content reads retained `details` */}
       <Dialog open={!!selectedSnapshot} onOpenChange={(open) => !open && setDetailsId(null)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>

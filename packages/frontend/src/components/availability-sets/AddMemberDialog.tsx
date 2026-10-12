@@ -40,6 +40,9 @@ export function AddMemberDialog({
 }) {
   const [nodeId, setNodeId] = useState("");
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   const [error, setError] = useState<string | null>(null);
   const memberNodeIds = new Set(view.members.map((member) => member.nodeId));
   const choices = nodes.filter((node) => !memberNodeIds.has(node.id));
@@ -60,11 +63,10 @@ export function AddMemberDialog({
       onDone();
       onOpenChange(false);
     } catch (failure) {
+      setSaving(false);
       if (!handleLicenseApiError(failure, AVAILABILITY_CAPABILITY)) {
         setError(failure instanceof Error ? failure.message : "Failed to add the server");
       }
-    } finally {
-      setSaving(false);
     }
   };
 

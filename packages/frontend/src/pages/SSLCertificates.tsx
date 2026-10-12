@@ -27,6 +27,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -133,6 +134,10 @@ export function SSLCertificates() {
   const [isCheckingDomains, setIsCheckingDomains] = useState(false);
   const [createDialogDevPreview, setCreateDialogDevPreview] =
     useState<SSLCertificateCreateDialogDevPreview | null>(null);
+  const createDialogPresent = useDialogPresence(createDialogOpen);
+  useEffect(() => {
+    if (!createDialogPresent) setCreateDialogDevPreview(null);
+  }, [createDialogPresent]);
   const [cloudflareReady, setCloudflareReady] = useState<boolean | null>(null);
   const isCheckingDomainsRef = useRef(false);
   const { hasScope, hasScopedAccess, user } = useAuthStore();
@@ -860,10 +865,7 @@ export function SSLCertificates() {
 
       <SSLCertificateCreateDialog
         open={createDialogOpen}
-        onOpenChange={(open) => {
-          setCreateDialogOpen(open);
-          if (!open) setCreateDialogDevPreview(null);
-        }}
+        onOpenChange={setCreateDialogOpen}
         onCreated={fetchCertificates}
         hasDomains={hasDomains}
         pkiEnabled={pkiEnabled}

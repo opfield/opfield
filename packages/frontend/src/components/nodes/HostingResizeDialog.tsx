@@ -60,14 +60,16 @@ export function HostingResizeDialog({
     },
     []
   );
+  // Each opening starts from the resource; a closing dialog keeps its form, error and busy state.
   useEffect(() => {
-    if (resource)
-      setForm({
-        size: resource.sizeId ?? "",
-        cpu: String(resource.cpu ?? ""),
-        memoryMb: String(resource.memoryMb ?? ""),
-        diskGb: String(resource.diskGb ?? ""),
-      });
+    if (!resource) return;
+    setForm({
+      size: resource.sizeId ?? "",
+      cpu: String(resource.cpu ?? ""),
+      memoryMb: String(resource.memoryMb ?? ""),
+      diskGb: String(resource.diskGb ?? ""),
+    });
+    setBusy(false);
     setError(null);
   }, [resource]);
   const sizes =
@@ -113,6 +115,7 @@ export function HostingResizeDialog({
     }
     sending.current = true;
     setBusy(true);
+    let closed = false;
     try {
       if (
         !(await confirm({
@@ -131,15 +134,17 @@ export function HostingResizeDialog({
       });
       if (!isCurrent()) return;
       onChanged?.(operation);
+      closed = true;
       onClose();
       toast.success("Resize requested");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Resize failed");
     } finally {
       sending.current = false;
-      setBusy(false);
+      if (!closed) setBusy(false);
     }
   };
+  // close-reset-ok: content reads `displayed`; the word "resource" in copy trips the heuristic
   return (
     <Dialog
       open={!!resource}
@@ -236,7 +241,7 @@ export function HostingResizeDialog({
           <Button
             pending={busy}
             disabled={
-              shrink || !resource?.incarnation || (provider !== "proxmox" && (!size || !price))
+              shrink || !displayed?.incarnation || (provider !== "proxmox" && (!size || !price))
             }
             onClick={() => void submit()}
           >

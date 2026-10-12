@@ -464,6 +464,7 @@ export function LoggingExplorer({
       />
       <LoggingEventDetailsDialog
         event={selected}
+        // close-reset-ok: the dialog retains the event through its exit animation
         onOpenChange={(open) => !open && setSelected(null)}
       />
       <LoggingQueryCheatsheet open={cheatsheetOpen} onOpenChange={setCheatsheetOpen} />

@@ -64,6 +64,9 @@ export function InferenceProviderDialog({
   const [minimumRemainingPercent, setMinimumRemainingPercent] = useState("1");
   const [apiMonthlyLimitUsd, setApiMonthlyLimitUsd] = useState("");
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   const [syncing, setSyncing] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [retainedConnection, setRetainedConnection] = useState(connection);
@@ -153,9 +156,8 @@ export function InferenceProviderDialog({
       onOpenChange(false);
       toast.success("Provider settings updated");
     } catch (error) {
-      toastApiError(error, "Failed to update provider");
-    } finally {
       setSaving(false);
+      toastApiError(error, "Failed to update provider");
     }
   };
 

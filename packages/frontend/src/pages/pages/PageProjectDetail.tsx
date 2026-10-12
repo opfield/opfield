@@ -88,6 +88,9 @@ function MigrateProjectDialog({
   const [targetNodeId, setTargetNodeId] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
 
   // A Project in an app environment moves only to the nodes that environment allows.
   const folderId = project.folderId;
@@ -115,9 +118,8 @@ function MigrateProjectDialog({
       );
       onOpenChange(false);
     } catch (error) {
-      toastApiError(error, "Failed to migrate Page Project");
-    } finally {
       setSaving(false);
+      toastApiError(error, "Failed to migrate Page Project");
     }
   };
 

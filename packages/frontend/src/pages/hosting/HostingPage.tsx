@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { NodeEnrollmentDialog } from "@/components/nodes/NodeEnrollmentDialog";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import type { HostingOperation, HostingResource } from "@/types/hosting";
 import { HostingIntegrationDetail } from "./HostingIntegrationDetail";
 
@@ -9,6 +10,7 @@ export function HostingPage() {
     connectorId: string;
     resource?: HostingResource;
   } | null>(null);
+  const shownRequest = useRetainedDialogValue(request, request !== null);
   const [acceptedOperations, setAcceptedOperations] = useState<HostingOperation[]>([]);
   const onAccepted = useCallback((operation: HostingOperation) => {
     setAcceptedOperations((current) => [
@@ -28,8 +30,8 @@ export function HostingPage() {
         open={!!request}
         initialMode="hosting"
         hosting={{
-          connectorId: request?.connectorId,
-          existingResource: request?.resource,
+          connectorId: shownRequest?.connectorId,
+          existingResource: shownRequest?.resource,
         }}
         onOpenChange={(open) => {
           if (open) return;

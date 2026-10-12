@@ -34,6 +34,9 @@ export function LoggingEnvironmentDialog({
   const [description, setDescription] = useState("");
   const [folderId, setFolderId] = useState("");
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   const folders = useResourceFolderStore((state) => state.foldersByType["logging-environment"]);
   const foldersLoading = useResourceFolderStore(
     (state) => state.loadingByType["logging-environment"]
@@ -68,11 +71,10 @@ export function LoggingEnvironmentDialog({
       });
       onOpenChange(false);
     } catch (error) {
+      setSaving(false);
       if (!handleLicenseApiError(error, "Logging environments")) {
         toastApiError(error, "Failed to create logging environment");
       }
-    } finally {
-      setSaving(false);
     }
   };
 

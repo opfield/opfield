@@ -9,6 +9,7 @@ import { ResourceListForm } from "@/components/common/ResourceListForm";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { collectFolderTreeIds, findFolderTreeNode } from "@/lib/folder-tree";
 import { applyRootFolderView, canMoveFolderInto, defaultOpenFolderId } from "./folder-view";
@@ -355,10 +356,13 @@ export function FolderedResourceListCore<TItem extends FolderedListItem, TRef>({
     }
   };
 
-  const movingFolder = moveFolderId ? findFolderTreeNode(folders, moveFolderId) : null;
+  const shownMoveFolderId = useRetainedDialogValue(moveFolderId, moveFolderId !== null);
+  const movingFolder = shownMoveFolderId ? findFolderTreeNode(folders, shownMoveFolderId) : null;
   /** Where the server accepts the folder, and where the caller manages folders. */
   const canMoveFolderTo = (parentId: string | null) =>
-    !!moveFolderId && canMoveFolderInto(folders, moveFolderId, parentId) && canManageAt(parentId);
+    !!shownMoveFolderId &&
+    canMoveFolderInto(folders, shownMoveFolderId, parentId) &&
+    canManageAt(parentId);
 
   const handleMoveFolder = async (id: string, parentId: string | null) => {
     try {
@@ -607,7 +611,7 @@ export function FolderedResourceListCore<TItem extends FolderedListItem, TRef>({
           currentFolderId={movingFolder?.parentId ?? null}
           canMoveTo={canMoveFolderTo}
           onMove={(parentId) => {
-            if (moveFolderId) void handleMoveFolder(moveFolderId, parentId);
+            if (shownMoveFolderId) void handleMoveFolder(shownMoveFolderId, parentId);
           }}
         />
       )}

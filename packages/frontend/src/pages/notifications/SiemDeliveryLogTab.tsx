@@ -23,6 +23,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -97,6 +98,10 @@ export function SiemDeliveryLogTab({
   const pageRef = useRef(0);
   const requestIdRef = useRef(0);
   const detailRequestIdRef = useRef(0);
+  const detailPresent = useDialogPresence(detailOpen);
+  useEffect(() => {
+    if (!detailPresent) setDetailLoading(false);
+  }, [detailPresent]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -411,10 +416,7 @@ export function SiemDeliveryLogTab({
         <Dialog
           open={detailOpen}
           onOpenChange={(open) => {
-            if (!open) {
-              detailRequestIdRef.current += 1;
-              setDetailLoading(false);
-            }
+            if (!open) detailRequestIdRef.current += 1;
             onDetailOpenChange(open);
           }}
         >

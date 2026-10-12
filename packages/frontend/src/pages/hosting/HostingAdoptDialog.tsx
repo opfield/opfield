@@ -33,6 +33,9 @@ export function HostingAdoptDialog({
   const [nodeId, setNodeId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (open) setBusy(false);
+  }, [open]);
   const [loading, setLoading] = useState(false);
   // Cleared when the dialog closes: every opening waits for fresh candidates.
   const [candidatesSettled, setCandidatesSettled] = useState(false);
@@ -87,13 +90,13 @@ export function HostingAdoptDialog({
       onClose();
       onAdopted();
     } catch (cause) {
+      setBusy(false);
       if (current === generation.current)
         setError(
           cause instanceof Error ? cause.message : "Could not verify this node association."
         );
     } finally {
       submitting.current = false;
-      setBusy(false);
     }
   };
   const empty = !!candidates && (!candidates.resources.length || !candidates.nodes.length);

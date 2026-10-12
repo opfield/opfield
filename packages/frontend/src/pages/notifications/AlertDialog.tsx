@@ -113,6 +113,9 @@ export function AlertDialog({
   const isEdit = !!rule;
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   const [categories, setCategories] = useState<AlertCategoryDef[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [webhooks, setWebhooks] = useState<NotificationWebhook[]>([]);
@@ -640,6 +643,7 @@ export function AlertDialog({
     try {
       if (isHostingAccountThreshold && !/^[A-Z]{3}$/.test(currency)) {
         toast.error("Enter a three-letter currency code, such as USD or EUR");
+        setSaving(false);
         return;
       }
       const data: any = {
@@ -700,9 +704,8 @@ export function AlertDialog({
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      toastApiError(err, "Failed to save");
-    } finally {
       setSaving(false);
+      toastApiError(err, "Failed to save");
     }
   };
 

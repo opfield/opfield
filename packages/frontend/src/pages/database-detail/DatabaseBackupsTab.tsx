@@ -41,6 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import {
   MANAGED_DATABASE_NAME_PATTERN,
@@ -545,6 +546,7 @@ export function DatabaseBackupsTab({
               }
             : undefined
         }
+        // close-reset-ok: RestoreDialog retains the run itself
         onOpenChange={(open) => !open && setRestoreRun(null)}
         executors={executors}
         onRestore={async (input) => {
@@ -602,6 +604,9 @@ function PolicyDialog({
   );
   const [retentionCount, setRetentionCount] = useState("7");
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
   const [limits, setLimits] = useState(defaultLimits);
   useEffect(() => {
     if (!open) return;
@@ -645,9 +650,8 @@ function PolicyDialog({
         limits,
       });
     } catch (error) {
-      toastApiError(error, "Failed to save backup policy");
-    } finally {
       setSaving(false);
+      toastApiError(error, "Failed to save backup policy");
     }
   };
   return (
@@ -888,7 +892,7 @@ function parsedRestoreResources(
 }
 
 export function RestoreDialog({
-  run,
+  run: runProp,
   sourceDatabaseName,
   sourceResources,
   onOpenChange,
@@ -913,6 +917,7 @@ export function RestoreDialog({
     >
   ) => Promise<void>;
 }) {
+  const run = useRetainedDialogValue(runProp, runProp !== null);
   const [executorNodeId, setExecutorNodeId] = useState("");
   const [resourceInputs, setResourceInputs] = useState(() =>
     restoreResourceInputs(sourceResources)
@@ -987,7 +992,10 @@ export function RestoreDialog({
     }
   };
   return (
-    <Dialog open={Boolean(run)} onOpenChange={(nextOpen) => !restoring && onOpenChange(nextOpen)}>
+    <Dialog
+      open={Boolean(runProp)}
+      onOpenChange={(nextOpen) => !restoring && onOpenChange(nextOpen)}
+    >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Restore Backup</DialogTitle>

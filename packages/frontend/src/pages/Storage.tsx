@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { refreshDynamicScopes } from "@/lib/live-scopes";
@@ -220,6 +221,7 @@ function StorageContent() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createFolderAction, setCreateFolderAction] = useState<(() => void) | null>(null);
   const [moveToAppStorage, setMoveToAppStorage] = useState<ObjectStorageConnection | null>(null);
+  const shownMoveToAppStorage = useRetainedDialogValue(moveToAppStorage, moveToAppStorage !== null);
   const [managedCreateOpen, setManagedCreateOpen] = useState(false);
   const [managedCatalog, setManagedCatalog] = useState<ManagedObjectStorageCatalogEntry[]>([]);
   // Cached with the list so a cached list keeps its node icon colors on the first frame.
@@ -546,8 +548,8 @@ function StorageContent() {
           onOpenChange={(open) => {
             if (!open) setMoveToAppStorage(null);
           }}
-          members={moveToAppStorage ? [{ type: "storage", id: moveToAppStorage.id }] : []}
-          resourceLabel={moveToAppStorage?.name ?? "the storage"}
+          members={shownMoveToAppStorage ? [{ type: "storage", id: shownMoveToAppStorage.id }] : []}
+          resourceLabel={shownMoveToAppStorage?.name ?? "the storage"}
           onMoved={() => void load()}
         />
       )}

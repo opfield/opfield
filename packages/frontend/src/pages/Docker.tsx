@@ -714,10 +714,7 @@ export function Docker() {
         </Tabs>
         <GwcaImportDialog
           open={importOpen}
-          onOpenChange={(nextOpen) => {
-            setImportOpen(nextOpen);
-            if (!nextOpen) setImportDevPreview(false);
-          }}
+          onOpenChange={setImportOpen}
           nodes={archiveImportNodes}
           onImported={() => refreshContainersRef.current?.()}
           devPreview={importDevPreview}

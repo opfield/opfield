@@ -11,7 +11,13 @@ import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  useDialogPresence,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
@@ -129,11 +135,12 @@ export function ApiTokensSection({
     loadTokens();
   }, [loadTokens]);
 
+  const createDialogPresent = useDialogPresence(createDialogOpen);
   useEffect(() => {
-    if (!createDialogOpen) {
-      setRegistryExternalAccess(null);
-      return;
-    }
+    if (!createDialogPresent) setRegistryExternalAccess(null);
+  }, [createDialogPresent]);
+  useEffect(() => {
+    if (!createDialogOpen) return;
     let cancelled = false;
     api
       .getTokenRegistryAccess()

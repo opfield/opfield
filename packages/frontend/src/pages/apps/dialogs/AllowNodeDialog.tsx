@@ -45,6 +45,9 @@ export function AllowNodeDialog({
     .sort((a, b) => nodeDisplayName(a, a.id).localeCompare(nodeDisplayName(b, b.id)));
   const [nodeId, setNodeId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
 
   useEffect(() => {
     if (open) setNodeId(null);
@@ -60,9 +63,8 @@ export function AllowNodeDialog({
       onOpenChange(false);
       onAllowed();
     } catch (error) {
-      toastApiError(error, "Failed to allow the node");
-    } finally {
       setSaving(false);
+      toastApiError(error, "Failed to allow the node");
     }
   };
 

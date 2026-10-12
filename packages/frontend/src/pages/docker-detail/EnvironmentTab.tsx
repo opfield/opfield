@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { PanelShell } from "@/components/common/PanelShell";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import { Button } from "@/components/ui/button";
+import { useDialogPresence } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
@@ -108,6 +109,7 @@ export function EnvironmentTab({
   const [originalEnv, setOriginalEnv] = useState<string[]>([]);
   // "Edit as text" works on a copy in a dialog; the table stays the draft.
   const [textEditorOpen, setTextEditorOpen] = useState(false);
+  const textEditorPresent = useDialogPresence(textEditorOpen);
   const [rawText, setRawText] = useState("");
 
   // Secrets state — edited locally, flushed to DB on recreate
@@ -752,10 +754,10 @@ export function EnvironmentTab({
     .filter(({ entry }) => !replacementDatabaseVariableNames.has(entry.key.trim()));
   // The text editor's rules: invalid, duplicate and link-owned names are marked; a name a
   // pending link addition will take over stays applicable so the save can replace it.
-  const textErrorLines = textEditorOpen ? validateRaw(rawText) : [];
+  const textErrorLines = textEditorPresent ? validateRaw(rawText) : [];
   const rawManagedOnlyErrorLines = new Set<number>();
   const rawActiveManagedErrorLines = new Set<number>();
-  if (textEditorOpen) {
+  if (textEditorPresent) {
     const keyLines = new Map<string, number[]>();
     rawText.split("\n").forEach((line, index) => {
       const stripped = line.trim().replace(/^export\s+/, "");

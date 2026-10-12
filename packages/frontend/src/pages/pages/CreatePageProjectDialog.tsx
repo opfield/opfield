@@ -26,6 +26,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
@@ -98,6 +99,7 @@ export function CreatePageProjectDialog({
     ? canCreateInFolder(scopes ?? [], "pages:create", placementFolderId, nodeId || undefined)
     : isCreateFolderAllowed(folderChoices, folderId);
 
+  const present = useDialogPresence(open);
   useEffect(() => {
     if (open) {
       if (!appContext) void fetchFolders("pages-project");
@@ -111,15 +113,17 @@ export function CreatePageProjectDialog({
           setNodesLoaded(true);
         });
     }
-    if (!open) {
-      setName("");
-      setDescription("");
-      setNodeId("");
-      setFolderId("");
-      setSaving(false);
-      setNodesLoaded(false);
-    }
   }, [appContext, fetchFolders, open]);
+
+  useEffect(() => {
+    if (present) return;
+    setName("");
+    setDescription("");
+    setNodeId("");
+    setFolderId("");
+    setSaving(false);
+    setNodesLoaded(false);
+  }, [present]);
 
   // From an app: the only allowed node is the home node; a node the environment does not allow
   // is dropped when the environment changes.
@@ -149,7 +153,6 @@ export function CreatePageProjectDialog({
       onOpenChange(false);
     } catch (error) {
       toastApiError(error, "Failed to create Page Project");
-    } finally {
       setSaving(false);
     }
   };

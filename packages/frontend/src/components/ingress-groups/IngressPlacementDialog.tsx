@@ -61,6 +61,9 @@ export function IngressPlacementDialog({
   const [groups, setGroups] = useState<PlacementGroupChoice[]>([]);
   const [choice, setChoice] = useState("");
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -117,9 +120,8 @@ export function IngressPlacementDialog({
       onChanged();
       onOpenChange(false);
     } catch (error) {
-      toastApiError(error, "Failed to change where it is served");
-    } finally {
       setSaving(false);
+      toastApiError(error, "Failed to change where it is served");
     }
   };
 

@@ -48,6 +48,7 @@ import { Switch } from "@/components/ui/switch";
 import { useFolderAccess } from "@/hooks/use-folder-access";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { findFolderTreeNode } from "@/lib/folder-tree";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
@@ -121,7 +122,9 @@ export function ProxyHosts({
   const [createFolderParentId, setCreateFolderParentId] = useState<string | null>(null);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [moveDialogHostId, setMoveDialogHostId] = useState<string | null>(null);
+  const shownMoveDialogHostId = useRetainedDialogValue(moveDialogHostId, moveDialogHostId !== null);
   const [moveToAppHost, setMoveToAppHost] = useState<ProxyHost | null>(null);
+  const shownMoveToAppHost = useRetainedDialogValue(moveToAppHost, moveToAppHost !== null);
   const [activeDrag, setActiveDrag] = useState<DragEndEvent["active"] | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [nginxNodeRequiredOpen, setNginxNodeRequiredOpen] = useState(false);
@@ -137,6 +140,7 @@ export function ProxyHosts({
     canManageFolderAt,
   } = useFolderAccess("proxy:view", "proxy:folders:manage");
   const [moveFolderId, setMoveFolderId] = useState<string | null>(null);
+  const shownMoveFolderId = useRetainedDialogValue(moveFolderId, moveFolderId !== null);
   const isSearchFiltering = filters.search.trim() !== "";
   const canReorderFolders = canManageFolders && !isMobile && !isSearchFiltering;
   const canCreateProxyHost = hasScopedAccess("proxy:create");
@@ -261,7 +265,6 @@ export function ProxyHosts({
       await createFolder(name, createFolderParentId ?? rootFolderId ?? undefined);
       toast.success("Folder created");
       setCreateFolderOpen(false);
-      setCreateFolderParentId(null);
     } catch (err) {
       toastApiError(err, "Failed to create folder");
     }
@@ -803,8 +806,8 @@ export function ProxyHosts({
         onOpenChange={(open) => {
           if (!open) setMoveToAppHost(null);
         }}
-        members={moveToAppHost ? [{ type: "route", id: moveToAppHost.id }] : []}
-        resourceLabel={moveToAppHost?.domainNames[0] ?? "the route"}
+        members={shownMoveToAppHost ? [{ type: "route", id: shownMoveToAppHost.id }] : []}
+        resourceLabel={shownMoveToAppHost?.domainNames[0] ?? "the route"}
         onMoved={() => void fetchGroupedHosts()}
       />
 
@@ -816,7 +819,7 @@ export function ProxyHosts({
         }}
         folders={shown.root ? shown.folders : folders}
         {...(shown.root ? { root: { id: shown.root.id, label: shown.root.name } } : {})}
-        currentFolderId={moveDialogHostId ? findHostFolderId(moveDialogHostId) : null}
+        currentFolderId={shownMoveDialogHostId ? findHostFolderId(shownMoveDialogHostId) : null}
         onMove={handleMoveHost}
         canMoveTo={canMoveHostTo}
         describeFolder={(folder) => `${folder.hosts.length} hosts`}
@@ -836,25 +839,23 @@ export function ProxyHosts({
             : { id: null, label: "Top level" }
         }
         currentFolderId={
-          (moveFolderId ? findFolderTreeNode(folders, moveFolderId)?.parentId : null) ?? null
+          (shownMoveFolderId ? findFolderTreeNode(folders, shownMoveFolderId)?.parentId : null) ??
+          null
         }
         canMoveTo={(parentId) =>
-          !!moveFolderId &&
-          canMoveFolderInto(folders, moveFolderId, parentId) &&
+          !!shownMoveFolderId &&
+          canMoveFolderInto(folders, shownMoveFolderId, parentId) &&
           canManageFolderAt(parentId)
         }
         onMove={(parentId) => {
-          if (moveFolderId) void handleMoveFolder(moveFolderId, parentId);
+          if (shownMoveFolderId) void handleMoveFolder(shownMoveFolderId, parentId);
         }}
         describeFolder={(folder) => `${folder.hosts.length} hosts`}
       />
 
       <FolderCreateDialog
         open={createFolderOpen}
-        onOpenChange={(open) => {
-          setCreateFolderOpen(open);
-          if (!open) setCreateFolderParentId(null);
-        }}
+        onOpenChange={setCreateFolderOpen}
         title={createFolderParentId ? "Create Subfolder" : "Create Folder"}
         description={
           createFolderParentId

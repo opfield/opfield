@@ -49,6 +49,7 @@ import {
 } from "@/components/common/SimpleTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
@@ -179,6 +180,8 @@ export function InferenceProvidersPanel({
   const selectedProvider = selectedConnection
     ? (providers.get(selectedConnection.providerId) ?? null)
     : null;
+  const shownConnection = useRetainedDialogValue(selectedConnection, selectedConnection !== null);
+  const shownProvider = useRetainedDialogValue(selectedProvider, selectedConnection !== null);
   const rows = useMemo(
     () => groupProviderConnections(connections, collapsedProviderIds),
     [collapsedProviderIds, connections]
@@ -534,10 +537,11 @@ export function InferenceProvidersPanel({
       />
       <InferenceProviderDialog
         open={selectedConnection !== null}
-        connection={selectedConnection}
-        provider={selectedProvider}
+        connection={shownConnection}
+        provider={shownProvider}
         canManage={canManage}
         onOpenChange={(open) => {
+          // close-reset-ok: the connection and provider are retained while the dialog closes
           if (!open) setSelectedId(null);
         }}
         onChanged={changed}

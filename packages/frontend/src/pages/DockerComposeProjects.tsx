@@ -156,6 +156,7 @@ export function DockerComposeProjects({
   const [moveToAppProject, setMoveToAppProject] = useState<DockerComposeProjectSummary | null>(
     null
   );
+  const shownMoveToAppProject = useRetainedDialogValue(moveToAppProject, moveToAppProject !== null);
 
   const openCreate = useCallback(() => {
     if (!requireLicenseFeature("compose-applications", "Compose projects")) return;
@@ -647,18 +648,18 @@ export function DockerComposeProjects({
         if (!open) setMoveToAppProject(null);
       }}
       members={
-        moveToAppProject
+        shownMoveToAppProject
           ? [
               {
                 type: "compose",
-                id: moveToAppProject.id,
-                nodeId: moveToAppProject.nodeId,
-                resourceKey: moveToAppProject.id,
+                id: shownMoveToAppProject.id,
+                nodeId: shownMoveToAppProject.nodeId,
+                resourceKey: shownMoveToAppProject.id,
               },
             ]
           : []
       }
-      resourceLabel={moveToAppProject?.name ?? "the Compose project"}
+      resourceLabel={shownMoveToAppProject?.name ?? "the Compose project"}
       onMoved={() => void loadProjects()}
     />
   ) : null;

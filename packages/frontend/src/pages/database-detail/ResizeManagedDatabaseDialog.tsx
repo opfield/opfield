@@ -9,6 +9,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toastApiError } from "@/lib/api-error-toast";
@@ -36,12 +37,18 @@ export function ResizeManagedDatabaseDialog({
   // The node's free space sets the maximum size; cleared on close so each opening waits for it.
   const [capacityLoaded, setCapacityLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setSaving(false);
+  }, [open]);
+
+  const present = useDialogPresence(open);
 
   useEffect(() => {
-    if (!open) {
+    if (!present) {
       setCapacityLoaded(false);
       return;
     }
+    if (!open) return;
 
     let cancelled = false;
     setStorageSizeGb(String(suggestedStorageSizeGb));
@@ -60,7 +67,7 @@ export function ResizeManagedDatabaseDialog({
     return () => {
       cancelled = true;
     };
-  }, [managed.nodeId, open, suggestedStorageSizeGb]);
+  }, [managed.nodeId, open, present, suggestedStorageSizeGb]);
 
   const nextStorageSizeGb = Number(storageSizeGb);
   const maximumStorageSizeGb =
@@ -82,9 +89,8 @@ export function ResizeManagedDatabaseDialog({
       onOpenChange(false);
       onResized();
     } catch (error) {
-      toastApiError(error, "Failed to resize database storage");
-    } finally {
       setSaving(false);
+      toastApiError(error, "Failed to resize database storage");
     }
   };
 

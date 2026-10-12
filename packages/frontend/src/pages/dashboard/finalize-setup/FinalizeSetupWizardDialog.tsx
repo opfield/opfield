@@ -10,6 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import { toastApiError } from "@/lib/api-error-toast";
 
@@ -57,11 +58,12 @@ export function FinalizeSetupWizardDialog({
   const [skipping, setSkipping] = useState(false);
   const hasFooter = Boolean(footerStatus || footer || onCancel || onBack || onSkip);
 
+  const present = useDialogPresence(open);
   useEffect(() => {
-    if (!open) {
+    if (!present) {
       setSkipping(false);
     }
-  }, [open]);
+  }, [present]);
 
   const skip = async () => {
     if (!onSkip) return;
