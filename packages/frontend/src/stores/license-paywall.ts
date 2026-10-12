@@ -122,6 +122,7 @@ export function canServeLicenseFeature(
 
 /** Navigation items backed by one paid feature. */
 const LICENSED_NAVIGATION_ITEMS = {
+  pages: "pages",
   storage: "storage-connections",
   databases: "external-database-connections",
 } as const satisfies Record<string, LicenseFeature>;

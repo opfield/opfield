@@ -140,11 +140,12 @@ describe("plan-gated pages", () => {
   });
 
   it("are hidden from navigation when the plan does not grant them", () => {
-    const scopes = ["storage:view", "databases:view"];
+    const scopes = ["pages:view", "storage:view", "databases:view"];
     const ids = (unlicensedItems: ReturnType<typeof unlicensedNavigationItems>) =>
       visibleNavigationGroups({
         scopes,
         pkiEnabled: false,
+        pagesEnabled: true,
         siemEnabled: false,
         loggingEnabled: false,
         inferenceEnabled: false,
@@ -154,13 +155,14 @@ describe("plan-gated pages", () => {
         .map((item) => item.id);
 
     const community = unlicensedNavigationItems(useUIBootstrapStore.getState().snapshot);
-    expect(community).toEqual(["storage", "databases"]);
+    expect(community).toEqual(["pages", "storage", "databases"]);
+    expect(ids(community)).not.toContain("pages");
     expect(ids(community)).not.toContain("storage");
     expect(ids(community)).not.toContain("databases");
 
-    setPlan("personal", ["storage-connections", "external-database-connections"]);
+    setPlan("personal", ["pages", "storage-connections", "external-database-connections"]);
     const personal = unlicensedNavigationItems(useUIBootstrapStore.getState().snapshot);
     expect(personal).toEqual([]);
-    expect(ids(personal)).toEqual(expect.arrayContaining(["storage", "databases"]));
+    expect(ids(personal)).toEqual(expect.arrayContaining(["pages", "storage", "databases"]));
   });
 });
