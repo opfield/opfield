@@ -192,23 +192,20 @@ export function withAuthApi<TBase extends ApiClientBaseConstructor>(Base: TBase)
       );
     }
 
-    async revokeOAuthAuthorization(clientId: string, resource: string): Promise<void> {
-      await this.request<void>(
-        `/api/oauth/authorizations/${encodeURIComponent(clientId)}?resource=${encodeURIComponent(resource)}`,
-        {
-          method: "DELETE",
-        }
-      );
+    /** One authorization is one consent; the id comes from listOAuthAuthorizations. */
+    async revokeOAuthAuthorization(authorizationId: string): Promise<void> {
+      await this.request<void>(`/api/oauth/authorizations/${encodeURIComponent(authorizationId)}`, {
+        method: "DELETE",
+      });
     }
 
     async updateOAuthAuthorization(
-      clientId: string,
-      resource: string,
+      authorizationId: string,
       scopes: string[]
     ): Promise<OAuthAuthorization> {
       return this.unwrapData(
         this.request<{ data: OAuthAuthorization }>(
-          `/api/oauth/authorizations/${encodeURIComponent(clientId)}?resource=${encodeURIComponent(resource)}`,
+          `/api/oauth/authorizations/${encodeURIComponent(authorizationId)}`,
           {
             method: "PATCH",
             body: JSON.stringify({ scopes }),

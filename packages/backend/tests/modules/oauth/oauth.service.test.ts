@@ -624,6 +624,8 @@ describe('OAuthService.approveConsent', () => {
 describe('OAuthService.updateUserAuthorizationScopes', () => {
   it('updates MCP access-only authorizations bounded by the current user scopes', async () => {
     const accessToken = {
+      id: 'token-1',
+
       clientId: 'goc_client',
       userId: USER.id,
       scopes: ['nodes:details'],
@@ -638,8 +640,7 @@ describe('OAuthService.updateUserAuthorizationScopes', () => {
 
     const authorization = await service.updateUserAuthorizationScopes(
       { ...USER, scopes: ['mcp:use', 'nodes:details', 'nodes:details:node-1'] },
-      'goc_client',
-      'https://gateway.example.com/api/mcp',
+      'token-1',
       ['nodes:details']
     );
 
@@ -658,6 +659,8 @@ describe('OAuthService.updateUserAuthorizationScopes', () => {
     const { service } = createService({
       refreshTokens: [
         {
+          id: 'token-2',
+
           clientId: 'goc_client',
           userId: USER.id,
           scopes: ['nodes:details'],
@@ -672,8 +675,7 @@ describe('OAuthService.updateUserAuthorizationScopes', () => {
     await expect(
       service.updateUserAuthorizationScopes(
         { ...USER, scopes: ['nodes:details'] },
-        'goc_client',
-        'https://gateway.example.com/api/mcp',
+        'token-2',
         ['nodes:details']
       )
     ).rejects.toThrow('Your account is not allowed to use MCP');
@@ -685,6 +687,8 @@ describe('OAuthService.listUserAuthorizations', () => {
     const { service } = createService({
       refreshTokens: [
         {
+          id: 'token-3',
+
           clientId: 'goc_client',
           userId: USER.id,
           scopes: ['nodes:details'],
@@ -694,6 +698,8 @@ describe('OAuthService.listUserAuthorizations', () => {
           revokedAt: null,
         },
         {
+          id: 'token-4',
+
           clientId: 'goc_client',
           userId: USER.id,
           scopes: ['nodes:details'],
@@ -705,6 +711,9 @@ describe('OAuthService.listUserAuthorizations', () => {
       ],
       accessTokens: [
         {
+          id: 'token-5',
+          refreshTokenId: 'token-4',
+
           clientId: 'goc_client',
           userId: USER.id,
           scopes: ['nodes:details'],
@@ -726,11 +735,48 @@ describe('OAuthService.listUserAuthorizations', () => {
     ]);
   });
 
+  it('lists each consent of the same client as its own authorization with its own scopes', async () => {
+    const { service } = createService({
+      accessTokens: [
+        {
+          id: 'consent-old',
+          clientId: 'goc_client',
+          userId: USER.id,
+          scopes: ['nodes:details', 'docker:containers:secrets'],
+          resource: 'https://gateway.example.com/api/mcp',
+          expiresAt: null,
+          createdAt: new Date('2026-10-02T10:00:00Z'),
+          revokedAt: null,
+        },
+        {
+          id: 'consent-new',
+          clientId: 'goc_client',
+          userId: USER.id,
+          scopes: ['nodes:details'],
+          resource: 'https://gateway.example.com/api/mcp',
+          expiresAt: null,
+          createdAt: new Date('2026-10-12T07:00:00Z'),
+          revokedAt: null,
+        },
+      ],
+      groupScopes: ['nodes:details', 'docker:containers:secrets', 'mcp:use'],
+    });
+
+    const authorizations = await service.listUserAuthorizations(USER.id);
+
+    expect(authorizations.map((authorization) => [authorization.id, authorization.scopes]).sort()).toEqual([
+      ['consent-new', ['nodes:details']],
+      ['consent-old', ['docker:containers:secrets', 'nodes:details']],
+    ]);
+  });
+
   it('bounds listed authorization scopes by the owner current scopes', async () => {
     const { service } = createService({
       groupScopes: ['nodes:details:node-1'],
       refreshTokens: [
         {
+          id: 'token-6',
+
           clientId: 'goc_client',
           userId: USER.id,
           scopes: ['nodes:details', 'nodes:details'],
@@ -751,6 +797,8 @@ describe('OAuthService.listUserAuthorizations', () => {
     const { service } = createService({
       accessTokens: [
         {
+          id: 'token-7',
+
           clientId: 'goc_client',
           userId: USER.id,
           scopes: ['nodes:details'],

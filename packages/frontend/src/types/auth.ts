@@ -226,6 +226,8 @@ export interface OAuthConsentPreview {
 }
 
 export interface OAuthAuthorization {
+  /** One consent: its own tokens and scopes. A client can hold several. */
+  id: string;
   clientId: string;
   clientName: string;
   clientUri: string | null;

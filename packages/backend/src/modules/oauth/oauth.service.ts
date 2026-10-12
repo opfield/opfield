@@ -459,8 +459,8 @@ export class OAuthService {
     return this.tokenLifecycle.listUserAuthorizations(userId);
   }
 
-  async revokeUserAuthorization(userId: string, clientId: string, resource: string): Promise<void> {
-    await this.tokenLifecycle.revokeUserAuthorization(userId, clientId, resource);
+  async revokeUserAuthorization(userId: string, authorizationId: string): Promise<void> {
+    const { clientId, resource } = await this.tokenLifecycle.revokeUserAuthorization(userId, authorizationId);
     this.eventBus?.publish(oauthAuthorizationChangedChannel(userId), {
       action: 'revoke',
       clientId,
@@ -469,17 +469,16 @@ export class OAuthService {
     });
   }
 
-  async updateUserAuthorizationScopes(user: User, clientId: string, resource: string, requestedScopes: string[]) {
+  async updateUserAuthorizationScopes(user: User, authorizationId: string, requestedScopes: string[]) {
     const authorization = await this.tokenLifecycle.updateUserAuthorizationScopes(
       user,
-      clientId,
-      resource,
+      authorizationId,
       requestedScopes
     );
     this.eventBus?.publish(oauthAuthorizationChangedChannel(user.id), {
       action: 'update',
-      clientId,
-      resource,
+      clientId: authorization?.clientId,
+      resource: authorization?.resource,
       userId: user.id,
     });
     return authorization;

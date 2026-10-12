@@ -300,21 +300,19 @@ oauthRoutes.get('/authorizations', async (c) => {
   return c.json({ data: authorizations });
 });
 
-oauthRoutes.delete('/authorizations/:clientId', async (c) => {
-  const clientId = z.string().min(1).parse(c.req.param('clientId'));
-  const resource = z.string().url().parse(c.req.query('resource'));
-  await oauthService().revokeUserAuthorization(c.get('user')!.id, clientId, resource);
+// One authorization is one consent (its own tokens and scopes); the id comes from GET /authorizations.
+oauthRoutes.delete('/authorizations/:authorizationId', async (c) => {
+  const authorizationId = z.string().min(1).parse(c.req.param('authorizationId'));
+  await oauthService().revokeUserAuthorization(c.get('user')!.id, authorizationId);
   return c.json({ success: true });
 });
 
-oauthRoutes.patch('/authorizations/:clientId', async (c) => {
-  const clientId = z.string().min(1).parse(c.req.param('clientId'));
-  const resource = z.string().url().parse(c.req.query('resource'));
+oauthRoutes.patch('/authorizations/:authorizationId', async (c) => {
+  const authorizationId = z.string().min(1).parse(c.req.param('authorizationId'));
   const body = OAuthAuthorizationScopesSchema.parse(await c.req.json());
   const authorization = await oauthService().updateUserAuthorizationScopes(
     c.get('user')!,
-    clientId,
-    resource,
+    authorizationId,
     body.scopes
   );
   return c.json({ data: authorization });

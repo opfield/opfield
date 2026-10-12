@@ -226,14 +226,11 @@ export function OAuthApplicationsSection({
     setSavingScopes(true);
     try {
       const updated = await api.updateOAuthAuthorization(
-        selectedAuthorization.clientId,
-        selectedAuthorization.resource,
+        selectedAuthorization.id,
         finalEditableScopes
       );
       setAuthorizations((current) => {
-        const next = current.map((item) =>
-          item.clientId === updated.clientId && item.resource === updated.resource ? updated : item
-        );
+        const next = current.map((item) => (item.id === updated.id ? updated : item));
         api.setCache("settings:oauth-authorizations", next);
         return next;
       });
@@ -259,22 +256,16 @@ export function OAuthApplicationsSection({
     });
     if (!ok) return;
 
-    const key = `${authorization.clientId}:${authorization.resource}`;
+    const key = authorization.id;
     setRevokingKey(key);
     try {
-      await api.revokeOAuthAuthorization(authorization.clientId, authorization.resource);
+      await api.revokeOAuthAuthorization(authorization.id);
       setAuthorizations((current) => {
-        const next = current.filter(
-          (item) =>
-            item.clientId !== authorization.clientId || item.resource !== authorization.resource
-        );
+        const next = current.filter((item) => item.id !== authorization.id);
         api.setCache("settings:oauth-authorizations", next);
         return next;
       });
-      if (
-        selectedAuthorization?.clientId === authorization.clientId &&
-        selectedAuthorization.resource === authorization.resource
-      ) {
+      if (selectedAuthorization?.id === authorization.id) {
         setSelectedAuthorization(null);
       }
       toast.success("OAuth application disconnected");
@@ -300,7 +291,7 @@ export function OAuthApplicationsSection({
           <div className="divide-y divide-border">
             {authorizations.map((authorization) => (
               <div
-                key={`${authorization.clientId}:${authorization.resource}`}
+                key={authorization.id}
                 className="flex cursor-pointer items-center justify-between gap-3 p-4 transition-colors hover:bg-accent/50 sm:gap-4"
                 onClick={() => openDetails(authorization)}
               >
@@ -359,11 +350,9 @@ export function OAuthApplicationsSection({
                     event.stopPropagation();
                     void disconnect(authorization);
                   }}
-                  pending={revokingKey === `${authorization.clientId}:${authorization.resource}`}
+                  pending={revokingKey === authorization.id}
                 >
-                  {revokingKey === `${authorization.clientId}:${authorization.resource}` ? null : (
-                    <Trash2 className="h-4 w-4" />
-                  )}
+                  {revokingKey === authorization.id ? null : <Trash2 className="h-4 w-4" />}
                 </Button>
               </div>
             ))}

@@ -263,20 +263,16 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
           case 'list':
             return oauthService.listUserAuthorizations(user.id);
           case 'update_scopes': {
-            const clientId = String(a.clientId ?? '');
-            const resource = String(a.resource ?? '');
+            const authorizationId = String(a.authorizationId ?? '');
             const scopes = Array.isArray(a.scopes) ? a.scopes.map(String) : [];
-            if (!clientId) throw new Error('clientId is required');
-            if (!resource) throw new Error('resource is required');
+            if (!authorizationId) throw new Error('authorizationId is required (the id from list)');
             if (scopes.length === 0) throw new Error('scopes are required');
-            return oauthService.updateUserAuthorizationScopes(user, clientId, resource, scopes);
+            return oauthService.updateUserAuthorizationScopes(user, authorizationId, scopes);
           }
           case 'revoke': {
-            const clientId = String(a.clientId ?? '');
-            const resource = String(a.resource ?? '');
-            if (!clientId) throw new Error('clientId is required');
-            if (!resource) throw new Error('resource is required');
-            await oauthService.revokeUserAuthorization(user.id, clientId, resource);
+            const authorizationId = String(a.authorizationId ?? '');
+            if (!authorizationId) throw new Error('authorizationId is required (the id from list)');
+            await oauthService.revokeUserAuthorization(user.id, authorizationId);
             return { revoked: true };
           }
           default:

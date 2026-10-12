@@ -472,7 +472,7 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_oauth_authorization',
     description:
-      'Manage existing OAuth authorizations for the current user. Operations: list, update_scopes, revoke. Pending browser consent is intentionally not exposed.',
+      'Manage existing OAuth authorizations for the current user. Each authorization is one consent with its own scopes; the same client can have several. Operations: list, update_scopes, revoke (by the id from list). Pending browser consent is intentionally not exposed.',
     parameters: {
       type: 'object',
       properties: {
@@ -481,8 +481,7 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
           enum: ['list', 'update_scopes', 'revoke'],
           description: 'OAuth authorization operation to perform.',
         },
-        clientId: { type: 'string', description: 'OAuth client ID for update_scopes or revoke.' },
-        resource: { type: 'string', description: 'OAuth resource URL for update_scopes or revoke.' },
+        authorizationId: { type: 'string', description: 'Authorization id from list, for update_scopes or revoke.' },
         scopes: {
           type: 'array',
           items: { type: 'string' },

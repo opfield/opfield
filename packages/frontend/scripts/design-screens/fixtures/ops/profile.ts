@@ -171,6 +171,7 @@ export const apiTokens: ApiToken[] = [
 
 export const oauthAuthorizations: OAuthAuthorization[] = [
   {
+    id: "auth-gateway-cli",
     clientId: "gateway-cli",
     clientName: "Opfield CLI",
     clientUri: "https://gateway.example.com/docs/cli",
@@ -185,6 +186,7 @@ export const oauthAuthorizations: OAuthAuthorization[] = [
     expiresAt: ahead(9, "d"),
   },
   {
+    id: "auth-mcp-desktop",
     clientId: "mcp-desktop",
     clientName: "Desktop assistant (MCP)",
     clientUri: null,

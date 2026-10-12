@@ -286,16 +286,14 @@ export class OAuthTokenLifecycle {
     await Promise.all(accessRevocations);
   }
 
-  async listUserAuthorizations(userId: string) {
-    const now = new Date();
-    const [refreshTokens, accessTokens, user] = await Promise.all([
-      this.deps.db.query.oauthRefreshTokens.findMany({
-        where: and(
-          eq(oauthRefreshTokens.userId, userId),
-          isNull(oauthRefreshTokens.revokedAt),
-          gt(oauthRefreshTokens.expiresAt, now)
-        ),
-      }),
+  /**
+   * One grant per consent: an MCP access token on its own, or a refresh token chain (every rotation of one consent)
+   * with the access tokens it issued. A grant's id is its first token's id, so it stays the same across rotations.
+   * Grants of the same client are kept apart: editing or revoking one never touches another.
+   */
+  private async loadGrants(userId: string, now = new Date()) {
+    const [allRefreshTokens, accessTokens, user] = await Promise.all([
+      this.deps.db.query.oauthRefreshTokens.findMany({ where: eq(oauthRefreshTokens.userId, userId) }),
       this.deps.db.query.oauthAccessTokens.findMany({
         where: and(
           eq(oauthAccessTokens.userId, userId),
@@ -305,85 +303,111 @@ export class OAuthTokenLifecycle {
       }),
       resolveLiveUser(this.deps.db, userId),
     ]);
-    const clientIds = [...new Set([...refreshTokens, ...accessTokens].map((token) => token.clientId))];
-    if (clientIds.length === 0) return [];
-
-    const clients = await this.deps.db.query.oauthClients.findMany({
-      where: inArray(oauthClients.clientId, clientIds),
-    });
-    const clientById = new Map(clients.map((client) => [client.clientId, client]));
-    const groups = new Map<
-      string,
-      {
-        clientId: string;
-        resource: string;
-        scopes: Set<string>;
-        createdAt: Date;
-        expiresAt: Date | null;
-        lastUsedAt: Date | null;
-        activeAccessTokens: number;
-        activeRefreshTokens: number;
+    const parentOf = new Map<string, string>();
+    for (const token of allRefreshTokens) {
+      if (token.replacedByTokenId) parentOf.set(token.replacedByTokenId, token.id);
+    }
+    const rootOf = (id: string) => {
+      let current = id;
+      const seen = new Set<string>();
+      while (parentOf.has(current) && !seen.has(current)) {
+        seen.add(current);
+        current = parentOf.get(current)!;
       }
-    >();
+      return current;
+    };
 
     const apiResource = this.deps.getApiResourceUrl();
-    const ensure = (clientId: string, resource: string, createdAt: Date) => {
-      const key = `${clientId}\0${resource}`;
-      let group = groups.get(key);
-      if (!group) {
-        group = {
+    type Grant = {
+      id: string;
+      clientId: string;
+      resource: string;
+      scopes: Set<string>;
+      refreshTokenIds: string[];
+      accessTokenIds: string[];
+      createdAt: Date;
+      expiresAt: Date | null;
+      lastUsedAt: Date | null;
+      activeAccessTokens: number;
+      activeRefreshTokens: number;
+    };
+    const grants = new Map<string, Grant>();
+    const ensure = (id: string, clientId: string, resource: string, createdAt: Date) => {
+      let grant = grants.get(id);
+      if (!grant) {
+        grant = {
+          id,
           clientId,
           resource,
           scopes: new Set(),
+          refreshTokenIds: [],
+          accessTokenIds: [],
           createdAt,
           expiresAt: null,
           lastUsedAt: null,
           activeAccessTokens: 0,
           activeRefreshTokens: 0,
         };
-        groups.set(key, group);
+        grants.set(id, grant);
       }
-      if (createdAt < group.createdAt) group.createdAt = createdAt;
-      return group;
+      if (createdAt < grant.createdAt) grant.createdAt = createdAt;
+      return grant;
     };
+    const grantedScopes = (resource: string, scopes: string[] | null) =>
+      user ? this.deps.grantScopes(user, resource, scopes ?? []) : [];
 
-    for (const token of refreshTokens) {
-      const group = ensure(token.clientId, token.resource ?? apiResource, token.createdAt);
-      for (const scope of user ? this.deps.grantScopes(user, token.resource ?? apiResource, token.scopes ?? []) : []) {
-        group.scopes.add(scope);
-      }
-      group.activeRefreshTokens += 1;
-      if (!group.expiresAt || token.expiresAt > group.expiresAt) group.expiresAt = token.expiresAt;
+    const chainCreatedAt = new Map(allRefreshTokens.map((token) => [token.id, token.createdAt]));
+    for (const token of allRefreshTokens) {
+      if (token.revokedAt || token.expiresAt <= now) continue;
+      const root = rootOf(token.id);
+      const resource = token.resource ?? apiResource;
+      const grant = ensure(root, token.clientId, resource, chainCreatedAt.get(root) ?? token.createdAt);
+      for (const scope of grantedScopes(resource, token.scopes)) grant.scopes.add(scope);
+      grant.refreshTokenIds.push(token.id);
+      grant.activeRefreshTokens += 1;
+      if (!grant.expiresAt || token.expiresAt > grant.expiresAt) grant.expiresAt = token.expiresAt;
     }
-
     for (const token of accessTokens) {
-      const group = ensure(token.clientId, token.resource ?? apiResource, token.createdAt);
-      for (const scope of user ? this.deps.grantScopes(user, token.resource ?? apiResource, token.scopes ?? []) : []) {
-        group.scopes.add(scope);
-      }
-      group.activeAccessTokens += 1;
-      if (token.expiresAt && (!group.expiresAt || token.expiresAt > group.expiresAt)) group.expiresAt = token.expiresAt;
-      if (token.lastUsedAt && (!group.lastUsedAt || token.lastUsedAt > group.lastUsedAt)) {
-        group.lastUsedAt = token.lastUsedAt;
+      const resource = token.resource ?? apiResource;
+      const id = token.refreshTokenId ? rootOf(token.refreshTokenId) : token.id;
+      const grant = ensure(id, token.clientId, resource, chainCreatedAt.get(id) ?? token.createdAt);
+      for (const scope of grantedScopes(resource, token.scopes)) grant.scopes.add(scope);
+      grant.accessTokenIds.push(token.id);
+      grant.activeAccessTokens += 1;
+      if (token.expiresAt && (!grant.expiresAt || token.expiresAt > grant.expiresAt)) grant.expiresAt = token.expiresAt;
+      if (token.lastUsedAt && (!grant.lastUsedAt || token.lastUsedAt > grant.lastUsedAt)) {
+        grant.lastUsedAt = token.lastUsedAt;
       }
     }
+    return grants;
+  }
 
-    return [...groups.values()]
-      .map((group) => {
-        const client = clientById.get(group.clientId);
+  async listUserAuthorizations(userId: string) {
+    const grants = await this.loadGrants(userId);
+    if (grants.size === 0) return [];
+    const clientIds = [...new Set([...grants.values()].map((grant) => grant.clientId))];
+    const clients = await this.deps.db.query.oauthClients.findMany({
+      where: inArray(oauthClients.clientId, clientIds),
+    });
+    const clientById = new Map(clients.map((client) => [client.clientId, client]));
+
+    return [...grants.values()]
+      .map((grant) => {
+        const client = clientById.get(grant.clientId);
         return {
-          clientId: group.clientId,
+          id: grant.id,
+          clientId: grant.clientId,
           clientName: client?.clientName ?? 'Unknown OAuth Client',
           clientUri: client?.clientUri ?? null,
           logoUri: client?.logoUri ?? null,
-          scopes: canonicalizeScopes([...group.scopes]),
-          resource: group.resource,
-          resources: [group.resource],
-          activeAccessTokens: group.activeAccessTokens,
-          activeRefreshTokens: group.activeRefreshTokens,
-          createdAt: group.createdAt.toISOString(),
-          lastUsedAt: group.lastUsedAt?.toISOString() ?? null,
-          expiresAt: group.expiresAt?.toISOString() ?? null,
+          scopes: canonicalizeScopes([...grant.scopes]),
+          resource: grant.resource,
+          resources: [grant.resource],
+          activeAccessTokens: grant.activeAccessTokens,
+          activeRefreshTokens: grant.activeRefreshTokens,
+          createdAt: grant.createdAt.toISOString(),
+          lastUsedAt: grant.lastUsedAt?.toISOString() ?? null,
+          expiresAt: grant.expiresAt?.toISOString() ?? null,
         };
       })
       .sort((a, b) => {
@@ -393,44 +417,62 @@ export class OAuthTokenLifecycle {
       });
   }
 
-  async revokeUserAuthorization(userId: string, clientId: string, resource: string): Promise<void> {
-    const client = await this.deps.getClient(clientId);
+  private async findGrant(userId: string, grantId: string) {
+    const grant = (await this.loadGrants(userId)).get(grantId);
+    if (!grant) throw new AppError(404, 'OAUTH_AUTHORIZATION_NOT_FOUND', 'OAuth authorization not found');
+    return grant;
+  }
+
+  async revokeUserAuthorization(userId: string, grantId: string): Promise<{ clientId: string; resource: string }> {
+    const grant = await this.findGrant(userId, grantId);
+    const client = await this.deps.getClient(grant.clientId);
     const now = new Date();
-    const apiResource = this.deps.getApiResourceUrl();
     await Promise.all([
-      this.deps.db
-        .update(oauthAccessTokens)
-        .set({ revokedAt: now })
-        .where(
-          and(
-            eq(oauthAccessTokens.userId, userId),
-            eq(oauthAccessTokens.clientId, clientId),
-            resourceWhere(oauthAccessTokens, resource, apiResource)
-          )
-        ),
-      this.deps.db
-        .update(oauthRefreshTokens)
-        .set({ revokedAt: now })
-        .where(
-          and(
-            eq(oauthRefreshTokens.userId, userId),
-            eq(oauthRefreshTokens.clientId, clientId),
-            resourceWhere(oauthRefreshTokens, resource, apiResource)
-          )
-        ),
+      grant.accessTokenIds.length
+        ? this.deps.db
+            .update(oauthAccessTokens)
+            .set({ revokedAt: now })
+            .where(and(eq(oauthAccessTokens.userId, userId), inArray(oauthAccessTokens.id, grant.accessTokenIds)))
+        : null,
+      grant.refreshTokenIds.length
+        ? this.deps.db
+            .update(oauthRefreshTokens)
+            .set({ revokedAt: now })
+            .where(and(eq(oauthRefreshTokens.userId, userId), inArray(oauthRefreshTokens.id, grant.refreshTokenIds)))
+        : null,
+      // Access tokens issued by this chain that the list did not load (none are live, but keep the chain closed).
+      grant.refreshTokenIds.length
+        ? this.deps.db
+            .update(oauthAccessTokens)
+            .set({ revokedAt: now })
+            .where(
+              and(
+                eq(oauthAccessTokens.userId, userId),
+                inArray(oauthAccessTokens.refreshTokenId, grant.refreshTokenIds),
+                isNull(oauthAccessTokens.revokedAt)
+              )
+            )
+        : null,
     ]);
     await this.deps.auditService.log({
       userId,
       action: 'oauth.authorization_revoke',
       resourceType: 'oauth-client',
-      resourceId: clientId,
-      details: { clientName: client?.clientName ?? 'Unknown OAuth Client', resource },
+      resourceId: grant.clientId,
+      details: {
+        clientName: client?.clientName ?? 'Unknown OAuth Client',
+        resource: grant.resource,
+        authorizationId: grant.id,
+      },
     });
+    return { clientId: grant.clientId, resource: grant.resource };
   }
 
-  async updateUserAuthorizationScopes(user: User, clientId: string, resource: string, requestedScopes: string[]) {
-    const client = await this.deps.getClient(clientId);
+  async updateUserAuthorizationScopes(user: User, grantId: string, requestedScopes: string[]) {
+    const grant = await this.findGrant(user.id, grantId);
+    const client = await this.deps.getClient(grant.clientId);
     if (!client) throw new AppError(404, 'OAUTH_CLIENT_NOT_FOUND', 'OAuth client not found');
+    const resource = grant.resource;
     if (!this.deps.isSupportedResource(resource)) {
       throw new AppError(400, 'INVALID_TARGET', 'OAuth authorization is not available for this resource');
     }
@@ -446,76 +488,37 @@ export class OAuthTokenLifecycle {
       throw new AppError(400, 'INVALID_SCOPE', `Scopes are not recognized: ${invalidScopes.join(', ')}`);
     }
 
-    const now = new Date();
-    const apiResource = this.deps.getApiResourceUrl();
-    const [refreshTokens, accessTokens] = await Promise.all([
-      this.deps.db.query.oauthRefreshTokens.findMany({
-        where: and(
-          eq(oauthRefreshTokens.userId, user.id),
-          eq(oauthRefreshTokens.clientId, clientId),
-          isNull(oauthRefreshTokens.revokedAt),
-          gt(oauthRefreshTokens.expiresAt, now),
-          resourceWhere(oauthRefreshTokens, resource, apiResource)
-        ),
-      }),
-      this.deps.db.query.oauthAccessTokens.findMany({
-        where: and(
-          eq(oauthAccessTokens.userId, user.id),
-          eq(oauthAccessTokens.clientId, clientId),
-          isNull(oauthAccessTokens.revokedAt),
-          activeAccessTokenWhere(now),
-          resourceWhere(oauthAccessTokens, resource, apiResource)
-        ),
-      }),
-    ]);
-    if (refreshTokens.length === 0 && accessTokens.length === 0) {
-      throw new AppError(404, 'OAUTH_AUTHORIZATION_NOT_FOUND', 'OAuth authorization not found');
-    }
-
     this.deps.assertResourceAllowed(user, resource);
     const scopes = this.deps.grantScopes(user, resource, canonicalRequestedScopes);
     if (scopes.length === 0) {
       throw new AppError(400, 'INVALID_SCOPE', `No selected scopes are grantable for resource ${resource}`);
     }
 
+    // Only this grant's tokens change; other grants of the same client keep their own scopes.
     await Promise.all([
-      this.deps.db
-        .update(oauthRefreshTokens)
-        .set({ scopes })
-        .where(
-          and(
-            eq(oauthRefreshTokens.userId, user.id),
-            eq(oauthRefreshTokens.clientId, clientId),
-            isNull(oauthRefreshTokens.revokedAt),
-            gt(oauthRefreshTokens.expiresAt, now),
-            resourceWhere(oauthRefreshTokens, resource, apiResource)
-          )
-        ),
-      this.deps.db
-        .update(oauthAccessTokens)
-        .set({ scopes })
-        .where(
-          and(
-            eq(oauthAccessTokens.userId, user.id),
-            eq(oauthAccessTokens.clientId, clientId),
-            isNull(oauthAccessTokens.revokedAt),
-            activeAccessTokenWhere(now),
-            resourceWhere(oauthAccessTokens, resource, apiResource)
-          )
-        ),
+      grant.refreshTokenIds.length
+        ? this.deps.db
+            .update(oauthRefreshTokens)
+            .set({ scopes })
+            .where(and(eq(oauthRefreshTokens.userId, user.id), inArray(oauthRefreshTokens.id, grant.refreshTokenIds)))
+        : null,
+      grant.accessTokenIds.length
+        ? this.deps.db
+            .update(oauthAccessTokens)
+            .set({ scopes })
+            .where(and(eq(oauthAccessTokens.userId, user.id), inArray(oauthAccessTokens.id, grant.accessTokenIds)))
+        : null,
     ]);
 
     await this.deps.auditService.log({
       userId: user.id,
       action: 'oauth.authorization_update',
       resourceType: 'oauth-client',
-      resourceId: clientId,
-      details: { clientName: client.clientName, resource, scopes },
+      resourceId: grant.clientId,
+      details: { clientName: client.clientName, resource, scopes, authorizationId: grant.id },
     });
 
-    const [authorization] = (await this.listUserAuthorizations(user.id)).filter(
-      (item) => item.clientId === clientId && item.resource === resource
-    );
+    const [authorization] = (await this.listUserAuthorizations(user.id)).filter((item) => item.id === grant.id);
     return authorization;
   }
 
