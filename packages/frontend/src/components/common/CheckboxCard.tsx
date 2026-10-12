@@ -6,6 +6,8 @@ interface CheckboxCardProps {
   onCheckedChange: (checked: boolean) => void;
   label: ReactNode;
   description?: ReactNode;
+  /** A small icon between the box and the label. */
+  icon?: ReactNode;
   disabled?: boolean;
   className?: string;
 }
@@ -21,6 +23,7 @@ export function CheckboxCard({
   onCheckedChange,
   label,
   description,
+  icon,
   disabled,
   className,
 }: CheckboxCardProps) {
@@ -44,6 +47,7 @@ export function CheckboxCard({
           aria-describedby={description ? descriptionId : undefined}
           onChange={(event) => onCheckedChange(event.target.checked)}
         />
+        {icon}
         <span id={labelId} className="text-sm font-medium">
           {label}
         </span>

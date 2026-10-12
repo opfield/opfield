@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import type { ScopeSelectionFilter } from "@/components/common/ScopeSearchFilter";
 import { Button } from "@/components/ui/button";
+import { DIALOG_LIST_CLASS } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -36,6 +37,15 @@ import {
   resolveGitTargetLabels,
 } from "./git-scope-targets";
 import {
+  deriveFamilyLimit,
+  isPlaceRestriction,
+  type SectionLimit,
+  SectionPlacesPicker,
+  sameTargets,
+  sectionPlaces,
+  whereLabel,
+} from "./ScopeSectionLimit";
+import {
   APP_FAMILY_FOLDER_FAMILY,
   APP_SCOPE_PREFIX,
   type AppScopeApp,
@@ -63,6 +73,22 @@ import {
 } from "./scope-list-helpers";
 
 export type { ScopeItem } from "./scope-list-helpers";
+
+/** Where one section's scopes reach: its place limit and the selected scopes it governs. */
+interface PlaceSection {
+  families: FolderFamily[];
+  /** The places per family; empty: everywhere. */
+  limit: SectionLimit;
+  /** Selected scopes of the section (own, not inherited) that can be limited to places. */
+  members: { value: string; family: FolderFamily }[];
+  /** Members whose restriction is the section's places. */
+  follows: ReadonlySet<string>;
+  /** Members a choice in the header sets: the followers, and rows that differ only in places. */
+  governed: ReadonlySet<string>;
+  /** Per family, the places the signed-in user may grant these scopes in, when narrowed. */
+  allowed: Partial<Record<FolderFamily, string[]>>;
+  everywhereAllowed: boolean;
+}
 
 const APP_FOLDER_FAMILIES = new Set<FolderFamily>(Object.values(APP_FAMILY_FOLDER_FAMILY));
 
@@ -132,6 +158,12 @@ interface ScopeListProps {
    * For screens outside a reveal gate (OAuth consent); gated screens use `useContentLoading`.
    */
   onInitialLoadComplete?: () => void;
+  /**
+   * Each section header says where its scopes reach ("Everywhere", one place, "N places"); with
+   * `onResourcesChange` it opens a picker of the folders, apps and environments that hold that
+   * kind, and rows follow the section unless "Only this scope…" gives them their own restriction.
+   */
+  placeLimits?: boolean;
 }
 
 export function ScopeList({
@@ -157,6 +189,7 @@ export function ScopeList({
   onFolderOptionsChange,
   onInitialLoadComplete,
   onResourcesChange,
+  placeLimits = false,
 }: ScopeListProps) {
   const actorScopes = useAuthStore((state) => state.user?.scopes);
   const [expandedScopes, setExpandedScopes] = useState<ReadonlySet<string>>(() => new Set());
@@ -180,6 +213,12 @@ export function ScopeList({
   const [gitConnectorsReady, setGitConnectorsReady] = useState(false);
   const [apps, setApps] = useState<AppScopeApp[]>([]);
   const [appsReady, setAppsReady] = useState(false);
+  // A section's place picker loads its folder trees and the apps when it first opens.
+  const [wantedFamilies, setWantedFamilies] = useState<ReadonlySet<FolderFamily>>(() => new Set());
+  const [loadedFamilies, setLoadedFamilies] = useState<ReadonlySet<FolderFamily>>(() => new Set());
+  const [appsWanted, setAppsWanted] = useState(false);
+  // Places chosen in a section header this session; other sections derive theirs from the rows.
+  const [sectionOverrides, setSectionOverrides] = useState<Record<string, SectionLimit>>({});
   // biome-ignore lint/correctness/useExhaustiveDependencies: Lookup helpers read current auth/features from stores; rerun and cancel old loads when either changes.
   useEffect(() => {
     let cancelled = false;
@@ -205,12 +244,13 @@ export function ScopeList({
   // Decided once the folder trees are known; the first load holds the reveal like the others.
   const needsApps =
     foldersReady &&
-    selectionNeedsApps(
-      scopes,
-      [...selected, ...inheritedParsed.baseScopes],
-      [resources, inheritedParsed.resources, allowedResourceIds],
-      new Set(folderOptions.map((folder) => folderTarget(folder.id)))
-    );
+    (appsWanted ||
+      selectionNeedsApps(
+        scopes,
+        [...selected, ...inheritedParsed.baseScopes],
+        [resources, inheritedParsed.resources, allowedResourceIds],
+        new Set(folderOptions.map((folder) => folderTarget(folder.id)))
+      ));
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: The lookup permission helper reads the actor's current scopes from the store.
   useEffect(() => {
@@ -392,12 +432,13 @@ export function ScopeList({
     : selectionFilteredScopes;
   const categories = [...new Set(visibleScopes.map((s) => s.group))];
   const folderFamiliesKey = [
-    ...new Set(
-      scopes
+    ...new Set([
+      ...scopes
         .filter((scope) => selected.includes(scope.value) || inheritedBaseSet.has(scope.value))
         .map((scope) => folderFamilyForScope(scope.value))
-        .filter(Boolean)
-    ),
+        .filter(Boolean),
+      ...wantedFamilies,
+    ]),
   ]
     .sort()
     .join(",");
@@ -418,6 +459,7 @@ export function ScopeList({
       Promise.all(families.map(loadFolderFamily)).then((options) => {
         if (cancelled) return;
         setFolderOptions(options.flat());
+        setLoadedFamilies(new Set(families));
         onFolderOptionsChange?.(options.flat());
       }),
     ];
@@ -552,8 +594,191 @@ export function ScopeList({
     };
   }, [restrictableScopes, scopes, actorScopes]);
 
+  // Section place limits. A row follows its section when its own restriction is the section's
+  // places; the section's places are the ones chosen in its header this session, or else read back
+  // from the rows (see deriveFamilyLimit), so a saved choice shows again when the list reopens.
+  const placeLimitsEditable = placeLimits && !!onResourcesChange && !readOnly;
+  const placeFamily = (scope: ScopeItem) =>
+    placeLimits && restrictableScopes?.includes(scope.value)
+      ? folderFamilyForScope(scope.value)
+      : null;
+  /** A scope's own places; the user's whole grant (all they may give) counts as everywhere. */
+  const placeTargets = (value: string) => {
+    const own = resources?.[value] ?? [];
+    const allowed = allowedResourceIds?.[value];
+    return allowed && sameTargets(own, allowed) ? [] : own;
+  };
+  const placeLabel = (target: string) =>
+    rowFolderOptions.find((folder) => folderTarget(folder.id) === target)?.label ??
+    target.slice("folder/".length);
+  const placeSection = (group: string): PlaceSection | null => {
+    const limitable = scopes.flatMap((scope) => {
+      if (scope.group !== group) return [];
+      const family = placeFamily(scope);
+      return family ? [{ value: scope.value, family }] : [];
+    });
+    if (limitable.length === 0) return null;
+    const families = [...new Set(limitable.map((scope) => scope.family))];
+    const members = limitable.filter(
+      (scope) => selected.includes(scope.value) && !inheritedBaseSet.has(scope.value)
+    );
+    const override = sectionOverrides[group];
+    const limit: SectionLimit = {};
+    const mixed = new Set<FolderFamily>();
+    for (const family of families) {
+      const chosen = override?.[family];
+      if (chosen) {
+        limit[family] = chosen;
+        continue;
+      }
+      const derived = deriveFamilyLimit(
+        members
+          .filter((member) => member.family === family)
+          .map((member) => placeTargets(member.value))
+      );
+      limit[family] = derived.targets;
+      if (derived.mixed) mixed.add(family);
+    }
+    const allowed: Partial<Record<FolderFamily, string[]>> = {};
+    for (const scope of limitable) {
+      const ids = allowedResourceIds?.[scope.value];
+      if (!ids) continue;
+      const current = allowed[scope.family];
+      allowed[scope.family] = current ? current.filter((id) => ids.includes(id)) : [...ids];
+    }
+    const follows = new Set(
+      members
+        .filter((member) => sameTargets(placeTargets(member.value), limit[member.family] ?? []))
+        .map((member) => member.value)
+    );
+    return {
+      families,
+      limit,
+      members,
+      follows,
+      // Rows that differ only in places: a choice in the header gives them all the same places.
+      governed: new Set(
+        members
+          .filter(
+            (member) =>
+              follows.has(member.value) ||
+              (mixed.has(member.family) && isPlaceRestriction(placeTargets(member.value)))
+          )
+          .map((member) => member.value)
+      ),
+      allowed,
+      everywhereAllowed: limitable.every((scope) => !allowedResourceIds?.[scope.value]),
+    };
+  };
+  const withPlaces = (
+    changes: Record<string, string[]>,
+    value: string,
+    targets: readonly string[]
+  ) => {
+    if (targets.length > 0) changes[value] = [...targets];
+    else if (allowedResourceIds?.[value]) changes[value] = [...allowedResourceIds[value]];
+    else delete changes[value];
+  };
+  const applySectionLimit = (group: string, section: PlaceSection, next: SectionLimit) => {
+    if (!onResourcesChange) return;
+    const changes = { ...(resources ?? {}) };
+    for (const member of section.members) {
+      if (!section.governed.has(member.value)) continue;
+      withPlaces(changes, member.value, next[member.family] ?? section.limit[member.family] ?? []);
+    }
+    setSectionOverrides((current) => ({ ...current, [group]: { ...section.limit, ...next } }));
+    onResourcesChange(changes);
+  };
+  const followSection = (section: PlaceSection, value: string, family: FolderFamily) => {
+    if (!onResourcesChange) return;
+    const changes = { ...(resources ?? {}) };
+    withPlaces(changes, value, section.limit[family] ?? []);
+    onResourcesChange(changes);
+  };
+  const openSectionPlaces = (section: PlaceSection) => {
+    setWantedFamilies((current) =>
+      section.families.every((family) => current.has(family))
+        ? current
+        : new Set([...current, ...section.families])
+    );
+    if (section.families.some((family) => APP_FOLDER_FAMILIES.has(family))) setAppsWanted(true);
+  };
+
+  // A scope selected in a limited section starts in the section's places.
+  const pendingPlaces = useRef(new Map<string, string[]>());
+  const toggleScope = (value: string) => {
+    const scope = scopes.find((candidate) => candidate.value === value);
+    const family = scope ? placeFamily(scope) : null;
+    if (
+      scope &&
+      family &&
+      placeLimitsEditable &&
+      !selected.includes(value) &&
+      !inheritedBaseSet.has(value)
+    ) {
+      const targets = placeSection(scope.group)?.limit[family] ?? [];
+      if (targets.length > 0) pendingPlaces.current.set(value, targets);
+    }
+    onToggle(value);
+  };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Runs once the toggled scope reaches `selected`; the helpers read the same render's props.
+  useEffect(() => {
+    if (pendingPlaces.current.size === 0) return;
+    const pending = [...pendingPlaces.current];
+    pendingPlaces.current.clear();
+    if (!onResourcesChange) return;
+    const changes = { ...(resources ?? {}) };
+    let changed = false;
+    for (const [value, targets] of pending) {
+      if (!selected.includes(value) || placeTargets(value).length > 0) continue;
+      changes[value] = targets;
+      changed = true;
+    }
+    if (changed) onResourcesChange(changes);
+  }, [selected, resources]);
+
+  const sectionHeaderPlaces = (group: string, section: PlaceSection | null) => {
+    if (!section) {
+      return <span className="shrink-0 text-xs text-muted-foreground">Not limited to places</span>;
+    }
+    const where = whereLabel(
+      [...new Set(section.families.flatMap((family) => section.limit[family] ?? []))],
+      placeLabel
+    );
+    if (!placeLimitsEditable) {
+      return <span className="min-w-0 truncate text-xs text-muted-foreground">{where}</span>;
+    }
+    return (
+      <SectionPlacesPicker
+        sectionLabel={group}
+        where={where}
+        families={section.families}
+        places={sectionPlaces({
+          families: section.families,
+          folders: folderOptions,
+          apps,
+          chosen: section.limit,
+          allowed: section.allowed,
+        })}
+        chosen={section.limit}
+        everywhereAllowed={section.everywhereAllowed}
+        followers={section.governed.size}
+        exceptions={section.members.length - section.governed.size}
+        loading={section.families.some((family) => !loadedFamilies.has(family))}
+        onOpen={() => openSectionPlaces(section)}
+        onChange={(next) => applySectionLimit(group, section, next)}
+      />
+    );
+  };
+
   return (
-    <div className={cn("max-sm:max-h-[40vh] max-sm:overflow-y-auto", viewportClassName)}>
+    <div
+      className={cn(
+        DIALOG_LIST_CLASS,
+        "max-sm:max-h-[40vh] max-sm:overflow-y-auto",
+        viewportClassName
+      )}
+    >
       {visibleScopes.length === 0 && (q || selectionFilter !== "all") && (
         <EmptyState
           embedded
@@ -569,51 +794,70 @@ export function ScopeList({
       {categories.map((cat) => {
         const catScopes = visibleScopes.filter((s) => s.group === cat);
         if (catScopes.length === 0) return null;
+        const section = placeLimits ? placeSection(cat) : null;
         return (
           <div key={cat}>
             {cat && (
-              <div className="px-3 py-1.5 bg-muted sticky top-0 z-10 border-b border-border">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              <div className="px-3 py-1.5 bg-header sticky top-0 z-10 border-b border-border flex items-center justify-between gap-2">
+                <p className="min-w-0 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   {cat}
                 </p>
+                {placeLimits && sectionHeaderPlaces(cat, section)}
               </div>
             )}
-            {catScopes.map((scope) => (
-              <ScopeRow
-                key={scope.value}
-                scope={scope}
-                isSelected={selected.includes(scope.value) || inheritedBaseSet.has(scope.value)}
-                isOwnSelected={selected.includes(scope.value)}
-                onToggle={onToggle}
-                muted={false}
-                disabled={readOnly}
-                resources={resources}
-                inheritedResources={inheritedParsed.resources}
-                inheritedExactBase={inheritedParsed.exactBaseScopes.has(scope.value)}
-                onToggleResource={onToggleResource}
-                cas={cas}
-                nodes={nodes}
-                proxyHosts={proxyHosts}
-                databases={databases}
-                domains={domainResources}
-                loggingEnvironments={loggingEnvironments}
-                loggingSchemas={loggingSchemas}
-                dockerResources={dockerResources}
-                dockerRegistryRepositories={dockerRegistryRepositories}
-                resourceCatalog={rowCatalog}
-                folderOptions={rowFolderOptions}
-                restrictableScopes={restrictableScopes}
-                allowedResourceIds={allowedResourceIds}
-                inheritedFromName={inheritedFromName}
-                collapsible={collapsedRestrictions}
-                expanded={expandedScopes.has(scope.value)}
-                onToggleExpanded={() => toggleExpanded(scope.value)}
-                gitConnectors={gitConnectors}
-                gitLabels={gitLabels}
-                onRememberGitLabels={rememberGitLabels}
-                gitRestrictionCopy={gitRestrictionCopy(scope)}
-              />
-            ))}
+            {catScopes.map((scope) => {
+              const family = section ? placeFamily(scope) : null;
+              const member =
+                section && family && section.members.some((item) => item.value === scope.value);
+              const rowWhere = family ? whereLabel(section?.limit[family] ?? [], placeLabel) : "";
+              return (
+                <ScopeRow
+                  key={scope.value}
+                  scope={scope}
+                  isSelected={selected.includes(scope.value) || inheritedBaseSet.has(scope.value)}
+                  isOwnSelected={selected.includes(scope.value)}
+                  placeSection={
+                    section && family && member
+                      ? {
+                          where: rowWhere === "Everywhere" ? "everywhere" : rowWhere,
+                          follows: section.follows.has(scope.value),
+                          onFollow: placeLimitsEditable
+                            ? () => followSection(section, scope.value, family)
+                            : undefined,
+                        }
+                      : null
+                  }
+                  onToggle={toggleScope}
+                  muted={false}
+                  disabled={readOnly}
+                  resources={resources}
+                  inheritedResources={inheritedParsed.resources}
+                  inheritedExactBase={inheritedParsed.exactBaseScopes.has(scope.value)}
+                  onToggleResource={onToggleResource}
+                  cas={cas}
+                  nodes={nodes}
+                  proxyHosts={proxyHosts}
+                  databases={databases}
+                  domains={domainResources}
+                  loggingEnvironments={loggingEnvironments}
+                  loggingSchemas={loggingSchemas}
+                  dockerResources={dockerResources}
+                  dockerRegistryRepositories={dockerRegistryRepositories}
+                  resourceCatalog={rowCatalog}
+                  folderOptions={rowFolderOptions}
+                  restrictableScopes={restrictableScopes}
+                  allowedResourceIds={allowedResourceIds}
+                  inheritedFromName={inheritedFromName}
+                  collapsible={collapsedRestrictions}
+                  expanded={expandedScopes.has(scope.value)}
+                  onToggleExpanded={() => toggleExpanded(scope.value)}
+                  gitConnectors={gitConnectors}
+                  gitLabels={gitLabels}
+                  onRememberGitLabels={rememberGitLabels}
+                  gitRestrictionCopy={gitRestrictionCopy(scope)}
+                />
+              );
+            })}
           </div>
         );
       })}
@@ -653,10 +897,16 @@ function ScopeRow({
   gitLabels,
   onRememberGitLabels,
   gitRestrictionCopy,
+  placeSection,
 }: {
   scope: ScopeItem;
   isSelected: boolean;
   isOwnSelected: boolean;
+  /**
+   * The row's section limits it to places: the row follows it ("Like the section · Shop") or has
+   * a restriction of its own, which `onFollow` replaces with the section's places.
+   */
+  placeSection?: { where: string; follows: boolean; onFollow?: () => void } | null;
   onToggle: (scope: string) => void;
   muted: boolean;
   disabled?: boolean;
@@ -942,7 +1192,44 @@ function ScopeRow({
         </div>
         {scope.meta && <span className="text-xs text-muted-foreground">{scope.meta}</span>}
       </label>
-      {showRestrictions && collapsed && (
+      {placeSection && collapsed && (
+        <div className="flex flex-wrap items-center gap-x-1.5 px-3 pb-2 pl-10 text-xs text-muted-foreground">
+          <span>
+            {placeSection.follows ? `Like the section · ${placeSection.where}` : restrictionSummary}
+          </span>
+          {hasRestrictionOptions && (
+            <>
+              <span aria-hidden="true">·</span>
+              <Button
+                type="button"
+                variant="quiet"
+                size="inline"
+                onClick={onToggleExpanded}
+                aria-label={
+                  disabled ? `Show ${scope.label} restrictions` : `Restrict only ${scope.label}`
+                }
+              >
+                {disabled ? "Show" : placeSection.follows ? "Only this scope…" : "Change…"}
+              </Button>
+            </>
+          )}
+          {!placeSection.follows && placeSection.onFollow && !disabled && (
+            <>
+              <span aria-hidden="true">·</span>
+              <Button
+                type="button"
+                variant="quiet"
+                size="inline"
+                onClick={placeSection.onFollow}
+                aria-label={`Limit ${scope.label} like the section`}
+              >
+                Like the section
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+      {showRestrictions && collapsed && !placeSection && (
         <div className="flex flex-wrap items-center gap-x-1.5 px-3 pb-2 pl-10 text-xs text-muted-foreground">
           <span>{restrictionSummary}</span>
           <span aria-hidden="true">·</span>
