@@ -5,7 +5,7 @@ import { nodes as nodesTable } from '@/db/schema/nodes.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { isNewerVersion, parseSemver } from '@/lib/semver.js';
 import { AppError } from '@/middleware/error-handler.js';
-import { AvailabilityMembersService } from './availability-members.service.js';
+import { AvailabilityMembersService, NodeUpdatePostponedError } from './availability-members.service.js';
 import {
   type DaemonUpdateService,
   daemonTypeForNodeType,
@@ -255,6 +255,10 @@ export async function dispatchNodeDaemonUpdate(
   const send = async (operationId: string) => {
     // Set primaries on the node hand over first (copies restart before primaries: the rollout orders standbys first).
     await (deps.beforeRestart ?? availabilityHandoff)(nodeId).catch((error: unknown) => {
+      if (error instanceof NodeUpdatePostponedError) {
+        // Never restart the daemon under a primary that kept its role: its clients were cut once already.
+        throw new AppError(409, 'NODE_UPDATE_POSTPONED', error.message);
+      }
       logger.warn('Availability handoff before the daemon update failed; the update goes on', {
         nodeId,
         error: error instanceof Error ? error.message : String(error),

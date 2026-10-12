@@ -1,6 +1,11 @@
 import { inArray } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
-import { managedAvailabilityMembers, managedDatabaseInstances, managedStorageClusters, nodes } from '@/db/schema/index.js';
+import {
+  managedAvailabilityMembers,
+  managedDatabaseInstances,
+  managedStorageClusters,
+  nodes,
+} from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
 
 const logger = createChildLogger('ManagedLeftoverRepair');

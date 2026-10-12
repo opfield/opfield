@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { managedAvailabilityMembers, managedDatabaseInstances, managedStorageClusters, nodes } from '@/db/schema/index.js';
+import {
+  managedAvailabilityMembers,
+  managedDatabaseInstances,
+  managedStorageClusters,
+  nodes,
+} from '@/db/schema/index.js';
 import { LEFTOVER_CONFIRMATION_MS, type ManagedLeftover, ManagedLeftoverRepair } from './managed-leftover-repair.js';
 
 const NODE = 'db78707c-5894-4bd4-a2e4-080c80228f4a';

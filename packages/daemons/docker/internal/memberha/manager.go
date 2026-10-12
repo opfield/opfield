@@ -195,8 +195,15 @@ func (m *Manager) registerHandlerLocked(mem *member) {
 		Eligible: func(in EligibilityInput) (bool, string) {
 			ok, reason := m.eligible(mem, in)
 			mem.eligMu.Lock()
+			changed := mem.eligible != ok || mem.eligibleReason != reason
 			mem.eligible, mem.eligibleReason = ok, reason
 			mem.eligMu.Unlock()
+			if changed && m.logger != nil {
+				// Why a member can or cannot take the primary role (a handoff that names it, a failover): each change
+				// once, so a takeover that did not happen can be explained from the node's log.
+				m.logger.Info("availability member eligibility changed", "set_id", mem.cfg.SetID, "member_id", mem.cfg.MemberID,
+					"eligible", ok, "reason", reason, "previous_holder", in.PreviousHolder)
+			}
 			return ok, reason
 		},
 		BootstrapValue: func(Key) ([]byte, error) {

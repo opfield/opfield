@@ -90,6 +90,11 @@ export const MANUAL_CONTACT_INTERVAL_MS = 5_000;
 /** A node update waits at most this long for the set primaries on the node to hand over. */
 const NODE_UPDATE_HANDOFF_TIMEOUT_MS = 5 * 60_000;
 
+/** A node's update waits: a set primary on it could not hand over (see beforeNodeUpdate). */
+export class NodeUpdatePostponedError extends Error {
+  readonly code = 'NODE_UPDATE_POSTPONED';
+}
+
 export type PrimaryChangedListener = (
   set: AvailabilitySetRow,
   member: AvailabilityMemberRow,
@@ -163,8 +168,10 @@ export class AvailabilityMembersService {
 
   /**
    * Before a node's daemon restarts for an update: every set primary on the node hands over to a healthy copy first
-   * (the owner kinds' handoffs start a planned switchover and wait for it). Bounded; a handoff that fails or times out
-   * only logs, and the update goes on (the set then fails over or waits as for any restart).
+   * (the owner kinds' handoffs start a planned switchover and wait for it). Bounded. A primary that could not hand over
+   * and keeps serving on the node (or a handoff still running at the bound) postpones the update: it throws a
+   * NODE_UPDATE_POSTPONED error, so the daemon is never restarted under it and its clients are not cut a second time.
+   * Any other failure only logs, and the update goes on (the set then fails over or waits as for any restart).
    */
   async beforeNodeUpdate(nodeId: string): Promise<void> {
     if (this.nodeUpdateHandoffs.length === 0) return;
@@ -188,6 +195,18 @@ export class AvailabilityMembersService {
           }),
         ]);
       } catch (error) {
+        const timedOut = (error as Error).message === 'the handoff did not finish in time';
+        if (timedOut || (error as { code?: string }).code === 'AVAILABILITY_HANDOFF_FAILED') {
+          logger.warn('Availability primaries did not hand over before the node update; it is postponed', {
+            nodeId,
+            error: (error as Error).message,
+          });
+          throw new NodeUpdatePostponedError(
+            timedOut
+              ? 'The update was postponed: a primary on this node was still handing over to its copy'
+              : `The update was postponed: ${(error as Error).message}`
+          );
+        }
         logger.warn('Availability primaries did not hand over before the node update; it goes on', {
           nodeId,
           error: (error as Error).message,
