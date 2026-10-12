@@ -518,7 +518,7 @@ export function NodeEnrollmentDialog({
       <OneTimeSecretDialog
         open={resultOpen}
         onOpenChange={onResultOpenChange}
-        className="sm:max-w-2xl"
+        className="sm:max-w-lg"
         title={result?.reissued ? "New Enrollment Token" : "Node Created"}
         description={
           <>

@@ -920,7 +920,7 @@ export function SSLCertificates() {
         </DialogContent>
       </Dialog>
       <Dialog open={previewOpen} onOpenChange={handlePreviewOpenChange}>
-        <DialogContent className="sm:max-w-2xl" aria-describedby={undefined}>
+        <DialogContent className="sm:max-w-lg" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>SSL Certificate Details</DialogTitle>
           </DialogHeader>

@@ -479,7 +479,7 @@ function GitConnectorPanel({
       ) : null}
 
       <Dialog open={formOpen} onOpenChange={(open) => (open ? setFormDialog(true) : closeForm())}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {oauthStep
@@ -649,7 +649,7 @@ function GitConnectorPanel({
                     <SettingsControlRow
                       title="Personal access token"
                       description="Opfield validates the token without storing it until you save."
-                      controlsClassName="sm:min-w-[22rem] sm:max-w-none"
+                      controlsClassName="sm:min-w-[16rem] sm:max-w-none"
                     >
                       <div className="flex w-full min-w-0 border border-input bg-background">
                         <Input
@@ -707,7 +707,7 @@ function GitConnectorPanel({
                     <SettingsControlRow
                       title="Access token"
                       description="Test the credential against the first configured repository before saving."
-                      controlsClassName="sm:min-w-[22rem] sm:max-w-none"
+                      controlsClassName="sm:min-w-[16rem] sm:max-w-none"
                     >
                       <div className="flex w-full min-w-0 border border-input bg-background">
                         <Input

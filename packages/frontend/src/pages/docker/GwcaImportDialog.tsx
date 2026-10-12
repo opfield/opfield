@@ -411,7 +411,7 @@ export function GwcaImportDialog({
       }}
     >
       <DialogContent
-        className="sm:max-w-2xl"
+        className="sm:max-w-lg"
         hideCloseButton={importing}
         onEscapeKeyDown={(event) => {
           if (importing) event.preventDefault();

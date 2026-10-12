@@ -503,7 +503,7 @@ function StorageDetailContent({
       </div>
 
       <Dialog open={credentialsOpen} onOpenChange={setCredentialsOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Stored Credentials</DialogTitle>
             <DialogDescription>
@@ -513,7 +513,7 @@ function StorageDetailContent({
           <div className="border border-border bg-card overflow-hidden">
             <ContentLoading loading={loadingCredentials} />
             {loadingCredentials ? null : (
-              <pre className="overflow-x-auto p-4 text-sm whitespace-pre-wrap">
+              <pre className="overflow-x-auto break-all p-4 text-sm whitespace-pre-wrap">
                 {revealedCredentials
                   ? JSON.stringify(revealedCredentials, null, 2)
                   : "Credentials are hidden."}

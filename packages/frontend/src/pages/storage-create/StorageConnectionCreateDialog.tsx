@@ -112,7 +112,7 @@ export function StorageConnectionCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Add Storage</DialogTitle>
           <DialogDescription>

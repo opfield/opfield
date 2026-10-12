@@ -940,7 +940,7 @@ export function LoginPage({
         </AnimatePresence>
       </AnimatedHeight>
       <Dialog open={passwordResetConfirmOpen} onOpenChange={setPasswordResetConfirmOpen}>
-        <DialogContent className="!max-w-md sm:!max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Reset Password?</DialogTitle>
           </DialogHeader>

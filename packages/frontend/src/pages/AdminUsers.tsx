@@ -870,7 +870,7 @@ function AdminUsersContent({
           setDeletedUsersOpen(open);
         }}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Deleted Users</DialogTitle>
           </DialogHeader>
