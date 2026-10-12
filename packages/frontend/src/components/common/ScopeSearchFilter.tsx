@@ -51,7 +51,11 @@ export function ScopeSearchFilter({
             <Button
               variant="ghost"
               size="icon"
-              className="border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+              className={cn(
+                "border-l border-border text-muted-foreground hover:text-foreground",
+                // Filled only while a filter is on, so a narrowed list is visible at a glance.
+                filter === "all" ? "hover:bg-accent" : "bg-muted text-foreground hover:bg-muted"
+              )}
               aria-label={`Filter scopes: ${FILTER_LABELS[filter]}`}
               title={`Filter scopes: ${FILTER_LABELS[filter]}`}
               disabled={disabled}
