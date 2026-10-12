@@ -433,7 +433,7 @@ export function NginxTemplateEdit() {
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         {/* As tall as the rendered config, up to the window; longer configs scroll inside. */}
-        <DialogContent className="sm:max-w-3xl" fitViewport>
+        <DialogContent className="sm:max-w-5xl" fitViewport>
           <DialogHeader>
             <DialogTitle>Rendered Preview</DialogTitle>
             <DialogDescription>Preview the template rendered with sample data.</DialogDescription>

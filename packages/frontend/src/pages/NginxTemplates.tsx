@@ -348,7 +348,7 @@ export function NginxTemplates({
         />
       </div>
       <Dialog open={previewOpen} onOpenChange={onPreviewOpenChange}>
-        <DialogContent className="w-[92vw] sm:max-w-3xl">
+        <DialogContent className="w-[92vw] sm:max-w-5xl">
           <DialogHeader>
             <DialogTitle>{previewTemplate?.name ?? "Template Preview"}</DialogTitle>
           </DialogHeader>
