@@ -246,7 +246,7 @@ const DialogContentPanel = React.forwardRef<
           "dialog-content relative z-50 flex w-full max-w-none flex-col border bg-background p-0 shadow-lg outline-none",
           "max-h-[85dvh]",
           "sm:mx-auto sm:my-auto sm:max-w-lg",
-          fitViewport ? "sm:max-h-[min(95dvh,900px)]" : "sm:max-h-none",
+          fitViewport ? "sm:max-h-[95dvh]" : "sm:max-h-none",
           contentClassName,
           clipOverflow && "sm:overflow-clip",
           "max-sm:flex max-sm:max-h-[85dvh] max-sm:flex-col max-sm:gap-0 max-sm:overflow-hidden max-sm:p-0"

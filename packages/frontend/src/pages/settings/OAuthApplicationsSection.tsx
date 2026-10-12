@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { useContentLoading } from "@/components/common/reveal-gate";
-import { ScopePicker } from "@/components/common/ScopePicker";
+import { SCOPE_PICKER_VIEWPORT, ScopePicker } from "@/components/common/ScopePicker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -438,7 +438,7 @@ export function OAuthApplicationsSection({
                 loggingSchemas={loggingSchemasList}
                 restrictableScopes={RESOURCE_SCOPABLE_SCOPES}
                 allowedResourceIds={allowedResourceIdsByScope}
-                viewportClassName="max-h-[min(20rem,40dvh)] overflow-y-auto overscroll-contain"
+                viewportClassName={SCOPE_PICKER_VIEWPORT}
                 footer={`${finalEditableScopes.length} scope${finalEditableScopes.length !== 1 ? "s" : ""}`}
               >
                 {unknownScopes.length > 0 && (

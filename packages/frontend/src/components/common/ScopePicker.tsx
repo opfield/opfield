@@ -45,6 +45,9 @@ const FOLDER_FAMILY_LABELS: Record<FolderFamily, string> = {
   "logging-schemas": "Logging schemas",
 };
 
+/** The list height of a scope picker inside a dialog that does not fit itself to the viewport. */
+export const SCOPE_PICKER_VIEWPORT = "max-h-[min(40rem,65dvh)] overflow-y-auto overscroll-contain";
+
 type ScopeListProps = ComponentProps<typeof ScopeList>;
 
 export interface ScopePickerProps extends Omit<ScopeListProps, "search" | "selectionFilter"> {
