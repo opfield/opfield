@@ -437,7 +437,7 @@ export class AppOverviewService {
           ? idsByNode.get(status.member.nodeId!)?.get(status.runtimeName)
           : undefined;
         const [history, samples] = await Promise.all([
-          runtimeId && monitoring ? monitoring.getContainerStatsHistory(runtimeId).catch(() => []) : [],
+          runtimeId && monitoring ? monitoring.getContainerStatsHourHistory(runtimeId).catch(() => []) : [],
           readSamples<WorkloadSample>(cache, workloadSampleKey(status.member.type, status.member.id)),
         ]);
         const at = (entry: Record<string, unknown>) => num(entry.timestamp) ?? 0;
