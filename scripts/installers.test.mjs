@@ -2029,3 +2029,66 @@ test('install.sh --restore reads the export version and refuses what it cannot r
     await rm(work, { recursive: true, force: true });
   }
 });
+
+test('install.sh --domain and --acme-email: help, validation before any host change, and the console ports', async () => {
+  const installSh = path.join(scriptsDir, 'install.sh');
+  const source = readFileSync(installSh, 'utf8');
+  const work = await mkdtemp(path.join(tmpdir(), 'install-domain-'));
+  try {
+    const run = (args) =>
+      spawnSync('bash', [installSh, '--dry-run', '--install-dir', path.join(work, 'opt'), ...args], {
+        encoding: 'utf8',
+        timeout: 30_000,
+        input: '',
+        env: { ...process.env, TERM: 'dumb', RELEASES_API_URL: 'http://127.0.0.1:9/never' },
+      });
+    const help = spawnSync('bash', [installSh, '--help'], { encoding: 'utf8', timeout: 30_000, input: '' });
+    assert.equal(help.status, 0, help.stderr);
+    assert.match(help.stdout, /--domain FQDN --acme-email EMAIL/);
+    assert.match(help.stdout, /Let's Encrypt/);
+
+    for (const [args, message] of [
+      [['--domain', 'not a domain', '--acme-email', 'ops@example.com'], /--domain must be a DNS name/],
+      [['--domain', '10.0.0.1', '--acme-email', 'ops@example.com'], /--domain must be a DNS name/],
+      [['--domain', '*.example.com', '--acme-email', 'ops@example.com'], /--domain must be a DNS name/],
+      [['--domain', 'console.example.com'], /--domain needs --acme-email/],
+      [['--acme-email', 'ops@example.com'], /--acme-email is used with --domain/],
+      [['--domain', 'console.example.com', '--acme-email', 'nobody'], /--acme-email must be an email address/],
+    ]) {
+      const result = run(args);
+      assert.notEqual(result.status, 0, args.join(' '));
+      assert.match(result.stdout + result.stderr, message, args.join(' '));
+    }
+    // Validation runs before anything else: nothing was created.
+    assert.equal(spawnSync('test', ['-e', path.join(work, 'opt')]).status, 1);
+
+    // The fresh Compose file the installer writes, with the console ports added to the app service only, once.
+    const compose = /cat >docker-compose\.yml <<'COMPOSE'\n([\s\S]*?)\nCOMPOSE\n/.exec(source)?.[1];
+    assert.ok(compose, 'install.sh writes a Compose file');
+    const file = path.join(work, 'docker-compose.yml');
+    await writeFile(file, `${compose}\n`);
+    const add = `${shellFunction(source, 'add_console_ports')}\nadd_console_ports '${file}'`;
+    assert.equal(runShell(add).status, 0);
+    assert.equal(runShell(add).status, 0);
+    const updated = await readFile(file, 'utf8');
+    const appPorts = /\n  app:\n[\s\S]*?\n    ports:\n((?:      - .*\n)+)/.exec(updated)?.[1];
+    assert.equal(appPorts, '      - "80:3080"\n      - "443:3443"\n      - "3000:3000"\n');
+    assert.equal(updated.match(/443:3443/g)?.length, 1);
+    assert.match(updated, /\n  relay:\n[\s\S]*?\n    ports:\n      - "9443:9443"\n    volumes:/);
+
+    // A Compose file without an app ports block is refused, not silently left without 443.
+    await writeFile(file, 'services:\n  app:\n    image: x\n');
+    assert.notEqual(runShell(add).status, 0);
+
+    // The domain check of the installer.
+    const valid = `${shellFunction(source, 'valid_console_domain')}\n`;
+    for (const name of ['console.example.com', 'a-1.opfield.cloud']) {
+      assert.equal(runShell(`${valid}valid_console_domain '${name}'`).status, 0, name);
+    }
+    for (const name of ['localhost', 'example.com:443', '-a.example.com', 'a..example.com', '1.2.3.4']) {
+      assert.notEqual(runShell(`${valid}valid_console_domain '${name}'`).status, 0, name);
+    }
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+});

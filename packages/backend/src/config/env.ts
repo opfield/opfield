@@ -49,6 +49,16 @@ const envSchema = z.object({
   WEB_TLS_AUTO_DIR: nonEmptyStringWithDefault('/var/lib/gateway/tls'),
   PAGES_STORAGE_DIR: nonEmptyStringWithDefault('/var/lib/gateway/pages'),
 
+  // Console on its own domain (managed cloud VMs, installer --domain/--acme-email): HTTPS with a Let's Encrypt
+  // certificate the app obtains over HTTP-01 and renews itself. Unset keeps only the PORT listener.
+  GATEWAY_CONSOLE_DOMAIN: optionalNonEmptyString,
+  GATEWAY_ACME_EMAIL: optionalNonEmptyString,
+  // ACME directory override for tests: a directory URL, or "staging" for the Let's Encrypt staging CA.
+  GATEWAY_ACME_DIRECTORY_URL: optionalNonEmptyString,
+  // Container ports of the console listeners; the installer publishes them as 443 and 80.
+  GATEWAY_CONSOLE_HTTPS_PORT: z.coerce.number().int().min(1).max(65535).default(3443),
+  GATEWAY_CONSOLE_HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(3080),
+
   // Node-level transport for Docker Route Secure Links. Production accepts
   // either the digest-pinned release image or the official GHCR Relay release tag.
   SECURE_LINK_CONNECTOR_IMAGE: z.string().trim().default(''),

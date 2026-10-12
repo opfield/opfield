@@ -10,7 +10,14 @@ export function dns01RecordNameForDomain(domain: string): string {
   return `_acme-challenge.${normalized}`;
 }
 
+export interface ACMEServiceOptions {
+  /** ACME directory used instead of Let's Encrypt (production or staging), e.g. a test CA. */
+  directoryUrl?: string;
+}
+
 export class ACMEService {
+  constructor(private readonly options: ACMEServiceOptions = {}) {}
+
   /** Set by bootstrap to resolve and deploy HTTP-01 challenges through Domain ingress affinity. */
   onHttp01Preflight?: (domains: string[]) => Promise<void>;
   onChallengeCreate?: (token: string, content: string, domain: string) => Promise<void>;
@@ -51,7 +58,9 @@ export class ACMEService {
   async requestCertHTTP01(
     domains: string[],
     staging?: boolean,
-    contactEmail?: string
+    contactEmail?: string,
+    /** Reuses this ACME account instead of registering a new one (repeated orders stay within account limits). */
+    accountKeyPem?: string
   ): Promise<{
     certificatePem: string;
     privateKeyPem: string;
@@ -65,7 +74,7 @@ export class ACMEService {
     await this.onHttp01Preflight?.(domains);
 
     // 1. Create account key
-    const accountKey = await acme.crypto.createPrivateKey();
+    const accountKey = accountKeyPem ? Buffer.from(accountKeyPem) : await acme.crypto.createPrivateKey();
 
     // 2. Create ACME client
     const client = new acme.Client({
@@ -297,6 +306,7 @@ export class ACMEService {
   // ---------------------------------------------------------------------------
 
   private getDirectoryUrl(staging?: boolean): string {
+    if (this.options.directoryUrl) return this.options.directoryUrl;
     return staging ? acme.directory.letsencrypt.staging : acme.directory.letsencrypt.production;
   }
 
