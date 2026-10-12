@@ -9,7 +9,11 @@ import { NavigationHubPage } from "@/pages/NavigationHubPage";
 import { PagesSettingsSection } from "@/pages/pages/PageGlobalSettings";
 import { ApiRequestError } from "@/services/api-base";
 import { useAuthStore } from "@/stores/auth";
-import { unlicensedNavigationItems, useLicensePaywallStore } from "@/stores/license-paywall";
+import {
+  planIncludes,
+  unlicensedNavigationItems,
+  useLicensePaywallStore,
+} from "@/stores/license-paywall";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import type { UIBootstrapShell } from "@/types/ui-bootstrap";
 import { LicenseFeatureBoundary } from "./LicenseFeatureBoundary";
@@ -212,5 +216,15 @@ describe("Ingress groups on a plan without multi-node availability", () => {
       );
     expect(tabs(false)).toEqual(["routes"]);
     expect(tabs(true)).toEqual(["routes", "ingress-groups"]);
+  });
+});
+
+describe("features without an entitlement of their own", () => {
+  it("grants disk-image volumes to every paid plan and not to Community", () => {
+    setPlan("personal", ["managed-databases"]);
+    expect(planIncludes("disk-image-volumes")).toBe(true);
+    expect(planIncludes("security-scanning")).toBe(false);
+    setPlan("community", []);
+    expect(planIncludes("disk-image-volumes")).toBe(false);
   });
 });
