@@ -78,7 +78,7 @@ export function describeRefusal(
   context: { environmentName?: string | null; nodeName?: string | null }
 ): string {
   if (refusal.code === "APP_NODE_NOT_ALLOWED" && context.environmentName) {
-    return `Allow ${context.nodeName || "its node"} in ${context.environmentName} first`;
+    return `${context.nodeName ? `Its node ${context.nodeName} is` : "Its node is"} not allowed in ${context.environmentName}; add it to the environment's allowed nodes first`;
   }
   return refusal.message || refusal.code;
 }

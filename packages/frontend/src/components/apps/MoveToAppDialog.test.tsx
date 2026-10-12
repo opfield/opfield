@@ -159,7 +159,11 @@ describe("MoveToAppDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Move" }));
 
     expect(await screen.findByText("Nothing was moved")).toBeInTheDocument();
-    expect(screen.getByText("web: Allow edge-1 in production first")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "web: Its node edge-1 is not allowed in production; add it to the environment's allowed nodes first"
+      )
+    ).toBeInTheDocument();
     expect(onMoved).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });

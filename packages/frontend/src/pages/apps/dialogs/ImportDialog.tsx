@@ -1,6 +1,6 @@
 // Import existing (canvas frame app-import): pick resources of one type, several at once, and
 // the environment they join. A resource of another app moves here. A resource on a node the
-// environment does not allow is shown disabled: "Allow <node> in <env> first".
+// environment does not allow is shown disabled: "Its node <node> is not allowed in <env>; add it to the environment's allowed nodes first".
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { environmentLabel, readLastAppEnvironment } from "@/components/apps/app-create-context";
@@ -217,7 +217,7 @@ export function ImportDialog({
   );
   const blockedReason = (row: Candidate) =>
     row.nodeId && environment && !allowed.has(row.nodeId)
-      ? `Allow ${nodeDisplayName(nodesById.get(row.nodeId), row.nodeId)} in ${environment.name} first`
+      ? `Its node ${nodeDisplayName(nodesById.get(row.nodeId), row.nodeId)} is not allowed in ${environment.name}; add it to the environment's allowed nodes first`
       : null;
   const selectable = new Set(rows.filter((row) => !blockedReason(row)).map((row) => row.key));
   const chosen = selected.filter((key) => selectable.has(key));

@@ -58,7 +58,7 @@ export function MoveToEnvironmentDialog({
   const target = targets.find((env) => env.id === targetId) ?? null;
   const nodeBlocked =
     target && shown?.nodeId && !target.allowedNodeIds.includes(shown.nodeId)
-      ? `Allow ${nodeDisplayName(nodesById.get(shown.nodeId), shown.nodeId)} in ${target.name} first`
+      ? `Its node ${nodeDisplayName(nodesById.get(shown.nodeId), shown.nodeId)} is not allowed in ${target.name}; add it to the environment's allowed nodes first`
       : null;
 
   const move = async () => {
