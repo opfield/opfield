@@ -81,6 +81,12 @@ function getAuditResourceNameFromDetails(details: AuditLogEntry["details"]): str
   return null;
 }
 
+/** The resource's readable name (the Opfield account for the cloud link); empty when only its ID is known. */
+export function getAuditResourceName(entry: AuditLogEntry): string {
+  if (entry.resourceType === "cloud-link") return entry.resourceName || "Opfield account";
+  return entry.resourceName ?? getAuditResourceNameFromDetails(entry.details) ?? "";
+}
+
 /**
  * "Type / name" for an audit entry's resource, followed by the entry's plain description when it has one; the title
  * adds the ID when a name hides it. The cloud link is named after its Opfield account, never its agent ID.
@@ -126,6 +132,8 @@ function auditEntryToExportRow(entry: AuditLogEntry): string[] {
     entry.action,
     entry.resourceType,
     entry.resourceId ?? "",
+    getAuditResourceName(entry),
+    entry.summary ?? "",
     entry.ipAddress ?? "",
     entry.userAgent ?? "",
     JSON.stringify(entry.details ?? {}),
@@ -139,6 +147,8 @@ const AUDIT_EXPORT_HEADERS = [
   "Action",
   "Resource Type",
   "Resource ID",
+  "Resource",
+  "Description",
   "IP Address",
   "User Agent",
   "Details",

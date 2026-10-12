@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AuditLogEntry } from "@/types";
-import { getAuditResourceDisplay } from "./audit-format";
+import { formatAuditExport, getAuditResourceDisplay } from "./audit-format";
 
 const base: AuditLogEntry = {
   id: "e1",
@@ -46,5 +46,12 @@ describe("audit resource display", () => {
         details: null,
       }).label
     ).toBe("Node / edge-1");
+  });
+
+  it("exports the cloud link's account and description", () => {
+    const { content } = formatAuditExport([base], "csv");
+    const [header, row] = content.split("\n");
+    expect(header).toContain("Resource,Description");
+    expect(row).toContain("Opfield account · owner@example.com,Read logs · app · last 200 lines");
   });
 });
