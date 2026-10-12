@@ -441,7 +441,7 @@ export function ImportDialog({
                 sections.map((section) => (
                   <div key={section.key}>
                     {section.label !== null && (
-                      <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-muted px-3 py-1.5">
+                      <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-header px-3 py-1.5">
                         <p className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           {section.label}
                         </p>
