@@ -34,6 +34,7 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
+import { usePlanIncludes } from "@/stores/license-paywall";
 import type { DockerContainer, ManagedObjectStorage, ProxyAdditionalSecureLink } from "@/types";
 
 const EMPTY_SELECTION: ProxyUpstreamSelection = {
@@ -67,6 +68,7 @@ export function AdditionalSecureLinkBindings({
   const hiddenBindingIds = useRef(new Set<string>());
   const requestGeneration = useRef(0);
   useContentLoading(bindings === null);
+  const managedStorageIncluded = usePlanIncludes("managed-storage");
 
   const load = useCallback(async () => {
     const generation = ++requestGeneration.current;
@@ -106,7 +108,7 @@ export function AdditionalSecureLinkBindings({
   useRealtime("docker.deployment.changed", load);
 
   useEffect(() => {
-    if (!adding || !storageTarget) return;
+    if (!adding || !storageTarget || !managedStorageIncluded) return;
     let cancelled = false;
     setStoragesLoading(true);
     setStoragesError(null);
@@ -126,7 +128,7 @@ export function AdditionalSecureLinkBindings({
     return () => {
       cancelled = true;
     };
-  }, [adding, storageTarget]);
+  }, [adding, storageTarget, managedStorageIncluded]);
 
   const validName = /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(name);
   const nameInvalid = name.length > 0 && !validName;
@@ -468,7 +470,9 @@ export function AdditionalSecureLinkBindings({
                 <SelectContent>
                   <SelectItem value="docker_container">Docker container</SelectItem>
                   <SelectItem value="docker_deployment">Docker deployment</SelectItem>
-                  <SelectItem value="managed_storage">Managed S3 storage</SelectItem>
+                  {(managedStorageIncluded || storageTarget) && (
+                    <SelectItem value="managed_storage">Managed S3 storage</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>

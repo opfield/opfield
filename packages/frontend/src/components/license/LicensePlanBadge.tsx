@@ -7,6 +7,7 @@ import {
   type PaidLicensePlan,
 } from "@/stores/license-paywall";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
+import { entitlementsIncludeFeature } from "@/types/license-features";
 
 const LABELS: Record<PaidLicensePlan, string> = {
   personal: "Personal",
@@ -32,7 +33,7 @@ export function LicensePlanBadge({ feature, label }: { feature: LicenseFeature; 
 
   if (
     !license ||
-    license.entitlements.features.includes(feature) ||
+    entitlementsIncludeFeature(license.entitlements.features, feature) ||
     LICENSE_PLAN_RANK[license.plan] >= LICENSE_PLAN_RANK[plan]
   ) {
     return null;

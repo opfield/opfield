@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { canLoadScopeResource } from "@/components/common/scope-list-helpers";
 import { usePkiAvailable } from "@/hooks/use-plan-gated-features";
 import { visibleNavigationGroups } from "@/lib/app-navigation";
-import { CERTIFICATES_HUB, visibleHubTabs } from "@/lib/navigation-hubs";
+import { CERTIFICATES_HUB, ROUTES_HUB, visibleHubTabs } from "@/lib/navigation-hubs";
 import { NavigationHubPage } from "@/pages/NavigationHubPage";
 import { PagesSettingsSection } from "@/pages/pages/PageGlobalSettings";
 import { ApiRequestError } from "@/services/api-base";
@@ -92,15 +92,13 @@ describe("toastApiError", () => {
 });
 
 describe("Settings → Features Pages panel", () => {
-  it("shows the locked panel without calling the Pages endpoints on a plan without Pages", async () => {
-    render(
+  it("is hidden and calls no Pages endpoint on a plan without Pages", () => {
+    const { container } = render(
       <MemoryRouter>
         <PagesSettingsSection />
       </MemoryRouter>
     );
-    expect(
-      await screen.findByText("Wildcard deployment previews need the Personal plan or higher.")
-    ).toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
     expect(api.getPageProfile).not.toHaveBeenCalled();
     expect(api.getPageProfileOptions).not.toHaveBeenCalled();
     expect(toast.error).not.toHaveBeenCalled();
@@ -121,9 +119,6 @@ describe("Settings → Features Pages panel", () => {
       </MemoryRouter>
     );
     await waitFor(() => expect(api.getPageProfile).toHaveBeenCalledTimes(1));
-    expect(
-      screen.queryByText("Wildcard deployment previews need the Personal plan or higher.")
-    ).not.toBeInTheDocument();
   });
 });
 
@@ -162,14 +157,14 @@ describe("plan-gated pages", () => {
         .map((item) => item.id);
 
     const community = unlicensedNavigationItems(useUIBootstrapStore.getState().snapshot);
-    expect(community).toEqual(["pages", "storage", "databases"]);
+    expect(community).toEqual(["pages", "logging", "storage", "databases"]);
     expect(ids(community)).not.toContain("pages");
     expect(ids(community)).not.toContain("storage");
     expect(ids(community)).not.toContain("databases");
 
     setPlan("personal", ["pages", "storage-connections", "external-database-connections"]);
     const personal = unlicensedNavigationItems(useUIBootstrapStore.getState().snapshot);
-    expect(personal).toEqual([]);
+    expect(personal).toEqual(["logging"]);
     expect(ids(personal)).toEqual(expect.arrayContaining(["pages", "storage", "databases"]));
   });
 });
@@ -205,5 +200,17 @@ describe("Certificates tabs on a plan without internal PKI", () => {
   it("does not list PKI resources in permission editors", () => {
     expect(canLoadScopeResource("pki:templates:view")).toBe(false);
     expect(canLoadScopeResource("ssl:cert:view")).toBe(true);
+  });
+});
+
+describe("Ingress groups on a plan without multi-node availability", () => {
+  it("hides the Ingress Groups tab", () => {
+    const scopes = ["proxy:view", "ingress:groups:view"];
+    const tabs = (ingressGroupsInPlan: boolean) =>
+      visibleHubTabs(ROUTES_HUB, { scopes, pkiEnabled: false, ingressGroupsInPlan }).map(
+        (tab) => tab.value
+      );
+    expect(tabs(false)).toEqual(["routes"]);
+    expect(tabs(true)).toEqual(["routes", "ingress-groups"]);
   });
 });

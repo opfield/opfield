@@ -22,7 +22,11 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
 import { formatBytes, formatDateTime } from "@/lib/utils";
 import { api } from "@/services/api";
-import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
+import {
+  handleLicenseApiError,
+  requireLicenseFeature,
+  usePlanIncludes,
+} from "@/stores/license-paywall";
 import type { DockerInternalRegistryState, Node, SSLCertificate } from "@/types";
 
 interface InternalRegistrySectionProps {
@@ -129,6 +133,9 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
       .finally(() => setLoading(false));
   }, [applyState]);
 
+  // External access is Business; it stays visible while switched on so it can be turned off.
+  const externalAccessInPlan = usePlanIncludes("git-push-to-deploy");
+  const showExternalAccess = externalAccessInPlan || !!state?.externalAccessEnabled;
   const nginxNodes = useMemo(() => nodesList.filter((node) => node.type === "nginx"), [nodesList]);
   const matchingCertificates = useMemo(
     () => certificates.filter((certificate) => certificateCoversHostname(certificate, hostname)),
@@ -276,24 +283,26 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
           {state?.nextGcAt ? ` · Next ${formatDateTime(state.nextGcAt)}` : ""}
         </span>
       </SettingsControlRow>
-      <SettingsControlRow
-        title={
-          <span className="flex items-center gap-2">
-            <SettingsHelpTitle
-              label="External access"
-              help="Publishes the internal registry through an Nginx ingress so Docker clients outside Opfield's private transport can pull images over HTTPS."
-            />
-            <LicensePlanBadge feature="git-push-to-deploy" label="Business+" />
-          </span>
-        }
-        description="Internal builds and pulls keep working when this is disabled."
-      >
-        <Switch
-          checked={externalEnabled}
-          onChange={setExternalAccess}
-          ariaLabel="External registry access"
-        />
-      </SettingsControlRow>
+      {showExternalAccess && (
+        <SettingsControlRow
+          title={
+            <span className="flex items-center gap-2">
+              <SettingsHelpTitle
+                label="External access"
+                help="Publishes the internal registry through an Nginx ingress so Docker clients outside Opfield's private transport can pull images over HTTPS."
+              />
+              <LicensePlanBadge feature="git-push-to-deploy" label="Business+" />
+            </span>
+          }
+          description="Internal builds and pulls keep working when this is disabled."
+        >
+          <Switch
+            checked={externalEnabled}
+            onChange={setExternalAccess}
+            ariaLabel="External registry access"
+          />
+        </SettingsControlRow>
+      )}
       {externalEnabled && (
         <>
           <SettingsControlRow

@@ -86,7 +86,11 @@ import { scopeMatches } from "@/lib/scope-utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { useDockerStore } from "@/stores/docker";
-import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
+import {
+  handleLicenseApiError,
+  requireLicenseFeature,
+  usePlanIncludes,
+} from "@/stores/license-paywall";
 import { usePinnedContainersStore } from "@/stores/pinned-containers";
 import type {
   DockerAvailabilityPolicy,
@@ -144,6 +148,16 @@ function operationIcon(action: DockerComposeOperationAction) {
   if (action === "delete_volumes") return Trash2;
   return RefreshCw;
 }
+
+/** Lifecycle actions an existing managed project keeps after the plan loses Compose applications. */
+const EXISTING_PROJECT_ACTIONS = new Set<DockerComposeOperationAction>([
+  "start",
+  "stop",
+  "restart",
+  "down",
+  "delete_volumes",
+  "cancel",
+]);
 
 export function DockerComposeProjectDetail() {
   const { projectId = "" } = useParams<{ projectId: string; tab?: string }>();
@@ -206,6 +220,7 @@ export function DockerComposeProjectDetail() {
     (tab) => dockerComposeProjectRoute(projectId, tab)
   );
   const backTarget = getReturnNavigationTarget(location.state, dockerComposeRootRoute());
+  const planIncludesCompose = usePlanIncludes("compose-applications");
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -340,11 +355,49 @@ export function DockerComposeProjectDetail() {
     }
   }, [activeTab, project?.desiredState, setActiveTab]);
 
+  // Source and Builds need Git push-to-deploy; an already bound source stays manageable.
+  const planIncludesGitDeploy = usePlanIncludes("git-push-to-deploy");
+  const [boundSourceFor, setBoundSourceFor] = useState<{
+    projectId: string;
+    bound: boolean;
+  } | null>(null);
+  const sourceNodeId = project?.nodeId;
+  const sourceProjectId = project?.id;
+  useEffect(() => {
+    if (planIncludesGitDeploy || !sourceNodeId || !sourceProjectId) return;
+    let cancelled = false;
+    void api
+      .getDockerSource({
+        kind: "compose_project",
+        nodeId: sourceNodeId,
+        composeProjectId: sourceProjectId,
+      })
+      .then((source) => {
+        if (!cancelled) setBoundSourceFor({ projectId: sourceProjectId, bound: source !== null });
+      })
+      .catch(() => {
+        if (!cancelled) setBoundSourceFor({ projectId: sourceProjectId, bound: false });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [planIncludesGitDeploy, sourceNodeId, sourceProjectId]);
+  const boundSourceKnown = boundSourceFor !== null && boundSourceFor.projectId === sourceProjectId;
+  const gitTabsVisible = planIncludesGitDeploy || (boundSourceKnown && boundSourceFor.bound);
+  useEffect(() => {
+    if (planIncludesGitDeploy || !boundSourceKnown || gitTabsVisible) return;
+    if (activeTab === "source" || activeTab === "builds") setActiveTab("overview");
+  }, [activeTab, boundSourceKnown, gitTabsVisible, planIncludesGitDeploy, setActiveTab]);
+
   const canManage =
     !!project &&
     hasComposeProjectScope(user?.scopes ?? [], "docker:compose:manage", project.nodeId, project.id);
   const canAdopt =
-    !!project && canAdoptComposeProject(user?.scopes ?? [], project.nodeId, project.id);
+    planIncludesCompose &&
+    !!project &&
+    canAdoptComposeProject(user?.scopes ?? [], project.nodeId, project.id);
+  // New revisions and applies need Compose applications; existing projects keep start and stop.
+  const canRevise = planIncludesCompose && canManage;
   const canDelete =
     !!project &&
     hasComposeProjectScope(user?.scopes ?? [], "docker:compose:delete", project.nodeId, project.id);
@@ -352,7 +405,12 @@ export function DockerComposeProjectDetail() {
   const canReadFiles = hasScopedAccess("docker:containers:files:read");
 
   const runAction = async (nextAction: DockerComposeOperationAction, revisionId?: string) => {
-    if (!project || !requireLicenseFeature("compose-applications", "Compose lifecycle")) return;
+    if (!project) return;
+    if (
+      !EXISTING_PROJECT_ACTIONS.has(nextAction) &&
+      !requireLicenseFeature("compose-applications", "Compose lifecycle")
+    )
+      return;
     if (
       nextAction === "down" &&
       !(await confirm({
@@ -433,9 +491,28 @@ export function DockerComposeProjectDetail() {
   const canManageAvailability =
     !!project &&
     scopeMatches(user?.scopes ?? [], `docker:availability:manage:${project.nodeId}/${project.id}`);
+  // Availability needs its plan feature; a project already under a policy keeps the tab.
+  const planIncludesAvailability = usePlanIncludes("multi-node-availability");
+  const availabilityConfigured = Boolean(
+    availabilityPolicy && availabilityPolicy.mode !== "single"
+  );
+  const availabilitySettingsVisible =
+    canManageAvailability && (planIncludesAvailability || availabilityConfigured);
   useEffect(() => {
-    if (project && !canManageAvailability && activeTab === "settings") setActiveTab("overview");
-  }, [activeTab, canManageAvailability, project, setActiveTab]);
+    if (
+      project &&
+      (!canManageAvailability || (availabilityLoaded && !availabilitySettingsVisible)) &&
+      activeTab === "settings"
+    )
+      setActiveTab("overview");
+  }, [
+    activeTab,
+    availabilityLoaded,
+    availabilitySettingsVisible,
+    canManageAvailability,
+    project,
+    setActiveTab,
+  ]);
 
   if (loading) return <DetailPageSkeleton label="Loading Compose project" tabs={8} />;
   if (!project) {
@@ -508,35 +585,39 @@ export function DockerComposeProjectDetail() {
                     ? "Build and deploy the first revision from Source"
                     : undefined,
                 },
-                {
-                  label: "Pull & Apply",
-                  actionKey: "pull_apply",
-                  icon: <UploadCloud className="h-4 w-4" />,
-                  onClick: () => void runAction("pull_apply"),
-                  disabled:
-                    awaitingInitialBuild ||
-                    !!currentOperation ||
-                    !!action ||
-                    project.status === "deleting",
-                  disabledReason: awaitingInitialBuild
-                    ? "Build and deploy the first revision from Source"
-                    : undefined,
-                },
-                {
-                  label: "Change revision",
-                  icon: <History className="h-4 w-4" />,
-                  onClick: () => setRevisionsOpen(true),
-                  disabled:
-                    !!currentOperation ||
-                    project.status === "deleting" ||
-                    inactiveRevisions.length === 0,
-                  disabledReason: currentOperation
-                    ? "Wait for the active operation to finish"
-                    : inactiveRevisions.length === 0
-                      ? "No previous revisions"
-                      : undefined,
-                  alwaysOverflow: true,
-                },
+                ...(planIncludesCompose
+                  ? [
+                      {
+                        label: "Pull & Apply",
+                        actionKey: "pull_apply",
+                        icon: <UploadCloud className="h-4 w-4" />,
+                        onClick: () => void runAction("pull_apply"),
+                        disabled:
+                          awaitingInitialBuild ||
+                          !!currentOperation ||
+                          !!action ||
+                          project.status === "deleting",
+                        disabledReason: awaitingInitialBuild
+                          ? "Build and deploy the first revision from Source"
+                          : undefined,
+                      },
+                      {
+                        label: "Change revision",
+                        icon: <History className="h-4 w-4" />,
+                        onClick: () => setRevisionsOpen(true),
+                        disabled:
+                          !!currentOperation ||
+                          project.status === "deleting" ||
+                          inactiveRevisions.length === 0,
+                        disabledReason: currentOperation
+                          ? "Wait for the active operation to finish"
+                          : inactiveRevisions.length === 0
+                            ? "No previous revisions"
+                            : undefined,
+                        alwaysOverflow: true,
+                      },
+                    ]
+                  : []),
                 ...(currentOperation
                   ? [
                       {
@@ -1162,12 +1243,16 @@ export function DockerComposeProjectDetail() {
             <TabsTrigger value="services" className="gap-1.5">
               Services
             </TabsTrigger>
-            <TabsTrigger value="source" className="gap-1.5">
-              Source
-            </TabsTrigger>
-            <TabsTrigger value="builds" className="gap-1.5">
-              Builds
-            </TabsTrigger>
+            {gitTabsVisible && (
+              <TabsTrigger value="source" className="gap-1.5">
+                Source
+              </TabsTrigger>
+            )}
+            {gitTabsVisible && (
+              <TabsTrigger value="builds" className="gap-1.5">
+                Builds
+              </TabsTrigger>
+            )}
             <TabsTrigger
               value="monitoring"
               className="gap-1.5"
@@ -1184,7 +1269,7 @@ export function DockerComposeProjectDetail() {
             <TabsTrigger value="logs" className="gap-1.5">
               Logs
             </TabsTrigger>
-            {canManageAvailability && <TabsTrigger value="settings">Settings</TabsTrigger>}
+            {availabilitySettingsVisible && <TabsTrigger value="settings">Settings</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="overview" className="pb-6">
@@ -1358,7 +1443,7 @@ export function DockerComposeProjectDetail() {
               title="Active immutable configuration"
               description="Opfield-stored Compose YAML for the active revision. Editing creates a new immutable revision."
               actions={
-                project.managementState === "managed" && canManage ? (
+                project.managementState === "managed" && canRevise ? (
                   <Button onClick={() => setRevisionOpen(true)}>
                     <FilePenLine className="mr-1 h-4 w-4" /> New revision
                   </Button>
@@ -1394,7 +1479,7 @@ export function DockerComposeProjectDetail() {
               linkRemovalDisabledReason={incidentHold.kept}
             />
           </TabsContent>
-          {canManageAvailability && (
+          {availabilitySettingsVisible && (
             <TabsContent value="settings" className="pb-6">
               <AvailabilitySection
                 resource={{ type: "compose", composeProjectId: project.id }}
@@ -1487,7 +1572,7 @@ export function DockerComposeProjectDetail() {
               embedded
             />
           </div>
-          {project.managementState === "managed" && canManage && (
+          {project.managementState === "managed" && canRevise && (
             <div className="flex justify-end">
               <Button
                 onClick={() => {

@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/services/api";
+import { usePlanIncludes } from "@/stores/license-paywall";
 import type { IngressGroup, Node } from "@/types";
 
 const GROUP_PREFIX = "group:";
@@ -35,9 +36,16 @@ export function StatusPageIngressSelect({
   onlineNginxNodes,
   onChange,
 }: StatusPageIngressSelectProps) {
-  const [groups, setGroups] = useState<IngressGroup[]>([]);
+  const [loadedGroups, setGroups] = useState<IngressGroup[]>([]);
+  // Serving from an ingress group needs multi-node availability; a page already on a group keeps it.
+  const groupsInPlan = usePlanIncludes("multi-node-availability");
+  const listsGroups = groupsInPlan || !!ingressGroupId;
+  const groups = groupsInPlan
+    ? loadedGroups
+    : loadedGroups.filter((group) => group.id === ingressGroupId);
 
   useEffect(() => {
+    if (!listsGroups) return;
     let cancelled = false;
     void api
       .listIngressGroups()
@@ -50,7 +58,7 @@ export function StatusPageIngressSelect({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [listsGroups]);
 
   const currentGroup = groups.find((group) => group.id === ingressGroupId) ?? null;
   const nodeAllowed = (node: Node) => {

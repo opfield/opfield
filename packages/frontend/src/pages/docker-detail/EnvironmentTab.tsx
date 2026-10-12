@@ -13,6 +13,7 @@ import { listManagedDatabaseCandidateNodes } from "@/lib/managed-database-nodes"
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { useDockerStore } from "@/stores/docker";
+import { usePlanIncludes } from "@/stores/license-paywall";
 import type { DockerSecret, ManagedDatabaseBindingTargetType } from "@/types";
 import { ContainerLinksSection } from "./ContainerLinksSection";
 import { EnvTextDialog, parseEnvText } from "./EnvTextDialog";
@@ -144,7 +145,12 @@ export function EnvironmentTab({
   const resolvedServiceSaveLabel =
     serviceSaveLabel ?? (recreatesRunningContainer ? "Save & Recreate" : "Save");
   const isServiceEnv = !!onSaveServiceEnv;
-  const managedDatabaseLinksEnabled = !isServiceEnv || Boolean(databaseTargetResourceId);
+  const managedLinksTarget = !isServiceEnv || Boolean(databaseTargetResourceId);
+  // Each link kind needs its plan feature; without it the section (and its loads) is skipped.
+  const databaseLinksLicensed = usePlanIncludes("external-database-connections");
+  const storageLinksLicensed = usePlanIncludes("managed-storage");
+  const containerLinksLicensed = usePlanIncludes("container-links");
+  const managedDatabaseLinksEnabled = managedLinksTarget && databaseLinksLicensed;
   const resolvedDatabaseTargetResourceId = databaseTargetResourceId ?? containerName ?? "";
   const storageTargetType =
     databaseTargetType === "container" || databaseTargetType === "deployment"
@@ -160,13 +166,15 @@ export function EnvironmentTab({
     [hasScope]
   );
   const managedStorageLinksEnabled =
-    managedDatabaseLinksEnabled &&
+    managedLinksTarget &&
+    storageLinksLicensed &&
     canViewManagedStorage &&
     Boolean(storageTargetType) &&
     Boolean(resolvedStorageTargetResourceId);
   // Container links work on containers and deployments; a Compose service links from the project's Variables tab.
   const containerLinksEnabled =
-    managedDatabaseLinksEnabled &&
+    managedLinksTarget &&
+    containerLinksLicensed &&
     Boolean(storageTargetType) &&
     Boolean(resolvedStorageTargetResourceId) &&
     Boolean(containerName) &&

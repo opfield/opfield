@@ -15,6 +15,7 @@ import { toastApiError } from "@/lib/api-error-toast";
 import { CLOUDFLARE_API_TOKEN_URL } from "@/lib/cloudflare";
 import { GitHubDeviceFlow } from "@/pages/settings/GitHubDeviceFlow";
 import { api } from "@/services/api";
+import { usePlanIncludes } from "@/stores/license-paywall";
 import type { FinalizeSetupState, FinalizeSetupStepStatus } from "@/types";
 import type { GitConnectorProvider } from "@/types/integrations";
 import { FinalizeSetupCompletion } from "./FinalizeSetupCompletion";
@@ -144,6 +145,7 @@ export function IntegrationsSetupWizard({
   onFinished?: (status: "configured" | "cancelled") => void;
 }) {
   const isDirectSetup = directSetup !== null;
+  const gitlabIncluded = usePlanIncludes("gitlab");
   const [screen, setScreen] = useState<IntegrationScreen>("overview");
   const [cloudflareName, setCloudflareName] = useState("Cloudflare");
   const [cloudflareToken, setCloudflareToken] = useState("");
@@ -507,6 +509,8 @@ export function IntegrationsSetupWizard({
         <div className="space-y-3">
           {INTEGRATION_OPTIONS.map(({ id, title, description, icon: Icon }) => {
             const status = isTrackedIntegration(id) ? state?.steps[id] : undefined;
+            // GitLab needs a paid plan: hidden without it unless already configured.
+            if (id === "gitlab" && !gitlabIncluded && status !== "configured") return null;
             const configured =
               status === "configured" ||
               (!isTrackedIntegration(id) && configuredOptionalConnectors.has(id));

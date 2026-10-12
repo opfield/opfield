@@ -120,6 +120,9 @@ function StorageDetailContent({
     (hasScope("storage:credentials:reveal") || hasScope(`storage:credentials:reveal:${id}`))
   );
   const canViewMonitoring = !!(id && (hasScope("storage:view") || hasScope(`storage:view:${id}`)));
+  const availabilityTabVisible = useAvailabilityTabVisible(
+    storage?.managed ? { kind: "storage", id: storage.managed.id } : null
+  );
   const canManageIam = !!(id && (hasScope("storage:iam") || hasScope(`storage:iam:${id}`)));
   const monitoringLoading =
     canViewMonitoring && !!loadedStorageId && monitoringSettledFor !== loadedStorageId;
@@ -434,11 +437,14 @@ function StorageDetailContent({
                 IAM Keys
               </TabsTrigger>
             )}
-            {storage.managed && engine === "seaweedfs" && canViewMonitoring && (
-              <TabsTrigger value="availability" className="gap-1.5">
-                Availability
-              </TabsTrigger>
-            )}
+            {storage.managed &&
+              engine === "seaweedfs" &&
+              canViewMonitoring &&
+              availabilityTabVisible && (
+                <TabsTrigger value="availability" className="gap-1.5">
+                  Availability
+                </TabsTrigger>
+              )}
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -478,18 +484,21 @@ function StorageDetailContent({
             </TabsContent>
           )}
 
-          {storage.managed && engine === "seaweedfs" && canViewMonitoring && (
-            <TabsContent value="availability" className="space-y-4">
-              <AvailabilityPanel
-                owner={{ kind: "storage", id: storage.managed.id }}
-                engine="seaweedfs"
-                resourceName={storage.name}
-                originNodeId={storage.managed.nodeId}
-                canManage={canEdit}
-                onChanged={() => void load()}
-              />
-            </TabsContent>
-          )}
+          {storage.managed &&
+            engine === "seaweedfs" &&
+            canViewMonitoring &&
+            availabilityTabVisible && (
+              <TabsContent value="availability" className="space-y-4">
+                <AvailabilityPanel
+                  owner={{ kind: "storage", id: storage.managed.id }}
+                  engine="seaweedfs"
+                  resourceName={storage.name}
+                  originNodeId={storage.managed.nodeId}
+                  canManage={canEdit}
+                  onChanged={() => void load()}
+                />
+              </TabsContent>
+            )}
         </Tabs>
       </div>
 
@@ -628,5 +637,6 @@ function forgetBackupHistoryDescription(history: BackupHistoryReference, managed
   return `${entries} this storage${withFiles}. Forgetting removes this history from Opfield, so those backups can no longer be restored or deleted here. ${files}`;
 }
 
+import { useAvailabilityTabVisible } from "@/components/availability-sets/use-availability-tab";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { LicenseFeatureBoundary } from "@/components/license/LicenseFeatureBoundary";

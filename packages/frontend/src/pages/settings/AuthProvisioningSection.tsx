@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useAuthStore } from "@/stores/auth";
-import { requireLicenseFeature } from "@/stores/license-paywall";
+import { requireLicenseFeature, usePlanIncludes } from "@/stores/license-paywall";
 import type { AuthProvisioningSettings } from "@/types";
 import { GracefulShutdownSettingsPanel } from "./GracefulShutdownSettingsPanel";
 import { SMTP_PRESETS, type SmtpPresetId } from "./smtp-presets";
@@ -159,8 +159,15 @@ export function AuthProvisioningSection({
   const canEditIdentityTrust = canEdit && hasScope("admin:system");
   const identityTrustLocked = canEdit && !canEditIdentityTrust;
 
+  const pkiInPlan = usePlanIncludes("internal-pki");
+  const siemInPlan = usePlanIncludes("siem-export");
+  const structuredLoggingInPlan = usePlanIncludes("structured-logging");
+
   useContentLoading(!initialLoadComplete);
   if (!initialLoadComplete || !settings) return null;
+  // Logging storage stays visible once configured, so it can still be switched off.
+  const showLoggingStorage =
+    structuredLoggingInPlan || (settings.logging?.mode ?? "disabled") !== "disabled";
 
   return (
     <div className="space-y-4">
@@ -374,51 +381,56 @@ export function AuthProvisioningSection({
                 onChange={handleToggleWebTls}
               />
             </div>
-            <div className="flex items-center justify-between gap-4 px-4 py-3">
-              <div>
-                <p className="flex items-center gap-2 text-sm font-medium">
-                  <SettingsHelpTitle
-                    label="PKI"
-                    help="PKI enables Opfield-managed certificate authorities, certificates, revocation, and reusable issuance templates."
-                  />
-                  <LicensePlanBadge feature="internal-pki" />
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Show PKI navigation and certificate management
-                </p>
+            {pkiInPlan && (
+              <div className="flex items-center justify-between gap-4 px-4 py-3">
+                <div>
+                  <p className="flex items-center gap-2 text-sm font-medium">
+                    <SettingsHelpTitle
+                      label="PKI"
+                      help="PKI enables Opfield-managed certificate authorities, certificates, revocation, and reusable issuance templates."
+                    />
+                    <LicensePlanBadge feature="internal-pki" />
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Show PKI navigation and certificate management
+                  </p>
+                </div>
+                <Switch
+                  checked={pkiEnabled}
+                  disabled={!canEdit || isSavingGeneral}
+                  onChange={(enabled) => {
+                    if (enabled && !requireLicenseFeature("internal-pki", "Internal PKI")) return;
+                    setPkiEnabled(enabled);
+                  }}
+                />
               </div>
-              <Switch
-                checked={pkiEnabled}
-                disabled={!canEdit || isSavingGeneral}
-                onChange={(enabled) => {
-                  if (enabled && !requireLicenseFeature("internal-pki", "Internal PKI")) return;
-                  setPkiEnabled(enabled);
-                }}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-4 px-4 py-3">
-              <div>
-                <p className="flex items-center gap-2 text-sm font-medium">
-                  <SettingsHelpTitle
-                    label="SIEM audit export"
-                    help="Sends privacy-reduced Opfield audit events to configured security monitoring collectors for centralized investigation and retention."
-                  />
-                  <LicensePlanBadge feature="siem-export" />
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Show SIEM screens and audit event delivery
-                </p>
+            )}
+            {siemInPlan && (
+              <div className="flex items-center justify-between gap-4 px-4 py-3">
+                <div>
+                  <p className="flex items-center gap-2 text-sm font-medium">
+                    <SettingsHelpTitle
+                      label="SIEM audit export"
+                      help="Sends privacy-reduced Opfield audit events to configured security monitoring collectors for centralized investigation and retention."
+                    />
+                    <LicensePlanBadge feature="siem-export" />
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Show SIEM screens and audit event delivery
+                  </p>
+                </div>
+                <Switch
+                  checked={siemEnabled}
+                  disabled={!canEdit || isSavingGeneral}
+                  ariaLabel="Enable SIEM audit export"
+                  onChange={(enabled) => {
+                    if (enabled && !requireLicenseFeature("siem-export", "SIEM audit export"))
+                      return;
+                    setSiemEnabled(enabled);
+                  }}
+                />
               </div>
-              <Switch
-                checked={siemEnabled}
-                disabled={!canEdit || isSavingGeneral}
-                ariaLabel="Enable SIEM audit export"
-                onChange={(enabled) => {
-                  if (enabled && !requireLicenseFeature("siem-export", "SIEM audit export")) return;
-                  setSiemEnabled(enabled);
-                }}
-              />
-            </div>
+            )}
             <div className="flex items-center justify-between gap-4 px-4 py-3">
               <div>
                 <p className="text-sm font-medium">
@@ -480,7 +492,7 @@ export function AuthProvisioningSection({
 
       <PanelShell
         icon={<Database className="h-4 w-4" />}
-        hidden={section !== "all" && section !== "features"}
+        hidden={(section !== "all" && section !== "features") || !showLoggingStorage}
         title="Structured logging storage"
         description="Keep logging disabled, let Opfield manage a local ClickHouse, or use an external ClickHouse"
         actions={

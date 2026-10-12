@@ -18,6 +18,7 @@ import { ProxyHosts } from "@/pages/ProxyHosts";
 import { SSLCertificates } from "@/pages/SSLCertificates";
 import { TemplatesPage } from "@/pages/TemplatesPage";
 import { useAuthStore } from "@/stores/auth";
+import { type LicenseFeature, usePlanIncludes } from "@/stores/license-paywall";
 import { useSystemConfigStore } from "@/stores/system-config";
 
 const NO_SCOPES: string[] = [];
@@ -27,6 +28,15 @@ const PLAN_TAB_TITLES: Record<string, string> = {
   authorities: "Certificate Authorities",
   pki: "Certificates",
   templates: "Templates",
+  "ingress-groups": "Ingress Groups",
+};
+
+/** The paid feature behind each plan-gated tab. */
+const PLAN_TAB_FEATURES: Record<string, LicenseFeature> = {
+  authorities: "internal-pki",
+  pki: "internal-pki",
+  templates: "internal-pki",
+  "ingress-groups": "multi-node-availability",
 };
 
 function hasPkiListFilter(search: string): boolean {
@@ -79,28 +89,34 @@ export function NavigationHubPage({
   const scopes = useAuthStore((state) => state.user?.scopes ?? NO_SCOPES);
   const pkiSwitchedOn = useSystemConfigStore((state) => state.config.features.pkiEnabled);
   const pkiEnabled = usePkiAvailable();
+  const ingressGroupsInPlan = usePlanIncludes("multi-node-availability");
   const tabs = useMemo(
-    () => visibleHubTabs(navigationHub(hubId), { scopes, pkiEnabled }),
-    [hubId, pkiEnabled, scopes]
+    () => visibleHubTabs(navigationHub(hubId), { scopes, pkiEnabled, ingressGroupsInPlan }),
+    [hubId, ingressGroupsInPlan, pkiEnabled, scopes]
   );
   const active = tabs.find((candidate) => candidate.value === tab);
   // A page left with one tab shows no tab row.
   const value = useMemo(() => (tabs.length > 1 ? { tabs, active: tab } : null), [tab, tabs]);
   const location = useLocation();
   // A tab the plan does not include is hidden; its URL keeps the page header and shows the plan notice.
+  const planFeature = PLAN_TAB_FEATURES[tab];
   const planHidden =
     !active &&
-    pkiSwitchedOn &&
-    !pkiEnabled &&
-    visibleHubTabs(navigationHub(hubId), { scopes, pkiEnabled: true }).some(
+    !!planFeature &&
+    visibleHubTabs(navigationHub(hubId), {
+      scopes,
+      pkiEnabled: pkiSwitchedOn,
+      ingressGroupsInPlan: true,
+    }).some((candidate) => candidate.value === tab) &&
+    !visibleHubTabs(navigationHub(hubId), { scopes, pkiEnabled, ingressGroupsInPlan }).some(
       (candidate) => candidate.value === tab
     );
 
   if (planHidden) {
     return (
       <LicenseFeatureBoundary
-        feature="internal-pki"
-        capability="Internal PKI"
+        feature={planFeature}
+        capability={PLAN_TAB_TITLES[tab] ?? "This page"}
         frame={{ kind: "page", title: PLAN_TAB_TITLES[tab] ?? "Certificates" }}
       >
         {null}
@@ -138,6 +154,8 @@ export function LegacyNavigationRedirect() {
   const location = useLocation();
   const scopes = useAuthStore((state) => state.user?.scopes ?? NO_SCOPES);
   const pkiEnabled = usePkiAvailable();
-  const target = legacyNavigationRedirect(location, { scopes, pkiEnabled }) ?? "/";
+  const ingressGroupsInPlan = usePlanIncludes("multi-node-availability");
+  const target =
+    legacyNavigationRedirect(location, { scopes, pkiEnabled, ingressGroupsInPlan }) ?? "/";
   return <Navigate to={target} replace state={location.state} />;
 }

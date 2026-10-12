@@ -53,7 +53,7 @@ export function PagesSettingsSection() {
   const license = useUIBootstrapStore((state) => state.snapshot?.license);
   const commercialModule = useUIBootstrapStore((state) => state.snapshot?.commercialModule);
   const entitled = license?.entitlements.features.includes("pages") === true;
-  // A plan without Pages shows the locked panel and never calls the Pages endpoints,
+  // A plan without Pages hides the panel and never calls the Pages endpoints,
   // which would only answer with a plan denial.
   const locked = (!!license && !entitled) || (!!commercialModule && commercialModule !== "ready");
   const invalidateUIBootstrap = useUIBootstrapStore((state) => state.invalidate);
@@ -199,28 +199,15 @@ export function PagesSettingsSection() {
     }
   };
 
+  // A plan without Pages hides the panel.
+  if (locked) return null;
+
   return (
     <div
       id="pages"
       className={cn("space-y-4 scroll-mt-6", navigationHighlighted && "navigation-target-ripple")}
     >
-      {locked ? (
-        <PanelShell
-          icon={<Globe className="h-4 w-4" />}
-          title={
-            <span className="inline-flex items-center gap-2">
-              <span>Pages</span>
-              <LicensePlanBadge feature="pages" label="Personal+" />
-            </span>
-          }
-          description="Wildcard deployment previews need the Personal plan or higher."
-          actions={
-            <Button variant="outline" onClick={() => requireLicenseFeature("pages", "Pages")}>
-              License options
-            </Button>
-          }
-        />
-      ) : loading && !profile ? (
+      {loading && !profile ? (
         <PanelShell
           icon={<Globe className="h-4 w-4" />}
           title={

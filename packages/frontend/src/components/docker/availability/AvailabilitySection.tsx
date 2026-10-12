@@ -30,7 +30,11 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
-import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
+import {
+  handleLicenseApiError,
+  requireLicenseFeature,
+  usePlanIncludes,
+} from "@/stores/license-paywall";
 import type {
   DashboardRelayInstance,
   DockerAvailabilityIssue,
@@ -214,6 +218,7 @@ export function AvailabilitySection({
   const [confirmation, setConfirmation] = useState("");
   const dirtyRef = useRef(false);
   const stableResource = useStableAvailabilityResource(resource);
+  const planIncludesAvailability = usePlanIncludes("multi-node-availability");
 
   const load = useCallback(
     async (preserveDraft = dirtyRef.current) => {
@@ -449,6 +454,8 @@ export function AvailabilitySection({
 
   useContentLoading(loading);
   if (loading) return null;
+  // Without the plan feature only a workload already under a policy keeps this panel.
+  if (!planIncludesAvailability && !(policy && policy.mode !== "single")) return null;
 
   // Right-hand cells of the two-column body get the column divider on wide screens.
   const rightColumn = "xl:border-l";

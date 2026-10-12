@@ -7,6 +7,8 @@ import { hasScope } from '@/lib/permissions.js';
 import { RELEASE_VERSION_PATTERN } from '@/lib/semver.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { assertNotImpersonating, authMiddleware, requireScope } from '@/modules/auth/auth.middleware.js';
+import { entitlementsIncludeFeature } from '@/modules/license/license-features.js';
+import { LicensePolicyService } from '@/modules/license/license-policy.service.js';
 import { LoggingFeatureService } from '@/modules/logging/logging-feature.service.js';
 import { browserHostGateway, relayReenrollmentInstallation } from '@/modules/nodes/node-installer.js';
 import { NodesService } from '@/modules/nodes/nodes.service.js';
@@ -59,7 +61,10 @@ systemRoutes.openapi(systemVersionRoute, async (c) => {
 systemRoutes.openapi(systemConfigRoute, async (c) => {
   const service = container.resolve(GeneralSettingsService);
   const loggingFeature = container.resolve(LoggingFeatureService);
-  const config = await service.getConfig();
+  const [config, license] = await Promise.all([
+    service.getConfig(),
+    container.resolve(LicensePolicyService).getSummary(),
+  ]);
   const canViewGatewaySettings = hasScope(c.get('effectiveScopes') || [], 'settings:gateway:view');
   return c.json({
     data: {
@@ -71,6 +76,11 @@ systemRoutes.openapi(systemConfigRoute, async (c) => {
       ...(canViewGatewaySettings ? { relay: config.relay } : {}),
       features: {
         ...config.features,
+        // The switches default to on; a plan without the feature reports them off.
+        pkiEnabled:
+          config.features.pkiEnabled && entitlementsIncludeFeature(license.entitlements.features, 'internal-pki'),
+        siemEnabled:
+          config.features.siemEnabled && entitlementsIncludeFeature(license.entitlements.features, 'siem-export'),
         loggingEnabled: loggingFeature.isEnabled(),
       },
     },

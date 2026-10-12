@@ -68,7 +68,7 @@ import { useAIStore } from "@/stores/ai";
 import { useAuthStore } from "@/stores/auth";
 import { useCommandPalettePageActions } from "@/stores/command-palette-page-actions";
 import { useDashboardBootstrapStore } from "@/stores/dashboard-bootstrap";
-import { useUnlicensedNavigationItems } from "@/stores/license-paywall";
+import { usePlanIncludes, useUnlicensedNavigationItems } from "@/stores/license-paywall";
 import { useResolvedPageContext } from "@/stores/resolved-page-context";
 import { useSystemConfigStore } from "@/stores/system-config";
 import { useUIStore } from "@/stores/ui";
@@ -228,6 +228,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     (state) => state.snapshot?.navigation.statusPageEnabled ?? false
   );
   const unlicensedItems = useUnlicensedNavigationItems();
+  const ingressGroupsInPlan = usePlanIncludes("multi-node-availability");
   const pagesEnabled = useUIBootstrapStore(
     (state) => state.snapshot?.navigation.pagesEnabled ?? false
   );
@@ -433,6 +434,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       visibleNavigationGroups({
         scopes: user?.scopes ?? [],
         unlicensedItems,
+        ingressGroupsInPlan,
         pkiEnabled,
         siemEnabled,
         loggingEnabled,
@@ -452,6 +454,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       siemEnabled,
       statusPageEnabled,
       unlicensedItems,
+      ingressGroupsInPlan,
       user?.scopes,
     ]
   );
@@ -507,7 +510,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             href: tab.path,
             icon: link.icon,
             keywords: link.keywords,
-            visible: tab.canAccess({ scopes: user?.scopes ?? [], pkiEnabled }),
+            visible: tab.canAccess({
+              scopes: user?.scopes ?? [],
+              pkiEnabled,
+              ingressGroupsInPlan,
+            }),
           },
         ];
       }),
@@ -747,6 +754,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     navigationGroups,
     pkiEnabled,
     user?.scopes,
+    ingressGroupsInPlan,
   ]);
 
   const contextActions = useMemo<PaletteEntry[]>(() => {
