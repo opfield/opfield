@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -31,6 +32,8 @@ const (
 	// topologyQueryEvery: a copy asks the primary's master for the topology
 	// at most this often.
 	topologyQueryEvery = 5 * time.Second
+	// meshTopologyTimeout bounds a copy's topology query to the primary.
+	meshTopologyTimeout = 1500 * time.Millisecond
 	// masterReadyWait and registerWait bound the promotion's waits.
 	masterReadyWait = time.Minute
 	registerWait    = 90 * time.Second
@@ -72,6 +75,12 @@ type Engine struct {
 	heartbeats   []int64
 	topologyMax  uint32
 	registeredAt time.Time
+	// masterSeenAt: when a master (the primary's, or this member's own while
+	// it is the primary) last answered with the topology. The registration
+	// evidence is measured against it, not against now: while no primary runs
+	// nobody can register, and a copy that was registered until the primary
+	// went away stays eligible (no deadlock without a primary).
+	masterSeenAt time.Time
 	lastTopology time.Time
 	peersOK      map[string]time.Time
 	workerStop   chan struct{}
@@ -251,7 +260,10 @@ func (e *Engine) Status(ctx context.Context) (memberha.EngineStatus, error) {
 	if topology == nil && !master.Running && now.Sub(e.lastTopology) >= topologyQueryEvery {
 		e.lastTopology = now
 		e.mu.Unlock()
-		if raw, err := getOK(ctx, e.mesh("primary-"+PortMaster), "/dir/status"); err == nil {
+		// Bounded well below the observe interval: without a primary the
+		// mesh route fails slowly, and a status that waits for it goes stale
+		// ("not_observed", stand rc.13).
+		if raw, status, err := requestWithin(ctx, meshTopologyTimeout, e.mesh("primary-"+PortMaster), http.MethodGet, "/dir/status", "", nil); err == nil && status == http.StatusOK {
 			if parsed, perr := ParseTopology(raw); perr == nil {
 				topology = &parsed
 			}
@@ -259,6 +271,7 @@ func (e *Engine) Status(ctx context.Context) (memberha.EngineStatus, error) {
 		e.mu.Lock()
 	}
 	if topology != nil {
+		e.masterSeenAt = now
 		e.topologyMax = topology.MaxVolumeID
 		if topology.Registered(VolumeURL(cfg.MemberID, self.MemberIndex)) {
 			e.registeredAt = now
@@ -271,7 +284,7 @@ func (e *Engine) Status(ctx context.Context) (memberha.EngineStatus, error) {
 		}
 	}
 	status.Writable = writable
-	status.Streaming = !writable && !e.registeredAt.IsZero() && now.Sub(e.registeredAt) <= registeredFor
+	status.Streaming = !writable && e.registeredRecentlyLocked(now)
 	if !writable && meta > 0 {
 		status.LagSeconds = max(0, float64(now.UnixNano()-meta)/1e9)
 	}
@@ -407,15 +420,41 @@ func (e *Engine) Eligible(input memberha.EligibilityInput, _ memberha.EngineStat
 	if err != nil {
 		return false, "no_certified_state"
 	}
+	cfg, _ := e.self()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.registeredAt.IsZero() || time.Since(e.registeredAt) > registeredFor {
+	if input.PreviousHolder != "" && input.PreviousHolder == cfg.NodeID && !input.PreviousReleased {
+		// The holder whose lease lapsed (fenced, not released) ran the master
+		// every write went through: it holds every acknowledged object.
+		return true, "previous_holder"
+	}
+	now := time.Now()
+	if !e.registeredRecentlyLocked(now) {
 		return false, "volume_not_registered"
+	}
+	if value.DegradedSince != 0 && (e.registeredAt.IsZero() || now.Sub(e.registeredAt) > registeredFor) {
+		// Evidence from before the primary went away does not cover the
+		// objects it wrote with one copy since the set degraded.
+		return false, "degraded"
 	}
 	if value.MetaProgressNs > 0 && e.meta < value.MetaProgressNs-int64(metaTolerance) {
 		return false, "metadata_behind"
 	}
 	return true, ""
+}
+
+// registeredRecentlyLocked: the member's volume server was registered with a
+// master within registeredFor of the last time any master answered (of now,
+// while one answers).
+func (e *Engine) registeredRecentlyLocked(now time.Time) bool {
+	if e.registeredAt.IsZero() {
+		return false
+	}
+	reference := now
+	if !e.masterSeenAt.IsZero() && e.masterSeenAt.Before(now) {
+		reference = e.masterSeenAt
+	}
+	return reference.Sub(e.registeredAt) <= registeredFor
 }
 
 // BootstrapValue is the first certified state, from the member that served

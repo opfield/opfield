@@ -533,3 +533,38 @@ func TestMarkPrimaryMakesTheConvertedMasterWritableAndDegraded(t *testing.T) {
 		t.Fatalf("bootstrap value %+v", decoded)
 	}
 }
+
+// No primary runs (the old one fenced, stand rc.13): nobody can register with
+// a master, so the registration evidence is measured against the last time a
+// master answered. The copy registered until then stays eligible, and so does
+// the fenced previous holder; neither waits for a registration only a primary
+// could give.
+func TestEligibilityDoesNotWaitForARegistrationWithoutAPrimary(t *testing.T) {
+	cluster := newFakeCluster()
+	engine, _ := newTestEngine(t, cluster)
+	value := memberha.EligibilityInput{Adopted: memberha.HolderState{Value: certified(t, Value{MaxVolumeID: 3})}}
+	engine.mu.Lock()
+	lost := time.Now().Add(-10 * registeredFor)
+	engine.registeredAt, engine.masterSeenAt = lost.Add(-time.Second), lost
+	engine.mu.Unlock()
+	if ok, reason := engine.Eligible(value, memberha.EngineStatus{}); !ok {
+		t.Fatalf("a copy registered until the primary went away must stay eligible: %s", reason)
+	}
+	// A master answers again without this member's registration: the evidence expires.
+	engine.mu.Lock()
+	engine.masterSeenAt = time.Now()
+	engine.mu.Unlock()
+	if ok, _ := engine.Eligible(value, memberha.EngineStatus{}); ok {
+		t.Fatal("a copy a live master does not list is not eligible")
+	}
+	cfg, _ := engine.self()
+	previous := value
+	previous.PreviousHolder = cfg.NodeID
+	if ok, reason := engine.Eligible(previous, memberha.EngineStatus{}); !ok || reason != "previous_holder" {
+		t.Fatalf("the fenced previous holder holds every acknowledged object: %v %s", ok, reason)
+	}
+	previous.PreviousReleased = true
+	if ok, _ := engine.Eligible(previous, memberha.EngineStatus{}); ok {
+		t.Fatal("a holder that released is judged like any copy")
+	}
+}

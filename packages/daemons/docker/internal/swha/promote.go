@@ -125,6 +125,7 @@ func (e *Engine) Promote(ctx context.Context, certified []byte) error {
 	e.topologyMax = max(e.topologyMax, topology.MaxVolumeID)
 	e.restartWanted = false
 	e.registeredAt = time.Now()
+	e.masterSeenAt = e.registeredAt
 	err = e.saveLocked()
 	if err == nil {
 		e.gateOpen = true
