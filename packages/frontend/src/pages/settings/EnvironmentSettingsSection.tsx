@@ -394,15 +394,6 @@ export function EnvironmentSettingsSection({ canEdit }: { canEdit: boolean }) {
             disabled={disabled}
             onChange={(value) => setValue("rateLimits", "authCallbackMaxRequests", value)}
           />
-          <NumberSetting
-            title="Setup"
-            description="Fixed setup API requests per client in each window."
-            value={draft.rateLimits.setupMaxRequests}
-            unit="requests"
-            help="Protects first-run installation and bootstrap operations. It is locked after setup so an administrator cannot accidentally block recovery or reconfiguration flows."
-            disabled
-            onChange={(value) => setValue("rateLimits", "setupMaxRequests", value)}
-          />
         </EnvironmentPanel>
         <EnvironmentPanel
           title="Rate limits: public and workloads"

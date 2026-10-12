@@ -185,6 +185,12 @@ function ExportDialog({
               Restore it in the setup of a fresh Opfield on the new host. Nothing stops while it
               runs.
             </p>
+            <PanelShell title="Size" bodyClassName="divide-y divide-border">
+              <DetailRow label="Database" value={sectionSize(estimate.sections.database)} />
+              <DetailRow label="Files" value={sectionSize(estimate.sections.files)} />
+              <DetailRow label="Registry images" value={sectionSize(registry)} />
+              <DetailRow label="Logs" value={sectionSize(logs)} />
+            </PanelShell>
             <div className="space-y-1.5">
               <label htmlFor="configuration-export-passphrase" className="text-sm font-medium">
                 Passphrase
@@ -285,6 +291,34 @@ function ExportDialog({
   );
 }
 
+const MOVE_COLUMNS = [
+  {
+    id: "name",
+    header: "Node",
+    render: (node: GatewayMoveNodeState) => <span className="font-medium">{node.name}</span>,
+  },
+  {
+    id: "type",
+    header: "Type",
+    render: (node: GatewayMoveNodeState) => (
+      <span className="text-muted-foreground">{node.type}</span>
+    ),
+  },
+  {
+    id: "state",
+    header: "State",
+    align: "right" as const,
+    render: (node: GatewayMoveNodeState) => {
+      const state = MOVE_NODE_STATE_LABELS[node.state] ?? MOVE_NODE_STATE_LABELS.pending;
+      return (
+        <Badge variant={state.variant} title={node.error}>
+          {state.label}
+        </Badge>
+      );
+    },
+  },
+];
+
 function MoveDialog({
   open,
   status,
@@ -349,6 +383,35 @@ function MoveDialog({
             this installation stays unreachable for 10 minutes and the restored one answers there
             with the same System CA. Until then nothing changes.
           </p>
+          <PanelShell title="Address" bodyClassName="divide-y divide-border">
+            <DetailRow
+              label="Current address"
+              value={<span className="font-mono">{status.currentAddress ?? "Not set"}</span>}
+            />
+            <DetailRow
+              label="Announced"
+              value={
+                status.announcement ? (
+                  <span className="flex flex-wrap items-center justify-end gap-x-2">
+                    <span className="font-mono">{status.announcement.address}</span>
+                    <span className="text-muted-foreground">
+                      <RelativeTime value={status.announcement.announcedAt} />
+                    </span>
+                  </span>
+                ) : (
+                  "None"
+                )
+              }
+            />
+          </PanelShell>
+          <PanelShell title="Nodes" bodyClassName="min-w-0">
+            <SimpleTable
+              columns={MOVE_COLUMNS}
+              rows={status.nodes}
+              getRowKey={(node) => node.nodeId}
+              emptyMessage="No enrolled nodes"
+            />
+          </PanelShell>
           <div className="space-y-1.5">
             <label htmlFor="gateway-move-address" className="text-sm font-medium">
               New gRPC address
@@ -386,34 +449,6 @@ function MoveDialog({
     </Dialog>
   );
 }
-
-const MOVE_COLUMNS = [
-  {
-    id: "name",
-    header: "Node",
-    render: (node: GatewayMoveNodeState) => <span className="font-medium">{node.name}</span>,
-  },
-  {
-    id: "type",
-    header: "Type",
-    render: (node: GatewayMoveNodeState) => (
-      <span className="text-muted-foreground">{node.type}</span>
-    ),
-  },
-  {
-    id: "state",
-    header: "State",
-    align: "right" as const,
-    render: (node: GatewayMoveNodeState) => {
-      const state = MOVE_NODE_STATE_LABELS[node.state] ?? MOVE_NODE_STATE_LABELS.pending;
-      return (
-        <Badge variant={state.variant} title={node.error}>
-          {state.label}
-        </Badge>
-      );
-    },
-  },
-];
 
 export function ConfigurationTransferSection() {
   const [estimate, setEstimate] = useState<ConfigurationExportEstimate | null>(null);
@@ -512,25 +547,24 @@ export function ConfigurationTransferSection() {
               Export configuration
             </Button>
           }
+          bodyClassName="divide-y divide-border"
         >
-          {!estimate.available ? (
-            <div className="p-4">
-              <Notice tone="warning" title="Export is not available here">
-                {estimate.unavailableReason ?? "This installation cannot be exported."}
-              </Notice>
-            </div>
+          {!estimate.available || (progress && !exportOpen) ? (
+            <>
+              {!estimate.available ? (
+                <div className="p-4">
+                  <Notice tone="warning" title="Export is not available here">
+                    {estimate.unavailableReason ?? "This installation cannot be exported."}
+                  </Notice>
+                </div>
+              ) : null}
+              {progress && !exportOpen ? (
+                <div className="p-4">
+                  <ExportProgressView progress={progress} />
+                </div>
+              ) : null}
+            </>
           ) : null}
-          {progress && !exportOpen ? (
-            <div className="border-b border-border p-4">
-              <ExportProgressView progress={progress} />
-            </div>
-          ) : null}
-          <div className="divide-y divide-border">
-            <DetailRow label="Database" value={sectionSize(estimate.sections.database)} />
-            <DetailRow label="Files" value={sectionSize(estimate.sections.files)} />
-            <DetailRow label="Registry images" value={sectionSize(estimate.sections.registry)} />
-            <DetailRow label="Logs" value={sectionSize(estimate.sections.logs)} />
-          </div>
         </PanelShell>
       ) : null}
 
@@ -551,35 +585,7 @@ export function ConfigurationTransferSection() {
               </Button>
             </div>
           }
-        >
-          <div className="divide-y divide-border border-b border-border">
-            <DetailRow
-              label="Current address"
-              value={<span className="font-mono">{move.currentAddress ?? "Not set"}</span>}
-            />
-            <DetailRow
-              label="Announced"
-              value={
-                move.announcement ? (
-                  <span className="flex flex-wrap items-center justify-end gap-x-2">
-                    <span className="font-mono">{move.announcement.address}</span>
-                    <span className="text-muted-foreground">
-                      <RelativeTime value={move.announcement.announcedAt} />
-                    </span>
-                  </span>
-                ) : (
-                  "None"
-                )
-              }
-            />
-          </div>
-          <SimpleTable
-            columns={MOVE_COLUMNS}
-            rows={move.nodes}
-            getRowKey={(node) => node.nodeId}
-            emptyMessage="No enrolled nodes"
-          />
-        </PanelShell>
+        />
       ) : null}
 
       {estimate ? (
