@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useNavigationTrailRecorder } from "@/hooks/use-navigation-trail";
 import { pkiAvailable } from "@/hooks/use-plan-gated-features";
 import { useRouteScrollRestoration } from "@/hooks/use-route-scroll-restoration";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
@@ -55,6 +56,7 @@ import { SidebarContent } from "./SidebarContent";
 
 export function DashboardLayout() {
   const navigate = useStableNavigate();
+  useNavigationTrailRecorder();
   const loginRedirectUrl = useRef(getLoginRedirectUrl()).current;
   const { isAuthenticated, isLoading, setUser, setLoading, logout } = useAuthStore();
   const currentUser = useAuthStore((state) => state.user);

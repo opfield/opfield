@@ -1,21 +1,30 @@
 import { ArrowLeft } from "lucide-react";
 import type * as React from "react";
-import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { getReturnNavigationTarget } from "@/lib/return-navigation";
+import { useBackNavigation } from "@/hooks/use-navigation-trail";
 import { cn } from "@/lib/utils";
 
-type PageBackButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & { label?: string };
+type PageBackButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  label?: string;
+  /**
+   * Go to the page the user came from inside the console (default). Set false for back controls
+   * with a fixed destination; a `returnTo` link state is still honoured.
+   */
+  followTrail?: boolean;
+};
 
+/**
+ * Page back arrow: returns to the previous console page of this tab's navigation trail, then to
+ * a `returnTo` link state, and otherwise runs `onClick` (the page's logical parent).
+ */
 export function PageBackButton({
   className,
   onClick,
   label = "Back",
+  followTrail = true,
   ...props
 }: PageBackButtonProps) {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const returnTarget = getReturnNavigationTarget(location.state, "");
+  const { goBack } = useBackNavigation();
 
   return (
     <Button
@@ -26,10 +35,7 @@ export function PageBackButton({
       aria-label={label}
       title={label}
       onClick={(event) => {
-        if (returnTarget) {
-          navigate(returnTarget);
-          return;
-        }
+        if (goBack({ followTrail })) return;
         onClick?.(event);
       }}
       {...props}
