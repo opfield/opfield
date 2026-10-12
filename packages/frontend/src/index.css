@@ -300,7 +300,7 @@
     --color-background: #141414;
     --color-foreground: #f3f2ef;
     --color-muted: #262624;
-    --color-header: #21211f;
+    --color-header: color-mix(in srgb, var(--color-muted) 40%, var(--color-card));
     --color-muted-foreground: #8f8e89;
     --color-border: #2b2b29;
     --color-input: #3a3a37;
@@ -456,7 +456,7 @@
   --color-background: #141414;
   --color-foreground: #f3f2ef;
   --color-muted: #262624;
-  --color-header: #21211f;
+  --color-header: color-mix(in srgb, var(--color-muted) 40%, var(--color-card));
   --color-muted-foreground: #8f8e89;
   --color-border: #2b2b29;
   --color-input: #3a3a37;
