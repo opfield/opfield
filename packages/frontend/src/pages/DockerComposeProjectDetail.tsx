@@ -1525,7 +1525,7 @@ export function DockerComposeProjectDetail() {
         </Tabs>
       </div>
       <Dialog open={adoptOpen} onOpenChange={setAdoptOpen}>
-        <DialogContent clipOverflow className="sm:max-w-5xl">
+        <DialogContent clipOverflow className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Adopt Compose Project</DialogTitle>
             <DialogDescription>
@@ -1543,7 +1543,7 @@ export function DockerComposeProjectDetail() {
         </DialogContent>
       </Dialog>
       <Dialog open={revisionOpen} onOpenChange={setRevisionOpen}>
-        <DialogContent clipOverflow className="sm:max-w-5xl">
+        <DialogContent clipOverflow className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>New Revision for {project.name}</DialogTitle>
             <DialogDescription>
