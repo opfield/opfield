@@ -6,10 +6,9 @@ import { confirm } from "@/components/common/ConfirmDialog";
 import { DetailRow } from "@/components/common/DetailRow";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderedResourceList } from "@/components/common/FolderedResourceList";
-import { HubTabs } from "@/components/common/HubTabs";
+import { HubTabPanel, HubTabs } from "@/components/common/HubTabs";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
-import { PageTransition } from "@/components/common/PageTransition";
 import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
@@ -730,7 +729,7 @@ export function SSLCertificates() {
   ];
 
   return (
-    <PageTransition>
+    <>
       <div className="h-full overflow-y-auto p-6 space-y-3">
         <PageHeader
           className="shrink-0"
@@ -777,84 +776,85 @@ export function SSLCertificates() {
           }
         />
         <HubTabs />
-
-        <FolderedResourceList<SSLCertificate>
-          resourceType="ssl-certificate"
-          realtimeChannel="ssl.cert.folder.changed"
-          resources={certificates || []}
-          columns={certificateColumns}
-          search={{
-            placeholder: "Search by name or domain...",
-            search: searchInput,
-            onSearchChange: setSearchInput,
-            onSearchSubmit: handleSearch,
-            hasActiveFilters,
-            onReset: () => {
-              resetFilters();
-              setSearchInput("");
-            },
-            filters: (
-              <>
-                <div className="w-40">
-                  <Select
-                    value={filters.type}
-                    onValueChange={(v) => setFilters({ type: v as SSLCertType | "all" })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {typeOptions.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="w-40">
-                  <Select
-                    value={filters.status}
-                    onValueChange={(v) => setFilters({ status: v as SSLCertStatus | "all" })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {statusOptions.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            ),
-          }}
-          loading={isLoading || isLoadingMore}
-          loadingLabel="Loading SSL certificates..."
-          emptyState={
-            <EmptyState
-              message="No SSL certificates."
-              {...(canCreateCertificate
-                ? { actionLabel: "Add one", onAction: () => void openCreateCertificate() }
-                : {})}
-              hasActiveFilters={hasActiveFilters}
-              onReset={() => {
+        <HubTabPanel className="space-y-3">
+          <FolderedResourceList<SSLCertificate>
+            resourceType="ssl-certificate"
+            realtimeChannel="ssl.cert.folder.changed"
+            resources={certificates || []}
+            columns={certificateColumns}
+            search={{
+              placeholder: "Search by name or domain...",
+              search: searchInput,
+              onSearchChange: setSearchInput,
+              onSearchSubmit: handleSearch,
+              hasActiveFilters,
+              onReset: () => {
                 resetFilters();
                 setSearchInput("");
-              }}
-            />
-          }
-          minWidth={860}
-          canManageFolders={canManageFolders}
-          canReorganizeItem={(certificate) => canManageFolders && !certificate.isSystem}
-          getResourceLabel={(certificate) => certificate.name}
-          onItemClick={openCertificatePreview}
-          onRefresh={fetchCertificates}
-          onCreateFolderRef={(fn) => setCreateFolderAction(() => fn)}
-        />
+              },
+              filters: (
+                <>
+                  <div className="w-40">
+                    <Select
+                      value={filters.type}
+                      onValueChange={(v) => setFilters({ type: v as SSLCertType | "all" })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {typeOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="w-40">
+                    <Select
+                      value={filters.status}
+                      onValueChange={(v) => setFilters({ status: v as SSLCertStatus | "all" })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {statusOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              ),
+            }}
+            loading={isLoading || isLoadingMore}
+            loadingLabel="Loading SSL certificates..."
+            emptyState={
+              <EmptyState
+                message="No SSL certificates."
+                {...(canCreateCertificate
+                  ? { actionLabel: "Add one", onAction: () => void openCreateCertificate() }
+                  : {})}
+                hasActiveFilters={hasActiveFilters}
+                onReset={() => {
+                  resetFilters();
+                  setSearchInput("");
+                }}
+              />
+            }
+            minWidth={860}
+            canManageFolders={canManageFolders}
+            canReorganizeItem={(certificate) => canManageFolders && !certificate.isSystem}
+            getResourceLabel={(certificate) => certificate.name}
+            onItemClick={openCertificatePreview}
+            onRefresh={fetchCertificates}
+            onCreateFolderRef={(fn) => setCreateFolderAction(() => fn)}
+          />
+        </HubTabPanel>
       </div>
 
       <SSLCertificateCreateDialog
@@ -1078,6 +1078,6 @@ export function SSLCertificates() {
           )}
         </DialogContent>
       </Dialog>
-    </PageTransition>
+    </>
   );
 }

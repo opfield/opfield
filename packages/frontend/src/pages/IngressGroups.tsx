@@ -4,10 +4,9 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { EmptyState } from "@/components/common/EmptyState";
-import { HubTabs } from "@/components/common/HubTabs";
+import { HubTabPanel, HubTabs } from "@/components/common/HubTabs";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
-import { PageTransition } from "@/components/common/PageTransition";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
 import { SearchFilterBar } from "@/components/common/SearchFilterBar";
 import { SimpleTable, type SimpleTableColumn } from "@/components/common/SimpleTable";
@@ -125,32 +124,32 @@ export function IngressGroups() {
   ];
 
   return (
-    <PageTransition>
-      <div className="h-full space-y-4 overflow-y-auto p-6">
-        <PageHeader
-          leading={<LiteModeBackButton />}
-          title="Ingress Groups"
-          description="Nginx nodes that serve the same routes and domains, normally one per site"
-          actions={
-            canCreate ? (
-              <ResponsiveHeaderActions
-                actions={[
-                  {
-                    label: "New Group",
-                    icon: <Plus className="h-4 w-4" />,
-                    onClick: () => setCreating(true),
-                  },
-                ]}
-              >
-                <Button onClick={() => setCreating(true)}>
-                  <Plus className="h-4 w-4" />
-                  New Group
-                </Button>
-              </ResponsiveHeaderActions>
-            ) : null
-          }
-        />
-        <HubTabs />
+    <div className="h-full space-y-4 overflow-y-auto p-6">
+      <PageHeader
+        leading={<LiteModeBackButton />}
+        title="Ingress Groups"
+        description="Nginx nodes that serve the same routes and domains, normally one per site"
+        actions={
+          canCreate ? (
+            <ResponsiveHeaderActions
+              actions={[
+                {
+                  label: "New Group",
+                  icon: <Plus className="h-4 w-4" />,
+                  onClick: () => setCreating(true),
+                },
+              ]}
+            >
+              <Button onClick={() => setCreating(true)}>
+                <Plus className="h-4 w-4" />
+                New Group
+              </Button>
+            </ResponsiveHeaderActions>
+          ) : null
+        }
+      />
+      <HubTabs />
+      <HubTabPanel className="space-y-4">
         <ContentLoading loading={initialLoading && groups.length === 0} />
         {initialLoading && groups.length === 0 ? null : groups.length > 0 ? (
           <>
@@ -190,7 +189,7 @@ export function IngressGroups() {
           onOpenChange={setCreating}
           onSaved={(group) => navigate(ingressGroupRoute(group.id))}
         />
-      </div>
-    </PageTransition>
+      </HubTabPanel>
+    </div>
   );
 }

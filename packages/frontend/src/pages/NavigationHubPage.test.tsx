@@ -1,27 +1,33 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NAVIGATION_HUBS } from "@/lib/navigation-hubs";
 import { useAuthStore } from "@/stores/auth";
 import { useSystemConfigStore } from "@/stores/system-config";
 import type { User } from "@/types";
 import { LegacyNavigationRedirect, NavigationHubPage } from "./NavigationHubPage";
 
-// The tab bodies are the existing pages; here each one is its header plus the hub tab row.
+// The tab bodies are the existing pages; here each one is its header, the hub tab row and a panel.
 const stubPage = vi.hoisted(
   () => async (name: string, title: (props: Record<string, unknown>) => string) => {
     const React = await import("react");
-    const { HubTabs } = await vi.importActual<typeof import("@/components/common/HubTabs")>(
-      "@/components/common/HubTabs"
-    );
+    const { HubTabPanel, HubTabs } = await vi.importActual<
+      typeof import("@/components/common/HubTabs")
+    >("@/components/common/HubTabs");
     return {
       [name]: (props: Record<string, unknown>) =>
         React.createElement(
           "div",
           null,
           React.createElement("h1", null, title(props)),
-          React.createElement(HubTabs)
+          React.createElement(HubTabs),
+          React.createElement(
+            HubTabPanel,
+            null,
+            React.createElement("p", null, `${title(props)} list`),
+            React.createElement("p", null, `${title(props)} footer`)
+          )
         ),
     };
   }
@@ -203,5 +209,88 @@ describe("old URLs", () => {
     renderAt(from);
     expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId("url")).toHaveTextContent(to));
+  });
+});
+
+// Every real tab body hands its content below the tab row to the panel and leaves the page gate to
+// the hub; a body with its own page gate would replay the whole page's entrance on a tab switch.
+const tabBodySources = import.meta.glob(
+  [
+    "./ProxyHosts.tsx",
+    "./Domains.tsx",
+    "./IngressGroups.tsx",
+    "./AccessLists.tsx",
+    "./TemplatesPage.tsx",
+    "./SSLCertificates.tsx",
+    "./CAs.tsx",
+    "./Certificates.tsx",
+  ],
+  { query: "?raw", import: "default", eager: true }
+) as Record<string, string>;
+
+describe("tab switch entrance", () => {
+  let animated: Element[];
+
+  beforeEach(() => {
+    signIn([
+      "proxy:view",
+      "domains:view",
+      "ingress:groups:view",
+      "acl:view",
+      "proxy:templates:view",
+    ]);
+    animated = [];
+    Object.defineProperty(Element.prototype, "animate", {
+      configurable: true,
+      writable: true,
+      value: function (this: Element) {
+        animated.push(this);
+        return {} as Animation;
+      },
+    });
+    vi.useFakeTimers({ toFake: ["Date"] });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    delete (Element.prototype as { animate?: unknown }).animate;
+  });
+
+  it("keeps the page and its header and tab row, and plays only the new panel's entrance", async () => {
+    renderAt("/routes");
+    const routesHeading = await screen.findByRole("heading", { name: "Routes" });
+    const page = document.querySelector<HTMLElement>("[data-page-transition]");
+    await waitFor(() => expect(page).toHaveAttribute("data-reveal-phase", "revealed"));
+    // Opening the page plays the page's entrance, header included.
+    expect(animated).toContain(routesHeading);
+
+    // Past the window in which a panel stays still right after its page appeared.
+    vi.setSystemTime(Date.now() + 5_000);
+    animated = [];
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Domains" }));
+    const domainsHeading = await screen.findByRole("heading", { name: "Domains" });
+    const panel = screen.getByText("Domains list").closest<HTMLElement>("[data-page-transition]");
+    await waitFor(() => expect(panel).toHaveAttribute("data-reveal-phase", "revealed"));
+
+    // The page gate stayed mounted and revealed: nothing above the panel hid or entered again.
+    expect(document.querySelector("[data-page-transition]")).toBe(page);
+    expect(page).toHaveAttribute("data-reveal-phase", "revealed");
+    expect(panel).not.toBe(page);
+    expect(animated.length).toBeGreaterThan(0);
+    for (const element of animated) {
+      expect(panel?.contains(element)).toBe(true);
+    }
+    expect(animated).not.toContain(domainsHeading);
+    expect(animated).not.toContain(screen.getByRole("tablist"));
+  });
+
+  it.each(Object.entries(tabBodySources))("%s puts its tab content in HubTabPanel", (_, source) => {
+    expect(source).toContain("<HubTabs />");
+    expect(source).toContain("<HubTabPanel");
+    expect(source).not.toContain("<PageTransition");
+  });
+
+  it("covers every tab body", () => {
+    expect(Object.keys(tabBodySources)).toHaveLength(8);
   });
 });

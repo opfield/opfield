@@ -5,10 +5,9 @@ import { CertificateIssueDialog } from "@/components/certificates/CertificateIss
 import { IssuingCABadge } from "@/components/certificates/IssuingCABadge";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderedResourceList } from "@/components/common/FolderedResourceList";
-import { HubTabs } from "@/components/common/HubTabs";
+import { HubTabPanel, HubTabs } from "@/components/common/HubTabs";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
-import { PageTransition } from "@/components/common/PageTransition";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -196,54 +195,53 @@ export function Certificates() {
   ];
 
   return (
-    <PageTransition>
-      <div className="h-full overflow-y-auto p-6 space-y-3">
-        <PageHeader
-          className="shrink-0"
-          leading={<LiteModeBackButton />}
-          title="Certificates"
-          badges={<LicensePlanBadge feature="internal-pki" />}
-          description={`${total} certificates total`}
-          actions={
-            <ResponsiveHeaderActions
-              actions={[
-                ...(canManageFolders && createFolderAction
-                  ? [
-                      {
-                        label: "Add Folder",
-                        icon: <FolderPlus className="h-4 w-4" />,
-                        onClick: createFolderAction,
-                      },
-                    ]
-                  : []),
-                ...(hasScopedAccess("pki:cert:issue")
-                  ? [
-                      {
-                        label: "Issue Certificate",
-                        icon: <Plus className="h-4 w-4" />,
-                        onClick: openIssueDialog,
-                      },
-                    ]
-                  : []),
-              ]}
-            >
-              {canManageFolders && (
-                <Button variant="outline" onClick={() => createFolderAction?.()}>
-                  <FolderPlus className="h-4 w-4" />
-                  Add Folder
-                </Button>
-              )}
-              {hasScopedAccess("pki:cert:issue") && (
-                <Button onClick={openIssueDialog}>
-                  <Plus className="h-4 w-4" />
-                  Issue Certificate
-                </Button>
-              )}
-            </ResponsiveHeaderActions>
-          }
-        />
-        <HubTabs />
-
+    <div className="h-full overflow-y-auto p-6 space-y-3">
+      <PageHeader
+        className="shrink-0"
+        leading={<LiteModeBackButton />}
+        title="Certificates"
+        badges={<LicensePlanBadge feature="internal-pki" />}
+        description={`${total} certificates total`}
+        actions={
+          <ResponsiveHeaderActions
+            actions={[
+              ...(canManageFolders && createFolderAction
+                ? [
+                    {
+                      label: "Add Folder",
+                      icon: <FolderPlus className="h-4 w-4" />,
+                      onClick: createFolderAction,
+                    },
+                  ]
+                : []),
+              ...(hasScopedAccess("pki:cert:issue")
+                ? [
+                    {
+                      label: "Issue Certificate",
+                      icon: <Plus className="h-4 w-4" />,
+                      onClick: openIssueDialog,
+                    },
+                  ]
+                : []),
+            ]}
+          >
+            {canManageFolders && (
+              <Button variant="outline" onClick={() => createFolderAction?.()}>
+                <FolderPlus className="h-4 w-4" />
+                Add Folder
+              </Button>
+            )}
+            {hasScopedAccess("pki:cert:issue") && (
+              <Button onClick={openIssueDialog}>
+                <Plus className="h-4 w-4" />
+                Issue Certificate
+              </Button>
+            )}
+          </ResponsiveHeaderActions>
+        }
+      />
+      <HubTabs />
+      <HubTabPanel className="space-y-3">
         <FolderedResourceList<Certificate>
           resourceType="pki-certificate"
           realtimeChannel="cert.folder.changed"
@@ -344,7 +342,7 @@ export function Certificates() {
           onOpenChange={setIssueDialogOpen}
           onSuccess={fetchCertificates}
         />
-      </div>
-    </PageTransition>
+      </HubTabPanel>
+    </div>
   );
 }
