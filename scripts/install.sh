@@ -111,12 +111,18 @@ fetch_release() {
   curl -fsSL "$url" 2>>"$LOG_FILE"
 }
 
+# Whether a terminal can really be opened: under cloud-init or cron /dev/tty exists and passes -r/-w but has no
+# controlling terminal behind it, so opening it fails.
+tty_usable() {
+  [[ -r /dev/tty && -w /dev/tty ]] && { : </dev/tty; } 2>/dev/null
+}
+
 prompt_menu() {
   local default="$1"
   shift
   local -a options=("$@")
   local selected=$((default - 1)) key sequence tty="/dev/tty" index
-  [[ -r "$tty" && -w "$tty" && "${TERM:-dumb}" != "dumb" ]] || { echo "$default"; return; }
+  tty_usable && [[ "${TERM:-dumb}" != "dumb" ]] || { echo "$default"; return; }
   render_menu() {
     local resolved="${1:-0}" rail=" "
     [[ "$resolved" -eq 1 ]] && rail="│"
@@ -752,7 +758,7 @@ read_restore_passphrase() {
     RESTORE_PASSPHRASE="$OPFIELD_RESTORE_PASSPHRASE"
     return
   fi
-  [[ -r /dev/tty && -w /dev/tty ]] || die "Set OPFIELD_RESTORE_PASSPHRASE to restore without a terminal"
+  tty_usable || die "Set OPFIELD_RESTORE_PASSPHRASE to restore without a terminal"
   printf '%b' "${BRAND_MINT}│${NC} Export passphrase: " >/dev/tty
   IFS= read -rs RESTORE_PASSPHRASE </dev/tty || RESTORE_PASSPHRASE=""
   printf '\n' >/dev/tty
@@ -762,7 +768,7 @@ read_restore_passphrase() {
 prompt_restore_address() {
   local addresses
   [[ -z "$RESTORE_PUBLIC_URL" && -z "$RESTORE_GRPC_TARGET" ]] || return 0
-  [[ -r /dev/tty && -w /dev/tty ]] || return 0
+  tty_usable || return 0
   addresses="$(detect_local_host_addresses)"
   guide "${GRAY}This host's address. Press Enter to keep the address the export was made with.${NC}"
   [[ -z "$addresses" ]] || guide "${GRAY}Addresses of this host: ${addresses}${NC}"
@@ -986,7 +992,7 @@ fi
 if [[ "$FRESH" == 1 && -z "$TRANSPORT" ]]; then
   TRANSPORT="https"
   # A restore brings the web transport setting along with the database.
-  if [[ -z "$RESTORE_FILE" && -r /dev/tty && -w /dev/tty ]]; then
+  if [[ -z "$RESTORE_FILE" ]] && tty_usable; then
     guide "${GRAY}Opfield can serve port 3000 with its own System CA certificate.${NC}"
     selector_title "Web transport:"
     transport_choice=$(prompt_menu "1" "Internal HTTPS  — use Opfield System CA on :3000" "HTTP            — configure TLS in a reverse proxy later")
