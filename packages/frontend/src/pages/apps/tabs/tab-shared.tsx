@@ -165,7 +165,7 @@ export function AddRow({ types, actions }: { types: TypeDef[]; actions: TabActio
   );
 }
 
-/** A whole tab is empty: the first create action, the rest in the overflow menu. */
+/** A whole tab is empty: the overflow menu (other creates and imports), Import existing, then the first create action. */
 export function EmptyGroup({
   title,
   icon,
@@ -180,7 +180,7 @@ export function EmptyGroup({
   actions: TabActions;
 }) {
   const [first, ...rest] = types.filter((type) => actions.planCreates(type.createType));
-  const importable = types.filter(
+  const [firstImport, ...restImports] = types.filter(
     (type) => type.importFamily !== null && actions.planImports(type.importFamily)
   );
   return (
@@ -189,15 +189,9 @@ export function EmptyGroup({
       icon={icon}
       description="Nothing here yet"
       actions={
-        actions.canCreate && (first || importable.length > 0) ? (
+        actions.canCreate && (first || firstImport) ? (
           <>
-            {first && (
-              <Button onClick={() => actions.onCreate(first.createType)}>
-                <Plus className="h-3.5 w-3.5" />
-                {first.addLabel}
-              </Button>
-            )}
-            {rest.length + importable.length > 0 && (
+            {rest.length + restImports.length > 0 && (
               <MoreMenu label={`More ${title} actions`}>
                 {rest.map((type) => (
                   <DropdownMenuItem
@@ -208,19 +202,33 @@ export function EmptyGroup({
                     {type.addLabel}
                   </DropdownMenuItem>
                 ))}
-                {importable.length > 0 && rest.length > 0 && <DropdownMenuSeparator />}
-                {importable.map((type) => (
+                {restImports.length > 0 && rest.length > 0 && <DropdownMenuSeparator />}
+                {restImports.map((type) => (
                   <DropdownMenuItem
                     key={`import-${type.key}`}
                     onClick={() => actions.onImport(type.importFamily as AppMemberFamily)}
                   >
                     <Import className="h-4 w-4" />
-                    {importable.length === 1
-                      ? "Import existing"
-                      : `Import ${type.title.toLowerCase()}`}
+                    Import existing {type.title.toLowerCase()}
                   </DropdownMenuItem>
                 ))}
               </MoreMenu>
+            )}
+            {firstImport && (
+              <Button
+                variant="outline"
+                title={`Import existing ${firstImport.title.toLowerCase()}`}
+                onClick={() => actions.onImport(firstImport.importFamily as AppMemberFamily)}
+              >
+                <Import className="h-3.5 w-3.5" />
+                Import existing
+              </Button>
+            )}
+            {first && (
+              <Button onClick={() => actions.onCreate(first.createType)}>
+                <Plus className="h-3.5 w-3.5" />
+                {first.addLabel}
+              </Button>
             )}
           </>
         ) : undefined

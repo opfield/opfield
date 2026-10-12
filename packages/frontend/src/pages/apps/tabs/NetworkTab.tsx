@@ -6,10 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { ContentLoading } from "@/components/common/ContentLoading";
-import { PanelShell } from "@/components/common/PanelShell";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
-import { ResourceListSectionHeader } from "@/components/common/ResourceListLayout";
-import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { ProxyUpstreamTarget } from "@/components/proxy/ProxyUpstreamTarget";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
@@ -23,15 +20,8 @@ import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import type { AppDetail, ProxyHost } from "@/types";
-import { loadAppNetwork, useAppLoad } from "../app-resources";
-import {
-  CountTitle,
-  EnvLink,
-  groupByEnvironment,
-  groupTotal,
-  HiddenMembersNotice,
-  RowMenu,
-} from "../app-shared";
+import { type AppLinkRow, loadAppNetwork, useAppLoad } from "../app-resources";
+import { groupByEnvironment, groupTotal, HiddenMembersNotice, RowMenu } from "../app-shared";
 import { nodeDisplayName, useNodeIndex } from "../use-node-index";
 import {
   AddRow,
@@ -131,6 +121,25 @@ export function NetworkTab({
     network.data?.links ?? [],
     (row) => row.environmentId
   );
+
+  const linkColumns: ResourceListColumn<AppLinkRow>[] = [
+    {
+      id: "connection",
+      label: "Connection",
+      renderCell: (link) => (
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{`${link.from} → ${link.to}`}</p>
+          <p className="truncate text-xs text-muted-foreground">{link.detail}</p>
+        </div>
+      ),
+    },
+    {
+      id: "status",
+      label: "Status",
+      width: "8rem",
+      renderCell: (link) => <Badge variant={link.tone}>{link.status.replaceAll("_", " ")}</Badge>,
+    },
+  ];
 
   const routeColumns: ResourceListColumn<ProxyHost>[] = [
     {
@@ -312,37 +321,21 @@ export function NetworkTab({
         />
       )}
       {groupTotal(links) > 0 && (
-        <PanelShell
-          title={<CountTitle title={TYPES.links.title} count={groupTotal(links)} />}
-          icon={<Link2 className="h-4 w-4" />}
+        <TypeSection
+          app={app}
+          title={TYPES.links.title}
           description="Private connections to databases and storage"
-          actions={
+          icon={<Link2 className="h-4 w-4" />}
+          headerActions={
             actions.canCreate ? <TypeActions type={TYPES.links} actions={actions} /> : undefined
           }
-        >
-          {links
-            .filter((group) => group.rows.length > 0)
-            .map((group) => (
-              <div key={group.env.id}>
-                <ResourceListSectionHeader
-                  label={<EnvLink appSlug={app.slug} env={group.env} />}
-                  count={group.rows.length}
-                  className="bg-muted/40"
-                />
-                {group.rows.map((link) => (
-                  <SettingsControlRow
-                    key={link.id}
-                    title={`${link.from} → ${link.to}`}
-                    description={link.detail}
-                  >
-                    <Badge variant={link.tone} size="inline">
-                      {link.status.replaceAll("_", " ")}
-                    </Badge>
-                  </SettingsControlRow>
-                ))}
-              </div>
-            ))}
-        </PanelShell>
+          columns={linkColumns}
+          groups={links}
+          rowKey={(row) => row.id}
+          onRowClick={(row) => {
+            if (row.route) navigate(row.route);
+          }}
+        />
       )}
       {actions.canCreate && (
         <AddRow

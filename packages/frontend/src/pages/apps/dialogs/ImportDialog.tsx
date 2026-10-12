@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { environmentLabel, readLastAppEnvironment } from "@/components/apps/app-create-context";
 import { CheckboxCard } from "@/components/common/CheckboxCard";
 import { ContentLoading } from "@/components/common/ContentLoading";
+import { EmptyState } from "@/components/common/EmptyState";
 import { Notice } from "@/components/common/Notice";
 import { Button } from "@/components/ui/button";
 import {
@@ -313,9 +314,10 @@ export function ImportDialog({
             </Notice>
           )}
           {!loading && rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {query ? "Nothing matches your search." : `No ${text.plural} to import.`}
-            </p>
+            <EmptyState
+              message={query ? "Nothing matches your search." : `No ${text.plural} to import.`}
+              embedded
+            />
           ) : (
             <div className="space-y-2">
               {rows.map((row) => {

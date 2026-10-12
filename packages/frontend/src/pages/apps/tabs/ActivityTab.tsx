@@ -1,10 +1,9 @@
 // Activity: the audit log of the app and its members (canvas frame app-activity).
 import { History, Settings } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { toastApiError } from "@/lib/api-error-toast";
 import { getAuditActionLabel } from "@/pages/audit-log/audit-action-labels";
@@ -94,7 +93,6 @@ export function ActivityTab({ app, version }: { app: AppDetail; version: number 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
 
   const load = useCallback(
     async (nextPage: number) => {
@@ -121,16 +119,34 @@ export function ActivityTab({ app, version }: { app: AppDetail; version: number 
     };
   }, [load, version]);
 
-  const loadMore = async () => {
-    setLoadingMore(true);
+  const loadingMoreRef = useRef(false);
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
     try {
       await load(page + 1);
     } catch (error) {
       toastApiError(error, "Failed to load activity");
     } finally {
-      setLoadingMore(false);
+      loadingMoreRef.current = false;
     }
-  };
+  }, [load, page]);
+
+  // Loads the next page when the end of the list scrolls into view, like the audit log.
+  const hasMore = entries.length < total;
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore) return;
+    const observer = new IntersectionObserver(
+      (observed) => {
+        if (observed[0]?.isIntersecting) void loadMore();
+      },
+      { rootMargin: "400px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadMore]);
 
   return (
     <div className="pb-6">
@@ -151,18 +167,7 @@ export function ActivityTab({ app, version }: { app: AppDetail; version: number 
           className="w-full"
           emptyMessage="No activity yet. History starts when a resource joins the app."
           footer={
-            entries.length < total ? (
-              <div className="flex justify-center border-t border-border px-4 py-3">
-                <Button
-                  variant="link"
-                  className="h-auto p-0"
-                  pending={loadingMore}
-                  onClick={() => void loadMore()}
-                >
-                  Show more
-                </Button>
-              </div>
-            ) : undefined
+            hasMore ? <div ref={sentinelRef} className="h-px" aria-hidden="true" /> : undefined
           }
         />
       </PanelShell>

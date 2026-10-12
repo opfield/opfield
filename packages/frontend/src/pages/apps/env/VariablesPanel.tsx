@@ -1,7 +1,7 @@
 // An environment's variables and secrets (canvas frames env-live, env-staging): the container
 // Environment tab's editor. Values reach each workload on its next recreate or deploy; "Save and
 // recreate N workloads" recreates them one at a time right away.
-import { Code2, Minus, Plus, RotateCcw, Table2 } from "lucide-react";
+import { Braces, Code2, Minus, Plus, RotateCcw, Save, Table2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ContentLoading } from "@/components/common/ContentLoading";
@@ -238,20 +238,23 @@ export function VariablesPanel({
       )}
       <PanelShell
         title={`Variables · ${env.name}`}
+        icon={<Braces className="h-4 w-4" />}
         description={`Injected into every container of ${env.name}`}
         dirty={editedVariables}
         className={rawMode ? "overflow-visible" : undefined}
         actions={
           <>
-            <Button
-              variant="warning"
-              onClick={() => void save("variables")}
-              pending={saving === "variables"}
-              disabled={!editedVariables || hasVariableErrors || saving !== null}
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              Save
-            </Button>
+            {!rawMode && (
+              <Button
+                variant="ghost"
+                size="icon"
+                title="Add variable"
+                aria-label="Add variable"
+                onClick={() => setRows((current) => [...current, { key: "", value: "" }])}
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
+            )}
             <MoreMenu label={`More variable actions for ${env.name}`}>
               <DropdownMenuItem
                 disabled={
@@ -267,14 +270,6 @@ export function VariablesPanel({
                 Save and recreate {plural(workloadCount, "workload")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              {!rawMode && (
-                <DropdownMenuItem
-                  onClick={() => setRows((current) => [...current, { key: "", value: "" }])}
-                >
-                  <Plus className="h-4 w-4" />
-                  Add variable
-                </DropdownMenuItem>
-              )}
               <DropdownMenuItem
                 disabled={hasVariableErrors}
                 onClick={rawMode ? switchToTable : switchToRaw}
@@ -283,6 +278,15 @@ export function VariablesPanel({
                 {rawMode ? "Table view" : "Raw view"}
               </DropdownMenuItem>
             </MoreMenu>
+            <Button
+              variant="warning"
+              onClick={() => void save("variables")}
+              pending={saving === "variables"}
+              disabled={!editedVariables || hasVariableErrors || saving !== null}
+            >
+              <Save className="h-3.5 w-3.5" />
+              Save
+            </Button>
           </>
         }
       >
@@ -357,6 +361,7 @@ export function VariablesPanel({
         setDeletedSecrets={setDeletedSecrets}
         duplicateSecretIndices={secretKeyErrors}
         invalidKeyPattern={KEY_PATTERN}
+        saveIcon={<Save className="h-3.5 w-3.5" />}
         description={`Encrypted values for every container of ${env.name}`}
       />
       <RecreateWorkloadsDialog

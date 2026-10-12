@@ -17,6 +17,8 @@ export interface SecretRow {
 interface SecretsSectionProps {
   canManageSecrets: boolean;
   saveButtonLabel?: string;
+  /** The Save button's icon: RotateCcw where saving recreates the container. */
+  saveIcon?: React.ReactNode;
   onSave?: () => void;
   saveDisabled?: boolean;
   isSaving?: boolean;
@@ -32,6 +34,7 @@ interface SecretsSectionProps {
 export function SecretsSection({
   canManageSecrets,
   saveButtonLabel,
+  saveIcon = <RotateCcw className="h-3.5 w-3.5" />,
   onSave,
   saveDisabled = false,
   isSaving = false,
@@ -94,7 +97,7 @@ export function SecretsSection({
             </Button>
             {onSave && (
               <Button variant="warning" onClick={onSave} pending={isSaving} disabled={saveDisabled}>
-                <RotateCcw className="h-3.5 w-3.5" />
+                {saveIcon}
                 {saveButtonLabel ?? "Save"}
               </Button>
             )}

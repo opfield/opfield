@@ -187,6 +187,14 @@ export function SettingsTab({
           description="Name and app-wide maintenance"
           actions={
             <>
+              {(permissions.edit || permissions.operate) && (
+                <MoreMenu label="More app actions">
+                  <DropdownMenuItem onClick={() => onCreateAccessCode()}>
+                    <KeyRound className="h-4 w-4" />
+                    Create Maintenance Access Code
+                  </DropdownMenuItem>
+                </MoreMenu>
+              )}
               {permissions.edit && (
                 <Button
                   onClick={() => void saveName()}
@@ -196,14 +204,6 @@ export function SettingsTab({
                   <Save />
                   Save
                 </Button>
-              )}
-              {(permissions.edit || permissions.operate) && (
-                <MoreMenu label="More app actions">
-                  <DropdownMenuItem onClick={() => onCreateAccessCode()}>
-                    <KeyRound className="h-4 w-4" />
-                    Create Maintenance Access Code
-                  </DropdownMenuItem>
-                </MoreMenu>
               )}
             </>
           }

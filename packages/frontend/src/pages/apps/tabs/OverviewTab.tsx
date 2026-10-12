@@ -15,6 +15,7 @@ import {
   TriangleAlert,
   Users,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Notice, NoticeAction, noticeTone } from "@/components/common/Notice";
@@ -22,6 +23,7 @@ import { PanelShell } from "@/components/common/PanelShell";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
+import { appEnvironmentRoute } from "@/lib/app-routes";
 import { formatBytes } from "@/lib/utils";
 import { PinnedNodeCard } from "@/pages/dashboard/PinnedNodeCard";
 import { METRIC_COLORS as DATABASE_COLORS } from "@/pages/database-detail/shared";
@@ -95,7 +97,7 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
   if (overview && totalMembers === 0) {
     return (
       <div className="space-y-6 pb-6">
-        <EnvironmentsPanel envs={envs} productionName={production.env.name} />
+        <EnvironmentsPanel appSlug={app.slug} envs={envs} productionName={production.env.name} />
         <EmptyState message="Nothing in this app yet. Allow a node per environment on its page, then create resources with New or import existing ones." />
       </div>
     );
@@ -134,7 +136,7 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
 
   return (
     <div className="space-y-6 pb-6">
-      <EnvironmentsPanel envs={envs} productionName={production.env.name} />
+      <EnvironmentsPanel appSlug={app.slug} envs={envs} productionName={production.env.name} />
 
       <OverviewAlerts alerts={alerts} />
 
@@ -409,7 +411,16 @@ export function OverviewAlerts({ alerts }: { alerts: Array<AppOverviewAlert & { 
   );
 }
 
-function EnvironmentsPanel({ envs, productionName }: { envs: EnvView[]; productionName: string }) {
+function EnvironmentsPanel({
+  appSlug,
+  envs,
+  productionName,
+}: {
+  appSlug: string;
+  envs: EnvView[];
+  productionName: string;
+}) {
+  const navigate = useNavigate();
   return (
     <PanelShell
       title="Environments"
@@ -422,6 +433,7 @@ function EnvironmentsPanel({ envs, productionName }: { envs: EnvView[]; producti
           <SettingsControlRow
             key={env.id}
             title={<EnvLabel env={env} />}
+            onClick={() => navigate(appEnvironmentRoute(appSlug, env.slug))}
             description={`${plural(data?.members ?? 0, "resource")} · ${env.health}`}
           >
             <div className="flex flex-wrap items-center justify-end gap-1.5">

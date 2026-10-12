@@ -1,4 +1,4 @@
-import { CopyButton } from "@/components/common/CopyButton";
+import { CopyValueField } from "@/components/common/CopyValueField";
 import {
   Dialog,
   DialogContent,
@@ -6,7 +6,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import type { AppMaintenanceAccessCode } from "@/types";
 import { plural } from "../app-shared";
@@ -42,19 +41,12 @@ export function AccessCodeDialog({
             in maintenance once each and expires in 5 minutes.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex min-w-0 border border-input bg-background">
-          <Input
-            value={shown?.code ?? ""}
-            readOnly
-            aria-label="Maintenance access code"
-            className="min-w-0 flex-1 border-0 bg-transparent font-mono focus-visible:ring-0"
-          />
-          <CopyButton
-            value={shown?.code ?? ""}
-            label="maintenance access code"
-            className="border-l border-border"
-          />
-        </div>
+        <CopyValueField
+          label="Maintenance access code"
+          showLabel={false}
+          value={shown?.code ?? ""}
+          valueClassName="font-mono"
+        />
       </DialogContent>
     </Dialog>
   );

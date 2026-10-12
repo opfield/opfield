@@ -2,6 +2,7 @@
 // brings back exactly that set.
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Notice } from "@/components/common/Notice";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -73,9 +74,9 @@ export function ShutdownDialog({
         <div className="space-y-4">
           <ScopeSelect app={app} value={scope} onChange={setScope} disabled={pending} />
           {blocked ? (
-            <p className="text-sm text-destructive">{blocked}</p>
+            <Notice tone="destructive" title={blocked} />
           ) : error ? (
-            <p className="text-sm text-destructive">{error}</p>
+            <Notice tone="destructive" title={error} />
           ) : (
             <Consequences items={preview ? shutdownConsequences(preview.summary) : null} />
           )}

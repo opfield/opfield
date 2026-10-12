@@ -2,6 +2,11 @@
 import { useEffect, useRef, useState } from "react";
 import { toastApiError } from "@/lib/api-error-toast";
 import { isPermissionError } from "@/lib/picker-load-error";
+import {
+  dockerComposeProjectRoute,
+  dockerContainerRoute,
+  dockerDeploymentRoute,
+} from "@/lib/resource-routes";
 import { api } from "@/services/api";
 import { planIncludes } from "@/stores/license-paywall";
 import { syncPinnedContainerMeta } from "@/stores/pinned-containers";
@@ -75,6 +80,8 @@ export interface AppLinkRow {
   detail: string;
   status: string;
   tone: "success" | "warning" | "destructive" | "secondary";
+  /** The page of the workload that starts the connection. */
+  route: string | null;
 }
 
 export interface AppNetwork {
@@ -176,6 +183,7 @@ export async function loadAppNetwork(
     resourceId: string;
     label: string;
     environmentId: string;
+    route: string | null;
   }
   const workloads: Workload[] = [];
   for (const container of compute.containers) {
@@ -189,6 +197,9 @@ export async function loadAppNetwork(
             resourceId: container.deploymentId ?? container.id,
             label: container.name,
             environmentId: container.app.environmentId,
+            route: container._nodeSlug
+              ? dockerDeploymentRoute(container._nodeSlug, container.name)
+              : null,
           }
         : {
             nodeId,
@@ -196,6 +207,9 @@ export async function loadAppNetwork(
             resourceId: container.name,
             label: container.name,
             environmentId: container.app.environmentId,
+            route: container._nodeSlug
+              ? dockerContainerRoute(container._nodeSlug, container.name)
+              : null,
           }
     );
   }
@@ -209,6 +223,7 @@ export async function loadAppNetwork(
         resourceId: `${project.id}:${encodeURIComponent(name)}`,
         label: `${project.name}/${name}`,
         environmentId: project.app.environmentId,
+        route: dockerComposeProjectRoute(project.id),
       });
     }
   }
@@ -238,6 +253,7 @@ export async function loadAppNetwork(
     detail: `Container link · port ${link.targetPort}`,
     status: link.status,
     tone: LINK_TONE[link.status] ?? "secondary",
+    route: workload.route,
   }));
 
   // Bindings are listed per managed database / storage; keep those that reach a member workload.
@@ -264,6 +280,7 @@ export async function loadAppNetwork(
                     detail: "Database binding",
                     status: binding.status,
                     tone: LINK_TONE[binding.status] ?? "secondary",
+                    route: workload.route,
                   } satisfies AppLinkRow,
                 ]
               : [];
@@ -289,6 +306,7 @@ export async function loadAppNetwork(
                     detail: "Storage binding",
                     status: binding.status,
                     tone: LINK_TONE[binding.status] ?? "secondary",
+                    route: workload.route,
                   } satisfies AppLinkRow,
                 ]
               : [];

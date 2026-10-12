@@ -2,6 +2,7 @@
 // consequences with live counts, then type the app name to confirm.
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Notice } from "@/components/common/Notice";
 import { SettingsInlineControl } from "@/components/common/SettingsControlRow";
 import { Button } from "@/components/ui/button";
 import {
@@ -75,7 +76,7 @@ export function KillSwitchDialog({
         <div className="space-y-4">
           <ScopeSelect app={app} value={scope} onChange={setScope} disabled={pending} />
           {error ? (
-            <p className="text-sm text-destructive">{error}</p>
+            <Notice tone="destructive" title={error} />
           ) : (
             <Consequences items={preview ? isolationConsequences(preview.summary) : null} />
           )}
