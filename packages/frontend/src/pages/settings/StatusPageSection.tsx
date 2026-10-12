@@ -30,7 +30,11 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
-import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
+import {
+  handleLicenseApiError,
+  requireLicenseFeature,
+  usePlanIncludes,
+} from "@/stores/license-paywall";
 import type {
   Node,
   SSLCertificate,
@@ -223,8 +227,11 @@ export function StatusPageSection({ nodesList }: StatusPageSectionProps) {
     }
   };
 
+  const statusPagesInPlan = usePlanIncludes("status-pages");
   useContentLoading(!initialLoadComplete);
   if (!initialLoadComplete) return null;
+  // Without the plan the section stays only while a status page is still enabled (to switch it off).
+  if (!statusPagesInPlan && !savedConfig.enabled) return null;
 
   return (
     <PanelShell

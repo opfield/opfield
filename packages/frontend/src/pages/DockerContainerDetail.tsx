@@ -79,7 +79,11 @@ import { ApiRequestError } from "@/services/api-base";
 import { isPendingContainerOperation } from "@/services/api-docker";
 import { useAuthStore } from "@/stores/auth";
 import { useDockerStore } from "@/stores/docker";
-import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
+import {
+  handleLicenseApiError,
+  requireLicenseFeature,
+  usePlanIncludes,
+} from "@/stores/license-paywall";
 import { usePinnedContainersStore } from "@/stores/pinned-containers";
 import { useResolvedPageContext } from "@/stores/resolved-page-context";
 import type {
@@ -321,6 +325,11 @@ export function DockerContainerDetail({
   // First responses the header depends on; later refreshes update it in place.
   const [sourceIdentityLoaded, setSourceIdentityLoaded] = useState(false);
   const [healthCheckLoaded, setHealthCheckLoaded] = useState(false);
+  const planIncludesGitDeploy = usePlanIncludes("git-push-to-deploy");
+  const planIncludesMigration = usePlanIncludes("cross-node-migration");
+  const planIncludesContainerExport = usePlanIncludes("container-export");
+  // Source and Builds need Git push-to-deploy; an already bound source stays manageable.
+  const gitTabsVisible = planIncludesGitDeploy || sourceIdentity !== null;
   const [parentAvailabilityLoaded, setParentAvailabilityLoaded] = useState(false);
   const [composeServiceImageLoaded, setComposeServiceImageLoaded] = useState(false);
   const [composeOwnerLoadedFor, setComposeOwnerLoadedFor] = useState<string | null>(null);
@@ -662,8 +671,8 @@ export function DockerContainerDetail({
   const visibleTabs = useMemo(
     () => [
       "overview",
-      "source",
-      "builds",
+      // Keep the Source and Builds tabs reachable until the bound-source lookup settles.
+      ...(gitTabsVisible || !sourceIdentityLoaded ? ["source", "builds"] : []),
       ...(canViewContainer ? ["logs"] : []),
       ...(canUseConsole ? ["console"] : []),
       ...(canReadFiles ? ["files"] : []),
@@ -680,6 +689,8 @@ export function DockerContainerDetail({
       canUseSecrets,
       canViewContainer,
       composeManagedForTabs,
+      gitTabsVisible,
+      sourceIdentityLoaded,
     ]
   );
   const backendTransition = container?._transition as string | undefined;
@@ -1524,6 +1535,7 @@ export function DockerContainerDetail({
       disabled: actionDisabled,
     },
     ...(!composeManaged &&
+    planIncludesMigration &&
     canMigrate &&
     availabilityLoaded &&
     !availabilityManaged &&
@@ -1611,7 +1623,7 @@ export function DockerContainerDetail({
           },
         ]
       : []),
-    ...(!composeManaged && archiveCapabilities.canExport
+    ...(!composeManaged && planIncludesContainerExport && archiveCapabilities.canExport
       ? [
           {
             label: "Export archive",
@@ -1822,12 +1834,16 @@ export function DockerContainerDetail({
         >
           <TabsList className="shrink-0">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="source" className="gap-1.5">
-              Source
-            </TabsTrigger>
-            <TabsTrigger value="builds" className="gap-1.5">
-              Builds
-            </TabsTrigger>
+            {gitTabsVisible && (
+              <TabsTrigger value="source" className="gap-1.5">
+                Source
+              </TabsTrigger>
+            )}
+            {gitTabsVisible && (
+              <TabsTrigger value="builds" className="gap-1.5">
+                Builds
+              </TabsTrigger>
+            )}
             {canViewContainer && (
               <TabsTrigger value="logs" disabled={isTabDisabled("logs")}>
                 Logs

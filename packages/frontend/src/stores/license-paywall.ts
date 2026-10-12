@@ -3,35 +3,14 @@ import { create } from "zustand";
 import { ApiRequestError } from "@/services/api-base";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import type { LicensePlan } from "@/types";
+import {
+  entitlementsIncludeFeature,
+  LICENSE_FEATURE_PLANS,
+  type LicenseFeature,
+} from "@/types/license-features";
 import type { UIBootstrapShell } from "@/types/ui-bootstrap";
 
-export const LICENSE_FEATURE_PLANS = {
-  "storage-connections": "personal",
-  "external-database-connections": "personal",
-  gitlab: "personal",
-  "ai-plan-mode": "personal",
-  "ai-scenarios": "personal",
-  "ai-sandboxes": "personal",
-  "container-export": "personal",
-  "blue-green": "personal",
-  "cross-node-migration": "personal",
-  "managed-storage": "personal",
-  "managed-databases": "personal",
-  "container-links": "personal",
-  "status-pages": "personal",
-  "registry-discovery": "personal",
-  pages: "personal",
-  "secure-runtime": "business",
-  "structured-logging": "business",
-  "audit-export": "business",
-  "git-push-to-deploy": "business",
-  "multi-node-availability": "business",
-  "compose-applications": "personal",
-  "internal-pki": "enterprise",
-  "siem-export": "enterprise",
-} as const satisfies Record<string, Exclude<LicensePlan, "community">>;
-
-export type LicenseFeature = keyof typeof LICENSE_FEATURE_PLANS;
+export { LICENSE_FEATURE_PLANS, type LicenseFeature } from "@/types/license-features";
 export type PaidLicensePlan = Exclude<LicensePlan, "community">;
 
 export const LICENSE_PLAN_RANK: Record<LicensePlan, number> = {
@@ -69,16 +48,6 @@ function currentPlan(): LicensePlan {
   return useUIBootstrapStore.getState().snapshot?.license.plan ?? "community";
 }
 
-// Mirrors the backend policy: published paid v3/v4 grants predate these
-// capability names, and every one of them includes managed-databases.
-const PRE_V5_PERSONAL_CAPABILITIES = new Set<LicenseFeature>([
-  "storage-connections",
-  "external-database-connections",
-  "ai-plan-mode",
-  "ai-scenarios",
-  "ai-sandboxes",
-]);
-
 type LicenseSnapshot =
   | Partial<Pick<UIBootstrapShell, "license" | "commercialModule">>
   | null
@@ -95,17 +64,7 @@ export function snapshotHasLicenseFeature(
 ): boolean | null {
   const license = snapshot?.license;
   if (!license) return null;
-  if (
-    license.entitlements.features.includes(
-      feature === "managed-storage" || feature === "container-links" ? "managed-databases" : feature
-    )
-  )
-    return true;
-  return (
-    license.entitlementsVersion < 5 &&
-    PRE_V5_PERSONAL_CAPABILITIES.has(feature) &&
-    license.entitlements.features.includes("managed-databases")
-  );
+  return entitlementsIncludeFeature(license.entitlements.features, feature);
 }
 
 /**
@@ -120,6 +79,11 @@ export function canServeLicenseFeature(
   return moduleReady && snapshotHasLicenseFeature(snapshot, feature) !== false;
 }
 
+/** Whether the current plan includes a feature (and its module is ready); re-renders on change. */
+export function usePlanIncludes(feature: LicenseFeature): boolean {
+  return useUIBootstrapStore((state) => canServeLicenseFeature(state.snapshot, feature));
+}
+
 /** {@link canServeLicenseFeature} for the current bootstrap snapshot, outside React. */
 export function planIncludes(feature: LicenseFeature): boolean {
   return canServeLicenseFeature(useUIBootstrapStore.getState().snapshot, feature);
@@ -128,6 +92,7 @@ export function planIncludes(feature: LicenseFeature): boolean {
 /** Navigation items backed by one paid feature. */
 const LICENSED_NAVIGATION_ITEMS = {
   pages: "pages",
+  logging: "structured-logging",
   storage: "storage-connections",
   databases: "external-database-connections",
 } as const satisfies Record<string, LicenseFeature>;

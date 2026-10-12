@@ -101,7 +101,7 @@ import {
 import { accessContextKey, useAuthStore } from "@/stores/auth";
 import { useDashboardBootstrapStore } from "@/stores/dashboard-bootstrap";
 import { useDockerStore } from "@/stores/docker";
-import { canServeLicenseFeature } from "@/stores/license-paywall";
+import { canServeLicenseFeature, usePlanIncludes } from "@/stores/license-paywall";
 import { usePinnedContainersStore } from "@/stores/pinned-containers";
 import { useResolvedPageRoute } from "@/stores/resolved-page-context";
 import { useSystemConfigStore } from "@/stores/system-config";
@@ -838,8 +838,9 @@ function LoggingPageGuard({ detailType }: { detailType?: "environment" | "schema
     : isSchemaDetail
       ? hasScopedAccess("logs:schemas:view")
       : false;
+  const loggingInPlan = usePlanIncludes("structured-logging");
   const resolved = useResolvedPageRoute(
-    systemConfigLoaded && loggingEnabled && canResolveDetail && id
+    systemConfigLoaded && loggingEnabled && loggingInPlan && canResolveDetail && id
       ? isEnvironmentDetail
         ? loggingEnvironmentRoute(id)
         : loggingSchemaRoute(id)
@@ -875,6 +876,18 @@ function LoggingPageGuard({ detailType }: { detailType?: "environment" | "schema
     ((isEnvironmentDetail || isSchemaDetail) && !canResolveDetail)
   ) {
     return <Navigate to="/" replace />;
+  }
+
+  if (!loggingInPlan) {
+    return (
+      <LicenseFeatureBoundary
+        feature="structured-logging"
+        capability="Structured logging"
+        frame={{ kind: "page", title: "Logging" }}
+      >
+        {null}
+      </LicenseFeatureBoundary>
+    );
   }
 
   if ((isEnvironmentDetail || isSchemaDetail) && resolved.loading) return <DetailRouteLoading />;

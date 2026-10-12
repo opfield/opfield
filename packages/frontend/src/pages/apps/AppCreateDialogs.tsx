@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { type LicenseFeature, requireLicenseFeature } from "@/stores/license-paywall";
+import type { AppMemberFamily } from "@/types";
 import { ComposeProjectEditor } from "../compose/ComposeProjectEditor";
 import { DockerDeployDialog } from "../DockerDeployDialog";
 import { DatabaseConnectionCreateDialog } from "../database-create/DatabaseConnectionCreateDialog";
@@ -50,7 +51,7 @@ type DialogKey =
   | "pages"
   | "container-link";
 
-function dialogKey(request: AppCreateRequest): DialogKey {
+function dialogKey(request: Pick<AppCreateRequest, "type" | "variant">): DialogKey {
   if (request.type === "database" || request.type === "storage") {
     return `${request.type}-${request.variant === "external" ? "external" : "managed"}`;
   }
@@ -66,6 +67,26 @@ const LICENSE_GATES: Partial<Record<DialogKey, [LicenseFeature, string]>> = {
   "storage-external": ["storage-connections", "Storage connections"],
   pages: ["pages", "Pages"],
   "container-link": ["container-links", "Container links"],
+};
+
+/** The license features a create request needs: its dialog's gate, plus /databases for any database. */
+export function appCreateFeatures(
+  request: Pick<AppCreateRequest, "type" | "variant">
+): LicenseFeature[] {
+  const gate = LICENSE_GATES[dialogKey(request)];
+  const features: LicenseFeature[] = gate ? [gate[0]] : [];
+  if (request.type === "database" && !features.includes("external-database-connections")) {
+    features.push("external-database-connections");
+  }
+  return features;
+}
+
+/** The license feature importing existing members of a family needs. */
+export const IMPORT_LICENSE_FEATURES: Partial<Record<AppMemberFamily, LicenseFeature>> = {
+  compose: "compose-applications",
+  databases: "external-database-connections",
+  storage: "storage-connections",
+  pages: "pages",
 };
 
 /**

@@ -16,9 +16,10 @@ import {
   fetchDockerNodeList,
   loadVisibleDockerNodes,
 } from "@/lib/docker-node-access";
+import { api } from "@/services/api";
 import { accessContextKey, useAuthStore } from "@/stores/auth";
 import { useDockerStore } from "@/stores/docker";
-import { requireLicenseFeature } from "@/stores/license-paywall";
+import { requireLicenseFeature, usePlanIncludes } from "@/stores/license-paywall";
 import type { Node as GatewayNode } from "@/types";
 import { DockerBuilds } from "./DockerBuilds";
 import { DockerComposeProjects } from "./DockerComposeProjects";
@@ -100,8 +101,31 @@ export function Docker() {
   const refreshComposeRef = useRef<(() => void) | null>(null);
 
   const canManageContainerFolders = hasScopedAccess("docker:folders:manage");
+  // Builds come from Git push-to-deploy; past builds stay visible after the plan loses it.
+  const planIncludesGitDeploy = usePlanIncludes("git-push-to-deploy");
+  const planIncludesContainerExport = usePlanIncludes("container-export");
+  const planIncludesCompose = usePlanIncludes("compose-applications");
+  const canViewBuilds = hasScopedAccess("docker:containers:view");
+  const [buildsExist, setBuildsExist] = useState(false);
+  useEffect(() => {
+    if (planIncludesGitDeploy || !canViewBuilds) return;
+    let cancelled = false;
+    void api
+      .listDockerBuildPage({ limit: 1 })
+      .then((page) => {
+        if (!cancelled) setBuildsExist(page.data.length > 0);
+      })
+      .catch(() => {
+        if (!cancelled) setBuildsExist(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canViewBuilds, planIncludesGitDeploy]);
   const visibleTabs = TABS.filter(
-    (t) => hasScopedAccess(t.scope) || (t.value === "containers" && canManageContainerFolders)
+    (t) =>
+      (hasScopedAccess(t.scope) || (t.value === "containers" && canManageContainerFolders)) &&
+      (t.value !== "builds" || planIncludesGitDeploy || buildsExist)
   );
   const visibleTabKey = visibleTabs.map((tab) => tab.value).join("|");
   const activeTab =
@@ -315,7 +339,7 @@ export function Docker() {
                 New Folder
               </Button>
             )}
-            {hasScopedAccess("docker:containers:create") && (
+            {planIncludesContainerExport && hasScopedAccess("docker:containers:create") && (
               <Button disabled={nodeActionsDisabled} variant="outline" onClick={openImport}>
                 <ArchiveRestore className="h-4 w-4 mr-1" />
                 Import .gwca
@@ -415,7 +439,7 @@ export function Docker() {
                 New Folder
               </Button>
             )}
-            {hasScopedAccess("docker:compose:create") && (
+            {planIncludesCompose && hasScopedAccess("docker:compose:create") && (
               <Button disabled={nodeActionsDisabled} onClick={() => createComposeRef.current?.()}>
                 <Plus className="h-4 w-4 mr-1" />
                 New Project
@@ -440,11 +464,15 @@ export function Docker() {
       : []),
     ...(activeTab === "containers" && hasScopedAccess("docker:containers:create")
       ? [
-          {
-            label: "Import .gwca",
-            icon: <ArchiveRestore className="h-4 w-4" />,
-            onClick: openImport,
-          },
+          ...(planIncludesContainerExport
+            ? [
+                {
+                  label: "Import .gwca",
+                  icon: <ArchiveRestore className="h-4 w-4" />,
+                  onClick: openImport,
+                },
+              ]
+            : []),
           {
             label: "Deploy",
             icon: <Plus className="h-4 w-4" />,
@@ -524,7 +552,7 @@ export function Docker() {
           },
         ]
       : []),
-    ...(activeTab === "compose" && hasScopedAccess("docker:compose:create")
+    ...(activeTab === "compose" && planIncludesCompose && hasScopedAccess("docker:compose:create")
       ? [
           {
             label: "New Project",

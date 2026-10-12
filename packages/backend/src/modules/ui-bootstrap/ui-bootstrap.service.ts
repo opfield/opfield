@@ -5,6 +5,7 @@ import type { AIProviderRuntimeService } from '@/modules/ai/ai-provider-runtime.
 import { DEMO_MODE_CTA_URL, isDemoMode } from '@/modules/demo/demo-mode.js';
 import { dockerScopedNodeIds } from '@/modules/docker/docker-access-resource.service.js';
 import type { IntegrationsService } from '@/modules/integrations/integrations.service.js';
+import { entitlementsIncludeFeature } from '@/modules/license/license-features.js';
 import type { LicensePolicyService, SafeLicenseSummary } from '@/modules/license/license-policy.service.js';
 import type { LoggingFeatureService } from '@/modules/logging/logging-feature.service.js';
 import type { NodesService } from '@/modules/nodes/nodes.service.js';
@@ -175,9 +176,12 @@ export class UIBootstrapService {
         gatewayGrpcLocalIp: canViewGatewaySettings ? config.gatewayGrpcLocalIp : null,
         relayAutoRecovery: canViewGatewaySettings ? config.relayAutoRecovery : false,
         features: {
-          pkiEnabled: config.features.pkiEnabled,
+          // The switches default to on; a plan without the feature reports them off.
+          pkiEnabled:
+            config.features.pkiEnabled && entitlementsIncludeFeature(license.entitlements.features, 'internal-pki'),
           domainsEnabled: config.features.domainsEnabled,
-          siemEnabled: config.features.siemEnabled,
+          siemEnabled:
+            config.features.siemEnabled && entitlementsIncludeFeature(license.entitlements.features, 'siem-export'),
           loggingEnabled: this.loggingFeature.isEnabled(),
           inferenceEnabled: config.features.inferenceEnabled,
         },
@@ -189,7 +193,7 @@ export class UIBootstrapService {
         hasNginxNodes: true,
         hasCloudflareIntegration: cloudflareSnapshot.data,
         statusPageEnabled: hasScope(scopes, 'status-page:view') && statusPageSnapshot.data.enabled,
-        pagesEnabled: pagesEnabled && license.entitlements.features.includes('pages'),
+        pagesEnabled: pagesEnabled && entitlementsIncludeFeature(license.entitlements.features, 'pages'),
         dockerNodes,
         nodes: { ...nodeSnapshot, data: visibleNodes },
       },

@@ -27,7 +27,7 @@ import {
 } from "@/lib/docker-runtime-profile";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
-import { requireLicenseFeature } from "@/stores/license-paywall";
+import { requireLicenseFeature, usePlanIncludes } from "@/stores/license-paywall";
 import {
   type DockerDeployment,
   type DockerHealthCheck,
@@ -170,6 +170,9 @@ export function DeploymentSettings({
   const runtime = ((deployment.desiredConfig as any).runtime ?? {}) as Record<string, any>;
   const desiredGpuDeviceIds = deployment.desiredConfig.gpu?.deviceIds ?? EMPTY_GPU_DEVICE_IDS;
   const savedRuntimeProfile = deployment.desiredConfig.runtimeProfile ?? "default";
+  // The runtime choice needs Secure Runtime; a deployment already on it keeps the choice.
+  const secureRuntimeLicensed = usePlanIncludes("secure-runtime");
+  const runtimeChoiceVisible = secureRuntimeLicensed || savedRuntimeProfile === "secure";
   const initialGpuDeviceIds = useMemo(
     () => normalizeGpuDeviceIds(desiredGpuDeviceIds),
     [desiredGpuDeviceIds]
@@ -697,38 +700,40 @@ export function DeploymentSettings({
               </SettingsInlineControl>
             </div>
           </SettingsControlRow>
-          <SettingsControlRow title="Runtime" description="Container isolation profile">
-            <SettingsInlineControl label="Profile">
-              <Select
-                value={runtimeProfile}
-                onValueChange={(value) => {
-                  if (
-                    value === "secure" &&
-                    savedRuntimeProfile !== "secure" &&
-                    !requireLicenseFeature("secure-runtime", "Secure Runtime")
-                  )
-                    return;
-                  setRuntimeProfile(value as DockerRuntimeProfile);
-                }}
-              >
-                <SelectTrigger aria-label="Runtime">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default" description={DEFAULT_DOCKER_RUNTIME_DESCRIPTION}>
-                    Default
-                  </SelectItem>
-                  <SelectItem
-                    value="secure"
-                    disabled={!secureRuntimeAvailable}
-                    description={getSecureDockerRuntimeDescription(secureRuntimeAvailable)}
-                  >
-                    Secure
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </SettingsInlineControl>
-          </SettingsControlRow>
+          {runtimeChoiceVisible && (
+            <SettingsControlRow title="Runtime" description="Container isolation profile">
+              <SettingsInlineControl label="Profile">
+                <Select
+                  value={runtimeProfile}
+                  onValueChange={(value) => {
+                    if (
+                      value === "secure" &&
+                      savedRuntimeProfile !== "secure" &&
+                      !requireLicenseFeature("secure-runtime", "Secure Runtime")
+                    )
+                      return;
+                    setRuntimeProfile(value as DockerRuntimeProfile);
+                  }}
+                >
+                  <SelectTrigger aria-label="Runtime">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default" description={DEFAULT_DOCKER_RUNTIME_DESCRIPTION}>
+                      Default
+                    </SelectItem>
+                    <SelectItem
+                      value="secure"
+                      disabled={!secureRuntimeAvailable}
+                      description={getSecureDockerRuntimeDescription(secureRuntimeAvailable)}
+                    >
+                      Secure
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </SettingsInlineControl>
+            </SettingsControlRow>
+          )}
           <SettingsControlRow
             title="Drain and Entrypoint"
             description="Rollout and process startup"

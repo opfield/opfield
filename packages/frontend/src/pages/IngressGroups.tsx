@@ -24,6 +24,7 @@ import { ingressGroupRoute } from "@/lib/resource-routes";
 import { hasScopeBase } from "@/lib/scope-utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
+import { usePlanIncludes } from "@/stores/license-paywall";
 import type { IngressGroup } from "@/types";
 
 const NO_SCOPES: string[] = [];
@@ -31,7 +32,9 @@ const NO_SCOPES: string[] = [];
 export function IngressGroups() {
   const navigate = useNavigate();
   const scopes = useAuthStore((state) => state.user?.scopes ?? NO_SCOPES);
-  const canCreate = hasScopeBase(scopes, "ingress:groups:manage");
+  // New groups need multi-node availability; existing groups stay manageable.
+  const groupsInPlan = usePlanIncludes("multi-node-availability");
+  const canCreate = groupsInPlan && hasScopeBase(scopes, "ingress:groups:manage");
   const [groups, setGroups] = useState<IngressGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const initialLoading = useInitialLoading(loading);

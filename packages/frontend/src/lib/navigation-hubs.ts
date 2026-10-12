@@ -13,6 +13,8 @@ export type CertificatesHubTab = "ssl" | "authorities" | "pki" | "templates";
 export interface HubAccessContext {
   scopes: readonly string[];
   pkiEnabled: boolean;
+  /** False when the plan lacks multi-node availability; ingress groups are then hidden. */
+  ingressGroupsInPlan?: boolean;
 }
 
 export interface NavigationHubTab {
@@ -55,7 +57,8 @@ export const ROUTES_HUB: NavigationHub = {
       label: "Ingress Groups",
       path: "/routes/ingress-groups",
       legacyPath: "/ingress-groups",
-      canAccess: ({ scopes }) => hasScopeBase(scopes, "ingress:groups:view"),
+      canAccess: ({ scopes, ingressGroupsInPlan }) =>
+        ingressGroupsInPlan !== false && hasScopeBase(scopes, "ingress:groups:view"),
     },
     {
       value: "access-lists",

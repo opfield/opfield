@@ -16,7 +16,6 @@ import { ContentLoading } from "@/components/common/ContentLoading";
 import { PanelShell } from "@/components/common/PanelShell";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import { SimpleTable, type SimpleTableColumn } from "@/components/common/SimpleTable";
-import { PagesFeatureDisabledDialog } from "@/components/pages/PagesFeatureDisabledDialog";
 import { PagesTargetPicker } from "@/components/proxy/PagesTargetPicker";
 import {
   DEFAULT_PROXY_UPSTREAM,
@@ -740,7 +739,6 @@ function AdditionalRouteWizard({
   const [tags, setTags] = useState<PageTag[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [tagsLoading, setTagsLoading] = useState(false);
-  const [pagesDisabledDialogOpen, setPagesDisabledDialogOpen] = useState(false);
   const pagesEnabled = useUIBootstrapStore(
     (state) => state.snapshot?.navigation.pagesEnabled === true
   );
@@ -912,13 +910,7 @@ function AdditionalRouteWizard({
             </label>
             <Select
               value={draft.targetKind}
-              onValueChange={(value) => {
-                if (value === "pages" && !pagesEnabled) {
-                  setPagesDisabledDialogOpen(true);
-                  return;
-                }
-                setTargetKind(value as ProxyAdditionalRouteTargetKind);
-              }}
+              onValueChange={(value) => setTargetKind(value as ProxyAdditionalRouteTargetKind)}
               disabled={saving}
             >
               <SelectTrigger id="additional-route-target">
@@ -928,7 +920,10 @@ function AdditionalRouteWizard({
                 <SelectItem value="manual">Manual address</SelectItem>
                 <SelectItem value="docker_container">Docker container</SelectItem>
                 <SelectItem value="docker_deployment">Docker deployment</SelectItem>
-                <SelectItem value="pages">Pages</SelectItem>
+                {/* Pages is offered only while enabled; an existing Pages target stays shown. */}
+                {(pagesEnabled ||
+                  draft.targetKind === "pages" ||
+                  route?.targetKind === "pages") && <SelectItem value="pages">Pages</SelectItem>}
               </SelectContent>
             </Select>
           </div>
@@ -980,10 +975,6 @@ function AdditionalRouteWizard({
             Save
           </Button>
         </DialogFooter>
-        <PagesFeatureDisabledDialog
-          open={pagesDisabledDialogOpen}
-          onOpenChange={setPagesDisabledDialogOpen}
-        />
       </DialogContent>
     </Dialog>
   );

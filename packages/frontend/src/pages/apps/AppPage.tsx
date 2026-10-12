@@ -40,8 +40,16 @@ import { APP_TABS, type AppTab, appRoute } from "@/lib/app-routes";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
+import { canServeLicenseFeature } from "@/stores/license-paywall";
+import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import type { AppDetail, AppMemberFamily } from "@/types";
-import { AppCreateDialogs, type AppCreateRequest, type AppCreateType } from "./AppCreateDialogs";
+import {
+  AppCreateDialogs,
+  type AppCreateRequest,
+  type AppCreateType,
+  appCreateFeatures,
+  IMPORT_LICENSE_FEATURES,
+} from "./AppCreateDialogs";
 import { HealthBadge, memberTotal, plural } from "./app-shared";
 import { AccessCodeDialog, type AccessCodeState } from "./dialogs/AccessCodeDialog";
 import { ImportDialog, type ImportRequest } from "./dialogs/ImportDialog";
@@ -92,11 +100,15 @@ function NewMenu({
   onCreate,
   onNewEnvironment,
   canCreate,
+  planCreates,
 }: {
   onCreate: (type: AppCreateType, variant?: "external") => void;
   onNewEnvironment?: () => void;
   canCreate: boolean;
+  planCreates: (type: AppCreateType, variant?: "external") => boolean;
 }) {
+  const items = canCreate ? NEW_ITEMS.filter((item) => planCreates(item.type, item.variant)) : [];
+  if (items.length === 0 && !onNewEnvironment) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -107,19 +119,18 @@ function NewMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        {canCreate &&
-          NEW_ITEMS.map((item) => (
-            <DropdownMenuItem
-              key={`${item.type}:${item.variant ?? ""}`}
-              onClick={() => onCreate(item.type, item.variant)}
-            >
-              <item.icon className="h-4 w-4" />
-              {item.label}
-            </DropdownMenuItem>
-          ))}
+        {items.map((item) => (
+          <DropdownMenuItem
+            key={`${item.type}:${item.variant ?? ""}`}
+            onClick={() => onCreate(item.type, item.variant)}
+          >
+            <item.icon className="h-4 w-4" />
+            {item.label}
+          </DropdownMenuItem>
+        ))}
         {onNewEnvironment && (
           <>
-            {canCreate && <DropdownMenuSeparator />}
+            {items.length > 0 && <DropdownMenuSeparator />}
             <DropdownMenuItem onClick={onNewEnvironment}>
               <Layers className="h-4 w-4" />
               Environment
@@ -163,12 +174,34 @@ function AppPageContent({
   const counts = app.environments.map((env) => env.memberCounts);
   const members = counts.reduce((sum, item) => sum + memberTotal(item), 0);
   const hasData = counts.some((item) => (item.database ?? 0) + (item.storage ?? 0) > 0);
+  // Entry points of types the license plan lacks stay hidden; existing members stay listed.
+  const license = useUIBootstrapStore((state) => state.snapshot?.license);
+  const commercialModule = useUIBootstrapStore((state) => state.snapshot?.commercialModule);
+  const planCreates = useCallback(
+    (type: AppCreateType, variant?: "external") =>
+      appCreateFeatures({ type, variant }).every((feature) =>
+        canServeLicenseFeature({ license, commercialModule }, feature)
+      ),
+    [license, commercialModule]
+  );
+  const planImports = useCallback(
+    (family: AppMemberFamily) => {
+      const feature = IMPORT_LICENSE_FEATURES[family];
+      return !feature || canServeLicenseFeature({ license, commercialModule }, feature);
+    },
+    [license, commercialModule]
+  );
+  const planHasData =
+    planCreates("database") ||
+    planCreates("database", "external") ||
+    planCreates("storage") ||
+    planCreates("storage", "external");
   const production = app.environments.find((env) => env.isProduction) ?? app.environments[0];
 
   const tabs: Array<{ value: AppTab; label: string; show: boolean }> = [
     { value: "overview", label: "Overview", show: true },
     { value: "compute", label: "Compute", show: true },
-    { value: "data", label: "Data", show: hasData || canCreate },
+    { value: "data", label: "Data", show: hasData || (canCreate && planHasData) },
     { value: "network", label: "Network", show: true },
     { value: "nodes", label: "Nodes", show: true },
     { value: "activity", label: "Activity", show: true },
@@ -203,11 +236,13 @@ function AppPageContent({
       canCreate,
       onCreate: (type, environmentId) => setCreateRequest({ type, environmentId }),
       onImport: (family: AppMemberFamily) => setImportRequest({ family }),
+      planCreates: (type) => planCreates(type),
+      planImports,
       canMoveIn: (environmentId) => Boolean(permissions.envManage[environmentId]),
       onMoveToEnvironment: setMoveEnvMember,
       onMoveToApp: setMoveAppMember,
     }),
-    [canCreate, permissions.envManage]
+    [canCreate, permissions.envManage, planCreates, planImports]
   );
 
   const doRefresh = useCallback(async () => {
@@ -273,6 +308,7 @@ function AppPageContent({
               {(canCreate || permissions.edit) && (
                 <NewMenu
                   canCreate={canCreate}
+                  planCreates={planCreates}
                   onCreate={(type, variant) => setCreateRequest({ type, variant })}
                   onNewEnvironment={permissions.edit ? () => setNewEnvOpen(true) : undefined}
                 />

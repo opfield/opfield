@@ -61,7 +61,12 @@ import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { useDockerStore } from "@/stores/docker";
 import { useDockerFolderStore } from "@/stores/docker-folders";
-import { handleLicenseApiError, requireMinimumLicensePlan } from "@/stores/license-paywall";
+import {
+  handleLicenseApiError,
+  LICENSE_PLAN_RANK,
+  requireMinimumLicensePlan,
+} from "@/stores/license-paywall";
+import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import type { DockerFolderTreeNode, DockerVolume, Node, NodeAppearanceColor } from "@/types";
 
 interface DockerVolumeListItem extends DockerVolume {
@@ -294,6 +299,14 @@ export function DockerVolumes({
     selectedNodeCapabilities?.dockerDaemonNonRootV1 === true ||
       advertisedNodeCapabilities.includes("docker_daemon_non_root_v1")
   );
+  // Disk-image volumes need Personal or higher; the option is hidden on lower plans.
+  const planAllowsDiskImages = useUIBootstrapStore((state) => {
+    const license = state.snapshot?.license;
+    if (!license) return true;
+    const moduleReady =
+      !state.snapshot?.commercialModule || state.snapshot.commercialModule === "ready";
+    return moduleReady && LICENSE_PLAN_RANK[license.plan] >= LICENSE_PLAN_RANK.personal;
+  });
   const parsedCreateCapacityGb = Number(createCapacityGb);
   const createCapacityValid =
     Number.isInteger(parsedCreateCapacityGb) && parsedCreateCapacityGb >= 1;
@@ -738,21 +751,23 @@ export function DockerVolumes({
                     >
                       Regular volume
                     </SelectItem>
-                    <SelectItem
-                      value="disk-image"
-                      disabled={!supportsDiskImages}
-                      description={
-                        !selectedNode
-                          ? "Select a node to check support."
-                          : supportsDiskImages
-                            ? "Fixed-capacity ext4 storage that can be expanded later."
-                            : nodeRunsWithoutRoot
-                              ? "Unavailable: disk-image volumes need docker-daemon to run as root, and this node runs it as a non-root user."
-                              : "The selected node did not advertise disk-image support."
-                      }
-                    >
-                      Disk image
-                    </SelectItem>
+                    {planAllowsDiskImages && (
+                      <SelectItem
+                        value="disk-image"
+                        disabled={!supportsDiskImages}
+                        description={
+                          !selectedNode
+                            ? "Select a node to check support."
+                            : supportsDiskImages
+                              ? "Fixed-capacity ext4 storage that can be expanded later."
+                              : nodeRunsWithoutRoot
+                                ? "Unavailable: disk-image volumes need docker-daemon to run as root, and this node runs it as a non-root user."
+                                : "The selected node did not advertise disk-image support."
+                        }
+                      >
+                        Disk image
+                      </SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>

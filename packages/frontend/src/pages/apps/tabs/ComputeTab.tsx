@@ -94,6 +94,18 @@ function containerHealth(container: DockerContainer): string {
   );
 }
 
+/** "containers, Compose projects or Pages projects", without the kinds the license plan lacks. */
+function computeKinds(actions: TabActions): string {
+  const kinds = present([
+    "containers",
+    actions.planCreates("compose") && "Compose projects",
+    actions.planCreates("pages") && "Pages projects",
+  ]);
+  return kinds.length > 1
+    ? `${kinds.slice(0, -1).join(", ")} or ${kinds[kinds.length - 1]}`
+    : kinds[0];
+}
+
 function NodeCellBadge({ name, color }: { name?: string; color?: DockerContainer["_nodeColor"] }) {
   return (
     <Badge variant="secondary" className={nodeBadgeClassName(color ?? null)}>
@@ -520,7 +532,7 @@ export function ComputeTab({
         title="Compute"
         icon={<Box className="h-4 w-4" />}
         types={[TYPES.containers, TYPES.compose, TYPES.pages]}
-        message="No containers, Compose projects or Pages projects yet. Create one or import an existing one."
+        message={`No ${computeKinds(actions)} yet. Create one or import an existing one.`}
         actions={actions}
       />
     );

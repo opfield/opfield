@@ -49,7 +49,7 @@ import { loadPageDeployments } from "@/lib/page-deployments";
 import { proxyHostRoute } from "@/lib/resource-routes";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
-import { hasLicenseFeature } from "@/stores/license-paywall";
+import { hasLicenseFeature, usePlanIncludes } from "@/stores/license-paywall";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import type { PageProject, PageProjectPlacementOption } from "@/types";
 import { DockerResourceGitTabs } from "../docker-detail/DockerResourceGitTabs";
@@ -309,6 +309,38 @@ export function PageProjectDetail({
     "deployments",
     (tab) => `/pages/${resolvedSlug}/${tab}`
   );
+  // Source and Builds need Git push-to-deploy; an already bound source stays manageable.
+  const planIncludesGitDeploy = usePlanIncludes("git-push-to-deploy");
+  const [boundSourceFor, setBoundSourceFor] = useState<{
+    projectId: string;
+    bound: boolean;
+  } | null>(null);
+  const sourceNodeId = project?.nodeId ?? undefined;
+  const sourceProjectId = project?.id;
+  useEffect(() => {
+    if (planIncludesGitDeploy || !sourceProjectId) return;
+    let cancelled = false;
+    void api
+      .getDockerSource({
+        kind: "pages_project",
+        nodeId: sourceNodeId,
+        pageProjectId: sourceProjectId,
+      })
+      .then((source) => {
+        if (!cancelled) setBoundSourceFor({ projectId: sourceProjectId, bound: source !== null });
+      })
+      .catch(() => {
+        if (!cancelled) setBoundSourceFor({ projectId: sourceProjectId, bound: false });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [planIncludesGitDeploy, sourceNodeId, sourceProjectId]);
+  const gitTabsVisible =
+    planIncludesGitDeploy ||
+    (boundSourceFor !== null &&
+      boundSourceFor.projectId === sourceProjectId &&
+      boundSourceFor.bound);
 
   const load = useCallback(async () => {
     if (deletingRef.current) return;
@@ -423,9 +455,11 @@ export function PageProjectDetail({
   const previewsEnabled = project?.previewsEnabled ?? true;
   const publicHostname = project?.primaryDomain ?? (previewsEnabled ? latestPreviewHostname : null);
   const latestPreviewUrl = publicHostname ? `${window.location.protocol}//${publicHostname}` : null;
-  const visibleTab = PROJECT_TABS.includes(activeTab as (typeof PROJECT_TABS)[number])
-    ? activeTab
-    : "deployments";
+  const visibleTab =
+    PROJECT_TABS.includes(activeTab as (typeof PROJECT_TABS)[number]) &&
+    (gitTabsVisible || (activeTab !== "source" && activeTab !== "builds"))
+      ? activeTab
+      : "deployments";
 
   const remove = async () => {
     if (!project) return;
@@ -635,12 +669,16 @@ export function PageProjectDetail({
             <TabsTrigger value="deployments" className="gap-1.5">
               Deployments
             </TabsTrigger>
-            <TabsTrigger value="source" className="gap-1.5">
-              Source
-            </TabsTrigger>
-            <TabsTrigger value="builds" className="gap-1.5">
-              Builds
-            </TabsTrigger>
+            {gitTabsVisible && (
+              <TabsTrigger value="source" className="gap-1.5">
+                Source
+              </TabsTrigger>
+            )}
+            {gitTabsVisible && (
+              <TabsTrigger value="builds" className="gap-1.5">
+                Builds
+              </TabsTrigger>
+            )}
             <TabsTrigger value="tags" className="gap-1.5">
               Tags
             </TabsTrigger>

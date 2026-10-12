@@ -81,6 +81,7 @@ export function reportScopeLoadError(resource: string, error: unknown) {
 
 const PLAN_GATED_PERMISSIONS: readonly (readonly [string, LicenseFeature])[] = [
   ["pki:", "internal-pki"],
+  ["logs:", "structured-logging"],
   ["audit:siem", "siem-export"],
   ["storage:", "storage-connections"],
   ["databases:", "external-database-connections"],

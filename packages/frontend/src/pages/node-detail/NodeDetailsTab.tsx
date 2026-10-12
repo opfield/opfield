@@ -31,7 +31,11 @@ import { deriveAllowedResourceIdsByScope, scopeMatches } from "@/lib/scope-utils
 import { cn, formatBytes, formatDateTime, formatUptime } from "@/lib/utils";
 import { api } from "@/services/api";
 import { accessContextKey, useAuthStore } from "@/stores/auth";
-import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
+import {
+  handleLicenseApiError,
+  requireLicenseFeature,
+  usePlanIncludes,
+} from "@/stores/license-paywall";
 import {
   DAEMON_STREAM_HANDOVER_CAPABILITY,
   type DockerRuntimeStatus,
@@ -134,6 +138,8 @@ export function NodeDetailsTab({
   refreshDaemonUpdateStatus,
 }: NodeDetailsTabProps) {
   const navigate = useNavigate();
+  // Secure Runtime setup needs its plan feature; a node that already has the runtime keeps the panel.
+  const secureRuntimeLicensed = usePlanIncludes("secure-runtime");
   const [proxyHosts, setProxyHosts] = useState<ProxyHost[]>([]);
   const [proxyHostsLoading, setProxyHostsLoading] = useState(
     node.type === "nginx" && node.status === "online" && node.isConnected
@@ -656,78 +662,80 @@ export function NodeDetailsTab({
         </PanelShell>
       )}
 
-      {node.type === "docker" && runtimeStatus?.state !== "healthy" && (
-        <PanelShell
-          title="Secure Runtime Setup"
-          description={
-            runtimeInstalling
-              ? "Installing and verifying Secure Runtime"
-              : runtimeStatus?.message || "Check this node for gVisor compatibility"
-          }
-          actions={
-            !canManageSecureRuntime ? null : runtimeInstalling ? (
-              <Button pending>Setting up...</Button>
-            ) : (runtimeStatus?.state === "installable" || runtimeStatus?.state === "failed") &&
-              runtimeStatus.remoteInstallable ? (
-              <Button
-                onClick={() => handleRuntimeAction("install")}
-                disabled={runtimeAction !== null || node.status !== "online" || !node.isConnected}
-              >
-                <ShieldCheck />
-                {runtimeStatus.state === "failed" ? "Retry setup" : "Setup"}
-              </Button>
-            ) : runtimeStatus?.state !== "unsupported" ? (
-              <Button
-                variant="outline"
-                onClick={() => handleRuntimeAction("preflight")}
-                pending={runtimeAction === "preflight"}
-                disabled={runtimeAction !== null || node.status !== "online" || !node.isConnected}
-              >
-                Check compatibility
-              </Button>
-            ) : null
-          }
-        >
-          <div className="divide-y divide-border">
-            <DetailRow
-              label="Status"
-              value={
-                <Badge variant={runtimeStatus?.state === "unsupported" ? "secondary" : "warning"}>
-                  {runtimeInstalling ? "installing" : (runtimeStatus?.state ?? "unknown")}
-                </Badge>
-              }
-            />
-            {runtimeInstalling && runtimeStatus?.message && (
-              <DetailRow label="Step" value={runtimeStatus.message} />
-            )}
-            {runtimeStatus?.step === "downloading" &&
-              runtimeStatus.progressPercent !== undefined && (
-                <DetailRow
-                  label="Download"
-                  value={
-                    <span className="flex w-full max-w-xs items-center gap-3">
-                      <ProgressBar
-                        value={runtimeStatus.progressPercent}
-                        aria-label="gVisor download progress"
-                      />
-                      <span className="w-10 shrink-0 text-right tabular-nums">
-                        {runtimeStatus.progressPercent}%
+      {node.type === "docker" &&
+        runtimeStatus?.state !== "healthy" &&
+        (secureRuntimeLicensed || Boolean(runtimeStatus?.installedVersion)) && (
+          <PanelShell
+            title="Secure Runtime Setup"
+            description={
+              runtimeInstalling
+                ? "Installing and verifying Secure Runtime"
+                : runtimeStatus?.message || "Check this node for gVisor compatibility"
+            }
+            actions={
+              !canManageSecureRuntime || !secureRuntimeLicensed ? null : runtimeInstalling ? (
+                <Button pending>Setting up...</Button>
+              ) : (runtimeStatus?.state === "installable" || runtimeStatus?.state === "failed") &&
+                runtimeStatus.remoteInstallable ? (
+                <Button
+                  onClick={() => handleRuntimeAction("install")}
+                  disabled={runtimeAction !== null || node.status !== "online" || !node.isConnected}
+                >
+                  <ShieldCheck />
+                  {runtimeStatus.state === "failed" ? "Retry setup" : "Setup"}
+                </Button>
+              ) : runtimeStatus?.state !== "unsupported" ? (
+                <Button
+                  variant="outline"
+                  onClick={() => handleRuntimeAction("preflight")}
+                  pending={runtimeAction === "preflight"}
+                  disabled={runtimeAction !== null || node.status !== "online" || !node.isConnected}
+                >
+                  Check compatibility
+                </Button>
+              ) : null
+            }
+          >
+            <div className="divide-y divide-border">
+              <DetailRow
+                label="Status"
+                value={
+                  <Badge variant={runtimeStatus?.state === "unsupported" ? "secondary" : "warning"}>
+                    {runtimeInstalling ? "installing" : (runtimeStatus?.state ?? "unknown")}
+                  </Badge>
+                }
+              />
+              {runtimeInstalling && runtimeStatus?.message && (
+                <DetailRow label="Step" value={runtimeStatus.message} />
+              )}
+              {runtimeStatus?.step === "downloading" &&
+                runtimeStatus.progressPercent !== undefined && (
+                  <DetailRow
+                    label="Download"
+                    value={
+                      <span className="flex w-full max-w-xs items-center gap-3">
+                        <ProgressBar
+                          value={runtimeStatus.progressPercent}
+                          aria-label="gVisor download progress"
+                        />
+                        <span className="w-10 shrink-0 text-right tabular-nums">
+                          {runtimeStatus.progressPercent}%
+                        </span>
                       </span>
-                    </span>
+                    }
+                  />
+                )}
+              {runtimeStatus?.localInstallCommand && !runtimeStatus.remoteInstallable && (
+                <DetailRow
+                  label="Local setup"
+                  value={
+                    <span className="font-mono text-xs">{runtimeStatus.localInstallCommand}</span>
                   }
                 />
               )}
-            {runtimeStatus?.localInstallCommand && !runtimeStatus.remoteInstallable && (
-              <DetailRow
-                label="Local setup"
-                value={
-                  <span className="font-mono text-xs">{runtimeStatus.localInstallCommand}</span>
-                }
-              />
-            )}
-          </div>
-        </PanelShell>
-      )}
+            </div>
+          </PanelShell>
+        )}
 
       {/* Node Details — 2 cards side by side */}
       <div className="grid grid-cols-1 gap-4 min-[1044px]:grid-cols-2">

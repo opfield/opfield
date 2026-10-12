@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ingressGroupRoute } from "@/lib/resource-routes";
 import { hasScopeBase } from "@/lib/scope-utils";
 import { useAuthStore } from "@/stores/auth";
+import { usePlanIncludes } from "@/stores/license-paywall";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import type { ProxyHost } from "@/types";
 import { IngressPlacementDialog } from "./IngressPlacementDialog";
@@ -45,6 +46,8 @@ export function RouteIngressPlacementPanel({
   const label = useNodeLabel();
   const [moving, setMoving] = useState(false);
   const group = host.ingressGroup ?? null;
+  // Moving onto a group needs multi-node availability; leaving one never does.
+  const groupsInPlan = usePlanIncludes("multi-node-availability");
 
   const columns: SimpleTableColumn<MemberRow>[] = [
     {
@@ -99,9 +102,11 @@ export function RouteIngressPlacementPanel({
         }
         actions={
           canEdit ? (
-            <Button variant="outline" onClick={() => setMoving(true)}>
-              {group ? "Serve From One Node" : "Serve From a Group"}
-            </Button>
+            group || groupsInPlan ? (
+              <Button variant="outline" onClick={() => setMoving(true)}>
+                {group ? "Serve From One Node" : "Serve From a Group"}
+              </Button>
+            ) : null
           ) : null
         }
       >

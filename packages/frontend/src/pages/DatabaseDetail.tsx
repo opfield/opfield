@@ -153,6 +153,9 @@ function DatabaseDetailContent({
   // The Backups tab names each policy's destination, so its first reveal waits for the options.
   const [backupOptionsLoaded, setBackupOptionsLoaded] = useState(false);
   const canViewMonitoring = hasDatabaseScope(hasScope, "databases:view", id);
+  const availabilityTabVisible = useAvailabilityTabVisible(
+    database?.managed ? { kind: "database", id: database.managed.id } : null
+  );
 
   const [activeTab, setActiveTab] = useUrlTab(
     ["overview", "explorer", "console", "logs", "extensions", "backups", "availability"],
@@ -759,7 +762,7 @@ function DatabaseDetailContent({
                   Logs
                 </TabsTrigger>
               )}
-              {database.managed && canViewMonitoring && (
+              {database.managed && canViewMonitoring && availabilityTabVisible && (
                 <TabsTrigger value="availability" className="gap-1.5">
                   Availability
                 </TabsTrigger>
@@ -767,7 +770,7 @@ function DatabaseDetailContent({
             </TabsList>
           )}
 
-          {database.managed && canViewMonitoring && (
+          {database.managed && canViewMonitoring && availabilityTabVisible && (
             <TabsContent value="availability" className="space-y-4">
               <AvailabilityPanel
                 owner={{ kind: "database", id: database.managed.id }}
@@ -1004,4 +1007,5 @@ function DatabaseDetailContent({
   );
 }
 
+import { useAvailabilityTabVisible } from "@/components/availability-sets/use-availability-tab";
 import { LicenseFeatureBoundary } from "@/components/license/LicenseFeatureBoundary";

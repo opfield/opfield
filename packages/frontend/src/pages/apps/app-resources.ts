@@ -125,16 +125,18 @@ export function serviceName(container: DockerContainer): string {
   return container.labels?.[COMPOSE_SERVICE_LABEL] ?? container.name;
 }
 
+/** Databases and storage of the app; a family the license plan lacks is not requested. */
 export async function loadAppData(appId: string): Promise<AppData> {
   const [databases, storage] = await Promise.all([
-    api.listAppDatabases(appId),
-    api.listAppStorage(appId),
+    planIncludes("external-database-connections") ? api.listAppDatabases(appId) : [],
+    planIncludes("storage-connections") ? api.listAppStorage(appId) : [],
   ]);
   return { databases, storage };
 }
 
+/** Pages projects of the app; none without the Pages plan feature. */
 export async function loadAppPages(appId: string): Promise<PageProject[]> {
-  return api.listAppPages(appId);
+  return planIncludes("pages") ? api.listAppPages(appId) : [];
 }
 
 const LINK_TONE: Record<string, AppLinkRow["tone"]> = {

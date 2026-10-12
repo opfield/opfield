@@ -15,7 +15,7 @@ import {
   DEFAULT_DOCKER_RUNTIME_DESCRIPTION,
   getSecureDockerRuntimeDescription,
 } from "@/lib/docker-runtime-profile";
-import { requireLicenseFeature } from "@/stores/license-paywall";
+import { requireLicenseFeature, usePlanIncludes } from "@/stores/license-paywall";
 import type {
   DockerBuildAdmissionStatus,
   DockerBuildSourceRepository,
@@ -137,52 +137,60 @@ export function DockerDeployFormFields(props: DockerDeployFormFieldsProps) {
     sourceRepositoryOptions,
   } = props;
   useContentLoading(Boolean(props.loading));
+  // Options the plan lacks are hidden; a field left with one choice is hidden too.
+  const repositorySourceAvailable = usePlanIncludes("git-push-to-deploy");
+  const blueGreenAvailable = usePlanIncludes("blue-green");
+  const secureRuntimeLicensed = usePlanIncludes("secure-runtime");
 
   return (
     <AnimatedHeight>
       <div className="space-y-4">
-        <Tabs
-          value={sourceMode}
-          onValueChange={(value) => props.onSourceModeChange(value as DockerDeploySourceMode)}
-        >
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="image">Image</TabsTrigger>
-            <TabsTrigger value="repository">Repository</TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Resource type</label>
-          <Select
-            value={deployMode}
-            onValueChange={(value) => {
-              if (
-                value === "deployment" &&
-                !requireLicenseFeature("blue-green", "Blue/green deployments")
-              )
-                return;
-              props.onDeployModeChange(value as DockerDeployMode);
-            }}
+        {repositorySourceAvailable && (
+          <Tabs
+            value={sourceMode}
+            onValueChange={(value) => props.onSourceModeChange(value as DockerDeploySourceMode)}
           >
-            <SelectTrigger aria-label="Resource type">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem
-                value="container"
-                description="Run a single container from an image or repository."
-              >
-                Container
-              </SelectItem>
-              <SelectItem
-                value="deployment"
-                description="Deploy revisions with health checks and controlled traffic switching."
-              >
-                Blue/green
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="image">Image</TabsTrigger>
+              <TabsTrigger value="repository">Repository</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
+
+        {blueGreenAvailable && (
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Resource type</label>
+            <Select
+              value={deployMode}
+              onValueChange={(value) => {
+                if (
+                  value === "deployment" &&
+                  !requireLicenseFeature("blue-green", "Blue/green deployments")
+                )
+                  return;
+                props.onDeployModeChange(value as DockerDeployMode);
+              }}
+            >
+              <SelectTrigger aria-label="Resource type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  value="container"
+                  description="Run a single container from an image or repository."
+                >
+                  Container
+                </SelectItem>
+                <SelectItem
+                  value="deployment"
+                  description="Deploy revisions with health checks and controlled traffic switching."
+                >
+                  Blue/green
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <AnimatePresence initial={false} mode="popLayout">
           <motion.div key={`${sourceMode}:${deployMode}`} className="space-y-4" {...FORM_ANIMATION}>
@@ -231,39 +239,41 @@ export function DockerDeployFormFields(props: DockerDeployFormFieldsProps) {
               </p>
             )}
 
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Runtime</label>
-              <Select
-                value={deployRuntimeProfile}
-                onValueChange={(value) => {
-                  if (value === "secure") {
-                    if (!secureRuntimeAvailable) {
-                      if (secureRuntimeCanBeConfigured) props.onSecureRuntimeSetupOpen();
-                      return;
+            {secureRuntimeLicensed && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Runtime</label>
+                <Select
+                  value={deployRuntimeProfile}
+                  onValueChange={(value) => {
+                    if (value === "secure") {
+                      if (!secureRuntimeAvailable) {
+                        if (secureRuntimeCanBeConfigured) props.onSecureRuntimeSetupOpen();
+                        return;
+                      }
+                      if (!requireLicenseFeature("secure-runtime", "Secure Runtime")) return;
                     }
-                    if (!requireLicenseFeature("secure-runtime", "Secure Runtime")) return;
-                  }
-                  props.onDeployRuntimeProfileChange(value as DockerRuntimeProfile);
-                }}
-                disabled={!deployNodeId}
-              >
-                <SelectTrigger aria-label="Runtime">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default" description={DEFAULT_DOCKER_RUNTIME_DESCRIPTION}>
-                    Default
-                  </SelectItem>
-                  <SelectItem
-                    value="secure"
-                    disabled={!secureRuntimeAvailable && !secureRuntimeCanBeConfigured}
-                    description={getSecureDockerRuntimeDescription(secureRuntimeAvailable)}
-                  >
-                    Secure
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                    props.onDeployRuntimeProfileChange(value as DockerRuntimeProfile);
+                  }}
+                  disabled={!deployNodeId}
+                >
+                  <SelectTrigger aria-label="Runtime">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default" description={DEFAULT_DOCKER_RUNTIME_DESCRIPTION}>
+                      Default
+                    </SelectItem>
+                    <SelectItem
+                      value="secure"
+                      disabled={!secureRuntimeAvailable && !secureRuntimeCanBeConfigured}
+                      description={getSecureDockerRuntimeDescription(secureRuntimeAvailable)}
+                    >
+                      Secure
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {sourceMode === "repository" ? (
               <RepositorySourceFields

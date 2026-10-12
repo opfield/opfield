@@ -39,10 +39,15 @@ import {
   mergeAuditFilterValues,
 } from "@/pages/audit-log/audit-format";
 import { api } from "@/services/api";
-import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
+import {
+  handleLicenseApiError,
+  requireLicenseFeature,
+  usePlanIncludes,
+} from "@/stores/license-paywall";
 import type { AuditLogEntry } from "@/types";
 
 const PAGE_SIZE = 100;
+const EXPORT_FORMATS: readonly AuditExportFormat[] = ["csv", "tsv", "txt", "html"];
 const DIALOG_CLOSE_RESET_MS = 260;
 const AUDIT_VIEW_STORAGE_KEY = "gateway:audit-log:view";
 const SYSTEM_USER_FILTER = "system";
@@ -414,6 +419,8 @@ export function AuditLog({
   const [draftViewConfig, setDraftViewConfig] = useState<AuditViewConfig>(viewConfig);
   const [configOpen, setConfigOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  // Export is a Business feature: without it the download actions are hidden.
+  const exportIncluded = usePlanIncludes("audit-export");
   const [exportFormat, setExportFormat] = useState<AuditExportFormat>("csv");
   const [exportActions, setExportActions] = useState<string[]>([]);
   const [exportResourceTypes, setExportResourceTypes] = useState<string[]>([]);
@@ -739,34 +746,19 @@ export function AuditLog({
           icon: <Settings className="h-4 w-4" />,
           onClick: openConfigureDialog,
         },
-        {
-          label: "Download CSV",
+        ...(exportIncluded ? EXPORT_FORMATS : []).map((format, index) => ({
+          label: `Download ${format.toUpperCase()}`,
           icon: <Download className="h-4 w-4" />,
-          onClick: () => openExportDialog("csv"),
-          separatorBefore: true,
-        },
-        {
-          label: "Download TSV",
-          icon: <Download className="h-4 w-4" />,
-          onClick: () => openExportDialog("tsv"),
-        },
-        {
-          label: "Download TXT",
-          icon: <Download className="h-4 w-4" />,
-          onClick: () => openExportDialog("txt"),
-        },
-        {
-          label: "Download HTML",
-          icon: <Download className="h-4 w-4" />,
-          onClick: () => openExportDialog("html"),
-        },
+          onClick: () => openExportDialog(format),
+          separatorBefore: index === 0,
+        })),
       ]}
     >
       <Button variant="outline" onClick={openConfigureDialog}>
         <Settings className="h-4 w-4" />
         Configure
       </Button>
-      {(["csv", "tsv", "txt", "html"] as const).map((format) => (
+      {(exportIncluded ? EXPORT_FORMATS : []).map((format) => (
         <Button key={format} variant="outline" onClick={() => openExportDialog(format)}>
           <Download className="h-4 w-4" />
           {format.toUpperCase()}

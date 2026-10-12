@@ -193,7 +193,15 @@ export function AlertDialog({
     setWebhookFilter("all");
     api
       .getAlertCategories()
-      .then(setCategories)
+      .then((all) =>
+        // Categories of features the plan lacks are not offered; a saved rule keeps its own.
+        setCategories(
+          all.filter((entry) => {
+            const feature = ALERT_CATEGORY_FEATURES[entry.id];
+            return !feature || planIncludes(feature) || entry.id === rule?.category;
+          })
+        )
+      )
       .catch(() => {})
       .finally(() => setCategoriesLoading(false));
     api
