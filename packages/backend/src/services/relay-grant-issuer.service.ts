@@ -561,12 +561,17 @@ export class RelayGrantIssuerService {
         .where(eq(relayRoutes.targetEndpointId, endpointId)),
     ]);
     if (!endpoint) return false;
-    if (endpoint.subjectKind !== 'daemon' && endpoint.subjectKind !== 'local_service') return false;
+    // A relay-local endpoint (a ClickHouse Keeper witness on its relay) is served by the relay itself: only its
+    // daemon sources need pool support. Without candidates a member's route to its witness had no relay at all, so
+    // the holder never reached the witness and never added it to its Keeper (rc.1/rc.3 stand B blocker).
+    if (endpoint.subjectKind !== 'daemon' && endpoint.subjectKind !== 'local_service' && endpoint.subjectKind !== 'relay_instance')
+      return false;
     const nodeIds = [
       ...(endpoint.subjectKind === 'daemon' ? [endpoint.nodeId] : []),
       ...routes.filter(({ sourceKind }) => sourceKind === 'daemon').map(({ sourceId }) => sourceId),
     ];
     const unique = [...new Set(nodeIds)];
+    if (unique.length === 0) return endpoint.subjectKind === 'relay_instance';
     const rows = await this.db
       .select({ id: nodes.id, capabilities: nodes.capabilities })
       .from(nodes)

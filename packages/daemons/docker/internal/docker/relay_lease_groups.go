@@ -67,6 +67,8 @@ type setLeaseGates struct {
 	runtime SetMemberRuntime
 	// wait bounds how long a connection waits for a member route to admit it.
 	wait time.Duration
+	// peers re-registers the members' peer endpoints when they change state.
+	peers setPeerStates
 }
 
 func (s *setLeaseGates) tracker() *leasegate.Tracker {
@@ -95,6 +97,9 @@ func (p *DockerPlugin) SetSetMemberRuntime(runtime SetMemberRuntime) {
 	p.setGates.mu.Lock()
 	p.setGates.runtime = runtime
 	p.setGates.mu.Unlock()
+	if runtime != nil {
+		p.setGates.peers.start(p)
+	}
 }
 
 // SetMemberServingChanged renews every set endpoint registration with the
