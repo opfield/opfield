@@ -21,6 +21,7 @@ import { CreateNodeSchema } from '@/modules/nodes/nodes.schemas.js';
 import type { NodesService } from '@/modules/nodes/nodes.service.js';
 import type { CryptoService } from '@/services/crypto.service.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
+import { DEFAULT_RELAY_SERVICE_PORT } from '@/services/relay-service-endpoint.js';
 import type { ResourceSnapshotStore } from '@/services/resource-snapshot.store.js';
 import type { User } from '@/types.js';
 import { type HostingProvisionInput, HostingProvisionSchema } from './hosting.schemas.js';
@@ -45,6 +46,12 @@ import type {
   HostingResourceSnapshot,
 } from './hosting-provider.types.js';
 import { isHostedNodeReady } from './hosting-readiness.js';
+import {
+  RELAY_PORT_PROBE_TIMEOUT_MS,
+  relayEndpoint,
+  relayPortUnreachableMessage,
+  tcpAnswers,
+} from './hosting-relay-port.js';
 import {
   createSshInstallKey,
   HostingSshInstaller,
@@ -653,6 +660,7 @@ export class HostingProvisioningService {
     )
       return false;
     if (!isHostedNodeReady(node, this.dispatch.isNodeConnected(node.id))) return false;
+    if (!(await this.relayPortAnswers(row))) return false;
     await this.authorizeBootstrap(row, connector, actor);
     await this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('hosting-inventory'))`);
@@ -719,6 +727,28 @@ export class HostingProvisioningService {
     return true;
   }
 
+  /**
+   * A relay enrolls over its outbound control connection even when its relay port is closed, and nodes then
+   * cannot use it. The operation finishes only once the advertised address answers on the relay port; until
+   * then it says what to open, and on expiry it fails with that reason.
+   */
+  private async relayPortAnswers(row: HostingOperationRow): Promise<boolean> {
+    const request = acceptedProvisionInput(row.request);
+    if (request.role !== 'relay' || !request.relayAddress) return true;
+    const endpoint = relayEndpoint(request.relayAddress, DEFAULT_RELAY_SERVICE_PORT);
+    if (await tcpAnswers(endpoint.host, endpoint.port, RELAY_PORT_PROBE_TIMEOUT_MS)) {
+      if (row.errorCode === 'HOSTING_RELAY_PORT_UNREACHABLE')
+        await this.operations.update(row, { errorCode: null, errorMessage: null });
+      return true;
+    }
+    if (row.errorCode !== 'HOSTING_RELAY_PORT_UNREACHABLE')
+      await this.operations.update(row, {
+        errorCode: 'HOSTING_RELAY_PORT_UNREACHABLE',
+        errorMessage: relayPortUnreachableMessage(endpoint.label),
+      });
+    return false;
+  }
+
   private cloudInitOwnsInstallation(row: HostingOperationRow, connector: HostingConnectorRow) {
     return (
       row.action === 'create' &&
@@ -782,10 +812,18 @@ export class HostingProvisioningService {
           .where(and(eq(nodes.id, row.nodeId), eq(nodes.status, 'pending')));
       // Keep the paid resource visible and retain the write boundary even when installation expires.
       if (row.resourceId || (row.phase === 'pending' && !row.dispatchStartedAt)) {
-        await this.sshInstall.finish(adapter, row, 'failed', undefined, {
-          code: 'HOSTING_BOOTSTRAP_EXPIRED',
-          message: 'Installation expired; retry installation on this VM without ordering a replacement',
-        });
+        await this.sshInstall.finish(
+          adapter,
+          row,
+          'failed',
+          undefined,
+          row.errorCode === 'HOSTING_RELAY_PORT_UNREACHABLE'
+            ? { code: 'HOSTING_RELAY_PORT_UNREACHABLE', message: row.errorMessage ?? 'The relay port does not answer' }
+            : {
+                code: 'HOSTING_BOOTSTRAP_EXPIRED',
+                message: 'Installation expired; retry installation on this VM without ordering a replacement',
+              }
+        );
         return;
       } else
         row = await this.operations.update(row, {

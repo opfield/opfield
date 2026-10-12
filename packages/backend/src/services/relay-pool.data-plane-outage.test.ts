@@ -17,7 +17,7 @@ describe('the data-plane judgement of remote relays during a local relay outage 
     // The nodes report deb-fresh-2's relay port unreachable; during the outage no report arrives at all.
     let failing = new Set(['relay-deb']);
     const relayDataPlaneFailures = vi.fn(async () => failing);
-    const service = new RelayPoolService({} as never, {} as never, {} as never, {} as never, {} as never);
+    const service = new RelayPoolService({} as never, {} as never, { publish: () => undefined } as never, {} as never, {} as never);
     service.setTopology({ endpointPaths: vi.fn() as never, relayDataPlaneFailures });
     service.setLocalRelayOutage({ latestOutage: () => outage });
     const judge = () => (service as any).dataPlaneFailures(instances) as Promise<Set<string>>;
@@ -47,7 +47,7 @@ describe('the data-plane judgement of remote relays during a local relay outage 
 describe('the data-plane judgement of a relay right after its update restart', () => {
   it('logs information within the grace and warns once it persists', async () => {
     const failing = new Set(['relay-uk']);
-    const service = new RelayPoolService({} as never, {} as never, {} as never, {} as never, {} as never);
+    const service = new RelayPoolService({} as never, {} as never, { publish: () => undefined } as never, {} as never, {} as never);
     service.setTopology({ endpointPaths: vi.fn() as never, relayDataPlaneFailures: vi.fn(async () => failing) });
     const warn = vi.spyOn(logger, 'warn').mockImplementation(() => logger);
     const info = vi.spyOn(logger, 'info').mockImplementation(() => logger);

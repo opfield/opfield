@@ -177,6 +177,8 @@ export interface DashboardRelayInstance {
   updateStep?: { state: string; error: string | null; drainDeadlineAt?: string | null } | null;
   /** An offline remote relay: when Gateway allows its removal (policy expired, 90 s silent). */
   removableAfter?: string | null;
+  /** Most nodes that measure this relay cannot reach its relay port; it gets no connections meanwhile. */
+  dataPlaneFailing?: boolean;
   health?: {
     activeTunnels?: number;
     registeredEndpoints?: number;

@@ -570,6 +570,12 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
         supportsThreshold: true,
       },
       {
+        id: 'relay.unreachable',
+        label: 'Relay Unreachable by Nodes',
+        defaultSeverity: 'critical',
+        supportsThreshold: true,
+      },
+      {
         id: 'license.expired_grace',
         label: 'License Expired (Grace Period)',
         defaultSeverity: 'critical',

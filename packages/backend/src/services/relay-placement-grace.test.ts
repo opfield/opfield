@@ -210,7 +210,7 @@ describe('Relay whose data plane fails while its control stream is up', () => {
   const failing = new Set(['relay-nl']);
 
   it('is neither placed nor kept, and counts toward no fault domain', () => {
-    const view = placementViewOf(new RelayPoolService({} as never, {} as never, {} as never, {} as never, {} as never));
+    const view = placementViewOf(new RelayPoolService({} as never, {} as never, { publish: () => undefined } as never, {} as never, {} as never));
     const failed = view(instances, failing, NOW);
     expect(failed.readyFaultDomains.size).toBe(2);
     expect(failed.grace.size).toBe(0);
@@ -224,7 +224,7 @@ describe('Relay whose data plane fails while its control stream is up', () => {
   });
 
   it('is placed again at once when the nodes reach it, held back to free slots for a while', () => {
-    const view = placementViewOf(new RelayPoolService({} as never, {} as never, {} as never, {} as never, {} as never));
+    const view = placementViewOf(new RelayPoolService({} as never, {} as never, { publish: () => undefined } as never, {} as never, {} as never));
     view(instances, failing, NOW);
     const reached = view(instances, new Set(), NOW + 30_000);
     expect(reached.readyFaultDomains.size).toBe(3);
@@ -256,7 +256,7 @@ describe('Relay whose data plane fails while its control stream is up', () => {
   });
 
   it('keeps its role where it still serves when it recovers before a generation moved the endpoint off it', () => {
-    const service = new RelayPoolService({} as never, {} as never, {} as never, {} as never, {} as never);
+    const service = new RelayPoolService({} as never, {} as never, { publish: () => undefined } as never, {} as never, {} as never);
     const view = placementViewOf(service);
     const nearNl: EndpointLatencyPath = {
       endpoint: new Map([
@@ -306,7 +306,7 @@ describe('Relay whose data plane fails while its control stream is up', () => {
 
   it('is judged from fresh reports each pass, so a healthy relay is never kept out by an earlier judgement', async () => {
     let failingNow = new Set(['relay-nl']);
-    const service = new RelayPoolService({} as never, {} as never, {} as never, {} as never, {} as never);
+    const service = new RelayPoolService({} as never, {} as never, { publish: () => undefined } as never, {} as never, {} as never);
     service.setTopology({ endpointPaths: async () => new Map(), relayDataPlaneFailures: async () => failingNow });
     const judge = () =>
       (
@@ -347,7 +347,7 @@ describe('Relay whose data plane fails while its control stream is up', () => {
       }),
     };
     let failingNow = new Set<string>();
-    const service = new RelayPoolService(db as never, {} as never, {} as never, {} as never, {} as never);
+    const service = new RelayPoolService(db as never, {} as never, { publish: () => undefined } as never, {} as never, {} as never);
     service.setTopology({ endpointPaths: async () => new Map(), relayDataPlaneFailures: async () => failingNow });
     const internals = service as unknown as {
       dataPlaneFailures(instances: RelayInstanceRow[]): Promise<Set<string>>;
@@ -414,7 +414,7 @@ describe('Relay coming back', () => {
   });
 
   it('holds back a relay that served again only for a while', () => {
-    const service = new RelayPoolService({} as never, {} as never, {} as never, {} as never, {} as never);
+    const service = new RelayPoolService({} as never, {} as never, { publish: () => undefined } as never, {} as never, {} as never);
     const view = (instances: RelayInstanceRow[], at: number) =>
       (
         service as unknown as {

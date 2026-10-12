@@ -573,6 +573,8 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
             Date.parse(row.policyExpiresAt) <= Date.now()
         );
         const removalWait = relayRemovalWaitNote(row);
+        const unreachable =
+          row.state === "ready" && !policyExpired && row.dataPlaneFailing === true;
         return (
           <div className="space-y-1">
             {activeUpdateStep(row) ? (
@@ -581,15 +583,30 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
             ) : (
               <Badge
                 variant={
-                  row.state === "ready" && !policyExpired
+                  row.state === "ready" && !policyExpired && !unreachable
                     ? "success"
                     : row.state === "draining" || row.state === "synchronizing" || row.reconnecting
                       ? "warning"
                       : "destructive"
                 }
               >
-                {policyExpired ? "policy expired" : row.reconnecting ? "reconnecting" : row.state}
+                {policyExpired
+                  ? "policy expired"
+                  : row.reconnecting
+                    ? "reconnecting"
+                    : unreachable
+                      ? "unreachable"
+                      : row.state}
               </Badge>
+            )}
+            {unreachable && (
+              <div className="text-xs text-muted-foreground">
+                Nodes cannot reach{" "}
+                {row.advertisedAddresses
+                  .map((address) => relayEndpointLabel(address, row.servicePort))
+                  .join(", ") || "its relay port"}
+                ; check the port forward and firewall. It gets no connections meanwhile.
+              </div>
             )}
             {row.updateStep?.state === "draining" && row.updateStep.drainDeadlineAt && (
               <div className="text-xs text-muted-foreground">

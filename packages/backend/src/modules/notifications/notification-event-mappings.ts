@@ -429,6 +429,21 @@ export const EVENT_BUS_MAPPINGS: Record<string, EventMapping[]> = {
         observedPatterns: ['relay.revocation_stale'],
       },
     },
+    {
+      category: 'gateway',
+      eventId: 'relay.unreachable',
+      match: (p) => p.action === 'data_plane' && typeof p.instanceId === 'string',
+      extractResource: (p) => ({
+        type: 'gateway',
+        id: `gateway-relay-instance:${p.instanceId}`,
+        name: p.instanceName ?? p.instanceId,
+      }),
+      extractData: (p) => ({ relay_instance_id: p.instanceId, relay_address: p.address ?? null }),
+      stateful: {
+        currentState: (p) => (p.unreachable ? 'relay.unreachable' : 'relay.reachable'),
+        observedPatterns: ['relay.unreachable'],
+      },
+    },
   ],
   'logging.health.changed': [
     {

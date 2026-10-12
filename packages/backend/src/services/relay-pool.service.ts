@@ -369,6 +369,24 @@ export class RelayPoolService {
     return failing;
   }
 
+  /**
+   * A relay the nodes cannot reach on its advertised address (no port forward, a firewall) looks ready from its control
+   * stream but carries no traffic: an alert says so, per relay, and clears when the nodes reach it again.
+   */
+  private publishDataPlane(instances: RelayInstanceRow[], id: string, unreachable: boolean) {
+    const instance = instances.find((row) => row.id === id);
+    if (!instance) return;
+    const address = instance.advertisedAddresses?.[0];
+    this.events.publish('system.relay.health.changed', {
+      poolId: instance.poolId,
+      instanceId: instance.id,
+      instanceName: instance.displayName,
+      action: 'data_plane',
+      unreachable,
+      address: address ? `${address}:${instance.servicePort}` : null,
+    });
+  }
+
   /** Records (and logs) the relays that entered or left the data-plane failure judgement. */
   private noteDataPlaneChanges(instances: RelayInstanceRow[], failing: ReadonlySet<string>, now = Date.now()) {
     const names = new Map(instances.map(({ id, displayName }) => [id, displayName]));
@@ -394,14 +412,17 @@ export class RelayPoolService {
         'Most nodes that measure a relay cannot reach its relay port; it gets no assignments meanwhile',
         details
       );
+      this.publishDataPlane(instances, id, true);
     }
     for (const id of this.dataPlaneFailing) {
       if (failing.has(id)) continue;
       this.dataPlaneFailingAfterRestart.delete(id);
       this.dataPlaneChangedAt.set(id, now);
       // A relay removed from the pool meanwhile is not reported.
-      if (names.has(id))
+      if (names.has(id)) {
         logger.info('The nodes reach a relay again; it is placed again', { relayInstanceId: id, relay: names.get(id) });
+        this.publishDataPlane(instances, id, false);
+      }
     }
     this.dataPlaneFailing = new Set(failing);
     for (const [id, at] of this.dataPlaneChangedAt) {
