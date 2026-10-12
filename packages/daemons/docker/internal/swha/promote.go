@@ -20,10 +20,19 @@ func (e *Engine) Promote(ctx context.Context, certified []byte) error {
 	target := e.st.KnownMaxVolumeID
 	margin := uint32(0)
 	e.mu.Unlock()
+	// keepFiler: a certified state of a set that was not degraded (a planned
+	// switchover, or a failover of a healthy pair) names every volume, and this
+	// member holds a copy of each: the volume-id gate has nothing to raise, so
+	// the filer keeps serving S3 while the master moves (it reconnects to the
+	// new master through the primary alias). It is stopped below only if the
+	// registered topology turns out lower than the gate target after all.
+	keepFiler := false
 	if value, err := decodeValue(certified); err == nil {
 		target = max(target, value.MaxVolumeID)
 		if value.DegradedSince != 0 {
 			margin = degradedBumpMargin
+		} else {
+			keepFiler = true
 		}
 	} else {
 		// No certified state (a manual pair): volumes the old primary grew
@@ -62,8 +71,10 @@ func (e *Engine) Promote(ctx context.Context, certified []byte) error {
 	// component that makes the master grow volumes (S3 writes, its own
 	// metadata log), and a volume grown before the gate could take an id the
 	// lost primary already used.
-	if err := e.host.Stop(ctx, RoleFiler, componentStop); err != nil {
-		return fmt.Errorf("stop the filer: %w", err)
+	if !keepFiler {
+		if err := e.host.Stop(ctx, RoleFiler, componentStop); err != nil {
+			return fmt.Errorf("stop the filer: %w", err)
+		}
 	}
 	if err := e.host.Stop(ctx, RoleVolume, componentStop); err != nil {
 		return fmt.Errorf("restart the volume server: %w", err)
@@ -86,6 +97,11 @@ func (e *Engine) Promote(ctx context.Context, certified []byte) error {
 		}
 	}
 	if topology.MaxVolumeID < target {
+		if keepFiler {
+			if err := e.host.Stop(ctx, RoleFiler, componentStop); err != nil {
+				return fmt.Errorf("stop the filer: %w", err)
+			}
+		}
 		if err := e.raiseVolumeIDs(ctx, masterDial, selfURL, topology.MaxVolumeID, target); err != nil {
 			return fmt.Errorf("volume id gate: %w", err)
 		}
@@ -93,6 +109,9 @@ func (e *Engine) Promote(ctx context.Context, certified []byte) error {
 	if err := e.host.Start(ctx, RoleFiler); err != nil {
 		return fmt.Errorf("start the filer: %w", err)
 	}
+	// The member serves once the promotion returns: its S3 port must answer
+	// by then, or the first client requests after the switch are refused.
+	e.waitFilerServes(ctx, self.MemberIndex)
 	started, err := e.host.Container(ctx, RoleMaster)
 	if err != nil {
 		return err
@@ -116,6 +135,33 @@ func (e *Engine) Promote(ctx context.Context, certified []byte) error {
 	}
 	e.log.Info("SeaweedFS master promoted", "max_volume_id", topology.MaxVolumeID, "gate_target", target)
 	return nil
+}
+
+// filerServeWait bounds the wait for the promoted member's filer and S3.
+const filerServeWait = 30 * time.Second
+
+// waitFilerServes waits until the filer answers and its S3 port takes
+// connections (bounded; the promotion goes on either way).
+func (e *Engine) waitFilerServes(ctx context.Context, index uint32) {
+	httpPort, _ := FilerPorts(index)
+	deadline := time.Now().Add(filerServeWait)
+	for {
+		if _, err := getOK(ctx, e.local(RoleFiler, httpPort), "/healthz"); err == nil {
+			if conn, err := e.host.DialContainer(ctx, RoleFiler, S3Port); err == nil {
+				_ = conn.Close()
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			e.log.Warn("the promoted member's filer did not answer in time; it serves once it does")
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
 }
 
 func (e *Engine) waitCgroupEmpty(ctx context.Context) error {

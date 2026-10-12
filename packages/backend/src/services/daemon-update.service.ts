@@ -948,6 +948,17 @@ export class DaemonUpdateService {
     return true;
   }
 
+  /** Adds a warning to the result of a node update in progress (an operator's "update now" that overrode a check). */
+  async appendNodeUpdateWarning(nodeId: string, operationId: string, warning: string): Promise<void> {
+    await this.db
+      .update(nodes)
+      .set({
+        metadata: sql`jsonb_set(COALESCE(${nodes.metadata}, '{}'::jsonb), '{updateWarnings}', COALESCE(${nodes.metadata}->'updateWarnings', '[]'::jsonb) || to_jsonb(ARRAY[${warning}::text]))`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(nodes.id, nodeId), sql`${nodes.metadata}->>'updateOperationId' = ${operationId}`));
+  }
+
   async clearNodeUpdateInProgress(nodeId: string, operationId: string): Promise<boolean> {
     const [node] = await this.db.select({ metadata: nodes.metadata }).from(nodes).where(eq(nodes.id, nodeId)).limit(1);
     if (!node) return false;

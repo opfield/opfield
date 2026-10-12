@@ -3,6 +3,7 @@ package memberha
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -189,6 +190,7 @@ func TestAStaleCertifiedValueIsCertifiedAgainBeforeServing(t *testing.T) {
 func TestAStagedSwitchoverWaitsUntilTheEngineIsReady(t *testing.T) {
 	h, ext := newExtHarness(t, ModeAutomatic)
 	servingHolder(t, h)
+	h.peer = &PeerState{MemberID: testMemberB, Candidate: true, Ready: true}
 	if err := h.manager.Switchover(testSet, testMemberB, "op-1"); err != nil {
 		t.Fatal(err)
 	}
@@ -212,6 +214,7 @@ func TestAStagedSwitchoverWaitsUntilTheEngineIsReady(t *testing.T) {
 func TestAStagedSwitchoverThatTimesOutKeepsThePrimary(t *testing.T) {
 	h, ext := newExtHarness(t, ModeAutomatic)
 	servingHolder(t, h)
+	h.peer = &PeerState{MemberID: testMemberB, Candidate: true, Ready: true}
 	if err := h.manager.Switchover(testSet, testMemberB, "op-1"); err != nil {
 		t.Fatal(err)
 	}
@@ -402,5 +405,37 @@ func TestForcePromoteArmsOnlyACopyWithTheValue(t *testing.T) {
 	ext.forced = []byte("forced")
 	if _, err := h.manager.ForcePromote(testSet, "op-f", Ballot{Round: 3, Proposer: testNodeB}); !errors.Is(err, ErrForceRefused) {
 		t.Fatalf("a lease without forced acquisition must refuse: %v", err)
+	}
+}
+
+// A successor that cannot take the lease now refuses the switchover before the
+// primary steps down: no client is cut and the primary keeps serving (stand
+// rc.6: an async copy did not take over, the primary took its role back 16 s
+// later and the node update restarted it anyway).
+func TestASwitchoverToASuccessorThatCannotTakeOverKeepsServing(t *testing.T) {
+	h, ext := newExtHarness(t, ModeAutomatic)
+	servingHolder(t, h)
+	h.peer = &PeerState{MemberID: testMemberB, Candidate: true, Ready: false, Reason: "rejoining"}
+	if err := h.manager.Switchover(testSet, testMemberB, "op-1"); err != nil {
+		t.Fatal(err)
+	}
+	ext.ready = true
+	h.lease.outcome = TransitionCertified
+	h.step(3, time.Second)
+	log := h.calls.take()
+	if indexOf(log, "engine.switchover") >= 0 || indexOf(log, "lease.release "+testNodeB) >= 0 || indexOf(log, "endpoints false") >= 0 {
+		t.Fatalf("the primary must not step down for a successor that cannot take over: %v", log)
+	}
+	h.manager.mu.Lock()
+	events := h.manager.members[testSet].state.Events
+	h.manager.mu.Unlock()
+	found := false
+	for _, event := range events {
+		if event.Kind == EventSwitchoverFail && strings.Contains(event.Reason, "rejoining") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("the refused switchover is reported with the successor's reason: %+v", events)
 	}
 }

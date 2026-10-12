@@ -155,6 +155,29 @@ func TestPromoteRaisesVolumeIDsBeforeOtherMembersRegister(t *testing.T) {
 	}
 }
 
+// A planned switchover of a healthy pair: the successor holds every volume, so
+// the gate has nothing to raise and its filer keeps serving S3 while the
+// master moves (stand rc.8: a 9 s S3 outage with refused requests).
+func TestPromoteOfAHealthyPairKeepsTheFilerServing(t *testing.T) {
+	cluster := newFakeCluster()
+	engine, host := newTestEngine(t, cluster)
+	for id := uint32(1); id <= 12; id++ {
+		cluster.addVolume(host.selfURL, id, "b", "001")
+	}
+	if err := host.Start(context.Background(), RoleFiler); err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.Promote(context.Background(), certified(t, Value{MaxVolumeID: 12})); err != nil {
+		t.Fatal(err)
+	}
+	if host.stops[RoleFiler] != 0 {
+		t.Fatalf("the filer was stopped %d times during a promotion with nothing to raise", host.stops[RoleFiler])
+	}
+	if !host.containers[RoleFiler].running {
+		t.Fatal("the promoted member's filer serves")
+	}
+}
+
 func TestPromoteAddsAMarginWhileDegraded(t *testing.T) {
 	cluster := newFakeCluster()
 	engine, host := newTestEngine(t, cluster)

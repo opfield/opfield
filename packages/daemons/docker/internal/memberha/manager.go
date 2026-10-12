@@ -195,8 +195,15 @@ func (m *Manager) registerHandlerLocked(mem *member) {
 		Eligible: func(in EligibilityInput) (bool, string) {
 			ok, reason := m.eligible(mem, in)
 			mem.eligMu.Lock()
+			changed := mem.eligible != ok || mem.eligibleReason != reason
 			mem.eligible, mem.eligibleReason = ok, reason
 			mem.eligMu.Unlock()
+			if changed && m.logger != nil {
+				// Why a member can or cannot take the primary role (a handoff that names it, a failover): each change
+				// once, so a takeover that did not happen can be explained from the node's log.
+				m.logger.Info("availability member eligibility changed", "set_id", mem.cfg.SetID, "member_id", mem.cfg.MemberID,
+					"eligible", ok, "reason", reason, "previous_holder", in.PreviousHolder)
+			}
 			return ok, reason
 		},
 		BootstrapValue: func(Key) ([]byte, error) {
@@ -572,6 +579,18 @@ func (m *Manager) Members() []string {
 	return out
 }
 
+// ConfiguredSets lists the set ids of this node's configured members without
+// waiting for the manager's lock (callers may hold their own locks).
+func (m *Manager) ConfiguredSets() []string {
+	out := []string{}
+	m.configs.Range(func(key, _ any) bool {
+		out = append(out, key.(string))
+		return true
+	})
+	sort.Strings(out)
+	return out
+}
+
 // Config is the configuration of this node's member of setID. It never waits
 // for the manager's lock: engine hosts call it from engine constructors and
 // callbacks that run while the manager holds it.
@@ -776,5 +795,36 @@ func (m *Manager) PeerState(setID string) (PeerState, bool) {
 	if stater, ok := mem.engine.(PeerStater); ok {
 		state.Engine = stater.PeerEngineState()
 	}
+	state.Candidate, state.Ready = true, mem.ready
+	mem.eligMu.Lock()
+	if !mem.eligible {
+		state.Reason = mem.eligibleReason
+	}
+	mem.eligMu.Unlock()
+	if !mem.ready && state.Reason == "" {
+		state.Reason = m.notReadyReasonLocked(mem)
+	}
 	return state, true
+}
+
+// notReadyReasonLocked says why the member is no lease candidate now.
+func (m *Manager) notReadyReasonLocked(mem *member) string {
+	now := m.deps.Clock.Now()
+	switch {
+	case !m.watchdog.fresh:
+		return "watchdog_not_fresh"
+	case mem.state.Stopped:
+		return "removing"
+	case mem.cfg.Stopped:
+		return "stopped"
+	case mem.obs.at == 0 || now-mem.obs.at > 3*observeInterval:
+		return "not_observed"
+	case !mem.obs.container.Running:
+		return "container_not_running"
+	case !mem.obs.status.Answering:
+		return "engine_not_answering"
+	case mem.dataBusy():
+		return "rejoining"
+	}
+	return "not_a_candidate"
 }

@@ -158,6 +158,7 @@ func (m *managedStorageManager) leftovers(ctx context.Context) (string, error) {
 			members = append(members, managedLeftover{ID: record.ID, Record: "member", SetID: record.Set.SetID, MemberID: record.Set.MemberID})
 		}
 	}
+	members = append(members, runtimeLeftoverMembers(m.plugin, "managed_storage", readable)...)
 	for id, leftover := range byID {
 		images, _ := filepath.Glob(filepath.Join(m.root, "storage", "images", id+"-*.img"))
 		for _, image := range images {
@@ -196,6 +197,7 @@ func (m *managedStorageManager) removeLeftover(ctx context.Context, id, configJS
 	if err := os.Remove(m.recordPath(id)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("remove managed storage record: %w", err)
 	}
+	forgetRuntimeMember(ctx, m.plugin, id, leftoverMemberID(configJSON))
 	m.logger.Info("removed what was left of a managed storage Opfield has no instance of", "id", id)
 	return nil
 }
@@ -227,7 +229,47 @@ func (m *managedDatabaseManager) leftovers(ctx context.Context) (string, error) 
 			members = append(members, managedLeftover{ID: record.ID, Record: "member", SetID: setID, MemberID: memberID})
 		}
 	}
+	members = append(members, runtimeLeftoverMembers(m.plugin, "managed_database", readable)...)
 	return marshalLeftoversWithMembers(byID, members)
+}
+
+// runtimeLeftoverMembers lists the member runtime's members of ownerKind whose
+// owner has no readable record on this node (a set deleted while the node was
+// unreachable: the runtime keeps the member and warns that its container does
+// not exist on every start). Gateway removes those it has no such member of.
+func runtimeLeftoverMembers(p *DockerPlugin, ownerKind string, readable map[string]bool) []managedLeftover {
+	if p == nil || p.setMembers == nil {
+		return nil
+	}
+	out := []managedLeftover{}
+	for _, setID := range p.setMembers.ConfiguredSets() {
+		config, ok := p.setMembers.Config(setID)
+		if !ok || config.OwnerKind != ownerKind || config.OwnerID == "" || readable[config.OwnerID] {
+			continue
+		}
+		out = append(out, managedLeftover{ID: config.OwnerID, Record: "member", SetID: setID, MemberID: config.MemberID})
+	}
+	return out
+}
+
+// forgetRuntimeMember drops the member runtime's member of ownerID named
+// memberID (its record and containers are gone) and the set's mesh.
+func forgetRuntimeMember(ctx context.Context, p *DockerPlugin, ownerID, memberID string) {
+	if p == nil || p.setMembers == nil || memberID == "" {
+		return
+	}
+	for _, setID := range p.setMembers.ConfiguredSets() {
+		config, ok := p.setMembers.Config(setID)
+		if !ok || config.OwnerID != ownerID || config.MemberID != memberID {
+			continue
+		}
+		if err := p.setMembers.Forget(setID); err != nil {
+			p.logger.Warn("the member runtime keeps a member Opfield no longer has", "set_id", setID, "error", err)
+			continue
+		}
+		p.setMesh().Release(ctx, setID)
+		p.logger.Info("forgot an availability member Opfield no longer has", "set_id", setID, "member_id", memberID)
+	}
 }
 
 // setMember is the availability set member the record is ("" when none).
@@ -246,6 +288,21 @@ func (record managedDatabaseRecord) setMember() (string, string) {
 // every member action does.
 func (m *managedDatabaseManager) removeLeftoverMember(ctx context.Context, id, configJSON string) (bool, error) {
 	record, err := m.loadRecord(id)
+	if errors.Is(err, os.ErrNotExist) {
+		if wanted := leftoverMemberID(configJSON); wanted != "" {
+			// The member runtime keeps a member of a database this node has no
+			// record of: whatever is left of the id goes, then the member.
+			m.mu.Lock()
+			removeErr := m.removeLeftover(ctx, id)
+			m.mu.Unlock()
+			if removeErr != nil {
+				return true, removeErr
+			}
+			forgetRuntimeMember(ctx, m.plugin, id, wanted)
+			return true, nil
+		}
+		return false, nil
+	}
 	if err != nil {
 		return false, nil
 	}
