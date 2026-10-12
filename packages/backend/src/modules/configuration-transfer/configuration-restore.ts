@@ -20,6 +20,7 @@ import {
   dropDatabaseRollback,
   findInstallation,
   flushRedis,
+  forgetCloudLink,
   openVolumeArchive,
   removeLeftoverHelpers,
   restoreDatabase,
@@ -403,6 +404,8 @@ export async function restoreExport(docker: DockerService, options: RestoreOptio
       if (part.name === manifest.database.part) {
         await step('Restoring the database');
         await restoreDatabase(docker, installation, part.stream, manifest.database.file);
+        // The copy is not the installation the cloud account linked (or manages).
+        await forgetCloudLink(docker, installation);
         continue;
       }
       const volume = manifest.volumes.find((entry) => entry.part === part.name);

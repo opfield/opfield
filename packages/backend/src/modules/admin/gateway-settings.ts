@@ -9,6 +9,7 @@ import {
   CLOUD_MANAGED_SETTINGS_MESSAGE,
   findCloudManagedChanges,
   findCloudManagedTransportChanges,
+  findOpfieldSignInChanges,
   touchesCloudManagedSettings,
 } from '@/modules/admin/cloud-managed-settings.js';
 import { findIdentityTrustChanges } from '@/modules/admin/identity-trust-settings.js';
@@ -19,6 +20,7 @@ import { AuthSettingsService } from '@/modules/auth/auth.settings.service.js';
 import { AuthMailService } from '@/modules/auth/auth-mail.service.js';
 import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
 import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
+import { CLOUD_MANAGED_MESSAGES } from '@/modules/cloud-link/cloud-link-managed-locks.js';
 import { isDemoVisitor } from '@/modules/demo/demo-mode.js';
 import { GroupService } from '@/modules/groups/group.service.js';
 import { LoggingRuntimeService } from '@/modules/logging/logging-runtime.service.js';
@@ -273,6 +275,17 @@ export async function updateGatewaySettings(
   ];
   if (cloudManagedChanges.length > 0 && (await container.resolve(CloudLinkService).managedByCloud())) {
     throw new AppError(409, 'CLOUD_MANAGED', CLOUD_MANAGED_SETTINGS_MESSAGE);
+  }
+  // The Opfield account provider and sign-in with it are the cloud's too (its secret rotates over the cloud link).
+  if (input.oidc || input.methods?.oidc === false) {
+    if (await container.resolve(CloudLinkService).managedByCloud()) {
+      if (findOpfieldSignInChanges(input.oidc, await oidcSettingsService.getPublicConfig()).length > 0) {
+        throw new AppError(409, 'CLOUD_MANAGED', CLOUD_MANAGED_MESSAGES.opfieldSignIn);
+      }
+      if (input.methods?.oidc === false && (await authSettingsService.getConfig()).methods?.oidc !== false) {
+        throw new AppError(409, 'CLOUD_MANAGED', CLOUD_MANAGED_MESSAGES.oidcMethod);
+      }
+    }
   }
 
   try {

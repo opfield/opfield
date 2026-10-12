@@ -35,6 +35,11 @@ import { readGatewaySettings, updateGatewaySettings } from '@/modules/admin/gate
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { CloudLinkRequestError, CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
 import { CloudLinkConnectCode } from '@/modules/cloud-link/cloud-link-connect-code.js';
+import {
+  assertNotCloudManaged,
+  CLOUD_MANAGED_MESSAGES,
+  isCloudManaged,
+} from '@/modules/cloud-link/cloud-link-managed-locks.js';
 import { ConfigurationExportService } from '@/modules/configuration-transfer/configuration-export.service.js';
 import { GatewayMoveService } from '@/modules/configuration-transfer/gateway-move.service.js';
 import { DiagnosticsService } from '@/modules/diagnostics/diagnostics.service.js';
@@ -328,8 +333,13 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
             throw new Error('Unsupported API token operation');
         }
       }
-      case 'get_license_status':
-        return container.resolve(LicenseService).getStatus();
+      case 'get_license_status': {
+        const [status, cloudManaged] = await Promise.all([
+          container.resolve(LicenseService).getStatus(),
+          isCloudManaged(),
+        ]);
+        return { ...status, cloudManaged };
+      }
       case 'manage_license': {
         // Mirrors /system/license: activation also installs the licensed module.
         const service = container.resolve(LicenseService);
@@ -338,6 +348,8 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
             case 'activate': {
               const licenseKey = String(a.licenseKey ?? '').trim();
               if (!licenseKey) throw new AppError(400, 'INVALID_LICENSE_KEY', 'licenseKey is required');
+              // As POST /system/license/activate: a managed installation keeps its account's key.
+              await assertNotCloudManaged(CLOUD_MANAGED_MESSAGES.license);
               const status = await service.activateKey(licenseKey);
               const activation = await container.resolve(LicenseModuleService).ensureAvailable();
               return { ...status, moduleRestarting: activation.restarting };
@@ -347,6 +359,7 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
             case 'check':
               return await service.checkNow();
             case 'clear':
+              await assertNotCloudManaged(CLOUD_MANAGED_MESSAGES.license);
               return await service.clearKey();
             default:
               throw new Error('Unsupported license operation');

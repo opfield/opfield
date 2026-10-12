@@ -4,10 +4,11 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { RestoreError, singleFileTar, verifyExport } from './configuration-restore.js';
 import { withDefaultPort } from './gateway-move.service.js';
 import { ExportArchiveError, ExportArchiveWriter, MANIFEST_PART } from './transfer-archive.js';
+import { forgetCloudLink, RESTORE_FORGOTTEN_SETTINGS } from './transfer-docker.js';
 import {
   type ConfigurationExportManifest,
   DATABASE_DUMP_FILE,
@@ -181,5 +182,26 @@ describe('configuration export layout', () => {
     expect(listing).toContain('gateway_data/configuration-restore/restored.json');
     const content = execFileSync('tar', ['-xOf', path], { encoding: 'utf8' });
     expect(content).toBe('{"a":1}');
+  });
+});
+
+describe('a restored copy and the cloud link', () => {
+  it('forgets the cloud link of the source installation in the restored database', async () => {
+    const exec = vi.fn(async (_container: string, _command: string[]) => ({ exitCode: 0, output: 'DELETE 3' }));
+    await forgetCloudLink({ execInContainer: exec } as never, { postgres: 'pg-1' } as never);
+    expect(exec).toHaveBeenCalledOnce();
+    const [container, command] = exec.mock.calls[0]!;
+    expect(container).toBe('pg-1');
+    expect(command.at(-1)).toBe(
+      "DELETE FROM settings WHERE key IN ('cloud:enrollment', 'cloud:remote_management', 'cloud:disconnected')"
+    );
+    expect(RESTORE_FORGOTTEN_SETTINGS).toEqual(['cloud:enrollment', 'cloud:remote_management', 'cloud:disconnected']);
+  });
+
+  it('stops the restore when the link cannot be forgotten', async () => {
+    const exec = vi.fn(async () => ({ exitCode: 1, output: 'relation "settings" does not exist' }));
+    await expect(forgetCloudLink({ execInContainer: exec } as never, { postgres: 'pg-1' } as never)).rejects.toThrow(
+      'Forgetting the cloud account link failed'
+    );
   });
 });

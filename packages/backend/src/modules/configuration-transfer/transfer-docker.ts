@@ -364,6 +364,39 @@ export async function restoreDatabase(
   }
 }
 
+/**
+ * Settings a restored copy must not keep: the cloud link belongs to the installation the export was taken from (its
+ * agent and secret, remote management, a disconnect notice). Kept, both would share one agent and the copy would
+ * read as a managed cloud VM.
+ */
+export const RESTORE_FORGOTTEN_SETTINGS = [
+  'cloud:enrollment',
+  'cloud:remote_management',
+  'cloud:disconnected',
+] as const;
+
+/** Drops {@link RESTORE_FORGOTTEN_SETTINGS} from the restored database; the export itself keeps them. */
+export async function forgetCloudLink(docker: DockerService, installation: ComposeInstallation): Promise<void> {
+  const keys = RESTORE_FORGOTTEN_SETTINGS.map((key) => `'${key}'`).join(', ');
+  await execChecked(
+    docker,
+    installation.postgres,
+    [
+      'psql',
+      '-X',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-U',
+      'gateway',
+      '-d',
+      'gateway',
+      '-c',
+      `DELETE FROM settings WHERE key IN (${keys})`,
+    ],
+    'Forgetting the cloud account link'
+  );
+}
+
 export async function rollbackDatabase(docker: DockerService, installation: ComposeInstallation): Promise<void> {
   await replaceDatabase(docker, installation, ROLLBACK_DUMP);
 }

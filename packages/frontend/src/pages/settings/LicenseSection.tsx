@@ -143,6 +143,10 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
   const [licenseKey, setLicenseKey] = useState("");
   const [saving, setSaving] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
+  // A managed cloud installation runs on its Opfield account's key: no Update license or Deactivate.
+  const [cloudManaged, setCloudManaged] = useState(
+    () => api.getCached<LicenseStatusView>("settings:license-status")?.cloudManaged === true
+  );
   useScrollToNavigationTarget("gateway-license", !loading);
 
   const loadStatus = useCallback(async () => {
@@ -150,6 +154,7 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
       const data = await api.getLicenseStatus();
       api.setCache("settings:license-status", data);
       setStatus(data);
+      setCloudManaged(data.cloudManaged === true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load license status");
     } finally {
@@ -248,9 +253,13 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
         icon={<KeyRound className="h-4 w-4" />}
         id="gateway-license"
         title="License"
-        description="Current Opfield license and activation state"
+        description={
+          cloudManaged
+            ? "Current Opfield license and activation state · Managed by Opfield Cloud"
+            : "Current Opfield license and activation state"
+        }
         actions={
-          canManage ? (
+          canManage && !cloudManaged ? (
             <Button onClick={() => setDialogOpen(true)}>
               <KeyRound className="h-4 w-4" />
               Update license
@@ -298,7 +307,7 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
         </div>
       </PanelShell>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen && !cloudManaged} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Update License</DialogTitle>

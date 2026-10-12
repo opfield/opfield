@@ -145,6 +145,8 @@ export interface CloudLinkStatusView {
 
 export interface LicenseStatusView {
   moduleRestarting?: boolean;
+  /** Managed cloud installation: the license is the Opfield account's and cannot be replaced or deactivated here. */
+  cloudManaged?: boolean;
   status: LicenseStatus;
   plan: LicensePlan;
   registrationStatus: LicenseRegistrationStatus;

@@ -14,8 +14,11 @@ import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
 import { groupRoutes } from '@/modules/groups/group.routes.js';
 import { GroupService } from '@/modules/groups/group.service.js';
 import { PermissionGroupFolderService } from '@/modules/groups/permission-group-folders.service.js';
+import { licenseRoutes } from '@/modules/license/license.routes.js';
+import { LicenseService } from '@/modules/license/license.service.js';
 import { LoggingSettingsService } from '@/modules/logging/logging-settings.service.js';
 import { McpSettingsService } from '@/modules/mcp/mcp-settings.service.js';
+import { FinalizeSetupService } from '@/modules/onboarding/finalize-setup.service.js';
 import { assertFolderMoveAccess, type FolderMoveAccess } from '@/modules/resource-folders/resource-folder.service.js';
 import { DEFAULT_GENERAL_SETTINGS, GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { NetworkSettingsService } from '@/modules/settings/network-settings.service.js';
@@ -28,7 +31,7 @@ import { WebTransportSettingsService } from '@/services/web-transport-settings.s
 import type { AppEnv, SessionData, User } from '@/types.js';
 import { adminRoutes, generalSettingsRollbackFields, generalSettingsRollbackPatch } from './admin.routes.js';
 import { AdminUserFolderService } from './admin-user-folders.service.js';
-import { findCloudManagedChanges } from './cloud-managed-settings.js';
+import { findCloudManagedChanges, findOpfieldSignInChanges } from './cloud-managed-settings.js';
 import { findIdentityTrustChanges } from './identity-trust-settings.js';
 
 process.env.NODE_ENV = 'test';
@@ -1708,5 +1711,130 @@ describe('cloud-managed addresses', () => {
     expect(findCloudManagedChanges({ gatewayGrpcPublicTarget: 'not a host' }, currentGeneral)).toEqual([
       'the gRPC public target',
     ]);
+  });
+});
+
+describe('what a managed installation keeps', () => {
+  function managed(isManaged = true) {
+    container.registerInstance(CloudLinkService, {
+      managedByCloud: vi.fn().mockResolvedValue(isManaged),
+    } as unknown as CloudLinkService);
+  }
+
+  it('refuses replacing or deactivating the license, and still reads it', async () => {
+    registerSession(['license:manage', 'license:view']);
+    managed();
+    const activateKey = vi.fn();
+    const clearKey = vi.fn();
+    container.registerInstance(LicenseService, {
+      activateKey,
+      clearKey,
+      getStatus: vi.fn().mockResolvedValue({ status: 'valid', plan: 'business' }),
+    } as unknown as LicenseService);
+    const app = new Hono<AppEnv>();
+    app.onError(errorHandler);
+    app.route('/api/system/license', licenseRoutes);
+
+    const activate = await app.request('/api/system/license/activate', {
+      method: 'POST',
+      headers: sessionHeaders(),
+      body: JSON.stringify({ licenseKey: 'WLT-GW-AAAA-BBBB-CCCC-DDDD' }),
+    });
+    expect(activate.status).toBe(409);
+    expect(await activate.json()).toMatchObject({ code: 'CLOUD_MANAGED' });
+    const clear = await app.request('/api/system/license/key', { method: 'DELETE', headers: sessionHeaders() });
+    expect(clear.status).toBe(409);
+    expect(activateKey).not.toHaveBeenCalled();
+    expect(clearKey).not.toHaveBeenCalled();
+
+    const status = await app.request('/api/system/license/status', { headers: sessionHeaders() });
+    expect(status.status).toBe(200);
+    expect(await status.json()).toMatchObject({ data: { status: 'valid', cloudManaged: true } });
+  });
+
+  it('refuses switching the owner of a managed installation away from the Opfield account sign-in', async () => {
+    registerSession(['admin:users', 'nodes:details:node-1']);
+    managed();
+    container.registerInstance(FinalizeSetupService, {
+      isOwner: vi.fn().mockResolvedValue(true),
+    } as unknown as FinalizeSetupService);
+    const updateUserAuthMethod = vi.fn();
+    container.registerInstance(AuthService, {
+      getUserById: vi.fn().mockResolvedValue({ ...TARGET_USER, authMethod: 'oidc' }),
+      updateUserAuthMethod,
+    } as unknown as AuthService);
+    container.registerInstance(AuthMailService, {
+      getPublicConfig: vi.fn().mockResolvedValue({ verifiedAt: '2026-08-27T00:00:00.000Z' }),
+    } as unknown as AuthMailService);
+    container.registerInstance(AuditService, { log: vi.fn().mockResolvedValue(undefined) } as unknown as AuditService);
+
+    const response = await createApp().request(`/api/admin/users/${TARGET_USER.id}/auth-method`, {
+      method: 'PATCH',
+      headers: sessionHeaders(),
+      body: JSON.stringify({ authMethod: 'password' }),
+    });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: 'CLOUD_MANAGED' });
+    expect(updateUserAuthMethod).not.toHaveBeenCalled();
+  });
+
+  it('keeps the Opfield account provider client and OIDC sign-in; unchanged values and other providers pass', async () => {
+    const current = {
+      configured: true,
+      issuer: 'https://account.opfield.dev/',
+      clientId: 'gw-client',
+      clientSecretLast4: 'abcd',
+      redirectUri: 'https://gw.example.com/api/auth/oidc/callback',
+      scopes: 'openid email profile',
+      displayName: 'Opfield account',
+      opfieldAccount: true,
+    };
+    const oidc = {
+      issuer: current.issuer,
+      clientId: current.clientId,
+      redirectUri: current.redirectUri,
+      scopes: current.scopes,
+    };
+    for (const [body, status] of [
+      [{ oidc: { ...oidc, clientId: 'other-client' } }, 409],
+      [{ oidc: { ...oidc, clientSecret: 'new-secret' } }, 409],
+      [{ oidc: { ...oidc, redirectUri: 'https://evil.example.com/cb' } }, 409],
+      [{ oidc: { ...oidc, scopes: 'openid email' } }, 409],
+      [{ methods: { oidc: false } }, 409],
+    ] as const) {
+      registerSession(['settings:gateway:edit', 'admin:system']);
+      managed();
+      const saveConfig = vi.fn();
+      container.registerInstance(OidcSettingsService, {
+        getPublicConfig: vi.fn().mockResolvedValue(current),
+        saveConfig,
+      } as unknown as OidcSettingsService);
+      container.registerInstance(AuthSettingsService, {
+        getConfig: vi.fn().mockResolvedValue({ methods: { oidc: true } }),
+        updateConfig: vi.fn(),
+      } as unknown as AuthSettingsService);
+      for (const service of [
+        McpSettingsService,
+        GeneralSettingsService,
+        NetworkSettingsService,
+        OutboundWebhookPolicyService,
+      ]) {
+        container.registerInstance(service as never, { getConfig: vi.fn(), updateConfig: vi.fn() } as never);
+      }
+      container.registerInstance(GroupService, {
+        listGroups: vi.fn().mockResolvedValue([]),
+      } as unknown as GroupService);
+      container.registerInstance(AuditService, { log: vi.fn() } as unknown as AuditService);
+      const response = await createApp().request('/api/admin/auth-settings', {
+        method: 'PUT',
+        headers: sessionHeaders(),
+        body: JSON.stringify(body),
+      });
+      expect(response.status).toBe(status);
+      expect(await response.json()).toMatchObject({ code: 'CLOUD_MANAGED' });
+      expect(saveConfig).not.toHaveBeenCalled();
+    }
+    expect(findOpfieldSignInChanges({ ...oidc, issuer: 'https://account.opfield.dev' }, current)).toEqual([]);
+    expect(findOpfieldSignInChanges({ ...oidc, clientId: 'x' }, { ...current, opfieldAccount: false })).toEqual([]);
   });
 });

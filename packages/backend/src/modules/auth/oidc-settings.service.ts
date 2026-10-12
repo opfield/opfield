@@ -249,7 +249,7 @@ function invalidOidcConfig(message: string): AppError {
   return new AppError(400, 'OIDC_CONFIG_INVALID', message);
 }
 
-function normalizeUrl(value: string, label: string): string {
+export function normalizeUrl(value: string, label: string): string {
   const trimmed = value.trim();
   let url: URL;
   try {
@@ -270,7 +270,7 @@ function normalizeDisplayName(value: string | null): string | null {
   return trimmed;
 }
 
-function normalizeScopes(value: string | undefined): string {
+export function normalizeScopes(value: string | undefined): string {
   const scopes = [
     ...new Set(
       (value ?? 'openid email profile')

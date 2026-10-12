@@ -1,0 +1,37 @@
+import { container } from '@/container.js';
+import { AppError } from '@/middleware/error-handler.js';
+import { CloudLinkService } from './cloud-link.service.js';
+
+/**
+ * What a managed cloud installation keeps as the cloud set it up. These locks sit on the user-facing paths (REST,
+ * MCP); the system paths (enrolment file, cloud link requests, setup, restore) call the services directly.
+ */
+export const CLOUD_MANAGED_MESSAGES = {
+  license: 'This Opfield installation is managed by the cloud; its license is managed by your Opfield account.',
+  opfieldSignIn:
+    'This Opfield installation is managed by the cloud; the Opfield account sign-in provider cannot be changed here.',
+  oidcMethod: 'This Opfield installation is managed by the cloud; sign-in with the Opfield account stays on.',
+  ownerSignIn: 'This Opfield installation is managed by the cloud; its owner signs in with the Opfield account.',
+} as const;
+
+/** Whether the installation is a managed cloud VM (a process without the cloud link, such as a tool, is not). */
+export async function managedByCloud(): Promise<boolean> {
+  if (!container.isRegistered(CloudLinkService)) return false;
+  return container.resolve(CloudLinkService).managedByCloud();
+}
+
+/** For display only: false when the cloud link cannot be read. */
+export async function isCloudManaged(): Promise<boolean> {
+  try {
+    return await managedByCloud();
+  } catch {
+    return false;
+  }
+}
+
+/** 409 CLOUD_MANAGED with the given message on a managed installation. */
+export async function assertNotCloudManaged(message: string): Promise<void> {
+  if (await managedByCloud()) {
+    throw new AppError(409, 'CLOUD_MANAGED', message);
+  }
+}

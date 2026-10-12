@@ -1,3 +1,4 @@
+import { normalizeScopes, normalizeUrl } from '@/modules/auth/oidc-settings.service.js';
 import type { GeneralSettings, GeneralSettingsUpdate } from '@/modules/settings/general-settings.service.js';
 import {
   normalizeHostPortTarget,
@@ -81,5 +82,46 @@ export function findCloudManagedChanges(
     }
     if (next !== current[key]) changes.push(label);
   }
+  return changes;
+}
+
+interface OidcInput {
+  issuer: string;
+  clientId: string;
+  clientSecret?: string;
+  redirectUri: string;
+  scopes?: string;
+}
+
+interface OidcCurrent {
+  opfieldAccount: boolean;
+  issuer: string | null;
+  clientId: string | null;
+  redirectUri: string | null;
+  scopes: string;
+}
+
+function normalized(normalize: () => string): string | null {
+  try {
+    return normalize();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The client fields of the Opfield account provider an OIDC update would change: issuer, client ID, a new secret,
+ * redirect URI and scopes. The display name stays the admin's; other providers are not the cloud's.
+ */
+export function findOpfieldSignInChanges(input: OidcInput | undefined, current: OidcCurrent): string[] {
+  if (!input || !current.opfieldAccount) return [];
+  const changes: string[] = [];
+  if (normalized(() => normalizeUrl(input.issuer, 'issuer')) !== current.issuer) changes.push('issuer');
+  if (input.clientId.trim() !== current.clientId) changes.push('client ID');
+  if (input.clientSecret?.trim()) changes.push('client secret');
+  if (normalized(() => normalizeUrl(input.redirectUri, 'redirect URI')) !== current.redirectUri) {
+    changes.push('redirect URI');
+  }
+  if (normalized(() => normalizeScopes(input.scopes)) !== current.scopes) changes.push('scopes');
   return changes;
 }
