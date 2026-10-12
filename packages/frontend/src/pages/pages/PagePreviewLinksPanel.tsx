@@ -7,6 +7,7 @@ import { PanelShell } from "@/components/common/PanelShell";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { Button } from "@/components/ui/button";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { AccessList, PageProject } from "@/types";
 
@@ -91,7 +92,7 @@ export function PagePreviewLinksPanel({
         toast.success("Preview links rotated");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to rotate preview links");
+      toastApiError(error, "Failed to rotate preview links");
     } finally {
       setRotating(false);
     }

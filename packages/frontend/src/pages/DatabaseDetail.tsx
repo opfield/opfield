@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
+import { toastApiError } from "@/lib/api-error-toast";
 import { listManagedDatabaseCandidateNodes } from "@/lib/managed-database-nodes";
 import { nodeChangesFor } from "@/lib/node-changed";
 import { databaseRoute } from "@/lib/resource-routes";
@@ -177,9 +178,7 @@ function DatabaseDetailContent({
         );
         setBackupExecutors(backupExecutorOptions(nodes, hasScope));
       })
-      .catch((error) =>
-        toast.error(error instanceof Error ? error.message : "Failed to load backup destinations")
-      )
+      .catch((error) => toastApiError(error, "Failed to load backup destinations"))
       .finally(() => {
         if (current) setBackupOptionsLoaded(true);
       });
@@ -208,7 +207,7 @@ function DatabaseDetailContent({
         healthStatus: database.healthStatus,
       });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load database");
+      toastApiError(error, "Failed to load database");
       navigate("/databases");
     } finally {
       setLoading(false);
@@ -467,7 +466,7 @@ function DatabaseDetailContent({
       toast.success(deletion.successMessage);
       navigate("/databases");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete database");
+      toastApiError(error, "Failed to delete database");
     }
   };
 
@@ -478,7 +477,7 @@ function DatabaseDetailContent({
       toast.success(`Connection OK in ${result.responseMs} ms`);
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Connection test failed");
+      toastApiError(error, "Connection test failed");
     }
   };
 
@@ -498,7 +497,7 @@ function DatabaseDetailContent({
           : await api.revealDatabaseCredentials(database.id)
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to reveal credentials");
+      toastApiError(error, "Failed to reveal credentials");
     } finally {
       setLoadingCredentials(false);
     }
@@ -521,9 +520,7 @@ function DatabaseDetailContent({
       setCredentialsOpen(true);
       toast.success("Direct-access credentials rotated");
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to rotate direct-access credentials"
-      );
+      toastApiError(error, "Failed to rotate direct-access credentials");
     } finally {
       setLoadingCredentials(false);
     }
@@ -563,7 +560,7 @@ function DatabaseDetailContent({
       );
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to rotate TLS certificate");
+      toastApiError(error, "Failed to rotate TLS certificate");
     }
     return true;
   };
@@ -583,7 +580,7 @@ function DatabaseDetailContent({
       toast.success("Database paused");
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to pause database");
+      toastApiError(error, "Failed to pause database");
     }
   };
 
@@ -594,7 +591,7 @@ function DatabaseDetailContent({
       toast.success("Database unpaused");
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to unpause database");
+      toastApiError(error, "Failed to unpause database");
     }
   };
 
@@ -605,7 +602,7 @@ function DatabaseDetailContent({
       toast.success("Database restart requested");
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to restart database");
+      toastApiError(error, "Failed to restart database");
     }
   };
 

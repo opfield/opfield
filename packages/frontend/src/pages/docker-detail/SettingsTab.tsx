@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   GATEWAY_ARCHIVE_IMAGE_REFERENCE_LABEL,
   resolveContainerImageReference,
@@ -717,7 +718,7 @@ export function SettingsTab({
       };
     } catch (err) {
       onMutationEnd?.();
-      toast.error(err instanceof Error ? err.message : "Failed to apply settings");
+      toastApiError(err, "Failed to apply settings");
     } finally {
       setLiveLoading(false);
     }
@@ -900,7 +901,7 @@ export function SettingsTab({
     } catch (err) {
       onMutationEnd?.();
       if (!handleLicenseApiError(err, "Secure Runtime")) {
-        toast.error(err instanceof Error ? err.message : "Failed to recreate container");
+        toastApiError(err, "Failed to recreate container");
       }
       setRecreateLoading(false);
     }

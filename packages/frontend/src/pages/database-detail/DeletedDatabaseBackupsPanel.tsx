@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PanelShell } from "@/components/common/PanelShell";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { toastApiError } from "@/lib/api-error-toast";
 import { databaseTypeLabel } from "@/lib/database-type";
 import { listManagedDatabaseCandidateNodes } from "@/lib/managed-database-nodes";
 import { api } from "@/services/api";
@@ -77,9 +78,7 @@ export function DeletedDatabaseBackupsPanel() {
       .then((nodes) => {
         if (current) setExecutors(backupExecutorOptions(nodes, hasScope));
       })
-      .catch((error) =>
-        toast.error(error instanceof Error ? error.message : "Failed to load Storage nodes")
-      );
+      .catch((error) => toastApiError(error, "Failed to load Storage nodes"));
     return () => {
       current = false;
     };

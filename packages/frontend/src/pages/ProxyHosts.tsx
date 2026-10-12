@@ -49,6 +49,7 @@ import { Switch } from "@/components/ui/switch";
 import { useFolderAccess } from "@/hooks/use-folder-access";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { findFolderTreeNode } from "@/lib/folder-tree";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
 import { isGatewayPublicRoute } from "@/lib/proxy-route-protection";
@@ -159,7 +160,7 @@ export function ProxyHosts({
       }
       setCreateDialogOpen(true);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to check Ingress nodes");
+      toastApiError(error, "Failed to check Ingress nodes");
     } finally {
       setCheckingCreateNodes(false);
     }
@@ -217,7 +218,7 @@ export function ProxyHosts({
       toast.success(currentEnabled ? "Proxy host disabled" : "Proxy host enabled");
       await fetchGroupedHosts();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to toggle route");
+      toastApiError(err, "Failed to toggle route");
     } finally {
       setTogglingIds((prev) => {
         const next = new Set(prev);
@@ -246,7 +247,7 @@ export function ProxyHosts({
       toast.success(entering ? "Maintenance mode enabled" : "Maintenance mode disabled");
       await fetchGroupedHosts();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update maintenance mode");
+      toastApiError(err, "Failed to update maintenance mode");
     } finally {
       setTogglingIds((prev) => {
         const next = new Set(prev);
@@ -263,7 +264,7 @@ export function ProxyHosts({
       setCreateFolderOpen(false);
       setCreateFolderParentId(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create folder");
+      toastApiError(err, "Failed to create folder");
     }
   };
 
@@ -272,7 +273,7 @@ export function ProxyHosts({
       await renameFolder(id, name);
       toast.success("Folder renamed");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to rename folder");
+      toastApiError(err, "Failed to rename folder");
     }
   };
 
@@ -288,7 +289,7 @@ export function ProxyHosts({
       await deleteFolder(id);
       toast.success("Folder deleted");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete folder");
+      toastApiError(err, "Failed to delete folder");
     }
   };
 
@@ -299,7 +300,7 @@ export function ProxyHosts({
       toast.success("Host moved");
       setMoveDialogHostId(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to move host");
+      toastApiError(err, "Failed to move host");
     }
   };
 
@@ -348,7 +349,7 @@ export function ProxyHosts({
           reordered.map((folder, index) => ({ id: folder.id, sortOrder: index }))
         );
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to reorder folders");
+        toastApiError(err, "Failed to reorder folders");
       }
       return;
     }
@@ -368,7 +369,7 @@ export function ProxyHosts({
         await moveHostsToFolder([hostId], targetFolderId);
         toast.success("Host moved");
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to move host");
+        toastApiError(err, "Failed to move host");
       }
       return;
     }
@@ -384,7 +385,7 @@ export function ProxyHosts({
           await moveHostsToFolder([hostId], overHost.folderId);
           toast.success("Host moved");
         } catch (err) {
-          toast.error(err instanceof Error ? err.message : "Failed to move host");
+          toastApiError(err, "Failed to move host");
         }
         return;
       }
@@ -404,7 +405,7 @@ export function ProxyHosts({
       try {
         await reorderHosts(reordered.map((h, i) => ({ id: h.id, sortOrder: i })));
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to reorder");
+        toastApiError(err, "Failed to reorder");
       }
     }
   };
@@ -462,7 +463,7 @@ export function ProxyHosts({
       await moveFolder(id, parentId);
       toast.success("Folder moved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to move folder");
+      toastApiError(err, "Failed to move folder");
     }
   };
 

@@ -17,6 +17,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { NotificationWebhook } from "@/types";
 import { WebhookDialog } from "./WebhookDialog";
@@ -121,7 +122,7 @@ export function WebhooksTab({
         ? toast.success(`Test succeeded (HTTP ${r.statusCode})`)
         : toast.error(`Test failed: ${r.error ?? `HTTP ${r.statusCode}`}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Test failed");
+      toastApiError(err, "Test failed");
     }
   };
 

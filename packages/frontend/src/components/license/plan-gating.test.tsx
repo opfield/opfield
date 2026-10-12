@@ -1,9 +1,14 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, renderHook, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { canLoadScopeResource } from "@/components/common/scope-list-helpers";
+import { usePkiAvailable } from "@/hooks/use-plan-gated-features";
 import { visibleNavigationGroups } from "@/lib/app-navigation";
+import { CERTIFICATES_HUB, visibleHubTabs } from "@/lib/navigation-hubs";
+import { NavigationHubPage } from "@/pages/NavigationHubPage";
 import { PagesSettingsSection } from "@/pages/pages/PageGlobalSettings";
 import { ApiRequestError } from "@/services/api-base";
+import { useAuthStore } from "@/stores/auth";
 import { unlicensedNavigationItems, useLicensePaywallStore } from "@/stores/license-paywall";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import type { UIBootstrapShell } from "@/types/ui-bootstrap";
@@ -11,6 +16,8 @@ import { LicenseFeatureBoundary } from "./LicenseFeatureBoundary";
 
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
 const api = vi.hoisted(() => ({
+  getCached: vi.fn(() => undefined),
+  setCache: vi.fn(),
   getPageProfile: vi.fn(),
   getPageProfileOptions: vi.fn(),
 }));
@@ -164,5 +171,39 @@ describe("plan-gated pages", () => {
     const personal = unlicensedNavigationItems(useUIBootstrapStore.getState().snapshot);
     expect(personal).toEqual([]);
     expect(ids(personal)).toEqual(expect.arrayContaining(["pages", "storage", "databases"]));
+  });
+});
+
+describe("Certificates tabs on a plan without internal PKI", () => {
+  const scopes = ["ssl:cert:view", "pki:ca:view", "pki:cert:view", "pki:templates:view"];
+
+  beforeEach(() => {
+    setPlan("personal", ["pages"]);
+    useAuthStore.setState({ user: { id: "u", scopes } as never });
+  });
+
+  it("lists only SSL", () => {
+    const { result } = renderHook(() => usePkiAvailable());
+    expect(result.current).toBe(false);
+    expect(
+      visibleHubTabs(CERTIFICATES_HUB, { scopes, pkiEnabled: result.current }).map((t) => t.value)
+    ).toEqual(["ssl"]);
+  });
+
+  it("shows the header and plan notice on a hidden tab URL, with no tab row", () => {
+    render(
+      <MemoryRouter>
+        <NavigationHubPage hubId="certificates" tab="templates" />
+      </MemoryRouter>
+    );
+    expect(screen.getByRole("heading", { name: "Templates" })).toBeInTheDocument();
+    expect(screen.getByText("Available on the Enterprise plan.")).toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("does not list PKI resources in permission editors", () => {
+    expect(canLoadScopeResource("pki:templates:view")).toBe(false);
+    expect(canLoadScopeResource("ssl:cert:view")).toBe(true);
   });
 });

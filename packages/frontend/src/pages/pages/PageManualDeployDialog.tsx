@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ProgressBar } from "@/components/ui/progress-bar";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   type PreparedPageBuild,
   preparePageArchive,
@@ -119,7 +120,7 @@ export function PageManualDeployDialog({
       toast.success("Page Project deployed");
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to deploy Page Project");
+      toastApiError(error, "Failed to deploy Page Project");
     } finally {
       if (!succeeded) {
         setUploading(false);

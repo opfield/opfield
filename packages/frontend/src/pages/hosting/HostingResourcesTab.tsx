@@ -35,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
+import { toastApiError } from "@/lib/api-error-toast";
 import { createClientUuid } from "@/lib/client-id";
 import { performHostingAction } from "@/lib/hosting-intents";
 import { hostingNodeLabel, hostingOperationPending, hostingPowerLabel } from "@/lib/hosting-status";
@@ -220,8 +221,7 @@ export function HostingResourcesTab({
             setSshOptions(items.map((item) => ({ value: item.id, label: item.name })));
         })
         .catch((error) => {
-          if (!cancelled)
-            toast.error(error instanceof Error ? error.message : "Could not load SSH connections");
+          if (!cancelled) toastApiError(error, "Could not load SSH connections");
         })
         .finally(() => {
           if (!cancelled) setSshLoadedFor(retryTarget);
@@ -269,7 +269,7 @@ export function HostingResourcesTab({
       );
       onChanged?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Operation reconciliation failed");
+      toastApiError(error, "Operation reconciliation failed");
     } finally {
       setPending(null);
     }
@@ -287,7 +287,7 @@ export function HostingResourcesTab({
       setRetryTarget((current) => (current === target ? null : current));
       onChanged?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not retry installation");
+      toastApiError(error, "Could not retry installation");
       onChanged?.();
     } finally {
       setPending(null);
@@ -320,7 +320,7 @@ export function HostingResourcesTab({
       else toast.success(`${LABELS[action]} requested`);
       onChanged?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Provider action failed");
+      toastApiError(error, "Provider action failed");
       onChanged?.();
     } finally {
       setPending(null);

@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { ObjectStorageConnection, ObjectStorageProvider } from "@/types";
 import { isFileProtocolProvider } from "@/types";
@@ -335,7 +336,7 @@ export function StorageConnectionForm({
         toast.error(`Connection failed: ${result.status}`);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Connection test failed");
+      toastApiError(error, "Connection test failed");
     } finally {
       setTesting(false);
     }

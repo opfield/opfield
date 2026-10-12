@@ -44,6 +44,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useUrlTab } from "@/hooks/use-url-tab";
+import { toastApiError } from "@/lib/api-error-toast";
 import { loadPageDeployments } from "@/lib/page-deployments";
 import { proxyHostRoute } from "@/lib/resource-routes";
 import { api } from "@/services/api";
@@ -97,9 +98,7 @@ function MigrateProjectDialog({
     void api
       .listPageProjectPlacementOptions(folderId)
       .then(setNodes)
-      .catch((error) =>
-        toast.error(error instanceof Error ? error.message : "Failed to load Pages nodes")
-      )
+      .catch((error) => toastApiError(error, "Failed to load Pages nodes"))
       .finally(() => setLoading(false));
   }, [folderId, open]);
 
@@ -116,7 +115,7 @@ function MigrateProjectDialog({
       );
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to migrate Page Project");
+      toastApiError(error, "Failed to migrate Page Project");
     } finally {
       setSaving(false);
     }
@@ -319,7 +318,7 @@ export function PageProjectDetail({
       setProject(next);
     } catch (error) {
       if (!deletingRef.current) {
-        toast.error(error instanceof Error ? error.message : "Failed to load Page Project");
+        toastApiError(error, "Failed to load Page Project");
       }
     } finally {
       setLoading(false);
@@ -447,7 +446,7 @@ export function PageProjectDetail({
       navigate("/pages");
     } catch (error) {
       deletingRef.current = false;
-      toast.error(error instanceof Error ? error.message : "Failed to delete Page Project");
+      toastApiError(error, "Failed to delete Page Project");
     }
   };
 

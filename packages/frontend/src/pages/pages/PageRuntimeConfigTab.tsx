@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import type {
@@ -324,9 +325,7 @@ export function PageRuntimeConfigTab({ projectId }: { projectId: string }) {
         setConflicted(true);
         toast.error("Runtime configuration changed elsewhere. Reload before saving again.");
       } else {
-        toast.error(
-          error instanceof Error ? error.message : "Failed to save runtime configuration"
-        );
+        toastApiError(error, "Failed to save runtime configuration");
       }
     } finally {
       setSaving(false);
@@ -348,7 +347,7 @@ export function PageRuntimeConfigTab({ projectId }: { projectId: string }) {
       await load(true);
       toast.success("Tag now inherits the Default configuration");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to reset Tag configuration");
+      toastApiError(error, "Failed to reset Tag configuration");
     } finally {
       setSaving(false);
     }

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { DatabaseConnection } from "@/types";
 
@@ -205,7 +206,7 @@ export function ManagedDatabaseSettingsTab({
       );
       onSaved();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update managed database");
+      toastApiError(error, "Failed to update managed database");
     } finally {
       setSaving(false);
     }

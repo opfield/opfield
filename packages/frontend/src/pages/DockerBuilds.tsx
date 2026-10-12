@@ -1,7 +1,6 @@
 import { RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { toast } from "sonner";
 import { PageTransition } from "@/components/common/PageTransition";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
 import { SearchFilterBar } from "@/components/common/SearchFilterBar";
@@ -14,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { DockerBuild, DockerBuildStatus } from "@/types";
 import { DockerBuildDetailsDialog } from "./docker-detail/DockerBuildDetailsDialog";
@@ -107,7 +107,7 @@ export function DockerBuilds({ embedded = false }: DockerBuildsProps) {
         setNextCursor(page.nextCursor);
       } catch (error) {
         if (currentRequest === requestId.current) {
-          toast.error(error instanceof Error ? error.message : "Failed to load builds");
+          toastApiError(error, "Failed to load builds");
         }
       } finally {
         if (currentRequest === requestId.current) {

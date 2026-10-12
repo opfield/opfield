@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
+import { toastApiError } from "@/lib/api-error-toast";
 import { appRoute } from "@/lib/app-routes";
 import { nodeRoute } from "@/lib/resource-routes";
 import { cn } from "@/lib/utils";
@@ -114,9 +115,7 @@ function EnvironmentContent({
       const result = await api.createAppMaintenanceAccessCode(app.id, env.id);
       setAccessCode({ ...result, scopeLabel: `${env.name} of ${app.name}` });
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to create a maintenance access code"
-      );
+      toastApiError(error, "Failed to create a maintenance access code");
     }
   };
 
@@ -136,7 +135,7 @@ function EnvironmentContent({
       await refresh();
       await loadExtras();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update maintenance");
+      toastApiError(error, "Failed to update maintenance");
     } finally {
       setMaintenanceSaving(false);
     }
@@ -160,7 +159,7 @@ function EnvironmentContent({
       toast.success(`${name} removed from ${env.name}`);
       void refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to remove the node");
+      toastApiError(error, "Failed to remove the node");
     }
   };
 

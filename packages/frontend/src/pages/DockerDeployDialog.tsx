@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toastApiError } from "@/lib/api-error-toast";
 import { loadVisibleDockerNodes } from "@/lib/docker-node-access";
 import { nodeRoute } from "@/lib/resource-routes";
 import { canCreateInFolder } from "@/lib/scope-utils";
@@ -441,7 +442,7 @@ export function DockerDeployDialog({
           sourceMode === "repository" ? "Git push-to-deploy" : "Container deployment"
         )
       ) {
-        toast.error(err instanceof Error ? err.message : "Failed to deploy");
+        toastApiError(err, "Failed to deploy");
       }
     } finally {
       setDeploying(false);

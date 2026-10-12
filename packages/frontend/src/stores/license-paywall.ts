@@ -120,6 +120,11 @@ export function canServeLicenseFeature(
   return moduleReady && snapshotHasLicenseFeature(snapshot, feature) !== false;
 }
 
+/** {@link canServeLicenseFeature} for the current bootstrap snapshot, outside React. */
+export function planIncludes(feature: LicenseFeature): boolean {
+  return canServeLicenseFeature(useUIBootstrapStore.getState().snapshot, feature);
+}
+
 /** Navigation items backed by one paid feature. */
 const LICENSED_NAVIGATION_ITEMS = {
   pages: "pages",

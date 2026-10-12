@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toastApiError } from "@/lib/api-error-toast";
 import { createClientUuid } from "@/lib/client-id";
 import { canAdoptComposeProject, hasComposeProjectScope } from "@/lib/compose-access";
 import { loadVisibleDockerNodes } from "@/lib/docker-node-access";
@@ -241,9 +242,7 @@ export function ComposeProjectEditor({
           setVariablesText(JSON.stringify(loaded.activeRevision.variables ?? {}, null, 2));
         }
       })
-      .catch((error) =>
-        toast.error(error instanceof Error ? error.message : "Failed to load Compose project")
-      )
+      .catch((error) => toastApiError(error, "Failed to load Compose project"))
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -426,7 +425,7 @@ export function ComposeProjectEditor({
           repositoryCreation ? "Git push-to-deploy" : "Compose projects"
         )
       )
-        toast.error(error instanceof Error ? error.message : "Failed to apply Compose project");
+        toastApiError(error, "Failed to apply Compose project");
     } finally {
       setSaving(false);
     }

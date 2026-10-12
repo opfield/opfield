@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { AppDetail, AppEnvironmentDetail } from "@/types";
 import { AppNameDialog } from "./AppNameDialog";
@@ -29,7 +30,7 @@ export function NewEnvironmentDialog({
           toast.success(`Environment ${env.name} created`);
           onCreated(env);
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : "Failed to create the environment");
+          toastApiError(error, "Failed to create the environment");
           throw error;
         }
       }}

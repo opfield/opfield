@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { OpfieldMark } from "@/components/common/OpfieldMark";
 import { AccountMenuContent } from "@/components/layout/AccountMenuContent";
 import {
@@ -52,7 +51,9 @@ import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
+import { usePkiAvailable, useSiemAvailable } from "@/hooks/use-plan-gated-features";
 import { aiConversationRoute } from "@/lib/ai-conversation-route";
+import { toastApiError } from "@/lib/api-error-toast";
 import { visibleNavigationGroups } from "@/lib/app-navigation";
 import { hasLowInferenceUsage } from "@/lib/inference-self-usage";
 import { isSidebarNavigationActive } from "@/lib/sidebar-navigation";
@@ -142,8 +143,8 @@ export function AILiteSidebar({
     : Object.values(dashboardBootstrap?.navigationAttention ?? {}).includes("warning")
       ? "warning"
       : null;
-  const pkiEnabled = useSystemConfigStore((s) => s.config.features.pkiEnabled);
-  const siemEnabled = useSystemConfigStore((s) => s.config.features.siemEnabled);
+  const pkiEnabled = usePkiAvailable();
+  const siemEnabled = useSiemAvailable();
   const loggingEnabled = useSystemConfigStore((s) => s.config.features.loggingEnabled);
   const inferenceEnabled = useSystemConfigStore((s) => s.config.features.inferenceEnabled);
   const navigationBootstrap = useUIBootstrapStore((s) => s.snapshot?.navigation);
@@ -293,7 +294,7 @@ export function AILiteSidebar({
       api.resetSessionState();
       window.location.assign("/");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to stop impersonating");
+      toastApiError(error, "Failed to stop impersonating");
       setStoppingImpersonation(false);
     }
   };

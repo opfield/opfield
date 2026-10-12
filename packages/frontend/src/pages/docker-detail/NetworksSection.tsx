@@ -1,6 +1,5 @@
 import { Minus, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PanelShell } from "@/components/common/PanelShell";
 import { useContentLoading } from "@/components/common/reveal-gate";
@@ -14,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { isGatewayManagedDockerNetwork } from "@/lib/docker-networks";
 import { api } from "@/services/api";
 import type { DockerNetwork } from "@/types";
@@ -112,7 +112,7 @@ export function NetworksSection({
           .filter((network) => !isGatewayManagedDockerNetwork(network.name))
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load networks");
+      toastApiError(err, "Failed to load networks");
     } finally {
       setNetworksLoading(false);
     }

@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
+import { toastApiError } from "@/lib/api-error-toast";
 import { deriveAllowedResourceIdsByScope, hasSelectableScopeBase } from "@/lib/scope-utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -167,7 +168,7 @@ export function UserAdditionalPermissionsDialog({
       onOpenChange(false);
       toast.success("Permissions updated");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update permissions");
+      toastApiError(error, "Failed to update permissions");
     } finally {
       setSaving(false);
     }

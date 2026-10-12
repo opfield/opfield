@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   buildFinalScopes,
   deriveAllowedResourceIdsByScope,
@@ -158,7 +159,7 @@ export function OAuthApplicationsSection({
       api.setCache("settings:oauth-authorizations", data ?? []);
       setAuthorizations(data);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load OAuth applications");
+      toastApiError(error, "Failed to load OAuth applications");
     } finally {
       setLoading(false);
     }
@@ -243,7 +244,7 @@ export function OAuthApplicationsSection({
       setInitialResourceLimitedScopes(Object.keys(parsed.resources));
       toast.success("OAuth application scopes updated");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update OAuth scopes");
+      toastApiError(error, "Failed to update OAuth scopes");
     } finally {
       setSavingScopes(false);
     }
@@ -278,7 +279,7 @@ export function OAuthApplicationsSection({
       }
       toast.success("OAuth application disconnected");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to disconnect application");
+      toastApiError(error, "Failed to disconnect application");
     } finally {
       setRevokingKey(null);
     }

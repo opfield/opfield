@@ -64,6 +64,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
+import { toastApiError } from "@/lib/api-error-toast";
 import { projectComposeServicePolicy } from "@/lib/compose-service-availability";
 import { resolveContainerImageReference } from "@/lib/docker-image-ref";
 import {
@@ -1125,7 +1126,7 @@ export function DockerContainerDetail({
       // Read the authoritative state without remounting the detail page.
       await refreshContainer();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Action failed");
+      toastApiError(err, "Action failed");
     } finally {
       if (!removingRef.current) {
         setActionLoading(false);
@@ -1157,7 +1158,7 @@ export function DockerContainerDetail({
       invalidate("containers", "tasks");
       navigate(backTarget);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to remove");
+      toastApiError(err, "Failed to remove");
       removingRef.current = false;
       setActionLoading(false);
       setPendingHeaderAction(null);
@@ -1187,7 +1188,7 @@ export function DockerContainerDetail({
         });
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to duplicate");
+      toastApiError(err, "Failed to duplicate");
     } finally {
       setActionLoading(false);
       setPendingHeaderAction(null);
@@ -1283,7 +1284,7 @@ export function DockerContainerDetail({
         state: location.state,
       });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to rename");
+      toastApiError(err, "Failed to rename");
     } finally {
       setActionLoading(false);
     }

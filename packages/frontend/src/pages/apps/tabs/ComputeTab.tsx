@@ -3,7 +3,6 @@
 import { Box, Boxes, GitBranch, Globe2, Play, RefreshCw, Square } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
@@ -15,6 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { toastApiError } from "@/lib/api-error-toast";
 import { formatDisplayImageRef } from "@/lib/docker-image-ref";
 import { nodeBadgeClassName, nodeIconClassNames } from "@/lib/node-appearance";
 import {
@@ -154,7 +154,7 @@ export function ComputeTab({
       }
       setLocalVersion((current) => current + 1);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : `Failed to ${action} ${container.name}`);
+      toastApiError(error, `Failed to ${action} ${container.name}`);
     } finally {
       setBusy((current) => {
         const next = { ...current };

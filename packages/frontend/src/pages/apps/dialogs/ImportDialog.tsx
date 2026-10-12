@@ -25,8 +25,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
+import { toastApiError } from "@/lib/api-error-toast";
 import { databaseTypeLabel } from "@/lib/database-type";
 import { api } from "@/services/api";
+import { planIncludes } from "@/stores/license-paywall";
 import type { AppDetail, AppMemberFamily, AppPlaceMemberInput, AppPlaceRefusal } from "@/types";
 import { COMPOSE_PROJECT_LABEL } from "../app-resources";
 import { orderedEnvironments } from "../app-shared";
@@ -92,6 +94,7 @@ async function loadCandidates(family: AppMemberFamily): Promise<Candidate[]> {
       }));
     }
     case "databases": {
+      if (!planIncludes("external-database-connections")) return [];
       const rows = (await api.listDatabases({ limit: 200 })).data;
       return rows.map((row) => ({
         key: row.id,
@@ -103,6 +106,7 @@ async function loadCandidates(family: AppMemberFamily): Promise<Candidate[]> {
       }));
     }
     case "storage": {
+      if (!planIncludes("storage-connections")) return [];
       const rows = (await api.listObjectStorages({ limit: 200 })).data;
       return rows.map((row) => ({
         key: row.id,
@@ -127,6 +131,7 @@ async function loadCandidates(family: AppMemberFamily): Promise<Candidate[]> {
         }));
     }
     case "pages": {
+      if (!planIncludes("pages")) return [];
       const rows = (await api.listPageProjects({ limit: 100 })).data;
       return rows.map((row) => ({
         key: row.id,
@@ -191,8 +196,7 @@ export function ImportDialog({
         if (!cancelled) setCandidates(rows.sort((a, b) => a.name.localeCompare(b.name)));
       })
       .catch((error) => {
-        if (!cancelled)
-          toast.error(error instanceof Error ? error.message : "Failed to load resources");
+        if (!cancelled) toastApiError(error, "Failed to load resources");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -243,7 +247,7 @@ export function ImportDialog({
       }
       onClose();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to import");
+      toastApiError(error, "Failed to import");
     } finally {
       setImporting(false);
     }

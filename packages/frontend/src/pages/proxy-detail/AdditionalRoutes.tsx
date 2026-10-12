@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
@@ -450,7 +451,7 @@ export function AdditionalRoutesPanel({
       upsertRoute(updated);
       toast.success(enabled ? "Additional route enabled" : "Additional route disabled");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update additional route");
+      toastApiError(error, "Failed to update additional route");
     } finally {
       setPendingRouteId(null);
     }
@@ -464,7 +465,7 @@ export function AdditionalRoutesPanel({
       upsertRoute(updated);
       toast.success("Additional route retry started");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to retry additional route");
+      toastApiError(error, "Failed to retry additional route");
     } finally {
       setPendingRouteId(null);
     }
@@ -487,7 +488,7 @@ export function AdditionalRoutesPanel({
           toast.success("Additional route deletion started");
           return true;
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : "Failed to delete additional route");
+          toastApiError(error, "Failed to delete additional route");
           return false;
         } finally {
           setPendingRouteId(null);
@@ -513,7 +514,7 @@ export function AdditionalRoutesPanel({
       setAdvancedDialogOpen(false);
       toast.success("Additional route advanced config saved");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save advanced config");
+      toastApiError(error, "Failed to save advanced config");
     } finally {
       setSavingAdvanced(false);
     }

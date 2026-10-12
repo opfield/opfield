@@ -20,6 +20,7 @@ import {
   type LicenseFeatureFrame,
 } from "@/components/license/LicenseFeatureBoundary";
 import { Button } from "@/components/ui/button";
+import { usePkiAvailable, useSiemAvailable } from "@/hooks/use-plan-gated-features";
 import { hasDashboardContent } from "@/lib/app-navigation";
 import { getLoginRedirectUrl } from "@/lib/auth-return-to";
 import { hasCreationDestination } from "@/lib/creation-folders";
@@ -181,10 +182,12 @@ function DashboardPageGuard() {
   const features = useSystemConfigStore((state) => state.config.features);
   const uiBootstrap = useUIBootstrapStore((state) => state.snapshot);
   const dashboardBootstrap = useDashboardBootstrapStore((state) => state.snapshot);
+  const pkiAvailable = usePkiAvailable();
+  const siemAvailable = useSiemAvailable();
   const canAccess = hasDashboardContent({
     scopes,
-    pkiEnabled: features.pkiEnabled,
-    siemEnabled: features.siemEnabled,
+    pkiEnabled: pkiAvailable,
+    siemEnabled: siemAvailable,
     loggingEnabled: features.loggingEnabled,
     inferenceEnabled: features.inferenceEnabled,
     hasLowInferenceUsage: hasLowInferenceUsage(dashboardBootstrap?.inferenceUsage ?? null),
@@ -560,10 +563,12 @@ function CADetailGuard() {
   const { id } = useParams<{ id: string }>();
   const hasScope = useAuthStore((s) => s.hasScope);
   const pkiEnabled = useSystemConfigStore((s) => s.config.features.pkiEnabled);
+  const pkiAvailable = usePkiAvailable();
 
   if (!pkiEnabled || !id || !hasScope(`pki:ca:view:${id}`)) {
     return <Navigate to="/" replace />;
   }
+  if (!pkiAvailable) return <PkiPlanNotice title="Certificate Authorities" />;
 
   return <CADetail />;
 }
@@ -572,12 +577,27 @@ function CertificateDetailGuard() {
   const { id } = useParams<{ id: string }>();
   const hasScope = useAuthStore((s) => s.hasScope);
   const pkiEnabled = useSystemConfigStore((s) => s.config.features.pkiEnabled);
+  const pkiAvailable = usePkiAvailable();
 
   if (!pkiEnabled || (!hasScope("pki:cert:view") && !(id && hasScope(`pki:cert:view:${id}`)))) {
     return <Navigate to="/" replace />;
   }
+  if (!pkiAvailable) return <PkiPlanNotice title="Certificates" />;
 
   return <CertificateDetail />;
+}
+
+/** A PKI page the plan does not include: its header and the plan notice, no requests. */
+function PkiPlanNotice({ title }: { title: string }) {
+  return (
+    <LicenseFeatureBoundary
+      feature="internal-pki"
+      capability="Internal PKI"
+      frame={{ kind: "page", title }}
+    >
+      {null}
+    </LicenseFeatureBoundary>
+  );
 }
 
 function NginxTemplateEditGuard() {

@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { handleLicenseApiError } from "@/stores/license-paywall";
 import type { AvailabilityOwner, AvailabilityView } from "@/types";
@@ -65,7 +66,7 @@ export function DisableAvailabilityDialog({
       onOpenChange(false);
     } catch (error) {
       if (!handleLicenseApiError(error, AVAILABILITY_CAPABILITY)) {
-        toast.error(error instanceof Error ? error.message : "Failed to turn off availability");
+        toastApiError(error, "Failed to turn off availability");
       }
     } finally {
       setSaving(false);

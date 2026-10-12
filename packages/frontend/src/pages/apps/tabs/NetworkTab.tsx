@@ -14,6 +14,7 @@ import { ProxyUpstreamTarget } from "@/components/proxy/ProxyUpstreamTarget";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
+import { toastApiError } from "@/lib/api-error-toast";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
 import { isGatewayPublicRoute } from "@/lib/proxy-route-protection";
 import { proxyHostRoute } from "@/lib/resource-routes";
@@ -74,7 +75,7 @@ export function NetworkTab({
       toast.success(done);
       setLocalVersion((current) => current + 1);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : failed);
+      toastApiError(error, failed);
     } finally {
       setToggling((current) => {
         const next = new Set(current);

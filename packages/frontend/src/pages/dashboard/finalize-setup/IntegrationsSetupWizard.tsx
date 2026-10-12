@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toastApiError } from "@/lib/api-error-toast";
 import { CLOUDFLARE_API_TOKEN_URL } from "@/lib/cloudflare";
 import { GitHubDeviceFlow } from "@/pages/settings/GitHubDeviceFlow";
 import { api } from "@/services/api";
@@ -236,9 +237,7 @@ export function IntegrationsSetupWizard({
       await updateTrackedStep("cloudflare", "configured");
       setScreen(completionScreen("cloudflare"));
     } catch (cause) {
-      toast.error(
-        cause instanceof Error ? cause.message : "Failed to create Cloudflare integration"
-      );
+      toastApiError(cause, "Failed to create Cloudflare integration");
     } finally {
       setSaving(false);
     }
@@ -258,7 +257,7 @@ export function IntegrationsSetupWizard({
       await updateTrackedStep("gitlab", "configured");
       setScreen(completionScreen("gitlab"));
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Failed to create GitLab integration");
+      toastApiError(cause, "Failed to create GitLab integration");
     } finally {
       setSaving(false);
     }
@@ -324,7 +323,7 @@ export function IntegrationsSetupWizard({
         try {
           await updateTrackedStep(connector, "skipped");
         } catch (cause) {
-          toast.error(cause instanceof Error ? cause.message : "Failed to skip integrations setup");
+          toastApiError(cause, "Failed to skip integrations setup");
           return;
         } finally {
           setSaving(false);
@@ -342,7 +341,7 @@ export function IntegrationsSetupWizard({
       for (const step of pending) await updateTrackedStep(step, "skipped");
       onBack?.();
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Failed to skip integrations setup");
+      toastApiError(cause, "Failed to skip integrations setup");
     } finally {
       setSaving(false);
     }

@@ -45,13 +45,14 @@ import {
 } from "@/components/ui/select";
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
+import { usePkiAvailable } from "@/hooks/use-plan-gated-features";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { hasCreationDestination } from "@/lib/creation-folders";
 import { cn, daysUntil, formatDate, hoursUntil } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { useSSLStore } from "@/stores/ssl";
-import { useSystemConfigStore } from "@/stores/system-config";
 import { useUIStore } from "@/stores/ui";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import type {
@@ -142,7 +143,7 @@ export function SSLCertificates() {
   // Let's Encrypt picks registered domains, which needs domains:view; without it only
   // upload and internal CA linking are offered and no domain lookup is made.
   const canViewDomains = hasScopedAccess("domains:view");
-  const pkiEnabled = useSystemConfigStore((s) => s.config.features.pkiEnabled);
+  const pkiEnabled = usePkiAvailable();
   const hasCloudflareIntegration = useUIBootstrapStore(
     (state) => state.snapshot?.navigation.hasCloudflareIntegration ?? false
   );
@@ -191,7 +192,7 @@ export function SSLCertificates() {
       setCreateInitialTab("acme");
       setCreateDialogOpen(true);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to check registered domains");
+      toastApiError(err, "Failed to check registered domains");
     } finally {
       isCheckingDomainsRef.current = false;
       setIsCheckingDomains(false);
@@ -376,7 +377,7 @@ export function SSLCertificates() {
       }
       toast.success("Certificate renewed");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to renew certificate");
+      toastApiError(err, "Failed to renew certificate");
     } finally {
       setRenewingCert(null);
     }
@@ -389,7 +390,7 @@ export function SSLCertificates() {
       toast.success(`TLS deployment retry requested for ${cert.name}`);
       await fetchCertificates();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to retry TLS deployments");
+      toastApiError(err, "Failed to retry TLS deployments");
     } finally {
       setResyncingCertId(null);
     }
@@ -403,7 +404,7 @@ export function SSLCertificates() {
       );
       toast.success(enabled ? "Cloudflare auto-renew enabled" : "Auto-renew disabled");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update auto-renew");
+      toastApiError(err, "Failed to update auto-renew");
     }
   };
 
@@ -412,7 +413,7 @@ export function SSLCertificates() {
       await setAutoRenew(cert.id, { enabled: true });
       toast.success("Automatic reissue enabled");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update auto-renew");
+      toastApiError(err, "Failed to update auto-renew");
     }
   };
 
@@ -446,7 +447,7 @@ export function SSLCertificates() {
       );
       setPendingRenewal(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "DNS verification failed");
+      toastApiError(err, "DNS verification failed");
     } finally {
       setIsVerifyingRenewal(false);
     }
@@ -493,7 +494,7 @@ export function SSLCertificates() {
       })
       .catch((error) => {
         if (!cancelled) {
-          toast.error(error instanceof Error ? error.message : "Failed to load certificate");
+          toastApiError(error, "Failed to load certificate");
         }
       });
     const nextParams = new URLSearchParams(searchParams);

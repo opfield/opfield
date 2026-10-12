@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { toastApiError } from "@/lib/api-error-toast";
 import { formatDateTime } from "@/lib/utils";
 import {
   type AuditExportFormat,
@@ -676,7 +677,7 @@ export function AuditLog({
       toast.success(`Exported ${exportedEntries.length} audit log entries`);
     } catch (error) {
       if (!handleLicenseApiError(error, "Audit log export")) {
-        toast.error(error instanceof Error ? error.message : "Failed to export audit log");
+        toastApiError(error, "Failed to export audit log");
       }
     } finally {
       setExporting(false);

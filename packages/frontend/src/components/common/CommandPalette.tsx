@@ -45,6 +45,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
+import { usePkiAvailable, useSiemAvailable } from "@/hooks/use-plan-gated-features";
 import { type AppNavigationItemId, visibleNavigationGroups } from "@/lib/app-navigation";
 import { hasCreationDestination } from "@/lib/creation-folders";
 import { setDevForcedUpdateMode } from "@/lib/dev-force-updates";
@@ -219,8 +220,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
   const { user, hasScope, hasAnyScope, hasScopedAccess, logout } = useAuthStore();
   const { setTheme, theme, toggleSidebar } = useUIStore();
-  const pkiEnabled = useSystemConfigStore((state) => state.config.features.pkiEnabled);
-  const siemEnabled = useSystemConfigStore((state) => state.config.features.siemEnabled);
+  const pkiEnabled = usePkiAvailable();
+  const siemEnabled = useSiemAvailable();
   const loggingEnabled = useSystemConfigStore((state) => state.config.features.loggingEnabled);
   const inferenceEnabled = useSystemConfigStore((state) => state.config.features.inferenceEnabled);
   const statusPageEnabled = useUIBootstrapStore(

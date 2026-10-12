@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { nodeIconClassNames } from "@/lib/node-appearance";
 import { api } from "@/services/api";
@@ -138,7 +139,7 @@ export function Pages() {
     } catch (error) {
       if (version !== loadVersion.current) return;
       if (projectsRef.current.length === 0) {
-        toast.error(error instanceof Error ? error.message : "Failed to load Pages");
+        toastApiError(error, "Failed to load Pages");
       }
     } finally {
       if (version === loadVersion.current) setLoading(false);
@@ -184,7 +185,7 @@ export function Pages() {
         toast.success("Page Project deleted");
         await load();
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to delete Page Project");
+        toastApiError(error, "Failed to delete Page Project");
       }
     },
     [load]

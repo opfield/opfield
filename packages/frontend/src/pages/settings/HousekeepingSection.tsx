@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useScrollToNavigationTarget } from "@/hooks/use-scroll-to-navigation-target";
+import { toastApiError } from "@/lib/api-error-toast";
 import { cn, formatBytes } from "@/lib/utils";
 import { api } from "@/services/api";
 import type { HousekeepingConfig, HousekeepingRunResult, HousekeepingStats } from "@/types";
@@ -108,7 +109,7 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
       setHkSavedConfig(updated);
       toast.success("Housekeeping settings updated");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update config");
+      toastApiError(err, "Failed to update config");
       loadHousekeeping();
     } finally {
       setHkSaving(false);
@@ -130,7 +131,7 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
       api.setCache("housekeeping:stats", freshStats);
       setHkStats(freshStats);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Housekeeping failed");
+      toastApiError(err, "Housekeeping failed");
     } finally {
       setHkRunning(false);
     }

@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastApiError } from "@/lib/api-error-toast";
 import { nodeTypeLabel } from "@/lib/node-appearance";
 import { api } from "@/services/api";
 import type { AppDetail, AppEnvironmentDetail, Node } from "@/types";
@@ -59,7 +60,7 @@ export function AllowNodeDialog({
       onOpenChange(false);
       onAllowed();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to allow the node");
+      toastApiError(error, "Failed to allow the node");
     } finally {
       setSaving(false);
     }

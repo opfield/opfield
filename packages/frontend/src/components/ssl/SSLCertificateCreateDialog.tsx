@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   allowedCreationFolderId,
   creationFolderChoices,
@@ -293,7 +294,7 @@ export function SSLCertificateCreateDialog({
         onCloudflareRequired();
         return;
       }
-      toast.error(err instanceof Error ? err.message : "Failed to request certificate");
+      toastApiError(err, "Failed to request certificate");
     } finally {
       setIsRequestingACME(false);
     }
@@ -316,7 +317,7 @@ export function SSLCertificateCreateDialog({
       onCreated();
       scheduleResetForm();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "DNS verification failed");
+      toastApiError(err, "DNS verification failed");
     } finally {
       setIsVerifying(false);
     }
@@ -343,7 +344,7 @@ export function SSLCertificateCreateDialog({
       onCreated();
       scheduleResetForm();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to cancel certificate request");
+      toastApiError(err, "Failed to cancel certificate request");
     } finally {
       setIsCancellingACME(false);
     }
@@ -376,7 +377,7 @@ export function SSLCertificateCreateDialog({
       onCreated();
       scheduleResetForm();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to upload certificate");
+      toastApiError(err, "Failed to upload certificate");
     } finally {
       setIsUploading(false);
     }
@@ -403,7 +404,7 @@ export function SSLCertificateCreateDialog({
       onCreated();
       scheduleResetForm();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to link certificate");
+      toastApiError(err, "Failed to link certificate");
     } finally {
       setIsLinking(false);
     }

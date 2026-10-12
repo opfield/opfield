@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { daysUntil, formatDate, formatSerialNumber, hoursUntil } from "@/lib/utils";
 import { api } from "@/services/api";
 import type { CertificateExportFormat } from "@/services/api-pki";
@@ -96,7 +97,7 @@ export function CertificateDetail() {
       toast.success("Certificate revoked");
       setRevokeDialogOpen(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to revoke");
+      toastApiError(err, "Failed to revoke");
     } finally {
       setIsRevoking(false);
     }
@@ -132,7 +133,7 @@ export function CertificateDetail() {
         setPkcs12DialogOpen(false);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to download certificate");
+      toastApiError(err, "Failed to download certificate");
     } finally {
       setDownloadingFormat(null);
     }

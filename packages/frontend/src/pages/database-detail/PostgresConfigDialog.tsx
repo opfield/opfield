@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import {
   type DatabaseConnection,
@@ -73,9 +74,7 @@ export function PostgresConfigDialog({
       onOpenChange(false);
       onSaved();
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to update PostgreSQL configuration"
-      );
+      toastApiError(error, "Failed to update PostgreSQL configuration");
     } finally {
       setSaving(false);
     }

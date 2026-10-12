@@ -553,7 +553,7 @@ function LoggingSchemaDialog({
       onOpenChange(false);
     } catch (error) {
       if (!handleLicenseApiError(error, "Logging schemas")) {
-        toast.error(error instanceof Error ? error.message : "Failed to create logging schema");
+        toastApiError(error, "Failed to create logging schema");
       }
     } finally {
       setSaving(false);

@@ -1,7 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, MoreHorizontal } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
-import { toast } from "sonner";
 import { AnimatedHeight } from "@/components/common/AnimatedHeight";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toastApiError } from "@/lib/api-error-toast";
 
 const STEP_ANIMATION = {
   initial: { opacity: 0, y: 8 },
@@ -69,7 +69,7 @@ export function FinalizeSetupWizardDialog({
     try {
       await onSkip();
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Failed to skip this setup step");
+      toastApiError(cause, "Failed to skip this setup step");
     } finally {
       setSkipping(false);
     }

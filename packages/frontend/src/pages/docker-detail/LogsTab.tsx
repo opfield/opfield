@@ -5,6 +5,7 @@ import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { AnsiText } from "@/components/ui/ansi-text";
 import { Button } from "@/components/ui/button";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { DockerLogViewport } from "./DockerLogViewport";
 
@@ -198,7 +199,7 @@ function AggregatedLogsTab({
           .getLogs({ tail: 500, timestamps: true })
           .then((result) => append(result ?? []))
           .catch((error) => {
-            if (active) toast.error(error instanceof Error ? error.message : "Log stream error");
+            if (active) toastApiError(error, "Log stream error");
           })
           .finally(readyOnce);
         continue;

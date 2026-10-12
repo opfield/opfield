@@ -17,6 +17,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
 import type { SiemDestination } from "@/types";
@@ -125,7 +126,7 @@ export function SiemDestinationsTab({
         )
       );
       if (!handleLicenseApiError(error, "SIEM delivery")) {
-        toast.error(error instanceof Error ? error.message : "Failed to update SIEM destination");
+        toastApiError(error, "Failed to update SIEM destination");
       }
     }
   };
@@ -148,7 +149,7 @@ export function SiemDestinationsTab({
       }
     } catch (error) {
       if (!handleLicenseApiError(error, "SIEM destination test")) {
-        toast.error(error instanceof Error ? error.message : "SIEM test failed");
+        toastApiError(error, "SIEM test failed");
       }
     }
   };
@@ -170,7 +171,7 @@ export function SiemDestinationsTab({
       await load({ showLoading: false });
     } catch (error) {
       if (!handleLicenseApiError(error, "SIEM destinations")) {
-        toast.error(error instanceof Error ? error.message : "Failed to delete SIEM destination");
+        toastApiError(error, "Failed to delete SIEM destination");
       }
     }
   };

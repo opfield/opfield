@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { proxyHostRoute } from "@/lib/resource-routes";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -159,7 +160,7 @@ export function DomainDetailDialog({
       await api.updateDomain(domain.id, { description: newDesc });
       onUpdated();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save domain description");
+      toastApiError(err, "Failed to save domain description");
     }
   };
 
@@ -201,7 +202,7 @@ export function DomainDetailDialog({
       toast.success(proxied ? "Cloudflare proxy enabled" : "Cloudflare proxy disabled");
       onUpdated();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update Cloudflare proxy");
+      toastApiError(err, "Failed to update Cloudflare proxy");
     } finally {
       setIsUpdatingProxied(false);
     }
@@ -218,7 +219,7 @@ export function DomainDetailDialog({
       setSelectedNodeId(selected || "");
       setResolutionOpen(true);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load Ingress nodes");
+      toastApiError(err, "Failed to load Ingress nodes");
     }
   };
 
@@ -241,7 +242,7 @@ export function DomainDetailDialog({
             : "Cloudflare migration checked"
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to resolve DNS conflict");
+      toastApiError(err, "Failed to resolve DNS conflict");
     } finally {
       setIsResolving(false);
     }
@@ -294,7 +295,7 @@ export function DomainDetailDialog({
       setIngressMigrationOpen(true);
       setIngressMigrationImpact(await api.previewDomainIngressMigration(domain.id, target.id));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to prepare ingress migration");
+      toastApiError(err, "Failed to prepare ingress migration");
       if (initialView === "ingress-migration") onOpenChange(false);
     } finally {
       setIsLoadingIngressMigration(false);
@@ -324,7 +325,7 @@ export function DomainDetailDialog({
     try {
       setIngressMigrationImpact(await api.previewDomainIngressMigration(domain.id, targetNodeId));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to preview ingress migration");
+      toastApiError(err, "Failed to preview ingress migration");
     } finally {
       setIsLoadingIngressMigration(false);
     }
@@ -348,7 +349,7 @@ export function DomainDetailDialog({
         toast.warning("Source cleanup is pending");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Ingress migration failed");
+      toastApiError(err, "Ingress migration failed");
     } finally {
       setIsMigratingIngress(false);
     }

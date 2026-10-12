@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import type { AccessList } from "@/types";
@@ -80,7 +81,7 @@ export function AccessLists() {
       toast.success("Access list deleted");
       loadAccessLists();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete access list");
+      toastApiError(err, "Failed to delete access list");
     }
   };
 

@@ -34,6 +34,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
+import { toastApiError } from "@/lib/api-error-toast";
 import { hostingOperationLabel } from "@/lib/hosting-status";
 import { getReturnNavigationTarget } from "@/lib/return-navigation";
 import { formatRelativeDate } from "@/lib/utils";
@@ -347,7 +348,7 @@ export function HostingIntegrationDetail({
                 toast.success("Hosting connector deleted");
                 navigate(returnTo);
               } catch (cause) {
-                toast.error(errorMessage(cause, "Failed to delete hosting connector."));
+                toastApiError(cause, "Failed to delete hosting connector.");
               } finally {
                 setDeleting(false);
               }

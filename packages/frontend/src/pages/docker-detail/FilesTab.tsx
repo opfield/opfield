@@ -48,6 +48,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { isImageFileName } from "@/lib/file-types";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -700,7 +701,7 @@ export function FilesTab({
       setCreateDialog(null);
       await reloadDirectory(createDialog.directory);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : `Failed to create ${createDialog.type}`);
+      toastApiError(err, `Failed to create ${createDialog.type}`);
     } finally {
       setIsCreatingEntry(false);
     }
@@ -884,7 +885,7 @@ export function FilesTab({
       } catch (err) {
         rootsRef.current = previousRoots;
         setRoots(previousRoots);
-        toast.error(err instanceof Error ? err.message : "Failed to move file");
+        toastApiError(err, "Failed to move file");
       } finally {
         setPendingMovePaths((prev) => {
           const next = new Set(prev);
@@ -915,7 +916,7 @@ export function FilesTab({
         await navigator.clipboard.writeText(await readFileContent(node.path));
         toast.success("File content copied");
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to copy file");
+        toastApiError(err, "Failed to copy file");
       }
     },
     [closeContextMenu, openMaxBytes, readFileContent]
@@ -935,7 +936,7 @@ export function FilesTab({
         link.click();
         URL.revokeObjectURL(url);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to download file");
+        toastApiError(err, "Failed to download file");
       }
     },
     [closeContextMenu, readFileBytes]
@@ -957,7 +958,7 @@ export function FilesTab({
         toast.success(node.isDir ? "Folder deleted" : "File deleted");
         await reloadDirectory(parentPath(node.path));
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to delete");
+        toastApiError(err, "Failed to delete");
       }
     },
     [closeContextMenu, fileOperations, reloadDirectory]

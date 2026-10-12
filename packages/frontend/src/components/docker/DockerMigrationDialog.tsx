@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   clearDockerMigrationOwnedByTab,
   markDockerMigrationOwnedByTab,
@@ -125,8 +126,7 @@ export function DockerMigrationDialog({
         );
       })
       .catch((error) => {
-        if (!cancelled)
-          toast.error(error instanceof Error ? error.message : "Failed to load Docker nodes");
+        if (!cancelled) toastApiError(error, "Failed to load Docker nodes");
       })
       .finally(() => {
         if (!cancelled) setTargetsLoaded(true);
@@ -184,7 +184,7 @@ export function DockerMigrationDialog({
       transitionTo("review");
     } catch (error) {
       if (!handleLicenseApiError(error, "Cross-node migration")) {
-        toast.error(error instanceof Error ? error.message : "Migration preflight failed");
+        toastApiError(error, "Migration preflight failed");
       }
     } finally {
       setLoadingAction(false);
@@ -208,7 +208,7 @@ export function DockerMigrationDialog({
         transitionTo("setup");
       }
       if (!handleLicenseApiError(error, "Cross-node migration")) {
-        toast.error(error instanceof Error ? error.message : "Failed to start migration");
+        toastApiError(error, "Failed to start migration");
       }
     } finally {
       setLoadingAction(false);
@@ -221,7 +221,7 @@ export function DockerMigrationDialog({
     try {
       setMigration(await api.cancelDockerMigration(migration.id));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to cancel migration");
+      toastApiError(error, "Failed to cancel migration");
     } finally {
       setLoadingAction(false);
     }
@@ -233,7 +233,7 @@ export function DockerMigrationDialog({
     try {
       setMigration(await api.retryDockerMigrationCleanup(migration.id));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to retry cleanup");
+      toastApiError(error, "Failed to retry cleanup");
     } finally {
       setLoadingAction(false);
     }
@@ -248,7 +248,7 @@ export function DockerMigrationDialog({
       setMigration(await api.resolveDockerMigration(migration.id, side));
       toast.success("Migration resolved");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to resolve migration");
+      toastApiError(error, "Failed to resolve migration");
     } finally {
       setLoadingAction(false);
     }

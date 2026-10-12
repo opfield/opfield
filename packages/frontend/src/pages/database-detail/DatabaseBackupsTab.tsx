@@ -41,6 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   MANAGED_DATABASE_NAME_PATTERN,
   normalizeManagedDatabaseName,
@@ -88,10 +89,6 @@ function backupsCacheKey(databaseId: string) {
   return `database:backups:${databaseId}`;
 }
 
-function errorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-
 export interface BackupSelectionOption {
   id: string;
   label: string;
@@ -136,7 +133,7 @@ export function useBackupRunActions(runApi: BackupRunApi, refresh: () => Promise
           toast.success("History entry removed");
           await refresh();
         } catch (error) {
-          toast.error(errorMessage(error, "Failed to remove history entry"));
+          toastApiError(error, "Failed to remove history entry");
         }
         return;
       }
@@ -162,7 +159,7 @@ export function useBackupRunActions(runApi: BackupRunApi, refresh: () => Promise
               outcome.failure = error.message;
               return;
             }
-            toast.error(errorMessage(error, "Failed to delete backup"));
+            toastApiError(error, "Failed to delete backup");
             throw error;
           }
         }
@@ -186,7 +183,7 @@ export function useBackupRunActions(runApi: BackupRunApi, refresh: () => Promise
         toast.success("Entry forgotten; the backup files were left in storage");
         await refresh();
       } catch (error) {
-        toast.error(errorMessage(error, "Failed to forget history entry"));
+        toastApiError(error, "Failed to forget history entry");
       }
     },
     [runApi, refresh]
@@ -198,7 +195,7 @@ export function useBackupRunActions(runApi: BackupRunApi, refresh: () => Promise
         toast.success(force ? "Run ended" : "Cancellation requested");
         await refresh();
       } catch (error) {
-        toast.error(errorMessage(error, "Failed to request cancellation"));
+        toastApiError(error, "Failed to request cancellation");
       }
     },
     [runApi, refresh]
@@ -374,7 +371,7 @@ export function DatabaseBackupsTab({
       setPolicies(nextPolicies);
       setRuns(nextRuns);
     } catch (error) {
-      toast.error(errorMessage(error, "Failed to load backups"));
+      toastApiError(error, "Failed to load backups");
     } finally {
       setLoading(false);
     }
@@ -409,7 +406,7 @@ export function DatabaseBackupsTab({
       toast.success("Backup queued");
       await refresh();
     } catch (error) {
-      toast.error(errorMessage(error, "Failed to queue backup"));
+      toastApiError(error, "Failed to queue backup");
     }
   };
   const setScheduleEnabled = async (policy: BackupPolicy, enabled: boolean) => {
@@ -418,7 +415,7 @@ export function DatabaseBackupsTab({
       toast.success(enabled ? "Backup schedule enabled" : "Backup schedule disabled");
       await refresh();
     } catch (error) {
-      toast.error(errorMessage(error, "Failed to update backup schedule"));
+      toastApiError(error, "Failed to update backup schedule");
     }
   };
   const removePolicy = async (policy: BackupPolicy) => {
@@ -435,7 +432,7 @@ export function DatabaseBackupsTab({
       toast.success("Backup policy deleted");
       await refresh();
     } catch (error) {
-      toast.error(errorMessage(error, "Failed to delete backup policy"));
+      toastApiError(error, "Failed to delete backup policy");
     }
   };
   const destinationLabel = (policy: BackupPolicy) =>
@@ -648,7 +645,7 @@ function PolicyDialog({
         limits,
       });
     } catch (error) {
-      toast.error(errorMessage(error, "Failed to save backup policy"));
+      toastApiError(error, "Failed to save backup policy");
     } finally {
       setSaving(false);
     }
@@ -984,7 +981,7 @@ export function RestoreDialog({
           : {}),
       });
     } catch (error) {
-      toast.error(errorMessage(error, "Failed to queue restore"));
+      toastApiError(error, "Failed to queue restore");
     } finally {
       setRestoring(false);
     }

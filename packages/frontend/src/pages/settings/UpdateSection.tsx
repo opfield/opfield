@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useScrollToNavigationTarget } from "@/hooks/use-scroll-to-navigation-target";
+import { toastApiError } from "@/lib/api-error-toast";
 import { isDevForceUpdatesEnabled } from "@/lib/dev-force-updates";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
@@ -119,9 +120,7 @@ export function UpdateSection({ canUpdate }: UpdateSectionProps) {
       await abandonRelayUpdate();
       toast.success("Relay Pool update abandoned");
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to abandon the Relay Pool update"
-      );
+      toastApiError(error, "Failed to abandon the Relay Pool update");
     } finally {
       setAbandoningRelayUpdate(false);
     }

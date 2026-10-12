@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { loadPageDeployments } from "@/lib/page-deployments";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -60,7 +61,7 @@ export function PageDeploymentsTab({
         setDeployments(next);
       } catch (error) {
         if (requestId === loadRequestRef.current) {
-          toast.error(error instanceof Error ? error.message : "Failed to load Deployments");
+          toastApiError(error, "Failed to load Deployments");
         }
       } finally {
         if (requestId === loadRequestRef.current) setLoading(false);
@@ -87,7 +88,7 @@ export function PageDeploymentsTab({
         )
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update Deployment");
+      toastApiError(error, "Failed to update Deployment");
     }
   };
 
@@ -107,7 +108,7 @@ export function PageDeploymentsTab({
       toast.success("Deployment deleted");
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete Deployment");
+      toastApiError(error, "Failed to delete Deployment");
     }
   };
 

@@ -8,6 +8,7 @@ import { useContentLoading } from "@/components/common/reveal-gate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { listManagedDatabaseCandidateNodes } from "@/lib/managed-database-nodes";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -321,7 +322,7 @@ export function EnvironmentTab({
       }
     } catch (err) {
       if (isCurrentRequest()) {
-        toast.error(err instanceof Error ? err.message : "Failed to fetch environment");
+        toastApiError(err, "Failed to fetch environment");
       }
     } finally {
       if (isCurrentRequest()) setIsLoading(false);
@@ -711,7 +712,7 @@ export function EnvironmentTab({
       }
     } catch (err) {
       onMutationEnd?.();
-      toast.error(err instanceof Error ? err.message : "Failed to update environment");
+      toastApiError(err, "Failed to update environment");
     } finally {
       envMutationInProgressRef.current = false;
       setIsSaving(false);

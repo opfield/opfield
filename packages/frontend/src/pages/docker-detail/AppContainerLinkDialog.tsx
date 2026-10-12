@@ -6,6 +6,7 @@ import {
   rememberAppCreation,
   useAppEnvironmentChoice,
 } from "@/components/apps/app-create-context";
+import { toastApiError } from "@/lib/api-error-toast";
 import { hasComposeProjectScope } from "@/lib/compose-access";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -96,7 +97,7 @@ export function AppContainerLinkDialog({
       })
       .catch((error) => {
         if (!cancelled) {
-          toast.error(error instanceof Error ? error.message : "Failed to load the environment");
+          toastApiError(error, "Failed to load the environment");
         }
       })
       .finally(() => {
@@ -128,7 +129,7 @@ export function AppContainerLinkDialog({
       await api.createContainerLink(input);
     } catch (error) {
       if (!handleLicenseApiError(error, "Container links")) {
-        toast.error(error instanceof Error ? error.message : "Failed to add the container link");
+        toastApiError(error, "Failed to add the container link");
       }
       return false;
     }

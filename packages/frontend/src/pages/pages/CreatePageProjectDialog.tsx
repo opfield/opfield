@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastApiError } from "@/lib/api-error-toast";
 import { canCreateInFolder } from "@/lib/scope-utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -104,9 +105,7 @@ export function CreatePageProjectDialog({
       void api
         .listPageProjectPlacementOptions()
         .then((next) => setPlacementOptions(next))
-        .catch((error) =>
-          toast.error(error instanceof Error ? error.message : "Failed to load Pages nodes")
-        )
+        .catch((error) => toastApiError(error, "Failed to load Pages nodes"))
         .finally(() => {
           setNodesLoading(false);
           setNodesLoaded(true);
@@ -149,7 +148,7 @@ export function CreatePageProjectDialog({
       onCreated(project);
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create Page Project");
+      toastApiError(error, "Failed to create Page Project");
     } finally {
       setSaving(false);
     }

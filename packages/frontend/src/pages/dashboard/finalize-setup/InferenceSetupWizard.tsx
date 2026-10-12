@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useInferenceCoreStatus } from "@/hooks/use-inference-core-status";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   InferenceCoreLifecyclePanel,
   InferenceCoreSetupFooterAction,
@@ -122,7 +123,7 @@ export function InferenceSetupWizard({
       setConnections(nextConnections);
       setModels(nextModels);
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Failed to load Opfield Inference");
+      toastApiError(cause, "Failed to load Opfield Inference");
     } finally {
       setLoading(false);
     }
@@ -171,9 +172,7 @@ export function InferenceSetupWizard({
       .checkInferenceCoreUpdates()
       .then(() => core.refresh())
       .catch((cause) => {
-        toast.error(
-          cause instanceof Error ? cause.message : "Failed to discover inference core releases"
-        );
+        toastApiError(cause, "Failed to discover inference core releases");
       })
       .finally(() => {
         setReleaseDiscoveryComplete(true);
@@ -269,7 +268,7 @@ export function InferenceSetupWizard({
       // catalog explicitly instead of waiting for the store-driven rerender.
       await loadInferenceData();
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Failed to enable Opfield Inference");
+      toastApiError(cause, "Failed to enable Opfield Inference");
     } finally {
       setSaving(false);
     }
@@ -331,9 +330,7 @@ export function InferenceSetupWizard({
         setCompleted(true);
       }
     } catch (cause) {
-      toast.error(
-        cause instanceof Error ? cause.message : "Failed to configure the inference model"
-      );
+      toastApiError(cause, "Failed to configure the inference model");
     } finally {
       setSaving(false);
     }
@@ -347,7 +344,7 @@ export function InferenceSetupWizard({
       await configureAIWorkspace(defaultModel);
       setCompleted(true);
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Failed to configure AI Workspace");
+      toastApiError(cause, "Failed to configure AI Workspace");
     } finally {
       setSaving(false);
     }

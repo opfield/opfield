@@ -49,6 +49,7 @@ import {
 } from "@/components/common/SimpleTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { toastApiError } from "@/lib/api-error-toast";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -214,7 +215,7 @@ export function InferenceProvidersPanel({
         setConnections(nextConnections);
         initializedRef.current = true;
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to load inference providers");
+        toastApiError(error, "Failed to load inference providers");
       } finally {
         if (showLoading) setLoading(false);
       }
@@ -256,7 +257,7 @@ export function InferenceProvidersPanel({
         toast.success("Provider synchronized");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Provider sync failed");
+      toastApiError(error, "Provider sync failed");
     } finally {
       setSyncingId(null);
     }
@@ -287,7 +288,7 @@ export function InferenceProvidersPanel({
     } catch (error) {
       setConnections(previous);
       await load({ showLoading: false });
-      toast.error(error instanceof Error ? error.message : "Failed to update provider order");
+      toastApiError(error, "Failed to update provider order");
     } finally {
       setReordering(false);
     }

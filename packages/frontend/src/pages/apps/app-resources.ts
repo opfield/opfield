@@ -1,7 +1,8 @@
 // Member rows of the app tabs: the normal list endpoints filtered to the app (`appId` + the `app` field).
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
+import { planIncludes } from "@/stores/license-paywall";
 import { syncPinnedContainerMeta } from "@/stores/pinned-containers";
 import type {
   ContainerLink,
@@ -161,7 +162,7 @@ export async function loadAppNetwork(appId: string): Promise<AppNetwork> {
   const byKey = new Map(workloads.map((w) => [workloadKey(w.nodeId, w.type, w.resourceId), w]));
 
   const linkLists = await Promise.all(
-    workloads.map((workload) =>
+    (planIncludes("container-links") ? workloads : []).map((workload) =>
       api
         .listContainerLinks({
           nodeId: workload.nodeId,
@@ -186,8 +187,8 @@ export async function loadAppNetwork(appId: string): Promise<AppNetwork> {
 
   // Bindings are listed per managed database / storage; keep those that reach a member workload.
   const [managedDatabases, managedStorages] = await Promise.all([
-    api.listManagedDatabases().catch(() => []),
-    api.listManagedObjectStorages().catch(() => []),
+    planIncludes("external-database-connections") ? api.listManagedDatabases().catch(() => []) : [],
+    planIncludes("managed-storage") ? api.listManagedObjectStorages().catch(() => []) : [],
   ]);
   const bindingRows = await Promise.all([
     ...managedDatabases.map((database) =>
@@ -263,7 +264,7 @@ export function useAppLoad<T>(key: string | null, version: number, loader: () =>
         if (!cancelled) setData(next);
       })
       .catch((error) => {
-        if (!cancelled) toast.error(error instanceof Error ? error.message : "Failed to load");
+        if (!cancelled) toastApiError(error, "Failed to load");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

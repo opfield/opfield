@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { loadPageDeployments } from "@/lib/page-deployments";
 import { formatRelativeDate } from "@/lib/utils";
 import { api } from "@/services/api";
@@ -55,7 +56,7 @@ export function PageTagsTab({ projectId }: { projectId: string }) {
         setTags(nextTags);
         setDeployments(nextDeployments.data ?? []);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to load Tags");
+        toastApiError(error, "Failed to load Tags");
       } finally {
         setLoading(false);
       }
@@ -87,7 +88,7 @@ export function PageTagsTab({ projectId }: { projectId: string }) {
       setDialogOpen(false);
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to publish Tag");
+      toastApiError(error, "Failed to publish Tag");
     } finally {
       setSaving(false);
     }
@@ -110,7 +111,7 @@ export function PageTagsTab({ projectId }: { projectId: string }) {
       toast.success("Tag deleted");
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete Tag");
+      toastApiError(error, "Failed to delete Tag");
     }
   };
 

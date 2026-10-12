@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { AppMemberBadge } from "@/components/apps/AppMembership";
 import { MoveToAppDialog } from "@/components/apps/MoveToAppDialog";
 import { MoveToAppRowMenu } from "@/components/apps/MoveToAppRowMenu";
@@ -39,6 +38,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { DATABASE_TYPE_LABELS, databaseTypeLabel } from "@/lib/database-type";
 import { refreshDynamicScopes } from "@/lib/live-scopes";
@@ -356,7 +356,7 @@ function DatabasesContent({
         }
         setRows(data);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to load databases");
+        toastApiError(error, "Failed to load databases");
       } finally {
         setLoading(false);
       }

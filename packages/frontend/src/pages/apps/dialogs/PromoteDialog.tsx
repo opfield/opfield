@@ -3,7 +3,6 @@
 // target, then each item's progress.
 import { ArrowLeft, ArrowRight, ArrowUpFromLine, Box, Boxes, Globe2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 import { Notice } from "@/components/common/Notice";
 import { PanelShell } from "@/components/common/PanelShell";
 import { SettingsControlRow, SettingsInlineControl } from "@/components/common/SettingsControlRow";
@@ -26,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import {
   APPS_REALTIME_CHANNEL,
@@ -156,8 +156,7 @@ export function PromoteDialog({
         );
       })
       .catch((error) => {
-        if (!cancelled)
-          toast.error(error instanceof Error ? error.message : "Failed to read what runs");
+        if (!cancelled) toastApiError(error, "Failed to read what runs");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -207,7 +206,7 @@ export function PromoteDialog({
       setStep(3);
       onDone();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to promote");
+      toastApiError(error, "Failed to promote");
     } finally {
       setSubmitting(false);
     }

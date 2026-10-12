@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { AppDetail } from "@/types";
 import { APP_DIALOG_WIDTH } from "./AppNameDialog";
@@ -56,7 +57,7 @@ export function KillSwitchDialog({
       onOpenChange(false);
       onDone();
     } catch (reason) {
-      toast.error(reason instanceof Error ? reason.message : "Failed to isolate the app");
+      toastApiError(reason, "Failed to isolate the app");
     } finally {
       setPending(false);
     }

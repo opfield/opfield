@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { AppDetail, AppIncident, AppIncidentKind } from "@/types";
 
@@ -52,7 +53,7 @@ export async function turnOffKillSwitch(
     toast.success(`Restoring ${app.name}`);
     return true;
   } catch (error) {
-    toast.error(error instanceof Error ? error.message : "Failed to turn off the kill switch");
+    toastApiError(error, "Failed to turn off the kill switch");
     return false;
   }
 }
@@ -74,7 +75,7 @@ export async function startAfterShutdown(
     toast.success(`Starting ${app.name}`);
     return true;
   } catch (error) {
-    toast.error(error instanceof Error ? error.message : "Failed to start the app");
+    toastApiError(error, "Failed to start the app");
     return false;
   }
 }

@@ -27,6 +27,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
@@ -259,7 +260,7 @@ export function AvailabilitySection({
         }
       } catch (error) {
         if (!handleLicenseApiError(error, "Availability")) {
-          toast.error(error instanceof Error ? error.message : "Failed to load Availability");
+          toastApiError(error, "Failed to load Availability");
         }
       } finally {
         setLoading(false);
@@ -404,7 +405,7 @@ export function AvailabilitySection({
       return result.eligible;
     } catch (error) {
       if (!handleLicenseApiError(error, "Availability")) {
-        toast.error(error instanceof Error ? error.message : "Availability preflight failed");
+        toastApiError(error, "Availability preflight failed");
       }
       return false;
     } finally {
@@ -439,7 +440,7 @@ export function AvailabilitySection({
       await load(false);
     } catch (error) {
       if (!handleLicenseApiError(error, "Availability")) {
-        toast.error(error instanceof Error ? error.message : "Failed to update Availability");
+        toastApiError(error, "Failed to update Availability");
       }
     } finally {
       setSaving(false);
@@ -814,9 +815,7 @@ export function AvailabilitySection({
                     });
                   }
                 } catch (error) {
-                  toast.error(
-                    error instanceof Error ? error.message : "Failed to disable Availability"
-                  );
+                  toastApiError(error, "Failed to disable Availability");
                 } finally {
                   setSaving(false);
                 }

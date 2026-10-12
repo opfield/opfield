@@ -25,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toastApiError } from "@/lib/api-error-toast";
 import { databaseRoute } from "@/lib/resource-routes";
 import { canCreateInFolder } from "@/lib/scope-utils";
 import { api } from "@/services/api";
@@ -100,7 +101,7 @@ export function DatabaseConnectionCreateDialog({
       if (onCreated) onCreated(created);
       else navigate(databaseRoute(created.slug, "overview"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create database connection");
+      toastApiError(error, "Failed to create database connection");
     } finally {
       setSaving(false);
     }

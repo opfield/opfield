@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toastApiError } from "@/lib/api-error-toast";
 import { daemonTypeForNode, isDaemonUpdateAvailable, nodeTypeLabel } from "@/lib/node-appearance";
 import { api } from "@/services/api";
 import { useDaemonUpdatesStore } from "@/stores/daemon-updates";
@@ -141,7 +142,7 @@ export function BulkNodeUpdateDialog({
       .catch((error) => {
         if (cancelled) return;
         setCandidates([]);
-        toast.error(error instanceof Error ? error.message : "Failed to load node updates");
+        toastApiError(error, "Failed to load node updates");
       });
     return () => {
       cancelled = true;

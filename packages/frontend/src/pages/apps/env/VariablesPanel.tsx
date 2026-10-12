@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { CodeEditor } from "@/components/ui/code-editor";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { toastApiError } from "@/lib/api-error-toast";
 import { cn } from "@/lib/utils";
 import { type SecretRow, SecretsSection } from "@/pages/docker-detail/SecretsSection";
 import { api } from "@/services/api";
@@ -98,7 +99,7 @@ export function VariablesPanel({
     try {
       apply(await api.getAppVariables(app.id, env.id));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load variables");
+      toastApiError(error, "Failed to load variables");
     }
   }, [app.id, env.id, apply]);
 
@@ -192,7 +193,7 @@ export function VariablesPanel({
         );
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save");
+      toastApiError(error, "Failed to save");
     } finally {
       setSaving(null);
     }

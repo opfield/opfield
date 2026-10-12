@@ -72,6 +72,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useUrlTab } from "@/hooks/use-url-tab";
+import { toastApiError } from "@/lib/api-error-toast";
 import { createClientUuid } from "@/lib/client-id";
 import { canAdoptComposeProject, hasComposeProjectScope } from "@/lib/compose-access";
 import { composeServiceRows } from "@/lib/compose-service-availability";
@@ -221,7 +222,7 @@ export function DockerComposeProjectDetail() {
       setLatestOperation(summary.lastOperation ?? null);
       setSelectedServiceName((current) => current ?? detail.services[0]?.name ?? null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load Compose project");
+      toastApiError(error, "Failed to load Compose project");
     } finally {
       setLoading(false);
     }
@@ -271,7 +272,7 @@ export function DockerComposeProjectDetail() {
       });
       setRecentActivity(result.data);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load Compose activity");
+      toastApiError(error, "Failed to load Compose activity");
     } finally {
       setRecentActivityLoading(false);
     }
@@ -294,7 +295,7 @@ export function DockerComposeProjectDetail() {
         });
         setActivityNextCursor(result.nextCursor);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to load Compose activity");
+        toastApiError(error, "Failed to load Compose activity");
       } finally {
         if (cursor) setActivityLoadingMore(false);
         else setActivityLoading(false);
@@ -375,7 +376,7 @@ export function DockerComposeProjectDetail() {
       await load();
     } catch (error) {
       if (!handleLicenseApiError(error, "Compose lifecycle")) {
-        toast.error(error instanceof Error ? error.message : "Compose operation failed");
+        toastApiError(error, "Compose operation failed");
       }
     } finally {
       setAction(null);
@@ -400,7 +401,7 @@ export function DockerComposeProjectDetail() {
       toast.success("Compose project and runtime resources deleted");
       navigate(dockerComposeRootRoute(), { replace: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete Compose project");
+      toastApiError(error, "Failed to delete Compose project");
     } finally {
       setDeleting(false);
     }
@@ -424,7 +425,7 @@ export function DockerComposeProjectDetail() {
       toast.success(`Revision ${revision.revisionNumber} deleted`);
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete revision");
+      toastApiError(error, "Failed to delete revision");
     }
   };
 
@@ -623,7 +624,7 @@ export function DockerComposeProjectDetail() {
         state: { returnTo: location.pathname },
       });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to open the service container");
+      toastApiError(error, "Failed to open the service container");
     }
   };
 

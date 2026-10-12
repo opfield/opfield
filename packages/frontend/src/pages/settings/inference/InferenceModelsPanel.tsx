@@ -26,6 +26,7 @@ import {
 } from "@/components/common/SimpleTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { toastApiError } from "@/lib/api-error-toast";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -116,7 +117,7 @@ export function InferenceModelsPanel({ refreshToken = 0 }: { refreshToken?: numb
         setGroups(nextGroups);
         setUsers(nextUsers);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to load inference models");
+        toastApiError(error, "Failed to load inference models");
       } finally {
         if (showLoading) setLoading(false);
       }
@@ -143,7 +144,7 @@ export function InferenceModelsPanel({ refreshToken = 0 }: { refreshToken?: numb
       await api.deleteInferenceModel(model.id);
       await load({ showLoading: false });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete model");
+      toastApiError(error, "Failed to delete model");
     } finally {
       setDeletingId(null);
     }
@@ -165,7 +166,7 @@ export function InferenceModelsPanel({ refreshToken = 0 }: { refreshToken?: numb
     } catch (error) {
       setModels(previous);
       await load({ showLoading: false });
-      toast.error(error instanceof Error ? error.message : "Failed to update model order");
+      toastApiError(error, "Failed to update model order");
     } finally {
       setReordering(false);
     }

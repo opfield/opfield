@@ -1,8 +1,8 @@
 import { Hammer } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { PanelShell } from "@/components/common/PanelShell";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { DockerBuild } from "@/types";
 import { DockerBuildDetailsDialog } from "../docker-detail/DockerBuildDetailsDialog";
@@ -36,7 +36,7 @@ export function BuilderJobsTab({ nodeId }: { nodeId: string }) {
         setNextCursor(page.nextCursor);
       } catch (error) {
         if (currentRequest === requestId.current) {
-          toast.error(error instanceof Error ? error.message : "Failed to load Build Worker jobs");
+          toastApiError(error, "Failed to load Build Worker jobs");
         }
       } finally {
         if (currentRequest === requestId.current) {

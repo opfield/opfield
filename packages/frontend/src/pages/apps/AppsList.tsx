@@ -3,7 +3,6 @@
 import { AppWindow, Plus, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -21,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { appRoute } from "@/lib/app-routes";
 import { nodeIconClassNames } from "@/lib/node-appearance";
 import { cn, formatBytes } from "@/lib/utils";
@@ -112,7 +112,7 @@ export function AppsList() {
       api.setCache(APPS_LIST_CACHE_KEY, next);
       setApps(next);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load apps");
+      toastApiError(error, "Failed to load apps");
     } finally {
       setLoading(false);
     }

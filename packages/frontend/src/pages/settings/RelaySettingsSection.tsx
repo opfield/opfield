@@ -41,6 +41,7 @@ import {
 import { StatCard } from "@/components/ui/stat-card";
 import { Switch } from "@/components/ui/switch";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   DEFAULT_HOST_ACCESS_INSTALL_OPTIONS,
   withHostAccessInstallFlags,
@@ -285,9 +286,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
 
   useEffect(() => {
     void load()
-      .catch((error) =>
-        toast.error(error instanceof Error ? error.message : "Failed to load relay settings")
-      )
+      .catch((error) => toastApiError(error, "Failed to load relay settings"))
       .finally(() => setInitialLoadComplete(true));
     const timer = window.setInterval(() => {
       void api
@@ -313,9 +312,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
       toast.success("Relay Pool update abandoned");
       recordStatus(await api.getRelayStatus());
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to abandon the Relay Pool update"
-      );
+      toastApiError(error, "Failed to abandon the Relay Pool update");
     } finally {
       setAbandoningUpdate(false);
     }
@@ -347,7 +344,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
       api.setCache(RELAY_SETTINGS_CACHE_KEY, updated);
       toast.success("Relay settings saved");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save relay settings");
+      toastApiError(error, "Failed to save relay settings");
     } finally {
       setSaving(false);
     }
@@ -393,7 +390,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
         toast.warning("Rebalance result received, but relay status could not be refreshed");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Relay rebalance failed");
+      toastApiError(error, "Relay rebalance failed");
     } finally {
       setPoolAction(null);
     }
@@ -416,7 +413,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
       recordStatus(await api.setRelayInstanceDrain(instance.id, enabled));
       toast.success(enabled ? "Relay is draining" : "Relay resumed");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Relay action failed");
+      toastApiError(error, "Relay action failed");
     } finally {
       setPoolAction(null);
     }
@@ -438,7 +435,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
       recordStatus(await api.forceDisconnectRelayInstance(instance.id));
       toast.success("Active relay streams disconnected");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Relay action failed");
+      toastApiError(error, "Relay action failed");
     } finally {
       setPoolAction(null);
     }
@@ -450,7 +447,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
       recordStatus(await api.renewRelayInstanceCertificate(instance.id));
       toast.success("Relay certificate renewed");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Relay certificate renewal failed");
+      toastApiError(error, "Relay certificate renewal failed");
     } finally {
       setPoolAction(null);
     }
@@ -471,9 +468,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
       setReenrollment(await api.reenrollRelayInstance(instance.id));
       setHostAccess(DEFAULT_HOST_ACCESS_INSTALL_OPTIONS);
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to create a re-enrollment token"
-      );
+      toastApiError(error, "Failed to create a re-enrollment token");
     } finally {
       setPoolAction(null);
     }
@@ -499,7 +494,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
       await load();
       toast.success("Relay node removed");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Relay removal failed");
+      toastApiError(error, "Relay removal failed");
     } finally {
       setPoolAction(null);
     }

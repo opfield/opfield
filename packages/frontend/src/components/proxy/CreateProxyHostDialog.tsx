@@ -49,6 +49,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   allowedCreationFolderId,
   type CreationFolderOption,
@@ -667,7 +668,7 @@ export function CreateProxyHostDialog({
       }
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save route");
+      toastApiError(err, "Failed to save route");
     } finally {
       setIsSaving(false);
     }

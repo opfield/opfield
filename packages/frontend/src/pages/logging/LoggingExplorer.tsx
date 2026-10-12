@@ -1,6 +1,5 @@
 import { Info, Loader2, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ReferenceTable } from "@/components/common/ReferenceTable";
 import { useContentLoading } from "@/components/common/reveal-gate";
@@ -15,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type {
   LoggingEnvironment,
@@ -126,7 +126,7 @@ export function LoggingExplorer({
         setRows((current) => (cursor ? [...current, ...result.data] : result.data));
         setNextCursor(result.nextCursor);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to search logs");
+        toastApiError(error, "Failed to search logs");
       } finally {
         if (cursor) setLoadingMore(false);
         else {

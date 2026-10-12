@@ -30,6 +30,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
+import { toastApiError } from "@/lib/api-error-toast";
 import { formatBytes } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAIStore } from "@/stores/ai";
@@ -132,7 +133,7 @@ function SandboxJobsPanel() {
     try {
       setJobs(await api.listAISandboxJobs({ limit: 100, status: "running" }));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load sandbox jobs");
+      toastApiError(error, "Failed to load sandbox jobs");
     } finally {
       if (!options.silent) setLoading(false);
     }
@@ -156,7 +157,7 @@ function SandboxJobsPanel() {
       toast.success("Sandbox job killed");
       await loadJobs({ silent: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to kill sandbox job");
+      toastApiError(error, "Failed to kill sandbox job");
     } finally {
       setKillingId(null);
     }
@@ -365,7 +366,7 @@ function SandboxArtifactsPanel() {
       const result = await api.listAISandboxArtifacts({ page: 1, limit: 10 });
       setArtifacts(result.data);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load artifacts");
+      toastApiError(error, "Failed to load artifacts");
     } finally {
       if (!options.silent) setLoading(false);
     }
@@ -392,7 +393,7 @@ function SandboxArtifactsPanel() {
       setNextPage(result.nextPage);
     } catch (error) {
       if (requestId === allRequestId.current) {
-        toast.error(error instanceof Error ? error.message : "Failed to load artifacts");
+        toastApiError(error, "Failed to load artifacts");
       }
     } finally {
       if (requestId === allRequestId.current) {
@@ -447,7 +448,7 @@ function SandboxArtifactsPanel() {
       await loadArtifacts({ silent: true });
       if (allOpen) await loadAllPage(1, true);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete artifact");
+      toastApiError(error, "Failed to delete artifact");
     } finally {
       setDeletingId(null);
     }
@@ -839,7 +840,7 @@ export function AIConfigSection() {
         .catch(() => {});
       toast.success("AI settings updated");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update AI settings");
+      toastApiError(err, "Failed to update AI settings");
     } finally {
       setAiSavingSection(null);
     }

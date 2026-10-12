@@ -57,6 +57,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { toastApiError } from "@/lib/api-error-toast";
 import {
   DATABASE_TYPE_LABELS,
   KEY_VALUE_TYPE_DESCRIPTION,
@@ -812,7 +813,7 @@ export function ManagedDatabaseCreateDialog({
       closeProvisioningError();
       navigate(databaseRoute(database.slug, "overview"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to open managed database");
+      toastApiError(error, "Failed to open managed database");
     }
   };
 

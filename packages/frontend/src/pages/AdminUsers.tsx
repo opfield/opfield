@@ -55,6 +55,7 @@ import {
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
+import { toastApiError } from "@/lib/api-error-toast";
 import { canCreateInFolder, scopeMatches } from "@/lib/scope-utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -297,7 +298,7 @@ function AdminUsersContent({
       setUsers((current) =>
         current.map((entry) => (entry.id === user.id ? { ...entry, ...update.confirmed } : entry))
       );
-      toast.error(err instanceof Error ? err.message : "Failed to update group");
+      toastApiError(err, "Failed to update group");
     } finally {
       ++usersLoadVersion.current;
       groupUpdates.current.delete(user.id);
@@ -317,7 +318,7 @@ function AdminUsersContent({
       toast.success("User deleted");
       await Promise.all([reloadUsers(), ...(canManageDeletedUsers ? [loadDeletedUsers()] : [])]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete user");
+      toastApiError(err, "Failed to delete user");
     }
   };
 
@@ -328,7 +329,7 @@ function AdminUsersContent({
       api.resetSessionState();
       window.location.assign("/");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to impersonate user");
+      toastApiError(error, "Failed to impersonate user");
       setImpersonatingUserId(null);
     }
   };
@@ -355,7 +356,7 @@ function AdminUsersContent({
       setRestoreUser(null);
       await Promise.all([loadDeletedUsers(), reloadUsers()]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to restore user");
+      toastApiError(err, "Failed to restore user");
     } finally {
       setRestoring(false);
     }
@@ -400,7 +401,7 @@ function AdminUsersContent({
       reloadUsers();
     } catch (err) {
       if (!handleLicenseApiError(err, "Users")) {
-        toast.error(err instanceof Error ? err.message : "Failed to create user");
+        toastApiError(err, "Failed to create user");
       }
     } finally {
       setCreating(false);

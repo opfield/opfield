@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import { CheckboxCard } from "@/components/common/CheckboxCard";
 import { Notice } from "@/components/common/Notice";
 import {
@@ -9,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { handleLicenseApiError } from "@/stores/license-paywall";
 import type {
@@ -179,7 +179,7 @@ export function AvailabilityCreateSection({
           setResult(null);
           onPreflightRef.current?.({ result: null, pending: false });
           if (!handleLicenseApiError(error, AVAILABILITY_CAPABILITY)) {
-            toast.error(error instanceof Error ? error.message : "Availability check failed");
+            toastApiError(error, "Availability check failed");
           }
         })
         .finally(() => {

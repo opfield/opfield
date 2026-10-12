@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { DashboardRelayInstance } from "@/types";
 
@@ -53,7 +54,7 @@ export function WitnessHostingToggle({
       onChanged(await api.setRelayWitnessHosting(instance.id, next));
       toast.success(next ? "Witnesses allowed on this relay" : "Witnesses no longer allowed");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to change witness hosting");
+      toastApiError(error, "Failed to change witness hosting");
     } finally {
       setSaving(false);
     }

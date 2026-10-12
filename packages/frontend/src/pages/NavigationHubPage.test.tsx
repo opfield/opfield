@@ -138,7 +138,8 @@ describe("per-tab permissions", () => {
     renderAt("/routes");
     expect(await screen.findByRole("heading", { name: "Domains" })).toBeInTheDocument();
     expect(screen.getByTestId("url")).toHaveTextContent("/routes/domains");
-    expect(tabNames()).toEqual(["Domains"]);
+    // A page left with one tab shows no tab row.
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
   });
 
   it("moves a user off a tab they may not open", async () => {
@@ -152,7 +153,7 @@ describe("per-tab permissions", () => {
     signIn(["ssl:cert:view", "pki:ca:view", "pki:cert:view", "pki:templates:view"], false);
     renderAt("/certificates/authorities");
     expect(await screen.findByRole("heading", { name: "SSL Certificates" })).toBeInTheDocument();
-    expect(tabNames()).toEqual(["SSL"]);
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
   });
 
   it("shows all four Certificates tabs with PKI on", async () => {

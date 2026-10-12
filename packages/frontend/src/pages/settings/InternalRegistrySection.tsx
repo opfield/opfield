@@ -157,7 +157,7 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
       toast.success("Internal registry settings updated");
     } catch (error) {
       if (!handleLicenseApiError(error, "External internal registry access")) {
-        toast.error(error instanceof Error ? error.message : "Failed to update internal registry");
+        toastApiError(error, "Failed to update internal registry");
       }
     } finally {
       setSaving(false);

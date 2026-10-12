@@ -26,7 +26,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
+import { type LicenseFeature, planIncludes } from "@/stores/license-paywall";
 import {
   type AlertCategoryDef,
   type AlertRule,
@@ -41,6 +43,15 @@ import {
   type TemplateEditorHandle,
   UNIVERSAL_VARIABLES,
 } from "./template-editor";
+
+const ALERT_CATEGORY_FEATURES: Partial<Record<string, LicenseFeature>> = {
+  pages: "pages",
+  logging: "structured-logging",
+  managed_storage: "managed-storage",
+  database_postgres: "external-database-connections",
+  database_clickhouse: "external-database-connections",
+  database_redis: "external-database-connections",
+};
 
 const ROOT_DISK_TARGET = "/";
 const CERTIFICATE_EXPIRY_METRIC = "days_until_expiry";
@@ -195,6 +206,9 @@ export function AlertDialog({
   const loadAvailableResources = useCallback(async () => {
     const loadToken = ++resourceLoadTokenRef.current;
     setAvailableResources([]);
+    // Resources of a feature the plan does not include are not listed (their API refuses).
+    const planFeature = ALERT_CATEGORY_FEATURES[category];
+    if (planFeature && !planIncludes(planFeature)) return;
 
     try {
       if (category === "hosting_account" || category === "hosting_vm") {
@@ -337,7 +351,7 @@ export function AlertDialog({
 
       if (category === "integration") {
         const [gitlab, cloudflare] = await Promise.all([
-          api.listGitLabConnectors().catch(() => []),
+          planIncludes("gitlab") ? api.listGitLabConnectors().catch(() => []) : [],
           api.listCloudflareConnectors().catch(() => []),
         ]);
         if (resourceLoadTokenRef.current !== loadToken) return;
@@ -678,7 +692,7 @@ export function AlertDialog({
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save");
+      toastApiError(err, "Failed to save");
     } finally {
       setSaving(false);
     }

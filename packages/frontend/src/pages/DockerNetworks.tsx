@@ -42,6 +42,7 @@ import { TruncateStart } from "@/components/ui/truncate-start";
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { canCreateDockerResourceOnNode, loadVisibleDockerNodes } from "@/lib/docker-node-access";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
 import { dockerContainerRoute } from "@/lib/resource-routes";
@@ -333,7 +334,7 @@ export function DockerNetworks({
         toast.success("Network removed");
         fetchNetworks(undefined, search);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to remove network");
+        toastApiError(err, "Failed to remove network");
       } finally {
         setRemovingNetworkId(null);
       }
@@ -356,7 +357,7 @@ export function DockerNetworks({
       closeCreate();
       fetchNetworks(undefined, search);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create network");
+      toastApiError(err, "Failed to create network");
     } finally {
       setCreating(false);
     }

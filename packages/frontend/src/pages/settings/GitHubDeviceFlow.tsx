@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { AnimatedHeight } from "@/components/common/AnimatedHeight";
 import { CopyValueField } from "@/components/common/CopyValueField";
 import { Button } from "@/components/ui/button";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { GitHubOAuthSession, GitHubOAuthStartRequest } from "@/types/integrations";
 
@@ -51,7 +52,7 @@ export function GitHubDeviceFlow({
         }
       } catch (cause) {
         if (!cancelled) {
-          toast.error(cause instanceof Error ? cause.message : "GitHub authorization check failed");
+          toastApiError(cause, "GitHub authorization check failed");
           setPollAttempt((current) => current + 1);
         }
       }
@@ -71,9 +72,7 @@ export function GitHubDeviceFlow({
       onActiveChange?.(true);
       setPollAttempt(0);
     } catch (cause) {
-      toast.error(
-        cause instanceof Error ? cause.message : "GitHub authorization could not be started"
-      );
+      toastApiError(cause, "GitHub authorization could not be started");
     } finally {
       setStarting(false);
     }

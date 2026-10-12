@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Notice, NoticeAction } from "@/components/common/Notice";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { DatabaseConnection } from "@/types";
 
@@ -35,9 +36,7 @@ export function DatabaseTlsVerificationNotice({
       toast.success("Certificate verified. Verification is now enabled.");
       onVerified(updated);
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "The server certificate could not be verified"
-      );
+      toastApiError(error, "The server certificate could not be verified");
     } finally {
       setVerifying(false);
     }

@@ -69,6 +69,7 @@ import {
   confirmBypassEverythingMode,
   updateAIApprovalModeOptimistically,
 } from "@/lib/ai-user-preferences";
+import { toastApiError } from "@/lib/api-error-toast";
 import { deriveAllowedResourceIdsByScope, scopeMatches } from "@/lib/scope-utils";
 import { cn, getInitials } from "@/lib/utils";
 import { api } from "@/services/api";
@@ -309,7 +310,7 @@ export function Profile() {
     try {
       await updateAIApprovalModeOptimistically(mode, aiApprovalMode);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update AI mode");
+      toastApiError(error, "Failed to update AI mode");
     }
   };
 
@@ -321,7 +322,7 @@ export function Profile() {
       toast.success(avatar ? "Avatar updated" : "Avatar removed");
       return true;
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update avatar");
+      toastApiError(error, "Failed to update avatar");
       return false;
     } finally {
       setAvatarUploading(false);
@@ -568,7 +569,7 @@ function BrowserSessionsPanel() {
     try {
       setSessions(await api.listCurrentUserSessions());
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load active sessions");
+      toastApiError(error, "Failed to load active sessions");
     } finally {
       setLoading(false);
     }
@@ -585,7 +586,7 @@ function BrowserSessionsPanel() {
       setSessions((current) => current.filter((session) => session.id !== id));
       toast.success("Session revoked");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to revoke session");
+      toastApiError(error, "Failed to revoke session");
     } finally {
       setRevokingId(null);
     }
@@ -598,7 +599,7 @@ function BrowserSessionsPanel() {
       setSessions((current) => current.filter((session) => session.isCurrent));
       toast.success(count === 1 ? "One other session revoked" : `${count} other sessions revoked`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to revoke sessions");
+      toastApiError(error, "Failed to revoke sessions");
     } finally {
       setRevokingOthers(false);
     }
@@ -773,9 +774,7 @@ function LocalAccountSecurityPanel() {
       setStatus(nextStatus);
       setPasskeys(nextPasskeys);
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to load account security settings"
-      );
+      toastApiError(error, "Failed to load account security settings");
     } finally {
       setStatusLoaded(true);
     }
@@ -869,7 +868,7 @@ function LocalAccountSecurityPanel() {
         stepUpUseRecoveryCode ? { recoveryCode: stepUpCode.trim() } : { totpCode: stepUpCode }
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Invalid authentication code");
+      toastApiError(error, "Invalid authentication code");
       setStepUpBusy(null);
       return;
     }
@@ -884,7 +883,7 @@ function LocalAccountSecurityPanel() {
       const response = await startAuthentication({ optionsJSON: options as never });
       await api.finishCurrentUserStepUpPasskey(options.challenge, response);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Passkey verification failed");
+      toastApiError(error, "Passkey verification failed");
       setStepUpBusy(null);
       return;
     }
@@ -905,7 +904,7 @@ function LocalAccountSecurityPanel() {
         requestStepUp(registerPasskey);
         return;
       }
-      toast.error(error instanceof Error ? error.message : "Failed to add passkey");
+      toastApiError(error, "Failed to add passkey");
     } finally {
       setAddingPasskey(false);
     }
@@ -928,7 +927,7 @@ function LocalAccountSecurityPanel() {
         requestStepUp(openTotpSetup);
         return;
       }
-      toast.error(error instanceof Error ? error.message : "Failed to start TOTP setup");
+      toastApiError(error, "Failed to start TOTP setup");
     }
   };
 
@@ -945,7 +944,7 @@ function LocalAccountSecurityPanel() {
         requestStepUp(openTotpSetup);
         return;
       }
-      toast.error(error instanceof Error ? error.message : "Invalid authentication code");
+      toastApiError(error, "Invalid authentication code");
     } finally {
       setTotpSaving(false);
     }
@@ -964,7 +963,7 @@ function LocalAccountSecurityPanel() {
         requestStepUp(resetAndReconfigureTotp);
         return;
       }
-      toast.error(error instanceof Error ? error.message : "Failed to reset TOTP");
+      toastApiError(error, "Failed to reset TOTP");
     } finally {
       setTotpResetting(false);
     }
@@ -981,7 +980,7 @@ function LocalAccountSecurityPanel() {
         requestStepUp(() => removePasskey(id));
         return;
       }
-      toast.error(error instanceof Error ? error.message : "Failed to remove passkey");
+      toastApiError(error, "Failed to remove passkey");
     } finally {
       setRemovingPasskeyId(null);
     }

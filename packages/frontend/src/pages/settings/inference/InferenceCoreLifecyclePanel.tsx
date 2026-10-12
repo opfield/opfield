@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ProgressBar } from "@/components/ui/progress-bar";
+import { toastApiError } from "@/lib/api-error-toast";
 import { formatBytes } from "@/lib/utils";
 import { api } from "@/services/api";
 import type { InferenceCoreOperationPhase, InferenceCoreStatus } from "@/types/inference-core";
@@ -226,7 +227,7 @@ export function InferenceCoreSetupFooterAction({
       await action();
       await onRefresh();
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Inference core action failed");
+      toastApiError(cause, "Inference core action failed");
     } finally {
       setActing(false);
     }
@@ -370,7 +371,7 @@ export function InferenceCoreLifecyclePanel({
       await action();
       await onRefresh();
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Inference core action failed");
+      toastApiError(cause, "Inference core action failed");
     } finally {
       setActing(null);
     }
@@ -387,7 +388,7 @@ export function InferenceCoreLifecyclePanel({
       version = result.latest?.version ?? status.latest?.version ?? null;
       await onRefresh();
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Failed to check for updates");
+      toastApiError(cause, "Failed to check for updates");
       return;
     } finally {
       setActing(null);
@@ -419,7 +420,7 @@ export function InferenceCoreLifecyclePanel({
         toast.success("Inference core is up to date");
       }
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Failed to check for updates");
+      toastApiError(cause, "Failed to check for updates");
     } finally {
       setActing(null);
     }
