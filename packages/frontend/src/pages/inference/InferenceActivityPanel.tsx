@@ -262,7 +262,7 @@ export function InferenceActivityPanel({ refreshToken = 0 }: { refreshToken?: nu
       </PanelShell>
 
       <Dialog open={open} onOpenChange={close}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-h-[85dvh] sm:max-w-3xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-h-[85dvh] sm:max-w-5xl">
           <DialogHeader>
             <DialogTitle>Inference Activity</DialogTitle>
             <DialogDescription>
