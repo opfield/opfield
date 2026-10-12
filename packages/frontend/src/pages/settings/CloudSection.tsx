@@ -84,7 +84,6 @@ export function CloudSection({ canManage }: CloudSectionProps) {
   const [link, setLink] = useState<CloudConnectCodeView | null>(null);
   const [startingLink, setStartingLink] = useState(false);
   const [cancellingLink, setCancellingLink] = useState(false);
-  const [enterCode, setEnterCode] = useState(false);
 
   const applyStatus = useCallback((next: CloudLinkStatusView) => {
     const { warning: _warning, ...view } = next;
@@ -160,7 +159,6 @@ export function CloudSection({ canManage }: CloudSectionProps) {
 
   const handleStartLink = async () => {
     setStartingLink(true);
-    setEnterCode(false);
     try {
       setLink(await api.startCloudLinkCode());
     } catch (err) {
@@ -281,13 +279,6 @@ export function CloudSection({ canManage }: CloudSectionProps) {
   const linkEnded = link !== null && ENDED_CODE_STATES.has(link.state);
   const pendingCode = linkPending && link?.code && link.expiresAt ? link : null;
 
-  const connectButton = canManage ? (
-    <Button onClick={handleStartLink} pending={startingLink}>
-      <Cloud className="h-4 w-4" />
-      {linkEnded ? "Get a new code" : disconnectedByAccount ? "Connect again" : "Connect"}
-    </Button>
-  ) : null;
-
   const codeDisplay = pendingCode ? (
     <div className="flex items-center gap-3">
       <span className="font-mono text-sm font-medium" aria-label="Connect code">
@@ -299,17 +290,6 @@ export function CloudSection({ canManage }: CloudSectionProps) {
       </Button>
     </div>
   ) : null;
-
-  const enterCodeLink =
-    canManage && !enterCode && !pendingCode ? (
-      <>
-        {" "}
-        Have a code from your account?{" "}
-        <Button variant="link" size="inline" onClick={() => setEnterCode(true)}>
-          Enter it
-        </Button>
-      </>
-    ) : null;
 
   const codeForm = canManage ? (
     <form
@@ -356,11 +336,9 @@ export function CloudSection({ canManage }: CloudSectionProps) {
             ? "Enter this code in the other Opfield account → Installations → Add"
             : connected
               ? `Connected to ${status.accountEmail ?? "your cloud account"}`
-              : pendingCode
-                ? "Enter this code in your Opfield account → Installations → Add"
-                : disconnectedByAccount
-                  ? "Disconnected by the account"
-                  : "Connect this Opfield installation to your cloud account"
+              : disconnectedByAccount
+                ? "Disconnected by the account"
+                : "Paste the code from your Opfield account and press Connect"
       }
       className="xl:col-span-2"
       style={{ borderColor: "var(--color-info)" }}
@@ -381,7 +359,7 @@ export function CloudSection({ canManage }: CloudSectionProps) {
                   </Button>
                 </div>
               ) : null))
-            : (codeDisplay ?? (enterCode ? codeForm : connectButton))
+            : codeForm
       }
     >
       {connected && !managed && pendingCode && (
@@ -421,9 +399,7 @@ export function CloudSection({ canManage }: CloudSectionProps) {
           <p className="p-4 text-sm text-muted-foreground">
             {status.disconnectedReason ??
               "Your cloud account disconnected this Opfield installation."}{" "}
-            To connect it again, press Connect again and enter the code in your Opfield account
-            under Installations → Add.
-            {enterCodeLink}
+            To connect it again, paste a new code from your Opfield account above.
             {askAdministrator}
           </p>
           {status.accountEmail && <DetailRow label="Account" value={status.accountEmail} />}
@@ -431,14 +407,38 @@ export function CloudSection({ canManage }: CloudSectionProps) {
         </div>
       )}
 
-      {!connected && !disconnectedByAccount && (
-        <p className="p-4 text-sm text-muted-foreground">
-          A connected Opfield keeps one outbound connection to your cloud account, so the account
-          can show this installation's state and container logs. Press Connect and enter the code it
-          shows in your Opfield account under Installations → Add.
-          {enterCodeLink}
-          {askAdministrator}
-        </p>
+      {!connected && (
+        <div className="space-y-3 p-4 text-sm text-muted-foreground">
+          {!disconnectedByAccount && (
+            <p>
+              A connected Opfield keeps one outbound connection to your cloud account, so the
+              account can show this installation's state and container logs. Get the code in your
+              Opfield account under Installations → Add and paste it above.
+              {askAdministrator}
+            </p>
+          )}
+          {/* The other way round: Opfield shows a code to enter in the account. */}
+          {canManage &&
+            (pendingCode ? (
+              <div className="space-y-2">
+                <p>Or enter this code in your Opfield account → Installations → Add:</p>
+                {codeDisplay}
+              </div>
+            ) : (
+              <p>
+                No code from the account?{" "}
+                <Button
+                  variant="link"
+                  size="inline"
+                  onClick={handleStartLink}
+                  disabled={startingLink}
+                >
+                  {linkEnded ? "Get a new code here" : "Get a code here"}
+                </Button>{" "}
+                and enter it in your Opfield account under Installations → Add.
+              </p>
+            ))}
+        </div>
       )}
     </PanelShell>
   );
