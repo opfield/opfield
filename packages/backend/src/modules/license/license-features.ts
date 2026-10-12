@@ -25,8 +25,12 @@ export const LICENSE_FEATURE_PLANS = {
   'multi-node-availability': 'business',
   'compose-applications': 'personal',
   'container-links': 'personal',
+  'disk-image-volumes': 'personal',
+  'security-scanning': 'business',
   'internal-pki': 'enterprise',
   'siem-export': 'enterprise',
+  'oidc-group-mapping': 'enterprise',
+  scim: 'enterprise',
 } as const;
 
 export type LicenseFeature = keyof typeof LICENSE_FEATURE_PLANS;
@@ -42,8 +46,9 @@ export const LICENSE_FEATURE_ENTITLEMENT_ALIASES: Partial<Record<LicenseFeature,
 /**
  * Published paid v3/v4 grants predate these capability names. Their canonical paid maps all include
  * managed-databases; Community never does. Container links came after v5 too: every paid v3-v5
- * contract grants them through managed-databases. Never add features retroactively to the
- * canonical v3/v4 signed contracts.
+ * contract grants them through managed-databases. Disk-image volumes need any paid plan (Personal
+ * or higher) and have no entitlement name of their own, so they are granted the same way. Never add
+ * features retroactively to the canonical v3/v4 signed contracts.
  */
 export const LICENSE_PRE_V5_PERSONAL_CAPABILITIES: readonly LicenseFeature[] = [
   'storage-connections',
@@ -52,6 +57,7 @@ export const LICENSE_PRE_V5_PERSONAL_CAPABILITIES: readonly LicenseFeature[] = [
   'ai-scenarios',
   'ai-sandboxes',
   'container-links',
+  'disk-image-volumes',
 ];
 
 /** Whether an entitlement feature list grants a feature. */

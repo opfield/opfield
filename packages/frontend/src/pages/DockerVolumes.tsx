@@ -63,10 +63,9 @@ import { useDockerStore } from "@/stores/docker";
 import { useDockerFolderStore } from "@/stores/docker-folders";
 import {
   handleLicenseApiError,
-  LICENSE_PLAN_RANK,
-  requireMinimumLicensePlan,
+  requireLicenseFeature,
+  usePlanIncludes,
 } from "@/stores/license-paywall";
-import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import type { DockerFolderTreeNode, DockerVolume, Node, NodeAppearanceColor } from "@/types";
 
 interface DockerVolumeListItem extends DockerVolume {
@@ -228,7 +227,7 @@ export function DockerVolumes({
     }
     if (
       createStorageKind === "disk-image" &&
-      !requireMinimumLicensePlan("personal", "Disk image volumes")
+      !requireLicenseFeature("disk-image-volumes", "Disk image volumes")
     ) {
       return;
     }
@@ -299,14 +298,8 @@ export function DockerVolumes({
     selectedNodeCapabilities?.dockerDaemonNonRootV1 === true ||
       advertisedNodeCapabilities.includes("docker_daemon_non_root_v1")
   );
-  // Disk-image volumes need Personal or higher; the option is hidden on lower plans.
-  const planAllowsDiskImages = useUIBootstrapStore((state) => {
-    const license = state.snapshot?.license;
-    if (!license) return true;
-    const moduleReady =
-      !state.snapshot?.commercialModule || state.snapshot.commercialModule === "ready";
-    return moduleReady && LICENSE_PLAN_RANK[license.plan] >= LICENSE_PLAN_RANK.personal;
-  });
+  // Disk-image volumes follow the plan map (Personal or higher); the option is hidden on lower plans.
+  const planAllowsDiskImages = usePlanIncludes("disk-image-volumes");
   const parsedCreateCapacityGb = Number(createCapacityGb);
   const createCapacityValid =
     Number.isInteger(parsedCreateCapacityGb) && parsedCreateCapacityGb >= 1;

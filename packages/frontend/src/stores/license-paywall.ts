@@ -133,22 +133,6 @@ export function requireLicenseFeature(feature: LicenseFeature, capability: strin
   return false;
 }
 
-export function requireMinimumLicensePlan(
-  requiredPlan: PaidLicensePlan,
-  capability: string
-): boolean {
-  const license = useUIBootstrapStore.getState().snapshot?.license;
-  if (!license) return true;
-  if (LICENSE_PLAN_RANK[license.plan] >= LICENSE_PLAN_RANK[requiredPlan])
-    return requireCommercialModule(capability, requiredPlan);
-  useLicensePaywallStore.getState().open({
-    capability,
-    requiredPlan,
-    currentPlan: license.plan,
-  });
-  return false;
-}
-
 function requireCommercialModule(capability: string, requiredPlan: PaidLicensePlan): boolean {
   const state = useUIBootstrapStore.getState().snapshot?.commercialModule;
   // Older backends do not expose module state; retain their existing behavior.

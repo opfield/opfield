@@ -24,8 +24,12 @@ export const LICENSE_FEATURE_PLANS = {
   "multi-node-availability": "business",
   "compose-applications": "personal",
   "container-links": "personal",
+  "disk-image-volumes": "personal",
+  "security-scanning": "business",
   "internal-pki": "enterprise",
   "siem-export": "enterprise",
+  "oidc-group-mapping": "enterprise",
+  scim: "enterprise",
 } as const;
 
 export type LicenseFeature = keyof typeof LICENSE_FEATURE_PLANS;
@@ -43,6 +47,7 @@ export const LICENSE_PRE_V5_PERSONAL_CAPABILITIES: readonly LicenseFeature[] = [
   "ai-scenarios",
   "ai-sandboxes",
   "container-links",
+  "disk-image-volumes",
 ];
 
 /** Whether an entitlement feature list grants a feature; the same rule as the backend policy. */

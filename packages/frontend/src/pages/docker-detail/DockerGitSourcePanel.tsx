@@ -48,7 +48,11 @@ import { Switch } from "@/components/ui/switch";
 import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
-import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
+import {
+  handleLicenseApiError,
+  requireLicenseFeature,
+  usePlanIncludes,
+} from "@/stores/license-paywall";
 import type { DockerBuildSecret, DockerSourceBinding, DockerSourceTarget } from "@/types";
 import { RepositorySourceFields } from "../docker-deploy/RepositorySourceFields";
 import { useDockerSourceRepositories } from "../docker-deploy/useDockerSourceRepositories";
@@ -254,6 +258,8 @@ export function DockerGitSourcePanel({
           : target?.pageProjectId;
   const composeTarget = target?.kind === "compose_project";
   const pagesTarget = target?.kind === "pages_project";
+  // Vulnerability scanning and its admission policy follow the plan map (Business).
+  const scanningInPlan = usePlanIncludes("security-scanning");
   const {
     connectorOptions,
     connectorsLoading,
@@ -1299,7 +1305,7 @@ export function DockerGitSourcePanel({
               </div>
             </SettingsControlRow>
           )}
-          {!pagesTarget && (
+          {!pagesTarget && scanningInPlan && (
             <SettingsControlRow
               title="Vulnerability policy"
               description="Lowest severity that blocks a deployment."
@@ -1346,7 +1352,7 @@ export function DockerGitSourcePanel({
               </Select>
             </SettingsControlRow>
           )}
-          {!pagesTarget && (
+          {!pagesTarget && scanningInPlan && (
             <SettingsControlRow
               title="Vulnerability scope"
               description="Packages that can block a deployment."
