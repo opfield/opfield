@@ -172,11 +172,7 @@ func stageClickHouseAvailability(record *managedDatabaseRecord, input managedDat
 	if timeout == 0 {
 		timeout = 10
 	}
-	files := map[string][]byte{
-		chha.ServerConfigFile: chha.RenderServerConfig(config, ec, errors.Is(statErr, os.ErrNotExist)),
-		chha.UsersConfigFile:  chha.RenderUsersConfig(1, timeout*1000, hash),
-		chha.RoleConfigFile:   chha.RenderRoleConfig(availability.Standalone),
-	}
+	files := chha.StageMemberFiles(config, ec, errors.Is(statErr, os.ErrNotExist), availability.Standalone, timeout*1000, hash)
 	for name, data := range files {
 		if err := writeClickHouseConfig(filepath.Join(record.MountPath, name), string(data)); err != nil {
 			return nil, fmt.Errorf("write ClickHouse availability file %s: %w", name, err)

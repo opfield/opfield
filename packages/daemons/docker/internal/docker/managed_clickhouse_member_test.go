@@ -62,6 +62,19 @@ func TestStageClickHouseAvailabilityMember(t *testing.T) {
 	if !strings.Contains(string(server), "<server_id>1</server_id>") || !strings.Contains(string(server), "<interserver_http_port>39001</interserver_http_port>") {
 		t.Fatalf("server config %s", server)
 	}
+	// A member created with an empty Keeper state tells the holder it waits to be added (the member runtime
+	// takes it over only once its container exists), and its readiness never names a database it gets only
+	// after it joined.
+	if marker, err := os.ReadFile(filepath.Join(mount, "gateway-keeper-joining")); err != nil || strings.TrimSpace(string(marker)) != "joining" {
+		t.Fatalf("joining marker %q %v", marker, err)
+	}
+	if command, _, _ := managedDatabaseReadinessCommand(managedDatabaseCommand{Type: "clickhouse", OwnerUsername: "o", DatabaseName: "app",
+		ClickhouseAvailability: input.ClickhouseAvailability}); strings.Contains(strings.Join(command, " "), "--database") {
+		t.Fatalf("member readiness names a database: %v", command)
+	}
+	if command, _, _ := managedDatabaseReadinessCommand(managedDatabaseCommand{Type: "clickhouse", OwnerUsername: "o", DatabaseName: "app"}); !strings.Contains(strings.Join(command, " "), "--database app") {
+		t.Fatalf("single-node readiness: %v", command)
+	}
 	info, err := os.Stat(filepath.Join(mount, clickHouseInternalSecretFile))
 	if err != nil || info.Mode().Perm() != 0o600 {
 		t.Fatalf("internal secret %v %v", info, err)

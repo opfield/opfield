@@ -368,9 +368,15 @@ func (e *engine) setDatabases(ctx context.Context, ec EngineConfig) ([]string, e
 	if err != nil && !strings.Contains(err.Error(), "No node") {
 		return nil, err
 	}
+	// Only the member that converts (the bootstrap voter, which holds the
+	// Atomic databases) waits for its convert; a copy joins every Replicated
+	// database registered in Keeper at once (it has no Atomic database of the
+	// name, and its readiness and catch-up need them).
 	converting := map[string]bool{}
-	for _, name := range ec.ConvertDatabases {
-		converting[name] = true
+	if ec.convertsHere() {
+		for _, name := range ec.ConvertDatabases {
+			converting[name] = true
+		}
 	}
 	seen := map[string]bool{}
 	var out []string
@@ -920,6 +926,13 @@ func (e *engine) reconcile(ctx context.Context, snap *configSnapshot) {
 	if err != nil || !state.Running {
 		e.fw.close()
 		return
+	}
+	if !e.joining.Load() && e.markerSet(joiningMarker) {
+		// The daemon created this member's container with an empty Keeper
+		// state (StageMemberFiles) after the engine opened: its Keeper waits
+		// to be added, which the holder learns from PeerEngineState.
+		e.joining.Store(true)
+		e.keeperGate.Store(true)
 	}
 	e.fw.ensure(state.ID, pid, desiredForwardsGated(snap.config.MemberID, snap.ec, e.keeperGate.Load()))
 	text, err := e.rt.Query(ctx, statusQuery)

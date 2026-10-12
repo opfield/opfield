@@ -22,6 +22,7 @@ import (
 	mobyclient "github.com/moby/moby/client"
 
 	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
+	"github.com/wiolett-industries/gateway/docker-daemon/internal/chha"
 )
 
 // createContainer creates and starts the engine container and waits until it
@@ -412,6 +413,11 @@ func managedDatabaseReadinessCommand(input managedDatabaseCommand) ([]string, []
 	case "redis":
 		return []string{"redis-cli", "--no-auth-warning", "--user", "default", "PING"}, []string{"REDISCLI_AUTH=" + input.OwnerPassword}, nil
 	case "clickhouse":
+		if clickHouseAvailabilitySetID(input) != "" {
+			// A set member has its databases only once its Keeper joined the set
+			// (chha.MemberReadinessQuery); the member runtime tracks them.
+			return []string{"clickhouse-client", "--host", "127.0.0.1", "--user", input.OwnerUsername, "--query", chha.MemberReadinessQuery}, []string{"CLICKHOUSE_PASSWORD=" + input.OwnerPassword}, nil
+		}
 		return []string{"clickhouse-client", "--host", "127.0.0.1", "--user", input.OwnerUsername, "--database", input.DatabaseName, "--query", "SELECT 1"}, []string{"CLICKHOUSE_PASSWORD=" + input.OwnerPassword}, nil
 	default:
 		return nil, nil, errors.New("unsupported managed database engine")
