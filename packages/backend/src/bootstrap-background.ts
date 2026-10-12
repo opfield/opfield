@@ -302,10 +302,12 @@ export async function initializeBackgroundServices(): Promise<void> {
       kind === 'storage'
         ? nodeDispatch.sendDockerStorageCommand(nodeId, 'leftovers', '', '', 15_000)
         : nodeDispatch.sendDockerDatabaseCommand(nodeId, 'leftovers', '', '', 15_000),
-    removeLeftover: (nodeId, kind, id) =>
-      kind === 'storage'
-        ? nodeDispatch.sendDockerStorageCommand(nodeId, 'remove', id, JSON.stringify({ leftover: true }))
-        : nodeDispatch.sendDockerDatabaseCommand(nodeId, 'remove', id, JSON.stringify({ leftover: true })),
+    removeLeftover: (nodeId, kind, id, memberId) => {
+      const payload = JSON.stringify(memberId ? { leftover: true, memberId } : { leftover: true });
+      return kind === 'storage'
+        ? nodeDispatch.sendDockerStorageCommand(nodeId, 'remove', id, payload)
+        : nodeDispatch.sendDockerDatabaseCommand(nodeId, 'remove', id, payload);
+    },
     audit: async ({ nodeId, kind, leftover }) => {
       await container.resolve(AuditService).log({
         userId: null,
@@ -316,6 +318,7 @@ export async function initializeBackgroundServices(): Promise<void> {
           kind,
           instanceId: leftover.id,
           record: leftover.record,
+          ...(leftover.record === 'member' ? { setId: leftover.setId, memberId: leftover.memberId } : {}),
           containers: leftover.containers ?? [],
           imageBytes: leftover.imageBytes,
           allocatedBytes: leftover.allocatedBytes,

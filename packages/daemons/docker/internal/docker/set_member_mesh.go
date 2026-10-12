@@ -74,7 +74,11 @@ type setMeshSet struct {
 	exposed   map[string]setMeshExpose // by host:port
 	listeners map[string]*setMeshListener
 	local     setMeshLocalDial
-	conns     map[net.Conn]struct{}
+	// origin serves the primary aliases from this node's own master while a
+	// single node turns into the set's first member (before the member
+	// runtime promoted it); see SetOriginPrimary.
+	origin setMeshLocalDial
+	conns  map[net.Conn]struct{}
 }
 
 type setMesh struct {
@@ -205,6 +209,27 @@ func (s *setMesh) SetLocalPrimary(setID string, dial setMeshLocalDial) {
 	s.mu.Lock()
 	s.set(setID).local = dial
 	s.mu.Unlock()
+}
+
+// SetOriginPrimary serves the primary aliases through dial while the member
+// runtime's own dialer does not take them: a single node that turns into the
+// set's first member runs its master before any lease or member runtime
+// names it the primary, and its volume server and filer reach that master
+// only through the primary alias. The origin dialer stays until the member
+// runtime serves the alias itself (its first local connection), the set is
+// released, or the returned function removes it (a conversion that failed).
+func (s *setMesh) SetOriginPrimary(setID string, dial setMeshLocalDial) func() {
+	s.mu.Lock()
+	entry := s.set(setID)
+	entry.origin = dial
+	s.mu.Unlock()
+	return func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if entry := s.sets[setID]; entry != nil {
+			entry.origin = nil
+		}
+	}
 }
 
 // ExtraHosts are the hosts entries the set's containers need: every exposed
@@ -495,14 +520,31 @@ func (s *setMesh) serve(setID string, spec setMeshExpose, conn net.Conn) {
 	parsed, _ := parseSetPeerAlias(spec.alias)
 	if parsed.primary {
 		s.mu.Lock()
-		var local setMeshLocalDial
+		var local, origin setMeshLocalDial
 		if entry := s.sets[setID]; entry != nil {
-			local = entry.local
+			local, origin = entry.local, entry.origin
 		}
 		s.mu.Unlock()
 		if local != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), proxyDialTimeoutForMesh)
 			upstream, ok := local(ctx, parsed.port)
+			cancel()
+			if ok && upstream != nil {
+				if origin != nil {
+					// The member runtime serves the primary now.
+					s.mu.Lock()
+					if entry := s.sets[setID]; entry != nil {
+						entry.origin = nil
+					}
+					s.mu.Unlock()
+				}
+				pipeConns(conn, upstream)
+				return
+			}
+		}
+		if origin != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), proxyDialTimeoutForMesh)
+			upstream, ok := origin(ctx, parsed.port)
 			cancel()
 			if ok && upstream != nil {
 				pipeConns(conn, upstream)

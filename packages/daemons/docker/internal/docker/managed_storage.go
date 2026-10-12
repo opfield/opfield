@@ -404,7 +404,7 @@ func (m *managedStorageManager) handle(ctx context.Context, action, id, configJS
 		}
 		if isLeftoverRemove(configJSON) {
 			// Gateway has no instance of the id (see managed_leftovers.go).
-			if err := m.removeLeftover(ctx, id); err != nil {
+			if err := m.removeLeftover(ctx, id, configJSON); err != nil {
 				return "", err
 			}
 			return `{"status":"missing"}`, nil

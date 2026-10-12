@@ -148,6 +148,19 @@ func (m *managedDatabaseManager) recreateClickHouseAware(ctx context.Context, re
 		}
 		defer release()
 	}
+	if record.ClickhouseAvailabilitySetID != "" && clickHouseAvailabilitySetID(input) == "" {
+		// Leaving the set (a lift): the single-node container publishes the
+		// ports the member proxy serves.
+		restorePublished, err := m.plugin.releaseSetPublished(ctx, record.ClickhouseAvailabilitySetID)
+		if err != nil {
+			return err
+		}
+		if err := m.recreateContainer(ctx, record, input); err != nil {
+			restorePublished()
+			return err
+		}
+		return nil
+	}
 	return m.recreateContainer(ctx, record, input)
 }
 

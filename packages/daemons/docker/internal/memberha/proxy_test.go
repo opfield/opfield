@@ -149,3 +149,50 @@ func TestMultiHostClientMovesFromTheCopyToThePrimary(t *testing.T) {
 	}
 	echo(t, connected)
 }
+
+// A lift hands the set's published ports back to the single node: the member
+// proxy stops listening, the port can be bound at once, and no member proxy
+// of the set attaches again until the member is forgotten or restored (stand
+// rc.1: the ClickHouse lift failed with "port in use").
+func TestReleasePublishedFreesTheMemberPortsAndKeepsThemFree(t *testing.T) {
+	m := &Manager{proxies: map[string]*Proxy{}, unpublished: map[string]bool{}, members: map[string]*member{}}
+	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	address := probe.Addr().String()
+	_ = probe.Close()
+	dial := func(context.Context) (net.Conn, error) { return nil, errors.New("no engine") }
+	m.proxies["set-1"] = NewProxy(address, func() bool { return true }, dial, nil)
+	if err := m.proxies["set-1"].Start(); err != nil {
+		t.Fatal(err)
+	}
+	m.proxies["set-1/native"] = NewProxy("127.0.0.1:0", func() bool { return true }, dial, nil)
+	if err := m.proxies["set-1/native"].Start(); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := m.ReleasePublished(ctx, "set-1"); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.proxies) != 0 {
+		t.Fatalf("every proxy of the set goes, left %v", m.proxies)
+	}
+	single, err := net.Listen("tcp", address)
+	if err != nil {
+		t.Fatalf("the single node binds the released port: %v", err)
+	}
+	_ = single.Close()
+	if err := m.AttachProxy("set-1", address, dial); !errors.Is(err, errUnpublished) {
+		t.Fatalf("a released set's proxy does not attach again, got %v", err)
+	}
+	if err := m.AttachProxyPort("set-1", "native", address, dial); !errors.Is(err, errUnpublished) {
+		t.Fatalf("a released set's named port does not attach again, got %v", err)
+	}
+	m.RestorePublished("set-1")
+	if err := m.AttachProxy("set-1", address, dial); err != nil {
+		t.Fatalf("a restored set attaches again: %v", err)
+	}
+	m.DetachProxy("set-1")
+}

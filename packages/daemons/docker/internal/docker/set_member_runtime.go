@@ -367,6 +367,27 @@ func (p *DockerPlugin) assignSetPrimary(assignment *pb.AvailabilityPrimaryAssign
 		SigningKeyID: assignment.GetSigningKeyId(), Signature: assignment.GetSignature()})
 }
 
+// releaseSetPublished hands a set's published ports back to the single node
+// a member of this node turns into (lift, revert): the member proxies stop
+// listening and stay off, and it returns once the ports can be bound again.
+// restore lets them attach again; call it when the single node did not come
+// up (the member keeps serving as a member).
+func (p *DockerPlugin) releaseSetPublished(ctx context.Context, setID string) (restore func(), err error) {
+	if p == nil || p.setMembers == nil || setID == "" {
+		return func() {}, nil
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, setPublishedReleaseWait)
+	defer cancel()
+	if err := p.setMembers.ReleasePublished(waitCtx, setID); err != nil {
+		p.setMembers.RestorePublished(setID)
+		return func() {}, err
+	}
+	return func() { p.setMembers.RestorePublished(setID) }, nil
+}
+
+// setPublishedReleaseWait bounds the wait for a released member proxy's port.
+const setPublishedReleaseWait = 15 * time.Second
+
 // syncSetMemberPublication applies the published port of a member's
 // configuration at once (the app kill switch suspends a set's publication with
 // published_port 0 and resumes it with the port): 0 detaches the member proxy

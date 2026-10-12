@@ -195,3 +195,50 @@ func TestSetMeshFreesTheAddressesOfASetThatLeft(t *testing.T) {
 		t.Fatalf("a bind failure must be reported, got %q", failed)
 	}
 }
+
+// A single node that turns into a set's first member runs its master before
+// any lease or member runtime names it the primary: its own volume server and
+// filer reach that master through the origin dialer (stand rc.1: "the volume
+// server has not registered"), and the member runtime takes over once it
+// serves the alias itself.
+func TestSetMeshServesTheOriginsOwnMasterUntilTheMemberRuntimeTakesOver(t *testing.T) {
+	mesh, bridged := newTestMesh(t)
+	mesh.Expose(meshTestSet, "primary-sw-master", 9333, "primary-sw-master")
+	pipe := func(text string) (net.Conn, bool) {
+		client, server := net.Pipe()
+		go func() { _, _ = server.Write([]byte(text + "\n")); _ = server.Close() }()
+		return client, true
+	}
+	var runtimeServes atomic.Bool
+	mesh.SetLocalPrimary(meshTestSet, func(_ context.Context, port string) (net.Conn, bool) {
+		if !runtimeServes.Load() {
+			return nil, false
+		}
+		return pipe("runtime")
+	})
+	release := mesh.SetOriginPrimary(meshTestSet, func(_ context.Context, port string) (net.Conn, bool) {
+		if port != "sw-master" {
+			return nil, false
+		}
+		return pipe("origin")
+	})
+	addr := meshListenerAddr(t, mesh, "primary-sw-master")
+	if got := readLine(t, addr); got != "origin" {
+		t.Fatalf("the converting origin reaches its own master, got %q", got)
+	}
+	runtimeServes.Store(true)
+	if got := readLine(t, addr); got != "runtime" {
+		t.Fatalf("the member runtime serves the primary alias once it can, got %q", got)
+	}
+	runtimeServes.Store(false)
+	if got := readLine(t, addr); got != "relay primary-sw-master" {
+		t.Fatalf("the origin dialer is gone once the member runtime served the alias, got %q", got)
+	}
+	<-bridged
+	release()
+	mesh.SetOriginPrimary(meshTestSet, func(context.Context, string) (net.Conn, bool) { return pipe("origin") })()
+	if got := readLine(t, addr); got != "relay primary-sw-master" {
+		t.Fatalf("a released origin dialer serves nothing, got %q", got)
+	}
+	<-bridged
+}

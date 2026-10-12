@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { managedDatabaseInstances, managedStorageClusters, nodes } from '@/db/schema/index.js';
+import { managedAvailabilityMembers, managedDatabaseInstances, managedStorageClusters, nodes } from '@/db/schema/index.js';
 import { LEFTOVER_CONFIRMATION_MS, type ManagedLeftover, ManagedLeftoverRepair } from './managed-leftover-repair.js';
 
 const NODE = 'db78707c-5894-4bd4-a2e4-080c80228f4a';
@@ -8,7 +8,12 @@ const DELETED = '334c92c4-b058-4d74-94bb-40578d47404e';
 const LIVE = 'a9704943-6982-4320-812f-ac0c6d86cffe';
 
 /** A drizzle double: each table answers its rows, with or without a where/limit. */
-function fakeDb(tables: { nodes: unknown[]; storage: { id: string }[]; databases: { id: string }[] }) {
+function fakeDb(tables: {
+  nodes: unknown[];
+  storage: { id: string }[];
+  databases: { id: string }[];
+  members?: { id: string; nodeId: string }[];
+}) {
   const rowsOf = (table: unknown) =>
     table === nodes
       ? tables.nodes
@@ -16,7 +21,9 @@ function fakeDb(tables: { nodes: unknown[]; storage: { id: string }[]; databases
         ? tables.storage
         : table === managedDatabaseInstances
           ? tables.databases
-          : [];
+          : table === managedAvailabilityMembers
+            ? (tables.members ?? [])
+            : [];
   return {
     select: () => ({
       from: (table: unknown) => Object.assign(Promise.resolve(rowsOf(table)), { where: async () => rowsOf(table) }),
@@ -120,5 +127,41 @@ describe('managed leftovers on nodes (rc.8 O-5)', () => {
     });
     await service.run();
     expect(deps.removeLeftover).not.toHaveBeenCalled();
+  });
+
+  it('removes an availability member whose database or member Gateway no longer has (a leaked set member)', async () => {
+    const MEMBER = '03ecf0b8-553f-44ab-8641-511daadad9a2';
+    const KEPT_MEMBER = 'b6d3e641-a3c9-456b-ab91-93ca7c011961';
+    const SET = '082d2a9a-db4b-4b00-b2e7-2a566aec89b6';
+    let now = 1_000_000;
+    const items: ManagedLeftover[] = [
+      // The database was deleted; this node's member stayed.
+      { id: DELETED, record: 'member', setId: SET, memberId: MEMBER, imageBytes: 0, allocatedBytes: 0 },
+      // A live database whose member here is still Gateway's.
+      { id: LIVE, record: 'member', setId: SET, memberId: KEPT_MEMBER, imageBytes: 0, allocatedBytes: 0 },
+      // A live database whose member on this node was removed while the node was unreachable.
+      { id: ZEROED, record: 'member', setId: SET, memberId: MEMBER, imageBytes: 0, allocatedBytes: 0 },
+    ];
+    const db = fakeDb({
+      nodes: [{ id: NODE, type: 'databases' }],
+      storage: [],
+      databases: [{ id: LIVE }, { id: ZEROED }],
+      members: [{ id: KEPT_MEMBER, nodeId: NODE }],
+    });
+    const deps = {
+      isNodeOnline: vi.fn(() => true),
+      listLeftovers: vi.fn(async () => ({ success: true, detail: JSON.stringify({ items }) })),
+      removeLeftover: vi.fn(async () => ({ success: true })),
+      audit: vi.fn(async () => {}),
+      now: () => now,
+    };
+    const service = new ManagedLeftoverRepair(db as never, deps);
+    expect(await service.run()).toBe(0);
+    now += LEFTOVER_CONFIRMATION_MS;
+    expect(await service.run()).toBe(2);
+    expect(deps.removeLeftover.mock.calls).toEqual([
+      [NODE, 'database', DELETED, MEMBER],
+      [NODE, 'database', ZEROED, MEMBER],
+    ]);
   });
 });

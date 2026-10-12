@@ -3,9 +3,11 @@ package memberha
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
+	"strings"
 	"sync"
 	"time"
 )
@@ -277,10 +279,70 @@ func (m *Manager) ProxyAdmits(setID string) bool {
 	return m.deps.Gates == nil || m.deps.Gates.OpenFor(mem.cfg.LeasePolicyID, mem.cfg.NodeID, m.deps.Clock.Wall())
 }
 
+// errUnpublished: the set's published ports belong to the single node the
+// member turns back into (ReleasePublished).
+var errUnpublished = errors.New("the set's published ports were handed back to the single node")
+
+// ReleasePublished hands the set's published ports back to the single node
+// the member turns into (a lift or a revert): every member proxy of the set
+// stops listening, none attaches again until the member is forgotten or
+// RestorePublished, and it returns once each address can be bound again (or
+// ctx ends), so the single-node container can publish the same ports. It is
+// idempotent and works the same after a daemon restart (the restarted member
+// runtime attached its proxies again; a repeated lift releases them).
+func (m *Manager) ReleasePublished(ctx context.Context, setID string) error {
+	m.mu.Lock()
+	m.unpublished[setID] = true
+	addresses := []string{}
+	for key, proxy := range m.proxies {
+		if key == setID || strings.HasPrefix(key, setID+"/") {
+			addresses = append(addresses, proxy.address)
+			proxy.Close()
+			delete(m.proxies, key)
+		}
+	}
+	m.mu.Unlock()
+	for _, address := range addresses {
+		if err := waitPortFree(ctx, address); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// RestorePublished lets the set's member proxies attach again (a lift that
+// failed: the member keeps serving as a member).
+func (m *Manager) RestorePublished(setID string) {
+	m.mu.Lock()
+	delete(m.unpublished, setID)
+	m.mu.Unlock()
+}
+
+// waitPortFree returns once address can be bound (it is closed again at
+// once).
+func waitPortFree(ctx context.Context, address string) error {
+	for {
+		listener, err := net.Listen("tcp", address)
+		if err == nil {
+			_ = listener.Close()
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("the member proxy's port %s is still in use: %w", address, err)
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
+
 // AttachProxy serves a member's published port (the daemon supplies the
 // address and the dial to the engine on the private bridge).
 func (m *Manager) AttachProxy(setID, address string, dial func(ctx context.Context) (net.Conn, error)) error {
 	m.mu.Lock()
+	if m.unpublished[setID] {
+		m.mu.Unlock()
+		return errUnpublished
+	}
 	if existing := m.proxies[setID]; existing != nil {
 		m.mu.Unlock()
 		if existing.address == address {
@@ -327,6 +389,10 @@ func proxyKey(setID, name string) string {
 func (m *Manager) AttachProxyPort(setID, name, address string, dial func(ctx context.Context) (net.Conn, error)) error {
 	key := proxyKey(setID, name)
 	m.mu.Lock()
+	if m.unpublished[setID] {
+		m.mu.Unlock()
+		return errUnpublished
+	}
 	if existing := m.proxies[key]; existing != nil {
 		m.mu.Unlock()
 		if existing.address == address {

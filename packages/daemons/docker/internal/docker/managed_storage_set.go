@@ -563,11 +563,23 @@ func (m *managedStorageManager) ensureSetContainers(ctx context.Context, record 
 // in /data/filerldb2), the master starts here as the set's first primary, and
 // the replication of the existing volumes is repaired to two copies once
 // another member registered (the engine starts degraded). On any failure the
-// single-node container runs again.
+// single-node container runs again, on its storage network as before.
+//
+// The member runtime is held meanwhile (it makes no decision on containers
+// that change under it), and the primary aliases of the set are served from
+// this node's master (no lease names a holder yet): the volume server and the
+// filer reach the master only through them.
 func (m *managedStorageManager) convertToSetMember(ctx context.Context, record *managedStorageRecord, input managedStorageCommand) error {
 	set := *input.Set
 	if record.MemberIndex != int(set.MemberIndex) {
 		return errors.New("the origin member keeps the storage's member index")
+	}
+	if m.plugin != nil && m.plugin.setMembers != nil {
+		release, err := m.plugin.setMembers.Hold(ctx, set.SetID)
+		if err != nil {
+			return err
+		}
+		defer release()
 	}
 	previous := *record
 	converted := *record
@@ -576,27 +588,64 @@ func (m *managedStorageManager) convertToSetMember(ctx context.Context, record *
 	if input.TLS != nil {
 		converted.TLSEnabled, converted.TLSServerName = true, input.TLS.ServerName
 	}
+	previousNetworkID := ""
+	if inspected, err := m.client.cli.NetworkInspect(ctx, previous.NetworkName, mobyclient.NetworkInspectOptions{}); err == nil {
+		previousNetworkID = inspected.Network.ID
+	}
+	releaseOrigin := func() {}
+	if mesh := m.mesh(); mesh != nil {
+		host := &seaweedfsSetHost{plugin: m.plugin, storage: m, initial: memberha.Config{SetID: set.SetID}, id: record.ID, index: set.MemberIndex}
+		releaseOrigin = mesh.SetOriginPrimary(set.SetID, func(ctx context.Context, port string) (net.Conn, bool) {
+			target := uint16(swha.MasterHTTPPort)
+			switch port {
+			case swha.PortMaster:
+			case swha.PortMasterGRPC:
+				target = swha.MasterGRPCPort
+			default:
+				return nil, false
+			}
+			conn, err := host.DialContainer(ctx, swha.RoleMaster, target)
+			if err != nil {
+				return nil, false
+			}
+			return conn, true
+		})
+	}
 	rollbackName := previous.ContainerName + "-replaced"
 	if err := m.client.StopContainer(ctx, previous.ContainerID, 20); err != nil && !isNotFoundErr(err) {
+		releaseOrigin()
 		return err
 	}
 	if err := m.client.RenameContainer(ctx, previous.ContainerID, rollbackName); err != nil {
+		releaseOrigin()
 		_ = m.startContainer(ctx, previous.ContainerID)
 		return fmt.Errorf("set the single-node container aside: %w", err)
 	}
 	restore := func(cause error) error {
+		releaseOrigin()
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), managedDatabaseCleanupTimeout)
 		defer cancel()
 		for _, role := range []swha.Role{swha.RoleVolume, swha.RoleFiler, swha.RoleMaster} {
 			_ = m.client.RemoveContainer(cleanupCtx, seaweedfsSetContainerName(record.ID, set.MemberIndex, role), true)
 		}
+		*record = previous
 		if err := m.client.RenameContainer(cleanupCtx, previous.ContainerID, previous.ContainerName); err != nil {
 			m.logger.Error("could not restore the single-node storage container's name", "id", record.ID, "error", err)
 		}
+		// The single node publishes its S3 port itself again: a member proxy
+		// the member runtime attached meanwhile lets go of it (and stays off;
+		// the set is turned off around the storage).
+		if _, err := m.plugin.releaseSetPublished(cleanupCtx, set.SetID); err != nil {
+			m.logger.Warn("the storage member's proxy still holds the published port", "id", record.ID, "error", err)
+		}
+		if err := m.restoreSingleNodeNetwork(cleanupCtx, previous, previousNetworkID); err != nil {
+			m.logger.Error("could not restore the single-node storage network", "id", record.ID, "error", err)
+			return fmt.Errorf("the storage was not turned into an availability member (%v) and its network could not be restored: %w", cause, err)
+		}
 		if err := m.startContainer(cleanupCtx, previous.ContainerID); err != nil {
 			m.logger.Error("could not restart the single-node storage container", "id", record.ID, "error", err)
+			return fmt.Errorf("the storage was not turned into an availability member (%v) and could not be started again: %w", cause, err)
 		}
-		*record = previous
 		return fmt.Errorf("the storage was not turned into an availability member and runs as before: %w", cause)
 	}
 	if err := m.ensureMounted(ctx, &converted); err != nil {
@@ -631,6 +680,60 @@ func (m *managedStorageManager) convertToSetMember(ctx context.Context, record *
 	*record = converted
 	m.logger.Info("managed storage turned into an availability set member", "id", record.ID, "set_id", set.SetID)
 	return m.saveRecord(*record)
+}
+
+// restoreSingleNodeNetwork puts the storage network back in the single node's
+// shape after a conversion that failed: the conversion may have replaced it
+// (internal for the member layout), and a container whose endpoint names the
+// replaced network does not start ("network ... not found"). The network is
+// created again as the single node needs it and the stopped single-node
+// container is attached to it afresh, with its alias.
+func (m *managedStorageManager) restoreSingleNodeNetwork(ctx context.Context, previous managedStorageRecord, previousNetworkID string) error {
+	if err := m.ensureNetworkIsolation(ctx, previous, ""); err != nil {
+		return err
+	}
+	inspected, err := m.client.cli.NetworkInspect(ctx, previous.NetworkName, mobyclient.NetworkInspectOptions{})
+	if err != nil {
+		return fmt.Errorf("inspect managed storage network: %w", err)
+	}
+	if previousNetworkID != "" && inspected.Network.ID == previousNetworkID {
+		return nil
+	}
+	// The container is stopped: a forced disconnect only drops its endpoint
+	// entry (the network it names may be gone).
+	if _, err := m.client.cli.NetworkDisconnect(ctx, previous.NetworkName, mobyclient.NetworkDisconnectOptions{Container: previous.ContainerID, Force: true}); err != nil && !isNotFoundErr(err) {
+		m.logger.Debug("the single-node storage container had no endpoint to drop", "id", previous.ID, "error", err)
+	}
+	if _, err := m.client.cli.NetworkConnect(ctx, previous.NetworkName, mobyclient.NetworkConnectOptions{
+		Container: previous.ContainerID, EndpointConfig: &network.EndpointSettings{Aliases: []string{"s3"}},
+	}); err != nil && !strings.Contains(strings.ToLower(err.Error()), "already exists") {
+		return fmt.Errorf("reattach the single-node storage container: %w", err)
+	}
+	return nil
+}
+
+// restoreSetStorageNetwork puts a member's storage network back (internal)
+// after a revert that failed and replaced it, and attaches the member's
+// stopped filer to it again (its endpoint named the replaced network).
+func (m *managedStorageManager) restoreSetStorageNetwork(ctx context.Context, record managedStorageRecord, memberNetworkID string) error {
+	if err := m.ensureSetStorageNetworkInternal(ctx, record); err != nil {
+		return err
+	}
+	inspected, err := m.client.cli.NetworkInspect(ctx, record.NetworkName, mobyclient.NetworkInspectOptions{})
+	if err != nil {
+		return err
+	}
+	if memberNetworkID != "" && inspected.Network.ID == memberNetworkID {
+		return nil
+	}
+	filer := seaweedfsSetContainerName(record.ID, record.Set.MemberIndex, swha.RoleFiler)
+	_, _ = m.client.cli.NetworkDisconnect(ctx, record.NetworkName, mobyclient.NetworkDisconnectOptions{Container: filer, Force: true})
+	if _, err := m.client.cli.NetworkConnect(ctx, record.NetworkName, mobyclient.NetworkConnectOptions{
+		Container: filer, EndpointConfig: &network.EndpointSettings{Aliases: []string{"s3"}},
+	}); err != nil && !strings.Contains(strings.ToLower(err.Error()), "already exists") {
+		return fmt.Errorf("reattach the storage member's filer: %w", err)
+	}
+	return nil
 }
 
 // ensureSetStorageNetworkInternal recreates the storage network internal when
@@ -1071,6 +1174,15 @@ func (m *managedStorageManager) revertSetMember(ctx context.Context, record *man
 		release = held
 	}
 	defer release()
+	// A public single node publishes the S3 port the member proxy serves.
+	restorePublished, err := m.plugin.releaseSetPublished(ctx, set.SetID)
+	if err != nil {
+		return err
+	}
+	memberNetworkID := ""
+	if inspected, err := m.client.cli.NetworkInspect(ctx, record.NetworkName, mobyclient.NetworkInspectOptions{}); err == nil {
+		memberNetworkID = inspected.Network.ID
+	}
 	single := *record
 	single.Set = nil
 	single.ContainerID = ""
@@ -1090,8 +1202,14 @@ func (m *managedStorageManager) revertSetMember(ctx context.Context, record *man
 		if single.ContainerID != "" {
 			_ = m.client.RemoveContainer(cleanupCtx, single.ContainerID, true)
 		}
+		if err := m.restoreSetStorageNetwork(cleanupCtx, *record, memberNetworkID); err != nil {
+			m.logger.Error("could not restore the storage member's network", "id", record.ID, "error", err)
+		}
+		restorePublished()
 		for _, role := range []swha.Role{swha.RoleVolume, swha.RoleFiler} {
-			_ = m.startContainer(cleanupCtx, seaweedfsSetContainerName(record.ID, set.MemberIndex, role))
+			if err := m.startContainer(cleanupCtx, seaweedfsSetContainerName(record.ID, set.MemberIndex, role)); err != nil {
+				m.logger.Error("could not restart the storage member", "id", record.ID, "role", role, "error", err)
+			}
 		}
 		return fmt.Errorf("the storage member was not turned back into a single node and runs as before: %w", cause)
 	}

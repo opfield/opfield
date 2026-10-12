@@ -445,6 +445,16 @@ func (m *managedDatabaseManager) handle(ctx context.Context, action, id, configJ
 	if !managedDatabaseIDPattern.MatchString(id) {
 		return "", errors.New("invalid managed database id")
 	}
+	if action == "remove" && isLeftoverRemove(configJSON) {
+		// A member Gateway no longer has is removed before the member
+		// handlers, which refuse a plain remove of a member.
+		if member, err := m.removeLeftoverMember(ctx, id, configJSON); member {
+			if err != nil {
+				return "", err
+			}
+			return `{"status":"deleted"}`, nil
+		}
+	}
 	if handled, detail, err := m.kvSetHandle(ctx, action, id, configJSON); handled {
 		return detail, err
 	}

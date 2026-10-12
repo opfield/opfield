@@ -46,6 +46,10 @@ type Manager struct {
 	watchdogFresh atomic.Bool
 	proxies       map[string]*Proxy
 	held          map[string]int
+	// unpublished: sets whose published ports were handed back to a single
+	// node (ReleasePublished); no member proxy of theirs attaches again until
+	// the member is forgotten or RestorePublished.
+	unpublished map[string]bool
 	// confirmWait bounds the wait for an empty cgroup after a stop.
 	confirmWait time.Duration
 }
@@ -128,7 +132,7 @@ func NewManager(deps Deps, store *Store) (*Manager, error) {
 		return nil, errors.New("the availability member runtime needs a store")
 	}
 	m := &Manager{deps: deps, store: store, logger: deps.Logger, members: map[string]*member{}, proxies: map[string]*Proxy{},
-		held: map[string]int{}, confirmWait: cgroupConfirmWait}
+		held: map[string]int{}, unpublished: map[string]bool{}, confirmWait: cgroupConfirmWait}
 	stored, err := store.LoadAll()
 	if err != nil {
 		m.logger.Error("some availability member files could not be read; those members stay stopped until Opfield configures them again", "error", err)
@@ -683,6 +687,7 @@ func (m *Manager) forgetLocked(setID string) error {
 			delete(m.proxies, key)
 		}
 	}
+	delete(m.unpublished, setID)
 	mem := m.members[setID]
 	if mem == nil {
 		return nil
