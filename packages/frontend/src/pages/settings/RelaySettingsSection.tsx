@@ -596,13 +596,15 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
                       : "destructive"
                 }
               >
-                {policyExpired
-                  ? "policy expired"
-                  : row.reconnecting
-                    ? "reconnecting"
-                    : unreachable
-                      ? "unreachable"
-                      : row.state}
+                {row.state === "offline"
+                  ? "offline"
+                  : policyExpired
+                    ? "policy expired"
+                    : row.reconnecting
+                      ? "reconnecting"
+                      : unreachable
+                        ? "unreachable"
+                        : row.state}
               </Badge>
             )}
             {unreachable && (

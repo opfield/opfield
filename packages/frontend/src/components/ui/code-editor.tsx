@@ -645,7 +645,13 @@ export function CodeEditor({
         editorTheme,
         ...(showGutterBorder ? [Prec.highest(editorGutterBorderTheme)] : []),
         highlightStyles,
-        ...(lineWrapping ? [EditorView.lineWrapping] : []),
+        // Wrapped lines also break inside long unbroken values (paths, hashes) instead of running past the edge.
+        ...(lineWrapping
+          ? [
+              EditorView.lineWrapping,
+              EditorView.theme({ ".cm-content": { overflowWrap: "anywhere" } }),
+            ]
+          : []),
         EditorState.readOnly.of(readOnly),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {

@@ -46,6 +46,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -2039,9 +2040,12 @@ export function DockerContainerDetail({
         </Tabs>
       </div>
       <Dialog open={configOpen} onOpenChange={setConfigOpen}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="sm:max-w-3xl" fitViewport>
           <DialogHeader>
             <DialogTitle>Container Configuration</DialogTitle>
+            <DialogDescription>
+              Docker's full configuration of this container, read-only
+            </DialogDescription>
           </DialogHeader>
           <ConfigTab data={container} editorHeight="min(60dvh, 640px)" />
         </DialogContent>
