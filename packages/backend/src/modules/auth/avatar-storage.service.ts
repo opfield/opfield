@@ -62,17 +62,24 @@ function extensionFor(mediaType: AvatarMediaType): string {
   return mediaType === 'image/png' ? 'png' : mediaType === 'image/jpeg' ? 'jpg' : 'webp';
 }
 
-function assertAvatarBytes(bytes: Buffer, declaredMediaType?: string): AvatarMediaType {
-  if (bytes.length === 0) throw new AppError(400, 'AVATAR_EMPTY', 'Avatar image is empty');
+/** What the image is, for error messages: user avatars and app logos share this storage. */
+export type StoredImageSubject = 'Avatar' | 'Logo';
+
+function assertAvatarBytes(
+  bytes: Buffer,
+  declaredMediaType?: string,
+  subject: StoredImageSubject = 'Avatar'
+): AvatarMediaType {
+  if (bytes.length === 0) throw new AppError(400, 'AVATAR_EMPTY', `${subject} image is empty`);
   if (bytes.length > MAX_AVATAR_UPLOAD_BYTES) {
-    throw new AppError(413, 'AVATAR_TOO_LARGE', 'Avatar image must be 1 MiB or smaller');
+    throw new AppError(413, 'AVATAR_TOO_LARGE', `${subject} image must be 1 MiB or smaller`);
   }
   const detected = detectAvatarMediaType(bytes);
   if (!detected) {
-    throw new AppError(400, 'AVATAR_FORMAT_INVALID', 'Avatar must be a valid PNG, JPEG, or WebP image');
+    throw new AppError(400, 'AVATAR_FORMAT_INVALID', `${subject} must be a valid PNG, JPEG, or WebP image`);
   }
   if (declaredMediaType && declaredMediaType !== detected) {
-    throw new AppError(400, 'AVATAR_MEDIA_TYPE_MISMATCH', 'Avatar media type does not match the file contents');
+    throw new AppError(400, 'AVATAR_MEDIA_TYPE_MISMATCH', `${subject} media type does not match the file contents`);
   }
   return detected;
 }
@@ -96,9 +103,9 @@ export class AvatarStorageService {
     await mkdir(this.root, { recursive: true, mode: 0o700 });
   }
 
-  async store(file: File): Promise<string> {
+  async store(file: File, subject: StoredImageSubject = 'Avatar'): Promise<string> {
     const bytes = Buffer.from(await file.arrayBuffer());
-    const mediaType = assertAvatarBytes(bytes, file.type);
+    const mediaType = assertAvatarBytes(bytes, file.type, subject);
     return this.storeBytes(bytes, mediaType);
   }
 

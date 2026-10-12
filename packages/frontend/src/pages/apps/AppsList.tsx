@@ -1,8 +1,9 @@
 // Apps: the top-level list (canvas frames apps-list, apps-empty, apps-new-app).
 // Same page frame and rows as Databases and Docker containers.
-import { AppWindow, Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { AppMark } from "@/components/apps/AppMark";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -30,7 +31,6 @@ import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
 import { appRoute } from "@/lib/app-routes";
-import { nodeIconClassNames } from "@/lib/node-appearance";
 import { cn, formatBytes } from "@/lib/utils";
 import { api } from "@/services/api";
 import { APPS_LIST_CACHE_KEY } from "@/services/api-apps";
@@ -69,17 +69,17 @@ const columns: ResourceListColumn<AppSummary>[] = [
     id: "name",
     label: "Name",
     width: "30%",
-    renderCell: (app) => {
-      const icon = nodeIconClassNames(null);
-      return (
-        <div className="flex min-w-0 items-center gap-4">
-          <div className={icon.wrapper}>
-            <AppWindow className={cn("h-5 w-5", icon.icon)} />
-          </div>
-          <p className="min-w-0 truncate text-sm font-medium">{app.name}</p>
+    renderCell: (app) => (
+      <div className="flex min-w-0 items-center gap-4">
+        <AppMark logoUrl={app.logoUrl} />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{app.name}</p>
+          {app.description && (
+            <p className="truncate text-xs text-muted-foreground">{app.description}</p>
+          )}
         </div>
-      );
-    },
+      </div>
+    ),
   },
   {
     id: "environments",
@@ -147,6 +147,7 @@ export function AppsList() {
         (!query ||
           app.name.toLowerCase().includes(query) ||
           app.slug.toLowerCase().includes(query) ||
+          (app.description ?? "").toLowerCase().includes(query) ||
           app.environments.some((env) => env.name.toLowerCase().includes(query)))
     );
   }, [apps, search, statusFilter]);

@@ -156,6 +156,8 @@ const DOCKER_FILE_BODY_LIMIT_PATH =
 const NODE_FILE_BODY_LIMIT_PATH = /^\/api\/nodes\/[^/]+\/files\/(?:write|create|uploads\/[^/]+\/chunks)$/;
 const PAGES_UPLOAD_CHUNK_PATH = /^\/api\/pages-deploy\/uploads\/[^/]+\/chunks$/;
 const OBJECT_STORAGE_UPLOAD_PATH = /^\/api\/object-storage\/[^/]+\/objects\/upload$/;
+/** An app logo upload takes the avatar upload limit (same storage and checks), not the JSON body limit. */
+const APP_LOGO_UPLOAD_PATH = /^\/api\/apps\/[^/]+\/logo$/;
 const DOCKER_ARCHIVE_IMPORT_PATH = /^\/api\/docker\/nodes\/[^/]+\/containers\/archive$/;
 const INFERENCE_DATA_PLANE_PREFIX = /^\/api\/inference\/(?:(?:anthropic|codex)\/v1|v1)(?:\/|$)/;
 
@@ -671,6 +673,7 @@ export function createApp(): GatewayAppRuntime {
     requestBodyLimitDynamic(() => getFileUploadMaxBodyBytes())
   );
   app.use('/api/pages-deploy/uploads/:id/chunks', requestBodyLimit(PAGE_UPLOAD_CHUNK_MAX_BYTES));
+  app.use('/api/apps/:id/logo', requestBodyLimit(AVATAR_UPLOAD_BODY_MAX_BYTES));
   // An object upload streams the file into storage: it takes the file upload limit, not the JSON body limit.
   app.use('/api/object-storage/:id/objects/upload', objectUploadBodyLimit());
   // A restore upload chunk is raw file bytes, up to its own limit.
@@ -685,6 +688,7 @@ export function createApp(): GatewayAppRuntime {
         NODE_FILE_BODY_LIMIT_PATH.test(path) ||
         PAGES_UPLOAD_CHUNK_PATH.test(path) ||
         OBJECT_STORAGE_UPLOAD_PATH.test(path) ||
+        APP_LOGO_UPLOAD_PATH.test(path) ||
         // One-time transfer links stream a whole file; their handlers enforce their own size limits.
         ONE_TIME_LINK_TOKEN_PATH.test(path) ||
         path === '/api/setup/wizard/restore/archive' ||

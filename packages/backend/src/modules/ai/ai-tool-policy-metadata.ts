@@ -78,7 +78,7 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
     external: ['check_dns', 'issue_certificate', 'resolve_cloudflare_migration'],
     execute: ['migrate_ingress'],
   }),
-  manage_app: operationPolicies({ create: ['create'], update: ['update'], delete: ['delete'] }),
+  manage_app: operationPolicies({ create: ['create'], update: ['update', 'remove_logo'], delete: ['delete'] }),
   manage_app_members: operationPolicies({ read: ['list'], update: ['place'] }),
   promote_app_environment: operationPolicies({ read: ['preview', 'status', 'list'], execute: ['execute'] }),
   manage_app_incident: operationPolicies({

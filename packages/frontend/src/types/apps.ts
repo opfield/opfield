@@ -51,6 +51,10 @@ export interface AppSummary {
   id: string;
   slug: string;
   name: string;
+  /** One-line description shown under the name; null when unset. */
+  description?: string | null;
+  /** Uploaded logo (square image); null shows the default app icon. */
+  logoUrl?: string | null;
   environments: AppSummaryEnvironment[];
   /** The Production environment's health. */
   health: AppHealth;
@@ -100,6 +104,8 @@ export interface AppDetail {
   id: string;
   slug: string;
   name: string;
+  description?: string | null;
+  logoUrl?: string | null;
   maintenanceOverride: boolean;
   maintenanceOverrideAt?: string | null;
   /** Hidden app-root folder per family ("every environment" access lines grant these). */
@@ -112,6 +118,8 @@ export interface AppDetail {
 
 export interface AppUpdateInput {
   name?: string;
+  /** Up to 200 characters; empty or null clears it. */
+  description?: string | null;
   maintenanceOverride?: boolean;
 }
 

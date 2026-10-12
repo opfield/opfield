@@ -1,9 +1,10 @@
-// Settings: the app's name and app-wide maintenance, its environments and the danger zone
+// Settings: the app's logo, name, description and app-wide maintenance, its environments and the danger zone
 // (canvas frames app-settings, app-maintenance-on, app-env-new, app-access-code).
 // Danger zone: Shut down / Start, the kill switch and Delete App (frames app-shutdown, app-stopped,
 // app-kill, app-isolated).
 import {
   AppWindow,
+  ImageUp,
   KeyRound,
   Layers,
   Play,
@@ -15,15 +16,17 @@ import {
   Trash2,
   TriangleAlert,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { AppMark } from "@/components/apps/AppMark";
 import {
   canEndIncidents,
   openAppIncidents,
   startAfterShutdown,
   turnOffKillSwitch,
 } from "@/components/apps/app-incidents";
+import { AvatarCropDialog } from "@/components/common/AvatarCropDialog";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { PanelShell } from "@/components/common/PanelShell";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
@@ -32,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { toastApiError } from "@/lib/api-error-toast";
 import { appEnvironmentRoute, appRoute, appsRoute } from "@/lib/app-routes";
 import { api } from "@/services/api";
@@ -66,7 +70,11 @@ export function SettingsTab({
 }) {
   const navigate = useNavigate();
   const [name, setName] = useState(app.name);
+  const [description, setDescription] = useState(app.description ?? "");
   const [saving, setSaving] = useState(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const [overrideSaving, setOverrideSaving] = useState(false);
   const [renaming, setRenaming] = useState<AppEnvironmentDetail | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -102,21 +110,57 @@ export function SettingsTab({
   const canManageAnyEnv = Object.values(permissions.envManage).some(Boolean);
 
   useEffect(() => setName(app.name), [app.name]);
+  useEffect(() => setDescription(app.description ?? ""), [app.description]);
 
-  const saveName = async () => {
-    const trimmed = name.trim();
-    if (!trimmed || trimmed === app.name) return;
+  const trimmedName = name.trim();
+  const trimmedDescription = description.trim();
+  const nameChanged = trimmedName !== app.name;
+  const descriptionChanged = trimmedDescription !== (app.description ?? "");
+
+  const saveGeneral = async () => {
+    if (!trimmedName || (!nameChanged && !descriptionChanged)) return;
     setSaving(true);
     try {
-      const next = await api.updateApp(app.id, { name: trimmed });
-      toast.success("App renamed");
+      const next = await api.updateApp(app.id, {
+        ...(nameChanged ? { name: trimmedName } : {}),
+        ...(descriptionChanged ? { description: trimmedDescription || null } : {}),
+      });
+      toast.success(nameChanged ? "App renamed" : "App updated");
       onChanged(next);
       if (next.slug !== app.slug) navigate(appRoute(next.slug, "settings"), { replace: true });
     } catch (error) {
-      toastApiError(error, "Failed to rename the app");
+      toastApiError(error, "Failed to update the app");
     } finally {
       setSaving(false);
     }
+  };
+
+  const updateLogo = async (logo: Blob | null) => {
+    setLogoUploading(true);
+    try {
+      const next = await api.updateAppLogo(app.id, logo);
+      toast.success(logo ? "Logo updated" : "Logo removed");
+      onChanged(next);
+      return true;
+    } catch (error) {
+      toastApiError(error, "Failed to update the logo");
+      return false;
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
+  const chooseLogoFile = (file: File | undefined) => {
+    if (!file) return;
+    if (!SUPPORTED_LOGO_TYPES.has(file.type)) {
+      toast.error("Choose a PNG, JPEG, or WebP image");
+      return;
+    }
+    if (file.size > MAX_LOGO_SOURCE_BYTES) {
+      toast.error("Choose an image no larger than 25 MiB");
+      return;
+    }
+    setLogoFile(file);
   };
 
   const setOverride = async (enabled: boolean) => {
@@ -184,7 +228,7 @@ export function SettingsTab({
         <PanelShell
           title="General"
           icon={<AppWindow className="h-4 w-4" />}
-          description="Name and app-wide maintenance"
+          description="Name, logo, description and app-wide maintenance"
           actions={
             <>
               {(permissions.edit || permissions.operate) && (
@@ -197,9 +241,9 @@ export function SettingsTab({
               )}
               {permissions.edit && (
                 <Button
-                  onClick={() => void saveName()}
+                  onClick={() => void saveGeneral()}
                   pending={saving}
-                  disabled={!name.trim() || name.trim() === app.name}
+                  disabled={!trimmedName || (!nameChanged && !descriptionChanged)}
                 >
                   <Save />
                   Save
@@ -208,11 +252,83 @@ export function SettingsTab({
             </>
           }
         >
+          <SettingsControlRow
+            title="Logo"
+            description="PNG, JPEG or WebP; you crop it to a square before it uploads"
+          >
+            <div className="flex items-center gap-2">
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                aria-label="Choose logo image"
+                onChange={(event) => {
+                  chooseLogoFile(event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+              />
+              {/* The logo itself is the control; its overlay shows the action. */}
+              <button
+                type="button"
+                aria-label={app.logoUrl ? "Change logo" : "Upload logo"}
+                className="group relative h-9 w-9 shrink-0 outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-default"
+                disabled={!permissions.edit || logoUploading}
+                onClick={() => logoInputRef.current?.click()}
+              >
+                <AppMark logoUrl={app.logoUrl} size="sm" />
+                {permissions.edit && (
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                    <ImageUp className="h-4 w-4 text-white" />
+                  </span>
+                )}
+              </button>
+              {permissions.edit && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => logoInputRef.current?.click()}
+                    disabled={logoUploading}
+                  >
+                    <ImageUp className="h-3.5 w-3.5" />
+                    {app.logoUrl ? "Replace" : "Upload"}
+                  </Button>
+                  {app.logoUrl && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      title="Remove logo"
+                      aria-label="Remove logo"
+                      disabled={logoUploading}
+                      onClick={() => void updateLogo(null)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+          </SettingsControlRow>
           <SettingsControlRow title="Name" description="Shown in Apps and in the search">
             <Input
               value={name}
               onChange={(event) => setName(event.target.value)}
               aria-label="Name"
+              disabled={!permissions.edit}
+            />
+          </SettingsControlRow>
+          <SettingsControlRow
+            title="Description"
+            description="Under the name in Apps and on the app's page"
+          >
+            <Textarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value.slice(0, APP_DESCRIPTION_MAX))}
+              aria-label="Description"
+              placeholder="What this app is"
+              rows={2}
+              maxLength={APP_DESCRIPTION_MAX}
+              className="resize-none"
               disabled={!permissions.edit}
             />
           </SettingsControlRow>
@@ -368,6 +484,16 @@ export function SettingsTab({
         </PanelShell>
       )}
 
+      <AvatarCropDialog
+        title="Adjust Logo"
+        file={logoFile}
+        open={logoFile !== null}
+        uploading={logoUploading}
+        onOpenChange={(open) => {
+          if (!open) setLogoFile(null);
+        }}
+        onUpload={updateLogo}
+      />
       <RenameEnvironmentDialog
         app={app}
         env={renaming}
@@ -395,3 +521,7 @@ export function SettingsTab({
     </div>
   );
 }
+
+const APP_DESCRIPTION_MAX = 200;
+const MAX_LOGO_SOURCE_BYTES = 25 * 1024 * 1024;
+const SUPPORTED_LOGO_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);

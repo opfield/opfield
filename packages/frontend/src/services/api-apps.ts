@@ -70,6 +70,24 @@ export function withAppsApi<TBase extends ApiClientBaseConstructor>(Base: TBase)
       );
     }
 
+    /** Upload a cropped logo blob, or remove the logo with null. */
+    async updateAppLogo(id: string, logo: Blob | null): Promise<AppDetail> {
+      if (!logo) {
+        return this.unwrapData(
+          this.request<{ data: AppDetail }>(`/apps/${seg(id)}/logo`, { method: "DELETE" })
+        );
+      }
+      const body = new FormData();
+      body.append(
+        "logo",
+        logo,
+        `logo.${logo.type === "image/png" ? "png" : logo.type === "image/jpeg" ? "jpg" : "webp"}`
+      );
+      return this.unwrapData(
+        this.request<{ data: AppDetail }>(`/apps/${seg(id)}/logo`, { method: "PUT", body })
+      );
+    }
+
     async deleteApp(id: string): Promise<void> {
       await this.request<unknown>(`/apps/${seg(id)}`, { method: "DELETE" });
     }

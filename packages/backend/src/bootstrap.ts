@@ -832,6 +832,7 @@ export async function initializeContainer(): Promise<void> {
   container.registerInstance(AppMembersReader, appMembersReader);
   const appsService = new AppsService(db, auditService, appFolderService, appMembersReader);
   appsService.setEventBus(eventBus);
+  appsService.setLogoStorage(avatarStorageService);
   container.registerInstance(AppsService, appsService);
   const appHealthService = new AppHealthService(db, appMembersReader);
   container.registerInstance(AppHealthService, appHealthService);

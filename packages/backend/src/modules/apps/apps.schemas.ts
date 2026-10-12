@@ -11,9 +11,18 @@ const name = (max: number) =>
 
 export const CreateAppSchema = z.object({ name: name(255) }).strict();
 
+/** App description: one line under the name, up to 200 characters; empty clears it. */
+export const APP_DESCRIPTION_MAX = 200;
+const description = z
+  .string()
+  .transform((value) => value.replace(/\s+/g, ' ').trim())
+  .pipe(z.string().max(APP_DESCRIPTION_MAX))
+  .nullable();
+
 export const UpdateAppSchema = z
   .object({
     name: name(255).optional(),
+    description: description.optional(),
     maintenanceOverride: z.boolean().optional(),
   })
   .strict();

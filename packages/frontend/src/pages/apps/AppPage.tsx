@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { AppMark } from "@/components/apps/AppMark";
 import type { AppCreateContext } from "@/components/apps/app-create-context";
 import { openAppIncidents } from "@/components/apps/app-incidents";
 import { IsolatedNotice } from "@/components/apps/IsolatedNotice";
@@ -269,7 +270,12 @@ function AppPageContent({
     <PageTransition>
       <div className="h-full space-y-4 overflow-y-auto p-6">
         <PageHeader
-          leading={<PageBackButton onClick={() => navigate(appsRoute())} />}
+          leading={
+            <div className="flex items-center gap-3">
+              <PageBackButton onClick={() => navigate(appsRoute())} />
+              <AppMark logoUrl={app.logoUrl} />
+            </div>
+          }
           title={app.name}
           badges={
             isolated ? (
@@ -284,7 +290,10 @@ function AppPageContent({
               <HealthBadge health={production.health} inline />
             ) : null
           }
-          description={`${plural(app.environments.length, "environment")} · ${plural(members, "resource")}`}
+          description={
+            app.description ||
+            `${plural(app.environments.length, "environment")} · ${plural(members, "resource")}`
+          }
           actions={
             <ResponsiveHeaderActions
               reservedContentWidth={360}

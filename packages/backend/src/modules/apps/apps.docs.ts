@@ -65,8 +65,38 @@ export const updateAppRoute = appRoute({
   tags: TAGS,
   summary: 'Update an app',
   description:
-    'Rename (apps:edit on the app) or turn the app maintenance override on or off (apps:operate on the app): every proxy route of every environment then shows the maintenance page; each route keeps its own maintenance setting for when the override is off.',
+    'Rename or set the description (one line, up to 200 characters; empty or null clears it) with apps:edit on the app, or turn the app maintenance override on or off (apps:operate on the app): every proxy route of every environment then shows the maintenance page; each route keeps its own maintenance setting for when the override is off.',
   request: { params: AppParams, ...jsonBody(UpdateAppSchema) },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const uploadAppLogoRoute = appRoute({
+  method: 'put',
+  path: '/{id}/logo',
+  tags: TAGS,
+  summary: 'Upload the app logo',
+  description:
+    'Needs apps:edit on the app. Multipart field `logo`: a square PNG, JPEG or WebP image up to 1 MiB (the same rules as user avatars). Replaces the current logo; the response is the app with its new logoUrl.',
+  request: {
+    params: AppParams,
+    body: {
+      content: {
+        'multipart/form-data': {
+          schema: z.object({ logo: z.any().openapi({ type: 'string', format: 'binary' }) }),
+        },
+      },
+    },
+  },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const removeAppLogoRoute = appRoute({
+  method: 'delete',
+  path: '/{id}/logo',
+  tags: TAGS,
+  summary: 'Remove the app logo',
+  description: 'Needs apps:edit on the app. The app shows its default icon again.',
+  request: { params: AppParams },
   responses: okJson(UnknownDataResponseSchema),
 });
 

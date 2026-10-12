@@ -161,7 +161,10 @@ export function AvatarCropDialog({
   uploading,
   onOpenChange,
   onUpload,
+  title = "Adjust Avatar",
 }: {
+  /** Dialog title; app logos use "Adjust Logo". */
+  title?: string;
   file: File | null;
   open: boolean;
   uploading: boolean;
@@ -319,7 +322,7 @@ export function AvatarCropDialog({
     <Dialog open={open} onOpenChange={(nextOpen) => !busy && onOpenChange(nextOpen)}>
       <DialogContent className="sm:max-w-[26rem]">
         <DialogHeader>
-          <DialogTitle>Adjust Avatar</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             Drag the image to reposition it, then adjust the zoom.
           </DialogDescription>

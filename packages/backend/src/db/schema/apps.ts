@@ -24,6 +24,10 @@ export const apps = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     slug: varchar('slug', { length: 64 }).notNull(),
     name: varchar('name', { length: 255 }).notNull(),
+    /** Optional one-line summary shown under the name (≤200 characters, enforced by the API). */
+    description: text('description'),
+    /** Stored logo URL (`/apps/logos/<file>`), same file storage and validation as user avatars. */
+    logoUrl: text('logo_url'),
     maintenanceOverride: boolean('maintenance_override').notNull().default(false),
     maintenanceOverrideAt: timestamp('maintenance_override_at', { withTimezone: true }),
     maintenanceOverrideBy: uuid('maintenance_override_by').references(() => users.id, { onDelete: 'set null' }),

@@ -2,10 +2,12 @@ import { and, asc, eq, inArray, max, or, sql } from 'drizzle-orm';
 import type { DrizzleClient, DrizzleExecutor } from '@/db/client.js';
 import { appEnvironmentNodes, appEnvironments, apps } from '@/db/schema/index.js';
 import { grantCreatedResourcePermissions } from '@/lib/created-resource-permissions.js';
+import { createChildLogger } from '@/lib/logger.js';
 import { hasScope } from '@/lib/permissions.js';
 import { announceResourceScopeChanges, removeDanglingResourceScopes } from '@/lib/resource-scope-cleanup.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
+import type { AvatarStorageService } from '@/modules/auth/avatar-storage.service.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import {
   APP_CREATE_SCOPE,
@@ -31,6 +33,8 @@ import type {
   UpdateAppEnvironmentInput,
   UpdateAppInput,
 } from './apps.schemas.js';
+
+const logger = createChildLogger('AppsService');
 
 export type AppRow = typeof apps.$inferSelect;
 export type AppEnvironmentRow = typeof appEnvironments.$inferSelect;
@@ -138,6 +142,7 @@ export class AppsService {
   private health?: AppHealthProvider;
   private maintenance?: AppMaintenanceHooks;
   private incidents?: AppIncidentGuard;
+  private logoStorage?: AvatarStorageService;
 
   constructor(
     private readonly db: DrizzleClient,
@@ -160,6 +165,11 @@ export class AppsService {
 
   setIncidentGuard(guard: AppIncidentGuard) {
     this.incidents = guard;
+  }
+
+  /** App logos live in the user avatar storage: same files, same size and type checks. */
+  setLogoStorage(storage: AvatarStorageService) {
+    this.logoStorage = storage;
   }
 
   publish(appId: string, action: string) {
@@ -262,6 +272,8 @@ export class AppsService {
         id: app.id,
         slug: app.slug,
         name: app.name,
+        description: app.description,
+        logoUrl: app.logoUrl,
         environments: envs.map((env) => ({
           id: env.id,
           slug: env.slug,
@@ -309,6 +321,8 @@ export class AppsService {
       id: app.id,
       slug: app.slug,
       name: app.name,
+      description: app.description,
+      logoUrl: app.logoUrl,
       maintenanceOverride: app.maintenanceOverride,
       maintenanceOverrideAt: app.maintenanceOverrideAt,
       incident: appIncidentState(envIds, incidents),
@@ -482,11 +496,16 @@ export class AppsService {
 
   async update(actor: AppActor, appId: string, input: UpdateAppInput) {
     const { app } = await this.resolveVisible(actor.scopes, appId);
-    if (input.name !== undefined) assertAppWideScope(actor.scopes, APP_EDIT_SCOPE, app.id);
+    if (input.name !== undefined || input.description !== undefined) {
+      assertAppWideScope(actor.scopes, APP_EDIT_SCOPE, app.id);
+    }
     if (input.maintenanceOverride !== undefined) assertAppWideScope(actor.scopes, APP_OPERATE_SCOPE, app.id);
     const name = input.name?.trim();
     const changes: Partial<typeof apps.$inferInsert> = { updatedAt: new Date() };
     if (name !== undefined && name !== app.name) changes.name = name;
+    const description = input.description === undefined ? undefined : input.description || null;
+    const descriptionChanged = description !== undefined && description !== app.description;
+    if (descriptionChanged) changes.description = description;
     if (input.maintenanceOverride !== undefined && input.maintenanceOverride !== app.maintenanceOverride) {
       changes.maintenanceOverride = input.maintenanceOverride;
       changes.maintenanceOverrideAt = input.maintenanceOverride ? new Date() : null;
@@ -510,6 +529,15 @@ export class AppsService {
         resourceType: 'app',
         resourceId: app.id,
         details: { oldName: app.name, newName: changes.name },
+      });
+    }
+    if (descriptionChanged) {
+      await this.auditService.log({
+        userId: actor.userId,
+        action: 'app.description_update',
+        resourceType: 'app',
+        resourceId: app.id,
+        details: { name: changes.name ?? app.name, cleared: description === null },
       });
     }
     if (changes.maintenanceOverride !== undefined) {
@@ -546,7 +574,59 @@ export class AppsService {
       details: { name: app.name, slug: app.slug },
     });
     await this.maintenance?.afterAppChange(app.id, routeIds);
+    await this.removeLogoFile(app.id, app.logoUrl);
     this.publish(app.id, 'deleted');
+  }
+
+  // ── Logo ───────────────────────────────────────────────────────────
+
+  /** Store a new logo (PNG, JPEG or WebP, up to 1 MiB, cropped square by the client) and drop the replaced one. */
+  async uploadLogo(actor: AppActor, appId: string, file: File) {
+    const { app } = await this.resolveVisible(actor.scopes, appId);
+    assertAppWideScope(actor.scopes, APP_EDIT_SCOPE, app.id);
+    if (!this.logoStorage) throw new AppError(503, 'APP_LOGO_STORAGE_UNAVAILABLE', 'Logo storage is unavailable');
+    const logoUrl = await this.logoStorage.store(file, 'Logo');
+    try {
+      await this.db.update(apps).set({ logoUrl, updatedAt: new Date() }).where(eq(apps.id, app.id));
+    } catch (error) {
+      await this.logoStorage.removeByUrl(logoUrl).catch(() => {});
+      throw error;
+    }
+    await this.removeLogoFile(app.id, app.logoUrl);
+    await this.auditService.log({
+      userId: actor.userId,
+      action: 'app.logo_update',
+      resourceType: 'app',
+      resourceId: app.id,
+      details: { name: app.name, sizeBytes: file.size, mediaType: file.type },
+    });
+    this.publish(app.id, 'updated');
+    return this.get(actor.scopes, app.id);
+  }
+
+  async removeLogo(actor: AppActor, appId: string) {
+    const { app } = await this.resolveVisible(actor.scopes, appId);
+    assertAppWideScope(actor.scopes, APP_EDIT_SCOPE, app.id);
+    if (app.logoUrl) {
+      await this.db.update(apps).set({ logoUrl: null, updatedAt: new Date() }).where(eq(apps.id, app.id));
+      await this.removeLogoFile(app.id, app.logoUrl);
+      await this.auditService.log({
+        userId: actor.userId,
+        action: 'app.logo_remove',
+        resourceType: 'app',
+        resourceId: app.id,
+        details: { name: app.name },
+      });
+      this.publish(app.id, 'updated');
+    }
+    return this.get(actor.scopes, app.id);
+  }
+
+  private async removeLogoFile(appId: string, logoUrl: string | null) {
+    if (!logoUrl) return;
+    await this.logoStorage?.removeByUrl(logoUrl).catch((error) => {
+      logger.warn('Failed to remove an app logo file', { appId, error });
+    });
   }
 
   // ── Environment changes ────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { container } from '@/container.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
+import { AppError } from '@/middleware/error-handler.js';
 import { authMiddleware, requireAnyScopeBase } from '@/modules/auth/auth.middleware.js';
 import type { AppEnv } from '@/types.js';
 import { APP_SCOPES } from './app-access.js';
@@ -20,8 +21,10 @@ import {
   deleteAppRoute,
   getAppRoute,
   listAppsRoute,
+  removeAppLogoRoute,
   updateAppEnvironmentRoute,
   updateAppRoute,
+  uploadAppLogoRoute,
 } from './apps.docs.js';
 import {
   CreateAppEnvironmentSchema,
@@ -56,6 +59,16 @@ appsRoutes.openapi(getAppRoute, async (c) => {
 appsRoutes.openapi(updateAppRoute, async (c) => {
   const input = UpdateAppSchema.parse(await c.req.json());
   return c.json({ data: await container.resolve(AppsService).update(appActor(c), c.req.param('id')!, input) });
+});
+
+appsRoutes.openapi(uploadAppLogoRoute, async (c) => {
+  const { logo } = await c.req.parseBody();
+  if (!(logo instanceof File)) throw new AppError(400, 'APP_LOGO_REQUIRED', 'Logo image is required');
+  return c.json({ data: await container.resolve(AppsService).uploadLogo(appActor(c), c.req.param('id')!, logo) });
+});
+
+appsRoutes.openapi(removeAppLogoRoute, async (c) => {
+  return c.json({ data: await container.resolve(AppsService).removeLogo(appActor(c), c.req.param('id')!) });
 });
 
 appsRoutes.openapi(deleteAppRoute, async (c) => {

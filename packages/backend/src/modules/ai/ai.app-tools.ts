@@ -83,10 +83,13 @@ async function manageApp(service: AppsService, actor: AppActor, args: Record<str
     case 'update': {
       const input = UpdateAppSchema.parse({
         ...(args.name !== undefined ? { name: args.name } : {}),
+        ...(args.description !== undefined ? { description: args.description } : {}),
         ...(args.maintenanceOverride !== undefined ? { maintenanceOverride: args.maintenanceOverride } : {}),
       });
       return service.update(actor, requiredString(args.appId, 'appId', operation), input);
     }
+    case 'remove_logo':
+      return service.removeLogo(actor, requiredString(args.appId, 'appId', operation));
     case 'delete':
       await service.delete(actor, requiredString(args.appId, 'appId', operation));
       return { success: true };
