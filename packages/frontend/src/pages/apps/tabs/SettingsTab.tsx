@@ -474,10 +474,10 @@ export function SettingsTab({
             </SettingsControlRow>
           )}
           {permissions.delete && (
-            <SettingsControlRow title="Delete App" description="Resources keep running">
+            <SettingsControlRow title="Delete app" description="Resources keep running">
               <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
                 <Trash2 className="h-4 w-4" />
-                Delete App
+                Delete app
               </Button>
             </SettingsControlRow>
           )}

@@ -22,9 +22,10 @@ export function NewAppDialog({
       description="Group the containers, databases, storage, routes and Pages of one application. Create or import them from the app's tabs."
       placeholder="Shop"
       submitLabel="Create"
-      onSubmit={async (name) => {
+      withDescription
+      onSubmit={async (name, description) => {
         try {
-          const app = await api.createApp({ name });
+          const app = await api.createApp(description ? { name, description } : { name });
           toast.success(`App ${app.name} created`);
           onCreated(app);
         } catch (error) {

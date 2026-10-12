@@ -6,6 +6,16 @@ import { APPS_REALTIME_CHANNEL, type AppDetail, type AppsChangedPayload } from "
 
 const MEMBER_RELOAD_DELAY_MS = 1_000;
 
+// Apps this tab is deleting or has deleted. Their pages stop reloading, so the deletion's own realtime events never
+// request an app that no longer exists while the page navigates away.
+const deletedAppIds = new Set<string>();
+
+/** Call before the delete request; `deleted: false` undoes it when the request fails. */
+export function markAppDeleted(appId: string, deleted = true) {
+  if (deleted) deletedAppIds.add(appId);
+  else deletedAppIds.delete(appId);
+}
+
 /**
  * The app of an Apps page, by slug or id, kept current by the `apps` realtime channel and by the
  * channels of its members.
@@ -21,8 +31,13 @@ export function useAppDetail(idOrSlug: string | undefined, initial?: AppDetail |
   const [version, setVersion] = useState(0);
   const appIdRef = useRef<string | null>(app?.id ?? null);
 
+  const isDeleted = useCallback(
+    () => appIdRef.current !== null && deletedAppIds.has(appIdRef.current),
+    []
+  );
+
   const reload = useCallback(async () => {
-    if (!idOrSlug) return;
+    if (!idOrSlug || isDeleted()) return;
     try {
       const next = await api.getApp(idOrSlug);
       appIdRef.current = next.id;
@@ -34,7 +49,7 @@ export function useAppDetail(idOrSlug: string | undefined, initial?: AppDetail |
     } finally {
       setLoading(false);
     }
-  }, [idOrSlug]);
+  }, [idOrSlug, isDeleted]);
 
   useEffect(() => {
     void reload();
@@ -43,6 +58,7 @@ export function useAppDetail(idOrSlug: string | undefined, initial?: AppDetail |
   useRealtime(APPS_REALTIME_CHANNEL, (raw) => {
     const payload = raw as AppsChangedPayload;
     if (appIdRef.current && payload?.appId && payload.appId !== appIdRef.current) return;
+    if (isDeleted()) return;
     setVersion((current) => current + 1);
     void reload();
   });
@@ -51,13 +67,14 @@ export function useAppDetail(idOrSlug: string | undefined, initial?: AppDetail |
   // every other page: a burst of events reloads once.
   const memberTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const memberChanged = useCallback(() => {
-    if (memberTimer.current) return;
+    if (memberTimer.current || isDeleted()) return;
     memberTimer.current = setTimeout(() => {
       memberTimer.current = null;
+      if (isDeleted()) return;
       setVersion((current) => current + 1);
       void reload();
     }, MEMBER_RELOAD_DELAY_MS);
-  }, [reload]);
+  }, [reload, isDeleted]);
   useEffect(
     () => () => {
       if (memberTimer.current) clearTimeout(memberTimer.current);

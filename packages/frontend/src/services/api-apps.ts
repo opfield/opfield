@@ -45,7 +45,7 @@ export function withAppsApi<TBase extends ApiClientBaseConstructor>(Base: TBase)
       return this.unwrapData(this.request<{ data: AppSummary[] }>("/apps"));
     }
 
-    async createApp(data: { name: string }): Promise<AppDetail> {
+    async createApp(data: { name: string; description?: string }): Promise<AppDetail> {
       return this.unwrapData(
         this.request<{ data: AppDetail }>("/apps", { method: "POST", body: JSON.stringify(data) })
       );

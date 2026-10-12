@@ -9,12 +9,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 
 /** One width for every Apps dialog. */
 export const APP_DIALOG_WIDTH = "sm:max-w-lg";
 
-/** A name-only form: New App, New Environment, Rename Environment. */
+/** App description: one line under the name, up to 200 characters (the backend limit). */
+export const APP_DESCRIPTION_MAX = 200;
+
+/** A name form: New App (with an optional description), New Environment, Rename Environment. */
 export function AppNameDialog({
   open,
   onOpenChange,
@@ -23,6 +27,7 @@ export function AppNameDialog({
   initialName = "",
   placeholder,
   submitLabel,
+  withDescription = false,
   onSubmit,
 }: {
   open: boolean;
@@ -32,10 +37,13 @@ export function AppNameDialog({
   initialName?: string;
   placeholder?: string;
   submitLabel: string;
-  /** Throw to keep the dialog open (the caller shows the error). */
-  onSubmit: (name: string) => Promise<void>;
+  /** Adds an optional Description field (New App). */
+  withDescription?: boolean;
+  /** Throw to keep the dialog open (the caller shows the error). `description` is trimmed, empty when not given. */
+  onSubmit: (name: string, description: string) => Promise<void>;
 }) {
   const [name, setName] = useState(initialName);
+  const [descriptionText, setDescriptionText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const shownTitle = useRetainedDialogValue(title, open);
   const shownDescription = useRetainedDialogValue(description, open);
@@ -43,6 +51,7 @@ export function AppNameDialog({
   useEffect(() => {
     if (open) {
       setName(initialName);
+      setDescriptionText("");
       setSubmitting(false);
     }
   }, [open, initialName]);
@@ -52,7 +61,7 @@ export function AppNameDialog({
     if (!trimmed || submitting) return;
     setSubmitting(true);
     try {
-      await onSubmit(trimmed);
+      await onSubmit(trimmed, withDescription ? descriptionText.trim() : "");
       onOpenChange(false);
     } catch {
       // The caller reported the error; the form stays open for a retry.
@@ -85,6 +94,24 @@ export function AppNameDialog({
             autoFocus
           />
         </div>
+        {withDescription && (
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" htmlFor="app-name-dialog-description">
+              Description <span className="font-normal text-muted-foreground">(optional)</span>
+            </label>
+            <Textarea
+              id="app-name-dialog-description"
+              value={descriptionText}
+              onChange={(event) =>
+                setDescriptionText(event.target.value.slice(0, APP_DESCRIPTION_MAX))
+              }
+              placeholder="What this app is"
+              rows={2}
+              maxLength={APP_DESCRIPTION_MAX}
+              className="resize-none"
+            />
+          </div>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             Cancel

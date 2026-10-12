@@ -454,6 +454,7 @@ export class AppsService {
           .values({
             name,
             slug: uniqueSlug(base, new Set(taken.map((row) => row.slug))),
+            description: input.description || null,
             createdById: actor.userId,
           })
           .returning();

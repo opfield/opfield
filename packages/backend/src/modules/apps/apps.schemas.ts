@@ -9,8 +9,6 @@ const name = (max: number) =>
     .max(max)
     .refine((value) => ![...value].some((char) => char.charCodeAt(0) < 32), 'Name contains control characters');
 
-export const CreateAppSchema = z.object({ name: name(255) }).strict();
-
 /** App description: one line under the name, up to 200 characters; empty clears it. */
 export const APP_DESCRIPTION_MAX = 200;
 const description = z
@@ -18,6 +16,8 @@ const description = z
   .transform((value) => value.replace(/\s+/g, ' ').trim())
   .pipe(z.string().max(APP_DESCRIPTION_MAX))
   .nullable();
+
+export const CreateAppSchema = z.object({ name: name(255), description: description.optional() }).strict();
 
 export const UpdateAppSchema = z
   .object({

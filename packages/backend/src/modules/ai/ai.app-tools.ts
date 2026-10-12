@@ -79,7 +79,13 @@ async function manageApp(service: AppsService, actor: AppActor, args: Record<str
   const operation = String(args.operation ?? '');
   switch (operation) {
     case 'create':
-      return service.create(actor, CreateAppSchema.parse({ name: args.name }));
+      return service.create(
+        actor,
+        CreateAppSchema.parse({
+          name: args.name,
+          ...(args.description !== undefined ? { description: args.description } : {}),
+        })
+      );
     case 'update': {
       const input = UpdateAppSchema.parse({
         ...(args.name !== undefined ? { name: args.name } : {}),

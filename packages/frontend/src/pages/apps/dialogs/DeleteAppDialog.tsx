@@ -15,6 +15,7 @@ import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { AppDetail } from "@/types";
 import { memberTotal, plural } from "../app-shared";
+import { markAppDeleted } from "../use-app";
 import { APP_DIALOG_WIDTH } from "./AppNameDialog";
 
 /** Delete App: members keep running and leave the app; type the name to confirm. */
@@ -39,12 +40,15 @@ export function DeleteAppDialog({
 
   const remove = async () => {
     setDeleting(true);
+    // The app's page stops reloading before the request, so the deletion's realtime events never fetch it again.
+    markAppDeleted(app.id);
     try {
       await api.deleteApp(app.id);
-      toast.success(`App ${app.name} deleted`);
-      onOpenChange(false);
       onDeleted();
+      onOpenChange(false);
+      toast.success(`App ${app.name} deleted`);
     } catch (error) {
+      markAppDeleted(app.id, false);
       toastApiError(error, "Failed to delete the app");
     } finally {
       setDeleting(false);
@@ -82,7 +86,7 @@ export function DeleteAppDialog({
             disabled={confirmation !== app.name}
             onClick={() => void remove()}
           >
-            Delete App
+            Delete app
           </Button>
         </DialogFooter>
       </DialogContent>
