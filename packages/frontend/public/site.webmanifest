@@ -8,22 +8,22 @@
   "theme_color": "#141414",
   "icons": [
     {
-      "src": "/android-chrome-192x192.png",
+      "src": "/android-chrome-192x192.png?v=26dff8204b",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/android-chrome-512x512.png",
+      "src": "/android-chrome-512x512.png?v=8fcfb49a12",
       "sizes": "512x512",
       "type": "image/png"
     },
     {
-      "src": "/favicon.svg",
+      "src": "/favicon.svg?v=9cac1dc7b2",
       "sizes": "any",
       "type": "image/svg+xml"
     },
     {
-      "src": "/android-chrome-maskable-512x512.png",
+      "src": "/android-chrome-maskable-512x512.png?v=05e260c3f2",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
