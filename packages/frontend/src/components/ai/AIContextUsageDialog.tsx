@@ -17,10 +17,8 @@ interface AIContextUsageDialogProps {
 function UsageRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 px-3 py-2 text-sm">
-      <span className="min-w-0 truncate text-muted-foreground" title={label}>
-        {label}
-      </span>
-      <span className="shrink-0 text-right">{value}</span>
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right">{value}</span>
     </div>
   );
 }
@@ -61,7 +59,7 @@ export function AIContextUsageDialog({ usage, onClose }: AIContextUsageDialogPro
         if (!open) onClose();
       }}
     >
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Context Usage</DialogTitle>
           <DialogDescription>Estimated context for the next assistant request.</DialogDescription>

@@ -297,7 +297,7 @@ export function InferenceProviderConnectDialog({
     <Dialog open={open} onOpenChange={locked ? () => {} : close}>
       <DialogContent
         hideCloseButton={locked}
-        className="sm:max-w-lg"
+        className="sm:max-w-xl"
         onEscapeKeyDown={locked ? (event) => event.preventDefault() : undefined}
         onPointerDownOutside={locked ? (event) => event.preventDefault() : undefined}
         onInteractOutside={locked ? (event) => event.preventDefault() : undefined}

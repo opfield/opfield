@@ -918,7 +918,7 @@ export function DockerGitSourcePanel({
             setConnectOpen(open);
           }}
         >
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className={pagesTarget ? "sm:max-w-lg" : "sm:max-w-2xl"}>
             <DialogHeader>
               <DialogTitle>Connect Repository</DialogTitle>
               <DialogDescription>

@@ -1525,7 +1525,7 @@ export function DockerComposeProjectDetail() {
         </Tabs>
       </div>
       <Dialog open={adoptOpen} onOpenChange={setAdoptOpen}>
-        <DialogContent clipOverflow className="sm:max-w-5xl">
+        <DialogContent clipOverflow className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Adopt Compose Project</DialogTitle>
             <DialogDescription>
@@ -1543,7 +1543,7 @@ export function DockerComposeProjectDetail() {
         </DialogContent>
       </Dialog>
       <Dialog open={revisionOpen} onOpenChange={setRevisionOpen}>
-        <DialogContent clipOverflow className="sm:max-w-5xl">
+        <DialogContent clipOverflow className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>New Revision for {project.name}</DialogTitle>
             <DialogDescription>
@@ -1561,7 +1561,7 @@ export function DockerComposeProjectDetail() {
         </DialogContent>
       </Dialog>
       <Dialog open={revisionsOpen} onOpenChange={setRevisionsOpen}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Change Revision</DialogTitle>
             <DialogDescription>
@@ -1594,7 +1594,7 @@ export function DockerComposeProjectDetail() {
         </DialogContent>
       </Dialog>
       <Dialog open={activityOpen} onOpenChange={setActivityOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-h-[92dvh] sm:max-w-3xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-h-[92dvh] sm:max-w-5xl">
           <DialogHeader>
             <DialogTitle>Compose Activity</DialogTitle>
             <DialogDescription>
@@ -1637,7 +1637,7 @@ export function DockerComposeProjectDetail() {
       </Dialog>
       <Dialog open={activityDetailsOpen} onOpenChange={setActivityDetailsOpen}>
         <DialogContent
-          className="sm:max-w-lg"
+          className="sm:max-w-xl"
           onAnimationEnd={(event) => {
             if (
               event.target === event.currentTarget &&

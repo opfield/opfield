@@ -1290,7 +1290,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
       <OneTimeSecretDialog
         open={reenrollment !== null}
         onOpenChange={(open) => !open && setReenrollment(null)}
-        className="sm:max-w-lg"
+        className="sm:max-w-2xl"
         title={`Re-enroll ${shownReenrollment?.displayName ?? "Relay"}`}
         description={
           shownReenrollment ? (

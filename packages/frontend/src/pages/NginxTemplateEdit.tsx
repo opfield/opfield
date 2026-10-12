@@ -432,7 +432,7 @@ export function NginxTemplateEdit() {
       </div>
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="flex h-[88vh] w-[92vw] flex-col sm:max-w-5xl">
+        <DialogContent className="flex h-[88vh] w-[92vw] flex-col sm:max-w-[58rem]">
           <DialogHeader>
             <DialogTitle>Rendered Preview</DialogTitle>
             <DialogDescription>Preview the template rendered with sample data.</DialogDescription>
@@ -452,7 +452,7 @@ export function NginxTemplateEdit() {
       </Dialog>
 
       <Dialog open={cheatsheetOpen} onOpenChange={setCheatsheetOpen}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Template Cheatsheet</DialogTitle>
             <DialogDescription>
@@ -468,7 +468,7 @@ export function NginxTemplateEdit() {
 
       {!isBuiltin && (
         <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-          <DialogContent className="w-[90vw] sm:max-w-3xl">
+          <DialogContent className="w-[90vw] sm:max-w-[42rem]">
             <DialogHeader>
               <DialogTitle>Template Settings</DialogTitle>
               <DialogDescription>

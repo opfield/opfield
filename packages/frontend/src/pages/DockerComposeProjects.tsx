@@ -607,7 +607,7 @@ export function DockerComposeProjects({
   );
   const createDialog = (
     <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-      <DialogContent clipOverflow className="sm:max-w-5xl">
+      <DialogContent clipOverflow className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>New Compose Project</DialogTitle>
           <DialogDescription>
@@ -623,7 +623,7 @@ export function DockerComposeProjects({
       open={!!adoptEditorProject}
       onOpenChange={(open) => !open && setAdoptEditorProject(null)}
     >
-      <DialogContent clipOverflow className="sm:max-w-5xl">
+      <DialogContent clipOverflow className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Adopt Compose Project</DialogTitle>
           <DialogDescription>

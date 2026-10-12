@@ -838,7 +838,7 @@ export function ManagedDatabaseCreateDialog({
         }}
       >
         <DialogContent
-          className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl"
+          className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl"
           onEscapeKeyDown={(event) => {
             if (provisioning?.phase === "waiting") event.preventDefault();
           }}

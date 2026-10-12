@@ -138,7 +138,7 @@ export function PageManualDeployDialog({
       }}
     >
       <DialogContent
-        className="sm:max-w-lg"
+        className="sm:max-w-xl"
         hideCloseButton={busy}
         onEscapeKeyDown={(event) => {
           if (busy) event.preventDefault();

@@ -228,7 +228,7 @@ export function InferenceModelDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent clipOverflow className="sm:max-w-lg">
+      <DialogContent clipOverflow className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{editing ? "Edit Inference Model" : "Add Inference Model"}</DialogTitle>
           <DialogDescription>

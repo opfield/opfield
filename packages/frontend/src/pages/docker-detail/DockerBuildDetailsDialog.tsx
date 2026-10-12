@@ -153,7 +153,7 @@ export function DockerBuildDetailsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-lg"
+        className="sm:max-w-2xl"
         onAnimationEnd={(event) => {
           if (
             event.target === event.currentTarget &&

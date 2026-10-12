@@ -697,7 +697,7 @@ function SandboxArtifactsPanel() {
       </PanelShell>
 
       <Dialog open={allOpen} onOpenChange={onAllOpenChange}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-h-[85dvh] sm:max-w-3xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-h-[85dvh] sm:max-w-5xl">
           <DialogHeader>
             <DialogTitle>Stored Artifacts</DialogTitle>
             <DialogDescription>

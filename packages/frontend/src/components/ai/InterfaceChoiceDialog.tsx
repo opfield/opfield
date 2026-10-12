@@ -52,7 +52,7 @@ export function InterfaceChoiceDialog(props: InterfaceChoiceDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange ?? (() => {})} modal>
       <DialogContent
         hideCloseButton={!onOpenChange}
-        className="sm:max-w-lg"
+        className="sm:max-w-xl"
         onEscapeKeyDown={onOpenChange ? undefined : (event) => event.preventDefault()}
         onPointerDownOutside={onOpenChange ? undefined : (event) => event.preventDefault()}
         onInteractOutside={onOpenChange ? undefined : (event) => event.preventDefault()}

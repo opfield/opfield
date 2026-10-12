@@ -147,7 +147,7 @@ export function AppCreateDialogs({
       />
 
       <Dialog open={active === "compose"} onOpenChange={openChange}>
-        <DialogContent clipOverflow className="sm:max-w-5xl">
+        <DialogContent clipOverflow className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>New Compose Project</DialogTitle>
             <DialogDescription>

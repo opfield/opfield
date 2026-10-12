@@ -640,7 +640,7 @@ function GitLabIntegrationsContent() {
         open={dialogOpen}
         onOpenChange={(open) => (open ? setDialogOpen(true) : closeDialog())}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader className="shrink-0">
             <DialogTitle>
               {editingConnector ? "GitLab Connector" : "Add GitLab Connector"}

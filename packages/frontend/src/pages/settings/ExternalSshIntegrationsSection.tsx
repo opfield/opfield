@@ -199,7 +199,7 @@ export function ExternalSshIntegrationsSection() {
           if (!nextOpen && !savingEdit) setEditingConnector(null);
         }}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>SSH Connector</DialogTitle>
             <DialogDescription>
@@ -220,7 +220,7 @@ export function ExternalSshIntegrationsSection() {
                 />
               </SettingsControlRow>
               <SettingsControlRow title="Connection">
-                <span className="break-all text-sm text-muted-foreground">
+                <span className="text-sm text-muted-foreground">
                   {displayedEditingConnector.username}@{displayedEditingConnector.host}:
                   {displayedEditingConnector.port}
                 </span>

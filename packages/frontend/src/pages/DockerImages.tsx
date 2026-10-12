@@ -235,7 +235,7 @@ export function DockerImages({
       {
         id: "container",
         header: "Container",
-        cellClassName: "break-all font-medium",
+        cellClassName: "font-medium",
         render: (container) => container.name.replace(/^\//, ""),
       },
       {
@@ -821,7 +821,7 @@ export function DockerImages({
 
       {/* Image Details Dialog */}
       <Dialog open={detailsOpen} onOpenChange={onDetailsOpenChange}>
-        <DialogContent className="max-w-full sm:max-w-lg">
+        <DialogContent className="max-w-full sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Image Details</DialogTitle>
             <DialogDescription>

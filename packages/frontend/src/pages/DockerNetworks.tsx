@@ -519,7 +519,7 @@ export function DockerNetworks({
       {
         id: "container",
         header: "Container",
-        cellClassName: "break-all font-medium",
+        cellClassName: "font-medium",
         render: (container) => container.name,
       },
       {
@@ -792,7 +792,7 @@ export function DockerNetworks({
       </Dialog>
       {/* Network Details Dialog */}
       <Dialog open={networkDetailsOpen} onOpenChange={onNetworkDetailsOpenChange}>
-        <DialogContent className="max-w-full sm:max-w-lg">
+        <DialogContent className="max-w-full sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Network Details</DialogTitle>
             <DialogDescription>

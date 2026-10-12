@@ -467,7 +467,7 @@ export function PkiTemplatesTab({
 
         {/* Wizard Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>
                 {viewOnly ? editing?.name : editing ? "Edit Template" : "Create Template"}
