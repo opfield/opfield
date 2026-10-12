@@ -161,6 +161,8 @@ export function AuthProvisioningSection({
 
   useContentLoading(!initialLoadComplete);
   if (!initialLoadComplete || !settings) return null;
+  // A managed cloud installation keeps the public URL and gRPC addresses the cloud set up.
+  const cloudManaged = settings.cloudManaged === true;
 
   return (
     <div className="space-y-4">
@@ -187,7 +189,11 @@ export function AuthProvisioningSection({
             <SettingsControlRow
               title="Public URL"
               description={
-                identityTrustLocked ? (
+                cloudManaged ? (
+                  <>
+                    Browser-facing URL for redirects and links. <CloudManagedHint />
+                  </>
+                ) : identityTrustLocked ? (
                   <>
                     Browser-facing URL for redirects and links. <IdentityTrustHint />
                   </>
@@ -201,7 +207,7 @@ export function AuthProvisioningSection({
                 type="url"
                 value={publicUrl}
                 placeholder="https://opfield.example.com"
-                disabled={!canEditIdentityTrust || isSavingGeneral}
+                disabled={!canEditIdentityTrust || isSavingGeneral || cloudManaged}
                 onChange={(event) => setPublicUrl(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") saveAccessSettings();
@@ -293,13 +299,21 @@ export function AuthProvisioningSection({
             </div>
             <SettingsControlRow
               title="gRPC public target"
-              description="Public address used to enroll nodes"
+              description={
+                cloudManaged ? (
+                  <>
+                    Public address used to enroll nodes. <CloudManagedHint />
+                  </>
+                ) : (
+                  "Public address used to enroll nodes"
+                )
+              }
               help="Host and port written into public node-enrollment commands. Nodes must be able to reach this address to establish their control connection."
             >
               <Input
                 value={gatewayGrpcPublicTarget}
                 placeholder="opfield.example.com:9443"
-                disabled={!canEdit || isSavingGeneral}
+                disabled={!canEdit || isSavingGeneral || cloudManaged}
                 onChange={(event) => setGatewayGrpcPublicTarget(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
@@ -310,13 +324,21 @@ export function AuthProvisioningSection({
             </SettingsControlRow>
             <SettingsControlRow
               title="gRPC local IP"
-              description="Optional private address for local node enrollment"
+              description={
+                cloudManaged ? (
+                  <>
+                    Optional private address for local node enrollment. <CloudManagedHint />
+                  </>
+                ) : (
+                  "Optional private address for local node enrollment"
+                )
+              }
               help="Optional private address used in enrollment commands for nodes on the local network. When empty, Opfield uses the public target above."
             >
               <Input
                 value={gatewayGrpcLocalIp}
                 placeholder="Uses public target when empty"
-                disabled={!canEdit || isSavingGeneral}
+                disabled={!canEdit || isSavingGeneral || cloudManaged}
                 onChange={(event) => setGatewayGrpcLocalIp(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
@@ -1476,6 +1498,10 @@ export function AuthProvisioningSection({
       </PanelShell>
     </div>
   );
+}
+
+function CloudManagedHint() {
+  return <span className="text-muted-foreground">Managed by Opfield Cloud.</span>;
 }
 
 function IdentityTrustHint({ action = "change this" }: { action?: string }) {

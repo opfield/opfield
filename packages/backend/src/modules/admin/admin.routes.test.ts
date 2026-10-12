@@ -10,6 +10,7 @@ import { AuthSettingsService } from '@/modules/auth/auth.settings.service.js';
 import { AuthMailService } from '@/modules/auth/auth-mail.service.js';
 import { LocalAuthService } from '@/modules/auth/local-auth.service.js';
 import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
+import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
 import { groupRoutes } from '@/modules/groups/group.routes.js';
 import { GroupService } from '@/modules/groups/group.service.js';
 import { PermissionGroupFolderService } from '@/modules/groups/permission-group-folders.service.js';
@@ -20,12 +21,14 @@ import { DEFAULT_GENERAL_SETTINGS, GeneralSettingsService } from '@/modules/sett
 import { NetworkSettingsService } from '@/modules/settings/network-settings.service.js';
 import { OutboundWebhookPolicyService } from '@/modules/settings/outbound-webhook-policy.service.js';
 import { TokensService } from '@/modules/tokens/tokens.service.js';
+import { GatewayIdentityRenewalService } from '@/services/gateway-identity-renewal.service.js';
 import { SessionService } from '@/services/session.service.js';
 import { WebIdentityService } from '@/services/web-identity.service.js';
 import { WebTransportSettingsService } from '@/services/web-transport-settings.service.js';
 import type { AppEnv, SessionData, User } from '@/types.js';
 import { adminRoutes, generalSettingsRollbackFields, generalSettingsRollbackPatch } from './admin.routes.js';
 import { AdminUserFolderService } from './admin-user-folders.service.js';
+import { findCloudManagedChanges } from './cloud-managed-settings.js';
 import { findIdentityTrustChanges } from './identity-trust-settings.js';
 
 process.env.NODE_ENV = 'test';
@@ -516,6 +519,7 @@ describe('admin Gateway settings route permissions', () => {
         source: 'unknown',
       },
       availableGroups: [],
+      cloudManaged: false,
     });
   });
 
@@ -1534,6 +1538,9 @@ describe('general settings rollback', () => {
       refresh: vi.fn().mockRejectedValue(new Error('certificate issuance failed')),
     } as unknown as WebIdentityService);
     container.registerInstance(AuditService, { log: vi.fn() } as unknown as AuditService);
+    container.registerInstance(CloudLinkService, {
+      managedByCloud: vi.fn().mockResolvedValue(false),
+    } as unknown as CloudLinkService);
 
     const response = await createApp().request('/api/admin/auth-settings', {
       method: 'PUT',
@@ -1570,5 +1577,104 @@ describe('general settings rollback', () => {
       gatewayGrpcPublicTarget: null,
       relay: { dataLanes: previous.relay.dataLanes },
     });
+  });
+});
+
+describe('cloud-managed addresses', () => {
+  const currentGeneral = {
+    ...DEFAULT_GENERAL_SETTINGS,
+    publicUrl: 'https://gw.example.com',
+    gatewayGrpcPublicTarget: 'gw.example.com:9443',
+    gatewayGrpcLocalIp: null,
+  };
+
+  function registerSettings(managed: boolean) {
+    registerSession(['settings:gateway:edit', 'admin:system']);
+    container.registerInstance(WebIdentityService, { refresh: vi.fn() } as unknown as WebIdentityService);
+    container.registerInstance(GatewayIdentityRenewalService, {
+      refreshGrpcIdentity: vi.fn(),
+    } as unknown as GatewayIdentityRenewalService);
+    const updateGeneralConfig = vi.fn().mockResolvedValue(currentGeneral);
+    container.registerInstance(AuthSettingsService, {
+      updateConfig: vi.fn().mockResolvedValue({
+        oidcAutoCreateUsers: true,
+        oidcDefaultGroupId: null,
+        oidcRequireVerifiedEmail: true,
+        oauthExtendedCallbackCompatibility: false,
+      }),
+      getConfig: vi.fn().mockResolvedValue({ oidcRequireVerifiedEmail: true }),
+    } as unknown as AuthSettingsService);
+    container.registerInstance(McpSettingsService, {
+      updateConfig: vi.fn().mockResolvedValue({ serverEnabled: true, extendedCompatibility: false }),
+    } as unknown as McpSettingsService);
+    container.registerInstance(GeneralSettingsService, {
+      getConfig: vi.fn().mockResolvedValue(currentGeneral),
+      updateConfig: updateGeneralConfig,
+    } as unknown as GeneralSettingsService);
+    container.registerInstance(NetworkSettingsService, {
+      getConfig: vi
+        .fn()
+        .mockResolvedValue({ clientIpSource: 'auto', trustedProxyCidrs: [], trustCloudflareHeaders: false }),
+    } as unknown as NetworkSettingsService);
+    container.registerInstance(OutboundWebhookPolicyService, {
+      getConfig: vi.fn().mockResolvedValue({ allowPrivateNetworks: true, allowedPrivateCidrs: [] }),
+    } as unknown as OutboundWebhookPolicyService);
+    container.registerInstance(GroupService, { listGroups: vi.fn().mockResolvedValue([]) } as unknown as GroupService);
+    container.registerInstance(AuditService, { log: vi.fn().mockResolvedValue(undefined) } as unknown as AuditService);
+    container.registerInstance(CloudLinkService, {
+      managedByCloud: vi.fn().mockResolvedValue(managed),
+    } as unknown as CloudLinkService);
+    return updateGeneralConfig;
+  }
+
+  const put = (generalSettings: Record<string, unknown>) =>
+    createApp().request('/api/admin/auth-settings', {
+      method: 'PUT',
+      headers: sessionHeaders(),
+      body: JSON.stringify({ generalSettings }),
+    });
+
+  it('refuses changing the public URL or gRPC addresses of a managed installation', async () => {
+    for (const change of [
+      { gatewayGrpcPublicTarget: 'other.example.com:9443' },
+      { gatewayGrpcLocalIp: '10.0.0.5:9443' },
+      { publicUrl: 'https://other.example.com', fileUploadMaxBytes: 50 * 1024 * 1024 },
+    ]) {
+      const updateGeneralConfig = registerSettings(true);
+      const response = await put(change);
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({ code: 'CLOUD_MANAGED' });
+      expect(updateGeneralConfig).not.toHaveBeenCalled();
+    }
+  });
+
+  it('still saves other fields with the managed addresses resubmitted unchanged', async () => {
+    const updateGeneralConfig = registerSettings(true);
+    const change = {
+      publicUrl: 'https://gw.example.com/',
+      gatewayGrpcPublicTarget: 'gw.example.com:9443',
+      gatewayGrpcLocalIp: '',
+      fileUploadMaxBytes: 50 * 1024 * 1024,
+      relayGrantTtlHours: 12,
+    };
+    const response = await put(change);
+    expect(response.status).toBe(200);
+    expect(updateGeneralConfig).toHaveBeenCalledWith(change);
+  });
+
+  it('lets an installation that is not managed change them', async () => {
+    const updateGeneralConfig = registerSettings(false);
+    const response = await put({ gatewayGrpcPublicTarget: 'other.example.com:9443' });
+    expect(response.status).toBe(200);
+    expect(updateGeneralConfig).toHaveBeenCalledWith({ gatewayGrpcPublicTarget: 'other.example.com:9443' });
+  });
+
+  it('names only the addresses that change', () => {
+    expect(
+      findCloudManagedChanges({ publicUrl: 'https://gw.example.com', gatewayGrpcLocalIp: null }, currentGeneral)
+    ).toEqual([]);
+    expect(findCloudManagedChanges({ gatewayGrpcPublicTarget: 'not a host' }, currentGeneral)).toEqual([
+      'the gRPC public target',
+    ]);
   });
 });

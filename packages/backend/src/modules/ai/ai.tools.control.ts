@@ -278,7 +278,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
         generalSettings: {
           type: 'object',
           description:
-            'Partial general settings: publicUrl, updateChannel, hideExternalBranding, autoAssignCreatedResourcePermissions, sendInvitationOnUserCreate (email the account invitation to every created user; off by default), file limits, gatewayGrpcPublicTarget, gatewayGrpcLocalIp, relayAutoRecovery, relay tuning, shutdown deadlines, relayGrantTtlHours, relayPolicyLeaseHours (lifetime of the signed policy pushed to a relay, 1-168 hours, default 72), features.',
+            "Partial general settings: publicUrl, updateChannel, hideExternalBranding, autoAssignCreatedResourcePermissions, sendInvitationOnUserCreate (email the account invitation to every created user; off by default), file limits, gatewayGrpcPublicTarget, gatewayGrpcLocalIp, relayAutoRecovery, relay tuning, shutdown deadlines, relayGrantTtlHours, relayPolicyLeaseHours (lifetime of the signed policy pushed to a relay, 1-168 hours, default 72), features. On a managed cloud installation publicUrl, gatewayGrpcPublicTarget and gatewayGrpcLocalIp are the cloud's: changing them answers 409 CLOUD_MANAGED (resubmitting them unchanged is fine).",
         },
         networkSecurity: { type: 'object' },
         outboundWebhookPolicy: { type: 'object' },

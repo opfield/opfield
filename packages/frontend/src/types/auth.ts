@@ -190,6 +190,8 @@ export interface AuthProvisioningSettings {
     warning?: string;
   };
   availableGroups: AuthProvisioningGroupOption[];
+  /** Managed cloud installation: the public URL and gRPC addresses belong to the cloud. */
+  cloudManaged?: boolean;
 }
 
 export interface OAuthConsentPreview {

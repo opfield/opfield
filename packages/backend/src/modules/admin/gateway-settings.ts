@@ -5,6 +5,11 @@ import { createChildLogger } from '@/lib/logger.js';
 import { hasScope, isScopeSubset } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { UpdateAuthProvisioningSettingsInput } from '@/modules/admin/admin.schemas.js';
+import {
+  CLOUD_MANAGED_SETTINGS_MESSAGE,
+  findCloudManagedChanges,
+  touchesCloudManagedSettings,
+} from '@/modules/admin/cloud-managed-settings.js';
 import { findIdentityTrustChanges } from '@/modules/admin/identity-trust-settings.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { assertAdminSignInRemains } from '@/modules/auth/admin-sign-in-guard.js';
@@ -12,6 +17,7 @@ import { AuthService } from '@/modules/auth/auth.service.js';
 import { AuthSettingsService } from '@/modules/auth/auth.settings.service.js';
 import { AuthMailService } from '@/modules/auth/auth-mail.service.js';
 import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
+import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
 import { isDemoVisitor } from '@/modules/demo/demo-mode.js';
 import { GroupService } from '@/modules/groups/group.service.js';
 import { LoggingRuntimeService } from '@/modules/logging/logging-runtime.service.js';
@@ -75,6 +81,15 @@ function touchesGrpcEndpointSettings(input: unknown): boolean {
   return 'gatewayGrpcPublicTarget' in record || 'gatewayGrpcLocalIp' in record;
 }
 
+/** Whether the cloud manages this installation's addresses; only greys out the form, the update refuses on its own. */
+async function readCloudManaged(): Promise<boolean> {
+  try {
+    return await container.resolve(CloudLinkService).managedByCloud();
+  } catch {
+    return false;
+  }
+}
+
 async function refreshActiveGrpcServerIdentity(): Promise<void> {
   await container.resolve(GatewayIdentityRenewalService).refreshGrpcIdentity();
 }
@@ -96,6 +111,7 @@ export async function readGatewaySettings(
     networkSecurity,
     outboundWebhookPolicy,
     availableGroups,
+    cloudManaged,
   ] = await Promise.all([
     container.resolve(AuthSettingsService).getConfig(),
     container.resolve(AuthMailService).getPublicConfig(),
@@ -107,6 +123,7 @@ export async function readGatewaySettings(
     container.resolve(NetworkSettingsService).getConfig(),
     container.resolve(OutboundWebhookPolicyService).getConfig(),
     assignableGroups(actor.scopes, groupService),
+    readCloudManaged(),
   ]);
 
   const response = {
@@ -122,6 +139,8 @@ export async function readGatewaySettings(
     outboundWebhookPolicy,
     ...(request.currentRequestIp ? { currentRequestIp: request.currentRequestIp(networkSecurity) } : {}),
     availableGroups,
+    /** Managed cloud installation: the public URL and gRPC addresses are the cloud's and cannot be changed. */
+    cloudManaged,
   };
 
   if (!isDemoVisitor(actor.user)) return response;
@@ -240,6 +259,17 @@ export async function updateGatewaySettings(
     }
   }
 
+  // A managed installation keeps the addresses the cloud set up; resubmitting them unchanged is fine.
+  if (touchesCloudManagedSettings(input.generalSettings)) {
+    const cloudManagedChanges = findCloudManagedChanges(
+      input.generalSettings,
+      await generalSettingsService.getConfig()
+    );
+    if (cloudManagedChanges.length > 0 && (await container.resolve(CloudLinkService).managedByCloud())) {
+      throw new AppError(409, 'CLOUD_MANAGED', CLOUD_MANAGED_SETTINGS_MESSAGE);
+    }
+  }
+
   try {
     const previousWebTransport = await webTransportSettingsService.getConfig();
     if (input.smtp) {
@@ -343,7 +373,10 @@ export async function updateGatewaySettings(
       }
     }
 
-    const availableGroups = await assignableGroups(actor.scopes, groupService);
+    const [availableGroups, cloudManaged] = await Promise.all([
+      assignableGroups(actor.scopes, groupService),
+      readCloudManaged(),
+    ]);
 
     await auditService.log({
       userId: actor.user.id,
@@ -398,6 +431,7 @@ export async function updateGatewaySettings(
       outboundWebhookPolicy,
       ...(request.currentRequestIp ? { currentRequestIp: request.currentRequestIp(networkSecurity) } : {}),
       availableGroups,
+      cloudManaged,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to update authentication settings';
