@@ -1,13 +1,15 @@
-// Import existing (canvas frame app-import): pick resources of one type, several at once, and
-// the environment they join. A resource of another app moves here. A resource on a node the
-// environment does not allow is shown disabled: "Its node <node> is not allowed in <env>; add it to the environment's allowed nodes first".
-import { useEffect, useMemo, useState } from "react";
+// Import existing (canvas apps/ImportPicker): pick resources of one type, several at once, and the
+// environment they join, in one panel like the scope picker. Rows are grouped by node; a node the
+// environment does not allow says so once, in its header, with an Allow link. A resource of another
+// app moves here.
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { environmentLabel, readLastAppEnvironment } from "@/components/apps/app-create-context";
-import { CheckboxCard } from "@/components/common/CheckboxCard";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Notice } from "@/components/common/Notice";
+import { SCOPE_PICKER_VIEWPORT } from "@/components/common/ScopePicker";
+import { ScopeSearchFilter } from "@/components/common/ScopeSearchFilter";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,7 +19,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -28,6 +29,7 @@ import {
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { databaseTypeLabel } from "@/lib/database-type";
+import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { planIncludes } from "@/stores/license-paywall";
 import type { AppDetail, AppMemberFamily, AppPlaceMemberInput, AppPlaceRefusal } from "@/types";
@@ -36,27 +38,54 @@ import { orderedEnvironments } from "../app-shared";
 import { nodeDisplayName, useNodeIndex } from "../use-node-index";
 import { APP_DIALOG_WIDTH } from "./AppNameDialog";
 
-const FAMILY_TEXT: Record<AppMemberFamily, { title: string; plural: string; search: string }> = {
+const FAMILY_TEXT: Record<
+  AppMemberFamily,
+  { title: string; plural: string; search: string; unbound: string }
+> = {
   containers: {
     title: "Import Containers",
     plural: "containers and deployments",
     search: "Search containers...",
+    unbound: "No node",
   },
   compose: {
     title: "Import Compose Projects",
     plural: "Compose projects",
     search: "Search projects...",
+    unbound: "No node",
   },
-  databases: { title: "Import Databases", plural: "databases", search: "Search databases..." },
-  storage: { title: "Import Storage", plural: "storage", search: "Search storage..." },
-  routes: { title: "Import Routes", plural: "routes", search: "Search routes..." },
-  pages: { title: "Import Pages Projects", plural: "Pages projects", search: "Search projects..." },
+  databases: {
+    title: "Import Databases",
+    plural: "databases",
+    search: "Search databases...",
+    unbound: "External",
+  },
+  storage: {
+    title: "Import Storage",
+    plural: "storage",
+    search: "Search storage...",
+    unbound: "External",
+  },
+  routes: {
+    title: "Import Routes",
+    plural: "routes",
+    search: "Search routes...",
+    unbound: "No node",
+  },
+  pages: {
+    title: "Import Pages Projects",
+    plural: "Pages projects",
+    search: "Search projects...",
+    unbound: "No node",
+  },
 };
 
 interface Candidate {
   key: string;
   member: AppPlaceMemberInput;
   name: string;
+  /** Second line under the name (the image of a container). */
+  detail: string | null;
   kind: string;
   nodeId: string | null;
   app: { id: string; name: string; environmentId: string; environmentName: string } | null;
@@ -77,7 +106,8 @@ async function loadCandidates(family: AppMemberFamily): Promise<Candidate[]> {
               ? { type: "deployment", id: row.deploymentId ?? row.id, nodeId: nodeId ?? undefined }
               : { type: "container", id: row.name, nodeId: nodeId ?? undefined },
             name: row.name,
-            kind: deployment ? "Deployment" : "Container",
+            detail: row.image || null,
+            kind: deployment ? "deployment" : "container",
             nodeId,
             app: row.app ?? null,
           } satisfies Candidate;
@@ -89,7 +119,8 @@ async function loadCandidates(family: AppMemberFamily): Promise<Candidate[]> {
         key: row.id,
         member: { type: "compose", id: row.id, nodeId: row.nodeId },
         name: row.name,
-        kind: "Compose project",
+        detail: null,
+        kind: "compose project",
         nodeId: row.nodeId,
         app: row.app ?? null,
       }));
@@ -101,7 +132,8 @@ async function loadCandidates(family: AppMemberFamily): Promise<Candidate[]> {
         key: row.id,
         member: { type: "database", id: row.id },
         name: row.name,
-        kind: `${databaseTypeLabel(row.type)}${row.managed ? " · managed" : ""}`,
+        detail: null,
+        kind: `${row.managed ? "managed " : ""}${databaseTypeLabel(row.type)}`,
         nodeId: row.managed?.nodeId ?? null,
         app: row.app ?? null,
       }));
@@ -113,7 +145,8 @@ async function loadCandidates(family: AppMemberFamily): Promise<Candidate[]> {
         key: row.id,
         member: { type: "storage", id: row.id },
         name: row.name,
-        kind: row.managed ? "Managed storage" : "Storage",
+        detail: null,
+        kind: row.managed ? "managed storage" : "storage",
         nodeId: row.managed?.nodeId ?? null,
         app: row.app ?? null,
       }));
@@ -126,7 +159,8 @@ async function loadCandidates(family: AppMemberFamily): Promise<Candidate[]> {
           key: row.id,
           member: { type: "route", id: row.id },
           name: row.domainNames[0] ?? row.slug,
-          kind: `Route · ${row.type}`,
+          detail: row.domainNames.length > 1 ? row.domainNames.slice(1).join(", ") : null,
+          kind: `route · ${row.type}`,
           nodeId: row.nodeId ?? null,
           app: row.app ?? null,
         }));
@@ -138,6 +172,7 @@ async function loadCandidates(family: AppMemberFamily): Promise<Candidate[]> {
         key: row.id,
         member: { type: "pages", id: row.id },
         name: row.name,
+        detail: null,
         kind: "Pages project",
         nodeId: row.nodeId,
         app: row.app ?? null,
@@ -151,6 +186,15 @@ export interface ImportRequest {
   environmentId?: string | null;
 }
 
+interface Section {
+  key: string;
+  /** Header label; null for the one section of a family whose rows have no node. */
+  label: string | null;
+  nodeId: string | null;
+  allowed: boolean;
+  rows: Candidate[];
+}
+
 export function ImportDialog({
   app,
   request,
@@ -160,6 +204,7 @@ export function ImportDialog({
   app: AppDetail;
   request: ImportRequest | null;
   onClose: () => void;
+  /** Refreshes the app: after an import, and after Allow adds a node to the environment. */
   onImported: () => void;
 }) {
   const shownRequest = useRetainedDialogValue(request, request !== null);
@@ -170,6 +215,11 @@ export function ImportDialog({
     () => orderedEnvironments(app.environments).filter((env) => app.permissions.envManage[env.id]),
     [app]
   );
+  // The app refreshes after Allow and after an import; that must not reset the open dialog.
+  const environmentsRef = useRef(environments);
+  environmentsRef.current = environments;
+  const appIdRef = useRef(app.id);
+  appIdRef.current = app.id;
   const [environmentId, setEnvironmentId] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(false);
@@ -177,19 +227,24 @@ export function ImportDialog({
   const [selected, setSelected] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const [refused, setRefused] = useState<AppPlaceRefusal[]>([]);
+  /** Allowed nodes per environment as Allow returned them, until the app refresh catches up. */
+  const [allowedOverride, setAllowedOverride] = useState<Record<string, string[]>>({});
+  const [allowingNodeId, setAllowingNodeId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!request) return;
-    const last = readLastAppEnvironment(app.id);
+    const options = environmentsRef.current;
+    const last = readLastAppEnvironment(appIdRef.current);
     const pick =
-      environments.find((env) => env.id === request.environmentId) ??
-      environments.find((env) => env.id === last) ??
-      environments.find((env) => env.isProduction) ??
-      environments[0];
+      options.find((env) => env.id === request.environmentId) ??
+      options.find((env) => env.id === last) ??
+      options.find((env) => env.isProduction) ??
+      options[0];
     setEnvironmentId(pick?.id ?? null);
     setSearch("");
     setSelected([]);
     setRefused([]);
+    setAllowedOverride({});
     setLoading(true);
     let cancelled = false;
     loadCandidates(request.family)
@@ -205,28 +260,83 @@ export function ImportDialog({
     return () => {
       cancelled = true;
     };
-  }, [request, app.id, environments]);
+  }, [request]);
 
   const environment = environments.find((env) => env.id === environmentId) ?? null;
-  const allowed = new Set(environment?.allowedNodeIds ?? []);
-  const query = search.trim().toLowerCase();
-  const rows = candidates.filter(
-    (row) =>
-      // Already in the chosen environment: nothing to import.
-      !(row.app?.id === app.id && row.app.environmentId === environmentId) &&
-      (!query || row.name.toLowerCase().includes(query))
+  const canManage = Boolean(environment && app.permissions.envManage[environment.id]);
+  const allowed = new Set([
+    ...(environment?.allowedNodeIds ?? []),
+    ...(environment ? (allowedOverride[environment.id] ?? []) : []),
+  ]);
+  const isAllowed = (nodeId: string | null) => !nodeId || !environment || allowed.has(nodeId);
+  const nodeName = (nodeId: string) => nodeDisplayName(nodesById.get(nodeId), nodeId);
+
+  // Already in the chosen environment: nothing to import.
+  const importable = candidates.filter(
+    (row) => !(row.app?.id === app.id && row.app.environmentId === environmentId)
   );
-  const blockedReason = (row: Candidate) =>
-    row.nodeId && environment && !allowed.has(row.nodeId)
-      ? `Its node ${nodeDisplayName(nodesById.get(row.nodeId), row.nodeId)} is not allowed in ${environment.name}; add it to the environment's allowed nodes first`
-      : null;
-  const selectable = new Set(rows.filter((row) => !blockedReason(row)).map((row) => row.key));
+  const query = search.trim().toLowerCase();
+  const visible = importable.filter(
+    (row) =>
+      !query ||
+      row.name.toLowerCase().includes(query) ||
+      Boolean(row.detail?.toLowerCase().includes(query))
+  );
+  const selectable = new Set(
+    importable.filter((row) => isAllowed(row.nodeId)).map((row) => row.key)
+  );
   const chosen = selected.filter((key) => selectable.has(key));
 
-  const toggle = (key: string, checked: boolean) =>
+  const sections: Section[] = [];
+  const unbound = visible.filter((row) => !row.nodeId);
+  const byNode = new Map<string, Candidate[]>();
+  for (const row of visible) {
+    if (!row.nodeId) continue;
+    byNode.set(row.nodeId, [...(byNode.get(row.nodeId) ?? []), row]);
+  }
+  if (unbound.length > 0) {
+    sections.push({
+      key: "unbound",
+      label: byNode.size > 0 ? text.unbound : null,
+      nodeId: null,
+      allowed: true,
+      rows: unbound,
+    });
+  }
+  for (const [nodeId, rows] of [...byNode].sort(([a], [b]) =>
+    nodeName(a).localeCompare(nodeName(b))
+  )) {
+    sections.push({
+      key: nodeId,
+      label: nodeName(nodeId),
+      nodeId,
+      allowed: isAllowed(nodeId),
+      rows,
+    });
+  }
+
+  const toggle = (key: string) =>
     setSelected((current) =>
-      checked ? [...current, key] : current.filter((item) => item !== key)
+      current.includes(key) ? current.filter((item) => item !== key) : [...current, key]
     );
+
+  const allowNode = async (nodeId: string) => {
+    if (!environment) return;
+    setAllowingNodeId(nodeId);
+    try {
+      const result = await api.allowAppNode(app.id, environment.id, nodeId);
+      setAllowedOverride((current) => ({
+        ...current,
+        [environment.id]: result.nodes.map((node) => node.nodeId),
+      }));
+      toast.success(`${nodeName(nodeId)} allowed in ${environment.name}`);
+      onImported();
+    } catch (error) {
+      toastApiError(error, "Failed to allow the node");
+    } finally {
+      setAllowingNodeId(null);
+    }
+  };
 
   const submit = async () => {
     if (!environment || chosen.length === 0) return;
@@ -298,12 +408,6 @@ export function ImportDialog({
               </SelectContent>
             </Select>
           </div>
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={text.search}
-            aria-label={text.search}
-          />
           {refused.length > 0 && (
             <Notice tone="warning" title={`${refused.length} not imported`}>
               {refused.map((refusal) => (
@@ -313,36 +417,93 @@ export function ImportDialog({
               ))}
             </Notice>
           )}
-          {!loading && rows.length === 0 ? (
-            <EmptyState
-              message={query ? "Nothing matches your search." : `No ${text.plural} to import.`}
-              embedded
+          <div className="flex min-h-0 flex-col border border-border">
+            <ScopeSearchFilter
+              search={search}
+              onSearchChange={setSearch}
+              placeholder={text.search}
             />
-          ) : (
-            <div className="space-y-2">
-              {rows.map((row) => {
-                const blocked = blockedReason(row);
-                const where = row.app
-                  ? row.app.id === app.id
-                    ? `in ${row.app.environmentName}`
-                    : `in ${row.app.name}`
-                  : "not in an app";
-                const node = row.nodeId
-                  ? nodeDisplayName(nodesById.get(row.nodeId), row.nodeId)
-                  : null;
-                return (
-                  <CheckboxCard
-                    key={row.key}
-                    checked={chosen.includes(row.key)}
-                    onCheckedChange={(checked) => toggle(row.key, checked)}
-                    disabled={Boolean(blocked)}
-                    label={row.name}
-                    description={blocked ?? [row.kind, node, where].filter(Boolean).join(" · ")}
-                  />
-                );
-              })}
+            <div className={SCOPE_PICKER_VIEWPORT}>
+              {!loading && sections.length === 0 ? (
+                <EmptyState
+                  message={
+                    query ? `Nothing matches “${search.trim()}”.` : `No ${text.plural} to import.`
+                  }
+                  embedded
+                />
+              ) : (
+                sections.map((section) => (
+                  <div key={section.key}>
+                    {section.label !== null && (
+                      <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-muted px-3 py-1.5">
+                        <p className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                          {section.label}
+                        </p>
+                        {!section.allowed && section.nodeId && environment && (
+                          <div className="flex shrink-0 items-center gap-2">
+                            <span className="text-xs text-muted-foreground">
+                              Not allowed in {environment.name}
+                            </span>
+                            {canManage && (
+                              <Button
+                                variant="link"
+                                className="h-auto p-0 text-xs"
+                                disabled={allowingNodeId !== null}
+                                onClick={() => void allowNode(section.nodeId as string)}
+                              >
+                                Allow
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {section.rows.map((row) => {
+                      const enabled = section.allowed;
+                      return (
+                        <div key={row.key} className={cn(!enabled && "opacity-40")}>
+                          <label
+                            className={cn(
+                              "flex items-center gap-3 px-3 py-2",
+                              enabled
+                                ? "cursor-pointer transition-colors hover:bg-accent"
+                                : "cursor-default"
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              className="form-checkbox"
+                              checked={chosen.includes(row.key)}
+                              disabled={!enabled}
+                              onChange={() => enabled && toggle(row.key)}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm">{row.name}</p>
+                              {row.detail && (
+                                <p className="truncate font-mono text-xs text-muted-foreground">
+                                  {row.detail}
+                                </p>
+                              )}
+                            </div>
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {row.app && row.app.id !== app.id
+                                ? `in ${row.app.name} · moves here`
+                                : row.kind}
+                            </span>
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))
+              )}
             </div>
-          )}
+            <div className="border-t border-border px-3 py-2">
+              <p className="text-xs text-muted-foreground">
+                {chosen.length} of {importable.length} selected
+              </p>
+            </div>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={importing}>

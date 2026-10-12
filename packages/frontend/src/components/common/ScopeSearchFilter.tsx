@@ -29,8 +29,9 @@ export function ScopeSearchFilter({
 }: {
   search: string;
   onSearchChange: (value: string) => void;
-  filter: ScopeSelectionFilter;
-  onFilterChange: (filter: ScopeSelectionFilter) => void;
+  /** Without `filter` and `onFilterChange` the search stands alone, with no filter button. */
+  filter?: ScopeSelectionFilter;
+  onFilterChange?: (filter: ScopeSelectionFilter) => void;
   placeholder?: string;
   className?: string;
   disabled?: boolean;
@@ -44,30 +45,32 @@ export function ScopeSearchFilter({
         disabled={disabled}
         className="h-9 min-w-0 flex-1 rounded-none border-0 text-sm shadow-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
       />
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label={`Filter scopes: ${FILTER_LABELS[filter]}`}
-            title={`Filter scopes: ${FILTER_LABELS[filter]}`}
-            disabled={disabled}
-          >
-            <Filter className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuRadioGroup
-            value={filter}
-            onValueChange={(value) => onFilterChange(value as ScopeSelectionFilter)}
-          >
-            <DropdownMenuRadioItem value="all">All items</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="selected">Selected only</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="unselected">Unselected only</DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {filter && onFilterChange && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label={`Filter scopes: ${FILTER_LABELS[filter]}`}
+              title={`Filter scopes: ${FILTER_LABELS[filter]}`}
+              disabled={disabled}
+            >
+              <Filter className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuRadioGroup
+              value={filter}
+              onValueChange={(value) => onFilterChange(value as ScopeSelectionFilter)}
+            >
+              <DropdownMenuRadioItem value="all">All items</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="selected">Selected only</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="unselected">Unselected only</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   );
 }
