@@ -2,7 +2,11 @@ import type { MiddlewareHandler } from 'hono';
 import { container } from '@/container.js';
 import { getClientIpForContext } from '@/lib/request-ip.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
-import { getAuditRequestContext, runWithAuditRequestContext } from '@/modules/audit/audit-request-context.js';
+import {
+  type AuditRequestContext,
+  getAuditRequestContext,
+  runWithAuditRequestContext,
+} from '@/modules/audit/audit-request-context.js';
 import { isDemoVisitor } from '@/modules/demo/demo-mode.js';
 import type { AppEnv } from '@/types.js';
 
@@ -717,7 +721,7 @@ function sanitizeAuditPath(path: string): string {
 }
 
 export const auditContextMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const context = {
+  const context: AuditRequestContext = {
     requestId: c.get('requestId'),
     ipAddress: await getClientIpForContext(c),
     userAgent: c.req.header('user-agent'),
@@ -734,7 +738,8 @@ export const auditContextMiddleware: MiddlewareHandler<AppEnv> = async (c, next)
     const auditService = container.resolve(AuditService);
     const target = resolveFallbackAuditTarget(c.req.method, c.req.path);
     await auditService.log({
-      userId: c.get('user')?.id ?? null,
+      // A sign-in has no session user yet: the account it signed in (setAuditSubjectUser).
+      userId: c.get('user')?.id ?? context.subjectUserId ?? null,
       action: target.action,
       resourceType: target.resourceType,
       resourceId: target.resourceId || undefined,

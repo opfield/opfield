@@ -5,6 +5,8 @@ export interface AuditRequestContext {
   ipAddress?: string;
   userAgent?: string;
   auditEmitted?: boolean;
+  /** The account a sign-in request acts for, before its session exists (the fallback entry's user). */
+  subjectUserId?: string;
   mcp?: AuditMcpContext;
   impersonation?: AuditImpersonationContext;
 }
@@ -54,5 +56,13 @@ export function setAuditImpersonationContext(impersonation: AuditImpersonationCo
   const context = storage.getStore();
   if (context) {
     context.impersonation = impersonation;
+  }
+}
+
+/** Names the account a sign-in request acts for, so its audit entry carries that user rather than none. */
+export function setAuditSubjectUser(userId: string): void {
+  const context = storage.getStore();
+  if (context) {
+    context.subjectUserId = userId;
   }
 }
