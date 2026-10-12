@@ -113,6 +113,12 @@ export function StatusPageSection({ nodesList }: StatusPageSectionProps) {
         undefined
   );
   const [savingSettings, setSavingSettings] = useState(false);
+  // A managed cloud installation keeps the upstream the cloud set up: shown as in use, read-only.
+  const [upstream, setUpstream] = useState<{
+    cloudManaged: boolean;
+    consoleDirect: boolean;
+    inUse: string | null;
+  } | null>(null);
 
   const onlineNginxNodes = useMemo(
     () => nodesList.filter((node) => node.type === "nginx" && node.status === "online"),
@@ -140,19 +146,29 @@ export function StatusPageSection({ nodesList }: StatusPageSectionProps) {
     }
   }, []);
 
+  const loadUpstream = useCallback(async () => {
+    try {
+      setUpstream(await api.getStatusPageUpstream());
+    } catch {
+      setUpstream(null);
+    }
+  }, []);
+
   useEffect(() => {
     void Promise.allSettled([
       loadStatusPage(),
+      loadUpstream(),
       loadProxyTemplates(),
       api.listSSLCertificates({ limit: 100 }).then((res) => {
         api.setCache("settings:status-page-ssl-certs", res.data ?? []);
         setSslCerts(res.data ?? []);
       }),
     ]).finally(() => setInitialLoadComplete(true));
-  }, [loadProxyTemplates, loadStatusPage]);
+  }, [loadProxyTemplates, loadStatusPage, loadUpstream]);
 
   useRealtime("status-page.changed", () => {
     loadStatusPage();
+    loadUpstream();
   });
   useRealtime("nginx.template.changed", () => {
     loadProxyTemplates();
@@ -225,6 +241,10 @@ export function StatusPageSection({ nodesList }: StatusPageSectionProps) {
   useContentLoading(!initialLoadComplete);
   if (!initialLoadComplete) return null;
 
+  const upstreamManaged = upstream?.cloudManaged === true;
+  // The value in use: the one set here, else where the generated proxy host forwards.
+  const upstreamInUse = config.upstreamUrl?.trim() || upstream?.inUse || null;
+
   return (
     <PanelShell
       icon={<Activity className="h-4 w-4" />}
@@ -273,17 +293,30 @@ export function StatusPageSection({ nodesList }: StatusPageSectionProps) {
         </SettingsRow>
         <SettingsRow
           label="Opfield upstream URL"
-          description="Internal Opfield URL used by the generated proxy host"
+          description={
+            upstreamManaged
+              ? "Internal Opfield URL used by the generated proxy host · Managed by Opfield Cloud"
+              : "Internal Opfield URL used by the generated proxy host"
+          }
           help="Address the selected ingress node uses to reach Opfield. Use an internal address that is reachable from that node, not necessarily the public browser URL. Leave empty to use loopback on the Opfield host, or the Opfield address nodes enroll with (local first) from any other node."
         >
-          <Input
-            value={config.upstreamUrl ?? ""}
-            disabled={!canManage || !canManageUpstream || savingSettings}
-            placeholder="http://10.0.0.5:3000"
-            onChange={(event) =>
-              setConfig((prev) => ({ ...prev, upstreamUrl: event.target.value }))
-            }
-          />
+          {upstreamManaged && !upstreamInUse ? (
+            <span className="block text-sm text-muted-foreground">
+              {upstream?.consoleDirect
+                ? "No generated proxy host: Opfield serves the console directly on port 443."
+                : "No generated proxy host yet: it is created when the status page is enabled."}
+            </span>
+          ) : (
+            <Input
+              value={upstreamManaged ? (upstreamInUse ?? "") : (config.upstreamUrl ?? "")}
+              readOnly={upstreamManaged}
+              disabled={!canManage || !canManageUpstream || savingSettings || upstreamManaged}
+              placeholder={upstreamManaged ? undefined : "http://10.0.0.5:3000"}
+              onChange={(event) =>
+                setConfig((prev) => ({ ...prev, upstreamUrl: event.target.value }))
+              }
+            />
+          )}
         </SettingsRow>
         <SettingsRow
           label="Ingress node"

@@ -1615,6 +1615,9 @@ describe('cloud-managed addresses', () => {
       getConfig: vi
         .fn()
         .mockResolvedValue({ clientIpSource: 'auto', trustedProxyCidrs: [], trustCloudflareHeaders: false }),
+      updateConfig: vi
+        .fn()
+        .mockResolvedValue({ clientIpSource: 'auto', trustedProxyCidrs: [], trustCloudflareHeaders: false }),
     } as unknown as NetworkSettingsService);
     container.registerInstance(OutboundWebhookPolicyService, {
       getConfig: vi.fn().mockResolvedValue({ allowPrivateNetworks: true, allowedPrivateCidrs: [] }),
@@ -1660,6 +1663,35 @@ describe('cloud-managed addresses', () => {
     const response = await put(change);
     expect(response.status).toBe(200);
     expect(updateGeneralConfig).toHaveBeenCalledWith(change);
+  });
+
+  it('refuses changing web TLS or network trust of a managed installation, and accepts them unchanged', async () => {
+    for (const body of [
+      { webTlsEnabled: true },
+      { networkSecurity: { clientIpSource: 'reverse_proxy' } },
+      { networkSecurity: { trustedProxyCidrs: ['10.0.0.0/8'] } },
+      { networkSecurity: { trustCloudflareHeaders: true } },
+    ]) {
+      const updateGeneralConfig = registerSettings(true);
+      const response = await createApp().request('/api/admin/auth-settings', {
+        method: 'PUT',
+        headers: sessionHeaders(),
+        body: JSON.stringify(body),
+      });
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({ code: 'CLOUD_MANAGED' });
+      expect(updateGeneralConfig).not.toHaveBeenCalled();
+    }
+    registerSettings(true);
+    const unchanged = await createApp().request('/api/admin/auth-settings', {
+      method: 'PUT',
+      headers: sessionHeaders(),
+      body: JSON.stringify({
+        webTlsEnabled: false,
+        networkSecurity: { clientIpSource: 'auto', trustedProxyCidrs: [], trustCloudflareHeaders: false },
+      }),
+    });
+    expect(unchanged.status).toBe(200);
   });
 
   it('lets an installation that is not managed change them', async () => {

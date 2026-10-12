@@ -8,6 +8,7 @@ import type { UpdateAuthProvisioningSettingsInput } from '@/modules/admin/admin.
 import {
   CLOUD_MANAGED_SETTINGS_MESSAGE,
   findCloudManagedChanges,
+  findCloudManagedTransportChanges,
   touchesCloudManagedSettings,
 } from '@/modules/admin/cloud-managed-settings.js';
 import { findIdentityTrustChanges } from '@/modules/admin/identity-trust-settings.js';
@@ -259,15 +260,19 @@ export async function updateGatewaySettings(
     }
   }
 
-  // A managed installation keeps the addresses the cloud set up; resubmitting them unchanged is fine.
-  if (touchesCloudManagedSettings(input.generalSettings)) {
-    const cloudManagedChanges = findCloudManagedChanges(
-      input.generalSettings,
-      await generalSettingsService.getConfig()
-    );
-    if (cloudManagedChanges.length > 0 && (await container.resolve(CloudLinkService).managedByCloud())) {
-      throw new AppError(409, 'CLOUD_MANAGED', CLOUD_MANAGED_SETTINGS_MESSAGE);
-    }
+  // A managed installation keeps the addresses, TLS and network trust the cloud set up; resubmitting them unchanged
+  // is fine.
+  const cloudManagedChanges = [
+    ...(touchesCloudManagedSettings(input.generalSettings)
+      ? findCloudManagedChanges(input.generalSettings, await generalSettingsService.getConfig())
+      : []),
+    ...(await findCloudManagedTransportChanges(input, {
+      tlsEnabled: async () => (await webTransportSettingsService.getConfig()).tlsEnabled,
+      networkSecurity: () => networkSettingsService.getConfig(),
+    })),
+  ];
+  if (cloudManagedChanges.length > 0 && (await container.resolve(CloudLinkService).managedByCloud())) {
+    throw new AppError(409, 'CLOUD_MANAGED', CLOUD_MANAGED_SETTINGS_MESSAGE);
   }
 
   try {

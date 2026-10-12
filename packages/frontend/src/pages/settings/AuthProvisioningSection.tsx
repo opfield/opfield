@@ -387,11 +387,16 @@ export function AuthProvisioningSection({
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   Enable System CA HTTPS for Opfield port 3000
+                  {cloudManaged ? (
+                    <>
+                      . <CloudManagedHint />
+                    </>
+                  ) : null}
                 </p>
               </div>
               <Switch
                 checked={settings.webTransport?.tlsEnabled ?? false}
-                disabled={!canEdit || isSavingWebTls}
+                disabled={!canEdit || isSavingWebTls || cloudManaged}
                 ariaLabel="Enable internal HTTPS"
                 onChange={handleToggleWebTls}
               />
@@ -1298,7 +1303,11 @@ export function AuthProvisioningSection({
       <PanelShell
         hidden={section !== "all" && section !== "advanced"}
         title="Network trust"
-        description="Client address detection for rate limits and audit records"
+        description={
+          cloudManaged
+            ? "Client address detection for rate limits and audit records · Managed by Opfield Cloud"
+            : "Client address detection for rate limits and audit records"
+        }
         icon={<Network className="h-4 w-4" />}
       >
         <div className="divide-y divide-border">
@@ -1317,7 +1326,7 @@ export function AuthProvisioningSection({
             <div className="w-full shrink-0 sm:w-64">
               <Select
                 value={settings.networkSecurity.clientIpSource}
-                disabled={!canEdit || isSavingNetwork}
+                disabled={!canEdit || isSavingNetwork || cloudManaged}
                 onValueChange={(clientIpSource) =>
                   updateNetworkSecurity({
                     clientIpSource:
@@ -1379,7 +1388,7 @@ export function AuthProvisioningSection({
             <Input
               className="w-full shrink-0 sm:max-w-80"
               value={trustedProxyCidrs}
-              disabled={!canEdit || isSavingNetwork}
+              disabled={!canEdit || isSavingNetwork || cloudManaged}
               placeholder="10.0.0.0/8, 172.16.0.0/12"
               onChange={(event) => {
                 skipNextCidrsBlur.current = false;
@@ -1415,7 +1424,7 @@ export function AuthProvisioningSection({
             </div>
             <Switch
               checked={settings.networkSecurity.trustCloudflareHeaders}
-              disabled={!canEdit || isSavingNetwork}
+              disabled={!canEdit || isSavingNetwork || cloudManaged}
               onChange={(trustCloudflareHeaders) =>
                 updateNetworkSecurity({ trustCloudflareHeaders })
               }

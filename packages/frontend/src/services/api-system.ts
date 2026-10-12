@@ -25,6 +25,15 @@ export function withSystemApi<TBase extends ApiClientBaseConstructor>(Base: TBas
       return this.unwrapData(this.request<{ data: SystemConfig }>("/system/config"));
     }
 
+    /** The status page upstream as in use, and whether the cloud manages it. */
+    async getStatusPageUpstream(): Promise<{
+      cloudManaged: boolean;
+      consoleDirect: boolean;
+      inUse: string | null;
+    }> {
+      return this.unwrapData(this.request("/system/status-page-upstream"));
+    }
+
     async retryRelayRecovery(): Promise<DashboardRelaySnapshot> {
       return this.unwrapData(
         this.request<{ data: DashboardRelaySnapshot }>("/system/relay/recovery", { method: "POST" })

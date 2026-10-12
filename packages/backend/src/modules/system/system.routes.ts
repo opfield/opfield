@@ -1,5 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { z } from 'zod';
+import { getEnv } from '@/config/env.js';
 import { container } from '@/container.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
@@ -7,6 +8,7 @@ import { hasScope } from '@/lib/permissions.js';
 import { RELEASE_VERSION_PATTERN } from '@/lib/semver.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { assertNotImpersonating, authMiddleware, requireScope } from '@/modules/auth/auth.middleware.js';
+import { readStatusPageUpstream } from '@/modules/cloud-link/cloud-link-status-page-upstream.js';
 import { LoggingFeatureService } from '@/modules/logging/logging-feature.service.js';
 import { browserHostGateway, relayReenrollmentInstallation } from '@/modules/nodes/node-installer.js';
 import { NodesService } from '@/modules/nodes/nodes.service.js';
@@ -75,6 +77,11 @@ systemRoutes.openapi(systemConfigRoute, async (c) => {
       },
     },
   });
+});
+
+// The status page upstream as it is in use, for the read-only field of a managed cloud installation.
+systemRoutes.get('/status-page-upstream', requireScope('status-page:view'), async (c) => {
+  return c.json({ data: await readStatusPageUpstream(getEnv().GATEWAY_CONSOLE_DOMAIN) });
 });
 
 systemRoutes.post('/relay/recovery', requireScope('admin:system'), async (c) => {

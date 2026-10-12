@@ -1,5 +1,6 @@
 import { container } from '@/container.js';
 import { hasScope } from '@/lib/permissions.js';
+import { assertStatusPageUpstreamUnchanged } from '@/modules/cloud-link/cloud-link-status-page-upstream.js';
 import {
   CreateStatusPageIncidentSchema,
   CreateStatusPageIncidentUpdateSchema,
@@ -27,7 +28,10 @@ export async function manageStatusPageTool(user: User, args: Record<string, unkn
     if (operation === 'update') {
       ensureToolScope(user, 'status-page:manage');
       // The route passes the caller scopes: a custom upstream change requires proxy:raw:write.
-      return service.updateSettings(StatusPageSettingsSchema.parse(payload), user.id, user.scopes);
+      const input = StatusPageSettingsSchema.parse(payload);
+      // As PUT /status-page/settings: a managed installation keeps its upstream.
+      await assertStatusPageUpstreamUnchanged(input);
+      return service.updateSettings(input, user.id, user.scopes);
     }
   }
   if (resource === 'proxy_templates' && operation === 'list') {

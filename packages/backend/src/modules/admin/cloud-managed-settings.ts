@@ -17,7 +17,44 @@ const CLOUD_MANAGED_FIELDS = [
 ] as const;
 
 export const CLOUD_MANAGED_SETTINGS_MESSAGE =
-  'This Opfield installation is managed by the cloud; its public URL and gRPC addresses cannot be changed here.';
+  'This Opfield installation is managed by the cloud; its addresses, TLS and network trust cannot be changed here.';
+
+interface NetworkTrust {
+  clientIpSource: string;
+  trustedProxyCidrs: string[];
+  trustCloudflareHeaders: boolean;
+}
+
+/**
+ * How the console is reached on a managed installation besides its addresses: its own TLS and which proxies it
+ * trusts for the client address. Values resubmitted unchanged are not listed.
+ */
+export async function findCloudManagedTransportChanges(
+  input: { webTlsEnabled?: boolean; networkSecurity?: Partial<NetworkTrust> },
+  current: { tlsEnabled: () => Promise<boolean>; networkSecurity: () => Promise<NetworkTrust> }
+): Promise<string[]> {
+  const changes: string[] = [];
+  if (input.webTlsEnabled !== undefined && input.webTlsEnabled !== (await current.tlsEnabled())) {
+    changes.push('web TLS');
+  }
+  const network = input.networkSecurity;
+  if (network) {
+    const now = await current.networkSecurity();
+    const cidrs = (values: string[]) =>
+      values
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .join(',');
+    if (
+      (network.clientIpSource !== undefined && network.clientIpSource !== now.clientIpSource) ||
+      (network.trustCloudflareHeaders !== undefined && network.trustCloudflareHeaders !== now.trustCloudflareHeaders) ||
+      (network.trustedProxyCidrs !== undefined && cidrs(network.trustedProxyCidrs) !== cidrs(now.trustedProxyCidrs))
+    ) {
+      changes.push('network trust');
+    }
+  }
+  return changes;
+}
 
 /** Whether the update carries any of the cloud-managed addresses (changed or not). */
 export function touchesCloudManagedSettings(input: GeneralSettingsUpdate | undefined): boolean {

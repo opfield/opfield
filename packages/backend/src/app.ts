@@ -67,6 +67,7 @@ import { getPublicAuthMethods } from '@/modules/auth/public-auth-methods.js';
 import { getProgrammaticWebSocketCredential, getSessionWebSocketCredential } from '@/modules/auth/websocket-auth.js';
 import { backupRuntime } from '@/modules/backups/backup-runtime.js';
 import { cloudLinkRoutes } from '@/modules/cloud-link/cloud-link.routes.js';
+import { statusPageUpstreamGuard } from '@/modules/cloud-link/cloud-link-status-page-upstream.js';
 import {
   configurationExportLinkRoutes,
   configurationExportRoutes,
@@ -870,6 +871,8 @@ export function createApp(): GatewayAppRuntime {
   app.route(STORAGE_OBJECT_LINK_PATH, storageObjectLinkRoutes);
   app.route(CONFIGURATION_EXPORT_LINK_PATH, configurationExportLinkRoutes);
 
+  // A managed installation keeps the status page upstream the cloud set up (ahead of the module's own route).
+  app.put('/api/status-page/settings', authMiddleware, statusPageUpstreamGuard);
   if (container.isRegistered(TOKENS.CommercialEdition)) {
     container.resolve<CommercialEditionRuntime>(TOKENS.CommercialEdition).registerRoutes({
       app,
