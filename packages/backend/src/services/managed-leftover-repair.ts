@@ -1,16 +1,21 @@
 import { inArray } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
-import { managedDatabaseInstances, managedStorageClusters, nodes } from '@/db/schema/index.js';
+import { managedAvailabilityMembers, managedDatabaseInstances, managedStorageClusters, nodes } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
 
 const logger = createChildLogger('ManagedLeftoverRepair');
 
 export type ManagedLeftoverKind = 'storage' | 'database';
 
-/** One id a node keeps something of without a readable record (docker daemon `leftovers`). */
+/**
+ * One id a node keeps something of without a readable record (docker daemon `leftovers`), or an availability set member
+ * the node runs (`member`: left over once Gateway has no instance of the id or no such member on that node).
+ */
 export interface ManagedLeftover {
   id: string;
-  record: 'unreadable' | 'missing';
+  record: 'unreadable' | 'missing' | 'member';
+  setId?: string;
+  memberId?: string;
   readError?: string;
   containers?: string[];
   imageBytes: number;
@@ -25,8 +30,16 @@ export interface ManagedLeftoverRepairDeps {
     nodeId: string,
     kind: ManagedLeftoverKind
   ): Promise<{ success: boolean; detail?: string; error?: string }>;
-  /** Removes everything of the id the node keeps, as a leftover Gateway has no instance of. */
-  removeLeftover(nodeId: string, kind: ManagedLeftoverKind, id: string): Promise<{ success: boolean; error?: string }>;
+  /**
+   * Removes everything of the id the node keeps, as a leftover Gateway has no instance of; `memberId` names the set
+   * member a `member` leftover was listed with (the node refuses when its record names another one by now).
+   */
+  removeLeftover(
+    nodeId: string,
+    kind: ManagedLeftoverKind,
+    id: string,
+    memberId?: string
+  ): Promise<{ success: boolean; error?: string }>;
   /** Records a removal in the audit log. */
   audit(entry: { nodeId: string; kind: ManagedLeftoverKind; leftover: ManagedLeftover }): Promise<void>;
   now?(): number;
@@ -45,7 +58,9 @@ function parseLeftovers(result: { success: boolean; detail?: string }): ManagedL
         !!item &&
         typeof item === 'object' &&
         typeof (item as ManagedLeftover).id === 'string' &&
-        ((item as ManagedLeftover).record === 'unreadable' || (item as ManagedLeftover).record === 'missing')
+        ((item as ManagedLeftover).record === 'unreadable' ||
+          (item as ManagedLeftover).record === 'missing' ||
+          ((item as ManagedLeftover).record === 'member' && typeof (item as ManagedLeftover).memberId === 'string'))
     );
   } catch {
     return null;
@@ -84,6 +99,21 @@ export class ManagedLeftoverRepair {
     return new Set((await this.db.select({ id: table.id }).from(table)).map((row) => row.id));
   }
 
+  /** Availability members Gateway has, as `<member id>|<node id>`. */
+  private async memberKeys(): Promise<Set<string>> {
+    const rows = await this.db
+      .select({ id: managedAvailabilityMembers.id, nodeId: managedAvailabilityMembers.nodeId })
+      .from(managedAvailabilityMembers);
+    return new Set(rows.map((row) => `${row.id}|${row.nodeId}`));
+  }
+
+  /** Whether Gateway still has what the node lists: the instance, and for a set member that member on the node. */
+  private static kept(leftover: ManagedLeftover, nodeId: string, known: Set<string>, members: Set<string>): boolean {
+    if (!known.has(leftover.id)) return false;
+    if (leftover.record !== 'member') return true;
+    return members.has(`${leftover.memberId}|${nodeId}`);
+  }
+
   /** Runs one pass; returns the number of removed leftovers. */
   async run(): Promise<number> {
     const now = (this.deps.now ?? Date.now)();
@@ -93,6 +123,7 @@ export class ManagedLeftoverRepair {
       .where(inArray(nodes.type, ['storage', 'databases']));
     const storageIds = await this.instanceIds('storage');
     const databaseIds = await this.instanceIds('database');
+    const memberKeys = await this.memberKeys();
     const managedNodeIds = new Set(managedNodes.map((node) => node.id));
     for (const key of this.firstSeen.keys()) if (!managedNodeIds.has(key.split('|')[1]!)) this.firstSeen.delete(key);
 
@@ -124,8 +155,9 @@ export class ManagedLeftoverRepair {
         }
         for (const leftover of leftovers) {
           const key = prefix + leftover.id;
-          if (known.has(leftover.id)) {
-            // A live instance whose record the node cannot read: not a leftover, and not Gateway's to remove.
+          if (ManagedLeftoverRepair.kept(leftover, node.id, known, memberKeys)) {
+            // A live instance (or a member of its set) whose record the node may not read: not a leftover, and not
+            // Gateway's to remove.
             this.firstSeen.delete(key);
             if (leftover.record === 'unreadable') {
               logger.warn(
@@ -148,11 +180,14 @@ export class ManagedLeftoverRepair {
           if (now - first < LEFTOVER_CONFIRMATION_MS) continue;
           try {
             // Checked again right before the removal: a create may have taken the id since the pass began.
-            if ((await this.instanceIds(kind)).has(leftover.id)) {
+            if (ManagedLeftoverRepair.kept(leftover, node.id, await this.instanceIds(kind), await this.memberKeys())) {
               this.firstSeen.delete(key);
               continue;
             }
-            const result = await this.deps.removeLeftover(node.id, kind, leftover.id);
+            const result =
+              leftover.record === 'member'
+                ? await this.deps.removeLeftover(node.id, kind, leftover.id, leftover.memberId)
+                : await this.deps.removeLeftover(node.id, kind, leftover.id);
             if (!result.success) throw new Error(result.error || 'the node did not remove it');
             this.firstSeen.delete(key);
             removed += 1;

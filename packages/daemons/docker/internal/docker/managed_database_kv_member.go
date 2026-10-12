@@ -575,10 +575,16 @@ func (m *managedDatabaseManager) kvLift(ctx context.Context, members *memberha.M
 	}
 	defer release()
 	input := command.Database
+	// The single-node container publishes the port the member proxy serves.
+	restorePublished, err := m.plugin.releaseSetPublished(ctx, ref.SetID)
+	if err != nil {
+		return "", err
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	record.AvailabilitySetID, record.AvailabilityMemberID = "", ""
 	if err := m.recreateContainer(ctx, &record, input); err != nil {
+		restorePublished()
 		return "", err
 	}
 	if err := m.saveRecord(record); err != nil {

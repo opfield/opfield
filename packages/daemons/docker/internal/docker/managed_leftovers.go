@@ -12,6 +12,8 @@ import (
 	"syscall"
 
 	mobyclient "github.com/moby/moby/client"
+
+	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
 )
 
 // A managed instance can leave things on its node that no record describes:
@@ -26,9 +28,14 @@ import (
 // record of.
 type managedLeftover struct {
 	ID string `json:"id"`
-	// Record is "unreadable" (the file exists but cannot be read) or
-	// "missing".
+	// Record is "unreadable" (the file exists but cannot be read),
+	// "missing", or "member": a readable record of an availability set
+	// member (Gateway removes it when it has no instance of the id or no
+	// such member on this node any more: a set deleted or a member removed
+	// while its node could not be reached).
 	Record     string   `json:"record"`
+	SetID      string   `json:"setId,omitempty"`
+	MemberID   string   `json:"memberId,omitempty"`
 	ReadError  string   `json:"readError,omitempty"`
 	Containers []string `json:"containers,omitempty"`
 	// ImageBytes is the size of its images, AllocatedBytes what they occupy
@@ -41,6 +48,17 @@ type managedLeftover struct {
 // it confirms that it has no instance of the id.
 type leftoverCommand struct {
 	Leftover bool `json:"leftover"`
+	// MemberID names the member a "member" leftover was listed with; the
+	// node refuses when its record names another one by now.
+	MemberID string `json:"memberId,omitempty"`
+}
+
+func leftoverMemberID(configJSON string) string {
+	var command leftoverCommand
+	if json.Unmarshal([]byte(configJSON), &command) != nil {
+		return ""
+	}
+	return command.MemberID
 }
 
 func isLeftoverRemove(configJSON string) bool {
@@ -56,12 +74,19 @@ func isLeftoverRemove(configJSON string) bool {
 var errNotALeftover = errors.New("the node has a record of this instance; it is not a leftover and was not removed")
 
 func marshalLeftovers(byID map[string]*managedLeftover) (string, error) {
-	items := make([]managedLeftover, 0, len(byID))
+	return marshalLeftoversWithMembers(byID, nil)
+}
+
+// marshalLeftoversWithMembers lists the leftovers and the availability set
+// members the node runs (Gateway decides which members are left over).
+func marshalLeftoversWithMembers(byID map[string]*managedLeftover, members []managedLeftover) (string, error) {
+	items := make([]managedLeftover, 0, len(byID)+len(members))
+	items = append(items, members...)
 	for _, item := range byID {
 		sort.Strings(item.Containers)
 		items = append(items, *item)
 	}
-	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
+	sort.SliceStable(items, func(i, j int) bool { return items[i].ID < items[j].ID })
 	return jsonString(map[string]any{"items": items})
 }
 
@@ -127,6 +152,12 @@ func (m *managedStorageManager) leftovers(ctx context.Context) (string, error) {
 	if err := listLeftoverContainers(ctx, m.client, managedStorageLabel, readable, byID); err != nil {
 		return "", err
 	}
+	members := []managedLeftover{}
+	for _, record := range records {
+		if record.Set != nil && !record.Removed {
+			members = append(members, managedLeftover{ID: record.ID, Record: "member", SetID: record.Set.SetID, MemberID: record.Set.MemberID})
+		}
+	}
 	for id, leftover := range byID {
 		images, _ := filepath.Glob(filepath.Join(m.root, "storage", "images", id+"-*.img"))
 		for _, image := range images {
@@ -135,15 +166,29 @@ func (m *managedStorageManager) leftovers(ctx context.Context) (string, error) {
 			}
 		}
 	}
-	return marshalLeftovers(byID)
+	return marshalLeftoversWithMembers(byID, members)
 }
 
 // removeLeftover removes everything of a storage id Gateway has no instance
 // of: its containers, network, images, mount points, staged files and the
 // record file that cannot be read. An id with a readable record is refused.
-func (m *managedStorageManager) removeLeftover(ctx context.Context, id string) error {
-	if _, err := m.loadRecord(id); err == nil {
-		return errNotALeftover
+func (m *managedStorageManager) removeLeftover(ctx context.Context, id, configJSON string) error {
+	if record, err := m.loadRecord(id); err == nil {
+		memberID := leftoverMemberID(configJSON)
+		if record.Set == nil || record.Removed || memberID == "" || record.Set.MemberID != memberID {
+			return errNotALeftover
+		}
+		// A member of a set Gateway no longer has (or a member it removed
+		// while this node could not be reached): containers, member runtime,
+		// mesh, disk and record go.
+		if err := m.removeSetMember(ctx, record); err != nil {
+			return err
+		}
+		if err := m.remove(ctx, &record, true); err != nil {
+			return err
+		}
+		m.logger.Info("removed an availability member of a storage Opfield no longer has it of", "id", id, "set_id", record.Set.SetID, "member_id", memberID)
+		return nil
 	}
 	if err := m.removeLostRecord(ctx, id, true); err != nil {
 		return err
@@ -176,7 +221,91 @@ func (m *managedDatabaseManager) leftovers(ctx context.Context) (string, error) 
 	for id, leftover := range byID {
 		leftover.addImage(filepath.Join(m.root, "images", id+".img"))
 	}
-	return marshalLeftovers(byID)
+	members := []managedLeftover{}
+	for _, record := range records {
+		if setID, memberID := record.setMember(); setID != "" && !record.Deleting {
+			members = append(members, managedLeftover{ID: record.ID, Record: "member", SetID: setID, MemberID: memberID})
+		}
+	}
+	return marshalLeftoversWithMembers(byID, members)
+}
+
+// setMember is the availability set member the record is ("" when none).
+func (record managedDatabaseRecord) setMember() (string, string) {
+	if record.AvailabilitySetID != "" {
+		return record.AvailabilitySetID, record.AvailabilityMemberID
+	}
+	return record.ClickhouseAvailabilitySetID, record.ClickhouseAvailabilityMemberID
+}
+
+// removeLeftoverMember removes a database's availability set member Gateway
+// no longer has (its database was deleted, or the member was removed while
+// this node could not be reached): the member runtime lets go of it first
+// (held, published ports released, forgotten), then its container, network,
+// disk and record go. The member runtime is held before the manager lock, as
+// every member action does.
+func (m *managedDatabaseManager) removeLeftoverMember(ctx context.Context, id, configJSON string) (bool, error) {
+	record, err := m.loadRecord(id)
+	if err != nil {
+		return false, nil
+	}
+	setID, memberID := record.setMember()
+	if setID == "" {
+		return false, nil
+	}
+	if want := leftoverMemberID(configJSON); want == "" || want != memberID {
+		return true, errNotALeftover
+	}
+	var members *memberha.Manager
+	if m.plugin != nil {
+		members = m.plugin.setMembers
+	}
+	if members != nil {
+		release, err := members.Hold(ctx, setID)
+		if err != nil {
+			return true, err
+		}
+		defer release()
+		waitCtx, cancel := context.WithTimeout(ctx, setPublishedReleaseWait)
+		_ = members.ReleasePublished(waitCtx, setID)
+		cancel()
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	record, err = m.loadRecord(id)
+	if err != nil {
+		return true, err
+	}
+	if currentSet, currentMember := record.setMember(); currentSet != setID || currentMember != memberID {
+		return true, errNotALeftover
+	}
+	if record.Type == "postgres" && record.ContainerID != "" {
+		if err := m.removePGContainerWithVolumes(ctx, record.ContainerID); err != nil {
+			return true, err
+		}
+	}
+	if err := m.remove(ctx, record); err != nil {
+		return true, err
+	}
+	m.kvSets.engines.Delete(setID)
+	m.pgSets.engines.Delete(setID)
+	if members != nil {
+		if config, ok := members.Config(setID); ok && config.MemberID == memberID {
+			if err := members.Forget(setID); err != nil {
+				m.logger.Warn("the member runtime keeps the removed availability member", "set_id", setID, "error", err)
+			}
+		}
+	}
+	if m.plugin != nil {
+		m.plugin.setMesh().Release(ctx, setID)
+	}
+	if record.Type == "postgres" && m.pgSets.mesh != nil {
+		if mesh := m.pgSets.mesh(); mesh != nil {
+			mesh.Release(setID)
+		}
+	}
+	m.logger.Info("removed an availability member of a database Opfield no longer has it of", "id", id, "set_id", setID, "member_id", memberID)
+	return true, nil
 }
 
 // removeLeftover removes everything of a database id Gateway has no instance
