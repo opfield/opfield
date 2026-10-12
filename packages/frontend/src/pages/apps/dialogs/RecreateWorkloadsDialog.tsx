@@ -244,7 +244,7 @@ export function RecreateWorkloadsDialog({
         if (!open && !running) onClose();
       }}
     >
-      <DialogContent className={APP_DIALOG_WIDTH}>
+      <DialogContent className={APP_DIALOG_WIDTH} fitViewport>
         <DialogHeader>
           <DialogTitle>Recreate {plural(total, "Workload")}</DialogTitle>
           <DialogDescription>

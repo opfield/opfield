@@ -211,7 +211,7 @@ export function RelayHealthNotice({
       </Notice>
 
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className={isAdmin ? "sm:max-w-lg" : "sm:max-w-md"}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>{copy.dialogTitle}</DialogTitle>
           </DialogHeader>

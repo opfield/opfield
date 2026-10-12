@@ -1373,7 +1373,7 @@ export function DockerContainers({
         open={dockerNodeRequiredOpen}
         onOpenChange={(open) => !open && setDockerNodeRequiredOpen(false)}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>No Docker Nodes</DialogTitle>
           </DialogHeader>

@@ -173,6 +173,8 @@ export function PortMappingsSection({
                   <Button
                     variant="ghost"
                     size="icon"
+                    aria-label="Remove port"
+                    title="Remove port"
                     className="shrink-0 rounded-none border-l border-border"
                     onClick={() => removePort(i)}
                   >

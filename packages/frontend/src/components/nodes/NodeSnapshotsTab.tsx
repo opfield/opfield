@@ -829,7 +829,7 @@ export function NodeSnapshotsTab({
           if (!busy) setCreateOpen(open);
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Create VM Snapshot</DialogTitle>
             <DialogDescription>

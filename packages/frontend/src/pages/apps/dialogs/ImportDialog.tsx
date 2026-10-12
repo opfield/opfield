@@ -381,7 +381,7 @@ export function ImportDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent className={APP_DIALOG_WIDTH}>
+      <DialogContent className={APP_DIALOG_WIDTH} fitViewport>
         <ContentLoading loading={loading && candidates.length === 0} />
         <DialogHeader>
           <DialogTitle>{text.title}</DialogTitle>
@@ -423,7 +423,13 @@ export function ImportDialog({
               onSearchChange={setSearch}
               placeholder={text.search}
             />
-            <div className={SCOPE_PICKER_VIEWPORT}>
+            {/* The list leaves room for the header, environment and footer at any window height. */}
+            <div
+              className={cn(
+                SCOPE_PICKER_VIEWPORT,
+                "max-h-[min(40rem,max(10rem,calc(95dvh-24rem)))]"
+              )}
+            >
               {!loading && sections.length === 0 ? (
                 <EmptyState
                   message={

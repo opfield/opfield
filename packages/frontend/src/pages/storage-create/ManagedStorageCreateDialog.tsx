@@ -830,7 +830,7 @@ export function ManagedStorageCreateDialog({
         open={provisioningError !== null}
         onOpenChange={(next) => !next && setProvisioningError(null)}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Storage Provisioning Failed</DialogTitle>
             <DialogDescription>

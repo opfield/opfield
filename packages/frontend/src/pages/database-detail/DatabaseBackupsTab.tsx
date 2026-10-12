@@ -996,7 +996,7 @@ export function RestoreDialog({
       open={Boolean(runProp)}
       onOpenChange={(nextOpen) => !restoring && onOpenChange(nextOpen)}
     >
-      <DialogContent className="sm:max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Restore Backup</DialogTitle>
         </DialogHeader>

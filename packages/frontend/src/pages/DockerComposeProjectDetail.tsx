@@ -1696,7 +1696,7 @@ export function DockerComposeProjectDetail() {
         </DialogContent>
       </Dialog>
       <Dialog open={pinOpen} onOpenChange={setPinOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Pin Compose Project</DialogTitle>
             <DialogDescription>Choose where {project.name} should stay visible.</DialogDescription>

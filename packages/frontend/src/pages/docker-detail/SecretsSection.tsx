@@ -92,7 +92,13 @@ export function SecretsSection({
       actions={
         canManageSecrets ? (
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={addSecretRow} title="Add secret">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={addSecretRow}
+              title="Add secret"
+              aria-label="Add secret"
+            >
               <Plus className="h-3.5 w-3.5" />
             </Button>
             {onSave && (
@@ -149,6 +155,7 @@ export function SecretsSection({
                       <Button
                         variant="ghost"
                         size="icon"
+                        aria-label={isRevealed ? "Hide" : "Show"}
                         className="shrink-0 rounded-none border-l border-border"
                         onClick={() => toggleReveal(idx)}
                         title={isRevealed ? "Hide" : "Show"}
@@ -163,6 +170,8 @@ export function SecretsSection({
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Remove secret"
+                      title="Remove secret"
                       className="shrink-0 rounded-none border-l border-border"
                       onClick={() => removeSecretRow(idx)}
                     >

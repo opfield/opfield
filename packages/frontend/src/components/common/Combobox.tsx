@@ -49,7 +49,7 @@ export function Combobox(props: (ComboboxProps & { multiple?: false }) | MultiCo
     showAllOptionsOnFocus = false,
     placeholder = "Select...",
     searchPlaceholder = "Search...",
-    emptyMessage = "No results found.",
+    emptyMessage,
     disabled,
     className,
     inputClassName,
@@ -236,7 +236,13 @@ export function Combobox(props: (ComboboxProps & { multiple?: false }) | MultiCo
           )}
         >
           {filteredOptions.length === 0 ? (
-            <div className="px-2 py-1.5 text-sm text-muted-foreground">{emptyMessage}</div>
+            <div className="px-2 py-1.5 text-sm text-muted-foreground">
+              {/* A typed search that matches nothing says so, like every list's search. A server
+                  search (onQueryChange) keeps its caller's message, which may be a hint. */}
+              {query.trim() && !showAllOptions && !(onQueryChange && emptyMessage)
+                ? `Nothing matches “${query.trim()}”.`
+                : (emptyMessage ?? "Nothing to pick.")}
+            </div>
           ) : (
             filteredOptions.map((option, index) => (
               <Fragment key={option.value}>

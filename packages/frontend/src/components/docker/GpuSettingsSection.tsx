@@ -266,7 +266,7 @@ export function GpuSettingsSection({
           setGpuAddOpen(open);
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Add GPU</DialogTitle>
             <DialogDescription>

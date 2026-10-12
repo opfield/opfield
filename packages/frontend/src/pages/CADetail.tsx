@@ -568,7 +568,7 @@ export function CADetail() {
         </Dialog>
         {/* Endpoints Edit Dialog */}
         <Dialog open={endpointsDialogOpen} onOpenChange={setEndpointsDialogOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>Edit Distribution Endpoints</DialogTitle>
               <DialogDescription>

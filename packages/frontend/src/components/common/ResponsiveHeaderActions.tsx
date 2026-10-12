@@ -149,7 +149,13 @@ export function HeaderOverflowMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" disabled={disabled} aria-label={ariaLabel}>
+        <Button
+          variant="outline"
+          size="icon"
+          disabled={disabled}
+          aria-label={ariaLabel}
+          title={ariaLabel}
+        >
           <EllipsisVertical className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
@@ -303,7 +309,7 @@ export function ResponsiveHeaderActions({
         aria-hidden="true"
         className="pointer-events-none fixed -left-full top-0 invisible w-max"
       >
-        <Button variant="outline" size="icon" tabIndex={-1}>
+        <Button variant="outline" size="icon" tabIndex={-1} aria-label="Page actions">
           <EllipsisVertical className="h-4 w-4" />
         </Button>
       </div>

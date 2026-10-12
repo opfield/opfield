@@ -1102,7 +1102,7 @@ export function FilesTab({
         />
       )}
       <Dialog open={createDialogOpen} onOpenChange={onCreateDialogOpenChange}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {createDialog?.type === "folder" ? "Create Folder" : "Create File"}

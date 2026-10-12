@@ -718,7 +718,7 @@ export function AIChatSurface({ active = true, onClose, onEnterLiteMode }: AICha
         </div>
       </div>
       <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Rename Work Session</DialogTitle>
           </DialogHeader>

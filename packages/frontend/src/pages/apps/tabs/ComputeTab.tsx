@@ -287,6 +287,7 @@ export function ComputeTab({
                 variant="ghost"
                 size="icon"
                 title="Stop"
+                aria-label="Stop"
                 pending={running === "stop"}
                 disabled={disabled}
                 onClick={() => void lifecycle(row, "stop")}
@@ -299,6 +300,7 @@ export function ComputeTab({
                 variant="ghost"
                 size="icon"
                 title="Restart"
+                aria-label="Restart"
                 pending={running === "restart"}
                 disabled={disabled}
                 onClick={() => void lifecycle(row, "restart")}
@@ -311,6 +313,7 @@ export function ComputeTab({
                 variant="ghost"
                 size="icon"
                 title="Start"
+                aria-label="Start"
                 pending={running === "start"}
                 disabled={disabled}
                 onClick={() => void lifecycle(row, "start")}

@@ -30,7 +30,13 @@ export function ConfigTab({ data, editorHeight }: { data: InspectData; editorHei
       className="flex flex-1 flex-col min-h-0"
       bodyClassName="flex min-h-0 flex-1 flex-col"
       actions={
-        <Button variant="ghost" size="icon" onClick={handleCopy} title="Copy JSON">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleCopy}
+          title="Copy JSON"
+          aria-label="Copy JSON"
+        >
           <Check
             className={`h-3.5 w-3.5 absolute transition-all duration-200 ${copied ? "scale-100 opacity-100" : "scale-0 opacity-0"}`}
           />

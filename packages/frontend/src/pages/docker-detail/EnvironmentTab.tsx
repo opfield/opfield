@@ -945,7 +945,13 @@ export function EnvironmentTab({
             actions={
               <>
                 {canEdit && (
-                  <Button variant="ghost" size="icon" onClick={addVar} title="Add variable">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={addVar}
+                    title="Add variable"
+                    aria-label="Add variable"
+                  >
                     <Plus className="h-3.5 w-3.5" />
                   </Button>
                 )}
@@ -1007,6 +1013,8 @@ export function EnvironmentTab({
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Remove variable"
+                      title="Remove variable"
                       className="shrink-0 rounded-none border-l border-border"
                       onClick={() => removeVar(idx)}
                     >

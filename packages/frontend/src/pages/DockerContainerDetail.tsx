@@ -1756,10 +1756,13 @@ export function DockerContainerDetail({
                   size={headerAction.label === "Pin" ? "icon" : "default"}
                   disabled={headerAction.disabled}
                   pending={pendingHeaderAction === headerAction.label}
+                  aria-label={headerAction.label === "Pin" ? headerAction.label : undefined}
                   title={
                     headerAction.disabled
                       ? (headerAction.disabledReason ?? buildRolloutReason ?? undefined)
-                      : undefined
+                      : headerAction.label === "Pin"
+                        ? headerAction.label
+                        : undefined
                   }
                   onClick={headerAction.onClick}
                 >
@@ -2058,7 +2061,7 @@ export function DockerContainerDetail({
         }}
       />
       <Dialog open={pinOpen} onOpenChange={setPinOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Pin Container</DialogTitle>
           </DialogHeader>
@@ -2116,7 +2119,6 @@ export function DockerContainerDetail({
         }}
       >
         <DialogContent
-          className="sm:max-w-md"
           hideCloseButton={archiveExporting}
           onEscapeKeyDown={(event) => {
             if (archiveExporting) event.preventDefault();
@@ -2231,7 +2233,7 @@ export function DockerContainerDetail({
       </Dialog>
       {/* Rename Dialog */}
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Rename Container</DialogTitle>
           </DialogHeader>

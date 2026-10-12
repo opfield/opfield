@@ -865,7 +865,7 @@ function DatabaseDetailContent({
       />
 
       <Dialog open={privateManagedInfoOpen} onOpenChange={setPrivateManagedInfoOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Private Managed Database</DialogTitle>
           </DialogHeader>
@@ -880,7 +880,7 @@ function DatabaseDetailContent({
       </Dialog>
 
       <Dialog open={pinOpen} onOpenChange={setPinOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Pin Database</DialogTitle>
           </DialogHeader>

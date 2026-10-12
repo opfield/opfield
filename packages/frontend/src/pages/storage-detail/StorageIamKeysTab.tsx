@@ -276,7 +276,7 @@ export function StorageIamKeysTab({
       </PanelShell>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Create Access Key</DialogTitle>
             <DialogDescription>

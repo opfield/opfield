@@ -320,7 +320,7 @@ export function AvatarCropDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !busy && onOpenChange(nextOpen)}>
-      <DialogContent className="sm:max-w-[26rem]">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>

@@ -105,17 +105,14 @@ function appOptions(ctx: AccessContext) {
   ]);
 }
 
-function draftFor(
-  line: AccessLine | null,
-  folders: string[],
-  firstApp: string,
-  firstConnector: string
-): Draft {
+function draftFor(line: AccessLine | null, firstApp: string, firstConnector: string): Draft {
   const draft: Draft = {
     tab: "resources",
     role: "developer",
-    where: folders.length > 0 ? "folder" : "everywhere",
-    folder: folders[0] ?? "",
+    // A new line starts at the broadest place; a folder is picked deliberately, since a
+    // preselected one silently left out every type without that folder.
+    where: "everywhere",
+    folder: "",
     app: firstApp,
     resources: [],
     types: [...ACCESS_TYPE_IDS],
@@ -348,6 +345,10 @@ export function AddAccessDialog({
 }: AddAccessDialogProps) {
   const { ctx, labels, gitConnectors, resources, loadResources, rememberGitLabel } = catalog;
   const folderPaths = useMemo(() => accessFolderPaths(ctx), [ctx]);
+  const folderOptions = useMemo<ComboboxOption[]>(
+    () => folderPaths.map((path) => ({ value: path, label: folderPathLabel(path) })),
+    [folderPaths]
+  );
   const connectorOptions = useMemo(
     () =>
       PROVIDERS.flatMap((provider) => {
@@ -365,16 +366,14 @@ export function AddAccessDialog({
     [gitConnectors]
   );
   const apps = useMemo(() => appOptions(ctx), [ctx]);
-  const [draft, setDraft] = useState<Draft>(() =>
-    draftFor(line, folderPaths, apps[0]?.value ?? "", "")
-  );
+  const [draft, setDraft] = useState<Draft>(() => draftFor(line, apps[0]?.value ?? "", ""));
   const [groupQuery, setGroupQuery] = useState("");
   const [repoQuery, setRepoQuery] = useState("");
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: Each opening starts from the line it edits.
   useEffect(() => {
     if (!open) return;
-    setDraft(draftFor(line, folderPaths, apps[0]?.value ?? "", connectorOptions[0]?.value ?? ""));
+    setDraft(draftFor(line, apps[0]?.value ?? "", connectorOptions[0]?.value ?? ""));
     setGroupQuery("");
     setRepoQuery("");
   }, [open, line]);
@@ -496,7 +495,7 @@ export function AddAccessDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" fitViewport>
         <DialogHeader>
           <DialogTitle>{line ? "Edit Access" : "Add Access"}</DialogTitle>
           <DialogDescription>For {subject}.</DialogDescription>
@@ -551,21 +550,14 @@ export function AddAccessDialog({
                     </SelectContent>
                   </Select>
                   {draft.where === "folder" ? (
-                    <Select
+                    <Combobox
+                      ariaLabel="Folder"
                       value={draft.folder}
+                      options={folderOptions}
                       onValueChange={(value) => update({ folder: value })}
-                    >
-                      <SelectTrigger aria-label="Folder">
-                        <SelectValue placeholder="Pick a folder" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {folderPaths.map((path) => (
-                          <SelectItem key={path} value={path}>
-                            {folderPathLabel(path)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Pick a folder"
+                      searchPlaceholder="Search folders..."
+                    />
                   ) : draft.where === "app" ? (
                     <Select value={draft.app} onValueChange={(value) => update({ app: value })}>
                       <SelectTrigger aria-label="App environment">
@@ -725,7 +717,7 @@ export function AddAccessDialog({
                       showAllOptionsOnFocus
                       placeholder={`Pick a ${containerNoun}`}
                       searchPlaceholder="Search by name or path..."
-                      emptyMessage={groups.hint ?? "Nothing found."}
+                      emptyMessage={groups.hint ?? undefined}
                     />
                   ) : draft.repositories === "some" ? (
                     <Combobox
@@ -745,7 +737,7 @@ export function AddAccessDialog({
                       showAllOptionsOnFocus
                       placeholder="Pick repositories"
                       searchPlaceholder="Search by name or path..."
-                      emptyMessage={repos.hint ?? "Nothing found."}
+                      emptyMessage={repos.hint ?? undefined}
                       selectionLabel={(values) =>
                         values.length <= 2
                           ? values.map(repoLabel).join(", ")

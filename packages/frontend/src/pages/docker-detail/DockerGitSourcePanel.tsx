@@ -1750,7 +1750,7 @@ export function DockerGitSourcePanel({
         </DialogContent>
       </Dialog>
       <Dialog open={buildWorkerRequiredOpen} onOpenChange={setBuildWorkerRequiredOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Connect a Build Worker First</DialogTitle>
           </DialogHeader>

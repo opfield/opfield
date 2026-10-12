@@ -47,7 +47,7 @@ export function DockerMigrationSetupDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Migrate {resource.type}</DialogTitle>
           <DialogDescription>

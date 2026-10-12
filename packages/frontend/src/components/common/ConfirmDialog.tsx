@@ -157,7 +157,7 @@ export function ConfirmDialog() {
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && !locked && !pending && close()}>
       <DialogContent
         hideCloseButton={locked || pending}
-        className="max-w-[calc(100vw-2rem)] sm:max-w-md"
+        className="max-w-[calc(100vw-2rem)] sm:max-w-lg"
         onEscapeKeyDown={(event) => {
           if (locked || pending) event.preventDefault();
         }}

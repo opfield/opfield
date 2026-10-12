@@ -125,7 +125,7 @@ function MigrateProjectDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Migrate Page Project</DialogTitle>
           <DialogDescription>

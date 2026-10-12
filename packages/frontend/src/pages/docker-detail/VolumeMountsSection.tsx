@@ -208,6 +208,8 @@ export function VolumeMountsSection({
                       <Button
                         variant="ghost"
                         size="icon"
+                        aria-label="Remove mount"
+                        title="Remove mount"
                         className="shrink-0 rounded-none border-l border-border"
                         onClick={() => removeMount(i)}
                         disabled={m.hostPath.length > 0 && !canChangeHostBinds}

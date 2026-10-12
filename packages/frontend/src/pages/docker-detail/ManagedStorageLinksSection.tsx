@@ -468,6 +468,13 @@ export const ManagedStorageLinksSection = forwardRef<
                           ? removeDisabledReason
                           : "Unlink storage"
                     }
+                    aria-label={
+                      entry.pending === "remove"
+                        ? "Keep link"
+                        : entry.pending === null && removeDisabledReason
+                          ? removeDisabledReason
+                          : "Unlink storage"
+                    }
                     disabled={
                       disabled ||
                       saving ||

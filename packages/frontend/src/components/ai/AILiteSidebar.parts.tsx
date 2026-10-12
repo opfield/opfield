@@ -85,7 +85,7 @@ export function ConversationFolderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{state.mode === "create" ? "New Project" : "Edit Project"}</DialogTitle>
           <DialogDescription>Group related Work Sessions in a sidebar project.</DialogDescription>

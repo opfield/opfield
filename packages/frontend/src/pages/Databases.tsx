@@ -696,7 +696,7 @@ function DatabasesContent({
 
       {!embedded && (
         <Dialog open={managedNodeRequiredOpen} onOpenChange={setManagedNodeRequiredOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>Connect a Node First</DialogTitle>
             </DialogHeader>

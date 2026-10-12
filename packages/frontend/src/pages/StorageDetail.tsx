@@ -540,7 +540,7 @@ function StorageDetailContent({
       )}
 
       <Dialog open={pinOpen} onOpenChange={setPinOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Pin Storage</DialogTitle>
             <DialogDescription>Choose where this storage appears as a shortcut.</DialogDescription>

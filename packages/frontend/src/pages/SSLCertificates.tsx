@@ -878,7 +878,7 @@ export function SSLCertificates() {
         devPreview={createDialogDevPreview}
       />
       <Dialog open={cloudflareRequiredOpen} onOpenChange={setCloudflareRequiredOpen}>
-        <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
+        <DialogContent aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Configure Cloudflare</DialogTitle>
           </DialogHeader>
@@ -899,7 +899,7 @@ export function SSLCertificates() {
         </DialogContent>
       </Dialog>
       <Dialog open={domainRequiredOpen} onOpenChange={setDomainRequiredOpen}>
-        <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
+        <DialogContent aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Add a Domain First</DialogTitle>
           </DialogHeader>
@@ -1032,7 +1032,7 @@ export function SSLCertificates() {
         </DialogContent>
       </Dialog>
       <Dialog open={renewingCertOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Renewing Certificate</DialogTitle>
             <DialogDescription>{renewingCert?.name}</DialogDescription>

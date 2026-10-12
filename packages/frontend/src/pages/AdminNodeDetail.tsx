@@ -1416,7 +1416,7 @@ export function AdminNodeDetail({
 
       {/* Settings Dialog */}
       <Dialog open={appearanceOpen} onOpenChange={setAppearanceOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Node Settings</DialogTitle>
           </DialogHeader>
@@ -1662,7 +1662,7 @@ export function AdminNodeDetail({
 
       {/* Pin Dialog */}
       <Dialog open={pinOpen} onOpenChange={setPinOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Pin Node</DialogTitle>
           </DialogHeader>

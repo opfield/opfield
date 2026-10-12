@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   useDialogPresence,
@@ -338,9 +339,12 @@ export function ApiTokensSection({
           setCreateDialogOpen(open);
         }}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg" fitViewport>
           <DialogHeader>
             <DialogTitle>{editingToken ? "API Token" : "Create API Token"}</DialogTitle>
+            <DialogDescription>
+              For scripts and CI: the token can do only what its access below allows.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">

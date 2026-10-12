@@ -148,7 +148,7 @@ export function ObjectBrowser({
         />
       )}
       <Dialog open={newBucketOpen} onOpenChange={setNewBucketOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>New Bucket</DialogTitle>
             <DialogDescription>

@@ -369,7 +369,7 @@ function GitScopeTargetPicker({
               {results.options.length > 0
                 ? "None of these are within your access. Search by path to find more."
                 : results.query
-                  ? `No ${noun} match “${results.query}”.`
+                  ? `Nothing matches “${results.query}”.`
                   : `No ${noun} found.`}
             </p>
           ) : (

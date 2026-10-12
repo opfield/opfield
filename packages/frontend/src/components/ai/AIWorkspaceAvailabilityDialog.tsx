@@ -35,7 +35,7 @@ export function AIWorkspaceAvailabilityDialog({
 
   return (
     <Dialog open={state !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

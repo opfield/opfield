@@ -690,7 +690,7 @@ export function DockerImages({
 
       {/* Pull Image Dialog */}
       <Dialog open={pullOpen} onOpenChange={closePull}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Pull Image</DialogTitle>
             <DialogDescription>Pull a Docker image from a registry.</DialogDescription>

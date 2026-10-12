@@ -684,7 +684,6 @@ export function CreateProxyHostDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="sm:max-w-xl"
         onAnimationEnd={(event) => {
           if (
             event.target === event.currentTarget &&

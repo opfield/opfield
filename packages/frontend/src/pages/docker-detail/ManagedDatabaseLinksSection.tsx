@@ -1027,7 +1027,7 @@ export const ManagedDatabaseLinksSection = forwardRef<
       )}
 
       <Dialog open={noAvailableDatabasesOpen} onOpenChange={setNoAvailableDatabasesOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>No Managed Databases Available</DialogTitle>
           </DialogHeader>

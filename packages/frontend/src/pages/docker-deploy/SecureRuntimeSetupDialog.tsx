@@ -21,7 +21,7 @@ export function SecureRuntimeSetupDialog({
 }: SecureRuntimeSetupDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent aria-describedby={undefined} className="sm:max-w-md">
+      <DialogContent aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>Secure Runtime Setup Required</DialogTitle>
         </DialogHeader>

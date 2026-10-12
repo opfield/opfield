@@ -25,7 +25,14 @@ export function RefreshButton({
   };
 
   return (
-    <Button variant="outline" size="icon" onClick={handleClick} disabled={spinning || disabled}>
+    <Button
+      variant="outline"
+      size="icon"
+      aria-label="Refresh"
+      title="Refresh"
+      onClick={handleClick}
+      disabled={spinning || disabled}
+    >
       <RefreshCw
         className="h-4 w-4"
         style={

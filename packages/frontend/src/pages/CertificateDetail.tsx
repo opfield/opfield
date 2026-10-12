@@ -410,7 +410,7 @@ export function CertificateDetail() {
         </div>
         {/* Revoke Dialog */}
         <Dialog open={revokeDialogOpen} onOpenChange={setRevokeDialogOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>Revoke Certificate</DialogTitle>
               <DialogDescription>
@@ -451,7 +451,7 @@ export function CertificateDetail() {
             setPkcs12DialogOpen(open);
           }}
         >
-          <DialogContent className="sm:max-w-md">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>Export PKCS#12</DialogTitle>
               <DialogDescription>

@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -723,6 +724,9 @@ function AdminUsersContent({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create User</DialogTitle>
+            <DialogDescription>
+              A person who signs in to this console, with the access of their groups.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <ContentLoading loading={destinationFolders === null} />

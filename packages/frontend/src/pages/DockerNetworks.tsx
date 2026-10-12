@@ -685,7 +685,7 @@ export function DockerNetworks({
 
       {/* Create Network Dialog */}
       <Dialog open={createOpen} onOpenChange={closeCreate}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Create Network</DialogTitle>
             <DialogDescription>

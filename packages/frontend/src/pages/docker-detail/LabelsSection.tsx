@@ -82,6 +82,8 @@ export function LabelsSection({
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Remove label"
+                      title="Remove label"
                       className="shrink-0 rounded-none border-l border-border"
                       onClick={() => removeLabel(i)}
                     >

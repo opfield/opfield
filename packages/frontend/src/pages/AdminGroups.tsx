@@ -35,7 +35,13 @@ import {
 } from "@/components/common/scope-list-helpers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -694,11 +700,12 @@ function AdminGroupsContent({
 
       {/* Create / Edit Group Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg" fitViewport>
           <DialogHeader>
             <DialogTitle>
               {editingGroup ? (groupDialogReadOnly ? "View Group" : "Edit Group") : "Create Group"}
             </DialogTitle>
+            <DialogDescription>Members of the group get the access below.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <ContentLoading

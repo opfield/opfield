@@ -381,7 +381,7 @@ export function DockerRegistriesSection({ nodesList }: DockerRegistriesSectionPr
 
       {/* Registry Add/Edit Dialog */}
       <Dialog open={regDialogOpen} onOpenChange={closeRegDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>{regEditId ? "Edit Registry" : "Add Registry"}</DialogTitle>
             <DialogDescription>

@@ -954,7 +954,7 @@ export function ManagedDatabaseCreateDialog({
           else closeProvisioningError();
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Database Provisioning Failed</DialogTitle>
           </DialogHeader>

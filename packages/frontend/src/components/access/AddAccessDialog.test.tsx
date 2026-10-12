@@ -73,9 +73,23 @@ function renderDialog(
   return onSave;
 }
 
+async function pickFolder(name: string) {
+  await userEvent.click(screen.getByRole("combobox", { name: "Where" }));
+  await userEvent.click(await screen.findByRole("option", { name: "In a project folder" }));
+  await userEvent.click(screen.getByRole("combobox", { name: "Folder" }));
+  await userEvent.click(await screen.findByRole("button", { name }));
+}
+
 describe("Add Access", () => {
+  it("starts everywhere, with no folder preselected", () => {
+    renderDialog({ kind: "grant", actorScopes: [] });
+    expect(screen.getByRole("combobox", { name: "Where" })).toHaveTextContent("Everywhere");
+    expect(screen.queryByRole("combobox", { name: "Folder" })).toBeNull();
+  });
+
   it("adds a role in a project folder, leaving out types without that folder", async () => {
     const onSave = renderDialog({ kind: "grant", actorScopes: [] });
+    await pickFolder("billing");
     expect(screen.getByText("No folder billing for domains: it is left out.")).toBeInTheDocument();
     expect(screen.getByText(/You can't grant this/)).toBeInTheDocument();
 
@@ -93,7 +107,7 @@ describe("Add Access", () => {
     ).toBeInTheDocument();
   });
 
-  it("says what a token line wider than its owner really does", () => {
+  it("says what a token line wider than its owner really does", async () => {
     renderDialog({
       kind: "token",
       ownerScopes: [
@@ -101,6 +115,7 @@ describe("Add Access", () => {
         "docker:containers:manage:folder/docker-billing",
       ],
     });
+    await pickFolder("billing");
     expect(screen.getByText("Works as Deployer: you are Deployer in billing")).toBeInTheDocument();
     // The count is what the token keeps: the owner's two scopes, not the line as entered.
     expect(screen.getByRole("button", { name: "Review 2 scopes" })).toBeInTheDocument();

@@ -884,7 +884,7 @@ export function ProxyHosts({
           if (initialCreateDialogOpen) navigate("/routes", { replace: true });
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>No Ingress Nodes</DialogTitle>
           </DialogHeader>

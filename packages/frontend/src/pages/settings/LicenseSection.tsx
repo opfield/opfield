@@ -313,7 +313,7 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
       </PanelShell>
 
       <Dialog open={dialogOpen && !cloudManaged} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Update License</DialogTitle>
           </DialogHeader>

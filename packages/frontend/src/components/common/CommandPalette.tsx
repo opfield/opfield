@@ -1387,7 +1387,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             )}
 
             {askAIFallback && (
-              <CommandGroup heading="No results">
+              <CommandGroup heading={`Nothing matches “${searchQuery}”`}>
                 <CommandItem
                   value="ask-ai"
                   disabled={askAIQuotaExhausted}

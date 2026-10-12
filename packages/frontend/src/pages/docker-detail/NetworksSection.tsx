@@ -257,6 +257,8 @@ export function NetworksSection({
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Remove network"
+                      title="Remove network"
                       className="shrink-0 rounded-none border-l border-border"
                       disabled={!canRemoveNetwork}
                       onClick={() => removeNetwork(index)}

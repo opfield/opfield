@@ -44,7 +44,6 @@ export function LicenseUpgradeDialog() {
     <Dialog open={request !== null} onOpenChange={(open) => !open && close()}>
       <DialogContent
         aria-describedby={undefined}
-        className="sm:max-w-md"
         onAnimationEnd={(event) => {
           if (
             event.target === event.currentTarget &&

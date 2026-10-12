@@ -128,7 +128,7 @@ export function IngressPlacementDialog({
   const subject = kind === "route" ? "route" : "domain and its routes";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>
             {currentGroup ? "Serve From One Node" : "Serve From an Ingress Group"}

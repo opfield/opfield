@@ -1382,7 +1382,7 @@ export function ProxyHostDetail({
           if (!open) setMaintenanceAccessCode(null);
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Maintenance Access Code</DialogTitle>
             <DialogDescription>
@@ -1408,7 +1408,7 @@ export function ProxyHostDetail({
 
       {/* ── Pin Dialog ───────────────────────────────────────── */}
       <Dialog open={pinOpen} onOpenChange={setPinOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Pin Route</DialogTitle>
           </DialogHeader>

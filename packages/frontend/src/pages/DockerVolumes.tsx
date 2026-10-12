@@ -679,7 +679,7 @@ export function DockerVolumes({
 
       {/* Create Volume Dialog */}
       <Dialog open={createOpen} onOpenChange={closeCreate}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Create Volume</DialogTitle>
             <DialogDescription>

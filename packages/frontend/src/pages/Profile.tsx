@@ -1104,7 +1104,7 @@ function LocalAccountSecurityPanel() {
           closeTotpSetup();
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Set Up Authenticator App</DialogTitle>
           </DialogHeader>
@@ -1153,7 +1153,7 @@ function LocalAccountSecurityPanel() {
       </Dialog>
 
       <Dialog open={totpResetOpen} onOpenChange={setTotpResetOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>TOTP Is Already Configured</DialogTitle>
           </DialogHeader>
@@ -1187,7 +1187,7 @@ function LocalAccountSecurityPanel() {
           cancelStepUp();
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm It&apos;s You</DialogTitle>
           </DialogHeader>
@@ -1265,7 +1265,7 @@ function LocalAccountSecurityPanel() {
           closeRecoveryCodes();
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Save Recovery Codes</DialogTitle>
           </DialogHeader>

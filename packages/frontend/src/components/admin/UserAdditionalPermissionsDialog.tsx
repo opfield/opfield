@@ -180,7 +180,7 @@ export function UserAdditionalPermissionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" fitViewport>
         <DialogHeader>
           <DialogTitle>{userName}</DialogTitle>
           {groupNames.length > 0 ? (
