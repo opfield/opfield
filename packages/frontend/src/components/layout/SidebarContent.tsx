@@ -383,9 +383,10 @@ export function SidebarContent({
               className="flex items-center justify-between px-2"
               style={{ paddingTop: 10, paddingBottom: 10, paddingLeft: 10 }}
             >
-              <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground/80 whitespace-nowrap pl-1">
+              {/* The lockup: mark and the lowercase wordmark in the display face, as in the brand files. */}
+              <span className="flex items-center gap-1.5 font-display text-sm font-semibold text-foreground/80 whitespace-nowrap pl-1">
                 <OpfieldMark className="h-5 w-5" />
-                Opfield
+                opfield
               </span>
 
               <div className="flex items-center gap-0.5">

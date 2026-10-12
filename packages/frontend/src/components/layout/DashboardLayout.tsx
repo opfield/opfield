@@ -654,9 +654,9 @@ export function DashboardLayout() {
               >
                 <Menu className="h-5 w-5" />
               </Button>
-              <span className="ml-2 flex items-center gap-1.5 text-sm font-semibold">
+              <span className="ml-2 flex items-center gap-1.5 font-display text-sm font-semibold">
                 <OpfieldMark className="h-5 w-5" />
-                Opfield
+                opfield
               </span>
               <div className="ml-2">
                 <AIButton />
