@@ -177,6 +177,10 @@ func (c *fakeCluster) filer(member string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.mu.Lock()
 		defer c.mu.Unlock()
+		if r.URL.Path == "/healthz" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		if !strings.HasPrefix(r.URL.Path, heartbeatDir) {
 			w.WriteHeader(http.StatusNotFound)
 			return

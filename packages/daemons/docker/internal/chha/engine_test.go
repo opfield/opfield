@@ -277,4 +277,16 @@ func TestSwitchoverWaitsForTheSuccessor(t *testing.T) {
 	if !strings.Contains(rt.file(RoleConfigFile), "<readonly>1</readonly>") {
 		t.Fatal("switchover must stop client writes")
 	}
+	rt.mu.Lock()
+	queries := append([]string(nil), rt.queries...)
+	rt.mu.Unlock()
+	killed := false
+	for _, query := range queries {
+		if strings.HasPrefix(query, "KILL QUERY WHERE query_kind = 'Insert'") && strings.Contains(query, "'"+InternalUser+"'") {
+			killed = true
+		}
+	}
+	if !killed {
+		t.Fatalf("switchover must end the running client inserts (no 30 s hang), queries %v", queries)
+	}
 }
