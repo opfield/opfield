@@ -17,10 +17,9 @@ import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderedResourceList } from "@/components/common/FolderedResourceList";
-import { HubTabs } from "@/components/common/HubTabs";
+import { HubTabPanel, HubTabs } from "@/components/common/HubTabs";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
-import { PageTransition } from "@/components/common/PageTransition";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
@@ -527,53 +526,52 @@ export function Domains() {
   ];
 
   return (
-    <PageTransition>
-      <div className="h-full overflow-y-auto p-6 space-y-4">
-        <PageHeader
-          leading={<LiteModeBackButton />}
-          title="Domains"
-          description="Manage public hostnames and ingress placement"
-          actions={
-            <ResponsiveHeaderActions
-              actions={[
-                ...(canManageFolders && createFolderAction
-                  ? [
-                      {
-                        label: "Add Folder",
-                        icon: <FolderPlus className="h-4 w-4" />,
-                        onClick: createFolderAction,
-                      },
-                    ]
-                  : []),
-                ...(canCreateDomain
-                  ? [
-                      {
-                        label: "Add Domain",
-                        icon: <Plus className="h-4 w-4" />,
-                        onClick: () => void handleAddDomain(),
-                        disabled: checkingNginxNodes,
-                      },
-                    ]
-                  : []),
-              ]}
-            >
-              {canManageFolders && (
-                <Button variant="outline" onClick={() => createFolderAction?.()}>
-                  <FolderPlus className="h-4 w-4" />
-                  Add Folder
-                </Button>
-              )}
-              {canCreateDomain && (
-                <Button onClick={() => void handleAddDomain()} pending={checkingNginxNodes}>
-                  <Plus className="h-4 w-4" />
-                  Add Domain
-                </Button>
-              )}
-            </ResponsiveHeaderActions>
-          }
-        />
-        <HubTabs />
-
+    <div className="h-full overflow-y-auto p-6 space-y-4">
+      <PageHeader
+        leading={<LiteModeBackButton />}
+        title="Domains"
+        description="Manage public hostnames and ingress placement"
+        actions={
+          <ResponsiveHeaderActions
+            actions={[
+              ...(canManageFolders && createFolderAction
+                ? [
+                    {
+                      label: "Add Folder",
+                      icon: <FolderPlus className="h-4 w-4" />,
+                      onClick: createFolderAction,
+                    },
+                  ]
+                : []),
+              ...(canCreateDomain
+                ? [
+                    {
+                      label: "Add Domain",
+                      icon: <Plus className="h-4 w-4" />,
+                      onClick: () => void handleAddDomain(),
+                      disabled: checkingNginxNodes,
+                    },
+                  ]
+                : []),
+            ]}
+          >
+            {canManageFolders && (
+              <Button variant="outline" onClick={() => createFolderAction?.()}>
+                <FolderPlus className="h-4 w-4" />
+                Add Folder
+              </Button>
+            )}
+            {canCreateDomain && (
+              <Button onClick={() => void handleAddDomain()} pending={checkingNginxNodes}>
+                <Plus className="h-4 w-4" />
+                Add Domain
+              </Button>
+            )}
+          </ResponsiveHeaderActions>
+        }
+      />
+      <HubTabs />
+      <HubTabPanel className="space-y-4">
         <FolderedResourceList<Domain>
           resourceType="domain"
           realtimeChannel="domain.changed"
@@ -729,7 +727,7 @@ export function Domains() {
             void loadDomains();
           }}
         />
-      </div>
-    </PageTransition>
+      </HubTabPanel>
+    </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { HubTabsProvider } from "@/components/common/HubTabs";
+import { PageTransition } from "@/components/common/PageTransition";
 import {
   legacyNavigationRedirect,
   type NavigationHubId,
@@ -84,9 +85,13 @@ export function NavigationHubPage({
   }
   if (!active) return <Navigate to={tabs[0].path} replace />;
 
+  // One page gate per hub, kept across its tabs: a tab switch plays only the new tab's panel
+  // entrance (HubTabPanel), not the whole page's. Another hub is another page and enters anew.
   return (
     <HubTabsProvider value={value}>
-      <HubTabBody key={`${hubId}:${tab}`} hubId={hubId} tab={tab} create={create} />
+      <PageTransition key={hubId}>
+        <HubTabBody key={`${hubId}:${tab}`} hubId={hubId} tab={tab} create={create} />
+      </PageTransition>
     </HubTabsProvider>
   );
 }

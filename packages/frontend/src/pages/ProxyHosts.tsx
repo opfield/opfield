@@ -7,11 +7,10 @@ import { MoveToAppDialog } from "@/components/apps/MoveToAppDialog";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderCreateDialog } from "@/components/common/FolderCreateDialog";
-import { HubTabs } from "@/components/common/HubTabs";
+import { HubTabPanel, HubTabs } from "@/components/common/HubTabs";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { MoveToFolderDialog } from "@/components/common/MoveToFolderDialog";
 import { PageHeader } from "@/components/common/PageHeader";
-import { PageTransition } from "@/components/common/PageTransition";
 import { ResourceListForm } from "@/components/common/ResourceListForm";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
@@ -616,7 +615,7 @@ export function ProxyHosts({
   ];
 
   return (
-    <PageTransition>
+    <>
       <div className="h-full overflow-y-auto px-6 pt-6 pb-3 space-y-4">
         <PageHeader
           leading={<LiteModeBackButton />}
@@ -670,131 +669,132 @@ export function ProxyHosts({
           }
         />
         <HubTabs />
-
-        <ResourceListForm<FolderTreeNode, ProxyHost>
-          columns={columns}
-          search={{
-            placeholder: "Search by domain name...",
-            search: searchInput,
-            onSearchChange: setSearchInput,
-            onSearchSubmit: handleSearch,
-            hasActiveFilters,
-            onReset: () => {
-              resetFilters();
-              setSearchInput("");
-            },
-            filters: (
-              <>
-                <div className="w-40">
-                  <Select
-                    value={filters.type}
-                    onValueChange={(v) => setFilters({ type: v as ProxyHostType | "all" })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {typeOptions.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="w-40">
-                  <Select
-                    value={filters.healthStatus}
-                    onValueChange={(v) => setFilters({ healthStatus: v as HealthStatus | "all" })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {healthOptions.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            ),
-          }}
-          loading={isLoading}
-          loadingLabel="Loading routes..."
-          hasContent={shown.folders.length > 0 || shown.ungrouped.length > 0}
-          emptyState={
-            <EmptyState
-              message="No routes."
-              {...(canCreateProxyHost
-                ? { actionLabel: "Add one", onAction: () => void openCreateProxyHost() }
-                : {})}
-              hasActiveFilters={hasActiveFilters}
-              onReset={() => {
+        <HubTabPanel className="space-y-4">
+          <ResourceListForm<FolderTreeNode, ProxyHost>
+            columns={columns}
+            search={{
+              placeholder: "Search by domain name...",
+              search: searchInput,
+              onSearchChange: setSearchInput,
+              onSearchSubmit: handleSearch,
+              hasActiveFilters,
+              onReset: () => {
                 resetFilters();
                 setSearchInput("");
-              }}
-            />
-          }
-          dnd={{
-            sensors,
-            active: activeDrag,
-            onDragStart: (event) => setActiveDrag(event.active),
-            onDragEnd: handleDragEnd,
-            onDragCancel: () => setActiveDrag(null),
-          }}
-          folders={{
-            folders: shown.folders,
-            ungroupedItems: shown.ungrouped,
-            expandedFolderIds,
-            getFolderId: (folder) => folder.id,
-            getFolderName: (folder) => folder.name,
-            getFolderChildren: (folder) => folder.children,
-            getFolderItems: (folder) => folder.hosts,
-            getFolderSortableId: (folder) => `folder-${folder.id}`,
-            getFolderSortableData: (folder) => ({
-              type: "folder",
-              folderId: folder.id,
-              folder,
-            }),
-            isFolderExpanded: (folder) =>
-              expandedFolderIds.has(folder.id) || folder.id === defaultOpenId,
-            canManageFolder,
-            canReorderFolder: (folder) => canReorderFolders && canManageFolder(folder),
-            canCreateSubfolder: (folder) => folder.depth < 2,
-            onToggleFolder: (id) => {
-              // The first fold saves the folder that started open, so it stays as the user saw it.
-              if (defaultOpenId) toggleFolder(defaultOpenId);
-              toggleFolder(id);
-            },
-            onRenameFolder: handleRenameFolder,
-            onDeleteFolder: handleDeleteFolder,
-            onRequestMoveFolder: setMoveFolderId,
-            onRequestCreateSubfolder: (parentId) => {
-              setCreateFolderParentId(parentId);
-              setCreateFolderOpen(true);
-            },
-            ungroupedDroppable: {
-              id: "folder-ungrouped",
-              data: { type: "folder", folderId: rootFolderId },
-              disabled: !canReorderFolders || !canManageFolderAt(rootFolderId),
-            },
-          }}
-          items={{
-            getItemId: (host) => host.id,
-            getItemSortableId: (host) => host.id,
-            getItemSortableData: (host) => ({ type: "host", host }),
-            canViewItem: canViewHost,
-            isItemDragDisabled: (host) =>
-              !!host.app ||
-              !canReorderFolders ||
-              !canEditHost(host) ||
-              !canManageFolderAt(host.folderId ?? null),
-            onItemClick: (host) => navigate(proxyHostRoute(host.slug)),
-          }}
-        />
+              },
+              filters: (
+                <>
+                  <div className="w-40">
+                    <Select
+                      value={filters.type}
+                      onValueChange={(v) => setFilters({ type: v as ProxyHostType | "all" })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {typeOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="w-40">
+                    <Select
+                      value={filters.healthStatus}
+                      onValueChange={(v) => setFilters({ healthStatus: v as HealthStatus | "all" })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {healthOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              ),
+            }}
+            loading={isLoading}
+            loadingLabel="Loading routes..."
+            hasContent={shown.folders.length > 0 || shown.ungrouped.length > 0}
+            emptyState={
+              <EmptyState
+                message="No routes."
+                {...(canCreateProxyHost
+                  ? { actionLabel: "Add one", onAction: () => void openCreateProxyHost() }
+                  : {})}
+                hasActiveFilters={hasActiveFilters}
+                onReset={() => {
+                  resetFilters();
+                  setSearchInput("");
+                }}
+              />
+            }
+            dnd={{
+              sensors,
+              active: activeDrag,
+              onDragStart: (event) => setActiveDrag(event.active),
+              onDragEnd: handleDragEnd,
+              onDragCancel: () => setActiveDrag(null),
+            }}
+            folders={{
+              folders: shown.folders,
+              ungroupedItems: shown.ungrouped,
+              expandedFolderIds,
+              getFolderId: (folder) => folder.id,
+              getFolderName: (folder) => folder.name,
+              getFolderChildren: (folder) => folder.children,
+              getFolderItems: (folder) => folder.hosts,
+              getFolderSortableId: (folder) => `folder-${folder.id}`,
+              getFolderSortableData: (folder) => ({
+                type: "folder",
+                folderId: folder.id,
+                folder,
+              }),
+              isFolderExpanded: (folder) =>
+                expandedFolderIds.has(folder.id) || folder.id === defaultOpenId,
+              canManageFolder,
+              canReorderFolder: (folder) => canReorderFolders && canManageFolder(folder),
+              canCreateSubfolder: (folder) => folder.depth < 2,
+              onToggleFolder: (id) => {
+                // The first fold saves the folder that started open, so it stays as the user saw it.
+                if (defaultOpenId) toggleFolder(defaultOpenId);
+                toggleFolder(id);
+              },
+              onRenameFolder: handleRenameFolder,
+              onDeleteFolder: handleDeleteFolder,
+              onRequestMoveFolder: setMoveFolderId,
+              onRequestCreateSubfolder: (parentId) => {
+                setCreateFolderParentId(parentId);
+                setCreateFolderOpen(true);
+              },
+              ungroupedDroppable: {
+                id: "folder-ungrouped",
+                data: { type: "folder", folderId: rootFolderId },
+                disabled: !canReorderFolders || !canManageFolderAt(rootFolderId),
+              },
+            }}
+            items={{
+              getItemId: (host) => host.id,
+              getItemSortableId: (host) => host.id,
+              getItemSortableData: (host) => ({ type: "host", host }),
+              canViewItem: canViewHost,
+              isItemDragDisabled: (host) =>
+                !!host.app ||
+                !canReorderFolders ||
+                !canEditHost(host) ||
+                !canManageFolderAt(host.folderId ?? null),
+              onItemClick: (host) => navigate(proxyHostRoute(host.slug)),
+            }}
+          />
+        </HubTabPanel>
       </div>
 
       <MoveToAppDialog
@@ -908,6 +908,6 @@ export function ProxyHosts({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </PageTransition>
+    </>
   );
 }
