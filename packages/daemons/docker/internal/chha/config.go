@@ -276,6 +276,23 @@ func (ec EngineConfig) Learners() []KeeperServer {
 	return out
 }
 
+// convertsHere: this member runs the convert of ConvertDatabases (it is the
+// bootstrap voter of the convert, the origin).
+func (ec EngineConfig) convertsHere() bool {
+	if len(ec.ConvertDatabases) == 0 {
+		return false
+	}
+	if len(ec.BootstrapVoters) == 0 {
+		return true
+	}
+	for _, id := range ec.BootstrapVoters {
+		if id == ec.KeeperServerID {
+			return true
+		}
+	}
+	return false
+}
+
 // Voters are the desired voters, by id.
 func (ec EngineConfig) Voters() []KeeperServer {
 	out := []KeeperServer{}

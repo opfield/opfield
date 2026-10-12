@@ -80,6 +80,27 @@ func TestRenderServerConfigThreeMembersAndBootstrap(t *testing.T) {
 	if strings.Count(later, "<server>") != 3 {
 		t.Fatalf("an initialised Keeper renders the desired voters:\n%s", later)
 	}
+	// Only the origin waits for its convert; a copy joins the converted databases at once.
+	ec.ConvertDatabases = []string{"app"}
+	if !ec.convertsHere() {
+		t.Fatal("the origin runs the convert")
+	}
+	copyConfig := ec
+	copyConfig.KeeperServerID = 2
+	if copyConfig.convertsHere() {
+		t.Fatal("a copy does not run the convert")
+	}
+	files := StageMemberFiles(joiningConfigOf(origin, copyConfig), copyConfig, true, false, 10000, "hash")
+	if string(files[joiningMarker]) != "joining\n" || len(files) != 4 {
+		t.Fatalf("a member staged with an empty Keeper state is joining: %v", files)
+	}
+	if files := StageMemberFiles(origin, ec, true, true, 10000, "hash"); files[joiningMarker] != nil {
+		t.Fatal("a standalone node is not joining")
+	}
+	if files := StageMemberFiles(origin, ec, false, false, 10000, "hash"); files[joiningMarker] != nil {
+		t.Fatal("a Keeper with a log is not joining")
+	}
+	ec.ConvertDatabases = nil
 	// A member that joins lists the current voters and itself.
 	ec.BootstrapVoters = nil
 	ec.KeeperServers[2].Role = RoleLeaving
@@ -170,4 +191,9 @@ func TestGatewayEngineConfigContract(t *testing.T) {
 		!strings.Contains(rendered, "<server><id>1001</id><hostname>127.48.54.1</hostname><port>39433</port><priority>1</priority></server>") {
 		t.Fatalf("rendered %s", rendered)
 	}
+}
+
+func joiningConfigOf(config memberha.Config, ec EngineConfig) memberha.Config {
+	config.EngineConfig = mustJSON(ec)
+	return config
 }
