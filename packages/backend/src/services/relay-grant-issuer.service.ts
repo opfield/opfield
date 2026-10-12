@@ -564,7 +564,11 @@ export class RelayGrantIssuerService {
     // A relay-local endpoint (a ClickHouse Keeper witness on its relay) is served by the relay itself: only its
     // daemon sources need pool support. Without candidates a member's route to its witness had no relay at all, so
     // the holder never reached the witness and never added it to its Keeper (rc.1/rc.3 stand B blocker).
-    if (endpoint.subjectKind !== 'daemon' && endpoint.subjectKind !== 'local_service' && endpoint.subjectKind !== 'relay_instance')
+    if (
+      endpoint.subjectKind !== 'daemon' &&
+      endpoint.subjectKind !== 'local_service' &&
+      endpoint.subjectKind !== 'relay_instance'
+    )
       return false;
     const nodeIds = [
       ...(endpoint.subjectKind === 'daemon' ? [endpoint.nodeId] : []),

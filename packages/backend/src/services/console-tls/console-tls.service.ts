@@ -352,7 +352,7 @@ export class ConsoleTlsService {
     if (this.served?.source === 'acme') return;
     try {
       const material = await this.deps.fallback();
-      if (this.served && this.served.material.cert.equals(material.cert)) return;
+      if (this.served?.material.cert.equals(material.cert)) return;
       this.apply('fallback', material);
     } catch (error) {
       logger.warn('Console fallback certificate is unavailable', { error: errorMessage(error) });
