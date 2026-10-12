@@ -290,7 +290,8 @@ export function patchCompose(
   const runtimePatched = patchAppRuntimeStorageAndSocket(
     commercialPrepared ? patchCommercialCore(volumesPatched) : volumesPatched
   );
-  const healthcheckPatched = patchAppHealthcheck(runtimePatched);
+  // Before the relay and registry volumes, which those steps move to the end of the list on every run.
+  const healthcheckPatched = patchAppHealthcheck(upsertAppHostProcMounts(runtimePatched));
   const environmentPatched = removeLegacyAppEnvironment(healthcheckPatched);
   const clickHousePatched = removeLegacyClickHouseService(environmentPatched);
   const relayPatched = patchRelayFoundation(clickHousePatched, boundedLogging);
@@ -871,6 +872,26 @@ function upsertAppRegistryAuthVolume(lines: string[]): string[] {
     `${' '.repeat(indent)}- gateway_registry_auth:/var/lib/gateway-registry-auth`,
     ...next.slice(refreshed.end),
   ];
+}
+
+/**
+ * The host's /proc files the diagnostics read. In a Proxmox LXC, LXCFS shows the LXC's own memory, load and
+ * uptime there, while the container's own procfs shows the hypervisor's.
+ */
+export const HOST_PROC_FILES = ['meminfo', 'loadavg', 'stat', 'uptime'] as const;
+
+function upsertAppHostProcMounts(lines: string[]): string[] {
+  const app = findServiceBlock(lines, 'app');
+  const volumes = app ? findNestedBlock(lines, app, 'volumes') : null;
+  if (!volumes) throw new Error('foundation migration failed: services.app.volumes block not found');
+  const indent = ' '.repeat(volumes.indent + 2);
+  const present = lines.slice(volumes.start + 1, volumes.end);
+  const missing = HOST_PROC_FILES.filter(
+    (file) =>
+      !present.some((line) => new RegExp(`^\\s*-\\s*[^#]*:/host/proc/${file}(?::(?:ro|rw))?\\s*(?:#.*)?$`).test(line))
+  ).map((file) => `${indent}- /proc/${file}:/host/proc/${file}:ro`);
+  if (missing.length === 0) return lines;
+  return [...lines.slice(0, volumes.end), ...missing, ...lines.slice(volumes.end)];
 }
 
 function registryServiceBlock(logging: boolean): string[] {

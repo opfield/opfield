@@ -93,6 +93,16 @@ describe('foundation migrator patches', () => {
     expect(preserved).toContain('    stop_grace_period: 2m');
   });
 
+  it("mounts the host's /proc readings into the app once", () => {
+    const patched = patchCompose(OLD_COMPOSE);
+    for (const file of ['meminfo', 'loadavg', 'stat', 'uptime']) {
+      expect(patched).toContain(`      - /proc/${file}:/host/proc/${file}:ro\n`);
+    }
+    expect(patchCompose(patched)).toBe(patched);
+    const app = parseDocument(patched).toJS().services.app;
+    expect(app.volumes.filter((volume: string) => volume.includes('/host/proc/'))).toHaveLength(4);
+  });
+
   it('adds the managed sandbox volume and normalizes the app image reference', () => {
     const patched = patchCompose(OLD_COMPOSE);
 

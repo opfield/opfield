@@ -1,33 +1,55 @@
-import { readFile, statfs } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { access, readFile, statfs } from 'node:fs/promises';
 import os from 'node:os';
 import { type EventLoopUtilization, monitorEventLoopDelay, performance } from 'node:perf_hooks';
 
 /**
  * Host and process readings for Gateway diagnostics. Inside the app container /proc/loadavg,
- * /proc/meminfo and /proc/stat are not namespaced, so os.* and these files describe the whole
- * kernel: in an LXC that is the hypervisor. The host reading therefore narrows them to what binds
- * Gateway: the CPUs it may run on (its affinity, which an LXC's cpuset sets) and the cgroup limits
- * of its container.
+ * /proc/meminfo, /proc/stat and /proc/uptime are not namespaced, so os.* and these files describe the
+ * whole kernel: in an LXC that is the hypervisor. The installer therefore mounts the host's own files
+ * at /host/proc, where in an LXC LXCFS shows the LXC's memory, CPUs, load and uptime; they win when
+ * present. The host reading further narrows them to what binds Gateway: the CPUs it may run on (its
+ * affinity, which an LXC's cpuset sets) and the cgroup limits of its container.
  */
+
+/** Where the installer mounts the host's /proc files (meminfo, loadavg, stat, uptime). */
+export const HOST_PROC_DIR = '/host/proc';
+
+/** A /proc file of the host when it is mounted and readable, else the container's own; null when neither reads. */
+export async function readProcFile(
+  file: string,
+  dirs: readonly string[] = [HOST_PROC_DIR, '/proc']
+): Promise<{ text: string; host: boolean } | null> {
+  for (const [index, dir] of dirs.entries()) {
+    const path = `${dir}/${file}`;
+    try {
+      await access(path, constants.R_OK);
+      return { text: await readFile(path, 'utf8'), host: index < dirs.length - 1 };
+    } catch {
+      // Not mounted or not readable: try the next directory.
+    }
+  }
+  return null;
+}
 
 export interface HostReading {
   /** CPUs Gateway may run on: its CPU affinity (an LXC or container cpuset), capped by its cgroup CPU quota. */
   cpuCount: number;
-  /** CPUs of the whole kernel; more than cpuCount in an LXC or a CPU-limited container. */
+  /** CPUs of the host: the LXC's with the host /proc mounted, else the whole kernel's; can be more than cpuCount. */
   kernelCpuCount: number;
   /** Busy share of the CPUs Gateway may run on since the previous reading; null on the first reading. */
   cpuPercent: number | null;
-  /** Load averages of the whole kernel. */
+  /** Load averages of the host (the LXC's when LXCFS virtualises them), else of the whole kernel. */
   loadAverage: [number, number, number];
-  /** The 1-minute load per kernel CPU. */
+  /** The 1-minute load per host CPU. */
   loadPerCpu: number;
   memoryTotalBytes: number;
   memoryAvailableBytes: number;
   memoryUsedPercent: number;
   /**
    * `cgroup`: the memory limit of Gateway's container and its use. `kernel`: the container has no limit, so the
-   * figures are the whole kernel's; in an LXC that is the hypervisor (gateway.dockerHost.memoryBytes is then the
-   * LXC's memory).
+   * figures are the host's /proc/meminfo (in an LXC the LXC's own); without the host mount they are the whole
+   * kernel's, in an LXC the hypervisor's.
    */
   memoryScope: 'cgroup' | 'kernel';
   swapTotalBytes: number | null;
@@ -97,14 +119,23 @@ async function readAllowedCpus(): Promise<Set<number> | null> {
   }
 }
 
-/** CPU times of the allowed CPUs from /proc/stat, counted as os.cpus() counts them; every CPU off Linux. */
-async function allowedCpuTimes(allowed: Set<number> | null): Promise<CpuTimes> {
-  if (!allowed) return hostCpuTimes();
+/**
+ * CPU times of the allowed CPUs from /proc/stat, counted as os.cpus() counts them; every CPU off Linux. LXCFS lists
+ * only an LXC's CPUs, renumbered from 0, so a host /proc/stat with fewer CPUs than the kernel counts all its CPUs.
+ */
+async function allowedCpuTimes(
+  allowed: Set<number> | null,
+  stat: { text: string; host: boolean } | null,
+  kernelCpuCount: number
+): Promise<CpuTimes> {
+  if (!allowed || !stat) return hostCpuTimes();
+  const cpus = [...stat.text.matchAll(/^cpu(\d+)\s+(.+)$/gm)];
+  const filter = !(stat.host && cpus.length > 0 && cpus.length < kernelCpuCount);
   try {
     let busy = 0;
     let total = 0;
-    for (const match of (await readFile('/proc/stat', 'utf8')).matchAll(/^cpu(\d+)\s+(.+)$/gm)) {
-      if (!allowed.has(Number(match[1]))) continue;
+    for (const match of cpus) {
+      if (filter && !allowed.has(Number(match[1]))) continue;
       // user nice system idle iowait irq …
       const ticks = (match[2] ?? '').trim().split(/\s+/).map(Number);
       const [user = 0, nice = 0, sys = 0, idle = 0] = ticks;
@@ -118,18 +149,26 @@ async function allowedCpuTimes(allowed: Set<number> | null): Promise<CpuTimes> {
   }
 }
 
+/** /proc/meminfo in bytes; empty off Linux (a development machine), where os.freemem() stands in. */
 async function readMemInfo(): Promise<Map<string, number>> {
   const values = new Map<string, number>();
-  try {
-    const text = await readFile('/proc/meminfo', 'utf8');
-    for (const line of text.split('\n')) {
-      const match = /^(\w+):\s+(\d+)\s*kB/.exec(line);
-      if (match?.[1] && match[2]) values.set(match[1], Number(match[2]) * 1024);
-    }
-  } catch {
-    // Not Linux (a development machine): os.freemem() stands in below.
+  for (const line of ((await readProcFile('meminfo'))?.text ?? '').split('\n')) {
+    const match = /^(\w+):\s+(\d+)\s*kB/.exec(line);
+    if (match?.[1] && match[2]) values.set(match[1], Number(match[2]) * 1024);
   }
   return values;
+}
+
+/** /proc/loadavg; os.loadavg() off Linux. */
+async function readLoadAverage(): Promise<number[]> {
+  const values = (await readProcFile('loadavg'))?.text.trim().split(/\s+/).slice(0, 3).map(Number) ?? [];
+  return values.length === 3 && values.every(Number.isFinite) ? values : os.loadavg();
+}
+
+/** Seconds since boot from /proc/uptime (in an LXC with the host mount, since the LXC started); os.uptime() off Linux. */
+async function readUptimeSeconds(): Promise<number> {
+  const seconds = Number((await readProcFile('uptime'))?.text.trim().split(/\s+/)[0]);
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds : os.uptime();
 }
 
 async function readCgroupText(file: string): Promise<string | null> {
@@ -214,16 +253,21 @@ export class SystemReader {
   /** Host readings; `reset` starts a new measurement window for the CPU share. */
   async readHost(reset: boolean): Promise<HostReading> {
     const allowedCpus = await readAllowedCpus();
-    const cpu = await allowedCpuTimes(allowedCpus);
+    const stat = await readProcFile('stat');
+    const statCpuCount = stat?.host ? [...stat.text.matchAll(/^cpu\d+\s/gm)].length : 0;
+    const kernelCpuCount = statCpuCount > 0 ? statCpuCount : Math.max(1, os.cpus().length);
+    const cpu = await allowedCpuTimes(allowedCpus, stat, Math.max(1, os.cpus().length));
     const previous = this.previousHostCpu;
     if (reset || !previous) this.previousHostCpu = cpu;
     const cpuPercent =
       previous && cpu.total > previous.total
         ? round(((cpu.busy - previous.busy) / (cpu.total - previous.total)) * 100)
         : null;
-    const kernelCpuCount = Math.max(1, os.cpus().length);
     const cpuQuota = await readCgroupCpuQuota();
-    const cpuCount = round(Math.min(allowedCpus?.size ?? os.availableParallelism(), cpuQuota ?? Infinity), 2);
+    const cpuCount = round(
+      Math.min(allowedCpus?.size ?? os.availableParallelism(), kernelCpuCount, cpuQuota ?? Infinity),
+      2
+    );
     const memInfo = await readMemInfo();
     const kernelMemoryTotalBytes = memInfo.get('MemTotal') ?? os.totalmem();
     const container = await readCgroupMemory();
@@ -232,7 +276,7 @@ export class SystemReader {
     const memoryAvailableBytes = limited
       ? Math.max(0, container.limitBytes - container.usedBytes)
       : (memInfo.get('MemAvailable') ?? os.freemem());
-    const loadAverage = os.loadavg().map((value) => round(value, 2)) as [number, number, number];
+    const loadAverage = (await readLoadAverage()).map((value) => round(value, 2)) as [number, number, number];
     return {
       cpuCount,
       kernelCpuCount,
@@ -245,7 +289,7 @@ export class SystemReader {
       memoryScope: limited ? 'cgroup' : 'kernel',
       swapTotalBytes: memInfo.get('SwapTotal') ?? null,
       swapFreeBytes: memInfo.get('SwapFree') ?? null,
-      uptimeSeconds: Math.round(os.uptime()),
+      uptimeSeconds: Math.round(await readUptimeSeconds()),
       kernel: `${os.type()} ${os.release()}`,
       disk: await readDisk(this.dataPath),
     };

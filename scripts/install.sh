@@ -1208,6 +1208,11 @@ services:
       # recovery, housekeeping, and Gateway-managed local services.
       # Run Gateway on a dedicated host/VM; a read-only bind is not safer.
       - /var/run/docker.sock:/var/run/docker.sock
+      # The host's memory, load and uptime for diagnostics; in an LXC these are the LXC's, not the hypervisor's.
+      - /proc/meminfo:/host/proc/meminfo:ro
+      - /proc/loadavg:/host/proc/loadavg:ro
+      - /proc/stat:/host/proc/stat:ro
+      - /proc/uptime:/host/proc/uptime:ro
     depends_on:
       postgres:
         condition: service_healthy
