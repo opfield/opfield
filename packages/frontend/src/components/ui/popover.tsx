@@ -1,5 +1,6 @@
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import * as React from "react";
+import { DialogLayerContext } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 /**
@@ -34,6 +35,7 @@ const PopoverContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
 >(({ className, align = "center", sideOffset = 4, onEscapeKeyDown, ...props }, ref) => {
   const { open, onOpenChange } = React.useContext(PopoverStateContext);
+  const dialogLayer = React.useContext(DialogLayerContext);
   const onEscapeRef = React.useRef(onEscapeKeyDown);
   onEscapeRef.current = onEscapeKeyDown;
   React.useEffect(() => {
@@ -50,7 +52,7 @@ const PopoverContent = React.forwardRef<
     return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
   }, [open, onOpenChange]);
   return (
-    <PopoverPrimitive.Portal>
+    <PopoverPrimitive.Portal container={dialogLayer ?? undefined}>
       <PopoverPrimitive.Content
         ref={ref}
         align={align}
@@ -58,7 +60,7 @@ const PopoverContent = React.forwardRef<
         onEscapeKeyDown={onEscapeKeyDown}
         className={cn(
           // Fades like dropdown menus and selects (css/animations.css).
-          "dropdown-content z-50 min-w-32 border border-border bg-popover p-4 text-popover-foreground shadow-md outline-none",
+          "dropdown-content pointer-events-auto z-50 min-w-32 border border-border bg-popover p-4 text-popover-foreground shadow-md outline-none",
           className
         )}
         {...props}

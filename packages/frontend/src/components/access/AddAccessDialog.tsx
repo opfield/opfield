@@ -637,11 +637,9 @@ export function AddAccessDialog({
               <SwitchCard
                 label="May delete resources"
                 description={
-                  <>
-                    {roleCanDelete(draft.role)
-                      ? "Off: the role can change resources but not delete them."
-                      : "Developer and Operator only."}
-                  </>
+                  roleCanDelete(draft.role)
+                    ? "Off: the role can change resources but not delete them."
+                    : "Developer and Operator only."
                 }
                 checked={draft.mayDelete && roleCanDelete(draft.role)}
                 onCheckedChange={(mayDelete) => update({ mayDelete })}

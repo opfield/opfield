@@ -757,7 +757,7 @@ export function AuditLog({
               description="Checked resources are excluded by the backend before pagination."
               options={resourceOptions.map((resourceType) => ({
                 value: resourceType,
-                label: resourceType,
+                label: formatAuditToken(resourceType),
               }))}
               selected={draftViewConfig.excludedResourceTypes}
               onToggle={(value) =>
@@ -772,6 +772,9 @@ export function AuditLog({
           <DialogFooter>
             <Button variant="outline" onClick={resetViewConfig}>
               Reset
+            </Button>
+            <Button variant="outline" onClick={() => handleConfigureOpenChange(false)}>
+              Cancel
             </Button>
             <Button onClick={saveViewConfig}>Save</Button>
           </DialogFooter>
@@ -822,7 +825,7 @@ export function AuditLog({
                 description="Leave empty to export all visible resources."
                 options={resourceOptions.map((resourceType) => ({
                   value: resourceType,
-                  label: resourceType,
+                  label: formatAuditToken(resourceType),
                 }))}
                 selected={exportResourceTypes}
                 onToggle={(value) => setExportResourceTypes((values) => toggleValue(values, value))}
@@ -956,7 +959,7 @@ function AuditOptionChecklist({
                 onChange={() => onToggle(option.value)}
                 className="form-checkbox"
               />
-              <span className="min-w-0 truncate font-mono text-xs" title={option.label}>
+              <span className="min-w-0 truncate" title={option.label}>
                 {option.label}
               </span>
             </label>

@@ -327,7 +327,7 @@ export function ManagedDatabaseSettingsTab({
               <SettingsControlRow
                 controlsClassName="sm:min-w-0"
                 title="Maximum connections"
-                description={`PostgreSQL max_connections, from ${MANAGED_POSTGRES_MIN_CONNECTIONS} to ${MANAGED_POSTGRES_MAX_CONNECTIONS}. Each connection is a server process with its own memory. Changing it recreates the database container; its storage is retained.`}
+                description={`PostgreSQL max_connections, ${MANAGED_POSTGRES_MIN_CONNECTIONS}–${MANAGED_POSTGRES_MAX_CONNECTIONS}. Changing it recreates the container.`}
               >
                 <Input
                   aria-label="Maximum connections"

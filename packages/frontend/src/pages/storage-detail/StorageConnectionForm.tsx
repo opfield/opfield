@@ -287,7 +287,6 @@ export function StorageConnectionForm({
   disableProvider = false,
   mode = "full",
   folderField,
-  wide = false,
 }: {
   draft: StorageConnectionDraft;
   onChange: (next: StorageConnectionDraft) => void;
@@ -295,8 +294,6 @@ export function StorageConnectionForm({
   mode?: "full" | "metadata";
   /** The create dialog's Folder field: shares a row with Tags. */
   folderField?: ReactNode;
-  /** The form fills a wide (2xl) dialog: the three S3 keys share one row. */
-  wide?: boolean;
 }) {
   const set = <K extends keyof StorageConnectionDraft>(key: K, value: StorageConnectionDraft[K]) =>
     onChange({ ...draft, [key]: value });
@@ -583,7 +580,7 @@ export function StorageConnectionForm({
             </div>
           </div>
 
-          <div className={`grid gap-3 ${wide ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+          <div className="grid gap-3 md:grid-cols-2">
             <div className="min-w-0 space-y-1.5">
               <label className="text-sm font-medium">Access Key ID</label>
               <Input
@@ -631,17 +628,10 @@ export function StorageConnectionForm({
               )}
             </div>
 
-            {wide ? null : defaultBucketField}
+            {defaultBucketField}
           </div>
 
-          {wide ? (
-            <div className="grid gap-3 md:grid-cols-2 md:items-center">
-              {defaultBucketField}
-              {pathStyleSwitch}
-            </div>
-          ) : (
-            pathStyleSwitch
-          )}
+          {pathStyleSwitch}
         </>
       )}
     </div>

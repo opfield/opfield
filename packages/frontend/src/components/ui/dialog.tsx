@@ -147,6 +147,12 @@ function fitDialogLists(panel: HTMLElement) {
   scroller.scrollTop = scrollerTop;
 }
 
+/**
+ * The open dialog's panel. Popovers inside a dialog render into it, so the modal dialog lets them
+ * take clicks and keyboard focus (a popover portalled to the body sits outside its focus trap).
+ */
+export const DialogLayerContext = React.createContext<HTMLElement | null>(null);
+
 // A dialog whose content is loading stays hidden, overlay included, and opens
 // complete once its data is in. Meanwhile the button that opened it shows a
 // spinner; without such a button the screen dims with a spinner after a moment.
@@ -222,9 +228,11 @@ const DialogContentPanel = React.forwardRef<
     isolated: true,
   });
   const panelRef = React.useRef<HTMLDivElement | null>(null);
+  const [panelElement, setPanelElement] = React.useState<HTMLDivElement | null>(null);
   const setPanelRef = React.useCallback(
     (element: HTMLDivElement | null) => {
       panelRef.current = element;
+      setPanelElement(element);
       if (typeof ref === "function") ref(element);
       else if (ref) ref.current = element;
     },
@@ -347,52 +355,54 @@ const DialogContentPanel = React.forwardRef<
         style={waiting ? { ...props.style, animationPlayState: "paused" } : props.style}
         data-reveal-phase={gate.phase}
       >
-        <InitialPageLoadContext.Provider value={gate.register}>
-          <InitialPageReadyContext.Provider value={gate.revealed}>
-            {hasHeader ? (
-              <div
-                data-dialog-header-slot=""
-                className={cn(
-                  "flex shrink-0 items-start justify-between gap-4 px-4 pb-4 pt-4 transition-shadow duration-200 ease-out sm:px-6 sm:pt-6",
-                  bodyScrolled ? "max-sm:shadow-[inset_0_-1px_0_var(--color-border)]" : ""
-                )}
-              >
-                <div className="min-w-0 flex-1">{headerChildren}</div>
-                {!hideCloseButton && (
-                  <DialogPrimitive.Close className="shrink-0 opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
-                    <X className="h-4 w-4" />
-                    <span className="sr-only">Close</span>
-                  </DialogPrimitive.Close>
-                )}
-              </div>
-            ) : null}
-            {bodyChildren.length > 0 ? (
-              <div
-                data-dialog-body=""
-                className={cn(
-                  "relative min-h-0 min-w-0 px-4 max-sm:flex-1 max-sm:overflow-y-auto max-sm:overscroll-contain sm:px-6",
-                  fillHeight && "flex flex-1 flex-col",
-                  // One column the body's width: no child can widen the dialog.
-                  bodyChildren.length > 1 && "grid grid-cols-1 gap-4",
-                  hasHeader ? "pt-0" : "pt-4 sm:pt-6",
-                  hasFooter ? "pb-0" : "pb-4 sm:pb-6"
-                )}
-                onScroll={(event) => setBodyScrolled(event.currentTarget.scrollTop > 0)}
-              >
-                {bodyChildren}
-              </div>
-            ) : null}
-            {hasFooter ? (
-              <div className="shrink-0 px-4 pb-4 pt-4 sm:px-6 sm:pb-6">{footerChildren}</div>
-            ) : null}
-            {!hideCloseButton && !hasHeader && (
-              <DialogPrimitive.Close className="absolute right-4 top-4 opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
-                <X className="h-4 w-4" />
-                <span className="sr-only">Close</span>
-              </DialogPrimitive.Close>
-            )}
-          </InitialPageReadyContext.Provider>
-        </InitialPageLoadContext.Provider>
+        <DialogLayerContext.Provider value={panelElement}>
+          <InitialPageLoadContext.Provider value={gate.register}>
+            <InitialPageReadyContext.Provider value={gate.revealed}>
+              {hasHeader ? (
+                <div
+                  data-dialog-header-slot=""
+                  className={cn(
+                    "flex shrink-0 items-start justify-between gap-4 px-4 pb-4 pt-4 transition-shadow duration-200 ease-out sm:px-6 sm:pt-6",
+                    bodyScrolled ? "max-sm:shadow-[inset_0_-1px_0_var(--color-border)]" : ""
+                  )}
+                >
+                  <div className="min-w-0 flex-1">{headerChildren}</div>
+                  {!hideCloseButton && (
+                    <DialogPrimitive.Close className="shrink-0 opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+                      <X className="h-4 w-4" />
+                      <span className="sr-only">Close</span>
+                    </DialogPrimitive.Close>
+                  )}
+                </div>
+              ) : null}
+              {bodyChildren.length > 0 ? (
+                <div
+                  data-dialog-body=""
+                  className={cn(
+                    "relative min-h-0 min-w-0 px-4 max-sm:flex-1 max-sm:overflow-y-auto max-sm:overscroll-contain sm:px-6",
+                    fillHeight && "flex flex-1 flex-col",
+                    // One column the body's width: no child can widen the dialog.
+                    bodyChildren.length > 1 && "grid grid-cols-1 gap-4",
+                    hasHeader ? "pt-0" : "pt-4 sm:pt-6",
+                    hasFooter ? "pb-0" : "pb-4 sm:pb-6"
+                  )}
+                  onScroll={(event) => setBodyScrolled(event.currentTarget.scrollTop > 0)}
+                >
+                  {bodyChildren}
+                </div>
+              ) : null}
+              {hasFooter ? (
+                <div className="shrink-0 px-4 pb-4 pt-4 sm:px-6 sm:pb-6">{footerChildren}</div>
+              ) : null}
+              {!hideCloseButton && !hasHeader && (
+                <DialogPrimitive.Close className="absolute right-4 top-4 opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+                  <X className="h-4 w-4" />
+                  <span className="sr-only">Close</span>
+                </DialogPrimitive.Close>
+              )}
+            </InitialPageReadyContext.Provider>
+          </InitialPageLoadContext.Provider>
+        </DialogLayerContext.Provider>
       </DialogPrimitive.Content>
     </>
   );

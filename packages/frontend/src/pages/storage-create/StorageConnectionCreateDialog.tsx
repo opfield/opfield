@@ -111,7 +111,7 @@ export function StorageConnectionCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Add Storage</DialogTitle>
         </DialogHeader>
@@ -131,7 +131,6 @@ export function StorageConnectionCreateDialog({
         <StorageConnectionForm
           draft={draft}
           onChange={setDraft}
-          wide
           folderField={
             <div className="min-w-0 space-y-1.5">
               <label htmlFor="storage-create-folder" className="text-sm font-medium">
