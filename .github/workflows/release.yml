@@ -167,10 +167,10 @@ jobs:
           docker buildx imagetools create --tag "${GATEWAY_IMAGE}/backup-runner:${GITHUB_REF_NAME}" "$RUNNER_IMAGE"
           echo "Published ${GATEWAY_IMAGE}@${digest}"
           if [[ -n "$GATEWAY_IMAGE_MIRROR" ]]; then
-            docker buildx imagetools create \
-              --tag "${GATEWAY_IMAGE_MIRROR}:${GITHUB_REF_NAME}" \
-              --tag "${GATEWAY_IMAGE_MIRROR}:${GITHUB_REF_NAME#v}" \
-              "${GATEWAY_IMAGE}@${digest}"
+            # skopeo keeps the manifest, so the mirror tags carry the signed digest (imagetools create would re-wrap it).
+            for t in "${GITHUB_REF_NAME}" "${GITHUB_REF_NAME#v}"; do
+              skopeo copy --all --preserve-digests "docker://${GATEWAY_IMAGE}@${digest}" "docker://${GATEWAY_IMAGE_MIRROR}:${t}"
+            done
             docker buildx imagetools create --tag "${GATEWAY_IMAGE_MIRROR}/backup-runner:${GITHUB_REF_NAME}" "$RUNNER_IMAGE"
             echo "Mirrored ${GATEWAY_IMAGE}@${digest} to ${GATEWAY_IMAGE_MIRROR}"
           fi
@@ -324,9 +324,10 @@ jobs:
         env:
           DIGEST: ${{ steps.image.outputs.digest }}
         run: |
-          docker buildx imagetools create --tag "${GATEWAY_IMAGE}:latest" "${GATEWAY_IMAGE}@${DIGEST}"
+          # latest is the signed release digest itself, in both repositories.
+          skopeo copy --all --preserve-digests "docker://${GATEWAY_IMAGE}@${DIGEST}" "docker://${GATEWAY_IMAGE}:latest"
           if [[ -n "$GATEWAY_IMAGE_MIRROR" ]]; then
-            docker buildx imagetools create --tag "${GATEWAY_IMAGE_MIRROR}:latest" "${GATEWAY_IMAGE}@${DIGEST}"
+            skopeo copy --all --preserve-digests "docker://${GATEWAY_IMAGE}@${DIGEST}" "docker://${GATEWAY_IMAGE_MIRROR}:latest"
           fi
 
       # A stable Gateway release is the repository's Latest: releases/latest/download serves its installers.

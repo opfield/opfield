@@ -100,9 +100,11 @@ mirror_image() {
   local image=$1 digest=$2 target t
   shift 2
   target="${gateway_image_mirror}${image#"$gateway_image"}"
-  local args=()
-  for t in "$@"; do args+=(--tag "${target}:${t}"); done
-  docker buildx imagetools create "${args[@]}" "${image}@${digest}"
+  # skopeo keeps the manifest as it is, so the mirror tag has the signed digest. buildx imagetools create would wrap a
+  # single-platform manifest in a new index with another digest that carries no signature.
+  for t in "$@"; do
+    skopeo copy --all --preserve-digests "docker://${image}@${digest}" "docker://${target}:${t}"
+  done
   printf 'Mirrored %s@%s to %s\n' "$image" "$digest" "$target"
 }
 
