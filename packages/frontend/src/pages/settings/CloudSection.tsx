@@ -11,8 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { isLicenseDenial, toastApiError } from "@/lib/api-error-toast";
-import { cn } from "@/lib/utils";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { CloudLinkStatusView } from "@/types";
 
@@ -74,8 +73,6 @@ export function CloudSection({ canManage }: CloudSectionProps) {
     () => api.getCached<CloudLinkStatusView>(CACHE_KEY) === undefined
   );
   const [code, setCode] = useState("");
-  /** Why the last Connect with this code failed, shown at the field. */
-  const [codeError, setCodeError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [savingRemoteManagement, setSavingRemoteManagement] = useState(false);
@@ -141,13 +138,7 @@ export function CloudSection({ canManage }: CloudSectionProps) {
           : "Connected to your cloud account"
       );
     } catch (err) {
-      if (isLicenseDenial(err)) toastApiError(err, "Failed to connect to your cloud account");
-      else
-        setCodeError(
-          err instanceof Error && err.message
-            ? err.message
-            : "Failed to connect to your cloud account"
-        );
+      toastApiError(err, "Failed to connect to your cloud account");
     } finally {
       setConnecting(false);
     }
@@ -215,29 +206,6 @@ export function CloudSection({ canManage }: CloudSectionProps) {
   const managed = connected && status.remoteManagement?.managed === true;
   const disconnectedByAccount = status.state === "disconnected_by_account";
 
-  // A typed value that is not a code says why Connect stays off; a refused code says why at the field.
-  const codeMessage = !canManage
-    ? null
-    : codeError
-      ? { text: codeError, error: true }
-      : code.trim() && !normalizedCode
-        ? { text: "A code looks like CLD-XXXX-XXXX: 8 letters and digits.", error: false }
-        : null;
-  const codeMessageLine =
-    codeMessage && (!connected || switching) ? (
-      <p
-        id="cloud-connection-code-message"
-        className={cn("text-sm", codeMessage.error ? "text-destructive" : "text-muted-foreground")}
-        role={codeMessage.error ? "alert" : undefined}
-        aria-live="polite"
-      >
-        {codeMessage.text}
-      </p>
-    ) : null;
-
-  // Without a body the header stands alone (no empty strip under its border).
-  const showBody = Boolean(codeMessageLine) || connected || disconnectedByAccount || !canManage;
-
   const codeForm = canManage ? (
     <form
       className="flex items-center gap-2"
@@ -250,10 +218,7 @@ export function CloudSection({ canManage }: CloudSectionProps) {
         id="cloud-connection-code"
         aria-label="Connection code"
         value={code}
-        onChange={(event) => {
-          setCode(event.target.value.toUpperCase());
-          setCodeError(null);
-        }}
+        onChange={(event) => setCode(event.target.value.toUpperCase())}
         onBlur={() => {
           if (normalizedCode) setCode(normalizedCode);
         }}
@@ -262,8 +227,6 @@ export function CloudSection({ canManage }: CloudSectionProps) {
         spellCheck={false}
         maxLength={16}
         className="w-36 font-mono"
-        aria-invalid={codeError ? true : undefined}
-        aria-describedby={codeMessage ? "cloud-connection-code-message" : undefined}
       />
       <Button type="submit" pending={connecting} disabled={!normalizedCode}>
         <Cloud className="h-4 w-4" />
@@ -276,7 +239,6 @@ export function CloudSection({ canManage }: CloudSectionProps) {
           onClick={() => {
             setSwitching(false);
             setCode("");
-            setCodeError(null);
           }}
         >
           Cancel
@@ -328,63 +290,51 @@ export function CloudSection({ canManage }: CloudSectionProps) {
         )
       }
     >
-      {showBody ? (
-        <>
-          {(codeMessageLine || (connected && !managed && switching)) && (
-            <div className="space-y-2 border-b border-border p-4 last:border-b-0">
-              {codeMessageLine}
-              {connected && !managed && switching && (
-                <p className="text-sm text-warning-text" role="status">
-                  Copy the code from the installation's page in the other Opfield account.
-                  Connecting with it ends the connection to{" "}
-                  {status.accountEmail ?? "your cloud account"} at once.
-                </p>
-              )}
-            </div>
-          )}
+      {connected && !managed && switching && (
+        <p className="px-4 pt-4 text-sm text-warning-text" role="status">
+          Copy the code from the installation's page in the other Opfield account. Connecting with
+          it ends the connection to {status.accountEmail ?? "your cloud account"} at once.
+        </p>
+      )}
 
-          {connected && (
-            <div className="divide-y divide-border">
-              <DetailRow label="Account" value={status.accountEmail ?? "—"} />
-              <DetailRow
-                label="Connected since"
-                value={<RelativeTime value={status.connectedSince} />}
-              />
-              {status.remoteManagement && (
-                <RemoteManagementRow
-                  remoteManagement={status.remoteManagement}
-                  canManage={canManage}
-                  saving={savingRemoteManagement}
-                  onChange={handleRemoteManagement}
-                />
-              )}
-            </div>
+      {connected && (
+        <div className="divide-y divide-border">
+          <DetailRow label="Account" value={status.accountEmail ?? "—"} />
+          <DetailRow
+            label="Connected since"
+            value={<RelativeTime value={status.connectedSince} />}
+          />
+          {status.remoteManagement && (
+            <RemoteManagementRow
+              remoteManagement={status.remoteManagement}
+              canManage={canManage}
+              saving={savingRemoteManagement}
+              onChange={handleRemoteManagement}
+            />
           )}
+        </div>
+      )}
 
-          {disconnectedByAccount && (
-            <div className="divide-y divide-border">
-              <p className="p-4 text-sm text-muted-foreground">
-                {status.disconnectedReason ??
-                  "Your cloud account disconnected this Opfield installation."}{" "}
-                To connect it again, paste a new code from your Opfield account above.
-                {askAdministrator}
-              </p>
-              {status.accountEmail && <DetailRow label="Account" value={status.accountEmail} />}
-              <DetailRow
-                label="Disconnected"
-                value={<RelativeTime value={status.disconnectedAt} />}
-              />
-            </div>
-          )}
+      {disconnectedByAccount && (
+        <div className="divide-y divide-border">
+          <p className="p-4 text-sm text-muted-foreground">
+            {status.disconnectedReason ??
+              "Your cloud account disconnected this Opfield installation."}{" "}
+            To connect it again, paste a new code from your Opfield account above.
+            {askAdministrator}
+          </p>
+          {status.accountEmail && <DetailRow label="Account" value={status.accountEmail} />}
+          <DetailRow label="Disconnected" value={<RelativeTime value={status.disconnectedAt} />} />
+        </div>
+      )}
 
-          {/* The header already says to paste the code; only a reader without manage access gets a line. */}
-          {!connected && !disconnectedByAccount && !canManage && (
-            <p className="p-4 text-sm text-muted-foreground">
-              Ask an administrator who manages the license to connect this Opfield installation.
-            </p>
-          )}
-        </>
-      ) : null}
+      {!connected && !disconnectedByAccount && (
+        <p className="p-4 text-sm text-muted-foreground">
+          {canManage
+            ? "Copy the code from your Opfield account and paste it above."
+            : "Ask an administrator who manages the license to connect this Opfield installation."}
+        </p>
+      )}
     </PanelShell>
   );
 }
