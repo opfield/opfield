@@ -489,7 +489,7 @@ export class AuditService {
     const resourceNames = await this.resolveResourceNames(
       entries.map((entry, index) => ({ resourceType: lookupTypes[index]!, resourceId: entry.resourceId }))
     );
-    const data = entries.map((entry, index) => {
+    const data = entries.map(withSystemUser).map((entry, index) => {
       if (entry.resourceType === CLOUD_AUDIT_RESOURCE_TYPE) {
         // The Opfield account, never the agent id; and what the account did, in plain words.
         const accountEmail = (entry.details as { accountEmail?: unknown } | null)?.accountEmail;
@@ -528,7 +528,7 @@ export class AuditService {
   }
 
   async getAuditUsers(): Promise<Array<{ userId: string | null; userName: string | null; userEmail: string | null }>> {
-    return this.db
+    const rows = await this.db
       .selectDistinct({
         userId: auditLog.userId,
         userName: users.name,
@@ -537,6 +537,7 @@ export class AuditService {
       .from(auditLog)
       .leftJoin(users, eq(auditLog.userId, users.id))
       .orderBy(asc(users.name), asc(users.email), asc(auditLog.userId));
+    return rows.map(withSystemUser);
   }
 
   private async resolveResourceNames(
@@ -770,6 +771,15 @@ export class AuditService {
 
 function uniqueDefined(values: Array<string | undefined>): string[] {
   return [...new Set(values.map((value) => value?.trim()).filter((value): value is string => !!value))];
+}
+
+/** Opfield's own user writes system work (certificate issuance, renewals): shown as System, like entries without a user. */
+const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
+
+function withSystemUser<T extends { userId: string | null; userName: string | null; userEmail: string | null }>(
+  entry: T
+): T {
+  return entry.userId === SYSTEM_USER_ID ? { ...entry, userName: 'System', userEmail: null } : entry;
 }
 
 function resourceKey(type: string, id: string | null | undefined): string {

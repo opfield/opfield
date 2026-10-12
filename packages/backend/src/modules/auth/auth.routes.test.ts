@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
+import { auditContextMiddleware } from '@/middleware/audit-context.js';
 import { AppError, errorHandler } from '@/middleware/error-handler.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { DemoAuthService } from '@/modules/demo/demo-auth.service.js';
@@ -11,6 +12,7 @@ import { SessionService } from '@/services/session.service.js';
 import type { AppEnv, SessionData, User } from '@/types.js';
 import { authRoutes, hashOidcState, OIDC_STATE_COOKIE_NAME } from './auth.routes.js';
 import { AuthService } from './auth.service.js';
+import { LocalAuthService } from './local-auth.service.js';
 import { MfaService } from './mfa.service.js';
 import { OidcSettingsService } from './oidc-settings.service.js';
 import { PasskeyService } from './passkey.service.js';
@@ -702,5 +704,58 @@ describe('impersonated sessions', () => {
     for (const fn of [...Object.values(mfa), ...Object.values(passkeys)]) expect(fn).not.toHaveBeenCalled();
     expect(revokeOtherUserSessions).not.toHaveBeenCalled();
     expect(revokeUserSessionByPublicId).not.toHaveBeenCalled();
+  });
+});
+
+describe('sign-in audit entries name the account', () => {
+  function signInApp() {
+    container.registerInstance(NetworkSettingsService, {
+      getConfig: vi
+        .fn()
+        .mockResolvedValue({ clientIpSource: 'auto', trustedProxyCidrs: [], trustCloudflareHeaders: false }),
+    } as unknown as NetworkSettingsService);
+    const app = new Hono<AppEnv>();
+    app.onError(errorHandler);
+    app.use('*', auditContextMiddleware);
+    app.route('/auth', authRoutes);
+    return app;
+  }
+  const login = (app: Hono<AppEnv>) =>
+    app.request('/auth/password/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'Admin@Example.com', password: 'wrong-or-right' }),
+    });
+
+  it('records the attempted account of a refused password sign-in', async () => {
+    const { auditLog } = registerDependencies();
+    container.registerInstance(LocalAuthService, {
+      authenticatePassword: vi.fn().mockResolvedValue(null),
+    } as unknown as LocalAuthService);
+    const response = await login(signInApp());
+    expect(response.status).toBe(401);
+    expect(auditLog).toHaveBeenCalledWith({
+      userId: USER.id,
+      action: 'auth.login_failed',
+      resourceType: 'session',
+      details: { method: 'password', email: 'admin@example.com' },
+    });
+  });
+
+  it('records the user of a password sign-in still waiting for MFA', async () => {
+    const { auditLog } = registerDependencies();
+    container.registerInstance(LocalAuthService, {
+      authenticatePassword: vi.fn().mockResolvedValue(USER),
+    } as unknown as LocalAuthService);
+    container.registerInstance(MfaService, {
+      getStatus: vi.fn().mockResolvedValue({ totpConfigured: true, passkeyCount: 0 }),
+      isGatewayMfaRequired: vi.fn().mockResolvedValue(false),
+      beginLoginChallenge: vi.fn().mockResolvedValue('challenge-1'),
+    } as unknown as MfaService);
+    const response = await login(signInApp());
+    expect(response.status).toBe(200);
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: USER.id, action: 'auth.password_login', resourceType: 'session' })
+    );
   });
 });

@@ -1,13 +1,17 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
+import { eq } from 'drizzle-orm';
 import type { Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { getEnv } from '@/config/env.js';
-import { container } from '@/container.js';
+import { container, TOKENS } from '@/container.js';
+import type { DrizzleClient } from '@/db/client.js';
+import { users } from '@/db/schema/index.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
 import { getClientIpForContext } from '@/lib/request-ip.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
+import { setAuditSubjectUser } from '@/modules/audit/audit-request-context.js';
 import { DemoAuthService } from '@/modules/demo/demo-auth.service.js';
 import { isCanonicalSystemAdmin, isDemoMode, isDemoVisitor } from '@/modules/demo/demo-mode.js';
 import { getEnvironmentSettingsSnapshot } from '@/modules/settings/environment-settings.service.js';
@@ -85,6 +89,7 @@ authRoutes.use('/email-otp/*', standardOnlyPublicAuthRoute);
 authRoutes.use('/passkeys/*', standardOnlyPublicAuthRoute);
 
 async function setLocalSession(c: any, user: import('@/types.js').User, authMethod: AuthMethod, mfaSatisfied = false) {
+  setAuditSubjectUser(user.id);
   const sessionService = container.resolve(SessionService);
   const { sessionId } = await sessionService.createSession(user, undefined, undefined, {
     authMethod,
@@ -133,6 +138,8 @@ function clearSessionCookies(c: any): void {
 }
 
 async function finishLocalPrimaryAuth(c: any, user: import('@/types.js').User, authMethod: 'password' | 'email_otp') {
+  // The first factor passed: the sign-in's audit entry names this user, also while MFA is still pending.
+  setAuditSubjectUser(user.id);
   const mfa = container.resolve(MfaService);
   const [mfaStatus, gatewayMfaRequired] = await Promise.all([
     mfa.getStatus(user.id),
@@ -158,6 +165,28 @@ async function finishLocalPrimaryAuth(c: any, user: import('@/types.js').User, a
 
   await setLocalSession(c, user, authMethod);
   return c.json({ ok: true });
+}
+
+/**
+ * A refused local sign-in: names the account that was tried (its user when one exists, and the email entered), so
+ * the audit log shows whose sign-in failed. The sign-in rate limit bounds how often this writes.
+ */
+async function auditFailedLocalSignIn(method: 'password', email: string): Promise<void> {
+  const normalized = email.trim().toLowerCase();
+  const attempted = await container
+    .resolve<DrizzleClient>(TOKENS.DrizzleClient)
+    .query.users.findFirst({ where: eq(users.email, normalized), columns: { id: true } })
+    .then((row) => row?.id ?? null)
+    .catch(() => null);
+  await container
+    .resolve(AuditService)
+    .log({
+      userId: attempted,
+      action: 'auth.login_failed',
+      resourceType: 'session',
+      details: { method, email: normalized.slice(0, 320) },
+    })
+    .catch(() => undefined);
 }
 
 export const OIDC_STATE_COOKIE_NAME = 'gateway_oidc_state';
@@ -411,7 +440,10 @@ authRoutes.post('/password/login', async (c) => {
   const input = LocalPasswordLoginSchema.parse(await c.req.json());
   const localAuth = container.resolve(LocalAuthService);
   const user = await localAuth.authenticatePassword(input.email, input.password);
-  if (!user) return c.json({ code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' }, 401);
+  if (!user) {
+    await auditFailedLocalSignIn('password', input.email);
+    return c.json({ code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' }, 401);
+  }
   return finishLocalPrimaryAuth(c, user, 'password');
 });
 

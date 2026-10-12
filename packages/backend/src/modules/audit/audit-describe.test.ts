@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { describeAuditEntry } from './audit-describe.js';
 
@@ -22,5 +23,21 @@ describe('audit descriptions', () => {
     expect(describeAuditEntry('node.update', { oldName: 'a', newName: 'b'.repeat(200) })).toBeNull();
     expect(describeAuditEntry('app.start', {})).toBeNull();
     expect(describeAuditEntry('app.start', null)).toBeNull();
+  });
+});
+
+describe('one System user', () => {
+  it("shows Opfield's own user as System in the audit user list", async () => {
+    const { AuditService } = await import('./audit.service.js');
+    const rows = [
+      { userId: '00000000-0000-0000-0000-000000000000', userName: 'Opfield System', userEmail: 'system@gateway.local' },
+      { userId: 'u1', userName: 'Ann', userEmail: 'ann@example.com' },
+    ];
+    const chain = { from: () => chain, leftJoin: () => chain, orderBy: async () => rows };
+    const service = new AuditService({ selectDistinct: () => chain } as never);
+    expect(await service.getAuditUsers()).toEqual([
+      { userId: '00000000-0000-0000-0000-000000000000', userName: 'System', userEmail: null },
+      rows[1],
+    ]);
   });
 });
