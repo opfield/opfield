@@ -2,6 +2,7 @@
 import { MoreHorizontal, MoreVertical } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { Notice } from "@/components/common/Notice";
 import {
   ResourceListCell,
   type ResourceListColumn,
@@ -269,4 +270,14 @@ export function groupByEnvironment<T>(
     env,
     rows: rows.filter((row) => environmentOf(row) === env.id),
   }));
+}
+
+/** Member types the user's scopes do not show, named inline so the empty space is explained. */
+export function HiddenMembersNotice({ hidden }: { hidden: { title: string; scope: string }[] }) {
+  if (hidden.length === 0) return null;
+  return (
+    <Notice tone="info" title="Some members are not shown">
+      {hidden.map((entry) => `${entry.title} need ${entry.scope}`).join(" · ")}.
+    </Notice>
+  );
 }

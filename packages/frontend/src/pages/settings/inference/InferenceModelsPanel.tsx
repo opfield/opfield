@@ -27,6 +27,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toastApiError } from "@/lib/api-error-toast";
+import { pickerLoadError } from "@/lib/picker-load-error";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -53,22 +54,83 @@ export function reorderInferenceModels(models: InferenceModel[], activeId: strin
   }));
 }
 
+export interface InferenceModelsPanelAccess {
+  canViewProviders: boolean;
+  canListGroups: boolean;
+  canListUsers: boolean;
+}
+
+export interface InferenceModelsPanelData {
+  models: InferenceModel[] | null;
+  connections: InferenceProviderConnection[] | null;
+  catalog: InferenceProviderCatalogItem[] | null;
+  groups: PermissionGroup[] | null;
+  users: User[] | null;
+  /** The models request failed; the reason shows in the table instead of a toast. */
+  modelsError: unknown;
+}
+
+type InferenceModelsPanelApi = Pick<
+  typeof api,
+  | "listInferenceModels"
+  | "listInferenceProviderConnections"
+  | "listInferenceProviderCatalog"
+  | "listGroups"
+  | "listUsers"
+>;
+
+function settledValue<T>(result: PromiseSettledResult<T> | undefined): T | null {
+  return result?.status === "fulfilled" ? result.value : null;
+}
+
+/**
+ * Loads the Models panel. Requests the user's scopes do not allow are not sent, and every request
+ * settles on its own: a refused provider, group or user list never empties the models list.
+ * A `null` field failed (or was skipped) and keeps its previous value.
+ */
+export async function loadInferenceModelsPanelData(
+  client: InferenceModelsPanelApi,
+  access: InferenceModelsPanelAccess
+): Promise<InferenceModelsPanelData> {
+  const skipped = Promise.resolve([] as never[]);
+  const [models, connections, catalog, groups, users] = await Promise.allSettled([
+    client.listInferenceModels(),
+    access.canViewProviders ? client.listInferenceProviderConnections() : skipped,
+    access.canViewProviders ? client.listInferenceProviderCatalog() : skipped,
+    access.canListGroups ? client.listGroups() : skipped,
+    access.canListUsers ? client.listUsers() : skipped,
+  ]);
+  return {
+    models: settledValue(models),
+    connections: settledValue(connections),
+    catalog: settledValue(catalog),
+    groups: settledValue(groups),
+    users: settledValue(users),
+    modelsError: models.status === "rejected" ? models.reason : undefined,
+  };
+}
+
 export function InferenceModelsPanel({ refreshToken = 0 }: { refreshToken?: number }) {
   const canManage = useAuthStore((state) => state.hasScope("inference:models:manage"));
+  const canViewProviders = useAuthStore((state) => state.hasScope("inference:providers:view"));
   const canListGroups = useAuthStore((state) => state.hasScope("admin:groups"));
   const canListUsers = useAuthStore((state) => state.hasScope("admin:users"));
   const cachedModels = api.getCached<InferenceModel[]>(
     "req:/api/inference/models",
     Number.POSITIVE_INFINITY
   );
-  const cachedConnections = api.getCached<InferenceProviderConnection[]>(
-    "req:/api/inference/providers/connections",
-    Number.POSITIVE_INFINITY
-  );
-  const cachedCatalog = api.getCached<InferenceProviderCatalogItem[]>(
-    "req:/api/inference/providers/catalog",
-    Number.POSITIVE_INFINITY
-  );
+  const cachedConnections = canViewProviders
+    ? api.getCached<InferenceProviderConnection[]>(
+        "req:/api/inference/providers/connections",
+        Number.POSITIVE_INFINITY
+      )
+    : [];
+  const cachedCatalog = canViewProviders
+    ? api.getCached<InferenceProviderCatalogItem[]>(
+        "req:/api/inference/providers/catalog",
+        Number.POSITIVE_INFINITY
+      )
+    : [];
   const cachedGroups = canListGroups
     ? api.getCached<PermissionGroup[]>("req:/api/admin/groups", Number.POSITIVE_INFINITY)
     : [];
@@ -93,6 +155,7 @@ export function InferenceModelsPanel({ refreshToken = 0 }: { refreshToken?: numb
   const [editing, setEditing] = useState<InferenceModel | null>(null);
   const [reordering, setReordering] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [modelsError, setModelsError] = useState<string | null>(null);
   const initializedRef = useRef(hasCachedData);
   useContentLoading(loading);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -102,27 +165,24 @@ export function InferenceModelsPanel({ refreshToken = 0 }: { refreshToken?: numb
     async ({ showLoading = true }: { showLoading?: boolean } = {}) => {
       if (showLoading) setLoading(true);
       try {
-        const [nextModels, nextConnections, nextCatalog] = await Promise.all([
-          api.listInferenceModels(),
-          api.listInferenceProviderConnections(),
-          api.listInferenceProviderCatalog(),
-        ]);
-        setModels(nextModels);
-        setConnections(nextConnections);
-        setCatalog(nextCatalog);
-        const [nextGroups, nextUsers] = await Promise.all([
-          canListGroups ? api.listGroups() : Promise.resolve([]),
-          canListUsers ? api.listUsers() : Promise.resolve([]),
-        ]);
-        setGroups(nextGroups);
-        setUsers(nextUsers);
-      } catch (error) {
-        toastApiError(error, "Failed to load inference models");
+        const next = await loadInferenceModelsPanelData(api, {
+          canViewProviders,
+          canListGroups,
+          canListUsers,
+        });
+        if (next.models) setModels(next.models);
+        if (next.connections) setConnections(next.connections);
+        if (next.catalog) setCatalog(next.catalog);
+        if (next.groups) setGroups(next.groups);
+        if (next.users) setUsers(next.users);
+        setModelsError(
+          next.modelsError === undefined ? null : pickerLoadError(next.modelsError, "models")
+        );
       } finally {
         if (showLoading) setLoading(false);
       }
     },
-    [canListGroups, canListUsers]
+    [canListGroups, canListUsers, canViewProviders]
   );
 
   useEffect(() => {
@@ -290,6 +350,11 @@ export function InferenceModelsPanel({ refreshToken = 0 }: { refreshToken?: numb
                 setDialogOpen(true);
               }}
               disabled={!connections.length}
+              title={
+                canViewProviders
+                  ? undefined
+                  : "Adding a model needs inference:providers:view to pick a provider account"
+              }
             >
               <Plus />
               Add model
@@ -313,6 +378,8 @@ export function InferenceModelsPanel({ refreshToken = 0 }: { refreshToken?: numb
                 loading={loading}
                 reordering={reordering}
                 hasConnections={connections.length > 0}
+                canViewProviders={canViewProviders}
+                loadError={modelsError}
                 onEdit={(model) => {
                   setEditing(model);
                   setDialogOpen(true);
@@ -328,6 +395,8 @@ export function InferenceModelsPanel({ refreshToken = 0 }: { refreshToken?: numb
             loading={loading}
             reordering={reordering}
             hasConnections={connections.length > 0}
+            canViewProviders={canViewProviders}
+            loadError={modelsError}
             onEdit={
               canManage
                 ? (model) => {
@@ -359,6 +428,8 @@ function ModelTable({
   loading,
   reordering,
   hasConnections,
+  canViewProviders,
+  loadError,
   onEdit,
   sortable = false,
 }: {
@@ -367,6 +438,8 @@ function ModelTable({
   loading: boolean;
   reordering: boolean;
   hasConnections: boolean;
+  canViewProviders: boolean;
+  loadError: string | null;
   onEdit?: (model: InferenceModel) => void;
   sortable?: boolean;
 }) {
@@ -377,7 +450,10 @@ function ModelTable({
       getRowKey={(row) => row.id}
       loading={loading}
       emptyMessage={
-        hasConnections ? "No inference models published" : "Connect a provider before adding models"
+        loadError ??
+        (hasConnections || !canViewProviders
+          ? "No inference models published"
+          : "Connect a provider before adding models")
       }
       onRowClick={onEdit}
       rowRenderer={

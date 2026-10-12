@@ -24,7 +24,14 @@ import { useAuthStore } from "@/stores/auth";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import type { AppDetail, ProxyHost } from "@/types";
 import { loadAppNetwork, useAppLoad } from "../app-resources";
-import { CountTitle, EnvLink, groupByEnvironment, groupTotal, RowMenu } from "../app-shared";
+import {
+  CountTitle,
+  EnvLink,
+  groupByEnvironment,
+  groupTotal,
+  HiddenMembersNotice,
+  RowMenu,
+} from "../app-shared";
 import { nodeDisplayName, useNodeIndex } from "../use-node-index";
 import {
   AddRow,
@@ -48,6 +55,12 @@ export function NetworkTab({
 }) {
   const navigate = useNavigate();
   const hasScope = useAuthStore((state) => state.hasScope);
+  // Routes and the workloads behind links have their own view scopes: list only what is allowed.
+  const canViewContainers = useAuthStore((state) =>
+    state.hasScopedAccess("docker:containers:view")
+  );
+  const canViewCompose = useAuthStore((state) => state.hasScopedAccess("docker:compose:view"));
+  const canViewRoutes = useAuthStore((state) => state.hasScopedAccess("proxy:view"));
   const gatewayPublicUrl = useUIBootstrapStore(
     (state) => state.snapshot?.systemConfig.publicUrl ?? null
   );
@@ -55,7 +68,11 @@ export function NetworkTab({
   const [localVersion, setLocalVersion] = useState(0);
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const network = useAppLoad(`network:${app.id}`, version + localVersion, () =>
-    loadAppNetwork(app.id)
+    loadAppNetwork(app.id, {
+      containers: canViewContainers,
+      compose: canViewCompose,
+      routes: canViewRoutes,
+    })
   );
   if (network.loading) return <ContentLoading loading />;
 
@@ -256,8 +273,9 @@ export function NetworkTab({
     },
   ];
 
+  const hidden = network.data?.hidden ?? [];
   if (groupTotal(routes) + groupTotal(links) === 0) {
-    return (
+    const empty = (
       <EmptyGroup
         title="Network"
         icon={<Globe className="h-4 w-4" />}
@@ -266,10 +284,18 @@ export function NetworkTab({
         actions={actions}
       />
     );
+    if (hidden.length === 0) return empty;
+    return (
+      <div className="space-y-4 pb-6">
+        <HiddenMembersNotice hidden={hidden} />
+        {empty}
+      </div>
+    );
   }
 
   return (
     <div className="space-y-4 pb-6">
+      <HiddenMembersNotice hidden={hidden} />
       {groupTotal(routes) > 0 && (
         <TypeSection
           app={app}

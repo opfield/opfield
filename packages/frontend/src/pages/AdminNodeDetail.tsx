@@ -161,7 +161,7 @@ export function AdminNodeDetail({
   const routeSlug = resolvedNodeSlug ?? params.nodeSlug ?? params.id ?? "";
   const navigate = useStableNavigate();
   const location = useLocation();
-  const { user, hasScope } = useAuthStore();
+  const { user, hasScope, hasScopedAccess } = useAuthStore();
 
   const [node, setNode] = useState<NodeDetail | null>(null);
   const [hosting, setHosting] = useState<HostingNodeProjection | null>(null);
@@ -563,6 +563,11 @@ export function AdminNodeDetail({
     const available = isDaemonUpdateAvailable(node.daemonVersion, latestVersion);
     return { available, latestVersion: available ? latestVersion : null };
   }, [daemonUpdates, id, node]);
+  // Same any-of gate as GET /docker/builds.
+  const canViewBuildJobs =
+    hasScopedAccess("docker:containers:view") ||
+    hasScopedAccess("docker:compose:view") ||
+    hasScopedAccess("pages:view");
   const visibleTabs = useMemo(
     () => [
       "overview",
@@ -577,7 +582,8 @@ export function AdminNodeDetail({
       ...(isCompatibleNode && node.type === "nginx" && canViewNodeConfig ? ["configuration"] : []),
       ...(isCompatibleNode && node.type === "nginx" && canViewNodeLogs ? ["nginx-logs"] : []),
       ...(isCompatibleNode && canReadNodeFiles ? ["files"] : []),
-      ...(node?.type === "builder" ? ["jobs"] : []),
+      // Same any-of gate as GET /docker/builds.
+      ...(node?.type === "builder" && canViewBuildJobs ? ["jobs"] : []),
       ...(canShowNodeConsole ? ["console"] : []),
       ...(canViewNodeLogs ? ["daemon-logs"] : []),
     ],
@@ -590,6 +596,7 @@ export function AdminNodeDetail({
       isCompatibleNode,
       hosting?.resourceId,
       hasScope,
+      canViewBuildJobs,
       node,
     ]
   );
@@ -1225,7 +1232,7 @@ export function AdminNodeDetail({
                 Nginx Logs
               </TabsTrigger>
             )}
-            {node.type === "builder" && (
+            {node.type === "builder" && canViewBuildJobs && (
               <TabsTrigger value="jobs" className="gap-1.5" disabled={nodeUnavailable}>
                 Jobs
               </TabsTrigger>
@@ -1378,7 +1385,7 @@ export function AdminNodeDetail({
                 )}
               </TabsContent>
             )}
-            {node.type === "builder" && (
+            {node.type === "builder" && canViewBuildJobs && (
               <TabsContent value="jobs" className="flex min-h-0 flex-1 flex-col pb-0">
                 {activeTab === "jobs" && !nodeUnavailable && <BuilderJobsTab nodeId={node.id} />}
               </TabsContent>

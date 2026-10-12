@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
+import { Notice } from "@/components/common/Notice";
 import { PanelShell } from "@/components/common/PanelShell";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { accessContextKey, useAuthStore } from "@/stores/auth";
 import {
@@ -218,20 +220,22 @@ export function NodeFirewallTab({
       ? `Enabling constraints: ${view.observation.blockers.join(" ")}`
       : null;
   const providerLabel = HOSTING_PROVIDER_LABELS[provider];
-  const notification =
+  // Load errors, provider blockers and a stale draft are states of the firewall: shown inline
+  // (they also drive the locks). Only a failed save, the user's own action, is toasted.
+  const inlineNotice =
     loadError ||
-    saveError ||
     view?.error ||
     providerNotice ||
     (stale
       ? `Remote revision ${view?.revision} changed while you were editing. Discard this draft and reload before saving.`
       : "");
   useEffect(() => {
-    if (notification && notification !== notificationRef.current) {
-      toast.error(notification, { id: `firewall:${nodeId}` });
+    const message = saveError ?? "";
+    if (message && message !== notificationRef.current) {
+      toast.error(message, { id: `firewall:${nodeId}` });
     }
-    notificationRef.current = notification;
-  }, [notification, nodeId]);
+    notificationRef.current = message;
+  }, [saveError, nodeId]);
 
   const updateDraft = useCallback(
     (update: (current: HostingFirewallConfig) => HostingFirewallConfig) => {
@@ -336,7 +340,7 @@ export function NodeFirewallTab({
       load(); // Also invalidates any pre-acceptance GET still in flight.
     } catch (error) {
       if (!currentMutation()) return;
-      setSaveError(error instanceof Error ? error.message : "Could not save firewall settings.");
+      toastApiError(error, "Could not save firewall settings.");
     } finally {
       if (currentMutation()) setSaving(false);
     }
@@ -354,6 +358,20 @@ export function NodeFirewallTab({
 
   return (
     <div className="space-y-4">
+      {inlineNotice ? (
+        <Notice
+          tone={loadError || view?.error ? "destructive" : "warning"}
+          title={
+            loadError || view?.error
+              ? "Firewall state could not be read"
+              : providerNotice
+                ? "Firewall changes are limited"
+                : "Draft is out of date"
+          }
+        >
+          {inlineNotice}
+        </Notice>
+      ) : null}
       <PanelShell
         title={
           <>

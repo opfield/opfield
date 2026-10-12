@@ -436,6 +436,13 @@ export function DockerComposeProjectDetail() {
   useEffect(() => {
     if (project && !canManageAvailability && activeTab === "settings") setActiveTab("overview");
   }, [activeTab, canManageAvailability, project, setActiveTab]);
+  // The node streams no logs while its snapshot is unavailable, like container and deployment logs.
+  const logsUnavailable =
+    project?.availability === "unavailable" &&
+    !(availabilityPolicy?.mode !== undefined && availabilityPolicy.mode !== "single");
+  useEffect(() => {
+    if (logsUnavailable && activeTab === "logs") setActiveTab("overview");
+  }, [activeTab, logsUnavailable, setActiveTab]);
 
   if (loading) return <DetailPageSkeleton label="Loading Compose project" tabs={8} />;
   if (!project) {
@@ -1181,7 +1188,7 @@ export function DockerComposeProjectDetail() {
             <TabsTrigger value="variables" className="gap-1.5">
               Variables
             </TabsTrigger>
-            <TabsTrigger value="logs" className="gap-1.5">
+            <TabsTrigger value="logs" className="gap-1.5" disabled={logsUnavailable}>
               Logs
             </TabsTrigger>
             {canManageAvailability && <TabsTrigger value="settings">Settings</TabsTrigger>}
