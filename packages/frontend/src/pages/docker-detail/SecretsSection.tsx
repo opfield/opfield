@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Lock, Minus, Plus } from "lucide-react";
+import { Eye, EyeOff, Lock, Minus, Plus, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PanelShell } from "@/components/common/PanelShell";
@@ -89,14 +89,15 @@ export function SecretsSection({
       actions={
         canManageSecrets ? (
           <div className="flex items-center gap-2">
-            {onSave && (
-              <Button onClick={onSave} pending={isSaving} disabled={saveDisabled}>
-                {saveButtonLabel ?? "Save"}
-              </Button>
-            )}
             <Button variant="ghost" size="icon" onClick={addSecretRow} title="Add secret">
               <Plus className="h-3.5 w-3.5" />
             </Button>
+            {onSave && (
+              <Button variant="warning" onClick={onSave} pending={isSaving} disabled={saveDisabled}>
+                <RotateCcw className="h-3.5 w-3.5" />
+                {saveButtonLabel ?? "Save"}
+              </Button>
+            )}
           </div>
         ) : null
       }

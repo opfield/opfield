@@ -14,7 +14,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
-import { Navigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import type { AppCreateContext } from "@/components/apps/app-create-context";
 import { openAppIncidents } from "@/components/apps/app-incidents";
 import { IsolatedNotice } from "@/components/apps/IsolatedNotice";
@@ -36,7 +36,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUrlTab } from "@/hooks/use-url-tab";
 import { toastApiError } from "@/lib/api-error-toast";
-import { APP_TABS, type AppTab, appRoute } from "@/lib/app-routes";
+import { APP_TABS, type AppTab, appRoute, appsRoute } from "@/lib/app-routes";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
@@ -164,6 +164,7 @@ function AppPageContent({
   version: number;
   refresh: () => Promise<void>;
 }) {
+  const navigate = useNavigate();
   const { permissions } = app;
   const canCreate = Object.values(permissions.envManage).some(Boolean);
   const canSettings =
@@ -268,7 +269,7 @@ function AppPageContent({
     <PageTransition>
       <div className="h-full space-y-4 overflow-y-auto p-6">
         <PageHeader
-          leading={<PageBackButton />}
+          leading={<PageBackButton onClick={() => navigate(appsRoute())} />}
           title={app.name}
           badges={
             isolated ? (

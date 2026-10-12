@@ -213,7 +213,7 @@ function EnvironmentContent({
     <PageTransition>
       <div className="h-full space-y-4 overflow-y-auto p-6">
         <PageHeader
-          leading={<PageBackButton />}
+          leading={<PageBackButton onClick={() => navigate(appRoute(app.slug))} />}
           title={env.name}
           badges={
             <>

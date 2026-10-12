@@ -9,6 +9,7 @@ import {
   Play,
   Plus,
   Power,
+  Save,
   ShieldAlert,
   ShieldOff,
   Trash2,
@@ -36,7 +37,7 @@ import { appEnvironmentRoute, appRoute, appsRoute } from "@/lib/app-routes";
 import { api } from "@/services/api";
 import type { AppDetail, AppEnvironmentDetail } from "@/types";
 import {
-  EnvLink,
+  EnvLabel,
   MoreMenu,
   memberTotal,
   orderedEnvironments,
@@ -192,6 +193,7 @@ export function SettingsTab({
                   pending={saving}
                   disabled={!name.trim() || name.trim() === app.name}
                 >
+                  <Save />
                   Save
                 </Button>
               )}
@@ -253,7 +255,8 @@ export function SettingsTab({
         {orderedEnvironments(app.environments).map((env) => (
           <SettingsControlRow
             key={env.id}
-            title={<EnvLink appSlug={app.slug} env={env} />}
+            title={<EnvLabel env={env} />}
+            onClick={() => navigate(appEnvironmentRoute(app.slug, env.slug))}
             description={`${plural(memberTotal(env.memberCounts), "resource")} · ${env.health}`}
           >
             <RowMenu label={`Actions for ${env.name}`}>
