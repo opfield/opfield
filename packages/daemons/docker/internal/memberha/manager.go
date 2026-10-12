@@ -195,7 +195,7 @@ func (m *Manager) registerHandlerLocked(mem *member) {
 		Eligible: func(in EligibilityInput) (bool, string) {
 			ok, reason := m.eligible(mem, in)
 			mem.eligMu.Lock()
-			changed := mem.eligible != ok || mem.eligibleReason != reason
+			changed := mem.eligible != ok
 			mem.eligible, mem.eligibleReason = ok, reason
 			mem.eligMu.Unlock()
 			if changed && m.logger != nil {
