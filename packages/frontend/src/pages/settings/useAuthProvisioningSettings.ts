@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { useAppStatusStore } from "@/stores/app-status";
 import { handleLicenseApiError } from "@/stores/license-paywall";
@@ -368,7 +369,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       setSiemEnabled(settingsData.generalSettings.features?.siemEnabled ?? true);
       setInferenceEnabled(settingsData.generalSettings.features?.inferenceEnabled ?? false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load Opfield settings");
+      toastApiError(err, "Failed to load Opfield settings");
     } finally {
       setInitialLoadComplete(true);
     }

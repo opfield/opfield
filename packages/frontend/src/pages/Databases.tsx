@@ -203,6 +203,11 @@ export function Databases(props: Parameters<typeof DatabasesContent>[0] = {}) {
     <LicenseFeatureBoundary
       feature="external-database-connections"
       capability="Database connections"
+      frame={
+        props.embedded
+          ? undefined
+          : { kind: "page", title: "Databases", description: "Manage and deploy databases" }
+      }
     >
       <DatabasesContent {...props} />
     </LicenseFeatureBoundary>

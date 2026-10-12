@@ -67,6 +67,7 @@ import { useAIStore } from "@/stores/ai";
 import { useAuthStore } from "@/stores/auth";
 import { useCommandPalettePageActions } from "@/stores/command-palette-page-actions";
 import { useDashboardBootstrapStore } from "@/stores/dashboard-bootstrap";
+import { useUnlicensedNavigationItems } from "@/stores/license-paywall";
 import { useResolvedPageContext } from "@/stores/resolved-page-context";
 import { useSystemConfigStore } from "@/stores/system-config";
 import { useUIStore } from "@/stores/ui";
@@ -225,6 +226,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const statusPageEnabled = useUIBootstrapStore(
     (state) => state.snapshot?.navigation.statusPageEnabled ?? false
   );
+  const unlicensedItems = useUnlicensedNavigationItems();
   const pagesEnabled = useUIBootstrapStore(
     (state) => state.snapshot?.navigation.pagesEnabled ?? false
   );
@@ -429,6 +431,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     () =>
       visibleNavigationGroups({
         scopes: user?.scopes ?? [],
+        unlicensedItems,
         pkiEnabled,
         siemEnabled,
         loggingEnabled,
@@ -447,6 +450,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       pagesEnabled,
       siemEnabled,
       statusPageEnabled,
+      unlicensedItems,
       user?.scopes,
     ]
   );

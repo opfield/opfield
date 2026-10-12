@@ -176,9 +176,19 @@ function StorageTagSummary({
   );
 }
 
+const STORAGE_FRAME: LicenseFeatureFrame = {
+  kind: "page",
+  title: "Storage",
+  description: "Saved S3-compatible object storage connections managed through Opfield",
+};
+
 export function Storage() {
   return (
-    <LicenseFeatureBoundary feature="storage-connections" capability="Storage connections">
+    <LicenseFeatureBoundary
+      feature="storage-connections"
+      capability="Storage connections"
+      frame={STORAGE_FRAME}
+    >
       <StorageContent />
     </LicenseFeatureBoundary>
   );
@@ -554,4 +564,7 @@ function StorageContent() {
   );
 }
 
-import { LicenseFeatureBoundary } from "@/components/license/LicenseFeatureBoundary";
+import {
+  LicenseFeatureBoundary,
+  type LicenseFeatureFrame,
+} from "@/components/license/LicenseFeatureBoundary";

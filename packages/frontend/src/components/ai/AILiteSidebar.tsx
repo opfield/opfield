@@ -63,6 +63,7 @@ import { useAIStore } from "@/stores/ai";
 import { useAuthStore } from "@/stores/auth";
 import { useDashboardBootstrapStore } from "@/stores/dashboard-bootstrap";
 import { useDockerStore } from "@/stores/docker";
+import { useUnlicensedNavigationItems } from "@/stores/license-paywall";
 import { useSystemConfigStore } from "@/stores/system-config";
 import { useUIStore } from "@/stores/ui";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
@@ -184,8 +185,10 @@ export function AILiteSidebar({
   const [dragOverlayConversationId, setDragOverlayConversationId] = useState<string | null>(null);
   const [stoppingImpersonation, setStoppingImpersonation] = useState(false);
   const canAccessAdministration = hasAnyScope("admin:audit", "admin:users", "admin:groups");
+  const unlicensedItems = useUnlicensedNavigationItems();
   const visibleGroups = visibleNavigationGroups({
     scopes: user?.scopes ?? [],
+    unlicensedItems,
     pkiEnabled,
     siemEnabled,
     loggingEnabled,

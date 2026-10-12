@@ -47,7 +47,11 @@ import { StorageSettingsTab } from "./storage-detail/StorageSettingsTab";
 
 export function StorageDetail(props: Parameters<typeof StorageDetailContent>[0] = {}) {
   return (
-    <LicenseFeatureBoundary feature="storage-connections" capability="Storage connections">
+    <LicenseFeatureBoundary
+      feature="storage-connections"
+      capability="Storage connections"
+      frame={{ kind: "page", title: "Storage" }}
+    >
       <StorageDetailContent {...props} />
     </LicenseFeatureBoundary>
   );

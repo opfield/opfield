@@ -35,6 +35,7 @@ import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { useDashboardBootstrapStore } from "@/stores/dashboard-bootstrap";
 import { useDockerStore } from "@/stores/docker";
+import { useUnlicensedNavigationItems } from "@/stores/license-paywall";
 import { useSystemConfigStore } from "@/stores/system-config";
 import { useUIStore } from "@/stores/ui";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
@@ -132,6 +133,7 @@ export function SidebarContent({
   const statusPageEnabled = useUIBootstrapStore(
     (state) => state.snapshot?.navigation.statusPageEnabled ?? false
   );
+  const unlicensedItems = useUnlicensedNavigationItems();
   const pagesEnabled = useUIBootstrapStore(
     (state) => state.snapshot?.navigation.pagesEnabled ?? false
   );
@@ -172,6 +174,7 @@ export function SidebarContent({
 
   const effectiveGroups = visibleNavigationGroups({
     scopes: user?.scopes ?? [],
+    unlicensedItems,
     pkiEnabled,
     siemEnabled,
     loggingEnabled,

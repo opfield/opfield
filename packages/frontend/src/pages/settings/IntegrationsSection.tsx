@@ -174,7 +174,16 @@ function GitLabIntegrationsSection() {
   const { hasScope } = useAuthStore();
   if (!hasScope("integrations:gitlab:manage") && !hasScope("integrations:gitlab:view")) return null;
   return (
-    <LicenseFeatureBoundary feature="gitlab" capability="GitLab integration">
+    <LicenseFeatureBoundary
+      feature="gitlab"
+      capability="GitLab integration"
+      frame={{
+        kind: "panel",
+        title: "GitLab Integrations",
+        description: "System connectors for GitLab repositories, CI, and registries.",
+        icon: <Gitlab className="h-4 w-4" />,
+      }}
+    >
       <GitLabIntegrationsContent />
     </LicenseFeatureBoundary>
   );

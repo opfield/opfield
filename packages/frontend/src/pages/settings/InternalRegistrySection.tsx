@@ -19,6 +19,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRealtime } from "@/hooks/use-realtime";
+import { toastApiError } from "@/lib/api-error-toast";
 import { formatBytes, formatDateTime } from "@/lib/utils";
 import { api } from "@/services/api";
 import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
@@ -124,9 +125,7 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
         applyState(next);
         setCertificates(certificateResponse.data ?? []);
       })
-      .catch((error) =>
-        toast.error(error instanceof Error ? error.message : "Failed to load internal registry")
-      )
+      .catch((error) => toastApiError(error, "Failed to load internal registry"))
       .finally(() => setLoading(false));
   }, [applyState]);
 

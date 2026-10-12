@@ -28,6 +28,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useScrollToNavigationTarget } from "@/hooks/use-scroll-to-navigation-target";
+import { toastApiError } from "@/lib/api-error-toast";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -50,7 +51,11 @@ function templateLabel(template: string, hash = "da32ccagd23fe", project = "docs
 export function PagesSettingsSection() {
   const canEdit = useAuthStore((state) => state.hasScope("pages:settings:edit"));
   const license = useUIBootstrapStore((state) => state.snapshot?.license);
+  const commercialModule = useUIBootstrapStore((state) => state.snapshot?.commercialModule);
   const entitled = license?.entitlements.features.includes("pages") === true;
+  // A plan without Pages shows the locked panel and never calls the Pages endpoints,
+  // which would only answer with a plan denial.
+  const locked = (!!license && !entitled) || (!!commercialModule && commercialModule !== "ready");
   const invalidateUIBootstrap = useUIBootstrapStore((state) => state.invalidate);
   const [profile, setProfile] = useState<PageProfile | null>(null);
   const [options, setOptions] = useState<PageProfileOptions>({
@@ -58,7 +63,7 @@ export function PagesSettingsSection() {
     nodes: [],
     certificates: [],
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!locked);
   const [domainId, setDomainId] = useState("");
   const [certificateId, setCertificateId] = useState("");
   const [labelTemplate, setLabelTemplate] = useState("{hash}");
@@ -67,6 +72,10 @@ export function PagesSettingsSection() {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
+    if (locked) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const [nextProfile, nextOptions] = await Promise.all([
@@ -80,11 +89,11 @@ export function PagesSettingsSection() {
       setLabelTemplate(nextProfile.labelTemplate || "{hash}");
       setEnabled(nextProfile.enabled);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load Pages settings");
+      toastApiError(error, "Failed to load Pages settings", "Pages");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [locked]);
 
   useEffect(() => {
     void load();
@@ -156,7 +165,7 @@ export function PagesSettingsSection() {
         invalidateUIBootstrap();
         toast.success("Pages disabled");
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to disable Pages previews");
+        toastApiError(error, "Failed to disable Pages previews", "Pages");
       } finally {
         setSaving(false);
       }
@@ -184,7 +193,7 @@ export function PagesSettingsSection() {
       toast.success("Pages wildcard profile saved");
       setWarningOpen(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save Pages profile");
+      toastApiError(error, "Failed to save Pages profile", "Pages");
     } finally {
       setSaving(false);
     }
@@ -195,7 +204,23 @@ export function PagesSettingsSection() {
       id="pages"
       className={cn("space-y-4 scroll-mt-6", navigationHighlighted && "navigation-target-ripple")}
     >
-      {loading && !profile ? (
+      {locked ? (
+        <PanelShell
+          icon={<Globe className="h-4 w-4" />}
+          title={
+            <span className="inline-flex items-center gap-2">
+              <span>Pages</span>
+              <LicensePlanBadge feature="pages" label="Personal+" />
+            </span>
+          }
+          description="Wildcard deployment previews need the Personal plan or higher."
+          actions={
+            <Button variant="outline" onClick={() => requireLicenseFeature("pages", "Pages")}>
+              License options
+            </Button>
+          }
+        />
+      ) : loading && !profile ? (
         <PanelShell
           icon={<Globe className="h-4 w-4" />}
           title={

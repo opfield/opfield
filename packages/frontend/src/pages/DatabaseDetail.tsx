@@ -65,6 +65,7 @@ export function DatabaseDetail(props: Parameters<typeof DatabaseDetailContent>[0
     <LicenseFeatureBoundary
       feature="external-database-connections"
       capability="Database connections"
+      frame={{ kind: "page", title: "Databases" }}
     >
       <DatabaseDetailContent {...props} />
     </LicenseFeatureBoundary>
