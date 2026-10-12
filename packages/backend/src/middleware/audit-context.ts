@@ -88,6 +88,54 @@ const NAMED_ROUTE_AUDIT_TARGETS: Array<{
   resourceType: string;
   resourceIdGroup?: number;
 }> = [
+  // 2.12 routes whose own audit entry is written later or only when something changes.
+  {
+    method: 'POST',
+    pattern: /^\/api\/system\/configuration-export$/,
+    action: 'system.configuration_export.prepare',
+    resourceType: 'system',
+  },
+  {
+    method: 'POST',
+    pattern: /^\/api\/apps\/([^/]+)\/promotions\/preview$/,
+    action: 'app.promotion.preview',
+    resourceType: 'app',
+    resourceIdGroup: 1,
+  },
+  {
+    method: 'POST',
+    pattern: /^\/api\/apps\/members\/place$/,
+    action: 'app.members.place',
+    resourceType: 'app',
+  },
+  {
+    method: 'PUT',
+    pattern: /^\/api\/apps\/([^/]+)\/environments\/([^/]+)\/variables$/,
+    action: 'app.environment.variables.update',
+    resourceType: 'app_environment',
+    resourceIdGroup: 2,
+  },
+  {
+    method: 'PATCH',
+    pattern: /^\/api\/apps\/([^/]+)\/environments\/([^/]+)\/secrets$/,
+    action: 'app.environment.secrets.update',
+    resourceType: 'app_environment',
+    resourceIdGroup: 2,
+  },
+  {
+    method: 'POST',
+    pattern: /^\/api\/apps\/([^/]+)\/environments\/([^/]+)\/nodes$/,
+    action: 'app.environment.allow_node',
+    resourceType: 'app_environment',
+    resourceIdGroup: 2,
+  },
+  {
+    method: 'DELETE',
+    pattern: /^\/api\/apps\/([^/]+)\/environments\/([^/]+)\/nodes(?:\/[^/]+)?$/,
+    action: 'app.environment.remove_node',
+    resourceType: 'app_environment',
+    resourceIdGroup: 2,
+  },
   {
     method: 'POST',
     pattern: /^\/api\/system\/update$/,

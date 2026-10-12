@@ -88,25 +88,28 @@ export function getAuditResourceName(entry: AuditLogEntry): string {
 }
 
 /**
- * "Type / name" for an audit entry's resource, followed by the entry's plain description when it has one; the title
- * adds the ID when a name hides it. The cloud link is named after its Opfield account, never its agent ID.
+ * "Type / name" for an audit entry's resource; the title adds the ID when a name hides it. The cloud link is named
+ * after its Opfield account, never its agent ID.
  */
 export function getAuditResourceDisplay(entry: AuditLogEntry): { label: string; title: string } {
-  const summary = entry.summary?.trim() ? ` · ${entry.summary.trim()}` : "";
   if (entry.resourceType === "cloud-link") {
-    const label = `${entry.resourceName || "Opfield account"}${summary}`;
+    const label = entry.resourceName || "Opfield account";
     return { label, title: entry.resourceId ? `${label} (${entry.resourceId})` : label };
   }
   const resourceName = entry.resourceName ?? getAuditResourceNameFromDetails(entry.details);
   const resourceValue = resourceName ?? entry.resourceId;
   const resourceType = formatAuditToken(entry.resourceType);
-  const resource = resourceValue ? `${resourceType} / ${resourceValue}` : resourceType;
-  const label = `${resource}${summary}`;
+  const label = resourceValue ? `${resourceType} / ${resourceValue}` : resourceType;
   const title =
     resourceName && entry.resourceId && resourceName !== entry.resourceId
       ? `${label} (${entry.resourceId})`
       : label;
   return { label, title };
+}
+
+/** The entry's plain description, for actions that have one; null otherwise. */
+export function getAuditDescription(entry: AuditLogEntry): string | null {
+  return entry.summary?.trim() || null;
 }
 
 export function buildAuditExportFilename(format: AuditExportFormat): string {

@@ -31,6 +31,7 @@ import {
   downloadTextFile,
   formatAuditExport,
   formatAuditToken,
+  getAuditDescription,
   getAuditEntryUserKey,
   getAuditEntryUserLabel,
   getAuditResourceDisplay,
@@ -79,6 +80,7 @@ const AUDIT_ACTION_OPTIONS = [
   "cert.issue",
   "cert.revoke",
   "cloud.connect",
+  "cloud.connect_code",
   "cloud.disconnect",
   "cloud.disconnected_by_account",
   "cloud.enroll_file",
@@ -313,6 +315,20 @@ const columns: DataTableColumn<AuditLogEntry>[] = [
         {formatAuditToken(entry.action)}
       </span>
     ),
+  },
+  {
+    key: "description",
+    header: "Description",
+    width: "minmax(220px, 1.4fr)",
+    truncate: true,
+    render: (entry) => {
+      const description = getAuditDescription(entry);
+      return (
+        <span className="text-muted-foreground" title={description ?? undefined}>
+          {description ?? "—"}
+        </span>
+      );
+    },
   },
   {
     key: "resource",
@@ -847,7 +863,7 @@ export function AuditLog({
             onRowClick={openEntryDetails}
             scrollRef={scrollRef}
             horizontalScroll
-            minWidth="1000px"
+            minWidth="1220px"
             emptyMessage="No audit log entries found"
             // The first load holds the page; a filter without cached entries loads in place.
             emptyContent={
@@ -992,9 +1008,14 @@ export function AuditLog({
                 <ValueTile className="sm:col-span-2" label="Resource Type">
                   {selectedEntry.resourceType}
                 </ValueTile>
-                {selectedEntry.resourceName || selectedEntry.summary ? (
+                {selectedEntry.resourceName ? (
                   <ValueTile className="sm:col-span-6" label="Resource" wrap>
                     {getAuditResourceDisplay(selectedEntry).label}
+                  </ValueTile>
+                ) : null}
+                {getAuditDescription(selectedEntry) ? (
+                  <ValueTile className="sm:col-span-6" label="Description" wrap>
+                    {getAuditDescription(selectedEntry)}
                   </ValueTile>
                 ) : null}
                 <ValueTile className="sm:col-span-3" label="Resource ID">

@@ -335,7 +335,7 @@ export class FolderedResourceService {
       action: `${this.config.auditResourceType}.move`,
       resourceType: this.config.auditResourceType,
       resourceId: id,
-      details: { oldParentId: result.folder.parentId, newParentId: input.parentId },
+      details: { name: result.folder.name, oldParentId: result.folder.parentId, newParentId: input.parentId },
     });
     this.emitLayoutChanged('folder_updated', id);
     return result.updated;

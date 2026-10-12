@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AuditLogEntry } from "@/types";
-import { formatAuditExport, getAuditResourceDisplay } from "./audit-format";
+import { formatAuditExport, getAuditDescription, getAuditResourceDisplay } from "./audit-format";
 
 const base: AuditLogEntry = {
   id: "e1",
@@ -19,11 +19,10 @@ const base: AuditLogEntry = {
 };
 
 describe("audit resource display", () => {
-  it("names the cloud link after its Opfield account with the plain description, the agent ID only in the title", () => {
+  it("names the cloud link after its Opfield account, the agent ID only in the title, the description apart", () => {
     const display = getAuditResourceDisplay(base);
-    expect(display.label).toBe(
-      "Opfield account · owner@example.com · Read logs · app · last 200 lines"
-    );
+    expect(display.label).toBe("Opfield account · owner@example.com");
+    expect(getAuditDescription(base)).toBe("Read logs · app · last 200 lines");
     expect(display.label).not.toContain(base.resourceId);
     expect(display.title).toContain(base.resourceId);
   });
@@ -31,7 +30,7 @@ describe("audit resource display", () => {
   it("falls back to Opfield account when the account is not known", () => {
     expect(
       getAuditResourceDisplay({ ...base, resourceName: null, summary: "Read state" }).label
-    ).toBe("Opfield account · Read state");
+    ).toBe("Opfield account");
   });
 
   it("keeps Type / name for other resources", () => {

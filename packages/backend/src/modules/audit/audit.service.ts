@@ -38,6 +38,7 @@ import { INTERNAL_DOCKER_REGISTRY_ID } from '@/modules/docker/docker-registry-in
 import { backgroundWrites } from '@/services/background-writes.js';
 import type { PaginatedResponse } from '@/types.js';
 import { getAuditRequestContext, markAuditEmitted } from './audit-request-context.js';
+import { auditLookupType, resolveMoreResourceNames } from './audit-resource-names.js';
 import {
   finishSpooledAuditBatch,
   isAuditDatabaseUnavailable,
@@ -486,8 +487,12 @@ export class AuditService {
       this.db.select({ count: countFn() }).from(auditLog).where(where),
     ]);
 
-    const resourceNames = await this.resolveResourceNames(entries);
-    const data = entries.map((entry) => {
+    // Tool rows are looked up under their target's type (see auditLookupType).
+    const lookupTypes = entries.map((entry) => auditLookupType(entry));
+    const resourceNames = await this.resolveResourceNames(
+      entries.map((entry, index) => ({ resourceType: lookupTypes[index]!, resourceId: entry.resourceId }))
+    );
+    const data = entries.map((entry, index) => {
       if (entry.resourceType === CLOUD_AUDIT_RESOURCE_TYPE) {
         // The Opfield account, never the agent id; and what the account did, in plain words.
         const accountEmail = (entry.details as { accountEmail?: unknown } | null)?.accountEmail;
@@ -503,7 +508,7 @@ export class AuditService {
         ...entry,
         resourceName:
           getResourceNameFromDetails(entry.details) ??
-          resourceNames.get(resourceKey(entry.resourceType, entry.resourceId)) ??
+          resourceNames.get(resourceKey(lookupTypes[index]!, entry.resourceId)) ??
           null,
         summary: null,
       };
@@ -738,6 +743,8 @@ export class AuditService {
         .where(inArray(users.id, userIds));
       for (const row of rows) add('user', row.id, row.name || row.email);
     }
+
+    await resolveMoreResourceNames(this.db, ids, add);
 
     // The cloud link's resource id is its agent id: named after the Opfield account it connected to.
     const cloudAgentIds = ids(CLOUD_AUDIT_RESOURCE_TYPE);

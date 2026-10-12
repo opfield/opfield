@@ -51,7 +51,7 @@ export function extractAIResourceReferences(
   if (toolName === 'find_resource') return extractFindResourceReferences(result);
   if (isBroadListTool(toolName, args)) return [];
 
-  const type = inferResourceType(toolName, args);
+  const type = inferAIToolResourceType(toolName, args);
   if (!type) return nodeReferenceFromArgs(args, options);
 
   const relation = options.relation ?? inferRelation(toolName, args);
@@ -276,7 +276,11 @@ function resourceUiHref(resource: Omit<AIResourceReference, 'refId' | 'uiHref' |
   }
 }
 
-function inferResourceType(toolName: string, args: Record<string, unknown>): AIResourceReferenceType | null {
+/** The kind of Gateway resource an AI or MCP tool call works on; null for tools outside Gateway navigation. */
+export function inferAIToolResourceType(
+  toolName: string,
+  args: Record<string, unknown>
+): AIResourceReferenceType | null {
   // GitLab resources are external to Gateway navigation. In particular, project
   // webhooks must never be presented as Gateway notification webhooks.
   if (toolName.startsWith('gitlab_')) return null;

@@ -5,7 +5,11 @@ import { RelativeTime } from "@/components/common/RelativeTime";
 import { SimpleTable, type SimpleTableColumn } from "@/components/common/SimpleTable";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { getAuditEntryUserLabel, getAuditResourceDisplay } from "@/pages/audit-log/audit-format";
+import {
+  getAuditDescription,
+  getAuditEntryUserLabel,
+  getAuditResourceDisplay,
+} from "@/pages/audit-log/audit-format";
 import type { AuditLogEntry } from "@/types";
 
 interface RecentActivityCardProps {
@@ -47,7 +51,12 @@ export function RecentActivityCard({ activity, hasScope }: RecentActivityCardPro
     {
       id: "action",
       header: "Action",
-      render: (entry) => <Badge variant="secondary">{entry.action}</Badge>,
+      // The plain description, when the action has one, reads better here than the action key.
+      render: (entry) => (
+        <Badge variant="secondary" title={entry.action}>
+          {getAuditDescription(entry) ?? entry.action}
+        </Badge>
+      ),
     },
     {
       id: "resource",
