@@ -184,15 +184,42 @@ func (e *Engine) degrade(ctx context.Context, lost []string, alive int) {
 			return
 		}
 	}
+	// The master restarts only to drop a lost volume server it still keeps
+	// registered. One that never registered with this master (the old
+	// primary's, cut off before this member was promoted) needs no restart:
+	// a restart would take S3 down a second time right after a failover
+	// (stand rc.9: the failover took 58.7 s instead of about 35 s).
+	restart := e.lostStillRegistered(opCtx, lost)
 	e.mu.Lock()
 	e.st.DegradedSince = time.Now().UnixMilli()
-	e.restartWanted = true
+	e.restartWanted = restart
 	if err := e.saveLocked(); err != nil {
 		e.log.Warn("could not persist the SeaweedFS member state", "error", err)
 	}
 	e.mu.Unlock()
 	e.log.Warn("SeaweedFS volume servers lost: new objects are written without them until they return",
 		"lost", lost, "single_copy", alive < 2)
+}
+
+// lostStillRegistered reports whether the master keeps any of the lost
+// members' volume servers registered (true when it cannot tell).
+func (e *Engine) lostStillRegistered(ctx context.Context, lost []string) bool {
+	raw, err := getOK(ctx, e.local(RoleMaster, MasterHTTPPort), "/dir/status")
+	if err != nil {
+		return true
+	}
+	topology, err := ParseTopology(raw)
+	if err != nil {
+		return true
+	}
+	cfg, _ := e.self()
+	for _, id := range lost {
+		peer, ok := cfg.Peer(id)
+		if !ok || topology.Registered(VolumeURL(id, peer.MemberIndex)) {
+			return true
+		}
+	}
+	return false
 }
 
 // repair gives the objects written with one copy their second copy and new

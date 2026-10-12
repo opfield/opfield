@@ -64,11 +64,27 @@ func (m *Manager) deleteRecord(containerID string) error {
 
 // stopConfirmed stops the container (kill, or a clean stop that falls back to
 // a kill) and waits until its cgroup is empty.
+// StopGracer names how long an engine's clean stop may take before it is
+// killed (30 s otherwise): an engine whose state is safe on disk once its
+// writes stopped (ClickHouse) need not hold a switchover up.
+type StopGracer interface {
+	StopGrace() time.Duration
+}
+
+func cleanStopGrace(engine Engine) time.Duration {
+	if gracer, ok := engine.(StopGracer); ok {
+		if grace := gracer.StopGrace(); grace > 0 {
+			return grace
+		}
+	}
+	return 30 * time.Second
+}
+
 func (m *Manager) stopConfirmed(ctx context.Context, mem *member, kill bool) error {
 	var err error
 	if kill {
 		err = mem.engine.Kill(ctx)
-	} else if err = mem.engine.StopClean(ctx, 30*time.Second); err != nil {
+	} else if err = mem.engine.StopClean(ctx, cleanStopGrace(mem.engine)); err != nil {
 		err = mem.engine.Kill(ctx)
 	}
 	if err != nil {
