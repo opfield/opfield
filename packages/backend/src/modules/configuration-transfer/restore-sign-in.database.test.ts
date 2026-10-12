@@ -34,6 +34,10 @@ describe.skipIf(!url)('a copy restored from a managed installation, on disposabl
     await db.insert(settings).values([
       { key: FINALIZE_SETUP_STATE_KEY, value: { ownerUserId: OWNER } },
       { key: 'auth:methods', value: { oidc: true, password: false, emailOtp: true, passkeyLogin: false } },
+      { key: 'license:key_encrypted', value: 'enc:key' },
+      { key: 'license:installation_id', value: 'cloud-installation' },
+      { key: 'license:cached_state_v5', value: { plan: 'business' } },
+      { key: 'license:onboarding_completed', value: true },
     ]);
   });
 
@@ -41,10 +45,16 @@ describe.skipIf(!url)('a copy restored from a managed installation, on disposabl
     await database?.drop();
   });
 
-  it('turns OIDC off and password on, moves only the owner to a password, and issues the owner a link', async () => {
+  it('turns OIDC off and password on, drops the cloud license, moves only the owner to a password, and issues a link', async () => {
     await database.pool.query(MANAGED_SIGN_IN_DETACH_SQL);
     const [methods] = await db.select().from(settings).where(eq(settings.key, 'auth:methods'));
     expect(methods!.value).toEqual({ oidc: false, password: true, emailOtp: true, passkeyLogin: false });
+    const kept = await db.select({ key: settings.key }).from(settings);
+    const keys = kept.map((row) => row.key);
+    expect(keys).not.toContain('license:key_encrypted');
+    expect(keys).not.toContain('license:installation_id');
+    expect(keys).not.toContain('license:cached_state_v5');
+    expect(keys).toContain('license:onboarding_completed');
     const rows = await db.select({ id: users.id, authMethod: users.authMethod }).from(users);
     expect(Object.fromEntries(rows.map((row) => [row.id, row.authMethod]))).toMatchObject({
       [OWNER]: 'password',

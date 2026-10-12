@@ -1462,6 +1462,7 @@ if [[ -n "$RESTORE_FILE" ]]; then
     fi
     guide "${GRAY}New link:${NC}   cd ${INSTALL_DIR} && docker compose exec app node dist/cli/owner-password-link.js"
     guide "${GRAY}Other accounts that signed in with the Opfield account need a new sign-in method.${NC}"
+    guide "${GRAY}The licence stayed with the cloud installation; activate your own key in Settings > License.${NC}"
   else
     guide "${GRAY}Sign in with the accounts of the exported installation.${NC}"
   fi

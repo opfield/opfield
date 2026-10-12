@@ -58,6 +58,7 @@ export async function completeConfigurationRestore(
         includes: marker.includes,
         address: updates,
         ...(marker.ownerSignIn ? { ownerSignIn: marker.ownerSignIn } : {}),
+        ...(marker.license ? { license: marker.license } : {}),
       },
     })
     .catch((error) => logger.warn('Could not audit the configuration restore', { error }));

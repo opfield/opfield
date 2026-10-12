@@ -12,7 +12,7 @@ import {
   ownerLinkClaimHash,
 } from './owner-password-link.js';
 import { completeConfigurationRestore } from './restore-startup.js';
-import { detachManagedSignIn, MANAGED_SIGN_IN_DETACH_SQL } from './transfer-docker.js';
+import { detachManagedSignIn, MANAGED_SIGN_IN_DETACH_SQL, MANAGED_SOURCE_LICENSE_SETTINGS } from './transfer-docker.js';
 import { RESTORE_STAGING_DIR } from './transfer-layout.js';
 
 function fakeDb(owner: { id: string; email: string; authMethod: string; isBlocked: boolean } | null) {
@@ -34,6 +34,9 @@ describe('the owner of a copy restored from a managed installation', () => {
       true
     );
     expect(managed.mock.calls[1]![1].at(-1)).toBe(MANAGED_SIGN_IN_DETACH_SQL);
+    // The cloud installation's license does not come along; a self-hosted source keeps it (nothing runs).
+    for (const key of MANAGED_SOURCE_LICENSE_SETTINGS) expect(MANAGED_SIGN_IN_DETACH_SQL).toContain(`'${key}'`);
+    expect(MANAGED_SIGN_IN_DETACH_SQL).not.toContain('license:onboarding_completed');
 
     const selfHosted = vi.fn(async () => ({ exitCode: 0, output: 'false\n' }));
     await expect(

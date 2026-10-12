@@ -502,6 +502,10 @@ export function SetupRestoreFlow({
           , with this one-time link (valid until {formatDateTime(ownerLink.link.expiresAt)}), then
           sign in.
         </p>
+        <p className="text-sm text-muted-foreground">
+          The licence stayed with the cloud installation: this copy starts on Community. Activate
+          your own key in Settings → License.
+        </p>
         <div className="flex flex-wrap gap-2">
           <Button asChild>
             <a href={ownerLink.link.url}>Set the owner's password</a>

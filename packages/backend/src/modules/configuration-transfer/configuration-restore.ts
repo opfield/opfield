@@ -74,6 +74,7 @@ export interface RestoredMarker {
   address: RestoreAddress;
   /** The source was a managed cloud installation: the owner moved to password sign-in (see ExportSummary). */
   ownerSignIn?: 'password-link';
+  license?: 'stayed-with-cloud';
   /**
    * SHA-256 of the claim the setup wizard's browser holds: the first start issues the owner's password link and
    * that browser alone fetches it once (POST /api/setup/restore/owner-link).
@@ -105,6 +106,8 @@ export interface ExportSummary {
    * password through the link `node dist/cli/owner-password-link.js` prints.
    */
   ownerSignIn?: 'password-link';
+  /** Set with ownerSignIn: the license stayed with the cloud installation; the copy starts on Community. */
+  license?: 'stayed-with-cloud';
 }
 
 export interface RestoreOptions {
@@ -421,7 +424,10 @@ export async function restoreExport(docker: DockerService, options: RestoreOptio
         await restoreDatabase(docker, installation, part.stream, manifest.database.file);
         // The copy is not the installation the cloud account linked (or manages); a managed source's owner gets a
         // password instead of the cloud's sign-in.
-        if (await detachManagedSignIn(docker, installation)) summary.ownerSignIn = 'password-link';
+        if (await detachManagedSignIn(docker, installation)) {
+          summary.ownerSignIn = 'password-link';
+          summary.license = 'stayed-with-cloud';
+        }
         await forgetCloudLink(docker, installation);
         continue;
       }
@@ -489,6 +495,7 @@ export async function restoreExport(docker: DockerService, options: RestoreOptio
       includes: manifest.includes,
       address,
       ...(summary.ownerSignIn ? { ownerSignIn: summary.ownerSignIn } : {}),
+      ...(summary.license ? { license: summary.license } : {}),
       ...(summary.ownerSignIn && options.ownerLinkClaimHash ? { ownerLinkClaimHash: options.ownerLinkClaimHash } : {}),
     };
     await writeMarker(docker, installation, volumeName('gateway_data'), marker);

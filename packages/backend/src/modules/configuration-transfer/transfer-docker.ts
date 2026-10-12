@@ -365,7 +365,8 @@ export async function restoreDatabase(
 }
 
 /**
- * Sign-in of a copy restored from a managed cloud installation: its Opfield account provider is bound to the cloud
+ * Sign-in and license of a copy restored from a managed cloud installation (the license stays with the cloud
+ * installation, see {@link MANAGED_SOURCE_LICENSE_SETTINGS}): its Opfield account provider is bound to the cloud
  * (redirect URI on the cloud domain, client of that installation) and password sign-in is off, so the restorer would
  * be locked out. OIDC sign-in goes off, password sign-in on, and the owner signs in with a password set through a
  * one-time link (cli/owner-password-link). Users, roles and the provider's settings stay. Runs before
@@ -401,9 +402,29 @@ export async function detachManagedSignIn(docker: DockerService, installation: C
   return true;
 }
 
-/** OIDC off and password on (other methods as they were), and the owner on password sign-in; all or nothing. */
+/**
+ * License state of a managed source: its key, signed state and installation registration belong to the cloud
+ * installation, not to this copy. Dropped, the copy starts on Community under a new installation id and its owner
+ * activates their own key. A self-hosted source keeps all of it (the same installation, moved).
+ */
+export const MANAGED_SOURCE_LICENSE_SETTINGS = [
+  'license:key_encrypted',
+  'license:cached_state_v5',
+  'license:cached_state',
+  'license:installation_token_encrypted',
+  'license:installation_token',
+  'license:registration_nonce_encrypted',
+  'license:registration_nonce',
+  'license:installation_id',
+] as const;
+
+/**
+ * OIDC off and password on (other methods as they were), the owner on password sign-in, and the cloud
+ * installation's license dropped; all or nothing.
+ */
 export const MANAGED_SIGN_IN_DETACH_SQL = [
   'BEGIN;',
+  `DELETE FROM settings WHERE key IN (${MANAGED_SOURCE_LICENSE_SETTINGS.map((key) => `'${key}'`).join(', ')});`,
   "INSERT INTO settings (key, value, updated_at) VALUES ('auth:methods', " +
     `'{"oidc":false,"password":true,"emailOtp":false,"passkeyLogin":false}'::jsonb, now()) ` +
     `ON CONFLICT (key) DO UPDATE SET value = settings.value || '{"oidc":false,"password":true}'::jsonb, updated_at = now();`,
