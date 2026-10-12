@@ -6,6 +6,7 @@ import {
   ArrowUpFromLine,
   Cpu,
   FileStack,
+  Gauge,
   Globe,
   HardDrive,
   Layers,
@@ -14,6 +15,7 @@ import {
   RotateCcw,
   TriangleAlert,
   Users,
+  Zap,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ContentLoading } from "@/components/common/ContentLoading";
@@ -33,6 +35,7 @@ import type {
   AppDetail,
   AppEnvironmentDetail,
   AppOverviewAlert,
+  AppOverviewDatabase,
   AppOverviewEnvironment,
   AppOverviewIssue,
 } from "@/types";
@@ -54,15 +57,41 @@ function issueLabel(issue: AppOverviewIssue): string {
   return `${issue.count} ${issue.count === 1 ? one : many} ${issue.state}`;
 }
 
-const sumSeries = (series: number[][]): number[] => {
-  const length = Math.max(0, ...series.map((values) => values.length));
-  return Array.from({ length }, (_, index) =>
-    series.reduce((sum, values) => {
-      // Align series of different lengths at their newest point.
+type Series = Array<number | null>;
+
+/**
+ * Element-wise combination of series aligned at their newest point. A gap (null, or a point before a shorter series
+ * starts) carries that series' last value, or adds nothing before its first one; a point no series knows stays null,
+ * so a missing sample is never drawn as 0. `carry: false` for per-point counts (restarts).
+ */
+const combineSeries = (series: Series[], mode: "sum" | "average", carry = true): Series => {
+  const present = series.filter((values) => values.length > 0);
+  const length = Math.max(0, ...present.map((values) => values.length));
+  const last: Array<number | null> = present.map(() => null);
+  return Array.from({ length }, (_, index) => {
+    const known: number[] = [];
+    present.forEach((values, which) => {
       const offset = length - values.length;
-      return sum + (index >= offset ? (values[index - offset] ?? 0) : 0);
-    }, 0)
-  );
+      const value = index >= offset ? values[index - offset] : null;
+      if (typeof value === "number") {
+        last[which] = value;
+        known.push(value);
+      } else if (carry && last[which] !== null) {
+        known.push(last[which]!);
+      }
+    });
+    if (known.length === 0) return null;
+    const total = known.reduce((sum, value) => sum + value, 0);
+    return mode === "sum" ? total : total / known.length;
+  });
+};
+const sumSeries = (series: Series[], carry = true) => combineSeries(series, "sum", carry);
+const averageSeries = (series: Series[]) => combineSeries(series, "average");
+
+const THROUGHPUT_LABEL: Record<AppOverviewDatabase["throughputUnit"], string> = {
+  tx: "Transactions",
+  ops: "Operations",
+  q: "Queries",
 };
 
 const rate = (value: number, unit: string) =>
@@ -112,13 +141,23 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
   const cpu = containers.reduce((sum, c) => sum + c.cpuPercent, 0);
   const memory = containers.reduce((sum, c) => sum + c.memoryBytes, 0);
   const memoryLimit = containers.reduce((sum, c) => sum + (c.memoryLimitBytes ?? 0), 0);
-  const restarts = containers.reduce((sum, c) => sum + c.restarts, 0);
+  const knownRestarts = containers.filter((c) => c.restarts !== null);
+  const restarts =
+    knownRestarts.length > 0 ? knownRestarts.reduce((sum, c) => sum + (c.restarts ?? 0), 0) : null;
   const unhealthy = withData.flatMap((item) =>
     item.data.containers.unhealthy.map((name) => `${name} in ${item.env.name}`)
   );
   const routes = withData.map((item) => item.data.routes);
   const routeTotal = routes.reduce((sum, r) => sum + r.total, 0);
-  const latencies = routes.filter((r) => r.latencyMs !== null).map((r) => r.latencyMs as number);
+  // The slowest environment's latency: request p95 with traffic, else health-check probes.
+  const slowest = routes
+    .filter((r) => r.latencyMs !== null)
+    .sort((a, b) => (b.latencyMs ?? 0) - (a.latencyMs ?? 0))[0];
+  const latencySubtitle = !slowest
+    ? "No traffic or health checks"
+    : slowest.latencySource === "probe"
+      ? "Health-check probes · no traffic"
+      : "p95 of requests";
   const databases = withData.flatMap((item) =>
     item.data.databases.map((db) => ({ env: item.env, db }))
   );
@@ -167,16 +206,22 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
             />
             <StatCard
               label="Restarts"
-              value={String(restarts)}
+              value={restarts === null ? "—" : String(restarts)}
               icon={RotateCcw}
-              history={sumSeries(containers.map((c) => c.restartsHistory))}
-              color={restarts === 0 ? "var(--color-hue-slate)" : "var(--color-hue-red)"}
-              subtitle="last hour"
+              history={sumSeries(
+                containers.map((c) => c.restartsHistory),
+                false
+              )}
+              color={restarts ? "var(--color-hue-red)" : "var(--color-hue-slate)"}
+              subtitle={restarts === null ? "No data yet" : "last hour"}
             />
             <StatCard
               label="Healthy"
               value={`${containerHealthy}/${containerTotal}`}
               icon={Activity}
+              history={averageSeries(containers.map((c) => c.healthyHistory ?? []))}
+              sparklineMax={100}
+              color="var(--color-success)"
               progress={{
                 percent: containerTotal > 0 ? (containerHealthy / containerTotal) * 100 : 100,
                 color:
@@ -194,64 +239,86 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
         </Section>
       )}
 
-      {databases.length > 0 && (
-        <Section title={`Databases · ${databases.length}`}>
+      {databases.map(({ env, db }) => (
+        <Section key={db.id} title={`Database · ${db.name} · ${env.name}`}>
           <CardRow>
-            {databases.flatMap(({ env, db }) => [
+            <StatCard
+              label="Disk"
+              value={db.diskBytes === null ? "—" : formatBytes(db.diskBytes)}
+              icon={HardDrive}
+              history={db.diskHistory}
+              progress={
+                db.diskPercent === null
+                  ? undefined
+                  : {
+                      percent: db.diskPercent,
+                      color: db.diskPercent >= 80 ? "var(--color-warning)" : undefined,
+                    }
+              }
+              valueColor={
+                db.diskPercent !== null && db.diskPercent >= 80
+                  ? "var(--color-warning-text)"
+                  : undefined
+              }
+              subtitle={db.diskPercent === null ? undefined : `${Math.round(db.diskPercent)}% used`}
+              color={DATABASE_COLORS.database_size_bytes ?? "var(--color-hue-cyan)"}
+            />
+            <StatCard
+              label="Connections"
+              value={
+                db.connections === null
+                  ? "—"
+                  : db.maxConnections
+                    ? `${db.connections}/${db.maxConnections}`
+                    : String(db.connections)
+              }
+              icon={Users}
+              history={db.connectionsHistory}
+              progress={
+                db.connections !== null && db.maxConnections
+                  ? { percent: (db.connections / db.maxConnections) * 100 }
+                  : undefined
+              }
+              subtitle={db.connections === null ? "No data yet" : undefined}
+              color={DATABASE_COLORS.total_connections ?? "var(--color-hue-cyan)"}
+            />
+            <StatCard
+              label={THROUGHPUT_LABEL[db.throughputUnit ?? "tx"]}
+              value={
+                db.transactionsPerSecond === null
+                  ? "—"
+                  : rate(db.transactionsPerSecond, db.throughputUnit ?? "tx")
+              }
+              icon={Gauge}
+              history={db.transactionsHistory}
+              subtitle={db.transactionsPerSecond === null ? "No data yet" : "per second"}
+              color={DATABASE_COLORS.transaction_rate ?? "var(--color-hue-green)"}
+            />
+            {db.cacheHitPercent === null && db.cpuPercent !== null ? (
               <StatCard
-                key={`${db.id}-disk`}
-                label={`${db.name} · Disk`}
-                value={db.diskBytes === null ? "—" : formatBytes(db.diskBytes)}
-                icon={HardDrive}
-                history={db.diskHistory}
-                progress={
-                  db.diskPercent === null
-                    ? undefined
-                    : {
-                        percent: db.diskPercent,
-                        color: db.diskPercent >= 80 ? "var(--color-warning)" : undefined,
-                      }
-                }
-                valueColor={
-                  db.diskPercent !== null && db.diskPercent >= 80
-                    ? "var(--color-warning-text)"
-                    : undefined
-                }
-                subtitle={
-                  db.diskPercent === null
-                    ? env.name
-                    : `${env.name} · ${Math.round(db.diskPercent)}% used`
-                }
-                color={DATABASE_COLORS.database_size_bytes ?? "var(--color-hue-cyan)"}
-              />,
+                label="CPU"
+                value={percent(db.cpuPercent)}
+                icon={Cpu}
+                history={db.cpuHistory}
+                sparklineMax={100}
+                subtitle="Database container"
+                color={DATABASE_COLORS.managed_cpu_percent ?? "var(--color-hue-orange)"}
+              />
+            ) : (
               <StatCard
-                key={`${db.id}-connections`}
-                label={`${db.name} · Connections`}
-                value={
-                  db.connections === null
-                    ? "—"
-                    : db.maxConnections
-                      ? `${db.connections}/${db.maxConnections}`
-                      : String(db.connections)
-                }
-                icon={Users}
-                history={db.connectionsHistory}
-                progress={
-                  db.connections !== null && db.maxConnections
-                    ? { percent: (db.connections / db.maxConnections) * 100 }
-                    : undefined
-                }
-                subtitle={
-                  db.transactionsPerSecond === null
-                    ? env.name
-                    : `${env.name} · ${rate(db.transactionsPerSecond, "tx")}`
-                }
-                color={DATABASE_COLORS.total_connections ?? "var(--color-hue-cyan)"}
-              />,
-            ])}
+                label="Cache hit"
+                value={db.cacheHitPercent === null ? "—" : percent(db.cacheHitPercent)}
+                icon={Zap}
+                history={db.cacheHitHistory}
+                sparklineMax={100}
+                progress={db.cacheHitPercent === null ? undefined : { percent: db.cacheHitPercent }}
+                subtitle={db.cacheHitPercent === null ? "No data yet" : "Reads served from memory"}
+                color={DATABASE_COLORS.cache_hit_ratio ?? "var(--color-hue-blue)"}
+              />
+            )}
           </CardRow>
         </Section>
-      )}
+      ))}
 
       {storages.map(({ env, st }) => (
         <Section key={st.id} title={`Storage · ${st.name} · ${env.name}`}>
@@ -320,11 +387,11 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
             />
             <StatCard
               label="Latency"
-              value={latencies.length > 0 ? `${Math.round(Math.max(...latencies))} ms` : "—"}
+              value={slowest ? `${Math.round(slowest.latencyMs ?? 0)} ms` : "—"}
               icon={Activity}
-              history={routes.find((r) => r.latencyHistory.length > 0)?.latencyHistory ?? []}
+              history={slowest?.latencyHistory ?? []}
               color="var(--color-hue-pink)"
-              subtitle="slowest environment"
+              subtitle={latencySubtitle}
             />
             <StatCard
               label="Traffic"

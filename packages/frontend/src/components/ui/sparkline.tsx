@@ -1,5 +1,6 @@
 interface SparklineProps {
-  data: number[];
+  /** A null point is a gap: skipped, never drawn as 0. */
+  data: Array<number | null>;
   width?: number;
   height?: number;
   color?: string;
@@ -21,8 +22,20 @@ export function Sparkline({
   minValue = 0,
   maxValue,
 }: SparklineProps) {
-  if (data.length === 0) return null;
-  const values = data.length === 1 ? [data[0]!, data[0]!] : data;
+  const known = data.flatMap((value, index) =>
+    typeof value === "number" && Number.isFinite(value) ? [{ value, index }] : []
+  );
+  if (known.length === 0) return null;
+  const last = Math.max(1, data.length - 1);
+  // One known point draws a flat line across.
+  const plotted =
+    known.length === 1
+      ? [
+          { value: known[0]!.value, index: 0 },
+          { value: known[0]!.value, index: last },
+        ]
+      : known;
+  const values = plotted.map((point) => point.value);
 
   const min = Math.min(minValue, ...values);
   const max = maxValue != null ? Math.max(maxValue, ...values) : Math.max(...values);
@@ -30,15 +43,15 @@ export function Sparkline({
   const stroke = 1.5;
   const top = stroke; // reserve space for stroke at peak
 
-  const points = values
-    .map((value, i) => {
-      const x = (i / (values.length - 1)) * width;
+  const xOf = (index: number) => (index / last) * width;
+  const points = plotted
+    .map(({ value, index }) => {
       const y = top + (height - top) - ((value - min) / range) * (height - top);
-      return `${x},${y}`;
+      return `${xOf(index)},${y}`;
     })
     .join(" ");
 
-  const fillPoints = `0,${height} ${points} ${width},${height}`;
+  const fillPoints = `${xOf(plotted[0]!.index)},${height} ${points} ${xOf(plotted.at(-1)!.index)},${height}`;
 
   return (
     <svg

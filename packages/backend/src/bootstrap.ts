@@ -60,6 +60,7 @@ import { AppNodesService } from '@/modules/apps/app-nodes.service.js';
 import { AppOverviewService } from '@/modules/apps/app-overview.service.js';
 import { AppPromotionService } from '@/modules/apps/app-promotion.service.js';
 import { AppVariablesService } from '@/modules/apps/app-variables.service.js';
+import { AppWorkloadSampler } from '@/modules/apps/app-workload-sampler.js';
 import { AppsService } from '@/modules/apps/apps.service.js';
 import { AlertService } from '@/modules/audit/alert.service.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
@@ -1036,6 +1037,7 @@ export async function initializeContainer(): Promise<void> {
   );
   container.registerInstance(DockerSnapshotReconciler, dockerSnapshotReconciler);
   dockerSnapshotReconciler.start();
+  new AppWorkloadSampler(db, appMembersReader, appHealthService, cacheService, nodeDispatch).start();
 
   const dockerFolderService = new DockerFolderService(db, auditService);
   container.registerInstance(DockerFolderService, dockerFolderService);

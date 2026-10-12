@@ -8,6 +8,7 @@ import {
   pageDeployments,
   pageProjects,
   pageTags,
+  proxyHosts,
 } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { DatabaseMonitoringService } from '@/modules/databases/database-monitoring.service.js';
@@ -15,10 +16,18 @@ import { DockerSnapshotService } from '@/modules/docker/docker-snapshot.service.
 import { NodeMonitoringService } from '@/modules/nodes/node-monitoring.service.js';
 import { ObjectStorageMonitoringService } from '@/modules/object-storage/object-storage-monitoring.service.js';
 import { ProxyService } from '@/modules/proxy/proxy.service.js';
+import { CacheService } from '@/services/cache.service.js';
 import { visibleEnvironmentIds } from './app-access.js';
 import { availabilityOverviews } from './app-availability-overview.js';
 import { type AppHealthService, combineHealth, type MemberStatus } from './app-health.service.js';
 import type { AppMember, AppMembersReader } from './app-members.service.js';
+import {
+  APP_STORAGE_OBJECTS_KEY_PREFIX,
+  type ObjectCountSample,
+  readSamples,
+  type WorkloadSample,
+  workloadSampleKey,
+} from './app-workload-sampler.js';
 import type { AppsService } from './apps.service.js';
 
 const logger = createChildLogger('AppOverview');
@@ -54,9 +63,21 @@ export function bucketSeries(points: readonly Point[], range: OverviewRange, now
   return sums.map((sum, index) => (counts[index] ? Math.round((sum / counts[index]) * 100) / 100 : null));
 }
 
-/** Element-wise mean of series (gaps ignored). */
+/**
+ * A bucket without samples carries the last known value (samples sparser than the buckets, a missed poll), so a gap
+ * is never drawn or summed as 0. Buckets before the first sample stay null (no data yet).
+ */
+export function fillGaps(series: ReadonlyArray<number | null>): Array<number | null> {
+  let last: number | null = null;
+  return series.map((value) => {
+    if (value !== null && value !== undefined) last = value;
+    return last;
+  });
+}
+
+/** Element-wise mean of series; each series' gaps carry its last value, a point no series knows stays null. */
 export function averageSeries(series: ReadonlyArray<Array<number | null>>): Array<number | null> {
-  const present = series.filter((item) => item.length > 0);
+  const present = series.filter((item) => item.length > 0).map(fillGaps);
   if (present.length === 0) return [];
   return Array.from({ length: OVERVIEW_POINTS }, (_, index) => {
     const values = present.map((item) => item[index]).filter((value): value is number => value != null);
@@ -64,14 +85,128 @@ export function averageSeries(series: ReadonlyArray<Array<number | null>>): Arra
   });
 }
 
-/** Element-wise sum of series (null + x = x; all null stays null). */
-export function sumSeries(series: ReadonlyArray<Array<number | null>>): Array<number | null> {
-  const present = series.filter((item) => item.length > 0);
+/**
+ * Element-wise sum of series; each series' gaps carry its last value (so a missed sample of one member is no dip),
+ * a point no series knows stays null. `carry: false` for per-bucket counts (restarts), where a gap adds nothing.
+ */
+export function sumSeries(
+  series: ReadonlyArray<Array<number | null>>,
+  options: { carry?: boolean } = {}
+): Array<number | null> {
+  const carry = options.carry ?? true;
+  const present = series.filter((item) => item.length > 0).map((item) => (carry ? fillGaps(item) : item));
   if (present.length === 0) return [];
   return Array.from({ length: OVERVIEW_POINTS }, (_, index) => {
     const values = present.map((item) => item[index]).filter((value): value is number => value != null);
     return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) * 100) / 100 : null;
   });
+}
+
+/**
+ * Restarts of one workload from its per-minute samples: the increase of Docker's RestartCount between consecutive
+ * samples (a new runtime counts its own restarts from 0), summed over the range and per bucket. Unknown (null total,
+ * empty series) until two samples with a count fall in the range; a bucket with samples but no restart is 0.
+ */
+export function restartSeries(
+  samples: readonly WorkloadSample[],
+  range: OverviewRange,
+  now = Date.now()
+): { total: number | null; history: Array<number | null> } {
+  const span = RANGE_MS[range];
+  const start = now - span;
+  const width = span / OVERVIEW_POINTS;
+  const sorted = [...samples].sort((left, right) => left.at - right.at);
+  const buckets = new Array<number | null>(OVERVIEW_POINTS).fill(null);
+  let total: number | null = null;
+  for (let index = 0; index < sorted.length; index += 1) {
+    const current = sorted[index]!;
+    if (current.at < start || current.at > now) continue;
+    const bucket = Math.min(OVERVIEW_POINTS - 1, Math.floor((current.at - start) / width));
+    buckets[bucket] = buckets[bucket] ?? 0;
+    const previous = sorted[index - 1];
+    if (!previous || previous.restartCount === null || current.restartCount === null) continue;
+    const increase =
+      previous.runtime === current.runtime
+        ? Math.max(0, current.restartCount - previous.restartCount)
+        : current.restartCount;
+    buckets[bucket] = (buckets[bucket] ?? 0) + increase;
+    total = (total ?? 0) + increase;
+  }
+  if (total === null) return { total: null, history: [] };
+  return { total, history: buckets };
+}
+
+/** Healthy share (percent) of one workload per bucket from its per-minute samples. */
+export function healthySeries(
+  samples: readonly WorkloadSample[],
+  range: OverviewRange,
+  now = Date.now()
+): Array<number | null> {
+  return bucketSeries(
+    samples.map((sample) => ({ at: sample.at, value: sample.healthy ? 100 : 0 })),
+    range,
+    now
+  );
+}
+
+const THROUGHPUT_METRICS = [
+  ['transaction_rate', 'tx'],
+  ['instantaneous_ops_per_sec', 'ops'],
+  ['query_rate', 'q'],
+] as const;
+
+/** A database's throughput: the first of transactions, operations or queries per second its engine reports. */
+export function throughputOf(
+  latest: Record<string, unknown>,
+  points: (metric: string) => Array<number | null>
+): {
+  transactionsPerSecond: number | null;
+  transactionsHistory: Array<number | null>;
+  throughputUnit: 'tx' | 'ops' | 'q';
+} {
+  for (const [metric, unit] of THROUGHPUT_METRICS) {
+    const value = num(latest[metric]);
+    const history = points(metric);
+    if (value !== null || history.some((point) => point !== null)) {
+      return { transactionsPerSecond: value, transactionsHistory: history, throughputUnit: unit };
+    }
+  }
+  return { transactionsPerSecond: null, transactionsHistory: [], throughputUnit: 'tx' };
+}
+
+/** Where the routes' latency comes from: requests (p95), health-check probes when idle, or nothing. */
+export type RouteLatencySource = 'traffic' | 'probe' | null;
+
+/**
+ * Routes latency of an environment: the request p95 while there is traffic, else the health-check probe response
+ * time (mean of the routes' latest probes, and its history), else unknown.
+ */
+export function routeLatency(
+  routes: ReadonlyArray<{
+    requestsPerSecond: number | null;
+    latencyMs: number | null;
+    latencyHistory: Array<number | null>;
+    probeLatencyMs: number | null;
+    probeLatencyHistory: Array<number | null>;
+  }>
+): { latencyMs: number | null; latencyHistory: Array<number | null>; latencySource: RouteLatencySource } {
+  const busy = routes.filter((route) => (route.requestsPerSecond ?? 0) > 0 && route.latencyMs !== null);
+  if (busy.length > 0) {
+    return {
+      latencyMs: average(busy.map((route) => route.latencyMs)),
+      latencyHistory: averageSeries(routes.map((route) => route.latencyHistory)),
+      latencySource: 'traffic',
+    };
+  }
+  const probed = routes.filter((route) => route.probeLatencyMs !== null);
+  if (probed.length > 0) {
+    return {
+      latencyMs: average(probed.map((route) => route.probeLatencyMs)),
+      latencyHistory: averageSeries(routes.map((route) => route.probeLatencyHistory)),
+      latencySource: 'probe',
+    };
+  }
+  return { latencyMs: null, latencyHistory: [], latencySource: null };
 }
 
 function average(values: Array<number | null>): number | null {
@@ -244,8 +379,13 @@ export class AppOverviewService {
             memoryBytes: sum(workloads.map((status) => status.memoryBytes)),
             memoryLimitBytes: sum(workloads.map((status) => status.memoryLimitBytes)),
             memoryHistory: sumSeries(envContainers.map((entry) => entry.memory)),
-            restarts: null as number | null,
-            restartsHistory: [] as Array<number | null>,
+            // Increase of Docker restart counts over the range (null until the sampler has two readings).
+            restarts: sum(envContainers.map((entry) => entry.restarts)),
+            restartsHistory: sumSeries(
+              envContainers.map((entry) => entry.restartsHistory),
+              { carry: false }
+            ),
+            healthyHistory: averageSeries(envContainers.map((entry) => entry.healthy)),
             unhealthy: workloads.filter((status) => status.health !== 'healthy').map((status) => status.member.name),
           },
           databases: envDatabases.map(({ environmentId: _env, ...entry }) => entry),
@@ -256,8 +396,7 @@ export class AppOverviewService {
             requestsHistory: sumSeries(envRoutes.map((entry) => entry.requestsHistory)),
             errorsPerSecond: routeErrors,
             errorsHistory: sumSeries(envRoutes.map((entry) => entry.errorsHistory)),
-            latencyMs: average(envRoutes.map((entry) => entry.latencyMs)),
-            latencyHistory: averageSeries(envRoutes.map((entry) => entry.latencyHistory)),
+            ...routeLatency(envRoutes),
             trafficBytesPerSecond: sum(envRoutes.map((entry) => entry.trafficBytesPerSecond)),
             trafficHistory: sumSeries(envRoutes.map((entry) => entry.trafficHistory)),
           },
@@ -279,9 +418,10 @@ export class AppOverviewService {
     if (workloads.length === 0) return [];
     const snapshots = container.isRegistered(DockerSnapshotService) ? container.resolve(DockerSnapshotService) : null;
     const monitoring = container.isRegistered(NodeMonitoringService) ? container.resolve(NodeMonitoringService) : null;
-    if (!snapshots || !monitoring) return [];
+    const cache = container.isRegistered(CacheService) ? container.resolve(CacheService) : null;
     const idsByNode = new Map<string, Map<string, string>>();
     for (const nodeId of new Set(workloads.map((status) => status.member.nodeId!))) {
+      if (!snapshots) break;
       const list = await snapshots.getList<Array<Record<string, any>>>(nodeId, 'containers').catch(() => null);
       const byName = new Map<string, string>();
       for (const item of Array.isArray(list?.data) ? list.data : []) {
@@ -296,10 +436,17 @@ export class AppOverviewService {
         const runtimeId = status.runtimeName
           ? idsByNode.get(status.member.nodeId!)?.get(status.runtimeName)
           : undefined;
-        const history = runtimeId ? await monitoring.getContainerStatsHistory(runtimeId).catch(() => []) : [];
+        const [history, samples] = await Promise.all([
+          runtimeId && monitoring ? monitoring.getContainerStatsHistory(runtimeId).catch(() => []) : [],
+          readSamples<WorkloadSample>(cache, workloadSampleKey(status.member.type, status.member.id)),
+        ]);
         const at = (entry: Record<string, unknown>) => num(entry.timestamp) ?? 0;
+        const restarts = restartSeries(samples, range);
         return {
           environmentId: status.member.environmentId,
+          restarts: restarts.total,
+          restartsHistory: restarts.history,
+          healthy: healthySeries(samples, range),
           cpu: bucketSeries(
             history.map((entry) => ({
               at: at(entry),
@@ -356,12 +503,14 @@ export class AppOverviewService {
       const size = num(latest.database_size_bytes);
       const limit = row.manualSizeLimitMb ? row.manualSizeLimitMb * 1024 * 1024 : null;
       const points = (metric: string) =>
-        bucketSeries(
-          samples.map((sample) => ({
-            at: Date.parse(sample.timestamp),
-            value: num(sample.metrics[metric]) ?? Number.NaN,
-          })),
-          range
+        fillGaps(
+          bucketSeries(
+            samples.map((sample) => ({
+              at: Date.parse(sample.timestamp),
+              value: num(sample.metrics[metric]) ?? Number.NaN,
+            })),
+            range
+          )
         );
       return [
         {
@@ -375,7 +524,12 @@ export class AppOverviewService {
           connections: num(latest.total_connections),
           maxConnections: num(latest.max_connections),
           connectionsHistory: points('total_connections'),
-          transactionsPerSecond: num(latest.transaction_rate),
+          // Throughput: transactions (PostgreSQL), operations (key-value) or queries (ClickHouse) per second.
+          ...throughputOf(latest, points),
+          cacheHitPercent: num(latest.cache_hit_ratio),
+          cacheHitHistory: points('cache_hit_ratio'),
+          cpuPercent: num(latest.managed_cpu_percent),
+          cpuHistory: points('managed_cpu_percent'),
           // On several servers: the set's state and each member's role and health (degraded is not down).
           availability: availability.get(row.id) ?? null,
         },
@@ -399,7 +553,8 @@ export class AppOverviewService {
           storages.map((member) => member.id)
         )
       );
-    const [series, availability] = await Promise.all([
+    const cache = container.isRegistered(CacheService) ? container.resolve(CacheService) : null;
+    const [series, availability, objectCounts] = await Promise.all([
       this.seriesFrom(
         ObjectStorageMonitoringService,
         rows.map((row) => row.id),
@@ -410,6 +565,12 @@ export class AppOverviewService {
         'storage',
         rows.map((row) => row.id)
       ),
+      Promise.all(
+        rows.map(
+          async (row) =>
+            [row.id, await readSamples<ObjectCountSample>(cache, `${APP_STORAGE_OBJECTS_KEY_PREFIX}${row.id}`)] as const
+        )
+      ).then((entries) => new Map(entries)),
     ]);
     return storages.flatMap((member) => {
       const row = rows.find((item) => item.id === member.id);
@@ -419,12 +580,14 @@ export class AppOverviewService {
       const used = num(latest.disk_used_bytes);
       const total = num(latest.disk_total_bytes);
       const points = (metric: string) =>
-        bucketSeries(
-          samples.map((sample) => ({
-            at: Date.parse(sample.timestamp),
-            value: num(sample.metrics[metric]) ?? Number.NaN,
-          })),
-          range
+        fillGaps(
+          bucketSeries(
+            samples.map((sample) => ({
+              at: Date.parse(sample.timestamp),
+              value: num(sample.metrics[metric]) ?? Number.NaN,
+            })),
+            range
+          )
         );
       // Network counters are cumulative: rates come from consecutive samples.
       const rate = (metric: string) => {
@@ -439,6 +602,16 @@ export class AppOverviewService {
         }
         return out;
       };
+      // The engine reports no object count (SeaweedFS has none per S3 user): the sampler lists the buckets.
+      const counted = objectCounts.get(member.id) ?? [];
+      const objectsHistory = points('object_count').some((value) => value !== null)
+        ? points('object_count')
+        : fillGaps(
+            bucketSeries(
+              counted.map((sample) => ({ at: sample.at, value: sample.count })),
+              range
+            )
+          );
       const rx = rate('network_rx_bytes');
       const tx = rate('network_tx_bytes');
       return [
@@ -450,13 +623,13 @@ export class AppOverviewService {
           diskBytes: used,
           diskPercent: used !== null && total ? Math.round((used / total) * 1000) / 10 : null,
           diskHistory: points('disk_used_bytes'),
-          objects: num(latest.object_count),
-          objectsHistory: points('object_count'),
+          objects: num(latest.object_count) ?? counted.at(-1)?.count ?? null,
+          objectsHistory,
           buckets: num(latest.bucket_count),
           rxBytesPerSecond: rx.at(-1)?.value ?? null,
-          rxHistory: bucketSeries(rx, range),
+          rxHistory: fillGaps(bucketSeries(rx, range)),
           txBytesPerSecond: tx.at(-1)?.value ?? null,
-          txHistory: bucketSeries(tx, range),
+          txHistory: fillGaps(bucketSeries(tx, range)),
           // On several servers: the set's state and each member's role and health (degraded is not down).
           availability: availability.get(row.id) ?? null,
         },
@@ -467,17 +640,38 @@ export class AppOverviewService {
   private async routeSection(members: readonly AppMember[], range: OverviewRange) {
     const routes = members.filter((member) => member.type === 'route');
     const proxy = container.isRegistered(ProxyService) ? container.resolve(ProxyService) : null;
-    if (routes.length === 0 || !proxy) return [];
+    if (routes.length === 0) return [];
+    const probes = await this.db
+      .select({
+        id: proxyHosts.id,
+        healthCheckEnabled: proxyHosts.healthCheckEnabled,
+        healthHistory: proxyHosts.healthHistory,
+      })
+      .from(proxyHosts)
+      .where(
+        inArray(
+          proxyHosts.id,
+          routes.map((member) => member.id)
+        )
+      );
     return Promise.all(
       routes.map(async (member) => {
-        const history = await proxy.cachedTrafficHistory(member.id).catch(() => []);
+        const history = proxy ? await proxy.cachedTrafficHistory(member.id).catch(() => []) : [];
+        // Health-check probes: their response time is the latency while the route has no traffic.
+        const probe = probes.find((row) => row.id === member.id);
+        const start = Date.now() - RANGE_MS[range];
+        const probePoints = (probe?.healthCheckEnabled ? (probe.healthHistory ?? []) : [])
+          .map((entry) => ({ at: Date.parse(entry.ts), value: entry.responseMs ?? Number.NaN }))
+          .filter((point) => Number.isFinite(point.value) && point.at >= start);
         const latest = history.at(-1)?.traffic;
         const errorShare = (traffic: { statusCodes: { s5xx: number }; totalRequests: number }) =>
           traffic.totalRequests > 0 ? traffic.statusCodes.s5xx / traffic.totalRequests : 0;
         const series = (pick: (traffic: NonNullable<typeof latest>) => number) =>
-          bucketSeries(
-            history.map((entry) => ({ at: Date.parse(entry.timestamp), value: pick(entry.traffic) })),
-            range
+          fillGaps(
+            bucketSeries(
+              history.map((entry) => ({ at: Date.parse(entry.timestamp), value: pick(entry.traffic) })),
+              range
+            )
           );
         return {
           environmentId: member.environmentId,
@@ -486,7 +680,10 @@ export class AppOverviewService {
           errorsPerSecond: latest ? latest.requestsPerSecond * errorShare(latest) : null,
           errorsHistory: series((traffic) => traffic.requestsPerSecond * errorShare(traffic)),
           latencyMs: latest ? latest.p95ResponseTime || latest.avgResponseTime || null : null,
-          latencyHistory: series((traffic) => traffic.p95ResponseTime || traffic.avgResponseTime),
+          // No requests in a sample means no latency, not 0 ms.
+          latencyHistory: series((traffic) => traffic.p95ResponseTime || traffic.avgResponseTime || Number.NaN),
+          probeLatencyMs: probePoints.at(-1)?.value ?? null,
+          probeLatencyHistory: fillGaps(bucketSeries(probePoints, range)),
           trafficBytesPerSecond: latest ? latest.bytesPerSecond : null,
           trafficHistory: series((traffic) => traffic.bytesPerSecond),
         };

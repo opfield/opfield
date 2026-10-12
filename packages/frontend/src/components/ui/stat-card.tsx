@@ -6,7 +6,8 @@ export interface StatCardProps {
   label: string;
   value: string;
   icon: React.ElementType;
-  history?: number[];
+  /** Sparkline points; null is a gap. */
+  history?: Array<number | null>;
   color?: string;
   subtitle?: string;
   subtitleClassName?: string;

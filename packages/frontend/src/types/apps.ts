@@ -239,12 +239,15 @@ export interface AppOverviewContainers {
   total: number;
   healthy: number;
   cpuPercent: number;
-  cpuHistory: number[];
+  cpuHistory: Array<number | null>;
   memoryBytes: number;
   memoryLimitBytes: number | null;
-  memoryHistory: number[];
-  restarts: number;
-  restartsHistory: number[];
+  memoryHistory: Array<number | null>;
+  /** Restarts over the range; null until the sampler has two readings. */
+  restarts: number | null;
+  restartsHistory: Array<number | null>;
+  /** Percent of healthy workloads per point. */
+  healthyHistory: Array<number | null>;
   /** Names of containers that are not healthy. */
   unhealthy: string[];
 }
@@ -255,11 +258,18 @@ export interface AppOverviewDatabase {
   name: string;
   diskBytes: number | null;
   diskPercent: number | null;
-  diskHistory: number[];
+  diskHistory: Array<number | null>;
   connections: number | null;
   maxConnections: number | null;
-  connectionsHistory: number[];
+  connectionsHistory: Array<number | null>;
+  /** Throughput: transactions, operations or queries per second (throughputUnit). */
   transactionsPerSecond: number | null;
+  transactionsHistory: Array<number | null>;
+  throughputUnit: "tx" | "ops" | "q";
+  cacheHitPercent: number | null;
+  cacheHitHistory: Array<number | null>;
+  cpuPercent: number | null;
+  cpuHistory: Array<number | null>;
 }
 
 export interface AppOverviewStorage {
@@ -268,26 +278,28 @@ export interface AppOverviewStorage {
   name: string;
   diskBytes: number | null;
   diskPercent: number | null;
-  diskHistory: number[];
+  diskHistory: Array<number | null>;
   objects: number | null;
-  objectsHistory: number[];
+  objectsHistory: Array<number | null>;
   buckets: number | null;
   rxBytesPerSecond: number | null;
-  rxHistory: number[];
+  rxHistory: Array<number | null>;
   txBytesPerSecond: number | null;
-  txHistory: number[];
+  txHistory: Array<number | null>;
 }
 
 export interface AppOverviewRoutes {
   total: number;
   requestsPerSecond: number;
-  requestsHistory: number[];
+  requestsHistory: Array<number | null>;
   errorsPerSecond: number;
-  errorsHistory: number[];
+  errorsHistory: Array<number | null>;
   latencyMs: number | null;
-  latencyHistory: number[];
+  latencyHistory: Array<number | null>;
+  /** Request p95 with traffic, health-check probes when idle, null without either. */
+  latencySource: "traffic" | "probe" | null;
   trafficBytesPerSecond: number;
-  trafficHistory: number[];
+  trafficHistory: Array<number | null>;
 }
 
 export interface AppOverviewPage {
@@ -296,7 +308,7 @@ export interface AppOverviewPage {
   name: string;
   activeDeployment: { id: string; createdAt: string } | null;
   requestsPerSecond: number | null;
-  requestsHistory: number[];
+  requestsHistory: Array<number | null>;
 }
 
 export interface AppOverviewEnvironment {
