@@ -247,10 +247,6 @@ export function CloudSection({ canManage }: CloudSectionProps) {
     </form>
   ) : null;
 
-  const askAdministrator = canManage ? null : (
-    <> Ask an administrator who manages the license to connect this Opfield installation.</>
-  );
-
   return (
     <PanelShell
       icon={<Cloud className="h-4 w-4 text-info-text" />}
@@ -290,13 +286,6 @@ export function CloudSection({ canManage }: CloudSectionProps) {
         )
       }
     >
-      {connected && !managed && switching && (
-        <p className="px-4 pt-4 text-sm text-warning-text" role="status">
-          Copy the code from the installation's page in the other Opfield account. Connecting with
-          it ends the connection to {status.accountEmail ?? "your cloud account"} at once.
-        </p>
-      )}
-
       {connected && (
         <div className="divide-y divide-border">
           <DetailRow label="Account" value={status.accountEmail ?? "—"} />
@@ -321,7 +310,6 @@ export function CloudSection({ canManage }: CloudSectionProps) {
             {status.disconnectedReason ??
               "Your cloud account disconnected this Opfield installation."}{" "}
             To connect it again, paste a new code from your Opfield account above.
-            {askAdministrator}
           </p>
           {status.accountEmail && <DetailRow label="Account" value={status.accountEmail} />}
           <DetailRow label="Disconnected" value={<RelativeTime value={status.disconnectedAt} />} />
@@ -330,9 +318,7 @@ export function CloudSection({ canManage }: CloudSectionProps) {
 
       {!connected && !disconnectedByAccount && (
         <p className="p-4 text-sm text-muted-foreground">
-          {canManage
-            ? "Copy the code from your Opfield account and paste it above."
-            : "Ask an administrator who manages the license to connect this Opfield installation."}
+          Copy the code from your Opfield account and paste it above.
         </p>
       )}
     </PanelShell>

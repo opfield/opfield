@@ -204,7 +204,8 @@ export function Settings() {
                   <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                     {canUpdate && <UpdateSection canUpdate={canUpdate} />}
                     <LicenseSection canManage={canManageLicense} />
-                    <CloudSection canManage={canManageLicense} />
+                    {/* Connecting the installation is license management: others do not see the block. */}
+                    {canManageLicense && <CloudSection canManage />}
                   </div>
                 ) : (
                   canUpdate && <UpdateSection canUpdate={canUpdate} />
