@@ -1,6 +1,6 @@
-// Pieces the resource tabs share: type definitions, the create/import header actions, the row
-// for types not in the app yet, the empty group and the member row-menu entries.
-import { Import, Plus } from "lucide-react";
+// Pieces the resource tabs share: type definitions, the create/import header actions, the headers
+// of types not in the app yet, the empty group and the member row-menu entries.
+import { Box, Boxes, Database, Globe, Globe2, HardDrive, Import, Link2, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PanelShell } from "@/components/common/PanelShell";
@@ -21,6 +21,8 @@ export interface TypeDef {
   createType: AppCreateType;
   /** Import existing (container links have none). */
   importFamily: AppMemberFamily | null;
+  /** The section's icon, also on its header while it is empty. */
+  icon: ReactNode;
 }
 
 export const TYPES = {
@@ -31,6 +33,7 @@ export const TYPES = {
     addLabel: "Container or deployment",
     createType: "container",
     importFamily: "containers",
+    icon: <Box className="h-4 w-4" />,
   },
   compose: {
     key: "compose",
@@ -39,6 +42,7 @@ export const TYPES = {
     addLabel: "Compose project",
     createType: "compose",
     importFamily: "compose",
+    icon: <Boxes className="h-4 w-4" />,
   },
   pages: {
     key: "pages",
@@ -47,6 +51,7 @@ export const TYPES = {
     addLabel: "Pages project",
     createType: "pages",
     importFamily: "pages",
+    icon: <Globe2 className="h-4 w-4" />,
   },
   databases: {
     key: "databases",
@@ -55,6 +60,7 @@ export const TYPES = {
     addLabel: "Database",
     createType: "database",
     importFamily: "databases",
+    icon: <Database className="h-4 w-4" />,
   },
   storage: {
     key: "storage",
@@ -63,6 +69,7 @@ export const TYPES = {
     addLabel: "Storage",
     createType: "storage",
     importFamily: "storage",
+    icon: <HardDrive className="h-4 w-4" />,
   },
   routes: {
     key: "routes",
@@ -71,6 +78,7 @@ export const TYPES = {
     addLabel: "Route",
     createType: "route",
     importFamily: "routes",
+    icon: <Globe className="h-4 w-4" />,
   },
   links: {
     key: "links",
@@ -79,6 +87,7 @@ export const TYPES = {
     addLabel: "Container link",
     createType: "container-link",
     importFamily: null,
+    icon: <Link2 className="h-4 w-4" />,
   },
 } satisfies Record<string, TypeDef>;
 
@@ -133,32 +142,26 @@ export function TypeActions({ type, actions }: { type: TypeDef; actions: TabActi
   );
 }
 
-/** Missing types of a tab: one compact row instead of empty panels. */
+/** Types of a tab with no members yet: their section header alone, with its create and import actions. */
 export function AddRow({ types, actions }: { types: TypeDef[]; actions: TabActions }) {
-  const creatable = types.filter((type) => actions.planCreates(type.createType));
-  const importable = types.find(
-    (type) => type.importFamily !== null && actions.planImports(type.importFamily)
-  );
-  if (creatable.length === 0 && !importable) return null;
   return (
-    <div className="flex flex-wrap items-center gap-2 border border-border bg-card px-4 py-3">
-      <span className="mr-2 text-sm text-muted-foreground">Not in the app yet:</span>
-      {creatable.map((type) => (
-        <Button key={type.key} variant="outline" onClick={() => actions.onCreate(type.createType)}>
-          <Plus className="h-3.5 w-3.5" />
-          {type.addLabel}
-        </Button>
-      ))}
-      {importable && (
-        <Button
-          variant="link"
-          className="ml-auto h-auto p-0"
-          onClick={() => actions.onImport(importable.importFamily as AppMemberFamily)}
-        >
-          Import existing
-        </Button>
-      )}
-    </div>
+    <>
+      {types
+        .filter(
+          (type) =>
+            actions.planCreates(type.createType) ||
+            (type.importFamily !== null && actions.planImports(type.importFamily))
+        )
+        .map((type) => (
+          <PanelShell
+            key={type.key}
+            title={<CountTitle title={type.title} count={0} />}
+            icon={type.icon}
+            description="Nothing here yet"
+            actions={<TypeActions type={type} actions={actions} />}
+          />
+        ))}
+    </>
   );
 }
 

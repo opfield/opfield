@@ -173,12 +173,16 @@ export function GroupedList<T>({
   minWidth?: number;
 }) {
   return (
-    <ResourceListFrame minWidth={minWidth} className="border-0">
+    // The panel draws the bottom edge: the last row of the last group has none of its own.
+    <ResourceListFrame
+      minWidth={minWidth}
+      className="border-0 [&_[data-env-group]:last-child_tbody>tr:last-child]:border-b-0"
+    >
       <ResourceListHeaderTable columns={columns} />
       {groups
         .filter((group) => group.rows.length > 0)
         .map((group) => (
-          <div key={group.env.id}>
+          <div key={group.env.id} data-env-group="">
             <ResourceListSectionHeader
               label={<EnvLink appSlug={appSlug} env={group.env} />}
               count={group.rows.length}
@@ -227,7 +231,7 @@ export function FlatList<T>({
   minWidth?: number;
 }) {
   return (
-    <ResourceListFrame minWidth={minWidth} className="border-0">
+    <ResourceListFrame minWidth={minWidth} className="border-0 [&_tbody>tr:last-child]:border-b-0">
       <ResourceListHeaderTable columns={columns} />
       <ResourceListTable columns={columns}>
         {rows.map((row) => (
