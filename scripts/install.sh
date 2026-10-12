@@ -32,6 +32,8 @@ RESTORE_FILE=""
 RESTORE_PUBLIC_URL=""
 RESTORE_GRPC_TARGET=""
 RESTORE_VERSION=""
+CONSOLE_DOMAIN=""
+ACME_EMAIL=""
 UPDATE_SIGNING_PUBLIC_KEY='-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAxLXGD8vCYQCYboK301miZXyAaoOLc43zFVnMlH3FeWg=
 -----END PUBLIC KEY-----'
@@ -831,9 +833,52 @@ run_restore() {
   ok "Export restored"
 }
 
+# A plain DNS name a public CA issues for: no wildcard, IP address, port or trailing dot.
+valid_console_domain() {
+  local domain="$1"
+  [[ ${#domain} -le 253 && "$domain" == *.* && ! "$domain" =~ ^[0-9.]+$ ]] || return 1
+  [[ "$domain" =~ ^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]]
+}
+
+validate_console_options() {
+  if [[ -n "$CONSOLE_DOMAIN" ]]; then
+    CONSOLE_DOMAIN="$(printf '%s' "${CONSOLE_DOMAIN%.}" | tr '[:upper:]' '[:lower:]')"
+    valid_console_domain "$CONSOLE_DOMAIN" || die "--domain must be a DNS name such as console.example.com, got: ${CONSOLE_DOMAIN}"
+    [[ -n "$ACME_EMAIL" ]] || die "--domain needs --acme-email for the Let's Encrypt account"
+  fi
+  if [[ -n "$ACME_EMAIL" ]]; then
+    [[ -n "$CONSOLE_DOMAIN" ]] || die "--acme-email is used with --domain"
+    [[ "$ACME_EMAIL" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] || die "--acme-email must be an email address, got: ${ACME_EMAIL}"
+  fi
+}
+
+# Publishes the console listeners (HTTPS 443 and HTTP 80, which answers ACME challenges and redirects to HTTPS) on
+# the app service next to its 3000 mapping. Runs on fresh and existing Compose files; does nothing when present.
+add_console_ports() {
+  local compose="$1" output
+  grep -Eq '^[[:space:]]*-[[:space:]]*"?443:3443"?[[:space:]]*$' "$compose" && return 0
+  output="$(mktemp "${compose}.XXXXXX")"
+  awk '
+    /^  app:[[:space:]]*$/ { in_app = 1; print; next }
+    /^  [A-Za-z0-9_-]+:[[:space:]]*$/ { in_app = 0 }
+    in_app && !done && /^    ports:[[:space:]]*$/ {
+      print
+      print "      - \"80:3080\""
+      print "      - \"443:3443\""
+      done = 1
+      next
+    }
+    { print }
+    END { if (!done) exit 3 }
+  ' "$compose" >"$output" || { rm -f "$output"; return 1; }
+  cat "$output" >"$compose"
+  rm -f "$output"
+}
+
 usage() {
   cat <<'EOF'
-Usage: install.sh [--install-dir PATH] [--image IMAGE] [--source-dir PATH] [--http|--https] [--dry-run]
+Usage: install.sh [--install-dir PATH] [--image IMAGE] [--source-dir PATH] [--http|--https]
+                  [--domain FQDN --acme-email EMAIL] [--dry-run]
        install.sh --restore FILE [--public-url URL] [--grpc-target HOST:PORT] [--install-dir PATH]
 
 Installs or updates Opfield. On a fresh interactive install, the only prompt
@@ -845,6 +890,13 @@ fresh directory and restores the export into it. It asks for the export's
 passphrase (or reads OPFIELD_RESTORE_PASSPHRASE) and for this host's address;
 --public-url and --grpc-target set the address without asking. Without them
 the exported address is kept.
+
+--domain serves the console at https://FQDN on port 443 with a Let's Encrypt
+certificate that Opfield obtains (HTTP-01 on port 80) and renews by itself;
+port 80 otherwise redirects to HTTPS and port 3000 keeps working as before.
+Until FQDN points at this host the console on 443 uses the System CA
+certificate. The public URL becomes https://FQDN. --acme-email is the
+Let's Encrypt account contact and is required with --domain.
 
 --source-dir builds the Opfield image from a local source checkout on this
 host. It is intended for a fresh test installation and skips remote release
@@ -866,10 +918,13 @@ while (($#)); do
     --restore) RESTORE_FILE="${2:?missing export file}"; shift 2 ;;
     --public-url) RESTORE_PUBLIC_URL="${2:?missing URL}"; shift 2 ;;
     --grpc-target) RESTORE_GRPC_TARGET="${2:?missing host:port}"; shift 2 ;;
+    --domain) CONSOLE_DOMAIN="${2:?missing domain}"; shift 2 ;;
+    --acme-email) ACME_EMAIL="${2:?missing email}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) die "Unknown option: $1" ;;
   esac
 done
+validate_console_options
 
 show_header
 
@@ -921,6 +976,10 @@ prepare_install_metadata
 guide_blank
 print_install_details
 
+# A re-run without --domain keeps the console domain the installation already has.
+if [[ -z "$CONSOLE_DOMAIN" ]]; then
+  CONSOLE_DOMAIN="$(env_value GATEWAY_CONSOLE_DOMAIN)"
+fi
 if [[ "$RESUME" == 1 && -z "$TRANSPORT" ]]; then
   TRANSPORT="$(env_value WEB_TLS_BOOTSTRAP_MODE)"
 fi
@@ -941,7 +1000,11 @@ if [[ "$FRESH" == 1 && -z "$TRANSPORT" ]]; then
 fi
 [[ "$TRANSPORT" == "http" || "$TRANSPORT" == "https" || "$FRESH" == 0 ]] || die "GATEWAY_WEB_TRANSPORT must be http or https"
 if [[ "$FRESH" == 1 && -z "$RESTORE_FILE" ]]; then
-  if [[ "$TRANSPORT" == "https" ]]; then
+  if [[ -n "$CONSOLE_DOMAIN" ]]; then
+    guide_blank
+    guide "${GRAY}https://${CONSOLE_DOMAIN} gets a Let's Encrypt certificate once the name points at this host${NC}"
+    guide "${GRAY}and ports 80 and 443 are reachable; until then it uses the System CA certificate.${NC}"
+  elif [[ "$TRANSPORT" == "https" ]]; then
     guide_blank
     warn "Your browser will show a certificate warning on first visit."
     warn "This is expected until the Opfield System CA is trusted."
@@ -952,6 +1015,7 @@ fi
 if [[ "$DRY_RUN" -eq 1 ]]; then
   info "Dry run: would validate Docker and prepare Opfield services"
   info "Dry run: would start Opfield with ${TRANSPORT} on port 3000"
+  [[ -z "$CONSOLE_DOMAIN" ]] || info "Dry run: would serve https://${CONSOLE_DOMAIN} on ports 443 and 80 with a Let's Encrypt certificate"
   rm -f "$DRY_RUN_LOG"
   guide_blank
   echo -e "${BRAND_MINT}■${NC} ${BOLD}Dry run completed successfully — no host changes were made.${NC}"
@@ -1030,6 +1094,7 @@ format_gateway_url() {
 print_gateway_urls() {
   local address
   guide "${BRAND_MINT}Open:${NC}"
+  [[ -z "$CONSOLE_DOMAIN" ]] || guide "  ${GRAY}Console:${NC} https://${CONSOLE_DOMAIN}"
   guide "  ${GRAY}Local:${NC}   ${TRANSPORT}://localhost:3000"
   while IFS= read -r address; do
     [[ -n "$address" ]] || continue
@@ -1068,6 +1133,10 @@ ensure_env SANDBOX_RUNNER_WORKSPACE_DIR "/var/lib/gateway/sandbox-workspaces"
 set_env GATEWAY_REGISTRY_IMAGE_REF "$REGISTRY_IMAGE_REF"
 ensure_env GATEWAY_REGISTRY_HTTP_SECRET "$(openssl rand -hex 32)"
 ensure_env GATEWAY_RELAY_MANAGED "$([[ -z "$SOURCE_DIR" ]] && printf true || printf false)"
+if [[ -n "$ACME_EMAIL" ]]; then
+  set_env GATEWAY_CONSOLE_DOMAIN "$CONSOLE_DOMAIN"
+  set_env GATEWAY_ACME_EMAIL "$ACME_EMAIL"
+fi
 if [[ "$FRESH" == 1 ]]; then
   set_env GATEWAY_VERSION "$VERSION"
   set_env GATEWAY_RELAY_IMAGE_REF "$RELAY_IMAGE_REF"
@@ -1312,6 +1381,10 @@ else
   [[ -n "$DOCKER_LOG_DRIVER" ]] && foundation_env+=(-e "GATEWAY_DOCKER_LOG_DRIVER=$DOCKER_LOG_DRIVER")
   [[ -n "$DOCKER_LOG_OPTS" ]] && foundation_env+=(-e "GATEWAY_DOCKER_LOG_OPTS=$DOCKER_LOG_OPTS")
   run_quiet "Opfield foundation migration" "${DOCKER[@]}" run --rm ${foundation_env[@]+"${foundation_env[@]}"} -v "$INSTALL_DIR:/host" "$IMAGE_REF" "${foundation_args[@]}"
+fi
+
+if [[ -n "$CONSOLE_DOMAIN" ]]; then
+  add_console_ports docker-compose.yml || die "Cannot publish ports 80 and 443 for the app service in docker-compose.yml"
 fi
 
 if [[ -z "$SOURCE_DIR" ]]; then

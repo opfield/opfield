@@ -53,6 +53,7 @@ import { StatusPageService } from '@/modules/status-page/status-page.service.js'
 import { AvailabilityMembersService } from '@/services/availability-members.service.js';
 import { closeDataStoresAfterWrites } from '@/services/background-writes.js';
 import type { RedisClient } from '@/services/cache.service.js';
+import { createConsoleTlsService } from '@/services/console-tls/console-tls.runtime.js';
 import { CryptoService } from '@/services/crypto.service.js';
 import { GatewayLifecycleService } from '@/services/gateway-lifecycle.service.js';
 import { GrpcIdentityService } from '@/services/grpc-identity.service.js';
@@ -181,6 +182,11 @@ async function main() {
     // during an outage, Gateway reports and handles it from its first answer, not after the relay startup.
     await container.resolve(RelaySupervisorService).restore();
 
+    // Console on its own domain (GATEWAY_CONSOLE_DOMAIN): the public URL follows it before any listener resolves
+    // its identity.
+    const consoleTls = createConsoleTlsService(env, container);
+    await consoleTls?.seedPublicUrl();
+
     // Create the Hono app
     const { app, injectWebSocket, wss } = createApp();
 
@@ -221,6 +227,14 @@ async function main() {
     server.prependListener('request', (request, response) =>
       lifecycle.trackHttpRequest(request, response, statusPageService.isCachedStatusHost(request.headers.host))
     );
+
+    // The console's HTTPS (443) and HTTP (80, ACME challenges and redirect) listeners, next to PORT.
+    await consoleTls?.start(app.fetch, (consoleServer) => {
+      injectWebSocket(consoleServer);
+      consoleServer.prependListener('request', (request, response) =>
+        lifecycle.trackHttpRequest(request, response, statusPageService.isCachedStatusHost(request.headers.host))
+      );
+    });
 
     const webScheme = webTransport.tlsEnabled ? 'https' : 'http';
     logger.info(`Server running at ${webScheme}://${env.BIND_HOST}:${env.PORT}`);
@@ -389,7 +403,13 @@ async function main() {
           await drainWebSocketsForRestart(wss.clients, Math.min(deadline, Date.now() + WEBSOCKET_CLOSE_WAIT_MS));
           terminateRemainingWebSockets(wss.clients);
           await closeWebSocketServer(wss);
-          await closeHttpServer(server, deadline);
+          await consoleTls?.stop();
+          await Promise.all([
+            closeHttpServer(server, deadline),
+            ...(consoleTls?.servers() ?? []).map((consoleServer) =>
+              closeHttpServer(consoleServer as ReturnType<typeof serve>, deadline)
+            ),
+          ]);
           if (coreInternalServer) await closeHttpServer(coreInternalServer, deadline);
           logger.info('HTTP server closed');
         },

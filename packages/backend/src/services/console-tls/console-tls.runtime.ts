@@ -1,0 +1,73 @@
+import { join } from 'node:path';
+import type { DependencyContainer } from 'tsyringe';
+import type { Env } from '@/config/env.js';
+import { createChildLogger } from '@/lib/logger.js';
+import { AlertService } from '@/modules/audit/alert.service.js';
+import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
+import { ACMEService } from '@/modules/ssl/acme.service.js';
+import { WebIdentityService } from '@/services/web-identity.service.js';
+import { ConsoleTlsService, readFallbackMaterial } from './console-tls.service.js';
+import { isValidConsoleDomain, resolveDirectoryOverride } from './console-tls-policy.js';
+
+const logger = createChildLogger('ConsoleTLS');
+
+/** Alerts need a resource id; the console certificate is a single, fixed resource. */
+export const CONSOLE_CERTIFICATE_RESOURCE_ID = '00000000-0000-4000-8000-00000000c0de';
+
+/**
+ * The console TLS service when GATEWAY_CONSOLE_DOMAIN is set, null otherwise (an installation without it keeps only
+ * its PORT listener). A configuration it cannot use is logged and leaves the console on PORT; the app still starts.
+ */
+export function createConsoleTlsService(env: Env, container: DependencyContainer): ConsoleTlsService | null {
+  const domain = env.GATEWAY_CONSOLE_DOMAIN?.trim().toLowerCase().replace(/\.$/, '');
+  if (!domain) return null;
+  if (!isValidConsoleDomain(domain)) {
+    logger.error('GATEWAY_CONSOLE_DOMAIN is not a DNS name; the console stays on its port only', { domain });
+    return null;
+  }
+  const email = env.GATEWAY_ACME_EMAIL?.trim();
+  if (!email) {
+    logger.error('GATEWAY_ACME_EMAIL is required with GATEWAY_CONSOLE_DOMAIN; the console stays on its port only');
+    return null;
+  }
+  let directory: ReturnType<typeof resolveDirectoryOverride>;
+  try {
+    directory = resolveDirectoryOverride(env.GATEWAY_ACME_DIRECTORY_URL);
+  } catch (error) {
+    logger.error('GATEWAY_ACME_DIRECTORY_URL is invalid; the console stays on its port only', {
+      error: (error as Error).message,
+    });
+    return null;
+  }
+  const webIdentity = container.resolve(WebIdentityService);
+  const generalSettings = container.resolve(GeneralSettingsService);
+  const alerts = container.resolve(AlertService);
+  return new ConsoleTlsService({
+    domain,
+    email,
+    staging: directory.staging,
+    stateDir: join(env.WEB_TLS_AUTO_DIR, 'console-acme'),
+    httpsPort: env.GATEWAY_CONSOLE_HTTPS_PORT,
+    httpPort: env.GATEWAY_CONSOLE_HTTP_PORT,
+    bindHost: env.BIND_HOST,
+    acme: new ACMEService({ directoryUrl: directory.directoryUrl }),
+    fallback: () =>
+      readFallbackMaterial(
+        () => webIdentity.resolve(),
+        () => webIdentity.refresh()
+      ),
+    publicUrl: {
+      get: () => generalSettings.getPublicUrl(),
+      set: async (url) => {
+        await generalSettings.updateConfig({ publicUrl: url });
+      },
+    },
+    alert: (level, message) =>
+      alerts.createAlert({
+        type: level === 'critical' ? 'expiry_critical' : 'expiry_warning',
+        resourceType: 'console_certificate',
+        resourceId: CONSOLE_CERTIFICATE_RESOURCE_ID,
+        message,
+      }),
+  });
+}
