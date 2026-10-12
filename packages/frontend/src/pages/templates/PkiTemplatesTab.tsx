@@ -467,17 +467,15 @@ export function PkiTemplatesTab({
 
         {/* Wizard Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>
                 {viewOnly ? editing?.name : editing ? "Edit Template" : "Create Template"}
               </DialogTitle>
-              {viewOnly && (
-                <DialogDescription>
-                  Built-in template. Its settings are read-only.
-                </DialogDescription>
-              )}
             </DialogHeader>
+            {viewOnly && (
+              <DialogDescription>Built-in template. Its settings are read-only.</DialogDescription>
+            )}
 
             {/* Step indicator */}
             <div className="flex gap-1">

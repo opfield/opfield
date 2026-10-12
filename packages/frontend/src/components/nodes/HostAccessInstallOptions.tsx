@@ -1,4 +1,4 @@
-import { CheckboxCard } from "@/components/common/CheckboxCard";
+import { SwitchCard } from "@/components/common/SwitchCard";
 import type { HostAccessInstallOptions as Options } from "@/lib/node-host-access";
 
 /**
@@ -17,20 +17,20 @@ export function HostAccessInstallOptions({
 }) {
   return (
     <div className="grid gap-2 sm:grid-cols-2">
-      <CheckboxCard
+      <SwitchCard
         checked={value.disableConsole}
         onCheckedChange={(disableConsole) => onChange({ ...value, disableConsole })}
         label="Disable host console"
         description="Adds --disable-console: no shell or console commands on this host from Opfield."
       />
-      <CheckboxCard
+      <SwitchCard
         checked={value.disableFiles}
         onCheckedChange={(disableFiles) => onChange({ ...value, disableFiles })}
         label="Disable host files"
         description="Adds --disable-files: no host file browsing or writes from Opfield. Disable both to remove host access."
       />
       {relay && (
-        <CheckboxCard
+        <SwitchCard
           checked={value.protectedMode === true}
           onCheckedChange={(protectedMode) => onChange({ ...value, protectedMode })}
           label="Protected relay"

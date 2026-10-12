@@ -381,15 +381,15 @@ export function DockerRegistriesSection({ nodesList }: DockerRegistriesSectionPr
 
       {/* Registry Add/Edit Dialog */}
       <Dialog open={regDialogOpen} onOpenChange={closeRegDialog}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{regEditId ? "Edit Registry" : "Add Registry"}</DialogTitle>
-            <DialogDescription>
-              {regEditId
-                ? "Update the registry configuration."
-                : "Add a private container registry for image pulls."}
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            {regEditId
+              ? "Update the registry configuration."
+              : "Add a private container registry for image pulls."}
+          </DialogDescription>
           <div className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium">

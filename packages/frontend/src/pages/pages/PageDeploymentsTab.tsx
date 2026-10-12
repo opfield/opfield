@@ -249,10 +249,10 @@ export function PageDeploymentsTab({
         >
           <DialogHeader>
             <DialogTitle>Deployment Details</DialogTitle>
-            <DialogDescription>{selectedDeployment?.publicSlug}</DialogDescription>
           </DialogHeader>
+          <DialogDescription>{selectedDeployment?.publicSlug}</DialogDescription>
           {selectedDeployment && (
-            <PanelShell icon={<PackageOpen className="h-4 w-4" />} title="Deployment">
+            <PanelShell>
               <SettingsControlRow title="Status" controlsClassName="sm:min-w-0">
                 <Badge variant={pageStatusVariant(selectedDeployment.status)}>
                   {pageStatusLabel(selectedDeployment.status)}

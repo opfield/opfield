@@ -31,6 +31,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  DIALOG_LIST_CLASS,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -724,11 +725,11 @@ function AdminUsersContent({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create User</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
             <DialogDescription>
               A person who signs in to this console, with the access of their groups.
             </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
             <ContentLoading loading={destinationFolders === null} />
             {((destinationFolders?.length ?? 0) > 0 || !hasScope("admin:users")) && (
               <div className="space-y-1.5">
@@ -890,7 +891,7 @@ function AdminUsersContent({
                 {deletedUsersSearch ? "No deleted users found." : "No deleted users."}
               </p>
             ) : (
-              <div className="max-h-[min(25rem,48dvh)] divide-y divide-border overflow-y-auto overscroll-contain">
+              <div className={`${DIALOG_LIST_CLASS} divide-y divide-border overscroll-contain`}>
                 {filteredDeletedUsers.map((user) => (
                   <div key={user.id} className="flex items-center justify-between gap-3 p-3">
                     <div className="flex min-w-0 items-center gap-3">
@@ -935,7 +936,7 @@ function AdminUsersContent({
           if (!restoring && !open) setRestoreUser(null);
         }}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Restore User</DialogTitle>
           </DialogHeader>

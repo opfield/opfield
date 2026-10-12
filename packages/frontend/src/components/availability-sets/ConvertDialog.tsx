@@ -83,13 +83,16 @@ export function ConvertDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !saving && onOpenChange(next)}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Make Available</DialogTitle>
-          <DialogDescription>
-            Keep a copy of this {ownerNoun(owner)} on another server and fail over to it.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Keep a copy of this {ownerNoun(owner)} on another server and fail over to it.
+          {preflight.result?.restartNeeded
+            ? ` The ${ownerNoun(owner)} restarts once while the copy is set up.`
+            : null}
+        </DialogDescription>
         {open ? (
           <AvailabilityCreateSection
             engine={engine}
@@ -99,7 +102,6 @@ export function ConvertDialog({
             onChange={setDraft}
             runPreflight={runPreflight}
             onPreflight={setPreflight}
-            restartNoun={ownerNoun(owner)}
             disabled={saving}
           />
         ) : null}

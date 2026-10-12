@@ -714,7 +714,9 @@ export function CodeEditor({
   return (
     <div
       ref={containerRef}
-      className={`${bordered ? "border border-border" : ""} overflow-hidden flex-1 min-h-0 ${className}`}
+      // A fixed height wins: `flex-1` would let a flex parent stretch the editor to all its lines.
+      // "100%" still fills its parent.
+      className={`${bordered ? "border border-border" : ""} overflow-hidden ${height && height !== "100%" ? "flex-none" : "flex-1 min-h-0"} ${className}`}
       style={{
         minHeight: height ? undefined : minHeight,
         ...(height ? { height } : {}),

@@ -918,19 +918,19 @@ export function DockerGitSourcePanel({
             setConnectOpen(open);
           }}
         >
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>Connect Repository</DialogTitle>
-              <DialogDescription>
-                {pagesTarget
-                  ? connectStep === 1
-                    ? "Choose the repository and application root for this Pages Project."
-                    : "Configure how Opfield builds and publishes the Pages artifact."
-                  : composeTarget
-                    ? "Build every Compose service that declares build and apply the project only after all artifacts pass policy."
-                    : "Build and deploy this Docker resource from an allowlisted repository."}
-              </DialogDescription>
             </DialogHeader>
+            <DialogDescription>
+              {pagesTarget
+                ? connectStep === 1
+                  ? "Choose the repository and application root for this Pages Project."
+                  : "Configure how Opfield builds and publishes the Pages artifact."
+                : composeTarget
+                  ? "Build every Compose service that declares build and apply the project only after all artifacts pass policy."
+                  : "Build and deploy this Docker resource from an allowlisted repository."}
+            </DialogDescription>
             {pagesTarget ? (
               <AnimatedHeight>
                 <AnimatePresence initial={false} mode="popLayout">
@@ -1648,12 +1648,12 @@ export function DockerGitSourcePanel({
               {buildSecrets.some((secret) => secret.name === secretName) ? "Replace" : "Add"} Build
               Secret
             </DialogTitle>
-            <DialogDescription>
-              {pagesTarget
-                ? "The value is exposed only to the isolated build process. VITE_* names are public and must use Build Variables."
-                : "Use the same ID in the Dockerfile with RUN --mount=type=secret. Existing values cannot be revealed."}
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            {pagesTarget
+              ? "The value is exposed only to the isolated build process. VITE_* names are public and must use Build Variables."
+              : "Use the same ID in the Dockerfile with RUN --mount=type=secret. Existing values cannot be revealed."}
+          </DialogDescription>
           <div className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium" htmlFor="build-secret-name">
@@ -1711,11 +1711,11 @@ export function DockerGitSourcePanel({
             <DialogTitle>
               {Object.hasOwn(settings.buildVariables, variableName) ? "Edit" : "Add"} Build Variable
             </DialogTitle>
-            <DialogDescription>
-              Build Variables are readable configuration. VITE_* values are embedded in the static
-              client bundle.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Build Variables are readable configuration. VITE_* values are embedded in the static
+            client bundle.
+          </DialogDescription>
           <div className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium" htmlFor="build-variable-name">
@@ -1750,7 +1750,7 @@ export function DockerGitSourcePanel({
         </DialogContent>
       </Dialog>
       <Dialog open={buildWorkerRequiredOpen} onOpenChange={setBuildWorkerRequiredOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Connect a Build Worker First</DialogTitle>
           </DialogHeader>

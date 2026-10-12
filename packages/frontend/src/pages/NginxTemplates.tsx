@@ -1,5 +1,5 @@
 import { Copy, FileCode, FolderPlus, MoreVertical, Pencil, Plus, Trash2 } from "lucide-react";
-import { type SyntheticEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type SyntheticEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
@@ -11,7 +11,7 @@ import type { ResourceListColumn } from "@/components/common/ResourceListLayout"
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CodeEditor, codeEditorHeightForLines } from "@/components/ui/code-editor";
+import { CodeEditor } from "@/components/ui/code-editor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -28,12 +28,6 @@ import { hasCreationDestination } from "@/lib/creation-folders";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import type { NginxTemplate } from "@/types";
-
-export function getTemplatePreviewEditorHeight(content: string): string {
-  const lineCount = Math.max(1, content.split("\n").length);
-  const height = Math.min(Math.max(codeEditorHeightForLines(lineCount), 120), 640);
-  return `min(64dvh, ${height}px)`;
-}
 
 /** Read-only folder that holds the built-in templates above the operator's folders. */
 const BUILTIN_FOLDER_ID = "nginx-templates-builtin";
@@ -66,10 +60,6 @@ export function NginxTemplates({
   const [previewContent, setPreviewContent] = useState("");
   const [search, setSearch] = useState("");
   const [createFolderAction, setCreateFolderAction] = useState<(() => void) | null>(null);
-  const previewEditorHeight = useMemo(
-    () => getTemplatePreviewEditorHeight(previewContent),
-    [previewContent]
-  );
 
   const load = useCallback(async () => {
     if (!canViewTemplates) {
@@ -348,7 +338,8 @@ export function NginxTemplates({
         />
       </div>
       <Dialog open={previewOpen} onOpenChange={onPreviewOpenChange}>
-        <DialogContent className="w-[92vw] sm:max-w-5xl">
+        {/* Like the rendered preview: the dialog takes the window's height, the editor fills it. */}
+        <DialogContent className="h-[calc(100dvh-6rem)] w-[92vw] sm:max-w-5xl" fillHeight>
           <DialogHeader>
             <DialogTitle>{previewTemplate?.name ?? "Template Preview"}</DialogTitle>
           </DialogHeader>
@@ -357,7 +348,7 @@ export function NginxTemplates({
             onChange={() => {}}
             readOnly
             language="nginx"
-            height={previewEditorHeight}
+            height="100%"
             lineWrapping={false}
             showGutterBorder={false}
           />

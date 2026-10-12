@@ -5,10 +5,10 @@
 // its task until it ends.
 import { useEffect, useRef, useState } from "react";
 import { Notice } from "@/components/common/Notice";
-import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  DIALOG_LIST_CLASS,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -244,14 +244,14 @@ export function RecreateWorkloadsDialog({
         if (!open && !running) onClose();
       }}
     >
-      <DialogContent className={APP_DIALOG_WIDTH} fitViewport>
+      <DialogContent className={APP_DIALOG_WIDTH}>
         <DialogHeader>
           <DialogTitle>Recreate {plural(total, "Workload")}</DialogTitle>
-          <DialogDescription>
-            {environmentName}: one at a time with the new variables and secrets. It stops at the
-            first failure.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          {environmentName}: one at a time with the new variables and secrets. It stops at the first
+          failure.
+        </DialogDescription>
         <div className="space-y-4">
           {failure ? (
             <Notice tone="destructive" title={`${failure.name} failed; the rest was not started`}>
@@ -267,28 +267,39 @@ export function RecreateWorkloadsDialog({
             </Notice>
           ) : null}
           <div className="border border-border">
-            {(shown ?? []).map((workload, index) => {
-              const state = STATE_BADGE[states[index] ?? "waiting"];
-              const detail =
-                states[index] === "failed"
-                  ? failure?.message
-                  : progress?.index === index
-                    ? progress.text
-                    : null;
-              return (
-                <SettingsControlRow
-                  key={`${workload.kind}:${workload.id}`}
-                  title={workload.name}
-                  description={
-                    detail ? `${KIND_LABEL[workload.kind]} · ${detail}` : KIND_LABEL[workload.kind]
-                  }
-                >
-                  <Badge variant={state.variant} size="inline">
-                    {state.label}
-                  </Badge>
-                </SettingsControlRow>
-              );
-            })}
+            {/* One compact row per workload, like the scope list; a long queue scrolls in place. */}
+            <div className={DIALOG_LIST_CLASS}>
+              {(shown ?? []).map((workload, index) => {
+                const state = STATE_BADGE[states[index] ?? "waiting"];
+                const detail =
+                  states[index] === "failed"
+                    ? failure?.message
+                    : progress?.index === index
+                      ? progress.text
+                      : null;
+                return (
+                  <div
+                    key={`${workload.kind}:${workload.id}`}
+                    className="flex items-center justify-between gap-3 border-b border-border px-3 py-2 last:border-b-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-foreground">{workload.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {detail
+                          ? `${KIND_LABEL[workload.kind]} · ${detail}`
+                          : KIND_LABEL[workload.kind]}
+                      </p>
+                    </div>
+                    <Badge variant={state.variant} size="inline">
+                      {state.label}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
+              {done} of {total} recreated
+            </p>
           </div>
         </div>
         <DialogFooter>

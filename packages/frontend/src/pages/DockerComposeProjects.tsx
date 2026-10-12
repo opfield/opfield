@@ -610,10 +610,10 @@ export function DockerComposeProjects({
       <DialogContent clipOverflow className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>New Compose Project</DialogTitle>
-          <DialogDescription>
-            Deploy a single-file, image-only Compose project to a Docker node.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Deploy a single-file, image-only Compose project to a Docker node.
+        </DialogDescription>
         <ComposeProjectEditor defaultNodeId={fixedNodeId} onClose={() => setCreateOpen(false)} />
       </DialogContent>
     </Dialog>
@@ -626,10 +626,8 @@ export function DockerComposeProjects({
       <DialogContent clipOverflow className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Adopt Compose Project</DialogTitle>
-          <DialogDescription>
-            Review the configuration before adopting the project.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>Review the configuration before adopting the project.</DialogDescription>
         {retainedAdoptEditorProject && (
           <ComposeProjectEditor
             projectIdOverride={retainedAdoptEditorProject.id}

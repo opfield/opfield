@@ -72,11 +72,11 @@ export function AddMemberDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !saving && onOpenChange(next)}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Add Server</DialogTitle>
-          <DialogDescription>The new server copies the data, then can take over.</DialogDescription>
         </DialogHeader>
+        <DialogDescription>The new server copies the data, then can take over.</DialogDescription>
         <div className="space-y-4">
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="availability-add-node">

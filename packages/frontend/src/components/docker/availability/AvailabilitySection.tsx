@@ -763,10 +763,10 @@ export function AvailabilitySection({
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Disable Availability</DialogTitle>
-            <DialogDescription>
-              Select the placement to keep, then type {policy?.displayName} to confirm.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Select the placement to keep, then type {policy?.displayName} to confirm.
+          </DialogDescription>
           <div className="space-y-4">
             <SettingsInlineControl label="Surviving placement">
               <Select value={survivorId} onValueChange={setSurvivorId}>

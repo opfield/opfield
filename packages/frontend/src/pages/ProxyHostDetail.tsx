@@ -12,6 +12,7 @@ import { PageBackButton } from "@/components/common/PageBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
+import { SwitchCard } from "@/components/common/SwitchCard";
 import { CreateProxyHostDialog } from "@/components/proxy/CreateProxyHostDialog";
 import { ProxyUpstreamTarget } from "@/components/proxy/ProxyUpstreamTarget";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +26,6 @@ import {
 } from "@/components/ui/dialog";
 import { HealthBars } from "@/components/ui/health-bars";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
@@ -1382,14 +1382,14 @@ export function ProxyHostDetail({
           if (!open) setMaintenanceAccessCode(null);
         }}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Maintenance Access Code</DialogTitle>
-            <DialogDescription>
-              Share this one-time code only with the person who needs temporary access. It expires
-              in 5 minutes.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Share this one-time code only with the person who needs temporary access. It expires in
+            5 minutes.
+          </DialogDescription>
           <div className="flex min-w-0 border border-input bg-background">
             <Input
               value={displayedMaintenanceAccessCode ?? ""}
@@ -1408,25 +1408,23 @@ export function ProxyHostDetail({
 
       {/* ── Pin Dialog ───────────────────────────────────────── */}
       <Dialog open={pinOpen} onOpenChange={setPinOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Pin Route</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Add to dashboard</p>
-                <p className="text-xs text-muted-foreground">Show overview card on the dashboard</p>
-              </div>
-              <Switch checked={isPinnedDashboard(id!)} onChange={() => toggleDashboard(id!)} />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Add to sidebar</p>
-                <p className="text-xs text-muted-foreground">Quick access link in the sidebar</p>
-              </div>
-              <Switch checked={isPinnedSidebar(id!)} onChange={() => toggleSidebar(id!)} />
-            </div>
+            <SwitchCard
+              label="Add to dashboard"
+              description="Show overview card on the dashboard"
+              checked={isPinnedDashboard(id!)}
+              onCheckedChange={() => toggleDashboard(id!)}
+            />
+            <SwitchCard
+              label="Add to sidebar"
+              description="Quick access link in the sidebar"
+              checked={isPinnedSidebar(id!)}
+              onCheckedChange={() => toggleSidebar(id!)}
+            />
           </div>
         </DialogContent>
       </Dialog>

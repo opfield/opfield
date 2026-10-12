@@ -11,7 +11,12 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
-import type { DatabaseConnection } from "@/types";
+import {
+  type DatabaseConnection,
+  DEFAULT_MANAGED_POSTGRES_CONFIG,
+  MANAGED_POSTGRES_MAX_CONNECTIONS,
+  MANAGED_POSTGRES_MIN_CONNECTIONS,
+} from "@/types";
 
 const FORM_ANIMATION = {
   initial: { opacity: 0, y: 4 },
@@ -66,6 +71,9 @@ export function ManagedDatabaseSettingsTab({
     managed.publishNativeTcp ?? managed.publishedNativePort !== null
   );
   const [tlsEnabled, setTlsEnabled] = useState(managed.tlsEnabled ?? true);
+  const savedMaxConnections =
+    managed.postgresConfig?.maxConnections ?? DEFAULT_MANAGED_POSTGRES_CONFIG.maxConnections;
+  const [maxConnections, setMaxConnections] = useState(String(savedMaxConnections));
   const [saving, setSaving] = useState(false);
   const [confirmingRecreate, setConfirmingRecreate] = useState(false);
 
@@ -83,7 +91,9 @@ export function ManagedDatabaseSettingsTab({
     );
     setPublishNativeTcp(managed.publishNativeTcp ?? managed.publishedNativePort !== null);
     setTlsEnabled(managed.tlsEnabled ?? true);
+    setMaxConnections(String(savedMaxConnections));
   }, [
+    savedMaxConnections,
     database.interactiveQueryBudgetSeconds,
     database.name,
     database.tags,
@@ -131,13 +141,24 @@ export function ManagedDatabaseSettingsTab({
     (Number.isInteger(queryBudget) && queryBudget >= 30 && queryBudget <= 600);
   const queryBudgetChanged =
     database.type !== "redis" && queryBudget !== (database.interactiveQueryBudgetSeconds ?? 300);
+  const requestedMaxConnections = /^\d+$/.test(maxConnections.trim())
+    ? Number(maxConnections)
+    : Number.NaN;
+  const maxConnectionsValid =
+    database.type !== "postgres" ||
+    (requestedMaxConnections >= MANAGED_POSTGRES_MIN_CONNECTIONS &&
+      requestedMaxConnections <= MANAGED_POSTGRES_MAX_CONNECTIONS);
+  const maxConnectionsChanged =
+    database.type === "postgres" && requestedMaxConnections !== savedMaxConnections;
+  // Both recreate the database container.
+  const recreates = publicationChanged || maxConnectionsChanged;
   const managedSettingsChanged =
     name.trim() !== database.name ||
     JSON.stringify(parseTags(tags)) !== JSON.stringify(database.tags) ||
     Number(cpuCores) !== managed.runtimeConfig.cpuCores ||
     Number(memoryMb) !== managed.runtimeConfig.memoryMb ||
     Number(swapMb) !== managed.runtimeConfig.swapMb ||
-    publicationChanged;
+    recreates;
 
   // The backend rejects a second change with 409 until the previous one is
   // reconciled; the page reloads on the "ready" event and unlocks the form.
@@ -157,12 +178,13 @@ export function ManagedDatabaseSettingsTab({
       swap < 0 ||
       !portIsValid ||
       !nativePortIsValid ||
-      !queryBudgetValid
+      !queryBudgetValid ||
+      !maxConnectionsValid
     ) {
       toast.error("Enter valid managed database settings");
       return;
     }
-    if (publicationChanged) {
+    if (recreates) {
       setConfirmingRecreate(true);
       const confirmed = await confirm({
         title: "Save & Recreate",
@@ -197,12 +219,13 @@ export function ManagedDatabaseSettingsTab({
               }
             : {}),
           tlsEnabled,
+          ...(maxConnectionsChanged
+            ? { postgresConfig: { maxConnections: requestedMaxConnections } }
+            : {}),
         });
       }
       toast.success(
-        publicationChanged
-          ? "Database publication updated — container recreated"
-          : "Database settings updated"
+        recreates ? "Database settings updated — container recreated" : "Database settings updated"
       );
       onSaved();
     } catch (error) {
@@ -285,6 +308,7 @@ export function ManagedDatabaseSettingsTab({
         {database.type !== "redis" && (
           <PanelShell>
             <SettingsControlRow
+              controlsClassName="sm:min-w-0"
               title="Interactive query budget"
               description="Total SQL Console execution budget shared dynamically between statements (30–600 seconds)"
             >
@@ -299,6 +323,25 @@ export function ManagedDatabaseSettingsTab({
                 className="w-32"
               />
             </SettingsControlRow>
+            {database.type === "postgres" && (
+              <SettingsControlRow
+                controlsClassName="sm:min-w-0"
+                title="Maximum connections"
+                description={`PostgreSQL max_connections, from ${MANAGED_POSTGRES_MIN_CONNECTIONS} to ${MANAGED_POSTGRES_MAX_CONNECTIONS}. Each connection is a server process with its own memory. Changing it recreates the database container; its storage is retained.`}
+              >
+                <Input
+                  aria-label="Maximum connections"
+                  aria-invalid={!maxConnectionsValid}
+                  type="number"
+                  min={MANAGED_POSTGRES_MIN_CONNECTIONS}
+                  max={MANAGED_POSTGRES_MAX_CONNECTIONS}
+                  value={maxConnections}
+                  onChange={(event) => setMaxConnections(event.target.value)}
+                  disabled={saving || confirmingRecreate || managed.status === "paused"}
+                  className="w-32"
+                />
+              </SettingsControlRow>
+            )}
           </PanelShell>
         )}
 
@@ -322,6 +365,7 @@ export function ManagedDatabaseSettingsTab({
             {publishTcp && (
               <motion.div key="published-tcp-port" {...FORM_ANIMATION}>
                 <SettingsControlRow
+                  controlsClassName="sm:min-w-0"
                   title="Published TCP port"
                   description="Leave empty to let Docker allocate a free port. Changing publication recreates only the database container; its storage is retained."
                 >
@@ -356,6 +400,7 @@ export function ManagedDatabaseSettingsTab({
                     </SettingsControlRow>
                     {publishNativeTcp && (
                       <SettingsControlRow
+                        controlsClassName="sm:min-w-0"
                         title="Native TCP port"
                         description="Leave empty to let Docker allocate a free port."
                       >
@@ -398,16 +443,17 @@ export function ManagedDatabaseSettingsTab({
               confirmingRecreate ||
               managed.status === "paused" ||
               !portIsValid ||
-              !nativePortIsValid
+              !nativePortIsValid ||
+              !maxConnectionsValid
             }
           >
             {operationPending
               ? "Applying previous change..."
               : saving
-                ? publicationChanged
+                ? recreates
                   ? "Recreating database..."
                   : "Save Changes"
-                : publicationChanged
+                : recreates
                   ? "Save & Recreate"
                   : "Save Changes"}
           </Button>

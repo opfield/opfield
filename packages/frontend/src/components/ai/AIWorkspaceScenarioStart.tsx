@@ -300,13 +300,13 @@ export function AIWorkspaceScenarioStart({
       )}
 
       <Dialog open={catalogOpen} onOpenChange={setCatalogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Scenarios</DialogTitle>
-            <DialogDescription>
-              Choose an outcome. The assistant will gather requirements before it plans any changes.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Choose an outcome. The assistant will gather requirements before it plans any changes.
+          </DialogDescription>
           <div className="space-y-5">
             {categorized.map((group) => (
               <section key={group.category} className="space-y-2">

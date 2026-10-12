@@ -59,7 +59,7 @@ export function EditableStringList({
                 variant="ghost"
                 size="icon"
                 aria-label={`Remove ${itemLabel.toLowerCase()} ${index + 1}`}
-                className="border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="border-l border-border bg-header text-muted-foreground hover:bg-muted hover:text-foreground"
                 onClick={() => remove(index)}
               >
                 <Minus className="h-4 w-4" />
@@ -71,7 +71,7 @@ export function EditableStringList({
                 variant="ghost"
                 size="icon"
                 aria-label={`Add ${itemLabel.toLowerCase()}`}
-                className="border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="border-l border-border bg-header text-muted-foreground hover:bg-muted hover:text-foreground"
                 onClick={add}
               >
                 <Plus className="h-4 w-4" />

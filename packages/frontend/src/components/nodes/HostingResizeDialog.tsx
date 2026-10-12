@@ -155,10 +155,10 @@ export function HostingResizeDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Resize Provider Resource</DialogTitle>
-          <DialogDescription>
-            Configure the VM resources. Shut down the VM before resizing; disks can only grow.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Configure the VM resources. Shut down the VM before resizing; disks can only grow.
+        </DialogDescription>
         {displayed && (
           <div className="space-y-4">
             <PanelShell

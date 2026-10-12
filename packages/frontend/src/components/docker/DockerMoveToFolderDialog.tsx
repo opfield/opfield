@@ -91,13 +91,13 @@ export function DockerMoveToFolderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Move to Folder</DialogTitle>
-          <DialogDescription>
-            Select a destination folder or move to root (ungrouped).
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Select a destination folder or move to root (ungrouped).
+        </DialogDescription>
         <div className="border border-border">
           <button
             type="button"

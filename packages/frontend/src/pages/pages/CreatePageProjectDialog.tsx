@@ -162,10 +162,8 @@ export function CreatePageProjectDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Create Page Project</DialogTitle>
-          <DialogDescription>
-            Create a static site project for webhook deployments.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>Create a static site project for webhook deployments.</DialogDescription>
         <div className="space-y-4">
           {appContext && (
             <AppEnvironmentFields

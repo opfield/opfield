@@ -1,7 +1,6 @@
 import { ArchiveRestore, Download, Route } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CheckboxCard } from "@/components/common/CheckboxCard";
 import { confirmAction } from "@/components/common/ConfirmDialog";
 import { DetailRow } from "@/components/common/DetailRow";
 import { Notice } from "@/components/common/Notice";
@@ -9,6 +8,7 @@ import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import { SimpleTable } from "@/components/common/SimpleTable";
+import { SwitchCard } from "@/components/common/SwitchCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -221,7 +221,7 @@ function ExportDialog({
               ) : null}
             </div>
             <div className="space-y-2">
-              <CheckboxCard
+              <SwitchCard
                 checked={includeRegistry && registry.available}
                 disabled={!registry.available}
                 onCheckedChange={setIncludeRegistry}
@@ -232,7 +232,7 @@ function ExportDialog({
                     : (registry.reason ?? "Not available")
                 }
               />
-              <CheckboxCard
+              <SwitchCard
                 checked={includeLogs && logs.available}
                 disabled={!logs.available}
                 onCheckedChange={setIncludeLogs}

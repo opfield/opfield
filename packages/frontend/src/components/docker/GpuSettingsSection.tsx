@@ -266,14 +266,14 @@ export function GpuSettingsSection({
           setGpuAddOpen(open);
         }}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Add GPU</DialogTitle>
-            <DialogDescription>
-              Physical GPUs are shared with other containers on this node. This selection is applied
-              when you save and recreate this container.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Physical GPUs are shared with other containers on this node. This selection is applied
+            when you save and recreate this container.
+          </DialogDescription>
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="container-gpu-device">
               GPU

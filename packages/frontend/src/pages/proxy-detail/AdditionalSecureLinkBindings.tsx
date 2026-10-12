@@ -413,14 +413,14 @@ export function AdditionalSecureLinkBindings({
           else resetDraft();
         }}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Add Binding</DialogTitle>
-            <DialogDescription>
-              Connect a Docker workload or managed S3 storage through Relay for use in this Route's
-              Advanced config.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Connect a Docker workload or managed S3 storage through Relay for use in this Route's
+            Advanced config.
+          </DialogDescription>
           <div className="space-y-4">
             <div className="space-y-1.5">
               <label htmlFor={`${fieldId}-name`} className="block text-sm font-medium">

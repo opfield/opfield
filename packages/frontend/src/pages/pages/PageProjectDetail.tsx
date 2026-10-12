@@ -125,14 +125,14 @@ function MigrateProjectDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Migrate Page Project</DialogTitle>
-          <DialogDescription>
-            Stage static releases and previews on another Pages-capable node, then switch this
-            Project.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Stage static releases and previews on another Pages-capable node, then switch this
+          Project.
+        </DialogDescription>
         <div className="space-y-1.5">
           <label htmlFor="page-project-migration-node" className="text-sm font-medium">
             New home node
@@ -220,13 +220,13 @@ curl -X POST '${window.location.origin}/api/pages-deploy/uploads/<upload-id>/fin
   -H 'Authorization: Bearer <deploy-token>'`;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Deploy Instructions</DialogTitle>
-          <DialogDescription>
-            Upload a prebuilt static archive through the resumable webhook API.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Upload a prebuilt static archive through the resumable webhook API.
+        </DialogDescription>
         <div className="space-y-4">
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Create Upload</label>

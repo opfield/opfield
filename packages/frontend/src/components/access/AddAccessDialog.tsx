@@ -5,6 +5,7 @@ import {
   gitScopeTruncationHint,
   searchGitScopeTargets,
 } from "@/components/common/git-scope-targets";
+import { SwitchCard } from "@/components/common/SwitchCard";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { GitScopeProvider } from "@/types";
@@ -496,11 +496,11 @@ export function AddAccessDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg" fitViewport>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{line ? "Edit Access" : "Add Access"}</DialogTitle>
-          <DialogDescription>For {subject}.</DialogDescription>
         </DialogHeader>
+        <DialogDescription>For {subject}.</DialogDescription>
         <div className="space-y-4">
           <Tabs value={draft.tab} onValueChange={(value) => update({ tab: value as Draft["tab"] })}>
             <TabsList>
@@ -634,37 +634,31 @@ export function AddAccessDialog({
                   }
                 />
               </Field>
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium">May delete resources</p>
-                  <p className="text-xs text-muted-foreground">
+              <SwitchCard
+                label="May delete resources"
+                description={
+                  <>
                     {roleCanDelete(draft.role)
                       ? "Off: the role can change resources but not delete them."
                       : "Developer and Operator only."}
-                  </p>
-                </div>
-                <Switch
-                  checked={draft.mayDelete && roleCanDelete(draft.role)}
-                  onChange={(mayDelete) => update({ mayDelete })}
-                  disabled={!roleCanDelete(draft.role)}
-                  ariaLabel="May delete resources"
-                />
-              </div>
+                  </>
+                }
+                checked={draft.mayDelete && roleCanDelete(draft.role)}
+                onCheckedChange={(mayDelete) => update({ mayDelete })}
+                disabled={!roleCanDelete(draft.role)}
+              />
               {draft.where === "folder" && typesManagingFolders(draft.types).length > 0 && (
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-medium">Manage subfolders</p>
-                    <p className="text-xs text-muted-foreground">
+                <SwitchCard
+                  label="Manage subfolders"
+                  description={
+                    <>
                       Create, rename, move and delete folders inside this folder (
                       {typesText(typesManagingFolders(draft.types))}).
-                    </p>
-                  </div>
-                  <Switch
-                    checked={draft.manageFolders}
-                    onChange={(manageFolders) => update({ manageFolders })}
-                    ariaLabel="Manage subfolders"
-                  />
-                </div>
+                    </>
+                  }
+                  checked={draft.manageFolders}
+                  onCheckedChange={(manageFolders) => update({ manageFolders })}
+                />
               )}
             </>
           ) : connectorOptions.length === 0 ? (

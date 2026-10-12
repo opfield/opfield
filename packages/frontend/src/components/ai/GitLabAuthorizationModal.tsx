@@ -153,7 +153,7 @@ export function GitLabAuthorizationModal() {
             <Button variant="outline" className="w-full" asChild>
               <a href={authorizationUrl} target="_blank" rel="noopener noreferrer">
                 Create personal access token in {providerLabel}
-                <ExternalLink className="ml-2 h-4 w-4" />
+                <ExternalLink className="h-4 w-4" />
               </a>
             </Button>
           ) : null}

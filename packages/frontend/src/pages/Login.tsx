@@ -467,7 +467,7 @@ export function LoginPage({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="relative shrink-0 rounded-none border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+                    className="relative shrink-0 rounded-none border-l border-border bg-header text-muted-foreground hover:bg-muted hover:text-foreground"
                     onClick={() => setShowResetPassword((current) => !current)}
                     aria-label={showResetPassword ? "Hide password" : "Show password"}
                     title={showResetPassword ? "Hide password" : "Show password"}
@@ -940,7 +940,7 @@ export function LoginPage({
         </AnimatePresence>
       </AnimatedHeight>
       <Dialog open={passwordResetConfirmOpen} onOpenChange={setPasswordResetConfirmOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Reset Password?</DialogTitle>
           </DialogHeader>

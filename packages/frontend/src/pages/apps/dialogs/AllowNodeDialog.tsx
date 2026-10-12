@@ -21,7 +21,6 @@ import { nodeTypeLabel } from "@/lib/node-appearance";
 import { api } from "@/services/api";
 import type { AppDetail, AppEnvironmentDetail, Node } from "@/types";
 import { nodeDisplayName } from "../use-node-index";
-import { APP_DIALOG_WIDTH } from "./AppNameDialog";
 
 /** Allow Node: pick from the node list; the node itself does not move. */
 export function AllowNodeDialog({
@@ -70,14 +69,14 @@ export function AllowNodeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={APP_DIALOG_WIDTH}>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Allow Node</DialogTitle>
-          <DialogDescription>
-            Resources of {env.name} can then be created on it. The node stays in the node list and
-            in its folder.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Resources of {env.name} can then be created on it. The node stays in the node list and in
+          its folder.
+        </DialogDescription>
         <div className="space-y-1.5">
           <label className="text-sm font-medium" htmlFor="app-allow-node">
             Node

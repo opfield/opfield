@@ -2,15 +2,16 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CheckboxCard } from "@/components/common/CheckboxCard";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { ScopeList } from "@/components/common/ScopeList";
 import {
   ScopeSearchFilter,
   type ScopeSelectionFilter,
 } from "@/components/common/ScopeSearchFilter";
+import { SwitchCard } from "@/components/common/SwitchCard";
 import { Button } from "@/components/ui/button";
 import {
+  DIALOG_LIST_CLASS,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -714,10 +715,10 @@ export function AlertDialog({
       <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit Alert" : "New Alert"}</DialogTitle>
-          <DialogDescription>
-            Step {step} of 3 — {STEP_LABELS[step - 1]}
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Step {step} of 3 — {STEP_LABELS[step - 1]}
+        </DialogDescription>
 
         <AnimatedHeight>
           <ContentLoading loading={categoriesLoading || webhooksLoading || resourcesLoading} />
@@ -1073,7 +1074,7 @@ export function AlertDialog({
               <motion.div key="step-2" {...STEP_ANIMATION} className="space-y-5">
                 {/* Scope */}
                 <div className="space-y-3">
-                  <CheckboxCard
+                  <SwitchCard
                     label={`Limit to specific ${cat?.label?.toLowerCase() ?? category}s`}
                     description={
                       scopeEnabled
@@ -1110,7 +1111,7 @@ export function AlertDialog({
                           selected={resourceIds}
                           onToggle={toggleResource}
                           readOnly={!scopeEnabled}
-                          viewportClassName="max-sm:max-h-[30vh] max-sm:overflow-y-auto"
+                          viewportClassName={DIALOG_LIST_CLASS}
                         />
                       )}
                     </div>
@@ -1201,7 +1202,7 @@ export function AlertDialog({
                           selectionFilter={webhookFilter}
                           selected={selectedWebhookIds}
                           onToggle={toggleWebhook}
-                          viewportClassName="max-sm:max-h-[25vh] max-sm:overflow-y-auto"
+                          viewportClassName={DIALOG_LIST_CLASS}
                         />
                       </div>
                       <div className="border-t border-border px-3 py-1.5">

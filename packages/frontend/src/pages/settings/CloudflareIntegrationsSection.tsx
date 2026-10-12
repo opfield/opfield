@@ -318,15 +318,15 @@ export function CloudflareIntegrationsSection() {
         open={dialogOpen}
         onOpenChange={(open) => (open ? setDialogOpen(true) : closeDialog())}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader className="shrink-0">
             <DialogTitle>
               {editingConnector ? "Cloudflare Connector" : "Add Cloudflare Connector"}
             </DialogTitle>
-            <DialogDescription>
-              Configure the system API token used for Opfield-managed DNS records.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Configure the system API token used for Opfield-managed DNS records.
+          </DialogDescription>
 
           {loadingDetail ? (
             // Reports the connector detail load to the dialog, which opens once it is ready.
@@ -365,7 +365,7 @@ export function CloudflareIntegrationsSection() {
                   />
                   <Button
                     variant="ghost"
-                    className="shrink-0 rounded-none border-l border-border bg-muted px-3 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    className="shrink-0 rounded-none border-l border-border bg-header px-3 text-muted-foreground hover:bg-muted hover:text-foreground"
                     onClick={() => void testConnectionForDialog()}
                     disabled={!editingConnector && !form.token.trim()}
                     pending={testingConnection}

@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { CheckboxCard } from "@/components/common/CheckboxCard";
 import { Button } from "@/components/ui/button";
 import {
+  DIALOG_LIST_CLASS,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -118,12 +119,12 @@ export function IngressGroupDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{editing ? "Edit Ingress Group" : "New Ingress Group"}</DialogTitle>
-          <DialogDescription>
-            Nginx nodes, normally one per site, that serve the same routes and domains. Each member
-            keeps its own config and certificates, so it keeps serving when another member or
-            Opfield is down.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Nginx nodes, normally one per site, that serve the same routes and domains. Each member
+          keeps its own config and certificates, so it keeps serving when another member or Opfield
+          is down.
+        </DialogDescription>
         <div className="space-y-4">
           <div className="space-y-1.5">
             <label htmlFor={`${id}-name`} className="text-sm font-medium">
@@ -156,7 +157,7 @@ export function IngressGroupDialog({
                 Select in site-preference order: the first selected node is preferred. Only nginx
                 nodes whose daemon supports ingress groups are listed.
               </p>
-              <div className="max-h-64 space-y-2 overflow-y-auto">
+              <div className={`${DIALOG_LIST_CLASS} space-y-2`}>
                 {nodes.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     No nginx node supports ingress groups yet. Update the nginx daemons first.

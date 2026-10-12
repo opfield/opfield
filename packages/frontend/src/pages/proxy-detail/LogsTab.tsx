@@ -11,6 +11,7 @@ import {
 } from "@/components/common/ResourceListLayout";
 import { Badge } from "@/components/ui/badge";
 import {
+  DIALOG_LIST_CLASS,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -412,15 +413,15 @@ export function LogsTab({ hostId }: { hostId: string }) {
       </ResourceListFrame>
 
       <Dialog open={selectedLogOpen} onOpenChange={onSelectedLogOpenChange}>
-        <DialogContent className="max-w-full sm:max-w-3xl">
+        <DialogContent className="max-w-full sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Log Details</DialogTitle>
-            <DialogDescription>
-              <span className="font-mono text-xs">
-                {selectedLog ? `${selectedLog.logType || "log"} ${selectedLog.timestamp}` : ""}
-              </span>
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            <span className="font-mono text-xs">
+              {selectedLog ? `${selectedLog.logType || "log"} ${selectedLog.timestamp}` : ""}
+            </span>
+          </DialogDescription>
           {selectedLog && (
             <div className="min-w-0 space-y-4">
               <div className="min-w-0 divide-y divide-border overflow-hidden border border-border bg-card">
@@ -451,7 +452,9 @@ export function LogsTab({ hostId }: { hostId: string }) {
               </div>
               <div className="min-w-0 space-y-1.5">
                 <div className="text-sm text-muted-foreground">Raw</div>
-                <pre className="max-h-64 min-w-0 overflow-auto whitespace-pre-wrap break-all border border-border bg-muted/30 p-3 font-mono text-xs leading-5 text-foreground">
+                <pre
+                  className={`${DIALOG_LIST_CLASS} min-w-0 whitespace-pre-wrap break-all border border-border bg-muted/30 p-3 font-mono text-xs leading-5 text-foreground`}
+                >
                   {selectedLog.raw || "-"}
                 </pre>
               </div>

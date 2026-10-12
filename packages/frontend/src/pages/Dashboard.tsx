@@ -2,10 +2,12 @@ import { AlertTriangle, ArrowUpCircle, Info, RotateCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ContentLoading } from "@/components/common/ContentLoading";
+import { DetailRow } from "@/components/common/DetailRow";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { Notice, NoticeAction } from "@/components/common/Notice";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
+import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { Button } from "@/components/ui/button";
 import {
@@ -211,7 +213,7 @@ export function RelayHealthNotice({
       </Notice>
 
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{copy.dialogTitle}</DialogTitle>
           </DialogHeader>
@@ -219,28 +221,22 @@ export function RelayHealthNotice({
           {isAdmin ? <DialogDescription>{copy.description}</DialogDescription> : null}
 
           {isAdmin ? (
-            <div className="border border-border bg-muted/40">
-              <table className="w-full table-fixed text-sm">
-                <tbody className="divide-y divide-border">
-                  {diagnostics.map((diagnostic) => (
-                    <tr key={diagnostic.label}>
-                      <th
-                        scope="row"
-                        className="w-32 px-3 py-2.5 text-left align-top font-normal text-muted-foreground"
-                      >
-                        {diagnostic.label}
-                      </th>
-                      <td
-                        className={`px-3 py-2.5 align-top text-foreground ${diagnostic.breakAll ? "break-all" : "break-words"}`}
-                        title={diagnostic.title}
-                      >
-                        {diagnostic.value}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <PanelShell bodyClassName="divide-y divide-border">
+              {diagnostics.map((diagnostic) => (
+                <DetailRow
+                  key={diagnostic.label}
+                  label={diagnostic.label}
+                  value={
+                    <span
+                      className={diagnostic.breakAll ? "break-all" : "break-words"}
+                      title={diagnostic.title}
+                    >
+                      {diagnostic.value}
+                    </span>
+                  }
+                />
+              ))}
+            </PanelShell>
           ) : (
             <div className="space-y-3 text-sm text-muted-foreground">
               <DialogDescription>{copy.description}</DialogDescription>

@@ -61,11 +61,11 @@ export function AIContextUsageDialog({ usage, onClose }: AIContextUsageDialogPro
         if (!open) onClose();
       }}
     >
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Context Usage</DialogTitle>
-          <DialogDescription>Estimated context for the next assistant request.</DialogDescription>
         </DialogHeader>
+        <DialogDescription>Estimated context for the next assistant request.</DialogDescription>
 
         {displayedUsage && (
           <div className="space-y-3">

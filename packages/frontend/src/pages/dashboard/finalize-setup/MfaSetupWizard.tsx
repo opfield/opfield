@@ -1,5 +1,5 @@
 import { startRegistration } from "@simplewebauthn/browser";
-import { Check, KeyRound, ShieldCheck, Smartphone } from "lucide-react";
+import { Check, Fingerprint, ShieldCheck, Smartphone } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
 import { ChoiceCard } from "@/components/common/ChoiceCard";
@@ -154,7 +154,7 @@ export function MfaSetupWizard({
       {screen === "method" ? (
         <div className="space-y-3">
           <ChoiceCard
-            icon={KeyRound}
+            icon={Fingerprint}
             title="Add a passkey"
             description="Use this device, a password manager, or a security key."
             pending={saving && pendingChoice === "passkey"}

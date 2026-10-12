@@ -80,6 +80,73 @@ export function assertNoNestedDialogVerticalScroll(children: React.ReactNode[]) 
   }
 }
 
+/**
+ * Marks a long list inside a dialog (scopes, containers, raw text). The dialog sizes it to the room
+ * left in the window between the header, the fields and the footer, so the list scrolls on its own
+ * and the dialog body never does. A long list stays at least DIALOG_LIST_MIN_HEIGHT_PX tall; only in
+ * a window too low even for that does the whole dialog scroll as well.
+ */
+export const DIALOG_LIST_CLASS = "dialog-list";
+const DIALOG_LIST_MIN_HEIGHT_PX = 256;
+
+function fitDialogLists(panel: HTMLElement) {
+  const lists = [...panel.querySelectorAll<HTMLElement>(`.${DIALOG_LIST_CLASS}`)];
+  if (lists.length === 0) return;
+  const body = panel.querySelector<HTMLElement>(":scope > [data-dialog-body]");
+  const overlay = panel.parentElement;
+  // Phones: the sheet scrolls its body. From sm the overlay scrolls the whole dialog.
+  const bodyScrolls = body ? getComputedStyle(body).overflowY !== "visible" : false;
+  const scroller = bodyScrolls ? body : overlay;
+  if (!scroller) return;
+  const scrollTops = lists.map((list) => list.scrollTop);
+  const scrollerTop = scroller.scrollTop;
+  const overflowOf = () => {
+    if (bodyScrolls && body) return body.scrollHeight - body.clientHeight;
+    if (!overlay) return 0;
+    const style = getComputedStyle(overlay);
+    const room =
+      overlay.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+    return panel.offsetHeight - room;
+  };
+  const release = () => {
+    for (const list of lists) {
+      list.style.maxHeight = "none";
+      list.style.overflowY = "visible";
+      list.removeAttribute("data-dialog-list-scrolls");
+    }
+  };
+  release();
+  let overflow = overflowOf();
+  if (overflow > 0) {
+    // Lists side by side (one row of a grid) shrink together to one height.
+    const rows = new Map<number, HTMLElement[]>();
+    for (const list of lists) {
+      const top = Math.round(list.getBoundingClientRect().top);
+      rows.set(top, [...(rows.get(top) ?? []), list]);
+    }
+    const byHeight = [...rows.values()]
+      .map((row) => ({ row, height: Math.max(...row.map((list) => list.offsetHeight)) }))
+      .sort((a, b) => b.height - a.height);
+    for (const { row, height } of byHeight) {
+      const shrink = Math.min(overflow, height - DIALOG_LIST_MIN_HEIGHT_PX);
+      if (shrink <= 0) continue;
+      const target = height - shrink;
+      for (const list of row) {
+        if (list.offsetHeight <= target) continue;
+        list.style.maxHeight = `${target}px`;
+        list.style.overflowY = "auto";
+        list.setAttribute("data-dialog-list-scrolls", "");
+      }
+      overflow -= shrink;
+      if (overflow <= 0) break;
+    }
+  }
+  lists.forEach((list, index) => {
+    list.scrollTop = scrollTops[index];
+  });
+  scroller.scrollTop = scrollerTop;
+}
+
 // A dialog whose content is loading stays hidden, overlay included, and opens
 // complete once its data is in. Meanwhile the button that opened it shows a
 // spinner; without such a button the screen dims with a spinner after a moment.
@@ -131,11 +198,6 @@ type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.
   unstyled?: boolean;
   clipOverflow?: boolean;
   /**
-   * For a long list (the scope picker): the dialog grows with its body up to min(95dvh, 900px),
-   * stays centered, and its body scrolls between the header and the footer.
-   */
-  fitViewport?: boolean;
-  /**
    * For a dialog given a fixed height (an editor or preview): the body takes the height left under
    * the header, so a child with `flex-1` or `height: 100%` fills it.
    */
@@ -148,7 +210,7 @@ const DialogContentPanel = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
 >(({ className, children, hideCloseButton, unstyled, clipOverflow, ...rest }, ref) => {
-  const { fitViewport, fillHeight, ...props } = rest;
+  const { fillHeight, ...props } = rest;
   const [bodyScrolled, setBodyScrolled] = React.useState(false);
   // With an opener its spinner shows from the click, so there is no screen
   // indicator to delay or hold; the dialog opens as soon as the data is in.
@@ -189,6 +251,29 @@ const DialogContentPanel = React.forwardRef<
     if (!overlay) return;
     overlay.style.animationPlayState = overlayHeld ? "paused" : "";
   }, [overlayHeld]);
+  React.useLayoutEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    let frame = 0;
+    const schedule = () => {
+      if (!frame) {
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          fitDialogLists(panel);
+        });
+      }
+    };
+    fitDialogLists(panel);
+    window.addEventListener("resize", schedule);
+    // Rows added, filtered or expanded change the room the list needs.
+    const observer = new MutationObserver(schedule);
+    observer.observe(panel, { childList: true, subtree: true, characterData: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", schedule);
+      observer.disconnect();
+    };
+  }, []);
   const showScreenIndicator = waiting && opener === null && gate.phase === "loading";
   const contentClassName = stripOuterOverflowClasses(className);
   const childArray = React.Children.toArray(children);
@@ -251,7 +336,7 @@ const DialogContentPanel = React.forwardRef<
           "dialog-content relative z-50 flex w-full max-w-none flex-col border bg-background p-0 shadow-lg outline-none",
           "max-h-[85dvh]",
           "sm:mx-auto sm:my-auto sm:max-w-lg",
-          fitViewport ? "sm:max-h-[95dvh]" : "sm:max-h-none",
+          "sm:max-h-none",
           contentClassName,
           clipOverflow && "sm:overflow-clip",
           "max-sm:flex max-sm:max-h-[85dvh] max-sm:flex-col max-sm:gap-0 max-sm:overflow-hidden max-sm:p-0"
@@ -286,7 +371,6 @@ const DialogContentPanel = React.forwardRef<
                 data-dialog-body=""
                 className={cn(
                   "relative min-h-0 min-w-0 px-4 max-sm:flex-1 max-sm:overflow-y-auto max-sm:overscroll-contain sm:px-6",
-                  fitViewport && "sm:overflow-y-auto sm:overscroll-contain",
                   fillHeight && "flex flex-1 flex-col",
                   // One column the body's width: no child can widen the dialog.
                   bodyChildren.length > 1 && "grid grid-cols-1 gap-4",
@@ -320,8 +404,7 @@ const DialogContent = React.forwardRef<
   DialogContentProps
 >((props, ref) => (
   <DialogPortal>
-    {/* A dialog fitted to the viewport is centered in it, without the overlay's page padding. */}
-    <DialogOverlay className={props.fitViewport ? "sm:items-center sm:py-0" : undefined}>
+    <DialogOverlay>
       <DialogContentPanel ref={ref} {...props} />
     </DialogOverlay>
   </DialogPortal>

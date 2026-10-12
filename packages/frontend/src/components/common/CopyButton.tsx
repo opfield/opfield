@@ -88,7 +88,7 @@ export function CopyButton({ value, label, className, iconClassName }: CopyButto
       variant="ghost"
       size="icon"
       className={cn(
-        "relative shrink-0 rounded-none bg-muted text-muted-foreground hover:bg-muted hover:text-foreground",
+        "relative shrink-0 rounded-none bg-header text-muted-foreground hover:bg-muted hover:text-foreground",
         className
       )}
       onClick={() => void handleCopy()}

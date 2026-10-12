@@ -133,13 +133,13 @@ export function PageProjectSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Project Settings</DialogTitle>
-          <DialogDescription>
-            Update project details, retention, storage quota, and preview links.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Update project details, retention, storage quota, and preview links.
+        </DialogDescription>
         <PanelShell
           icon={<Settings className="h-4 w-4" />}
           title="Project"

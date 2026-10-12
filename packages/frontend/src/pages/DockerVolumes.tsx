@@ -679,14 +679,14 @@ export function DockerVolumes({
 
       {/* Create Volume Dialog */}
       <Dialog open={createOpen} onOpenChange={closeCreate}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Create Volume</DialogTitle>
-            <DialogDescription>
-              Create a new volume on{" "}
-              {selectedNode?.displayName || selectedNode?.hostname || "the selected node"}.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Create a new volume on{" "}
+            {selectedNode?.displayName || selectedNode?.hostname || "the selected node"}.
+          </DialogDescription>
           <AnimatedHeight>
             <div className="space-y-4">
               <div className="space-y-1.5">

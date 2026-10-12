@@ -89,11 +89,11 @@ export function ManagedStorageLinkDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Add Managed Storage Link</DialogTitle>
-          <DialogDescription>
-            {containerName} will reach this cluster through a private connector. Credentials are
-            stored as managed Docker secrets.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          {containerName} will reach this cluster through a private connector. Credentials are
+          stored as managed Docker secrets.
+        </DialogDescription>
 
         <div className="space-y-3">
           <label className="block space-y-1.5">

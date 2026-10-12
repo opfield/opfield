@@ -876,7 +876,7 @@ export function DockerVolumeDetail({
         </div>
       </div>
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Rename Volume</DialogTitle>
           </DialogHeader>
@@ -905,7 +905,7 @@ export function DockerVolumeDetail({
         </DialogContent>
       </Dialog>
       <Dialog open={resizeOpen} onOpenChange={setResizeOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Resize Volume</DialogTitle>
           </DialogHeader>

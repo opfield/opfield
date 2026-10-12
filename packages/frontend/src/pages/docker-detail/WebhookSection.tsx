@@ -258,7 +258,7 @@ export function WebhookSection(props: WebhookSectionProps) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="shrink-0 rounded-none border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+                      className="shrink-0 rounded-none border-l border-border bg-header text-muted-foreground hover:bg-muted hover:text-foreground"
                       onClick={handleRegenerate}
                       title="Regenerate URL"
                       aria-label="Regenerate URL"

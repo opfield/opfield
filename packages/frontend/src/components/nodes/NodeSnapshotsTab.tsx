@@ -1,7 +1,6 @@
 import { Camera, FolderPlus, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CheckboxCard } from "@/components/common/CheckboxCard";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { DetailRow } from "@/components/common/DetailRow";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -10,6 +9,7 @@ import { Notice } from "@/components/common/Notice";
 import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
+import { SwitchCard } from "@/components/common/SwitchCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -765,10 +765,10 @@ export function NodeSnapshotsTab({
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Snapshot Details</DialogTitle>
-            <DialogDescription>VM snapshot information.</DialogDescription>
           </DialogHeader>
+          <DialogDescription>VM snapshot information.</DialogDescription>
           {details && (
-            <div className="divide-y divide-border border border-border">
+            <PanelShell bodyClassName="divide-y divide-border">
               <DetailRow label="Name" value={<span className="break-all">{details.name}</span>} />
               <DetailRow
                 label="Status"
@@ -814,7 +814,7 @@ export function NodeSnapshotsTab({
                   value={<span className="break-all">{details.error}</span>}
                 />
               )}
-            </div>
+            </PanelShell>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDetailsId(null)}>
@@ -829,15 +829,15 @@ export function NodeSnapshotsTab({
           if (!busy) setCreateOpen(open);
         }}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Create VM Snapshot</DialogTitle>
-            <DialogDescription>
-              Save the VM disk state while it keeps running. Pause application writes for consistent
-              data. Attached volumes may be excluded.
-              {view?.provider !== "proxmox" && " Provider storage charges may apply."}
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Save the VM disk state while it keeps running. Pause application writes for consistent
+            data. Attached volumes may be excluded.
+            {view?.provider !== "proxmox" && " Provider storage charges may apply."}
+          </DialogDescription>
           <Input
             aria-label="Snapshot name"
             placeholder="Snapshot name"
@@ -854,7 +854,7 @@ export function NodeSnapshotsTab({
             disabled={busy}
           />
           {view?.provider === "proxmox" && (
-            <CheckboxCard
+            <SwitchCard
               label="Include RAM"
               description={
                 view.powerState === "running"

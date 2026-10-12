@@ -28,7 +28,7 @@ export function CopyCodeBlock({
         >
           {value}
         </div>
-        <div className="border-l border-border bg-muted">
+        <div className="border-l border-border bg-header">
           <CopyButton value={copyValue} label={label} iconClassName="h-3.5 w-3.5" />
         </div>
       </div>

@@ -1027,7 +1027,7 @@ export const ManagedDatabaseLinksSection = forwardRef<
       )}
 
       <Dialog open={noAvailableDatabasesOpen} onOpenChange={setNoAvailableDatabasesOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>No Managed Databases Available</DialogTitle>
           </DialogHeader>
@@ -1058,14 +1058,14 @@ export const ManagedDatabaseLinksSection = forwardRef<
       </Dialog>
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Add Managed Database Link</DialogTitle>
-            <DialogDescription>
-              Opfield will inject the selected connection into this workload when you save and
-              recreate it.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Opfield will inject the selected connection into this workload when you save and
+            recreate it.
+          </DialogDescription>
 
           <AnimatedHeight>
             <AnimatePresence mode="popLayout" initial={false}>

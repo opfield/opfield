@@ -12,9 +12,9 @@ import {
 } from "@/components/common/ManagedCertificateStatus";
 import { ManagedInstanceNotice } from "@/components/common/ManagedInstanceNotice";
 import { PageTransition } from "@/components/common/PageTransition";
+import { SwitchCard } from "@/components/common/SwitchCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { HealthBars } from "@/components/ui/health-bars";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
@@ -50,7 +50,6 @@ import {
 } from "./database-detail/database-detail-state";
 import { ManagedDatabaseSettingsTab } from "./database-detail/ManagedDatabaseSettingsTab";
 import { MoveToValkeyDialog } from "./database-detail/MoveToValkeyDialog";
-import { PostgresConfigDialog } from "./database-detail/PostgresConfigDialog";
 import {
   PostgresExtensionsTab,
   postgresExtensionsCacheKey,
@@ -111,7 +110,6 @@ function DatabaseDetailContent({
   const [resizeOpen, setResizeOpen] = useState(false);
   const [clickHouseConfigOpen, setClickHouseConfigOpen] = useState(false);
   const [redisConfigOpen, setRedisConfigOpen] = useState(false);
-  const [postgresConfigOpen, setPostgresConfigOpen] = useState(false);
   const [moveToValkeyOpen, setMoveToValkeyOpen] = useState(false);
   const [explorerFocused, setExplorerFocused] = useState(false);
   const [revealedCredentials, setRevealedCredentials] = useState<Record<string, unknown> | null>(
@@ -663,9 +661,6 @@ function DatabaseDetailContent({
               canConfigureRedis={
                 canManageSettings && database.type === "redis" && !!database.managed
               }
-              canConfigurePostgres={
-                canManageSettings && database.type === "postgres" && !!database.managed
-              }
               canMoveToValkey={canMoveToValkey}
               moveToValkeyDisabledReason={moveToValkeyDisabledReason}
               canReveal={canReveal}
@@ -685,7 +680,6 @@ function DatabaseDetailContent({
               onRestart={() => void restart()}
               onConfigureClickHouse={() => setClickHouseConfigOpen(true)}
               onConfigureRedis={() => setRedisConfigOpen(true)}
-              onConfigurePostgres={() => setPostgresConfigOpen(true)}
               onMoveToValkey={() => setMoveToValkeyOpen(true)}
               onRevealCredentials={() => void revealCredentials()}
               onRotateDirectCredentials={() => void rotateDirectCredentials()}
@@ -865,7 +859,7 @@ function DatabaseDetailContent({
       />
 
       <Dialog open={privateManagedInfoOpen} onOpenChange={setPrivateManagedInfoOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Private Managed Database</DialogTitle>
           </DialogHeader>
@@ -880,49 +874,39 @@ function DatabaseDetailContent({
       </Dialog>
 
       <Dialog open={pinOpen} onOpenChange={setPinOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Pin Database</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Add to dashboard</p>
-                <p className="text-xs text-muted-foreground">
-                  Show a compact health card on the dashboard
-                </p>
-              </div>
-              <Switch
-                checked={isPinnedDashboard(database.id)}
-                onChange={() => {
-                  toggleDashboard(database.id, {
-                    slug: database.slug,
-                    name: database.name,
-                    type: database.type,
-                    healthStatus: liveHealthStatus,
-                  });
-                  usePinnedDatabasesStore.getState().invalidate();
-                }}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Add to sidebar</p>
-                <p className="text-xs text-muted-foreground">Quick access link in the sidebar</p>
-              </div>
-              <Switch
-                checked={isPinnedSidebar(database.id)}
-                onChange={() => {
-                  toggleSidebar(database.id, {
-                    slug: database.slug,
-                    name: database.name,
-                    type: database.type,
-                    healthStatus: liveHealthStatus,
-                  });
-                  usePinnedDatabasesStore.getState().invalidate();
-                }}
-              />
-            </div>
+            <SwitchCard
+              label="Add to dashboard"
+              description="Show a compact health card on the dashboard"
+              checked={isPinnedDashboard(database.id)}
+              onCheckedChange={() => {
+                toggleDashboard(database.id, {
+                  slug: database.slug,
+                  name: database.name,
+                  type: database.type,
+                  healthStatus: liveHealthStatus,
+                });
+                usePinnedDatabasesStore.getState().invalidate();
+              }}
+            />
+            <SwitchCard
+              label="Add to sidebar"
+              description="Quick access link in the sidebar"
+              checked={isPinnedSidebar(database.id)}
+              onCheckedChange={() => {
+                toggleSidebar(database.id, {
+                  slug: database.slug,
+                  name: database.name,
+                  type: database.type,
+                  healthStatus: liveHealthStatus,
+                });
+                usePinnedDatabasesStore.getState().invalidate();
+              }}
+            />
           </div>
         </DialogContent>
       </Dialog>
@@ -994,16 +978,6 @@ function DatabaseDetailContent({
           database={database}
           open={redisConfigOpen}
           onOpenChange={setRedisConfigOpen}
-          onSaved={() => void load()}
-        />
-      )}
-
-      {/* close-reset-ok: database is loaded page data, not cleared on close */}
-      {canManageSettings && database.type === "postgres" && database.managed && (
-        <PostgresConfigDialog
-          database={database}
-          open={postgresConfigOpen}
-          onOpenChange={setPostgresConfigOpen}
           onSaved={() => void load()}
         />
       )}

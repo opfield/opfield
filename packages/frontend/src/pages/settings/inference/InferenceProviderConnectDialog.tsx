@@ -297,7 +297,7 @@ export function InferenceProviderConnectDialog({
     <Dialog open={open} onOpenChange={locked ? () => {} : close}>
       <DialogContent
         hideCloseButton={locked}
-        className="sm:max-w-lg"
+        className="sm:max-w-xl"
         onEscapeKeyDown={locked ? (event) => event.preventDefault() : undefined}
         onPointerDownOutside={locked ? (event) => event.preventDefault() : undefined}
         onInteractOutside={locked ? (event) => event.preventDefault() : undefined}
@@ -415,7 +415,7 @@ export function InferenceProviderConnectDialog({
                         actions={
                           <Button
                             variant="ghost"
-                            className="rounded-none border-l border-border bg-muted px-3 text-muted-foreground hover:bg-muted hover:text-foreground"
+                            className="rounded-none border-l border-border bg-header px-3 text-muted-foreground hover:bg-muted hover:text-foreground"
                             onClick={() =>
                               window.open(oauth.authorizationUrl, "_blank", "noopener,noreferrer")
                             }
@@ -470,7 +470,7 @@ export function InferenceProviderConnectDialog({
                         type="submit"
                         variant="ghost"
                         size="icon"
-                        className="relative rounded-none border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+                        className="relative rounded-none border-l border-border bg-header text-muted-foreground hover:bg-muted hover:text-foreground"
                         disabled={!isCompleteCallback(callback.trim(), oauth.providerId)}
                         pending={saving}
                         aria-label={`Complete ${authorizationProviderLabel} authorization`}

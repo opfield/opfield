@@ -156,11 +156,11 @@ export function LoggingTokenPanel({
         )}
       </PanelShell>
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Create Ingest Token</DialogTitle>
-            <DialogDescription>Generate a write-only token for this environment.</DialogDescription>
           </DialogHeader>
+          <DialogDescription>Generate a write-only token for this environment.</DialogDescription>
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">Name</span>
             <Input

@@ -12,7 +12,8 @@ const SPLIT_FOOTER_CLASS_RE =
   /(?:^|\s)(?:[^\s:]+:)*(?:justify-(?:between|around|evenly|start)|mr-auto|ml-auto)(?=\s|$)/;
 const FOOTER_SPACER_CLASS_RE = /^\s*(?:flex-1|grow)\s*$/;
 // Same pattern as the runtime guard in components/ui/dialog.tsx.
-const NESTED_VERTICAL_SCROLL_CLASS_RE = /(?:^|\s)(?:[^\s:]+:)*overflow-y-(?:auto|scroll)(?=\s|$)/;
+const NESTED_VERTICAL_SCROLL_CLASS_RE = /(?:^|\s)(?:[^\s:]+:)*overflow-(?:y-)?(?:auto|scroll)(?=\s|$)/;
+const FLOATING_LAYER_TAG_RE = /(?:Menu|Popover|Select|Tooltip|HoverCard|Command)Content$|^CommandList$|^Combobox/;
 const DATE_LOCALE_METHODS = new Set(["toLocaleDateString", "toLocaleTimeString"]);
 const STANDARD_BUTTON_SIZES = new Set(["default", "icon", "inline"]);
 const SIZE_EXCEPTION_RE = /size-exception:\s*\S/;
@@ -309,36 +310,68 @@ export const RULES = [
   },
   {
     id: "dialog-description-in-body",
-    source: "formerly src/components/ui/dialog.test.ts; ConfirmDialog body description convention",
+    source: "owner rule 2026-10-12: dialog text goes into the body, never a header subtitle",
     description:
-      "A DialogHeader subtitle is not the dialog's body: a DialogContent with a DialogDescription in its header also renders a body.",
+      "A DialogHeader holds only the DialogTitle: the DialogDescription goes into the dialog's body.",
     visit(node, report) {
-      if (!ts.isJsxElement(node) || tagName(node.openingElement) !== "DialogContent") return;
-      const children = meaningfulChildren(node);
-      const header = children.find((child) => isNamed(child, "DialogHeader"));
-      if (!header || !ts.isJsxElement(header)) return;
-      if (!contains(header, (current) => isNamed(current, "DialogDescription"))) return;
-      const body = children.filter(
-        (child) => !isNamed(child, "DialogHeader") && !isNamed(child, "DialogFooter")
-      );
-      if (!body.some(isRenderable)) {
-        report(node, "puts the dialog's text in the header subtitle; move it into the body");
+      if (!ts.isJsxElement(node) || tagName(node.openingElement) !== "DialogHeader") return;
+      if (contains(node, (current) => isNamed(current, "DialogDescription"))) {
+        report(node, "puts a DialogDescription subtitle in the header; move it into the body");
       }
     },
   },
   {
     id: "dialog-single-scroll",
     source: "runtime guard in src/components/ui/dialog.tsx",
-    description: "DialogContent owns vertical scrolling; its body children do not scroll on their own.",
+    description:
+      "DialogContent owns vertical scrolling: nothing inside it scrolls on its own at any depth. A long list carries DIALOG_LIST_CLASS (SCOPE_PICKER_VIEWPORT) and the dialog sizes it.",
     visit(node, report) {
       if (!ts.isJsxElement(node) || tagName(node.openingElement) !== "DialogContent") return;
-      for (const child of meaningfulChildren(node)) {
-        const opening = openingOf(child);
-        if (!opening || ["DialogHeader", "DialogFooter"].includes(tagName(opening))) continue;
-        if (classNameStrings(opening).some((text) => NESTED_VERTICAL_SCROLL_CLASS_RE.test(text))) {
-          report(child, "adds a second vertical scroll inside DialogContent");
+      const scrollStrings = (opening) => {
+        const texts = [...classNameStrings(opening)];
+        for (const name of ["viewportClassName", "bodyClassName"]) {
+          const initializer = attribute(opening, name)?.initializer;
+          if (!initializer) continue;
+          const visit = (current) => {
+            if (ts.isStringLiteralLike(current) || ts.isTemplateLiteralToken(current)) texts.push(current.text);
+            ts.forEachChild(current, visit);
+          };
+          visit(initializer);
         }
-      }
+        return texts;
+      };
+      const visit = (current) => {
+        const opening = openingOf(current);
+        if (opening) {
+          // Menus, popovers and selects open in their own layer above the dialog.
+          if (FLOATING_LAYER_TAG_RE.test(tagName(opening))) return;
+          if (scrollStrings(opening).some((text) => NESTED_VERTICAL_SCROLL_CLASS_RE.test(text))) {
+            report(current, "adds a second vertical scroll inside DialogContent; mark the list with DIALOG_LIST_CLASS");
+          }
+        }
+        ts.forEachChild(current, visit);
+      };
+      for (const child of meaningfulChildren(node)) visit(child);
+    },
+  },
+  {
+    id: "dialog-switch-card",
+    source: "owner rule 2026-10: one switch look in dialogs",
+    description:
+      "Every switch inside DialogContent is a SwitchCard (switch and label on one line, description below, no border in a dialog). A row of a settings panel (SettingsControlRow) keeps its control on the right like the other rows.",
+    visit(node, report) {
+      if (!ts.isJsxElement(node) || tagName(node.openingElement) !== "DialogContent") return;
+      const visit = (current) => {
+        const opening = openingOf(current);
+        if (opening && tagName(opening) === "SettingsControlRow") return;
+        // A switch handed to another control (a panel header action, an input's trailing control) belongs to it.
+        if (ts.isJsxAttribute(current)) return;
+        if (opening && tagName(opening) === "Switch") {
+          report(current, "renders a bare Switch inside DialogContent; use SwitchCard");
+        }
+        ts.forEachChild(current, visit);
+      };
+      for (const child of meaningfulChildren(node)) visit(child);
     },
   },
   {

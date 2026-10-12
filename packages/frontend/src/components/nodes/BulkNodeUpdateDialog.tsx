@@ -220,12 +220,12 @@ export function BulkNodeUpdateDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Update Nodes</DialogTitle>
-          <DialogDescription>
-            The selected nodes update together; nodes that share an availability lease restart one
-            after another, ingress nodes restart after the others, and a node with running tasks
-            waits for them first.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          The selected nodes update together; nodes that share an availability lease restart one
+          after another, ingress nodes restart after the others, and a node with running tasks waits
+          for them first.
+        </DialogDescription>
         <CandidateList
           candidates={candidates}
           selected={selected}

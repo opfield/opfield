@@ -118,15 +118,15 @@ export function AccessScopesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg" fitViewport>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            {readOnly
-              ? "The raw scopes the access lines stand for."
-              : "Review and edit the raw scopes. Scopes no access line covers show as a Custom scopes line."}
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          {readOnly
+            ? "The raw scopes the access lines stand for."
+            : "Review and edit the raw scopes. Scopes no access line covers show as a Custom scopes line."}
+        </DialogDescription>
         <ScopePicker
           {...picker}
           header={<span className="text-sm font-medium">Scopes</span>}

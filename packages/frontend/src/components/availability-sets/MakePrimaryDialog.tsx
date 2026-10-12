@@ -127,13 +127,13 @@ export function MakePrimaryDialog({
   const name = member ? memberName(member) : "";
   return (
     <Dialog open={open} onOpenChange={(next) => !next && !saving && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Make {name} Primary</DialogTitle>
-          <DialogDescription>
-            {loss ? "This switch may lose recent writes." : "A planned switch loses no writes."}
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          {loss ? "This switch may lose recent writes." : "A planned switch loses no writes."}
+        </DialogDescription>
         <div className="space-y-4">
           {loss ? (
             <>

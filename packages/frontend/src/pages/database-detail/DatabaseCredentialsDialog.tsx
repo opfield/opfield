@@ -67,7 +67,7 @@ function CredentialField({
           <Button
             variant="ghost"
             size="icon"
-            className="relative shrink-0 rounded-none border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="relative shrink-0 rounded-none border-l border-border bg-header text-muted-foreground hover:bg-muted hover:text-foreground"
             onClick={() => setRevealed((current) => !current)}
             aria-label={revealed ? `Hide ${label}` : `Show ${label}`}
             title={revealed ? `Hide ${label}` : `Show ${label}`}
@@ -126,7 +126,7 @@ export function DatabaseCredentialsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{managed ? "Direct-Access Credentials" : "Stored Credentials"}</DialogTitle>
         </DialogHeader>

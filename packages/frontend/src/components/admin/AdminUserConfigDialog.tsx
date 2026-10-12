@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  DIALOG_LIST_CLASS,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -282,12 +283,12 @@ export function AdminUserConfigDialog({
           onOpenChange(nextOpen);
         }}
       >
-        <DialogContent aria-describedby={undefined} className="sm:max-w-lg">
+        <DialogContent aria-describedby={undefined} className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Configure User</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <PanelShell title="Account" bodyClassName="divide-y divide-border">
+            <PanelShell bodyClassName="divide-y divide-border">
               <section className="flex items-center gap-4 px-4 py-3">
                 <Avatar className="h-10 w-10 shrink-0">
                   <AvatarImage src={user.avatarUrl ?? undefined} />
@@ -347,7 +348,7 @@ export function AdminUserConfigDialog({
                       disabled={saving || !name.trim() || name.trim() === user.name}
                       aria-label={nameSaved ? "Name saved" : "Save name"}
                       title={nameSaved ? "Saved" : "Save name"}
-                      className="relative shrink-0 rounded-none border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+                      className="relative shrink-0 rounded-none border-l border-border bg-header text-muted-foreground hover:bg-muted hover:text-foreground"
                     >
                       <Check
                         className={`absolute h-4 w-4 transition-all duration-200 ${nameSaved ? "scale-100 opacity-100" : "scale-0 opacity-0"}`}
@@ -497,7 +498,7 @@ export function AdminUserConfigDialog({
             Browser sessions currently authorized for this account.
           </p>
           <div className="border border-border">
-            <div className="max-h-[min(25rem,48dvh)] divide-y divide-border overflow-y-auto overscroll-contain">
+            <div className={`${DIALOG_LIST_CLASS} divide-y divide-border overscroll-contain`}>
               {sessions.map((session) => (
                 <div key={session.id} className="flex items-center justify-between gap-3 px-3 py-3">
                   <div className="min-w-0">

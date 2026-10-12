@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { MemberIsolatedNotice, useMemberIncidentHold } from "@/components/apps/IsolatedNotice";
 import { AvailabilityPanel } from "@/components/availability-sets/AvailabilityPanel";
 import { confirm } from "@/components/common/ConfirmDialog";
+import { CopyCodeBlock } from "@/components/common/CopyCodeBlock";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
 import {
   ManagedCertificateNotice,
@@ -11,6 +12,7 @@ import {
 } from "@/components/common/ManagedCertificateStatus";
 import { ManagedInstanceNotice } from "@/components/common/ManagedInstanceNotice";
 import { PageTransition } from "@/components/common/PageTransition";
+import { SwitchCard } from "@/components/common/SwitchCard";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +21,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { HealthBars } from "@/components/ui/health-bars";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
@@ -506,20 +507,20 @@ function StorageDetailContent({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Stored Credentials</DialogTitle>
-            <DialogDescription>
-              The credentials Opfield uses to reach this storage, decrypted for viewing.
-            </DialogDescription>
           </DialogHeader>
-          <div className="border border-border bg-card overflow-hidden">
-            <ContentLoading loading={loadingCredentials} />
-            {loadingCredentials ? null : (
-              <pre className="overflow-x-auto break-all p-4 text-sm whitespace-pre-wrap">
-                {revealedCredentials
-                  ? JSON.stringify(revealedCredentials, null, 2)
-                  : "Credentials are hidden."}
-              </pre>
-            )}
-          </div>
+          <DialogDescription>
+            The credentials Opfield uses to reach this storage, decrypted for viewing.
+          </DialogDescription>
+          <ContentLoading loading={loadingCredentials} />
+          {loadingCredentials ? null : revealedCredentials ? (
+            <CopyCodeBlock
+              label="Credentials"
+              value={JSON.stringify(revealedCredentials, null, 2)}
+              codeClassName="font-mono text-xs"
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">Credentials are hidden.</p>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -540,30 +541,26 @@ function StorageDetailContent({
       )}
 
       <Dialog open={pinOpen} onOpenChange={setPinOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Pin Storage</DialogTitle>
-            <DialogDescription>Choose where this storage appears as a shortcut.</DialogDescription>
           </DialogHeader>
+          <DialogDescription>Choose where this storage appears as a shortcut.</DialogDescription>
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Add to sidebar</p>
-                <p className="text-xs text-muted-foreground">Quick access link in the sidebar</p>
-              </div>
-              <Switch
-                checked={isPinnedSidebar(storage.id)}
-                onChange={() => {
-                  toggleSidebar(storage.id, {
-                    slug: storage.slug,
-                    name: storage.name,
-                    provider: storage.provider,
-                    healthStatus: liveHealthStatus,
-                  });
-                  usePinnedStorageStore.getState().invalidate();
-                }}
-              />
-            </div>
+            <SwitchCard
+              label="Add to sidebar"
+              description="Quick access link in the sidebar"
+              checked={isPinnedSidebar(storage.id)}
+              onCheckedChange={() => {
+                toggleSidebar(storage.id, {
+                  slug: storage.slug,
+                  name: storage.name,
+                  provider: storage.provider,
+                  healthStatus: liveHealthStatus,
+                });
+                usePinnedStorageStore.getState().invalidate();
+              }}
+            />
           </div>
         </DialogContent>
       </Dialog>
@@ -573,10 +570,8 @@ function StorageDetailContent({
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Storage Settings</DialogTitle>
-              <DialogDescription>
-                Connection details and metadata for this storage.
-              </DialogDescription>
             </DialogHeader>
+            <DialogDescription>Connection details and metadata for this storage.</DialogDescription>
             {storage.managed ? (
               <ManagedObjectStorageSettingsTab
                 storage={storage}

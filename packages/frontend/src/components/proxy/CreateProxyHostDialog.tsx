@@ -684,6 +684,7 @@ export function CreateProxyHostDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
+        className="sm:max-w-xl"
         onAnimationEnd={(event) => {
           if (
             event.target === event.currentTarget &&
@@ -695,12 +696,12 @@ export function CreateProxyHostDialog({
       >
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit Route" : "Create Route"}</DialogTitle>
-          <DialogDescription>
-            {step === 1
-              ? "Configure the entrypoint for this route."
-              : "Configure the target and TLS for this route."}
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          {step === 1
+            ? "Configure the entrypoint for this route."
+            : "Configure the target and TLS for this route."}
+        </DialogDescription>
 
         <AnimatedHeight>
           <ContentLoading loading={optionsLoading} />
@@ -860,7 +861,7 @@ export function CreateProxyHostDialog({
                                   type="button"
                                   variant="ghost"
                                   size="icon"
-                                  className="rounded-none border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+                                  className="rounded-none border-l border-border bg-header text-muted-foreground hover:bg-muted hover:text-foreground"
                                   aria-label={`Remove domain ${i + 1}`}
                                   onClick={() =>
                                     setDomainNames(domainNames.filter((_, j) => j !== i))
@@ -874,7 +875,7 @@ export function CreateProxyHostDialog({
                                   type="button"
                                   variant="ghost"
                                   size="icon"
-                                  className="rounded-none border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+                                  className="rounded-none border-l border-border bg-header text-muted-foreground hover:bg-muted hover:text-foreground"
                                   aria-label="Add domain"
                                   onClick={() => setDomainNames([...domainNames, ""])}
                                 >

@@ -659,10 +659,10 @@ function PolicyDialog({
       <DialogContent className="flex max-h-[88dvh] flex-col sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Add Backup Policy</DialogTitle>
-          <DialogDescription>
-            Backups run on the selected Storage node and are uploaded to the destination storage.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Backups run on the selected Storage node and are uploaded to the destination storage.
+        </DialogDescription>
         <div className="space-y-4 pr-1">
           <PanelShell title="Destination" description="Where completed backups are stored.">
             <SettingsControlRow
@@ -996,7 +996,7 @@ export function RestoreDialog({
       open={Boolean(runProp)}
       onOpenChange={(nextOpen) => !restoring && onOpenChange(nextOpen)}
     >
-      <DialogContent>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Restore Backup</DialogTitle>
         </DialogHeader>
@@ -1006,69 +1006,76 @@ export function RestoreDialog({
             Restores the backup from {run ? formatDateTime(run.startedAt ?? run.createdAt) : ""}{" "}
             into a new managed database. Existing databases are never overwritten.
           </DialogDescription>
-          <div className="space-y-1.5">
-            <span className="text-sm font-medium">Storage node</span>
-            <Choice
-              label="Storage node"
-              value={executorNodeId}
-              onValueChange={setExecutorNodeId}
-              options={executors}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium" htmlFor="backup-restore-folder">
-              Folder
-            </label>
-            <CreateFolderSelect
-              id="backup-restore-folder"
-              choices={folderChoices}
-              value={folderId}
-              onChange={setFolderId}
-              loading={foldersLoading}
-              disabled={restoring}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium" htmlFor="backup-restore-database-name">
-              New managed database name
-            </label>
-            <Input
-              id="backup-restore-database-name"
-              value={newManagedDatabaseName}
-              onChange={(event) => setNewManagedDatabaseName(event.target.value)}
-              disabled={restoring}
-            />
-          </div>
-          {hasDatabaseName && (
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="backup-restore-target-database-name">
-                Database name (optional)
+              <span className="text-sm font-medium">Storage node</span>
+              <Choice
+                label="Storage node"
+                value={executorNodeId}
+                onValueChange={setExecutorNodeId}
+                options={executors}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" htmlFor="backup-restore-folder">
+                Folder
+              </label>
+              <CreateFolderSelect
+                id="backup-restore-folder"
+                choices={folderChoices}
+                value={folderId}
+                onChange={setFolderId}
+                loading={foldersLoading}
+                disabled={restoring}
+              />
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" htmlFor="backup-restore-database-name">
+                New managed database name
               </label>
               <Input
-                id="backup-restore-target-database-name"
-                value={targetDatabaseName}
-                placeholder={defaultTargetDatabaseName}
-                onChange={(event) => setTargetDatabaseName(event.target.value)}
+                id="backup-restore-database-name"
+                value={newManagedDatabaseName}
+                onChange={(event) => setNewManagedDatabaseName(event.target.value)}
                 disabled={restoring}
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                aria-invalid={targetDatabaseNameError ? true : undefined}
-                aria-describedby="backup-restore-target-database-name-hint"
               />
-              <p
-                id="backup-restore-target-database-name-hint"
-                className={
-                  targetDatabaseNameError
-                    ? "text-xs text-destructive"
-                    : "text-xs text-muted-foreground"
-                }
-              >
-                {targetDatabaseNameError ??
-                  "Database created inside the new managed database. Defaults to the source name."}
-              </p>
             </div>
-          )}
+            {hasDatabaseName && (
+              <div className="space-y-1.5">
+                <label
+                  className="text-sm font-medium"
+                  htmlFor="backup-restore-target-database-name"
+                >
+                  Database name
+                </label>
+                <Input
+                  id="backup-restore-target-database-name"
+                  value={targetDatabaseName}
+                  placeholder={defaultTargetDatabaseName}
+                  onChange={(event) => setTargetDatabaseName(event.target.value)}
+                  disabled={restoring}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  aria-invalid={targetDatabaseNameError ? true : undefined}
+                  aria-describedby="backup-restore-target-database-name-hint"
+                />
+                <p
+                  id="backup-restore-target-database-name-hint"
+                  className={
+                    targetDatabaseNameError
+                      ? "text-xs text-destructive"
+                      : "text-xs text-muted-foreground"
+                  }
+                >
+                  {targetDatabaseNameError ??
+                    "Database created inside the new managed database. Defaults to the source name."}
+                </p>
+              </div>
+            )}
+          </div>
           <ManagedResourceFields
             idPrefix="backup-restore"
             values={resourceInputs}

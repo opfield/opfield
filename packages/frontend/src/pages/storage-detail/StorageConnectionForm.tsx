@@ -1,10 +1,7 @@
-import { useState } from "react";
-import { toast } from "sonner";
-import { CheckboxCard } from "@/components/common/CheckboxCard";
+import type { ReactNode } from "react";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { SwitchCard } from "@/components/common/SwitchCard";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -14,8 +11,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { toastApiError } from "@/lib/api-error-toast";
-import { api } from "@/services/api";
 import type { ObjectStorageConnection, ObjectStorageProvider } from "@/types";
 import { isFileProtocolProvider } from "@/types";
 
@@ -291,15 +286,18 @@ export function StorageConnectionForm({
   onChange,
   disableProvider = false,
   mode = "full",
-  storageId,
+  folderField,
+  wide = false,
 }: {
   draft: StorageConnectionDraft;
   onChange: (next: StorageConnectionDraft) => void;
   disableProvider?: boolean;
   mode?: "full" | "metadata";
-  storageId?: string;
+  /** The create dialog's Folder field: shares a row with Tags. */
+  folderField?: ReactNode;
+  /** The form fills a wide (2xl) dialog: the three S3 keys share one row. */
+  wide?: boolean;
 }) {
-  const [testing, setTesting] = useState(false);
   const set = <K extends keyof StorageConnectionDraft>(key: K, value: StorageConnectionDraft[K]) =>
     onChange({ ...draft, [key]: value });
   const metadataOnly = mode === "metadata";
@@ -325,32 +323,51 @@ export function StorageConnectionForm({
     });
   };
 
-  const testConnection = async () => {
-    if (!storageId) return;
-    setTesting(true);
-    try {
-      const result = await api.testObjectStorage(storageId);
-      if (result.ok) {
-        toast.success(`Connection OK in ${result.responseMs} ms`);
-      } else {
-        toast.error(`Connection failed: ${result.status}`);
-      }
-    } catch (error) {
-      toastApiError(error, "Connection test failed");
-    } finally {
-      setTesting(false);
-    }
-  };
+  const descriptionField = (
+    <div className="min-w-0 space-y-1.5">
+      <label className="text-sm font-medium">Description</label>
+      <Input
+        value={draft.description}
+        onChange={(e) => set("description", e.target.value)}
+        placeholder="Optional"
+      />
+    </div>
+  );
+  const tagsField = (
+    <div className="min-w-0 space-y-1.5">
+      <label className="text-sm font-medium">Tags</label>
+      <Input
+        placeholder="team, red:production, green:analytics"
+        value={draft.tags}
+        onChange={(e) => set("tags", e.target.value)}
+      />
+    </div>
+  );
+
+  const defaultBucketField = (
+    <div className="min-w-0 space-y-1.5">
+      <label className="text-sm font-medium">Default Bucket</label>
+      <Input
+        placeholder="Optional"
+        value={draft.defaultBucket}
+        onChange={(e) => set("defaultBucket", e.target.value)}
+      />
+    </div>
+  );
+  const pathStyleSwitch = (
+    <SwitchCard
+      label="Force path-style addressing"
+      description="For MinIO, SeaweedFS and most self-hosted servers"
+      checked={draft.forcePathStyle}
+      onCheckedChange={(checked) => set("forcePathStyle", checked)}
+    />
+  );
 
   return (
     <div className="space-y-3">
       <div className={`grid gap-3 ${metadataOnly ? "md:grid-cols-1" : "md:grid-cols-2"}`}>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Name</label>
-          <Input value={draft.name} onChange={(e) => set("name", e.target.value)} />
-        </div>
         {!metadataOnly && (
-          <div className="space-y-1.5">
+          <div className="min-w-0 space-y-1.5">
             <label className="text-sm font-medium">Provider</label>
             <Select
               value={draft.provider}
@@ -370,29 +387,30 @@ export function StorageConnectionForm({
             </Select>
           </div>
         )}
+        <div className="min-w-0 space-y-1.5">
+          <label className="text-sm font-medium">Name</label>
+          <Input value={draft.name} onChange={(e) => set("name", e.target.value)} />
+        </div>
       </div>
 
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium">Description</label>
-        <Input value={draft.description} onChange={(e) => set("description", e.target.value)} />
-      </div>
-
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium">Tags</label>
-        <Input
-          placeholder="team, red:production, green:analytics"
-          value={draft.tags}
-          onChange={(e) => set("tags", e.target.value)}
-        />
-        <p className="text-xs text-muted-foreground">
-          Use color:name for colored tags. Supported colors: blue, red, green, yellow, purple, pink,
-          orange, gray.
-        </p>
-      </div>
+      {folderField ? (
+        <>
+          <div className="grid gap-3 md:grid-cols-2">
+            {folderField}
+            {tagsField}
+          </div>
+          {descriptionField}
+        </>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2">
+          {descriptionField}
+          {tagsField}
+        </div>
+      )}
 
       {!metadataOnly && fileProtocol && (
         <>
-          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr),160px]">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px]">
             <div className="space-y-1.5">
               <label className="text-sm font-medium">
                 Host<span className="text-destructive"> *</span>
@@ -414,41 +432,43 @@ export function StorageConnectionForm({
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">
-              Username
-              {draft.provider === "sftp" && <span className="text-destructive"> *</span>}
-            </label>
-            <Input
-              placeholder={draft.provider === "sftp" ? "" : "anonymous"}
-              value={draft.username}
-              onChange={(e) => set("username", e.target.value)}
-            />
-          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="min-w-0 space-y-1.5">
+              <label className="text-sm font-medium">
+                Username
+                {draft.provider === "sftp" && <span className="text-destructive"> *</span>}
+              </label>
+              <Input
+                placeholder={draft.provider === "sftp" ? "" : "anonymous"}
+                value={draft.username}
+                onChange={(e) => set("username", e.target.value)}
+              />
+            </div>
 
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Password</label>
-            <Input
-              type="password"
-              placeholder={
-                keepPassword
-                  ? "Leave blank to keep current password"
-                  : draft.provider === "sftp"
-                    ? "Optional if a private key is set"
-                    : "Optional for anonymous servers"
-              }
-              value={draft.password}
-              onChange={(e) => set("password", e.target.value)}
-            />
-            {keepPassword && draft.password === "" && (
-              <Badge variant="secondary">Existing password preserved</Badge>
-            )}
-            {reenterSecret && draft.password === "" && draft.privateKey === "" && (
-              <p className="text-xs text-destructive">
-                Re-enter the {draft.provider === "sftp" ? "password or private key" : "password"}{" "}
-                when changing the host, port, username or protocol.
-              </p>
-            )}
+            <div className="min-w-0 space-y-1.5">
+              <label className="text-sm font-medium">Password</label>
+              <Input
+                type="password"
+                placeholder={
+                  keepPassword
+                    ? "Leave blank to keep current password"
+                    : draft.provider === "sftp"
+                      ? "Optional if a private key is set"
+                      : "Optional for anonymous servers"
+                }
+                value={draft.password}
+                onChange={(e) => set("password", e.target.value)}
+              />
+              {keepPassword && draft.password === "" && (
+                <Badge variant="secondary">Existing password preserved</Badge>
+              )}
+              {reenterSecret && draft.password === "" && draft.privateKey === "" && (
+                <p className="text-xs text-destructive">
+                  Re-enter the {draft.provider === "sftp" ? "password or private key" : "password"}{" "}
+                  when changing the host, port, username or protocol.
+                </p>
+              )}
+            </div>
           </div>
 
           {draft.provider === "sftp" && (
@@ -539,21 +559,13 @@ export function StorageConnectionForm({
               buckets in the object browser.
             </p>
           </div>
-
-          {storageId && (
-            <div className="flex justify-end">
-              <Button variant="outline" onClick={() => void testConnection()} pending={testing}>
-                Test connection
-              </Button>
-            </div>
-          )}
         </>
       )}
 
       {!metadataOnly && !fileProtocol && (
         <>
-          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr),160px]">
-            <div className="space-y-1.5">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_8rem]">
+            <div className="min-w-0 space-y-1.5">
               <label className="text-sm font-medium">
                 Endpoint
                 {draft.provider !== "aws" && <span className="text-destructive"> *</span>}
@@ -565,76 +577,70 @@ export function StorageConnectionForm({
                 onChange={(e) => set("endpoint", e.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <label className="text-sm font-medium">Region</label>
               <Input value={draft.region} onChange={(e) => set("region", e.target.value)} />
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Access Key ID</label>
-            <Input value={draft.accessKeyId} onChange={(e) => set("accessKeyId", e.target.value)} />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Secret Access Key</label>
-            <Input
-              type="password"
-              placeholder={
-                draft.hasStoredSecret && !reenterSecret ? "Leave blank to keep current secret" : ""
-              }
-              value={draft.secretAccessKey}
-              onChange={(e) => set("secretAccessKey", e.target.value)}
-            />
-            {draft.hasStoredSecret && !reenterSecret && draft.secretAccessKey === "" && (
-              <Badge variant="secondary">Existing secret preserved</Badge>
-            )}
-            {reenterSecret && draft.secretAccessKey === "" && (
-              <p className="text-xs text-destructive">
-                Re-enter the secret access key when changing the endpoint or provider.
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Session Token</label>
-            <Input
-              type="password"
-              placeholder={
-                draft.hasStoredSessionToken && !reenterSecret
-                  ? "Leave blank to keep current token"
-                  : "Optional (temporary credentials)"
-              }
-              value={draft.sessionToken}
-              onChange={(e) => set("sessionToken", e.target.value)}
-            />
-            {draft.hasStoredSessionToken && !reenterSecret && draft.sessionToken === "" && (
-              <Badge variant="secondary">Existing session token preserved</Badge>
-            )}
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Default Bucket</label>
-            <Input
-              placeholder="Optional"
-              value={draft.defaultBucket}
-              onChange={(e) => set("defaultBucket", e.target.value)}
-            />
-          </div>
-
-          <CheckboxCard
-            label="Force path-style addressing"
-            description="Required for MinIO, SeaweedFS and most self-hosted S3-compatible servers"
-            checked={draft.forcePathStyle}
-            onCheckedChange={(checked) => set("forcePathStyle", checked)}
-          />
-
-          {storageId && (
-            <div className="flex justify-end">
-              <Button variant="outline" onClick={() => void testConnection()} pending={testing}>
-                Test connection
-              </Button>
+          <div className={`grid gap-3 ${wide ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+            <div className="min-w-0 space-y-1.5">
+              <label className="text-sm font-medium">Access Key ID</label>
+              <Input
+                value={draft.accessKeyId}
+                onChange={(e) => set("accessKeyId", e.target.value)}
+              />
             </div>
+
+            <div className="min-w-0 space-y-1.5">
+              <label className="text-sm font-medium">Secret Access Key</label>
+              <Input
+                type="password"
+                placeholder={
+                  draft.hasStoredSecret && !reenterSecret
+                    ? "Leave blank to keep current secret"
+                    : ""
+                }
+                value={draft.secretAccessKey}
+                onChange={(e) => set("secretAccessKey", e.target.value)}
+              />
+              {draft.hasStoredSecret && !reenterSecret && draft.secretAccessKey === "" && (
+                <Badge variant="secondary">Existing secret preserved</Badge>
+              )}
+              {reenterSecret && draft.secretAccessKey === "" && (
+                <p className="text-xs text-destructive">
+                  Re-enter the secret access key when changing the endpoint or provider.
+                </p>
+              )}
+            </div>
+
+            <div className="min-w-0 space-y-1.5">
+              <label className="text-sm font-medium">Session Token</label>
+              <Input
+                type="password"
+                placeholder={
+                  draft.hasStoredSessionToken && !reenterSecret
+                    ? "Leave blank to keep current token"
+                    : "Optional"
+                }
+                value={draft.sessionToken}
+                onChange={(e) => set("sessionToken", e.target.value)}
+              />
+              {draft.hasStoredSessionToken && !reenterSecret && draft.sessionToken === "" && (
+                <Badge variant="secondary">Existing session token preserved</Badge>
+              )}
+            </div>
+
+            {wide ? null : defaultBucketField}
+          </div>
+
+          {wide ? (
+            <div className="grid gap-3 md:grid-cols-2 md:items-center">
+              {defaultBucketField}
+              {pathStyleSwitch}
+            </div>
+          ) : (
+            pathStyleSwitch
           )}
         </>
       )}

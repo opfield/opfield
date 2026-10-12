@@ -153,7 +153,7 @@ export function DockerBuildDetailsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-lg"
+        className="sm:max-w-2xl"
         onAnimationEnd={(event) => {
           if (
             event.target === event.currentTarget &&
@@ -165,8 +165,8 @@ export function DockerBuildDetailsDialog({
       >
         <DialogHeader>
           <DialogTitle>Build Details</DialogTitle>
-          <DialogDescription>{build?.repositoryFullPath}</DialogDescription>
         </DialogHeader>
+        <DialogDescription>{build?.repositoryFullPath}</DialogDescription>
         {build && (
           <div className="divide-y divide-border overflow-hidden border border-border bg-card">
             <MetaRow label="Status" header>

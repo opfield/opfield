@@ -150,10 +150,10 @@ export function AppCreateDialogs({
         <DialogContent clipOverflow className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>New Compose Project</DialogTitle>
-            <DialogDescription>
-              Deploy a single-file, image-only Compose project to a Docker node.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Deploy a single-file, image-only Compose project to a Docker node.
+          </DialogDescription>
           <ComposeProjectEditor appContext={appContext} onClose={onClose} onCreated={created} />
         </DialogContent>
       </Dialog>

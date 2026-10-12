@@ -878,7 +878,7 @@ export function SSLCertificates() {
         devPreview={createDialogDevPreview}
       />
       <Dialog open={cloudflareRequiredOpen} onOpenChange={setCloudflareRequiredOpen}>
-        <DialogContent aria-describedby={undefined}>
+        <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Configure Cloudflare</DialogTitle>
           </DialogHeader>
@@ -899,7 +899,7 @@ export function SSLCertificates() {
         </DialogContent>
       </Dialog>
       <Dialog open={domainRequiredOpen} onOpenChange={setDomainRequiredOpen}>
-        <DialogContent aria-describedby={undefined}>
+        <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Add a Domain First</DialogTitle>
           </DialogHeader>
@@ -920,13 +920,13 @@ export function SSLCertificates() {
         </DialogContent>
       </Dialog>
       <Dialog open={previewOpen} onOpenChange={handlePreviewOpenChange}>
-        <DialogContent className="sm:max-w-lg" aria-describedby={undefined}>
+        <DialogContent className="sm:max-w-2xl" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>SSL Certificate Details</DialogTitle>
           </DialogHeader>
           {previewCert && (
             <div className="space-y-4">
-              <PanelShell title="Certificate" bodyClassName="divide-y divide-border">
+              <PanelShell bodyClassName="divide-y divide-border">
                 <DetailRow
                   label="Name"
                   value={<span className="break-all">{previewCert.name}</span>}
@@ -1032,11 +1032,11 @@ export function SSLCertificates() {
         </DialogContent>
       </Dialog>
       <Dialog open={renewingCertOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Renewing Certificate</DialogTitle>
-            <DialogDescription>{renewingCert?.name}</DialogDescription>
           </DialogHeader>
+          <DialogDescription>{renewingCert?.name}</DialogDescription>
           <div className="flex items-start gap-4 border border-border bg-muted/20 px-4 py-4">
             <RefreshCw className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-muted-foreground" />
             <div className="min-w-0 space-y-1">
@@ -1055,13 +1055,13 @@ export function SSLCertificates() {
         </DialogContent>
       </Dialog>
       <Dialog open={pendingRenewalOpen} onOpenChange={onPendingRenewalOpenChange}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
               {pendingRenewal?.operation === "renewal" ? "Verify DNS Renewal" : "Verify DNS Issue"}
             </DialogTitle>
-            <DialogDescription>{pendingRenewal?.certName}</DialogDescription>
           </DialogHeader>
+          <DialogDescription>{pendingRenewal?.certName}</DialogDescription>
           {pendingRenewal && (
             <DNSChallengeVerification
               challenges={pendingRenewal.challenges}

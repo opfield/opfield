@@ -11,6 +11,7 @@ import { PageTransition } from "@/components/common/PageTransition";
 import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
+import { SCOPE_PICKER_VIEWPORT } from "@/components/common/ScopePicker";
 import { ValueTile } from "@/components/common/ValueTile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -730,7 +731,7 @@ export function AuditLog({
       </div>
 
       <Dialog open={configOpen} onOpenChange={handleConfigureOpenChange}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Configure Audit View</DialogTitle>
           </DialogHeader>
@@ -749,7 +750,7 @@ export function AuditLog({
                   excludedActions: toggleValue(draft.excludedActions, value),
                 }))
               }
-              viewportClassName="max-h-[min(20rem,40dvh)] overflow-y-auto overscroll-contain"
+              viewportClassName={SCOPE_PICKER_VIEWPORT}
             />
             <AuditOptionChecklist
               title="Hidden Resources"
@@ -765,7 +766,7 @@ export function AuditLog({
                   excludedResourceTypes: toggleValue(draft.excludedResourceTypes, value),
                 }))
               }
-              viewportClassName="max-h-[min(20rem,40dvh)] overflow-y-auto overscroll-contain"
+              viewportClassName={SCOPE_PICKER_VIEWPORT}
             />
           </div>
           <DialogFooter>
@@ -778,7 +779,7 @@ export function AuditLog({
       </Dialog>
 
       <Dialog open={exportOpen} onOpenChange={handleExportOpenChange}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="sm:max-w-5xl">
           <DialogHeader>
             <DialogTitle>Download Audit Log</DialogTitle>
           </DialogHeader>
@@ -814,7 +815,7 @@ export function AuditLog({
                 selected={exportActions}
                 onToggle={(value) => setExportActions((values) => toggleValue(values, value))}
                 emptyMessage="No actions available."
-                viewportClassName="max-h-[min(20rem,40dvh)] overflow-y-auto overscroll-contain"
+                viewportClassName={SCOPE_PICKER_VIEWPORT}
               />
               <AuditOptionChecklist
                 title="Resources"
@@ -826,7 +827,7 @@ export function AuditLog({
                 selected={exportResourceTypes}
                 onToggle={(value) => setExportResourceTypes((values) => toggleValue(values, value))}
                 emptyMessage="No resources available."
-                viewportClassName="max-h-[min(20rem,40dvh)] overflow-y-auto overscroll-contain"
+                viewportClassName={SCOPE_PICKER_VIEWPORT}
               />
               <AuditOptionChecklist
                 title="Users"
@@ -835,7 +836,7 @@ export function AuditLog({
                 selected={exportUserIds}
                 onToggle={(value) => setExportUserIds((values) => toggleValue(values, value))}
                 emptyMessage="Load audit entries to populate users."
-                viewportClassName="max-h-[min(20rem,40dvh)] overflow-y-auto overscroll-contain"
+                viewportClassName={SCOPE_PICKER_VIEWPORT}
               />
             </div>
           </div>

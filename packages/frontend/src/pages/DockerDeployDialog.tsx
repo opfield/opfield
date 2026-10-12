@@ -467,8 +467,8 @@ export function DockerDeployDialog({
       >
         <DialogHeader>
           <DialogTitle>Deploy</DialogTitle>
-          <DialogDescription>Create a container or a blue/green deployment.</DialogDescription>
         </DialogHeader>
+        <DialogDescription>Create a container or a blue/green deployment.</DialogDescription>
 
         {appContext && (
           <AppEnvironmentFields

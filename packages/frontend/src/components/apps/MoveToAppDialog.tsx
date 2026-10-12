@@ -213,10 +213,10 @@ export function MoveToAppDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Move to App</DialogTitle>
-          <DialogDescription>
-            Select an app for {resourceLabel} or take it out of apps.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Select an app for {resourceLabel} or take it out of apps.
+        </DialogDescription>
         <div className="border border-border">
           <MoveDestinationRow
             label="No app"

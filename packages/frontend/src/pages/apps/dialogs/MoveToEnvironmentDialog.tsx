@@ -27,7 +27,6 @@ import type { AppDetail } from "@/types";
 import { orderedEnvironments } from "../app-shared";
 import type { MemberRef } from "../tabs/tab-shared";
 import { nodeDisplayName, useNodeIndex } from "../use-node-index";
-import { APP_DIALOG_WIDTH } from "./AppNameDialog";
 
 export function MoveToEnvironmentDialog({
   app,
@@ -92,14 +91,14 @@ export function MoveToEnvironmentDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent className={APP_DIALOG_WIDTH}>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Move to Environment</DialogTitle>
-          <DialogDescription>
-            Select the environment of {app.name} for {shown?.name ?? "this resource"}. It keeps
-            running; its new environment's variables apply on its next recreate or deploy.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Select the environment of {app.name} for {shown?.name ?? "this resource"}. It keeps
+          running; its new environment's variables apply on its next recreate or deploy.
+        </DialogDescription>
         <div className="space-y-4">
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="app-move-environment">

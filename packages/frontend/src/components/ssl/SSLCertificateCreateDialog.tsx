@@ -427,8 +427,8 @@ export function SSLCertificateCreateDialog({
       >
         <DialogHeader>
           <DialogTitle>Add SSL Certificate</DialogTitle>
-          <DialogDescription>Choose a method to add an SSL certificate.</DialogDescription>
         </DialogHeader>
+        <DialogDescription>Choose a method to add an SSL certificate.</DialogDescription>
 
         <div className="space-y-1.5">
           <ContentLoading loading={foldersLoading} />
@@ -535,7 +535,7 @@ export function SSLCertificateCreateDialog({
                                       type="button"
                                       variant="ghost"
                                       size="icon"
-                                      className="rounded-none border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+                                      className="rounded-none border-l border-border bg-header text-muted-foreground hover:bg-muted hover:text-foreground"
                                       aria-label={`Remove domain ${i + 1}`}
                                       onClick={() => {
                                         setAcmeDomains(acmeDomains.filter((_, j) => j !== i));
@@ -552,7 +552,7 @@ export function SSLCertificateCreateDialog({
                                       type="button"
                                       variant="ghost"
                                       size="icon"
-                                      className="rounded-none border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+                                      className="rounded-none border-l border-border bg-header text-muted-foreground hover:bg-muted hover:text-foreground"
                                       aria-label="Add domain"
                                       onClick={() => {
                                         setAcmeDomains([...acmeDomains, ""]);

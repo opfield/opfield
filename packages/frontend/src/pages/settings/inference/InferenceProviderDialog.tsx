@@ -205,14 +205,14 @@ export function InferenceProviderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{displayedConnection.name}</DialogTitle>
-          <DialogDescription>
-            {displayedProvider?.label ?? displayedConnection.providerId} ·{" "}
-            {connectionIdentity(displayedConnection)}
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          {displayedProvider?.label ?? displayedConnection.providerId} ·{" "}
+          {connectionIdentity(displayedConnection)}
+        </DialogDescription>
 
         {subscription && reportedQuotaWindows.length > 0 && (
           <PanelShell

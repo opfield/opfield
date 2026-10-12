@@ -730,10 +730,10 @@ export function ManagedStorageCreateDialog({
         >
           <DialogHeader>
             <DialogTitle>Deploy Managed Storage</DialogTitle>
-            <DialogDescription>
-              Step {step} of {stepCount} — {stepLabel}
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Step {step} of {stepCount} — {stepLabel}
+          </DialogDescription>
           <AnimatedHeight>
             <ContentLoading loading={!appContext && foldersLoading} />
             {noAllowedNode && appContext && environment ? (
@@ -830,13 +830,13 @@ export function ManagedStorageCreateDialog({
         open={provisioningError !== null}
         onOpenChange={(next) => !next && setProvisioningError(null)}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Storage Provisioning Failed</DialogTitle>
-            <DialogDescription>
-              What the node reported, and the options for recovering this cluster.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            What the node reported, and the options for recovering this cluster.
+          </DialogDescription>
           <p className="text-sm text-muted-foreground">{retainedProvisioningError?.error}</p>
           <DialogFooter>
             <Button

@@ -164,12 +164,12 @@ export function WebhookDialog({
       <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit Webhook" : "New Webhook"}</DialogTitle>
-          <DialogDescription>
-            {step === 1
-              ? "Configure endpoint and authentication."
-              : "Configure body template and variables."}
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          {step === 1
+            ? "Configure endpoint and authentication."
+            : "Configure body template and variables."}
+        </DialogDescription>
         <AnimatedHeight>
           <ContentLoading loading={!presetsLoaded} />
           <AnimatePresence mode="wait">
@@ -243,14 +243,14 @@ export function WebhookDialog({
                             aria-label={`Header ${idx + 1} name`}
                             value={h.key}
                             onChange={(e) => updateHeader(idx, "key", e.target.value)}
-                            className="h-9 min-w-0 flex-1 rounded-none border-0 bg-transparent font-mono text-xs shadow-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+                            className="h-9 min-w-0 flex-1 rounded-none border-0 bg-background font-mono text-xs shadow-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
                             placeholder="Content-Type"
                           />
                           <Input
                             aria-label={`Header ${idx + 1} value`}
                             value={h.value}
                             onChange={(e) => updateHeader(idx, "value", e.target.value)}
-                            className="h-9 min-w-0 flex-1 rounded-none border-0 border-l border-border bg-transparent font-mono text-xs shadow-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+                            className="h-9 min-w-0 flex-1 rounded-none border-0 border-l border-border bg-background font-mono text-xs shadow-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
                             placeholder="application/json"
                           />
                           <Button

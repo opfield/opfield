@@ -3,7 +3,7 @@ import {
   ArrowRight,
   Check,
   ChevronDown,
-  KeyRound,
+  Fingerprint,
   Loader2,
   type LucideIcon,
   Monitor,
@@ -44,6 +44,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  DIALOG_LIST_CLASS,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -1056,7 +1057,7 @@ function LocalAccountSecurityPanel() {
                 {passkeysSearch ? "No passkeys found." : "No passkeys configured."}
               </p>
             ) : (
-              <div className="max-h-[min(25rem,48dvh)] divide-y divide-border overflow-y-auto overscroll-contain">
+              <div className={`${DIALOG_LIST_CLASS} divide-y divide-border overscroll-contain`}>
                 {filteredPasskeys.map((passkey) => (
                   <div key={passkey.id} className="flex items-center justify-between gap-3 p-3">
                     <div className="min-w-0">
@@ -1104,7 +1105,7 @@ function LocalAccountSecurityPanel() {
           closeTotpSetup();
         }}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Set Up Authenticator App</DialogTitle>
           </DialogHeader>
@@ -1153,7 +1154,7 @@ function LocalAccountSecurityPanel() {
       </Dialog>
 
       <Dialog open={totpResetOpen} onOpenChange={setTotpResetOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>TOTP Is Already Configured</DialogTitle>
           </DialogHeader>
@@ -1187,7 +1188,7 @@ function LocalAccountSecurityPanel() {
           cancelStepUp();
         }}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Confirm It&apos;s You</DialogTitle>
           </DialogHeader>
@@ -1251,7 +1252,7 @@ function LocalAccountSecurityPanel() {
               pending={stepUpBusy === "passkey"}
               disabled={stepUpBusy !== null}
             >
-              <KeyRound />
+              <Fingerprint />
               Use a passkey
             </Button>
           )}
@@ -1265,7 +1266,7 @@ function LocalAccountSecurityPanel() {
           closeRecoveryCodes();
         }}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Save Recovery Codes</DialogTitle>
           </DialogHeader>

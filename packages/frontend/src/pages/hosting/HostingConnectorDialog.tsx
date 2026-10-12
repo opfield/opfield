@@ -441,15 +441,15 @@ export function HostingConnectorDialog({
         if (!next && !busy) onClose();
       }}
     >
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
             {connector ? `Configure ${connector.name}` : "Add Hosting Connector"}
           </DialogTitle>
-          <DialogDescription>
-            Step {step} of {steps.length} — {steps[step - 1]}
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Step {step} of {steps.length} — {steps[step - 1]}
+        </DialogDescription>
         {/* One body child either way, so the dialog body keeps its layout. */}
         {loading ? (
           <ContentLoading loading />

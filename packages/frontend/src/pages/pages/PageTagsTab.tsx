@@ -256,8 +256,8 @@ export function PageTagsTab({ projectId }: { projectId: string }) {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Create or Move Tag</DialogTitle>
-            <DialogDescription>Point a Tag at a ready Deployment.</DialogDescription>
           </DialogHeader>
+          <DialogDescription>Point a Tag at a ready Deployment.</DialogDescription>
           <div className="space-y-4">
             <div className="space-y-1.5">
               <label htmlFor="page-tag-name" className="text-sm font-medium">

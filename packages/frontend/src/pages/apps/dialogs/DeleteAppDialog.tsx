@@ -16,7 +16,6 @@ import { api } from "@/services/api";
 import type { AppDetail } from "@/types";
 import { memberTotal, plural } from "../app-shared";
 import { markAppDeleted } from "../use-app";
-import { APP_DIALOG_WIDTH } from "./AppNameDialog";
 
 /** Delete App: members keep running and leave the app; type the name to confirm. */
 export function DeleteAppDialog({
@@ -57,11 +56,11 @@ export function DeleteAppDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={APP_DIALOG_WIDTH}>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Delete {app.name}</DialogTitle>
-          <DialogDescription>Type {app.name} to confirm.</DialogDescription>
         </DialogHeader>
+        <DialogDescription>Type {app.name} to confirm.</DialogDescription>
         <div className="space-y-4">
           <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
             <li>

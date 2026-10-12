@@ -66,11 +66,11 @@ export function OneTimeSecretDialog({
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            {description ? <>{description} </> : null}
-            {ONE_TIME_SECRET_NOTICE}
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          {description ? <>{description} </> : null}
+          {ONE_TIME_SECRET_NOTICE}
+        </DialogDescription>
         <div className="min-w-0 space-y-4">
           {children}
           {fields?.map((field) => (

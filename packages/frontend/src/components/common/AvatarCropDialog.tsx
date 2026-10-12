@@ -323,12 +323,12 @@ export function AvatarCropDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            Drag the image to reposition it, then adjust the zoom.
-          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
+          <DialogDescription>
+            Drag the image to reposition it, then adjust the zoom.
+          </DialogDescription>
           <div
             ref={previewRef}
             role="application"

@@ -37,6 +37,7 @@ import {
   ResponsiveHeaderActions,
 } from "@/components/common/ResponsiveHeaderActions";
 import { SimpleTable, type SimpleTableColumn } from "@/components/common/SimpleTable";
+import { SwitchCard } from "@/components/common/SwitchCard";
 import {
   ALL_AVAILABILITY_INSTANCES,
   AvailabilityInstanceSelect,
@@ -68,7 +69,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { StatCard } from "@/components/ui/stat-card";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useUrlTab } from "@/hooks/use-url-tab";
@@ -1528,10 +1528,10 @@ export function DockerComposeProjectDetail() {
         <DialogContent clipOverflow className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Adopt Compose Project</DialogTitle>
-            <DialogDescription>
-              Review the complete configuration before adopting {project.name}.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Review the complete configuration before adopting {project.name}.
+          </DialogDescription>
           <ComposeProjectEditor
             projectIdOverride={project.id}
             adoptionOverride
@@ -1546,10 +1546,10 @@ export function DockerComposeProjectDetail() {
         <DialogContent clipOverflow className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>New Revision for {project.name}</DialogTitle>
-            <DialogDescription>
-              Edit the Compose YAML. Applying creates a new immutable revision.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Edit the Compose YAML. Applying creates a new immutable revision.
+          </DialogDescription>
           <ComposeProjectEditor
             projectIdOverride={project.id}
             compactRevision
@@ -1564,10 +1564,10 @@ export function DockerComposeProjectDetail() {
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Change Revision</DialogTitle>
-            <DialogDescription>
-              Reapply an immutable revision or remove an inactive revision.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Reapply an immutable revision or remove an inactive revision.
+          </DialogDescription>
           <div className="overflow-hidden border border-border">
             <DataTable
               columns={revisionColumns}
@@ -1594,13 +1594,13 @@ export function DockerComposeProjectDetail() {
         </DialogContent>
       </Dialog>
       <Dialog open={activityOpen} onOpenChange={setActivityOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-h-[92dvh] sm:max-w-3xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-h-[92dvh] sm:max-w-5xl">
           <DialogHeader>
             <DialogTitle>Compose Activity</DialogTitle>
-            <DialogDescription>
-              Lifecycle operation history. Scroll the table to load older operations.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Lifecycle operation history. Scroll the table to load older operations.
+          </DialogDescription>
           <div
             className="max-h-[min(70dvh,44rem)] overflow-hidden"
             style={activityTableHeight ? { height: activityTableHeight } : undefined}
@@ -1637,7 +1637,7 @@ export function DockerComposeProjectDetail() {
       </Dialog>
       <Dialog open={activityDetailsOpen} onOpenChange={setActivityDetailsOpen}>
         <DialogContent
-          className="sm:max-w-lg"
+          className="sm:max-w-xl"
           onAnimationEnd={(event) => {
             if (
               event.target === event.currentTarget &&
@@ -1649,12 +1649,12 @@ export function DockerComposeProjectDetail() {
         >
           <DialogHeader>
             <DialogTitle>Activity Details</DialogTitle>
-            <DialogDescription>
-              Compose lifecycle operation and immutable revision reference.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Compose lifecycle operation and immutable revision reference.
+          </DialogDescription>
           {selectedOperation && (
-            <div className="divide-y divide-border border border-border">
+            <PanelShell bodyClassName="divide-y divide-border">
               <DetailRow label="Action" value={selectedOperation.action.replaceAll("_", " ")} />
               <DetailRow
                 label="Status"
@@ -1691,59 +1691,51 @@ export function DockerComposeProjectDetail() {
                   )
                 }
               />
-            </div>
+            </PanelShell>
           )}
         </DialogContent>
       </Dialog>
       <Dialog open={pinOpen} onOpenChange={setPinOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Pin Compose Project</DialogTitle>
-            <DialogDescription>Choose where {project.name} should stay visible.</DialogDescription>
           </DialogHeader>
+          <DialogDescription>Choose where {project.name} should stay visible.</DialogDescription>
           <div className="space-y-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium">Add to dashboard</p>
-                <p className="text-xs text-muted-foreground">Show compact lifecycle status</p>
-              </div>
-              <Switch
-                checked={isPinnedDashboard(project.id)}
-                onChange={() => {
-                  toggleDashboard(project.id, {
-                    nodeId: project.nodeId,
-                    nodeSlug: node?.slug ?? project.nodeId,
-                    name: project.name,
-                    state: project.status,
-                    kind: "compose",
-                    scopeBase: "docker:compose:view",
-                    scopeResourceId: project.id,
-                  });
-                  usePinnedContainersStore.getState().invalidate();
-                }}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium">Add to sidebar</p>
-                <p className="text-xs text-muted-foreground">Quick access from navigation</p>
-              </div>
-              <Switch
-                checked={isPinnedSidebar(project.id)}
-                onChange={() => {
-                  toggleSidebar(project.id, {
-                    nodeId: project.nodeId,
-                    nodeSlug: node?.slug ?? project.nodeId,
-                    name: project.name,
-                    state: project.status,
-                    kind: "compose",
-                    scopeBase: "docker:compose:view",
-                    scopeResourceId: project.id,
-                  });
-                  usePinnedContainersStore.getState().invalidate();
-                }}
-              />
-            </div>
+            <SwitchCard
+              label="Add to dashboard"
+              description="Show compact lifecycle status"
+              checked={isPinnedDashboard(project.id)}
+              onCheckedChange={() => {
+                toggleDashboard(project.id, {
+                  nodeId: project.nodeId,
+                  nodeSlug: node?.slug ?? project.nodeId,
+                  name: project.name,
+                  state: project.status,
+                  kind: "compose",
+                  scopeBase: "docker:compose:view",
+                  scopeResourceId: project.id,
+                });
+                usePinnedContainersStore.getState().invalidate();
+              }}
+            />
+            <SwitchCard
+              label="Add to sidebar"
+              description="Quick access from navigation"
+              checked={isPinnedSidebar(project.id)}
+              onCheckedChange={() => {
+                toggleSidebar(project.id, {
+                  nodeId: project.nodeId,
+                  nodeSlug: node?.slug ?? project.nodeId,
+                  name: project.name,
+                  state: project.status,
+                  kind: "compose",
+                  scopeBase: "docker:compose:view",
+                  scopeResourceId: project.id,
+                });
+                usePinnedContainersStore.getState().invalidate();
+              }}
+            />
           </div>
         </DialogContent>
       </Dialog>

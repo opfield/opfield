@@ -550,7 +550,7 @@ export function DockerTasks({ embedded }: { embedded?: boolean } = {}) {
 
       {/* Task Detail Dialog */}
       <Dialog open={taskDetailsOpen} onOpenChange={onTaskDetailsOpenChange}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Task Details</DialogTitle>
           </DialogHeader>

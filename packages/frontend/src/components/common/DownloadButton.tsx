@@ -44,7 +44,7 @@ export function DownloadButton({
     <Button
       variant="ghost"
       size="icon"
-      className="relative shrink-0 rounded-none border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+      className="relative shrink-0 rounded-none border-l border-border bg-header text-muted-foreground hover:bg-muted hover:text-foreground"
       onClick={handleDownload}
       aria-label={`Download ${label}`}
       title={downloaded ? "Downloaded" : `Download ${label}`}

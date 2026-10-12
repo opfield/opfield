@@ -443,7 +443,7 @@ export function ComposeProjectEditor({
   if (compactRevision && editing) {
     return (
       <div className="flex min-h-0 flex-col gap-4">
-        <div className="h-[min(56dvh,560px)] min-h-80 overflow-hidden border border-border">
+        <div className="h-[min(48dvh,560px)] min-h-48 overflow-hidden border border-border">
           <CodeEditor
             value={yaml}
             onChange={setYaml}
@@ -480,7 +480,7 @@ export function ComposeProjectEditor({
       <PanelShell
         title="Compose YAML"
         description="Images are required; build, host paths, privileged and swarm-only fields are rejected."
-        bodyClassName="h-[min(48dvh,440px)] min-h-72 overflow-hidden"
+        bodyClassName="h-[min(32dvh,440px)] min-h-40 overflow-hidden"
       >
         <CodeEditor
           value={yaml}

@@ -35,7 +35,6 @@ interface DatabaseHeaderProps {
   canRestart: boolean;
   canConfigureClickHouse: boolean;
   canConfigureRedis: boolean;
-  canConfigurePostgres: boolean;
   /** Shows "Move to Valkey" (a managed key-value store that still runs Redis). */
   canMoveToValkey: boolean;
   /** Why "Move to Valkey" is disabled (the store is not running or its app environment is isolated by the kill switch); null enables it. */
@@ -56,7 +55,6 @@ interface DatabaseHeaderProps {
   onRestart: () => void;
   onConfigureClickHouse: () => void;
   onConfigureRedis: () => void;
-  onConfigurePostgres: () => void;
   onMoveToValkey: () => void;
   onRevealCredentials: () => void;
   onRotateDirectCredentials: () => void;
@@ -74,7 +72,6 @@ export function DatabaseHeader({
   canRestart,
   canConfigureClickHouse,
   canConfigureRedis,
-  canConfigurePostgres,
   canMoveToValkey,
   moveToValkeyDisabledReason,
   canReveal,
@@ -92,7 +89,6 @@ export function DatabaseHeader({
   onRestart,
   onConfigureClickHouse,
   onConfigureRedis,
-  onConfigurePostgres,
   onMoveToValkey,
   onRevealCredentials,
   onRotateDirectCredentials,
@@ -170,17 +166,6 @@ export function DatabaseHeader({
             onClick: onMoveToValkey,
             disabled: moveToValkeyDisabledReason !== null,
             disabledReason: moveToValkeyDisabledReason ?? undefined,
-          },
-        ]
-      : []),
-    ...(canConfigurePostgres
-      ? [
-          {
-            id: "database:configure-postgres",
-            label: "Configure PostgreSQL",
-            buttonLabel: "Configure PostgreSQL",
-            icon: <SlidersHorizontal className="h-4 w-4" />,
-            onClick: onConfigurePostgres,
           },
         ]
       : []),

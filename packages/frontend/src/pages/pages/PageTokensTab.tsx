@@ -195,13 +195,9 @@ export function PageTokensTab({ projectId }: { projectId: string }) {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Create Deploy Token</DialogTitle>
-            <DialogDescription>The token will be shown once after creation.</DialogDescription>
           </DialogHeader>
-          <PanelShell
-            icon={<KeyRound className="h-4 w-4" />}
-            title="Token"
-            description="Authentication and Tag publication limits for this deploy token."
-          >
+          <DialogDescription>The token will be shown once after creation.</DialogDescription>
+          <PanelShell>
             <SettingsControlRow title="Name" controlsClassName="sm:min-w-56">
               <Input
                 id="page-deploy-token-name"

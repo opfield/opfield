@@ -15,6 +15,7 @@ import {
 import { SearchFilterBar } from "@/components/common/SearchFilterBar";
 import { Badge } from "@/components/ui/badge";
 import {
+  DIALOG_LIST_CLASS,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -358,7 +359,7 @@ export function DeliveryLogTab({
             onDetailOpenChange(open);
           }}
         >
-          <DialogContent className="sm:max-w-3xl">
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Delivery Details</DialogTitle>
             </DialogHeader>
@@ -410,7 +411,9 @@ export function DeliveryLogTab({
               {(detail.requestBody ?? detail.requestBodyPreview) && (
                 <div>
                   <p className="text-sm font-medium mb-1">Request Body</p>
-                  <pre className="bg-muted p-3 rounded text-xs whitespace-pre-wrap max-h-[200px] overflow-auto font-mono">
+                  <pre
+                    className={`${DIALOG_LIST_CLASS} bg-muted p-3 rounded text-xs whitespace-pre-wrap font-mono`}
+                  >
                     {detail.requestBody ?? detail.requestBodyPreview}
                   </pre>
                   {!detail.requestBody && detail.requestBodyTruncated && detailLoadFailed && (
@@ -423,7 +426,9 @@ export function DeliveryLogTab({
               {(detail.responseBody ?? detail.responseBodyPreview) && (
                 <div>
                   <p className="text-sm font-medium mb-1">Response Body</p>
-                  <pre className="bg-muted p-3 rounded text-xs whitespace-pre-wrap max-h-[200px] overflow-auto font-mono">
+                  <pre
+                    className={`${DIALOG_LIST_CLASS} bg-muted p-3 rounded text-xs whitespace-pre-wrap font-mono`}
+                  >
                     {detail.responseBody ?? detail.responseBodyPreview}
                   </pre>
                   {!detail.responseBody && detail.responseBodyTruncated && detailLoadFailed && (

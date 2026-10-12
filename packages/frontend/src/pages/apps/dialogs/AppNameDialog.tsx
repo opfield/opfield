@@ -74,8 +74,8 @@ export function AppNameDialog({
       <DialogContent className={APP_DIALOG_WIDTH}>
         <DialogHeader>
           <DialogTitle>{shownTitle}</DialogTitle>
-          <DialogDescription>{shownDescription}</DialogDescription>
         </DialogHeader>
+        <DialogDescription>{shownDescription}</DialogDescription>
         <div className="space-y-1.5">
           <label className="text-sm font-medium" htmlFor="app-name-dialog-name">
             Name

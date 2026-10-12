@@ -25,6 +25,7 @@ import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  DIALOG_LIST_CLASS,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -640,15 +641,15 @@ function GitLabIntegrationsContent() {
         open={dialogOpen}
         onOpenChange={(open) => (open ? setDialogOpen(true) : closeDialog())}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader className="shrink-0">
             <DialogTitle>
               {editingConnector ? "GitLab Connector" : "Add GitLab Connector"}
             </DialogTitle>
-            <DialogDescription>
-              Step {visibleDialogStep} of {visibleDialogStepCount} — {dialogStepLabel}
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Step {visibleDialogStep} of {visibleDialogStepCount} — {dialogStepLabel}
+          </DialogDescription>
 
           {loadingDetail ? (
             // Reports the connector detail load to the dialog, which opens once it is ready.
@@ -701,7 +702,7 @@ function GitLabIntegrationsContent() {
                           />
                           <Button
                             variant="ghost"
-                            className="shrink-0 rounded-none border-l border-border bg-muted px-3 text-muted-foreground hover:bg-muted hover:text-foreground"
+                            className="shrink-0 rounded-none border-l border-border bg-header px-3 text-muted-foreground hover:bg-muted hover:text-foreground"
                             onClick={() => void testConnectionForDialog({ advance: false })}
                             disabled={!canContinueFromConnection()}
                             pending={testingConnection}
@@ -737,7 +738,7 @@ function GitLabIntegrationsContent() {
                             />
                             <Button
                               variant="ghost"
-                              className="shrink-0 rounded-none border-l border-border bg-muted px-3 text-muted-foreground hover:bg-muted hover:text-foreground"
+                              className="shrink-0 rounded-none border-l border-border bg-header px-3 text-muted-foreground hover:bg-muted hover:text-foreground"
                               onClick={() => void testConnectionForDialog({ advance: false })}
                               pending={testingConnection}
                             >
@@ -795,7 +796,7 @@ function GitLabIntegrationsContent() {
                             }
                           />
                         </div>
-                        <div className="max-h-[min(18rem,36dvh)] overflow-y-auto overscroll-contain">
+                        <div className={`${DIALOG_LIST_CLASS} overscroll-contain`}>
                           {searching ? (
                             <div className="flex items-center justify-center gap-2 px-3 py-8 text-sm text-muted-foreground">
                               <Loader2 className="h-4 w-4 animate-spin" />

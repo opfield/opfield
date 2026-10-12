@@ -441,13 +441,13 @@ function GitConnectorPanel({
 
       {provider === "github" ? (
         <Dialog open={methodOpen} onOpenChange={setMethodOpen}>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-xl">
             <DialogHeader>
               <DialogTitle>Add GitHub Connector</DialogTitle>
-              <DialogDescription>
-                Choose how Opfield should authorize account-wide access to GitHub.
-              </DialogDescription>
             </DialogHeader>
+            <DialogDescription>
+              Choose how Opfield should authorize account-wide access to GitHub.
+            </DialogDescription>
             <div className="space-y-3">
               <ContentLoading loading={githubOAuthAvailable === null} />
               <ChoiceCard
@@ -479,7 +479,7 @@ function GitConnectorPanel({
       ) : null}
 
       <Dialog open={formOpen} onOpenChange={(open) => (open ? setFormDialog(true) : closeForm())}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
               {oauthStep
@@ -492,14 +492,14 @@ function GitConnectorPanel({
                       : "Connect GitHub with a Token"
                     : "Add Git Connector"}
             </DialogTitle>
-            <DialogDescription>
-              {oauthStep
-                ? "Authorize the selected GitHub account to update this connector without changing its project bindings."
-                : provider === "github"
-                  ? "The connector can use repositories visible to the authorized GitHub account."
-                  : "Opfield encrypts the credential and uses it only for the configured repositories."}
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            {oauthStep
+              ? "Authorize the selected GitHub account to update this connector without changing its project bindings."
+              : provider === "github"
+                ? "The connector can use repositories visible to the authorized GitHub account."
+                : "Opfield encrypts the credential and uses it only for the configured repositories."}
+          </DialogDescription>
 
           {provider === "github" && authMode === "oauth" && editingConnector && oauthStep ? (
             <GitHubDeviceFlow
@@ -664,7 +664,7 @@ function GitConnectorPanel({
                         <Button
                           type="button"
                           variant="ghost"
-                          className="shrink-0 rounded-none border-l border-border bg-muted px-3 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          className="shrink-0 rounded-none border-l border-border bg-header px-3 text-muted-foreground hover:bg-muted hover:text-foreground"
                           disabled={!form.baseUrl.trim() || !form.token.trim()}
                           pending={testing}
                           onClick={() => void testGitHubConnection()}
@@ -720,7 +720,7 @@ function GitConnectorPanel({
                         <Button
                           type="button"
                           variant="ghost"
-                          className="shrink-0 rounded-none border-l border-border bg-muted px-3 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          className="shrink-0 rounded-none border-l border-border bg-header px-3 text-muted-foreground hover:bg-muted hover:text-foreground"
                           disabled={
                             !form.baseUrl.trim() ||
                             !repositoryUrls.some((url) => url.trim()) ||

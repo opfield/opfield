@@ -77,8 +77,8 @@ export function EnvTextDialog({
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        <DialogDescription>{description}</DialogDescription>
         <CodeEditor
           value={value}
           onChange={onValueChange}

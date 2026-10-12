@@ -27,6 +27,7 @@ import { PageBackButton } from "@/components/common/PageBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
+import { SwitchCard } from "@/components/common/SwitchCard";
 import { HostingResizeDialog } from "@/components/nodes/HostingResizeDialog";
 import { NodeEnrollmentDialog } from "@/components/nodes/NodeEnrollmentDialog";
 import { NodeFirewallTab } from "@/components/nodes/NodeFirewallTab";
@@ -43,7 +44,6 @@ import {
 } from "@/components/ui/dialog";
 import { HealthBars } from "@/components/ui/health-bars";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
@@ -1416,7 +1416,7 @@ export function AdminNodeDetail({
 
       {/* Settings Dialog */}
       <Dialog open={appearanceOpen} onOpenChange={setAppearanceOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Node Settings</DialogTitle>
           </DialogHeader>
@@ -1542,7 +1542,7 @@ export function AdminNodeDetail({
                               variant="ghost"
                               size="icon"
                               aria-label={`Remove service address ${index + 1}`}
-                              className="rounded-none border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+                              className="rounded-none border-l border-border bg-header text-muted-foreground hover:bg-muted hover:text-foreground"
                               disabled={!canEditNodeServiceAddress}
                               onClick={() =>
                                 setServiceAddressRows((rows) =>
@@ -1560,7 +1560,7 @@ export function AdminNodeDetail({
                               variant="ghost"
                               size="icon"
                               aria-label="Add service address"
-                              className="rounded-none border-l border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+                              className="rounded-none border-l border-border bg-header text-muted-foreground hover:bg-muted hover:text-foreground"
                               disabled={!canEditNodeServiceAddress}
                               onClick={() =>
                                 setServiceAddressRows((rows) => [
@@ -1662,28 +1662,23 @@ export function AdminNodeDetail({
 
       {/* Pin Dialog */}
       <Dialog open={pinOpen} onOpenChange={setPinOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Pin Node</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Add to dashboard</p>
-                <p className="text-xs text-muted-foreground">Show overview card on the dashboard</p>
-              </div>
-              <Switch
-                checked={isPinnedDashboard(node.id)}
-                onChange={() => toggleDashboard(node.id)}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Add to sidebar</p>
-                <p className="text-xs text-muted-foreground">Quick access link in the sidebar</p>
-              </div>
-              <Switch checked={isPinnedSidebar(node.id)} onChange={() => toggleSidebar(node.id)} />
-            </div>
+            <SwitchCard
+              label="Add to dashboard"
+              description="Show overview card on the dashboard"
+              checked={isPinnedDashboard(node.id)}
+              onCheckedChange={() => toggleDashboard(node.id)}
+            />
+            <SwitchCard
+              label="Add to sidebar"
+              description="Quick access link in the sidebar"
+              checked={isPinnedSidebar(node.id)}
+              onCheckedChange={() => toggleSidebar(node.id)}
+            />
           </div>
         </DialogContent>
       </Dialog>

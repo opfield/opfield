@@ -838,7 +838,7 @@ export function ManagedDatabaseCreateDialog({
         }}
       >
         <DialogContent
-          className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl"
+          className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl"
           onEscapeKeyDown={(event) => {
             if (provisioning?.phase === "waiting") event.preventDefault();
           }}
@@ -848,10 +848,10 @@ export function ManagedDatabaseCreateDialog({
         >
           <DialogHeader>
             <DialogTitle>Deploy Managed Database</DialogTitle>
-            <DialogDescription>
-              Step {step} of {stepCount} — {stepLabel}
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Step {step} of {stepCount} — {stepLabel}
+          </DialogDescription>
           <AnimatedHeight>
             {noAllowedNode && appContext && environment ? (
               <div className="space-y-4">
@@ -954,7 +954,7 @@ export function ManagedDatabaseCreateDialog({
           else closeProvisioningError();
         }}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Database Provisioning Failed</DialogTitle>
           </DialogHeader>

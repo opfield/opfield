@@ -719,7 +719,7 @@ export function AdminNodes() {
         ]}
       />
       <Dialog open={hostingUnavailable} onOpenChange={setHostingUnavailable}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Connect a Hosting Provider</DialogTitle>
           </DialogHeader>

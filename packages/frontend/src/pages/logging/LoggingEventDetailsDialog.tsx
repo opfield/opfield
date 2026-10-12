@@ -1,6 +1,12 @@
 import { ValueTile } from "@/components/common/ValueTile";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  DIALOG_LIST_CLASS,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import type { LoggingSearchResult } from "@/types";
 import { loggingSeverityBadgeVariant } from "./logging-severity";
@@ -16,7 +22,7 @@ export function LoggingEventDetailsDialog({
 
   return (
     <Dialog open={!!event} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Log Event</DialogTitle>
         </DialogHeader>
@@ -40,7 +46,9 @@ export function LoggingEventDetailsDialog({
                 </Badge>
               )}
             </div>
-            <pre className="max-h-32 max-w-full overflow-auto rounded-md bg-muted p-3 text-sm whitespace-pre-wrap break-words">
+            <pre
+              className={`${DIALOG_LIST_CLASS} max-w-full rounded-md bg-muted p-3 text-sm whitespace-pre-wrap break-words`}
+            >
               {displayedEvent.message}
             </pre>
             <div className="grid gap-3 text-sm md:grid-cols-3">

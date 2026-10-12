@@ -80,8 +80,8 @@ export function DisableAvailabilityDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Turn Off Availability</DialogTitle>
-          <DialogDescription>The {ownerNoun(owner)} goes back to one server.</DialogDescription>
         </DialogHeader>
+        <DialogDescription>The {ownerNoun(owner)} goes back to one server.</DialogDescription>
         <div className="space-y-4">
           {noHolder ? (
             <div className="space-y-1.5">

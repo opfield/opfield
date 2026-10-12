@@ -15,7 +15,6 @@ import {
 import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { AppDetail } from "@/types";
-import { APP_DIALOG_WIDTH } from "./AppNameDialog";
 import {
   Consequences,
   defaultScope,
@@ -63,14 +62,14 @@ export function ShutdownDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={APP_DIALOG_WIDTH}>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Shut Down {app.name}</DialogTitle>
-          <DialogDescription>
-            Stops what can be stopped. Members stay editable while it is shut down; Start brings
-            back what still exists.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Stops what can be stopped. Members stay editable while it is shut down; Start brings back
+          what still exists.
+        </DialogDescription>
         <div className="space-y-4">
           <ScopeSelect app={app} value={scope} onChange={setScope} disabled={pending} />
           {blocked ? (

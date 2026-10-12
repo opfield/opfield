@@ -138,7 +138,7 @@ export function PageManualDeployDialog({
       }}
     >
       <DialogContent
-        className="sm:max-w-lg"
+        className="sm:max-w-xl"
         hideCloseButton={busy}
         onEscapeKeyDown={(event) => {
           if (busy) event.preventDefault();
@@ -157,10 +157,10 @@ export function PageManualDeployDialog({
       >
         <DialogHeader>
           <DialogTitle>Deploy Page Project</DialogTitle>
-          <DialogDescription>
-            Upload a static build archive or choose a folder containing index.html or index.htm.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Upload a static build archive or choose a folder containing index.html or index.htm.
+        </DialogDescription>
         <fieldset className="m-0 min-w-0 space-y-4 border-0 p-0" disabled={busy}>
           <div className="space-y-1.5">
             <span id="page-build-label" className="text-sm font-medium">
@@ -214,7 +214,7 @@ export function PageManualDeployDialog({
                 <Button
                   type="button"
                   variant="secondary"
-                  className="h-full rounded-none border-0"
+                  className="h-full rounded-none border-0 bg-header hover:bg-muted"
                   onClick={() => {
                     if (!archiveInputRef.current) return;
                     archiveInputRef.current.value = "";
@@ -227,7 +227,7 @@ export function PageManualDeployDialog({
                 <Button
                   type="button"
                   variant="secondary"
-                  className="h-full rounded-none border-0 border-l border-border"
+                  className="h-full rounded-none border-0 border-l border-border bg-header hover:bg-muted"
                   onClick={() => {
                     if (!folderInputRef.current) return;
                     folderInputRef.current.value = "";

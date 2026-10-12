@@ -700,14 +700,14 @@ function AdminGroupsContent({
 
       {/* Create / Edit Group Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-lg" fitViewport>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {editingGroup ? (groupDialogReadOnly ? "View Group" : "Edit Group") : "Create Group"}
             </DialogTitle>
-            <DialogDescription>Members of the group get the access below.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <DialogDescription>Members of the group get the access below.</DialogDescription>
             <ContentLoading
               loading={!scopeListsReady || (!editingGroup && destinationFolders === null)}
             />

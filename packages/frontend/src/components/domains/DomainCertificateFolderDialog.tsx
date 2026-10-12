@@ -87,14 +87,14 @@ export function DomainCertificateFolderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Issue Certificate</DialogTitle>
-          <DialogDescription>
-            Choose the certificate folder for the certificate of{" "}
-            {displayedDomainName ?? "this domain"}.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Choose the certificate folder for the certificate of{" "}
+          {displayedDomainName ?? "this domain"}.
+        </DialogDescription>
         <div className="space-y-1.5">
           <ContentLoading loading={foldersLoading} />
           <label className="text-sm font-medium">Certificate folder</label>

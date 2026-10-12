@@ -363,13 +363,13 @@ export function PagesSettingsSection() {
           )}
 
           <Dialog open={warningOpen} onOpenChange={setWarningOpen}>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Confirm Same-Domain Pages Previews</DialogTitle>
-                <DialogDescription>
-                  This override requires explicit acknowledgement.
-                </DialogDescription>
               </DialogHeader>
+              <DialogDescription>
+                This override requires explicit acknowledgement.
+              </DialogDescription>
               <Notice tone="warning" title="Why confirmation is required">
                 Pages should use a separate registrable domain. Deployed JavaScript may affect
                 Opfield cookies on the shared parent domain.

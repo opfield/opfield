@@ -212,11 +212,11 @@ export function ContainerLinkDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Add Container Link</DialogTitle>
-          <DialogDescription>
-            {description ??
-              `${workloadName} will reach one port of another workload by an alias on a private network.`}
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          {description ??
+            `${workloadName} will reach one port of another workload by an alias on a private network.`}
+        </DialogDescription>
 
         <div className="space-y-4">
           {beforeFields}

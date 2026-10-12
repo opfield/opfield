@@ -147,7 +147,7 @@
   --color-primary-foreground: #f3f2ef;
   --color-secondary: #ebe9e4;
   --color-secondary-foreground: #141414;
-  --color-accent: #e6e4de;
+  --color-accent: color-mix(in srgb, #e6e4de 70%, transparent);
   --color-accent-foreground: #141414;
   --color-destructive: #a2443a;
   --color-destructive-foreground: #fbfaf8;
@@ -309,7 +309,7 @@
     --color-primary-foreground: #141414;
     --color-secondary: #262624;
     --color-secondary-foreground: #f3f2ef;
-    --color-accent: #2c2c2a;
+    --color-accent: color-mix(in srgb, #2c2c2a 70%, transparent);
     --color-accent-foreground: #f3f2ef;
     --color-destructive: #d98b7c;
     --color-destructive-foreground: #fbfaf8;
@@ -388,7 +388,7 @@
   --color-primary-foreground: #f3f2ef;
   --color-secondary: #ebe9e4;
   --color-secondary-foreground: #141414;
-  --color-accent: #e6e4de;
+  --color-accent: color-mix(in srgb, #e6e4de 70%, transparent);
   --color-accent-foreground: #141414;
   --color-destructive: #a2443a;
   --color-destructive-foreground: #fbfaf8;
@@ -465,7 +465,7 @@
   --color-primary-foreground: #141414;
   --color-secondary: #262624;
   --color-secondary-foreground: #f3f2ef;
-  --color-accent: #2c2c2a;
+  --color-accent: color-mix(in srgb, #2c2c2a 70%, transparent);
   --color-accent-foreground: #f3f2ef;
   --color-destructive: #d98b7c;
   --color-destructive-foreground: #fbfaf8;
@@ -592,4 +592,9 @@ textarea::-webkit-resizer {
 .terminal-console .xterm-rows,
 .terminal-console .xterm-rows > div {
   width: 100% !important;
+}
+
+/* A dialog list shown in full scrolls with the dialog: its section headers do not stick to the window. */
+.dialog-list:not([data-dialog-list-scrolls]) .sticky {
+  position: static;
 }

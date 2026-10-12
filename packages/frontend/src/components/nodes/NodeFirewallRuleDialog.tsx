@@ -130,24 +130,23 @@ export function NodeFirewallRuleDialog({
     >
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
             {displayedDialog?.rule ? "Edit Firewall Rule" : "Add Firewall Rule"}
-          </DialogTitle>
-          <DialogDescription>
-            This edits the local draft only. The provider is unchanged until you save the firewall
-            configuration.
-          </DialogDescription>
-        </DialogHeader>
-        {displayedDialog ? (
-          <div className="grid gap-4">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-medium">Direction</span>
+            {displayedDialog ? (
               <Badge variant="secondary" size="inline">
                 {displayedDialog.direction === "in" ? "Inbound" : "Outbound"}
               </Badge>
-            </div>
-            <label className="grid gap-1.5 text-sm">
-              <span className="font-medium">Action</span>
+            ) : null}
+          </DialogTitle>
+        </DialogHeader>
+        <DialogDescription>
+          This edits the local draft only. The provider is unchanged until you save the firewall
+          configuration.
+        </DialogDescription>
+        {displayedDialog ? (
+          <div className="space-y-4">
+            <label className="block space-y-1.5 text-sm">
+              <span className="block font-medium">Action</span>
               <Select
                 value={form.action}
                 onValueChange={(action) =>
@@ -167,8 +166,8 @@ export function NodeFirewallRuleDialog({
                 </SelectContent>
               </Select>
             </label>
-            <label className="grid gap-1.5 text-sm">
-              <span className="font-medium">Protocol</span>
+            <label className="block space-y-1.5 text-sm">
+              <span className="block font-medium">Protocol</span>
               <Select
                 value={form.protocol}
                 onValueChange={(protocol) =>
@@ -190,8 +189,8 @@ export function NodeFirewallRuleDialog({
                 </SelectContent>
               </Select>
             </label>
-            <label className="grid gap-1.5 text-sm">
-              <span className="font-medium">Ports</span>
+            <label className="block space-y-1.5 text-sm">
+              <span className="block font-medium">Ports</span>
               <span className="text-xs text-muted-foreground">
                 Use all, a port, or a port range. ICMP has no ports.
               </span>
@@ -205,8 +204,8 @@ export function NodeFirewallRuleDialog({
                 }
               />
             </label>
-            <label className="grid gap-1.5 text-sm">
-              <span className="font-medium">
+            <label className="block space-y-1.5 text-sm">
+              <span className="block font-medium">
                 {displayedDialog.direction === "in" ? "Source addresses" : "Destination addresses"}
               </span>
               <span className="text-xs text-muted-foreground">
@@ -228,8 +227,8 @@ export function NodeFirewallRuleDialog({
                 }
               />
             </label>
-            <label className="grid gap-1.5 text-sm">
-              <span className="font-medium">
+            <label className="block space-y-1.5 text-sm">
+              <span className="block font-medium">
                 {displayedDialog.direction === "in" ? "Destination" : "Source"}
               </span>
               <Input
@@ -238,8 +237,8 @@ export function NodeFirewallRuleDialog({
                 readOnly
               />
             </label>
-            <label className="grid gap-1.5 text-sm">
-              <span className="font-medium">Comment</span>
+            <label className="block space-y-1.5 text-sm">
+              <span className="block font-medium">Comment</span>
               <span className="text-xs text-muted-foreground">
                 Optional comment, up to 120 characters.
               </span>

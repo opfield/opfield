@@ -51,14 +51,14 @@ await logger.flush();`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent clipOverflow className="sm:max-w-lg">
+      <DialogContent clipOverflow className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Connect to This Environment</DialogTitle>
-          <DialogDescription>
-            Create an ingest token in the Tokens tab, store it as a server-side secret, then send
-            logs with the SDK or ingest API.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Create an ingest token in the Tokens tab, store it as a server-side secret, then send logs
+          with the SDK or ingest API.
+        </DialogDescription>
 
         <AnimatedHeight>
           <Tabs value={method} onValueChange={(value) => setMethod(value as ConnectionMethod)}>

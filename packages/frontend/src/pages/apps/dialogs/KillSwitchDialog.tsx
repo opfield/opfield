@@ -17,7 +17,6 @@ import { Input } from "@/components/ui/input";
 import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { AppDetail } from "@/types";
-import { APP_DIALOG_WIDTH } from "./AppNameDialog";
 import {
   Consequences,
   defaultScope,
@@ -66,13 +65,13 @@ export function KillSwitchDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={APP_DIALOG_WIDTH}>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Isolate {app.name}</DialogTitle>
-          <DialogDescription>
-            For a security incident. Select the scope, then type {app.name} to confirm.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          For a security incident. Select the scope, then type {app.name} to confirm.
+        </DialogDescription>
         <div className="space-y-4">
           <ScopeSelect app={app} value={scope} onChange={setScope} disabled={pending} />
           {error ? (

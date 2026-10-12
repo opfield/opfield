@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { SegmentedChoice, type SegmentedChoiceOption } from "@/components/ui/segmented-choice";
+import { Switch } from "@/components/ui/switch";
 import type { AccessList, IPRule } from "@/types";
 import { useAccessListForm } from "./access-list-form";
 
@@ -39,7 +40,7 @@ const RULE_TYPE_OPTIONS: SegmentedChoiceOption<IPRule["type"]>[] = [
 ];
 
 const CELL_INPUT =
-  "h-9 min-w-0 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring";
+  "h-9 min-w-0 flex-1 rounded-none border-0 bg-background shadow-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring";
 
 /**
  * Creates or edits an access list in two sections. IP rules are numbered rows
@@ -58,15 +59,15 @@ export function AccessListDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{form.isEdit ? "Edit Access List" : "Create Access List"}</DialogTitle>
-          <DialogDescription>
-            {form.isEdit
-              ? "Update access list settings"
-              : "Create a new access list with IP rules and optional basic authentication"}
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          {form.isEdit
+            ? "Update access list settings"
+            : "Create a new access list with IP rules and optional basic authentication"}
+        </DialogDescription>
 
         <AnimatedHeight>
           <div className="space-y-6">
@@ -152,26 +153,23 @@ export function AccessListDialog({
             </PanelShell>
 
             <PanelShell
-              title={
-                <label className="flex cursor-pointer items-center gap-1.5">
-                  <input
-                    type="checkbox"
-                    className="form-checkbox shrink-0"
-                    checked={form.basicAuthEnabled}
-                    onChange={(event) => form.setBasicAuthEnabled(event.target.checked)}
-                  />
-                  Basic authentication
-                </label>
-              }
+              title="Basic authentication"
               description="Visitors also sign in with a username and password."
               headerActionsClassName="pl-4"
               actions={
-                form.basicAuthEnabled ? (
-                  <Button onClick={() => form.addBasicAuthUser()}>
-                    <Plus />
-                    Add user
-                  </Button>
-                ) : null
+                <div className="flex items-center gap-3">
+                  {form.basicAuthEnabled ? (
+                    <Button onClick={() => form.addBasicAuthUser()}>
+                      <Plus />
+                      Add user
+                    </Button>
+                  ) : null}
+                  <Switch
+                    checked={form.basicAuthEnabled}
+                    onChange={form.setBasicAuthEnabled}
+                    ariaLabel="Basic authentication"
+                  />
+                </div>
               }
             >
               {form.basicAuthEnabled && form.basicAuthUsers.length > 0 ? (

@@ -433,11 +433,11 @@ export function NginxTemplateEdit() {
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         {/* The preview takes the dialog's full height; the editor fills it and scrolls inside. */}
-        <DialogContent className="h-[88vh] w-[92vw] sm:max-w-5xl" fillHeight>
+        <DialogContent className="h-[calc(100dvh-6rem)] w-[92vw] sm:max-w-5xl" fillHeight>
           <DialogHeader>
             <DialogTitle>Rendered Preview</DialogTitle>
-            <DialogDescription>Preview the template rendered with sample data.</DialogDescription>
           </DialogHeader>
+          <DialogDescription>Preview the template rendered with sample data.</DialogDescription>
           <div className="relative flex min-h-0 flex-1 flex-col">
             <ContentLoading loading={isPreviewLoading} />
             <CodeEditor
@@ -453,13 +453,13 @@ export function NginxTemplateEdit() {
       </Dialog>
 
       <Dialog open={cheatsheetOpen} onOpenChange={setCheatsheetOpen}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Template Cheatsheet</DialogTitle>
-            <DialogDescription>
-              Variables and Handlebars helpers available in nginx templates.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Variables and Handlebars helpers available in nginx templates.
+          </DialogDescription>
           <div className="space-y-5">
             <ReferenceTable title="Variables" termLabel="Variable" rows={CHEATSHEET_VARIABLES} />
             <ReferenceTable title="Helpers" termLabel="Usage" rows={CHEATSHEET_HELPERS} />
@@ -469,13 +469,13 @@ export function NginxTemplateEdit() {
 
       {!isBuiltin && (
         <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-          <DialogContent className="w-[90vw] sm:max-w-3xl">
+          <DialogContent className="w-[90vw] sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>Template Settings</DialogTitle>
-              <DialogDescription>
-                Configure custom variables that proxy hosts can fill when using this template.
-              </DialogDescription>
             </DialogHeader>
+            <DialogDescription>
+              Configure custom variables that proxy hosts can fill when using this template.
+            </DialogDescription>
             <PanelShell
               title="Custom Variables"
               description={

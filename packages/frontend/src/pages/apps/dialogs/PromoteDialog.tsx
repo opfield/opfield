@@ -236,8 +236,8 @@ export function PromoteDialog({
           <DialogTitle>
             Promote {source.name} to {targetName}
           </DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        <DialogDescription>{description}</DialogDescription>
 
         {step === 1 && (
           <div className="space-y-4">

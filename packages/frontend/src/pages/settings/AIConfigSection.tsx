@@ -697,13 +697,13 @@ function SandboxArtifactsPanel() {
       </PanelShell>
 
       <Dialog open={allOpen} onOpenChange={onAllOpenChange}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-h-[85dvh] sm:max-w-3xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-h-[85dvh] sm:max-w-5xl">
           <DialogHeader>
             <DialogTitle>Stored Artifacts</DialogTitle>
-            <DialogDescription>
-              All retained assistant sandbox files. Scroll to load older artifacts.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            All retained assistant sandbox files. Scroll to load older artifacts.
+          </DialogDescription>
           <AllArtifactsBody loading={allLoading && allArtifacts.length === 0}>
             <div
               className="max-h-[min(65dvh,40rem)]"

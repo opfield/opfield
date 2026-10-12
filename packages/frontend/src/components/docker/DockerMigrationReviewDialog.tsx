@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { DetailRow } from "@/components/common/DetailRow";
 import { Notice } from "@/components/common/Notice";
+import { PanelShell } from "@/components/common/PanelShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -150,13 +151,13 @@ function MigrationProgress({ migration }: { migration: DockerMigration }) {
 
   return (
     <div className="space-y-5">
-      <div className="divide-y divide-border border border-border">
+      <PanelShell bodyClassName="divide-y divide-border">
         <DetailRow
           label="Status"
           value={<Badge variant={statusVariant}>{formatLabel(migration.status)}</Badge>}
         />
         <DetailRow label="Phase" value={formatLabel(visibleMigrationPhase(migration.phase))} />
-      </div>
+      </PanelShell>
 
       {percent !== null ? (
         <div className="space-y-2">
@@ -212,7 +213,7 @@ function PreflightReview({ preflight }: { preflight: DockerMigrationPreflight })
 
       <section className="space-y-2">
         <h3 className="text-sm font-semibold">Migration plan</h3>
-        <div className="divide-y divide-border border border-border">
+        <PanelShell bodyClassName="divide-y divide-border">
           <DetailRow label="Source state" value={formatLabel(preflight.sourceState)} />
           {preflight.capacity ? (
             <DetailRow
@@ -240,7 +241,7 @@ function PreflightReview({ preflight }: { preflight: DockerMigrationPreflight })
               </span>
             </div>
           ))}
-        </div>
+        </PanelShell>
       </section>
 
       {(preflight.deletionPlan?.length ?? 0) > 0 ? (
@@ -249,7 +250,7 @@ function PreflightReview({ preflight }: { preflight: DockerMigrationPreflight })
             <AlertTriangle className="h-4 w-4 text-warning-foreground" />
             <h3 className="text-sm font-semibold">Removed from source after verification</h3>
           </div>
-          <div className="divide-y divide-border border border-border">
+          <PanelShell bodyClassName="divide-y divide-border">
             {preflight.deletionPlan?.map((item) => (
               <DetailRow
                 key={`${item.type}:${item.name}`}
@@ -257,7 +258,7 @@ function PreflightReview({ preflight }: { preflight: DockerMigrationPreflight })
                 value={`${item.name}${item.sizeBytes ? ` · ${formatBytes(item.sizeBytes)}` : ""}`}
               />
             ))}
-          </div>
+          </PanelShell>
         </section>
       ) : null}
     </div>
@@ -298,13 +299,13 @@ export function DockerMigrationReviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{migration ? "Migration Progress" : "Migration Preflight"}</DialogTitle>
-          <DialogDescription>
-            {resource.displayName} → {targetLabel}
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          {resource.displayName} → {targetLabel}
+        </DialogDescription>
 
         {migration ? (
           <MigrationProgress migration={migration} />

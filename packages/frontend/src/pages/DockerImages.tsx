@@ -690,11 +690,11 @@ export function DockerImages({
 
       {/* Pull Image Dialog */}
       <Dialog open={pullOpen} onOpenChange={closePull}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Pull Image</DialogTitle>
-            <DialogDescription>Pull a Docker image from a registry.</DialogDescription>
           </DialogHeader>
+          <DialogDescription>Pull a Docker image from a registry.</DialogDescription>
           <div className="space-y-4">
             {/* Node */}
             <div className="space-y-1.5">
@@ -821,15 +821,15 @@ export function DockerImages({
 
       {/* Image Details Dialog */}
       <Dialog open={detailsOpen} onOpenChange={onDetailsOpenChange}>
-        <DialogContent className="max-w-full sm:max-w-lg">
+        <DialogContent className="max-w-full sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Image Details</DialogTitle>
-            <DialogDescription>
-              <span className="font-mono text-xs break-all">
-                {detailsImage?.repoTags?.[0] ?? detailsImage?.id ?? ""}
-              </span>
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            <span className="font-mono text-xs break-all">
+              {detailsImage?.repoTags?.[0] ?? detailsImage?.id ?? ""}
+            </span>
+          </DialogDescription>
           {detailsImage ? (
             <div className="min-w-0 space-y-4">
               <div className="min-w-0 divide-y divide-border overflow-hidden border border-border bg-card">

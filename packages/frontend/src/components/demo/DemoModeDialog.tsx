@@ -15,7 +15,7 @@ export function DemoModeDialog() {
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && close()}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>This Action Is Unavailable in the Demo</DialogTitle>
         </DialogHeader>

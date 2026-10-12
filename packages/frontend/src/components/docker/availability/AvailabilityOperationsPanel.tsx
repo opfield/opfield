@@ -231,7 +231,7 @@ export function AvailabilityOperationsPanel({
       {
         key: "time",
         header: "Time",
-        width: "11rem",
+        width: "7rem",
         render: (row) => <RelativeTime value={row.createdAt} />,
       },
       {
@@ -245,36 +245,48 @@ export function AvailabilityOperationsPanel({
           </span>
         ),
       },
-      { key: "phase", header: "Phase", width: "12rem", render: (row) => label(row.phase) },
+      { key: "phase", header: "Phase", width: "11rem", render: (row) => label(row.phase) },
       {
         key: "generation",
         header: "Generation",
-        width: "7rem",
+        width: "6rem",
         render: (row) => row.targetGeneration,
       },
       {
         key: "message",
         header: "Details",
-        render: (row) => row.progress.message || "—",
+        // Rows have a fixed height: one line, the full text on hover.
+        render: (row) =>
+          row.progress.message ? (
+            <span className="block truncate" title={row.progress.message}>
+              {row.progress.message}
+            </span>
+          ) : (
+            "—"
+          ),
       },
-      {
-        key: "action",
-        header: "",
-        width: "7rem",
-        render: (row) => {
-          const status = operationStatus(row, desiredGeneration);
-          const retryable = ["failed", "waiting", "cleanup_pending"].includes(status);
-          return retryable && canManage ? (
-            <Button
-              variant="outline"
-              pending={retryingId === row.id}
-              onClick={() => void retry(row)}
-            >
-              {retryingId !== row.id && <RefreshCw />} Retry
-            </Button>
-          ) : null;
-        },
-      },
+      ...(canManage
+        ? [
+            {
+              key: "action",
+              header: "",
+              width: "7rem",
+              render: (row: DockerAvailabilityOperation) => {
+                const status = operationStatus(row, desiredGeneration);
+                const retryable = ["failed", "waiting", "cleanup_pending"].includes(status);
+                return retryable ? (
+                  <Button
+                    variant="outline"
+                    pending={retryingId === row.id}
+                    onClick={() => void retry(row)}
+                  >
+                    {retryingId !== row.id && <RefreshCw />} Retry
+                  </Button>
+                ) : null;
+              },
+            },
+          ]
+        : []),
     ],
     [canManage, desiredGeneration, retry, retryingId]
   );
@@ -312,8 +324,8 @@ export function AvailabilityOperationsPanel({
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-h-[85dvh] sm:max-w-5xl">
           <DialogHeader>
             <DialogTitle>Availability Operations</DialogTitle>
-            <DialogDescription>Scroll the table to load older operations.</DialogDescription>
           </DialogHeader>
+          <DialogDescription>Scroll the table to load older operations.</DialogDescription>
           <div
             className="max-h-[min(64dvh,40rem)]"
             style={tableHeight ? { height: tableHeight } : undefined}
@@ -324,7 +336,7 @@ export function AvailabilityOperationsPanel({
               loading={loading && rows.length === 0}
               keyFn={(row) => row.id}
               horizontalScroll
-              minWidth="64rem"
+              minWidth="60rem"
               className="h-full"
               fixedRowHeight={49}
               emptyMessage="No Availability operations"

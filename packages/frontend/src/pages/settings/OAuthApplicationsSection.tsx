@@ -1,5 +1,5 @@
 import { ExternalLink, ShieldCheck, Trash2 } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -119,10 +119,6 @@ export function OAuthApplicationsSection({
     [userScopes]
   );
 
-  const selectedScopeView = useMemo(
-    () => parseScopesForForm(selectedAuthorization?.scopes ?? []),
-    [selectedAuthorization?.scopes]
-  );
   const editableScopeCatalog = useMemo(
     () =>
       selectedAuthorization && isMcpResource(selectedAuthorization.resource)
@@ -130,10 +126,6 @@ export function OAuthApplicationsSection({
         : API_TOKEN_SCOPES,
     [selectedAuthorization]
   );
-  const unknownScopes = useMemo(() => {
-    const known = new Set<string>(editableScopeCatalog.map((scope) => scope.value));
-    return selectedScopeView.baseScopes.filter((scope) => !known.has(scope));
-  }, [editableScopeCatalog, selectedScopeView.baseScopes]);
   const finalEditableScopes = useMemo(
     () => buildFinalScopes(editableBaseScopes, editableResourceScopes),
     [editableBaseScopes, editableResourceScopes]
@@ -361,11 +353,11 @@ export function OAuthApplicationsSection({
       </PanelShell>
 
       <Dialog open={authorizationOpen} onOpenChange={onAuthorizationOpenChange}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>OAuth Application</DialogTitle>
-            <DialogDescription>View and edit authorized application access</DialogDescription>
           </DialogHeader>
+          <DialogDescription>View and edit authorized application access</DialogDescription>
 
           {selectedAuthorization && (
             <div className="space-y-4">
@@ -388,40 +380,19 @@ export function OAuthApplicationsSection({
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <InfoItem
-                  label="Authorized"
-                  value={<RelativeTime value={selectedAuthorization.createdAt} />}
-                />
-                <InfoItem
-                  label="Last used"
-                  value={<RelativeTime value={selectedAuthorization.lastUsedAt} fallback="Never" />}
-                />
-                <InfoItem
-                  label="Expires"
-                  value={
-                    selectedAuthorization.expiresAt
-                      ? formatDate(selectedAuthorization.expiresAt)
-                      : "No expiry"
-                  }
-                />
-                <InfoItem
-                  label="Refresh grants"
-                  value={String(selectedAuthorization.activeRefreshTokens)}
-                />
-                <InfoItem
-                  label="Access target"
-                  value={resourceLabel(selectedAuthorization.resource)}
-                />
-              </div>
-
-              <div className="flex flex-wrap gap-1.5">
-                {selectedAuthorization.resources.map((resource) => (
-                  <Badge key={resource} variant="secondary">
-                    {resourceLabel(resource)}
-                  </Badge>
-                ))}
-              </div>
+              {/* One line of facts, so the scope list keeps the room in a laptop window. */}
+              <p className="text-xs text-muted-foreground">
+                Authorized <RelativeTime value={selectedAuthorization.createdAt} /> · Last used{" "}
+                <RelativeTime value={selectedAuthorization.lastUsedAt} fallback="Never" /> ·{" "}
+                {selectedAuthorization.expiresAt
+                  ? `Expires ${formatDate(selectedAuthorization.expiresAt)}`
+                  : "No expiry"}{" "}
+                · {selectedAuthorization.activeRefreshTokens} refresh grant
+                {selectedAuthorization.activeRefreshTokens !== 1 ? "s" : ""} ·{" "}
+                {[...new Set([selectedAuthorization.resource, ...selectedAuthorization.resources])]
+                  .map(resourceLabel)
+                  .join(", ")}
+              </p>
 
               <ScopePicker
                 header={<span className="text-sm font-medium">Scopes</span>}
@@ -440,22 +411,7 @@ export function OAuthApplicationsSection({
                 allowedResourceIds={allowedResourceIdsByScope}
                 viewportClassName={SCOPE_PICKER_VIEWPORT}
                 footer={`${finalEditableScopes.length} scope${finalEditableScopes.length !== 1 ? "s" : ""}`}
-              >
-                {unknownScopes.length > 0 && (
-                  <div className="border-t border-border p-3">
-                    <p className="mb-2 text-xs font-medium text-muted-foreground">
-                      Additional scopes
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {unknownScopes.map((scope) => (
-                        <Badge key={scope} variant="secondary">
-                          {scope}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </ScopePicker>
+              />
             </div>
           )}
           {selectedAuthorization && (
@@ -475,14 +431,5 @@ export function OAuthApplicationsSection({
         </DialogContent>
       </Dialog>
     </>
-  );
-}
-
-function InfoItem({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="border border-border p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-sm text-foreground">{value}</p>
-    </div>
   );
 }

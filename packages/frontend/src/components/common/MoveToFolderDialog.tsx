@@ -152,11 +152,11 @@ export function MoveToFolderDialog<TFolder extends MoveToFolderNode>({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        <DialogDescription>{description}</DialogDescription>
         <div className="border border-border">
           <MoveDestinationRow
             label={root.label}

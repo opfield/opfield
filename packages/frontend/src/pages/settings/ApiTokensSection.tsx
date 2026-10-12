@@ -339,15 +339,15 @@ export function ApiTokensSection({
           setCreateDialogOpen(open);
         }}
       >
-        <DialogContent className="sm:max-w-lg" fitViewport>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editingToken ? "API Token" : "Create API Token"}</DialogTitle>
-            <DialogDescription>
-              For scripts and CI: the token can do only what its access below allows.
-            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
+            <DialogDescription>
+              For scripts and CI: the token can do only what its access below allows.
+            </DialogDescription>
             <ReportLoading loading={resourceListsLoading || registryExternalAccess === null} />
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Name</label>

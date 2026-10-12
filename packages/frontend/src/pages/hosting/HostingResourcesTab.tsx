@@ -572,11 +572,11 @@ export function HostingResourcesTab({
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Retry Installation</DialogTitle>
-            <DialogDescription>
-              Install the daemon again on {displayedRetry?.resource.name}. The existing node and VM
-              are reused; no new VM is ordered.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Install the daemon again on {displayedRetry?.resource.name}. The existing node and VM
+            are reused; no new VM is ordered.
+          </DialogDescription>
           {!displayedRetry?.resource.capabilities.bootstrap.available && (
             <SettingsControlRow
               title="Trusted SSH connection"

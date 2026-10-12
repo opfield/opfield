@@ -205,18 +205,14 @@ export function CertificateIssueDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Issue Certificate</DialogTitle>
-          <DialogDescription>
-            Step {step} of 3 &mdash;{" "}
-            {step === 1
-              ? "Select CA & Template"
-              : step === 2
-                ? "Subject Details"
-                : "Review & Issue"}
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Step {step} of 3 &mdash;{" "}
+          {step === 1 ? "Select CA & Template" : step === 2 ? "Subject Details" : "Review & Issue"}
+        </DialogDescription>
 
         <AnimatedHeight>
           <ContentLoading loading={templates === null || (casLoading && cas.length === 0)} />

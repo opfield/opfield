@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CheckboxCard } from "@/components/common/CheckboxCard";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { Notice } from "@/components/common/Notice";
+import { SwitchCard } from "@/components/common/SwitchCard";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -96,7 +96,7 @@ export function MoveToValkeyDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !moving && onOpenChange(nextOpen)}>
-      <DialogContent hideCloseButton={moving}>
+      <DialogContent className="sm:max-w-md" hideCloseButton={moving}>
         <ContentLoading loading={open && loadedCheck === null} />
         <DialogHeader>
           <DialogTitle>Move to Valkey</DialogTitle>
@@ -120,7 +120,7 @@ export function MoveToValkeyDialog({
                 <Notice tone="warning" title={`${pendingStreamEntries} will not be moved`}>
                   Consumers won't see them again.
                 </Notice>
-                <CheckboxCard
+                <SwitchCard
                   label="Move without the pending stream entries"
                   checked={acceptPendingStreamLoss}
                   onCheckedChange={setAcceptPendingStreamLoss}

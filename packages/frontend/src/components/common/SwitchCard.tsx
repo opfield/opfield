@@ -18,6 +18,7 @@ interface SwitchCardProps {
  * and its label on the first line, the description below across the full width.
  * Use it for a setting that stays on or off; use `CheckboxCard` for an option
  * that is included or not. A disabled `fieldset` around it disables it too.
+ * Inside a dialog it drops the border and padding; every switch in a dialog is a `SwitchCard`.
  */
 export function SwitchCard({
   checked,
@@ -36,6 +37,8 @@ export function SwitchCard({
       className={cn(
         "block cursor-pointer space-y-1.5 border border-border p-3 transition-colors hover:bg-accent/50",
         "has-[:disabled]:cursor-default has-[:disabled]:hover:bg-transparent",
+        // In a dialog it stands among the fields: no border, padding or hover fill.
+        "[.dialog-content_&]:border-0 [.dialog-content_&]:p-0 [.dialog-content_&]:hover:bg-transparent",
         className
       )}
     >

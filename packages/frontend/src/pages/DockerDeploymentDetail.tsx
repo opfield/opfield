@@ -15,6 +15,7 @@ import {
   type ResponsiveHeaderAction,
   ResponsiveHeaderActions,
 } from "@/components/common/ResponsiveHeaderActions";
+import { SwitchCard } from "@/components/common/SwitchCard";
 import {
   ALL_AVAILABILITY_INSTANCES,
   AvailabilityInstanceSelect,
@@ -36,7 +37,6 @@ import {
   useDialogPresence,
 } from "@/components/ui/dialog";
 import { HealthBars } from "@/components/ui/health-bars";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
@@ -1531,7 +1531,7 @@ export function DockerDeploymentDetail({
         </Tabs>
       </div>
       <Dialog open={configOpen} onOpenChange={setConfigOpen}>
-        <DialogContent className="sm:max-w-3xl" aria-describedby={undefined}>
+        <DialogContent className="sm:max-w-4xl" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Deployment Configuration</DialogTitle>
           </DialogHeader>
@@ -1539,53 +1539,43 @@ export function DockerDeploymentDetail({
         </DialogContent>
       </Dialog>
       <Dialog open={pinOpen} onOpenChange={setPinOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Pin Deployment</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Add to dashboard</p>
-                <p className="text-xs text-muted-foreground">
-                  Show compact status on the dashboard
-                </p>
-              </div>
-              <Switch
-                checked={isPinnedDashboard(deployment.id)}
-                onChange={() => {
-                  toggleDashboard(deployment.id, {
-                    nodeId,
-                    nodeSlug,
-                    name: deployment.name,
-                    state: deployment._transition ?? deployment.status,
-                    kind: "deployment",
-                    scopeResourceId: deployment.id,
-                  });
-                  usePinnedContainersStore.getState().invalidate();
-                }}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Add to sidebar</p>
-                <p className="text-xs text-muted-foreground">Quick access link in the sidebar</p>
-              </div>
-              <Switch
-                checked={isPinnedSidebar(deployment.id)}
-                onChange={() => {
-                  toggleSidebar(deployment.id, {
-                    nodeId,
-                    nodeSlug,
-                    name: deployment.name,
-                    state: deployment._transition ?? deployment.status,
-                    kind: "deployment",
-                    scopeResourceId: deployment.id,
-                  });
-                  usePinnedContainersStore.getState().invalidate();
-                }}
-              />
-            </div>
+            <SwitchCard
+              label="Add to dashboard"
+              description="Show compact status on the dashboard"
+              checked={isPinnedDashboard(deployment.id)}
+              onCheckedChange={() => {
+                toggleDashboard(deployment.id, {
+                  nodeId,
+                  nodeSlug,
+                  name: deployment.name,
+                  state: deployment._transition ?? deployment.status,
+                  kind: "deployment",
+                  scopeResourceId: deployment.id,
+                });
+                usePinnedContainersStore.getState().invalidate();
+              }}
+            />
+            <SwitchCard
+              label="Add to sidebar"
+              description="Quick access link in the sidebar"
+              checked={isPinnedSidebar(deployment.id)}
+              onCheckedChange={() => {
+                toggleSidebar(deployment.id, {
+                  nodeId,
+                  nodeSlug,
+                  name: deployment.name,
+                  state: deployment._transition ?? deployment.status,
+                  kind: "deployment",
+                  scopeResourceId: deployment.id,
+                });
+                usePinnedContainersStore.getState().invalidate();
+              }}
+            />
           </div>
         </DialogContent>
       </Dialog>

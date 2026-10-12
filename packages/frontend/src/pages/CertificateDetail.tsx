@@ -410,13 +410,13 @@ export function CertificateDetail() {
         </div>
         {/* Revoke Dialog */}
         <Dialog open={revokeDialogOpen} onOpenChange={setRevokeDialogOpen}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Revoke Certificate</DialogTitle>
-              <DialogDescription>
-                Select a reason for revocation. This action cannot be undone.
-              </DialogDescription>
             </DialogHeader>
+            <DialogDescription>
+              Select a reason for revocation. This action cannot be undone.
+            </DialogDescription>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Reason</label>
               <Select value={revokeReason} onValueChange={setRevokeReason}>
@@ -451,13 +451,13 @@ export function CertificateDetail() {
             setPkcs12DialogOpen(open);
           }}
         >
-          <DialogContent>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Export PKCS#12</DialogTitle>
-              <DialogDescription>
-                Enter a passphrase to protect the exported certificate archive.
-              </DialogDescription>
             </DialogHeader>
+            <DialogDescription>
+              Enter a passphrase to protect the exported certificate archive.
+            </DialogDescription>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Passphrase</label>
               <Input

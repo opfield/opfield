@@ -685,14 +685,14 @@ export function DockerNetworks({
 
       {/* Create Network Dialog */}
       <Dialog open={createOpen} onOpenChange={closeCreate}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Create Network</DialogTitle>
-            <DialogDescription>
-              Create a new network on{" "}
-              {selectedNode?.displayName || selectedNode?.hostname || "the selected node"}.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Create a new network on{" "}
+            {selectedNode?.displayName || selectedNode?.hostname || "the selected node"}.
+          </DialogDescription>
           <div className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium">
@@ -792,13 +792,13 @@ export function DockerNetworks({
       </Dialog>
       {/* Network Details Dialog */}
       <Dialog open={networkDetailsOpen} onOpenChange={onNetworkDetailsOpenChange}>
-        <DialogContent className="max-w-full sm:max-w-lg">
+        <DialogContent className="max-w-full sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Network Details</DialogTitle>
-            <DialogDescription>
-              <span className="font-mono text-xs">{selectedNetwork?.name}</span>
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            <span className="font-mono text-xs">{selectedNetwork?.name}</span>
+          </DialogDescription>
           {selectedNetwork && (
             <div className="min-w-0 space-y-4">
               <div className="min-w-0 divide-y divide-border overflow-hidden border border-border bg-card">

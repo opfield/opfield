@@ -231,8 +231,8 @@ export function LinksPanel({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add link</DialogTitle>
-            <DialogDescription>Choose what this workload connects to.</DialogDescription>
           </DialogHeader>
+          <DialogDescription>Choose what this workload connects to.</DialogDescription>
           <div className="space-y-3">
             {addable.map(({ kind, state }) => {
               const choice = KIND_CHOICES[kind];

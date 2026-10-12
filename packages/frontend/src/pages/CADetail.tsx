@@ -568,13 +568,13 @@ export function CADetail() {
         </Dialog>
         {/* Endpoints Edit Dialog */}
         <Dialog open={endpointsDialogOpen} onOpenChange={setEndpointsDialogOpen}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Edit Distribution Endpoints</DialogTitle>
-              <DialogDescription>
-                Configure CRL and CA Issuers URLs for certificates issued under this CA.
-              </DialogDescription>
             </DialogHeader>
+            <DialogDescription>
+              Configure CRL and CA Issuers URLs for certificates issued under this CA.
+            </DialogDescription>
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">CRL Distribution URL</label>

@@ -683,7 +683,7 @@ export function Domains() {
             else closeCreationBlocker();
           }}
         >
-          <DialogContent>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{creationBlockerCopy?.title}</DialogTitle>
             </DialogHeader>

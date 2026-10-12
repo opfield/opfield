@@ -9,7 +9,6 @@ import {
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import type { AppMaintenanceAccessCode } from "@/types";
 import { plural } from "../app-shared";
-import { APP_DIALOG_WIDTH } from "./AppNameDialog";
 
 export interface AccessCodeState extends AppMaintenanceAccessCode {
   /** "Shop" or "live of Shop". */
@@ -33,15 +32,15 @@ export function AccessCodeDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent className={APP_DIALOG_WIDTH}>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Maintenance Access Code</DialogTitle>
-          <DialogDescription>
-            Share this one-time code only with the person who needs temporary access. It opens{" "}
-            {shown ? `${plural(shown.routeCount, "route")} of ${shown.scopeLabel}` : "the routes"}{" "}
-            in maintenance once each and expires in 5 minutes.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Share this one-time code only with the person who needs temporary access. It opens{" "}
+          {shown ? `${plural(shown.routeCount, "route")} of ${shown.scopeLabel}` : "the routes"} in
+          maintenance once each and expires in 5 minutes.
+        </DialogDescription>
         <CopyValueField
           label="Maintenance access code"
           showLabel={false}

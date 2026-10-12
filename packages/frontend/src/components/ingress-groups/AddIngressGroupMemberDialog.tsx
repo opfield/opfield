@@ -89,15 +89,15 @@ export function AddIngressGroupMemberDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Add Member</DialogTitle>
-          <DialogDescription>
-            The node receives every route config, certificate and Secure Link source of the group
-            first; its address is published in DNS only after that. An offline node stays joining
-            until it reconnects.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          The node receives every route config, certificate and Secure Link source of the group
+          first; its address is published in DNS only after that. An offline node stays joining
+          until it reconnects.
+        </DialogDescription>
         <div className="space-y-4">
           <div className="space-y-1.5">
             <p className="text-sm font-medium">Node</p>

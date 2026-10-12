@@ -680,10 +680,10 @@ export function AdditionalRoutesPanel({
         >
           <DialogHeader>
             <DialogTitle>Edit Advanced Config</DialogTitle>
-            <DialogDescription>
-              Additional Nginx directives inside {advancedRoute?.path ?? "this location"}.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Additional Nginx directives inside {advancedRoute?.path ?? "this location"}.
+          </DialogDescription>
           <div className="h-80 min-h-0 border border-border">
             <CodeEditor
               value={advancedConfig}
@@ -876,8 +876,8 @@ function AdditionalRouteWizard({
       >
         <DialogHeader>
           <DialogTitle>{route ? "Edit Additional Route" : "Add Additional Route"}</DialogTitle>
-          <DialogDescription>Choose a path prefix and its upstream target.</DialogDescription>
         </DialogHeader>
+        <DialogDescription>Choose a path prefix and its upstream target.</DialogDescription>
 
         <div className="space-y-4">
           <ContentLoading loading={containersLoading || projectsLoading || tagsLoading} />

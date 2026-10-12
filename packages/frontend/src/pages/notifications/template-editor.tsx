@@ -200,13 +200,13 @@ export function TemplateCheatsheetLink({
         <HelpCircle className="h-3.5 w-3.5" /> Variables & helpers cheatsheet
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Template Cheatsheet</DialogTitle>
-            <DialogDescription>
-              Variables and Handlebars helpers available in templates.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Variables and Handlebars helpers available in templates.
+          </DialogDescription>
           <div className="space-y-5">
             <ReferenceTable
               title="Variables"

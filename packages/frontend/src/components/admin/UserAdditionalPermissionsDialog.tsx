@@ -180,14 +180,14 @@ export function UserAdditionalPermissionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg" fitViewport>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{userName}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
           {groupNames.length > 0 ? (
             <DialogDescription>Member of {joinNames(groupNames)}.</DialogDescription>
           ) : null}
-        </DialogHeader>
-        <div className="space-y-4">
           <ContentLoading loading={!resourceListsReady} />
           <AccessSection
             editor={access}

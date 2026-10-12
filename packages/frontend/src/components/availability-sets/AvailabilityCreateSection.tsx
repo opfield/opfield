@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckboxCard } from "@/components/common/CheckboxCard";
 import { Notice } from "@/components/common/Notice";
+import { PanelShell } from "@/components/common/PanelShell";
+import { Badge } from "@/components/ui/badge";
+import { DIALOG_LIST_CLASS } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -93,7 +96,6 @@ export function AvailabilityCreateSection({
   onChange,
   runPreflight,
   onPreflight,
-  restartNoun,
   disabled,
 }: {
   engine: AvailabilityEngine;
@@ -106,8 +108,6 @@ export function AvailabilityCreateSection({
   /** Memoize it: a new function runs the preflight again (the create form passes type and version). */
   runPreflight: (input: AvailabilityPreflightInput) => Promise<AvailabilityPreflightResult>;
   onPreflight?: (state: AvailabilityPreflightState) => void;
-  /** Converting an existing resource: what restarts once ("database"). */
-  restartNoun?: string;
   disabled?: boolean;
 }) {
   const [relayCandidates, setRelayCandidates] = useState<AvailabilityWitnessPick[]>([]);
@@ -213,29 +213,37 @@ export function AvailabilityCreateSection({
     <div className="space-y-4">
       <div className="space-y-1.5">
         <p className="text-sm font-medium">Servers</p>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {nodes.map((node) => {
-            const origin = node.id === originNodeId;
-            const checked = origin || value.memberNodeIds.includes(node.id);
-            return (
-              <CheckboxCard
-                key={node.id}
-                checked={checked}
-                disabled={disabled || origin}
-                label={node.displayName || node.hostname}
-                description={origin ? "Primary to start with" : checked ? "Copy" : undefined}
-                onCheckedChange={(next) =>
-                  onChange({
-                    ...value,
-                    memberNodeIds: next
-                      ? [...value.memberNodeIds, node.id]
-                      : value.memberNodeIds.filter((id) => id !== node.id),
-                  })
-                }
-              />
-            );
-          })}
-        </div>
+        <PanelShell>
+          <div className={`${DIALOG_LIST_CLASS} divide-y divide-border`}>
+            {nodes.map((node) => {
+              const origin = node.id === originNodeId;
+              const checked = origin || value.memberNodeIds.includes(node.id);
+              return (
+                <div key={node.id} className="flex items-center justify-between gap-3 pr-4">
+                  <CheckboxCard
+                    className="min-w-0 flex-1 border-0 px-4 py-2"
+                    checked={checked}
+                    disabled={disabled || origin}
+                    label={node.displayName || node.hostname}
+                    onCheckedChange={(next) =>
+                      onChange({
+                        ...value,
+                        memberNodeIds: next
+                          ? [...value.memberNodeIds, node.id]
+                          : value.memberNodeIds.filter((id) => id !== node.id),
+                      })
+                    }
+                  />
+                  {origin ? (
+                    <Badge variant="info">Primary</Badge>
+                  ) : checked ? (
+                    <Badge variant="secondary">Copy</Badge>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </PanelShell>
         <p className="text-xs text-muted-foreground">
           {memberIds.length < 2
             ? "Pick at least one more server for the copy. Each server must run on its own host."
@@ -243,52 +251,57 @@ export function AvailabilityCreateSection({
         </p>
       </div>
 
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium" htmlFor="availability-witness">
-          Witness
-        </label>
-        <WitnessPicker
-          id="availability-witness"
-          value={value.witness}
-          onChange={(witness) => onChange({ ...value, witness })}
-          candidates={witnessCandidates}
-          disabled={disabled}
-        />
-        <p className="text-xs text-muted-foreground">
-          {result && result.voters.length > 0
-            ? `Voters: ${result.voters.map(nameOf).join(", ")}. A witness votes on the primary and holds no data.`
-            : "A witness votes on the primary and holds no data."}
-        </p>
-      </div>
-
-      {fixed ? null : (
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium" htmlFor="availability-durability">
-            Durability
+      <div className={fixed ? undefined : "grid gap-3 sm:grid-cols-2"}>
+        <div className="min-w-0 space-y-1.5">
+          <label className="text-sm font-medium" htmlFor="availability-witness">
+            Witness
           </label>
-          <Select
-            value={durability}
-            onValueChange={(next) =>
-              onChange({ ...value, durability: next as AvailabilityDurability })
-            }
+          <WitnessPicker
+            id="availability-witness"
+            value={value.witness}
+            onChange={(witness) => onChange({ ...value, witness })}
+            candidates={witnessCandidates}
             disabled={disabled}
-          >
-            <SelectTrigger id="availability-durability">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="synchronous" description="A commit returns after the copy has it.">
-                {DURABILITY_LABELS.synchronous}
-                {result?.defaultDurability === "synchronous" ? " (default)" : ""}
-              </SelectItem>
-              <SelectItem value="asynchronous" description="A commit returns at once.">
-                {DURABILITY_LABELS.asynchronous}
-                {result?.defaultDurability === "asynchronous" ? " (default)" : ""}
-              </SelectItem>
-            </SelectContent>
-          </Select>
+          />
+          {result && result.voters.length > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Voters: {result.voters.map(nameOf).join(", ")}.
+            </p>
+          ) : null}
         </div>
-      )}
+
+        {fixed ? null : (
+          <div className="min-w-0 space-y-1.5">
+            <label className="text-sm font-medium" htmlFor="availability-durability">
+              Durability
+            </label>
+            <Select
+              value={durability}
+              onValueChange={(next) =>
+                onChange({ ...value, durability: next as AvailabilityDurability })
+              }
+              disabled={disabled}
+            >
+              <SelectTrigger id="availability-durability">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  value="synchronous"
+                  description="A commit returns after the copy has it."
+                >
+                  {DURABILITY_LABELS.synchronous}
+                  {result?.defaultDurability === "synchronous" ? " (default)" : ""}
+                </SelectItem>
+                <SelectItem value="asynchronous" description="A commit returns at once.">
+                  {DURABILITY_LABELS.asynchronous}
+                  {result?.defaultDurability === "asynchronous" ? " (default)" : ""}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
 
       {memberIds.length >= 2 && pending && !result ? (
         <p className="text-xs text-muted-foreground">Checking these servers…</p>
@@ -320,11 +333,6 @@ export function AvailabilityCreateSection({
             </Notice>
           ) : null}
           <PolicyLeaseNotice hours={result.policyLeaseHours} />
-          {restartNoun && result.restartNeeded ? (
-            <Notice tone="warning" title={`The ${restartNoun} restarts once`}>
-              Clients reconnect after the restart while the copy is set up.
-            </Notice>
-          ) : null}
           {warnings.length > 0 ? (
             <Notice tone="warning" title="Check before you continue">
               <ul className="space-y-0.5">

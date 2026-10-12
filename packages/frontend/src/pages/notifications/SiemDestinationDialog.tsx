@@ -174,10 +174,10 @@ export function SiemDestinationDialog({
       <DialogContent className="max-w-lg" onOpenAutoFocus={(event) => event.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit SIEM Destination" : "New SIEM Destination"}</DialogTitle>
-          <DialogDescription>
-            Opfield sends privacy-reduced audit events to this HTTPS collector.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Opfield sends privacy-reduced audit events to this HTTPS collector.
+        </DialogDescription>
         <div className="space-y-4">
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="siem-name">

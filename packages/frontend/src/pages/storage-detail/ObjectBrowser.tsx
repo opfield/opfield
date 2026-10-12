@@ -148,13 +148,13 @@ export function ObjectBrowser({
         />
       )}
       <Dialog open={newBucketOpen} onOpenChange={setNewBucketOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>New Bucket</DialogTitle>
-            <DialogDescription>
-              Buckets are the top level of this storage. Objects always live inside one.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Buckets are the top level of this storage. Objects always live inside one.
+          </DialogDescription>
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Bucket name</label>
             <Input

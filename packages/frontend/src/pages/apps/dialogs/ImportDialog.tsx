@@ -381,15 +381,15 @@ export function ImportDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent className={APP_DIALOG_WIDTH} fitViewport>
+      <DialogContent className={APP_DIALOG_WIDTH}>
         <ContentLoading loading={loading && candidates.length === 0} />
         <DialogHeader>
           <DialogTitle>{text.title}</DialogTitle>
-          <DialogDescription>
-            Add existing {text.plural} to {app.name}, in the environment you pick. One in another
-            app moves here.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Add existing {text.plural} to {app.name}, in the environment you pick. One in another app
+          moves here.
+        </DialogDescription>
         <div className="space-y-4">
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="app-import-environment">
@@ -423,13 +423,8 @@ export function ImportDialog({
               onSearchChange={setSearch}
               placeholder={text.search}
             />
-            {/* The list leaves room for the header, environment and footer at any window height. */}
-            <div
-              className={cn(
-                SCOPE_PICKER_VIEWPORT,
-                "max-h-[min(40rem,max(10rem,calc(95dvh-24rem)))]"
-              )}
-            >
+            {/* The dialog gives the list the room left beside the header, environment and footer. */}
+            <div className={SCOPE_PICKER_VIEWPORT}>
               {!loading && sections.length === 0 ? (
                 <EmptyState
                   message={

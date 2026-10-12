@@ -199,13 +199,13 @@ export function ExternalSshIntegrationsSection() {
           if (!nextOpen && !savingEdit) setEditingConnector(null);
         }}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>SSH Connector</DialogTitle>
-            <DialogDescription>
-              Rename this connector. Connection and credential details stay unchanged.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Rename this connector. Connection and credential details stay unchanged.
+          </DialogDescription>
           {displayedEditingConnector ? (
             <PanelShell
               title="Connector"

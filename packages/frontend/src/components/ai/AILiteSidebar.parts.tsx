@@ -85,11 +85,11 @@ export function ConversationFolderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{state.mode === "create" ? "New Project" : "Edit Project"}</DialogTitle>
-          <DialogDescription>Group related Work Sessions in a sidebar project.</DialogDescription>
         </DialogHeader>
+        <DialogDescription>Group related Work Sessions in a sidebar project.</DialogDescription>
         <div className="space-y-3">
           <div className="space-y-1.5">
             <label htmlFor="ai-folder-name" className="text-sm font-medium text-foreground">

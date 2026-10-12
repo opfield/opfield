@@ -167,11 +167,11 @@ export function InferenceTokensSection({ canManage }: { canManage: boolean }) {
       </PanelShell>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Create Inference Token</DialogTitle>
-            <DialogDescription>The token will be shown once after creation.</DialogDescription>
           </DialogHeader>
+          <DialogDescription>The token will be shown once after creation.</DialogDescription>
           <div className="space-y-1.5">
             <label htmlFor="inference-token-name" className="text-sm font-medium">
               Name

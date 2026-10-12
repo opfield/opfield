@@ -276,15 +276,15 @@ export function StorageIamKeysTab({
       </PanelShell>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Create Access Key</DialogTitle>
-            <DialogDescription>
-              {engine === "seaweedfs"
-                ? "The access key ID and secret are generated for you — by Opfield for keys without an expiry. Only a display name is set here."
-                : "The access key ID and secret are generated for you; only a display name is set here."}
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            {engine === "seaweedfs"
+              ? "The access key ID and secret are generated for you — by Opfield for keys without an expiry. Only a display name is set here."
+              : "The access key ID and secret are generated for you; only a display name is set here."}
+          </DialogDescription>
           <div className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Name (optional)</label>

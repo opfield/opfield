@@ -128,17 +128,17 @@ export function IngressPlacementDialog({
   const subject = kind === "route" ? "route" : "domain and its routes";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
             {currentGroup ? "Serve From One Node" : "Serve From an Ingress Group"}
           </DialogTitle>
-          <DialogDescription>
-            {currentGroup
-              ? `DNS is changed first; then the ${subject} leave the other members of ${currentGroup.name}. The node you keep serves throughout.`
-              : `Config and certificates reach every member first; DNS changes last. The node that serves the ${subject} now must be a member and keeps serving throughout.`}
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          {currentGroup
+            ? `DNS is changed first; then the ${subject} leave the other members of ${currentGroup.name}. The node you keep serves throughout.`
+            : `Config and certificates reach every member first; DNS changes last. The node that serves the ${subject} now must be a member and keeps serving throughout.`}
+        </DialogDescription>
         <Select value={choice || undefined} onValueChange={setChoice}>
           <SelectTrigger aria-label={currentGroup ? "Node" : "Ingress group"}>
             <SelectValue

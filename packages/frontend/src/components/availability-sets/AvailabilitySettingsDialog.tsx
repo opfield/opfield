@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Notice } from "@/components/common/Notice";
+import { SwitchCard } from "@/components/common/SwitchCard";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
@@ -99,10 +99,10 @@ export function AvailabilitySettingsDialog({
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Availability Settings</DialogTitle>
-          <DialogDescription>
-            How writes reach the copies and when the primary moves back.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          How writes reach the copies and when the primary moves back.
+        </DialogDescription>
         <div className="space-y-4">
           {fixed ? null : (
             <div className="space-y-1.5">
@@ -143,19 +143,12 @@ export function AvailabilitySettingsDialog({
               }
             />
           )}
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">Switch back to the first server</p>
-              <p className="text-xs text-muted-foreground">
-                After a failover, move the primary back once that server is healthy again.
-              </p>
-            </div>
-            <Switch
-              checked={priorityMode}
-              onChange={setPriorityMode}
-              ariaLabel="Switch back to the first server"
-            />
-          </div>
+          <SwitchCard
+            label="Switch back to the first server"
+            description="After a failover, move the primary back once that server is healthy again."
+            checked={priorityMode}
+            onCheckedChange={setPriorityMode}
+          />
           {priorityMode ? (
             <div className="space-y-1.5">
               <label className="text-sm font-medium" htmlFor="availability-settings-failback">

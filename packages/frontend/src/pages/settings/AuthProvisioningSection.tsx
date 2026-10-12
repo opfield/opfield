@@ -1182,7 +1182,7 @@ export function AuthProvisioningSection({
       </PanelShell>
 
       <Dialog open={smtpTestOpen} onOpenChange={setSmtpTestOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Send SMTP Test</DialogTitle>
           </DialogHeader>

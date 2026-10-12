@@ -15,7 +15,6 @@ import {
   getCreateFolderChoices,
   isCreateFolderAllowed,
 } from "@/components/common/CreateFolderSelect";
-import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -112,13 +111,13 @@ export function StorageConnectionCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Add Storage</DialogTitle>
-          <DialogDescription>
-            Connect an existing S3-compatible, FTP, FTPS, or SFTP endpoint.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Connect an existing S3-compatible, FTP, FTPS, or SFTP endpoint.
+        </DialogDescription>
         <ContentLoading loading={loadingFolders} />
         {appContext && (
           <AppEnvironmentFields
@@ -129,15 +128,25 @@ export function StorageConnectionCreateDialog({
             disabled={saving}
           />
         )}
-        <SettingsControlRow title="Folder" description="Organization folder">
-          <CreateFolderSelect
-            choices={folderChoices}
-            value={appContext ? "" : folderId}
-            onChange={setFolderId}
-            loading={loadingFolders}
-          />
-        </SettingsControlRow>
-        <StorageConnectionForm draft={draft} onChange={setDraft} />
+        <StorageConnectionForm
+          draft={draft}
+          onChange={setDraft}
+          wide
+          folderField={
+            <div className="min-w-0 space-y-1.5">
+              <label htmlFor="storage-create-folder" className="text-sm font-medium">
+                Folder
+              </label>
+              <CreateFolderSelect
+                id="storage-create-folder"
+                choices={folderChoices}
+                value={appContext ? "" : folderId}
+                onChange={setFolderId}
+                loading={loadingFolders}
+              />
+            </div>
+          }
+        />
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel

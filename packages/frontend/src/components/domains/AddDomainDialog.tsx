@@ -292,12 +292,12 @@ export function AddDomainDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Add Domain</DialogTitle>
-          <DialogDescription>
-            {dnsProvider === "cloudflare"
-              ? "Register a domain to track its DNS status and manage certificates."
-              : "Check existing DNS against the selected Ingress node without changing DNS records."}
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          {dnsProvider === "cloudflare"
+            ? "Register a domain to track its DNS status and manage certificates."
+            : "Check existing DNS against the selected Ingress node without changing DNS records."}
+        </DialogDescription>
         <div className="space-y-4">
           {/* Nodes are the options of this form: open with them in place. */}
           <ContentLoading loading={nodeOptions === null && nodesError === null} />

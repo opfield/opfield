@@ -30,6 +30,7 @@ import {
   ResponsiveHeaderActions,
 } from "@/components/common/ResponsiveHeaderActions";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
+import { SwitchCard } from "@/components/common/SwitchCard";
 import {
   ALL_AVAILABILITY_INSTANCES,
   AvailabilityInstanceSelect,
@@ -2040,13 +2041,13 @@ export function DockerContainerDetail({
         </Tabs>
       </div>
       <Dialog open={configOpen} onOpenChange={setConfigOpen}>
-        <DialogContent className="sm:max-w-3xl" fitViewport>
+        <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Container Configuration</DialogTitle>
-            <DialogDescription>
-              Docker's full configuration of this container, read-only
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Docker's full configuration of this container, read-only
+          </DialogDescription>
           <ConfigTab data={container} editorHeight="min(60dvh, 640px)" />
         </DialogContent>
       </Dialog>
@@ -2065,53 +2066,43 @@ export function DockerContainerDetail({
         }}
       />
       <Dialog open={pinOpen} onOpenChange={setPinOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Pin Container</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Add to dashboard</p>
-                <p className="text-xs text-muted-foreground">
-                  Show compact status on the dashboard
-                </p>
-              </div>
-              <Switch
-                checked={isPinnedDashboard(containerId!)}
-                disabled={!!effectiveTransition}
-                onChange={() => {
-                  toggleDashboard(containerId!, {
-                    nodeId: nodeId!,
-                    nodeSlug,
-                    name,
-                    state: baseState,
-                    scopeResourceId,
-                  });
-                  usePinnedContainersStore.getState().invalidate();
-                }}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Add to sidebar</p>
-                <p className="text-xs text-muted-foreground">Quick access link in the sidebar</p>
-              </div>
-              <Switch
-                checked={isPinnedSidebar(containerId!)}
-                disabled={!!effectiveTransition}
-                onChange={() => {
-                  toggleSidebar(containerId!, {
-                    nodeId: nodeId!,
-                    nodeSlug,
-                    name,
-                    state: baseState,
-                    scopeResourceId,
-                  });
-                  usePinnedContainersStore.getState().invalidate();
-                }}
-              />
-            </div>
+            <SwitchCard
+              label="Add to dashboard"
+              description="Show compact status on the dashboard"
+              checked={isPinnedDashboard(containerId!)}
+              onCheckedChange={() => {
+                toggleDashboard(containerId!, {
+                  nodeId: nodeId!,
+                  nodeSlug,
+                  name,
+                  state: baseState,
+                  scopeResourceId,
+                });
+                usePinnedContainersStore.getState().invalidate();
+              }}
+              disabled={!!effectiveTransition}
+            />
+            <SwitchCard
+              label="Add to sidebar"
+              description="Quick access link in the sidebar"
+              checked={isPinnedSidebar(containerId!)}
+              onCheckedChange={() => {
+                toggleSidebar(containerId!, {
+                  nodeId: nodeId!,
+                  nodeSlug,
+                  name,
+                  state: baseState,
+                  scopeResourceId,
+                });
+                usePinnedContainersStore.getState().invalidate();
+              }}
+              disabled={!!effectiveTransition}
+            />
           </div>
         </DialogContent>
       </Dialog>
@@ -2123,6 +2114,7 @@ export function DockerContainerDetail({
         }}
       >
         <DialogContent
+          className="sm:max-w-md"
           hideCloseButton={archiveExporting}
           onEscapeKeyDown={(event) => {
             if (archiveExporting) event.preventDefault();
@@ -2237,7 +2229,7 @@ export function DockerContainerDetail({
       </Dialog>
       {/* Rename Dialog */}
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Rename Container</DialogTitle>
           </DialogHeader>

@@ -110,11 +110,11 @@ export function HostingAdoptDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Adopt Nodes</DialogTitle>
-          <DialogDescription>
-            Associate an existing VM or container with an Opfield node. Opfield verifies that both
-            are the same host before linking them.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Associate an existing VM or container with an Opfield node. Opfield verifies that both are
+          the same host before linking them.
+        </DialogDescription>
         <PanelShell title="Node association">
           <ContentLoading loading={open && !candidatesSettled} />
           <SettingsControlRow

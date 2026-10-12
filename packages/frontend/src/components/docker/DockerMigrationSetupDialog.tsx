@@ -1,6 +1,6 @@
 import { Truck } from "lucide-react";
-import { CheckboxCard } from "@/components/common/CheckboxCard";
 import { ContentLoading } from "@/components/common/ContentLoading";
+import { SwitchCard } from "@/components/common/SwitchCard";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -47,13 +47,13 @@ export function DockerMigrationSetupDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Migrate {resource.type}</DialogTitle>
-          <DialogDescription>
-            Move {resource.displayName} to another Docker node after compatibility checks.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Move {resource.displayName} to another Docker node after compatibility checks.
+        </DialogDescription>
 
         <div className="space-y-5">
           {/* The dialog opens once the target nodes are known. */}
@@ -79,7 +79,7 @@ export function DockerMigrationSetupDialog({
             ) : null}
           </div>
 
-          <CheckboxCard
+          <SwitchCard
             label="Keep source resource"
             description="Leave the source stopped with restart disabled after cutover."
             checked={keepSource}

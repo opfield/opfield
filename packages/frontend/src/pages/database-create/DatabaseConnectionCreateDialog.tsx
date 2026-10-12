@@ -16,7 +16,6 @@ import {
   getCreateFolderChoices,
   isCreateFolderAllowed,
 } from "@/components/common/CreateFolderSelect";
-import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -111,7 +110,7 @@ export function DatabaseConnectionCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Add Database</DialogTitle>
         </DialogHeader>
@@ -128,15 +127,24 @@ export function DatabaseConnectionCreateDialog({
               />
             </div>
           )}
-          <SettingsControlRow title="Folder" description="Optional organization folder">
-            <CreateFolderSelect
-              choices={folderChoices}
-              value={appContext ? "" : folderId}
-              onChange={setFolderId}
-              loading={loadingFolders}
-            />
-          </SettingsControlRow>
-          <DatabaseConnectionForm draft={draft} onChange={setDraft} />
+          <DatabaseConnectionForm
+            draft={draft}
+            onChange={setDraft}
+            folderField={
+              <div className="min-w-0 space-y-1.5">
+                <label htmlFor="database-create-folder" className="text-sm font-medium">
+                  Folder
+                </label>
+                <CreateFolderSelect
+                  id="database-create-folder"
+                  choices={folderChoices}
+                  value={appContext ? "" : folderId}
+                  onChange={setFolderId}
+                  loading={loadingFolders}
+                />
+              </div>
+            }
+          />
         </AnimatedHeight>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

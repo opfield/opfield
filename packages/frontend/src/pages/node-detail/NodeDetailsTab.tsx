@@ -995,7 +995,7 @@ export function NodeDetailsTab({
       )}
 
       <Dialog open={ipAddressesOpen} onOpenChange={setIpAddressesOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>IP Addresses</DialogTitle>
           </DialogHeader>

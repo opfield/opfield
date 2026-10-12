@@ -394,19 +394,19 @@ export function DomainDetailDialog({
         open={open && initialView === "details" && !resolutionOpen && !ingressMigrationOpen}
         onOpenChange={handleClose}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{headerDomain?.domain ?? "Domain"}</DialogTitle>
-            <DialogDescription>
-              {headerDomain?.lastDnsCheckAt ? (
-                <>
-                  Last checked <RelativeTime value={headerDomain.lastDnsCheckAt} />
-                </>
-              ) : (
-                "DNS not checked yet"
-              )}
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            {headerDomain?.lastDnsCheckAt ? (
+              <>
+                Last checked <RelativeTime value={headerDomain.lastDnsCheckAt} />
+              </>
+            ) : (
+              "DNS not checked yet"
+            )}
+          </DialogDescription>
 
           <ContentLoading loading={!detailsReady} />
           {detailsReady && domain ? (
@@ -613,7 +613,7 @@ export function DomainDetailDialog({
       </Dialog>
 
       <Dialog open={resolutionOpen} onOpenChange={setResolutionOpen}>
-        <DialogContent className="sm:max-w-lg" aria-describedby={undefined}>
+        <DialogContent className="sm:max-w-xl" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Resolve Cloudflare DNS Conflict</DialogTitle>
           </DialogHeader>
@@ -705,7 +705,7 @@ export function DomainDetailDialog({
           if (!nextOpen && initialView === "ingress-migration") onOpenChange(false);
         }}
       >
-        <DialogContent className="sm:max-w-lg" aria-describedby={undefined}>
+        <DialogContent className="sm:max-w-xl" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Move Ingress</DialogTitle>
           </DialogHeader>

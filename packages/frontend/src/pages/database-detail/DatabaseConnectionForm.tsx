@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
+import type { ReactNode } from "react";
 import { Notice } from "@/components/common/Notice";
 import { SwitchCard } from "@/components/common/SwitchCard";
 import { Badge } from "@/components/ui/badge";
@@ -319,11 +320,14 @@ export function DatabaseConnectionForm({
   onChange,
   disableType = false,
   mode = "full",
+  folderField,
 }: {
   draft: DatabaseConnectionDraft;
   onChange: (next: DatabaseConnectionDraft) => void;
   disableType?: boolean;
   mode?: "full" | "metadata";
+  /** The create dialog's Folder field: shares a row with the connection method. */
+  folderField?: ReactNode;
 }) {
   const set = <K extends keyof DatabaseConnectionDraft>(
     key: K,
@@ -389,82 +393,89 @@ export function DatabaseConnectionForm({
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-sm font-medium">Description</label>
-        <Input
-          value={draft.description}
-          onChange={(e) => set("description", e.target.value)}
-          placeholder="Optional description"
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium">Tags</label>
-        <Input
-          placeholder="team, red:production, green:analytics"
-          value={draft.tags}
-          onChange={(e) => set("tags", e.target.value)}
-        />
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="min-w-0 space-y-1.5">
+            <label className="text-sm font-medium">Description</label>
+            <Input
+              value={draft.description}
+              onChange={(e) => set("description", e.target.value)}
+              placeholder="Optional description"
+            />
+          </div>
+          <div className="min-w-0 space-y-1.5">
+            <label className="text-sm font-medium">Tags</label>
+            <Input
+              placeholder="team, red:production, green:analytics"
+              value={draft.tags}
+              onChange={(e) => set("tags", e.target.value)}
+            />
+          </div>
+        </div>
         <p className="text-xs text-muted-foreground">
           Use color:name for colored tags. Supported colors: blue, red, green, yellow, purple, pink,
           orange, gray.
         </p>
       </div>
 
-      {metadataOnly && draft.type === "postgres" && (
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Size Limit (MB)</label>
-          <Input
-            type="number"
-            min="1"
-            step="1"
-            placeholder="Optional"
-            value={draft.manualSizeLimitMb}
-            onChange={(e) => set("manualSizeLimitMb", e.target.value)}
-          />
-        </div>
-      )}
-
       {metadataOnly && draft.type !== "redis" && (
-        <div className="space-y-1.5">
-          <label htmlFor="database-interactive-query-budget" className="text-sm font-medium">
-            Interactive query budget
-          </label>
-          <Input
-            id="database-interactive-query-budget"
-            type="number"
-            min="30"
-            max="600"
-            step="1"
-            value={draft.interactiveQueryBudgetSeconds}
-            onChange={(event) => set("interactiveQueryBudgetSeconds", event.target.value)}
-          />
-          <p className="text-xs text-muted-foreground">
-            Total execution budget for one SQL Console run, shared dynamically between statements
-            (30–600 seconds).
-          </p>
+        <div className={`grid gap-3 ${draft.type === "postgres" ? "md:grid-cols-2" : ""}`}>
+          {draft.type === "postgres" && (
+            <div className="min-w-0 space-y-1.5">
+              <label className="text-sm font-medium">Size Limit (MB)</label>
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                placeholder="Optional"
+                value={draft.manualSizeLimitMb}
+                onChange={(e) => set("manualSizeLimitMb", e.target.value)}
+              />
+            </div>
+          )}
+          <div className="min-w-0 space-y-1.5">
+            <label htmlFor="database-interactive-query-budget" className="text-sm font-medium">
+              Interactive query budget
+            </label>
+            <Input
+              id="database-interactive-query-budget"
+              type="number"
+              min="30"
+              max="600"
+              step="1"
+              value={draft.interactiveQueryBudgetSeconds}
+              onChange={(event) => set("interactiveQueryBudgetSeconds", event.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Total execution budget for one SQL Console run, shared dynamically between statements
+              (30–600 seconds).
+            </p>
+          </div>
         </div>
       )}
 
       {!metadataOnly && (
         <>
-          <div className="space-y-1.5">
-            <label htmlFor="database-connection-method" className="text-sm font-medium">
-              Connection method
-            </label>
-            <Select
-              value={draft.connectionMethod}
-              onValueChange={(value) =>
-                set("connectionMethod", value as DatabaseConnectionDraft["connectionMethod"])
-              }
-            >
-              <SelectTrigger id="database-connection-method">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="credentials">Credentials</SelectItem>
-                <SelectItem value="uri">Connection URI</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className={`grid gap-3 ${folderField ? "md:grid-cols-2" : ""}`}>
+            {folderField}
+            <div className="min-w-0 space-y-1.5">
+              <label htmlFor="database-connection-method" className="text-sm font-medium">
+                Connection method
+              </label>
+              <Select
+                value={draft.connectionMethod}
+                onValueChange={(value) =>
+                  set("connectionMethod", value as DatabaseConnectionDraft["connectionMethod"])
+                }
+              >
+                <SelectTrigger id="database-connection-method">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="credentials">Credentials</SelectItem>
+                  <SelectItem value="uri">Connection URI</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="relative overflow-hidden">
@@ -500,7 +511,7 @@ export function DatabaseConnectionForm({
                   {...CONNECTION_FIELDS_ANIMATION}
                   className="space-y-3 overflow-hidden"
                 >
-                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr),140px]">
+                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_140px]">
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium">Host</label>
                       <Input
@@ -542,41 +553,43 @@ export function DatabaseConnectionForm({
                         </div>
                       </div>
 
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium">Password</label>
-                        <Input
-                          type="password"
-                          placeholder={
-                            draft.hasStoredPassword
-                              ? "Leave blank to keep current password"
-                              : "Enter password"
-                          }
-                          value={draft.password}
-                          onChange={(e) => set("password", e.target.value)}
-                        />
-                        {draft.hasStoredPassword && draft.password === "" && (
-                          <Badge variant="secondary">Existing password preserved</Badge>
-                        )}
-                      </div>
+                      <div className="grid gap-3 md:grid-cols-2 md:items-center">
+                        <div className="min-w-0 space-y-1.5">
+                          <label className="text-sm font-medium">Password</label>
+                          <Input
+                            type="password"
+                            placeholder={
+                              draft.hasStoredPassword
+                                ? "Leave blank to keep current password"
+                                : "Enter password"
+                            }
+                            value={draft.password}
+                            onChange={(e) => set("password", e.target.value)}
+                          />
+                          {draft.hasStoredPassword && draft.password === "" && (
+                            <Badge variant="secondary">Existing password preserved</Badge>
+                          )}
+                        </div>
 
-                      <SwitchCard
-                        label="TLS / SSL"
-                        description={
-                          draft.type === "postgres"
-                            ? "Require TLS for the Postgres connection"
-                            : "Use HTTPS for the ClickHouse connection"
-                        }
-                        checked={draft.type === "postgres" ? draft.sslEnabled : draft.tlsEnabled}
-                        onCheckedChange={(checked) =>
-                          draft.type === "postgres"
-                            ? set("sslEnabled", checked)
-                            : set("tlsEnabled", checked)
-                        }
-                      />
+                        <SwitchCard
+                          label="TLS / SSL"
+                          description={
+                            draft.type === "postgres"
+                              ? "Require TLS for the Postgres connection"
+                              : "Use HTTPS for the ClickHouse connection"
+                          }
+                          checked={draft.type === "postgres" ? draft.sslEnabled : draft.tlsEnabled}
+                          onCheckedChange={(checked) =>
+                            draft.type === "postgres"
+                              ? set("sslEnabled", checked)
+                              : set("tlsEnabled", checked)
+                          }
+                        />
+                      </div>
                     </>
                   ) : (
                     <>
-                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr),140px]">
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_140px]">
                         <div className="space-y-1.5">
                           <label className="text-sm font-medium">Username</label>
                           <Input
@@ -595,29 +608,31 @@ export function DatabaseConnectionForm({
                         </div>
                       </div>
 
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium">Password</label>
-                        <Input
-                          type="password"
-                          placeholder={
-                            draft.hasStoredPassword
-                              ? "Leave blank to keep current password"
-                              : "Enter password"
-                          }
-                          value={draft.password}
-                          onChange={(e) => set("password", e.target.value)}
-                        />
-                        {draft.hasStoredPassword && draft.password === "" && (
-                          <Badge variant="secondary">Existing password preserved</Badge>
-                        )}
-                      </div>
+                      <div className="grid gap-3 md:grid-cols-2 md:items-center">
+                        <div className="min-w-0 space-y-1.5">
+                          <label className="text-sm font-medium">Password</label>
+                          <Input
+                            type="password"
+                            placeholder={
+                              draft.hasStoredPassword
+                                ? "Leave blank to keep current password"
+                                : "Enter password"
+                            }
+                            value={draft.password}
+                            onChange={(e) => set("password", e.target.value)}
+                          />
+                          {draft.hasStoredPassword && draft.password === "" && (
+                            <Badge variant="secondary">Existing password preserved</Badge>
+                          )}
+                        </div>
 
-                      <SwitchCard
-                        label="TLS"
-                        description="Use TLS when connecting to the server"
-                        checked={draft.tlsEnabled}
-                        onCheckedChange={(checked) => set("tlsEnabled", checked)}
-                      />
+                        <SwitchCard
+                          label="TLS"
+                          description="Use TLS when connecting to the server"
+                          checked={draft.tlsEnabled}
+                          onCheckedChange={(checked) => set("tlsEnabled", checked)}
+                        />
+                      </div>
                     </>
                   )}
                 </motion.div>

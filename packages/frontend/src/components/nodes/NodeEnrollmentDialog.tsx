@@ -361,14 +361,14 @@ export function NodeEnrollmentDialog({
             <DialogContent className="sm:max-w-lg">
               <DialogHeader>
                 <DialogTitle>Add Node</DialogTitle>
-                <DialogDescription>
-                  {effectiveMode === "external"
-                    ? "Create a pending node and run its one-time setup command on the target host."
-                    : retainedHosting?.existingResource
-                      ? "Install Opfield on the selected provider VM."
-                      : "Create and enroll a node using a connected hosting account. Nothing is ordered before your confirmation."}
-                </DialogDescription>
               </DialogHeader>
+              <DialogDescription>
+                {effectiveMode === "external"
+                  ? "Create a pending node and run its one-time setup command on the target host."
+                  : retainedHosting?.existingResource
+                    ? "Install Opfield on the selected provider VM."
+                    : "Create and enroll a node using a connected hosting account. Nothing is ordered before your confirmation."}
+              </DialogDescription>
               {!fixedHosting && !lockMode && (
                 <Tabs value={mode} onValueChange={(value) => setMode(value as typeof mode)}>
                   <TabsList>

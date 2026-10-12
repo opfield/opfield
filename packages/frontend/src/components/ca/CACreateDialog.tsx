@@ -132,12 +132,12 @@ export function CACreateDialog({ open, onOpenChange, parentId }: CACreateDialogP
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Create {isIntermediate ? "Intermediate" : "Root"} CA</DialogTitle>
-          <DialogDescription>
-            {isIntermediate
-              ? "Create a new intermediate CA signed by the parent."
-              : "Create a new self-signed Root Certificate Authority."}
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          {isIntermediate
+            ? "Create a new intermediate CA signed by the parent."
+            : "Create a new self-signed Root Certificate Authority."}
+        </DialogDescription>
 
         <div className="space-y-4">
           {needsParentPicker && (

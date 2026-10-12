@@ -57,11 +57,11 @@ function FolderNameDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{displayedTitle}</DialogTitle>
-          <DialogDescription>{displayedDescription}</DialogDescription>
         </DialogHeader>
+        <DialogDescription>{displayedDescription}</DialogDescription>
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
