@@ -252,10 +252,25 @@ export async function dispatchNodeDaemonUpdate(
     arch
   );
 
-  const send = async (operationId: string) => {
+  const send = async (operationId: string, override = false) => {
     // Set primaries on the node hand over first (copies restart before primaries: the rollout orders standbys first).
-    await (deps.beforeRestart ?? availabilityHandoff)(nodeId).catch((error: unknown) => {
+    await (deps.beforeRestart ?? availabilityHandoff)(nodeId).catch(async (error: unknown) => {
       if (error instanceof NodeUpdatePostponedError) {
+        if (override) {
+          // "Update now": the operator restarts the node anyway; the result says what it cut.
+          logger.warn('Daemon update goes on by request although a primary did not hand over', {
+            nodeId,
+            error: error.message,
+          });
+          await daemonUpdateService
+            .appendNodeUpdateWarning(
+              nodeId,
+              operationId,
+              `Updated on request although ${error.message.replace(/^The update was postponed: /, '')}`
+            )
+            .catch(() => undefined);
+          return;
+        }
         // Never restart the daemon under a primary that kept its role: its clients were cut once already.
         throw new AppError(409, 'NODE_UPDATE_POSTPONED', error.message);
       }
@@ -322,7 +337,7 @@ export async function dispatchNodeDaemonUpdate(
     if (options.now || !(await sequenced())) {
       const operationId = await daemonUpdateService.markNodeUpdateInProgress(nodeId, release.version, { warnings });
       try {
-        await send(operationId);
+        await send(operationId, options.now === true);
       } catch (error) {
         await daemonUpdateService.clearNodeUpdateInProgress(nodeId, operationId);
         throw error;

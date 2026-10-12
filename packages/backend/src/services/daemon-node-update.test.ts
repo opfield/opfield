@@ -97,6 +97,18 @@ describe('daemon update after the availability handoff (rc.6 async pair)', () =>
     expect(sendUpdateDaemonCommand).not.toHaveBeenCalled();
   });
 
+  it('"update now" overrides a postponed handoff and the result says so', async () => {
+    const { deps, sendUpdateDaemonCommand, sqlWrites } = harness();
+    const beforeRestart = vi.fn(async () => {
+      throw new NodeUpdatePostponedError(
+        'The update was postponed: the primary of b-pa (rebuild running) could not hand over'
+      );
+    });
+    await dispatchNodeDaemonUpdate(NODE_ID, { ...deps, beforeRestart }, { now: true });
+    expect(sendUpdateDaemonCommand).toHaveBeenCalledTimes(1);
+    expect(sqlWrites.length).toBeGreaterThan(0);
+  });
+
   it('goes on after any other handoff failure', async () => {
     const { deps, sendUpdateDaemonCommand } = harness();
     const beforeRestart = vi.fn(async () => {

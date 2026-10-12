@@ -108,6 +108,13 @@ type PeerState struct {
 	// Engine is what the engine tells its peers (PeerStater), e.g. that its
 	// ClickHouse Keeper waits to be added.
 	Engine map[string]string `json:"engine,omitempty"`
+	// Candidate: the member reports whether it can take the primary role now
+	// (Ready: a lease candidate; Eligible and Reason: its last eligibility
+	// answer). A holder checks its successor before a planned switchover steps
+	// down; a peer from before these fields leaves Candidate false.
+	Candidate bool   `json:"candidate,omitempty"`
+	Ready     bool   `json:"ready,omitempty"`
+	Reason    string `json:"reason,omitempty"`
 }
 
 // Deps are the runtime's collaborators.
@@ -132,6 +139,9 @@ type Deps struct {
 	// PeerState asks a manual pair's peer for its primary assignment over the
 	// member mesh; false when the peer does not answer.
 	PeerState func(ctx context.Context, setID, peerMemberID string) (PeerState, bool)
+	// peerStateWired: PeerState reaches the peers (a runtime without it does
+	// not check a switchover's successor).
+	peerStateWired bool
 	// VerifyAssignment checks Gateway's signature of a manual pair's primary
 	// assignment (AssignmentStatement under AssignmentDomain, a trusted relay
 	// policy key). Nil refuses every assignment.
@@ -162,6 +172,8 @@ func (d *Deps) defaults() error {
 	}
 	if d.PeerState == nil {
 		d.PeerState = func(context.Context, string, string) (PeerState, bool) { return PeerState{}, false }
+	} else {
+		d.peerStateWired = true
 	}
 	return nil
 }
