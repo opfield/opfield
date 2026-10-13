@@ -201,7 +201,7 @@ export function SidebarPinnedResources({
                 location.pathname === path || location.pathname.startsWith(`${path}/`)
               )}
             >
-              <AppMark logoUrl={app.logoUrl} size="sm" />
+              <AppMark logoUrl={app.logoUrl} size="icon" />
               <span className="truncate">{app.name}</span>
               <span className={statusDot(app.health, "app")} />
             </Link>

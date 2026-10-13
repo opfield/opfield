@@ -37,7 +37,7 @@ export function PinnedAppCard({ app }: { app: AppSummary }) {
       className={pinnedCardClass(app.health === "failing" || app.health === "degraded")}
     >
       <div className="flex min-w-0 items-center gap-3">
-        <AppMark logoUrl={app.logoUrl} size="sm" />
+        <AppMark logoUrl={app.logoUrl} size="icon" className="text-muted-foreground" />
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{app.name}</p>
           <p className="text-xs text-muted-foreground">App</p>
