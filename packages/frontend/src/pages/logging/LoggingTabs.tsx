@@ -1,4 +1,5 @@
 import { EllipsisVertical, FileJson, ScrollText, Settings, Trash2 } from "lucide-react";
+import { MoveToAppRowMenu } from "@/components/apps/MoveToAppRowMenu";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderedResourceList } from "@/components/common/FolderedResourceList";
 import { RelativeTime } from "@/components/common/RelativeTime";
@@ -83,6 +84,8 @@ export function LoggingEnvironmentsTab({
   onOpen,
   onRefresh,
   onCreateFolderRef,
+  canMoveToApp,
+  onMoveToApp,
 }: {
   environments: LoggingEnvironment[];
   search: string;
@@ -94,13 +97,36 @@ export function LoggingEnvironmentsTab({
   onOpen: (environment: LoggingEnvironment) => void;
   onRefresh: () => Promise<void> | void;
   onCreateFolderRef?: (fn: () => void) => void;
+  /** Row menu with "Move to app..." for the environments the user may move. */
+  canMoveToApp?: (environment: LoggingEnvironment) => boolean;
+  onMoveToApp?: (environment: LoggingEnvironment) => void;
 }) {
+  const columns: ResourceListColumn<LoggingEnvironment>[] =
+    canMoveToApp && onMoveToApp
+      ? [
+          ...environmentColumns,
+          {
+            id: "actions",
+            label: "Actions",
+            width: "5rem",
+            align: "right",
+            renderCell: (environment) =>
+              canMoveToApp(environment) ? (
+                <MoveToAppRowMenu
+                  resourceLabel={environment.name}
+                  onOpen={() => onOpen(environment)}
+                  onMoveToApp={() => onMoveToApp(environment)}
+                />
+              ) : null,
+          },
+        ]
+      : environmentColumns;
   return (
     <FolderedResourceList<LoggingEnvironment>
       resourceType="logging-environment"
       realtimeChannel="logging.environment.changed"
       resources={environments}
-      columns={environmentColumns}
+      columns={columns}
       search={{
         placeholder: "Search environments...",
         search,

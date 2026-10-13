@@ -516,6 +516,8 @@ const SEARCH_MEMBER_TYPES: Readonly<Record<string, AppMemberType>> = {
   database: 'database',
   storage: 'storage',
   page_project: 'pages',
+  ssl_certificate: 'certificate',
+  logging_environment: 'logging',
   docker_compose_project: 'compose',
   docker_deployment: 'deployment',
   docker_container: 'container',

@@ -74,6 +74,9 @@ export const APP_MEMBER_VIEW_SCOPES = [
   'storage:view',
   'proxy:view',
   'pages:view',
+  'ssl:cert:view',
+  'logs:environments:view',
+  'logs:read',
 ] as const;
 
 /** Any member view scope (broad, on a resource, a node or a folder). */

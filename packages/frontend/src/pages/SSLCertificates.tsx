@@ -1,7 +1,18 @@
-import { ArrowRight, Cloud, FolderPlus, MoreVertical, Plus, RefreshCw, Trash2 } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowRightLeft,
+  Cloud,
+  FolderPlus,
+  MoreVertical,
+  Plus,
+  RefreshCw,
+  Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import { AppMembershipLink } from "@/components/apps/AppMembership";
+import { MoveToAppDialog } from "@/components/apps/MoveToAppDialog";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { DetailRow } from "@/components/common/DetailRow";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -18,6 +29,7 @@ import {
   SSLCertificateCreateDialog,
   type SSLCertificateCreateDialogDevPreview,
 } from "@/components/ssl/SSLCertificateCreateDialog";
+import { SSLStatusBadge, SSLTypeBadge } from "@/components/ssl/ssl-badges";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -47,6 +59,7 @@ import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { usePkiAvailable } from "@/hooks/use-plan-gated-features";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { hasCreationDestination } from "@/lib/creation-folders";
 import { cn, daysUntil, formatDate, hoursUntil } from "@/lib/utils";
@@ -77,34 +90,6 @@ const statusOptions: { value: SSLCertStatus | "all"; label: string }[] = [
   { value: "pending", label: "Pending" },
   { value: "error", label: "Error" },
 ];
-
-function SSLTypeBadge({ type }: { type: SSLCertType }) {
-  switch (type) {
-    case "acme":
-      return <Badge variant="success">ACME</Badge>;
-    case "upload":
-      return <Badge variant="secondary">UPLOAD</Badge>;
-    case "internal":
-      return <Badge variant="default">INTERNAL</Badge>;
-    default:
-      return <Badge variant="secondary">{type}</Badge>;
-  }
-}
-
-function SSLStatusBadge({ status }: { status: SSLCertStatus }) {
-  switch (status) {
-    case "active":
-      return <Badge variant="success">Active</Badge>;
-    case "expired":
-      return <Badge variant="destructive">Expired</Badge>;
-    case "pending":
-      return <Badge variant="warning">Pending</Badge>;
-    case "error":
-      return <Badge variant="destructive">Error</Badge>;
-    default:
-      return <Badge variant="secondary">{status}</Badge>;
-  }
-}
 
 function TLSDeploymentBadge({ distribution }: { distribution?: CertificateDistributionState }) {
   if (!distribution || distribution.status === "not_deployed") {
@@ -312,6 +297,8 @@ export function SSLCertificates() {
     onOpenChange: onPendingRenewalOpenChange,
   } = useDeferredDialogState<PendingRenewal>();
   const [previewCert, setPreviewCert] = useState<SSLCertificate | null>(null);
+  const [moveToAppCert, setMoveToAppCert] = useState<SSLCertificate | null>(null);
+  const shownMoveToAppCert = useRetainedDialogValue(moveToAppCert, moveToAppCert !== null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [isVerifyingRenewal, setIsVerifyingRenewal] = useState(false);
   const [resyncingCertId, setResyncingCertId] = useState<string | null>(null);
@@ -655,7 +642,10 @@ export function SSLCertificates() {
           cert.distribution !== undefined &&
           cert.distribution.status !== "ready" &&
           cert.distribution.status !== "not_deployed";
+        // Members leave their app from the app's page; system certificates never join one.
+        const canMoveToApp = !cert.app && !cert.isSystem && canIssueForCert;
         const hasOtherActions =
+          canMoveToApp ||
           canContinueDNSVerification ||
           canRenewCert ||
           canEnableCloudflareAutoRenew ||
@@ -712,6 +702,12 @@ export function SSLCertificates() {
                       className={cn("h-4 w-4", resyncingCertId === cert.id && "animate-spin")}
                     />
                     Retry Deployments
+                  </DropdownMenuItem>
+                )}
+                {canMoveToApp && (
+                  <DropdownMenuItem onClick={() => setMoveToAppCert(cert)}>
+                    <ArrowRightLeft className="h-4 w-4" />
+                    Move to app...
                   </DropdownMenuItem>
                 )}
                 {canDeleteCert && (
@@ -919,6 +915,15 @@ export function SSLCertificates() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <MoveToAppDialog
+        open={moveToAppCert !== null}
+        onOpenChange={(open) => {
+          if (!open) setMoveToAppCert(null);
+        }}
+        members={shownMoveToAppCert ? [{ type: "certificate", id: shownMoveToAppCert.id }] : []}
+        resourceLabel={shownMoveToAppCert?.name ?? "the certificate"}
+        onMoved={() => void fetchCertificates()}
+      />
       <Dialog open={previewOpen} onOpenChange={handlePreviewOpenChange}>
         <DialogContent className="sm:max-w-2xl" aria-describedby={undefined}>
           <DialogHeader>
@@ -948,6 +953,9 @@ export function SSLCertificates() {
                   value={previewCert.notAfter ? formatDate(previewCert.notAfter) : "-"}
                 />
                 {previewCert.isSystem && <DetailRow label="System" value="Yes" />}
+                {previewCert.app && (
+                  <DetailRow label="App" value={<AppMembershipLink app={previewCert.app} />} />
+                )}
                 <DetailRow label="Created" value={<RelativeTime value={previewCert.createdAt} />} />
                 <DetailRow label="Updated" value={<RelativeTime value={previewCert.updatedAt} />} />
               </PanelShell>

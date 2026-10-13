@@ -51,6 +51,8 @@ const FAMILY_WORD: Record<AppOverviewIssue["family"], [string, string]> = {
   storage: ["storage", "storage"],
   routes: ["route", "routes"],
   pages: ["Pages project", "Pages projects"],
+  certificates: ["SSL certificate", "SSL certificates"],
+  logging: ["logging environment", "logging environments"],
 };
 
 function issueLabel(issue: AppOverviewIssue): string {

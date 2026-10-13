@@ -9,12 +9,14 @@ import {
   dockerContainerFolders,
   dockerDeployments,
   ingressGroupMembers,
+  loggingEnvironments,
   managedDatabaseInstances,
   managedStorageClusterMembers,
   managedStorageClusters,
   objectStorageConnections,
   pageProjects,
   proxyHosts,
+  sslCertificates,
 } from '@/db/schema/index.js';
 import { hasScopeForResource } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
@@ -52,7 +54,17 @@ export interface AppMember {
 export type AppMemberCounts = Record<AppMemberType, number>;
 
 export function emptyMemberCounts(): AppMemberCounts {
-  return { container: 0, deployment: 0, compose: 0, database: 0, storage: 0, route: 0, pages: 0 };
+  return {
+    container: 0,
+    deployment: 0,
+    compose: 0,
+    database: 0,
+    storage: 0,
+    route: 0,
+    pages: 0,
+    certificate: 0,
+    logging: 0,
+  };
 }
 
 /** View check of one member with the caller's effective (folder-expanded) scopes. */
@@ -67,6 +79,14 @@ export function canViewMember(scopes: readonly string[], member: AppMember): boo
       return hasScopeForResource(granted, 'storage:view', member.id);
     case 'pages':
       return hasScopeForResource(granted, 'pages:view', member.id);
+    case 'certificate':
+      return hasScopeForResource(granted, 'ssl:cert:view', member.id);
+    case 'logging':
+      // logs:read lists the environment too (its logs need it in the list).
+      return (
+        hasScopeForResource(granted, 'logs:environments:view', member.id) ||
+        hasScopeForResource(granted, 'logs:read', member.id)
+      );
     case 'compose':
       return hasDockerResourceScope(granted, 'docker:compose:view', member.nodeId!, member.id);
     case 'deployment':
@@ -225,6 +245,32 @@ export class AppMembersReader {
           environmentId,
           nodeIds: row.nodeId ? [row.nodeId] : [],
         });
+      }
+    }
+
+    // Certificates and logging environments run on no node.
+    const certificateFolders = folderIds('certificates');
+    if (certificateFolders.length) {
+      const rows = await this.db
+        .select({ id: sslCertificates.id, name: sslCertificates.name, folderId: sslCertificates.folderId })
+        .from(sslCertificates)
+        .where(inArray(sslCertificates.folderId, certificateFolders));
+      for (const row of rows) {
+        const environmentId = envOf(row.folderId);
+        if (environmentId)
+          members.push({ type: 'certificate', id: row.id, name: row.name, environmentId, nodeIds: [] });
+      }
+    }
+
+    const loggingFolders = folderIds('logging');
+    if (loggingFolders.length) {
+      const rows = await this.db
+        .select({ id: loggingEnvironments.id, name: loggingEnvironments.name, folderId: loggingEnvironments.folderId })
+        .from(loggingEnvironments)
+        .where(inArray(loggingEnvironments.folderId, loggingFolders));
+      for (const row of rows) {
+        const environmentId = envOf(row.folderId);
+        if (environmentId) members.push({ type: 'logging', id: row.id, name: row.name, environmentId, nodeIds: [] });
       }
     }
 
@@ -395,6 +441,8 @@ const FAMILY_EVENTS: Readonly<Record<AppFamily, string>> = {
   databases: 'database.folder.changed',
   storage: 'storage.folder.changed',
   pages: 'pages.folder.changed',
+  certificates: 'ssl.cert.folder.changed',
+  logging: 'logging.environment.changed',
 };
 
 /** The permission that lets a caller change where a member lives (as for moving it between folders). */
@@ -412,6 +460,10 @@ export function canEditMember(
       return hasScopeForResource(granted, 'storage:edit', member.id);
     case 'pages':
       return hasScopeForResource(granted, 'pages:edit', member.id);
+    case 'certificate':
+      return hasScopeForResource(granted, 'ssl:cert:issue', member.id);
+    case 'logging':
+      return hasScopeForResource(granted, 'logs:environments:edit', member.id);
     case 'compose':
       return hasDockerResourceScope(granted, 'docker:compose:manage', member.nodeId ?? '', member.id);
     case 'deployment':
@@ -598,6 +650,18 @@ export class AppMembersService {
       case 'pages':
         await this.db.update(pageProjects).set({ folderId, updatedAt: now }).where(eq(pageProjects.id, member.id));
         return;
+      case 'certificates':
+        await this.db
+          .update(sslCertificates)
+          .set({ folderId, updatedAt: now })
+          .where(eq(sslCertificates.id, member.id));
+        return;
+      case 'logging':
+        await this.db
+          .update(loggingEnvironments)
+          .set({ folderId, updatedAt: now })
+          .where(eq(loggingEnvironments.id, member.id));
+        return;
       case 'containers':
       case 'compose': {
         const resourceType = family === 'compose' ? 'compose' : 'container';
@@ -749,6 +813,56 @@ export class AppMembersService {
             break;
           }
           out.push({ ...base, name: row.name, folderId: row.folderId, nodeIds: row.nodeId ? [row.nodeId] : [] });
+          break;
+        }
+        case 'certificate': {
+          if (!UUID_RE.test(base.id)) {
+            notFound();
+            break;
+          }
+          const [row] = await this.db
+            .select({
+              name: sslCertificates.name,
+              folderId: sslCertificates.folderId,
+              isSystem: sslCertificates.isSystem,
+            })
+            .from(sslCertificates)
+            .where(eq(sslCertificates.id, base.id))
+            .limit(1);
+          if (!row) {
+            notFound();
+            break;
+          }
+          out.push({
+            ...base,
+            name: row.name,
+            folderId: row.folderId,
+            ...(row.isSystem
+              ? {
+                  refusal: {
+                    code: 'CERTIFICATE_NOT_PLACEABLE',
+                    message: 'System certificates (the Opfield management certificate) cannot join an app',
+                  },
+                }
+              : {}),
+          });
+          break;
+        }
+        case 'logging': {
+          if (!UUID_RE.test(base.id)) {
+            notFound();
+            break;
+          }
+          const [row] = await this.db
+            .select({ name: loggingEnvironments.name, folderId: loggingEnvironments.folderId })
+            .from(loggingEnvironments)
+            .where(eq(loggingEnvironments.id, base.id))
+            .limit(1);
+          if (!row) {
+            notFound();
+            break;
+          }
+          out.push({ ...base, name: row.name, folderId: row.folderId });
           break;
         }
         case 'compose': {

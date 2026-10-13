@@ -1,6 +1,18 @@
 // Pieces the resource tabs share: type definitions, the create/import header actions, the headers
 // of types not in the app yet, the empty group and the member row-menu entries.
-import { Box, Boxes, Database, Globe, Globe2, HardDrive, Import, Link2, Plus } from "lucide-react";
+import {
+  Box,
+  Boxes,
+  Database,
+  Globe,
+  Globe2,
+  HardDrive,
+  Import,
+  Link2,
+  Lock,
+  Plus,
+  ScrollText,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PanelShell } from "@/components/common/PanelShell";
@@ -71,6 +83,15 @@ export const TYPES = {
     importFamily: "storage",
     icon: <HardDrive className="h-4 w-4" />,
   },
+  logging: {
+    key: "logging",
+    title: "Logging environments",
+    create: "Create Environment",
+    addLabel: "Logging environment",
+    createType: "logging",
+    importFamily: "logging",
+    icon: <ScrollText className="h-4 w-4" />,
+  },
   routes: {
     key: "routes",
     title: "Routes",
@@ -79,6 +100,15 @@ export const TYPES = {
     createType: "route",
     importFamily: "routes",
     icon: <Globe className="h-4 w-4" />,
+  },
+  certificates: {
+    key: "certificates",
+    title: "SSL certificates",
+    create: "Add Certificate",
+    addLabel: "SSL certificate",
+    createType: "certificate",
+    importFamily: "certificates",
+    icon: <Lock className="h-4 w-4" />,
   },
   links: {
     key: "links",

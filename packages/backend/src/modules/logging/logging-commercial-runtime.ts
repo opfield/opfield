@@ -36,6 +36,7 @@ import { RATE_LIMIT_REDIS_TIMEOUT_MS, withRateLimitRedisTimeout } from '@/lib/ra
 import { transactionWithScopeCleanup } from '@/lib/resource-scope-cleanup.js';
 import { writeWithAllocatedSlug } from '@/lib/resource-slugs.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { appsHostRuntime } from '@/modules/apps/apps-host-runtime.js';
 import {
   hasConfiguredLicenseFeatureForExistingRuntime,
   requireConfiguredLicensePolicy,
@@ -86,4 +87,5 @@ export const loggingCommercialRuntime = {
   loggerLocalClickHouse,
   loggerLoggingMaintenance,
   loggerLoggingRateLimit,
+  apps: appsHostRuntime,
 };

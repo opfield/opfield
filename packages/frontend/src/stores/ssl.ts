@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { useUIStore } from "@/stores/ui";
@@ -104,6 +105,8 @@ export const useSSLStore = create<SSLState>()((set, get) => ({
         type: filters.type !== "all" ? filters.type : undefined,
         status: filters.status !== "all" ? filters.status : undefined,
         showSystem,
+        // App members live on their app's page: the server leaves them out.
+        ...NORMAL_LIST_FILTER,
       });
       if (requestId !== fetchSSLCertificatesRequestId) return;
       if (isDefault) api.setCache(cacheKey, response);
@@ -139,6 +142,8 @@ export const useSSLStore = create<SSLState>()((set, get) => ({
         type: filters.type !== "all" ? filters.type : undefined,
         status: filters.status !== "all" ? filters.status : undefined,
         showSystem,
+        // App members live on their app's page: the server leaves them out.
+        ...NORMAL_LIST_FILTER,
       });
       if (requestId !== fetchSSLCertificatesRequestId) return;
       set((state) => {

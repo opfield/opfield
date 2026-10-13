@@ -21,12 +21,14 @@ import type {
   AppVariables,
   AppWorkloadTask,
   DatabaseConnection,
+  LoggingEnvironment,
   ObjectStorageConnection,
   PageProject,
   PaginatedResponse,
   ProxyHost,
   ResourceFolder,
   ResourceFolderTreeNode,
+  SSLCertificate,
 } from "@/types";
 import type { ApiClientBaseConstructor } from "./api-mixins";
 
@@ -305,6 +307,17 @@ export function withAppsApi<TBase extends ApiClientBaseConstructor>(Base: TBase)
 
     async listAppPages(appId: string): Promise<PageProject[]> {
       return this.listAllAppMembers<PageProject>("/pages", appId, 100);
+    }
+
+    async listAppCertificates(appId: string): Promise<SSLCertificate[]> {
+      return this.listAllAppMembers<SSLCertificate>("/ssl-certificates", appId, 100);
+    }
+
+    /** The logging environment list is not paginated. */
+    async listAppLoggingEnvironments(appId: string): Promise<LoggingEnvironment[]> {
+      return this.unwrapData(
+        this.request<{ data: LoggingEnvironment[] }>(`/logging/environments?appId=${seg(appId)}`)
+      );
     }
 
     // ── Maintenance access code, overview, activity ────────────────

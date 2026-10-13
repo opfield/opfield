@@ -23,7 +23,7 @@ import {
 const TAGS = ['Apps'];
 
 export const APPS_DESCRIPTION =
-  'An app groups resources of several types (containers, deployments, Compose projects, routes, databases, storage, Pages) into environments. A new app has one environment, production, marked as Production; exactly one environment holds the marker. Members sit in hidden folders of their own type, so create a resource inside an environment by passing folderId = placementFolderIds[type] of that environment to the normal create endpoint. Visibility: apps:view broadly, on the app (apps:view:<appId>) or on one environment (apps:view:env/<envId>); members appear by their own view permissions. Without apps:view an app is still visible when the caller can view one of its members (access "members"): only the environments holding such members, only those members, and overview, activity, health and incident items computed from them alone.';
+  'An app groups resources of several types (containers, deployments, Compose projects, routes, databases, storage, Pages, SSL certificates, logging environments) into environments. A new app has one environment, production, marked as Production; exactly one environment holds the marker. Members sit in hidden folders of their own type, so create a resource inside an environment by passing folderId = placementFolderIds[type] of that environment to the normal create endpoint. Visibility: apps:view broadly, on the app (apps:view:<appId>) or on one environment (apps:view:env/<envId>); members appear by their own view permissions. Without apps:view an app is still visible when the caller can view one of its members (access "members"): only the environments holding such members, only those members, and overview, activity, health and incident items computed from them alone.';
 
 const AppParams = pathParamSchema('id');
 const EnvParams = pathParamSchema('id', 'envId');
@@ -149,7 +149,7 @@ export const placeAppMembersRoute = appRoute({
   tags: TAGS,
   summary: 'Move resources into, between or out of app environments',
   description:
-    'target {appId, environmentId} imports or moves each member into that environment; target null takes them out of their app (top level of their lists). Members: {type, id} (deployment, compose, database, storage, route, pages by id) or {type: container, id: name, nodeId}. Needs apps:env:manage on the target environment and on the environment a member leaves, plus the edit permission of each member. Refused per member: system routes and the Opfield public URL route (ROUTE_NOT_PLACEABLE), a node the target environment does not allow (APP_NODE_NOT_ALLOWED), no permission (FORBIDDEN), unknown member (NOT_FOUND), a member of an environment isolated by the kill switch (APP_ISOLATED; an isolated target refuses the whole request with 409 APP_ISOLATED). Shut-down environments take moves both ways; Start still starts a member moved out that ran at shutdown. Partial success: placed and refused are listed.',
+    'target {appId, environmentId} imports or moves each member into that environment; target null takes them out of their app (top level of their lists). Members: {type, id} (deployment, compose, database, storage, route, pages, certificate, logging by id) or {type: container, id: name, nodeId}. Needs apps:env:manage on the target environment and on the environment a member leaves, plus the edit permission of each member. Refused per member: system routes and the Opfield public URL route (ROUTE_NOT_PLACEABLE), system certificates (CERTIFICATE_NOT_PLACEABLE), a node the target environment does not allow (APP_NODE_NOT_ALLOWED), no permission (FORBIDDEN), unknown member (NOT_FOUND), a member of an environment isolated by the kill switch (APP_ISOLATED; an isolated target refuses the whole request with 409 APP_ISOLATED). Shut-down environments take moves both ways; Start still starts a member moved out that ran at shutdown. Partial success: placed and refused are listed.',
   request: jsonBody(PlaceAppMembersSchema),
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -175,7 +175,7 @@ export const AppNodeBodySchema = z.object({ nodeId: z.string().uuid() }).strict(
 const EnvNodeParams = pathParamSchema('id', 'envId', 'nodeId');
 
 const NODES_DESCRIPTION =
-  'The nodes an environment may place workloads on. Creating, importing or moving a resource into the environment on another node is refused (APP_NODE_NOT_ALLOWED, or APP_ENV_NO_ALLOWED_NODE when no node of the needed type is allowed): containers, deployments and Compose need a Docker node, routes and Pages an Nginx node, managed databases and storage a database or storage node. Each node lists usedBy: how many members of each type run on it. Removing a node leaves what runs there running.';
+  'The nodes an environment may place workloads on. Creating, importing or moving a resource into the environment on another node is refused (APP_NODE_NOT_ALLOWED, or APP_ENV_NO_ALLOWED_NODE when no node of the needed type is allowed): containers, deployments and Compose need a Docker node, routes and Pages an Nginx node, managed databases and storage a database or storage node; SSL certificates and logging environments run on no node. Each node lists usedBy: how many members of each type run on it. Removing a node leaves what runs there running.';
 
 export const listAppEnvironmentNodesRoute = appRoute({
   method: 'get',

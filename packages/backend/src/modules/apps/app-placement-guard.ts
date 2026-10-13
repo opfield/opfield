@@ -13,6 +13,9 @@ export const APP_FAMILY_NODE_TYPES: Readonly<Record<AppFamily, readonly string[]
   pages: ['nginx'],
   databases: ['databases', 'storage'],
   storage: ['storage', 'databases'],
+  // Certificates and logging environments run on no node: the allowlist does not apply to them.
+  certificates: [],
+  logging: [],
 };
 
 const NODE_TYPE_LABELS: Readonly<Record<string, string>> = {
@@ -162,6 +165,18 @@ export async function assertAppPlacement(
   const placement = await appPlacementForFolder(db, family, folderId, nodeTypes);
   await assertPlacementNotIsolated(db, placement);
   assertPlacementNodesAllowed(placement, nodeIds, nodeTypes);
+}
+
+/**
+ * The guard of create paths of families that run on no node (certificates, logging environments): an app root
+ * folder is never a destination and nothing is placed in an environment isolated by the kill switch.
+ */
+export async function assertAppDestination(
+  db: DrizzleExecutor,
+  family: AppFamily,
+  folderId: string | null | undefined
+): Promise<void> {
+  await assertPlacementNotIsolated(db, await appPlacementForFolder(db, family, folderId));
 }
 
 /** Node candidates narrowed to what an app environment folder allows (unchanged outside apps). */

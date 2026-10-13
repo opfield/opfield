@@ -257,6 +257,10 @@ function familyOf(member: AppMember): string {
       return 'routes';
     case 'pages':
       return 'pages';
+    case 'certificate':
+      return 'certificates';
+    case 'logging':
+      return 'logging';
   }
 }
 

@@ -620,6 +620,8 @@ export function withPagesDomainsApi<TBase extends ApiClientBaseConstructor>(Base
       sortBy?: string;
       sortOrder?: string;
       showSystem?: boolean;
+      excludeAppMembers?: boolean;
+      appId?: string;
     }): Promise<PaginatedResponse<SSLCertificate>> {
       const searchParams = new URLSearchParams();
       if (params?.page) searchParams.set("page", params.page.toString());
@@ -630,6 +632,7 @@ export function withPagesDomainsApi<TBase extends ApiClientBaseConstructor>(Base
       if (params?.sortBy) searchParams.set("sortBy", params.sortBy);
       if (params?.sortOrder) searchParams.set("sortOrder", params.sortOrder);
       if (params?.showSystem) searchParams.set("showSystem", "true");
+      setAppMemberListParams(searchParams, params);
 
       const query = searchParams.toString();
       return this.request<PaginatedResponse<SSLCertificate>>(

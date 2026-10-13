@@ -285,6 +285,8 @@ const HIDDEN_SCOPE_TYPES: Record<string, AppMemberType[]> = {
   "docker:compose:view": ["compose"],
   "pages:view": ["pages"],
   "proxy:view": ["route"],
+  "ssl:cert:view": ["certificate"],
+  "logs:environments:view": ["logging"],
 };
 
 /**

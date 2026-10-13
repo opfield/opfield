@@ -8,9 +8,11 @@ import {
   dockerComposeProjects,
   dockerContainerFolderAssignments,
   dockerDeployments,
+  loggingEnvironments,
   objectStorageConnections,
   pageProjects,
   proxyHosts,
+  sslCertificates,
 } from '@/db/schema/index.js';
 import { type AppFamily, type AppMemberType, familyOfMemberType } from './app-families.js';
 import type { AppFolderRef, AppFolderService } from './app-folders.service.js';
@@ -271,6 +273,35 @@ export class AppMembershipService {
         result.set(memberKey({ type: 'pages', id: row.id }), {
           folderId: row.folderId ?? null,
           nodeIds: row.nodeId ? [row.nodeId] : [],
+          name: row.name,
+        });
+      }
+    }
+    // Certificates and logging environments run on no node.
+    const certificateIds = ids('certificate');
+    if (certificateIds.length) {
+      const rows = await this.db
+        .select({ id: sslCertificates.id, folderId: sslCertificates.folderId, name: sslCertificates.name })
+        .from(sslCertificates)
+        .where(inArray(sslCertificates.id, certificateIds));
+      for (const row of rows) {
+        result.set(memberKey({ type: 'certificate', id: row.id }), {
+          folderId: row.folderId ?? null,
+          nodeIds: [],
+          name: row.name,
+        });
+      }
+    }
+    const loggingIds = ids('logging');
+    if (loggingIds.length) {
+      const rows = await this.db
+        .select({ id: loggingEnvironments.id, folderId: loggingEnvironments.folderId, name: loggingEnvironments.name })
+        .from(loggingEnvironments)
+        .where(inArray(loggingEnvironments.id, loggingIds));
+      for (const row of rows) {
+        result.set(memberKey({ type: 'logging', id: row.id }), {
+          folderId: row.folderId ?? null,
+          nodeIds: [],
           name: row.name,
         });
       }

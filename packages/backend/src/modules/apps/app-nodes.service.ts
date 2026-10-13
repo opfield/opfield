@@ -12,7 +12,8 @@ import type { AppActor, AppsService } from './apps.service.js';
 export const ALLOWABLE_NODE_TYPES = ['docker', 'nginx', 'databases', 'storage'] as const;
 
 type UsageKey = 'containers' | 'compose' | 'databases' | 'storage' | 'routes' | 'pages';
-const USAGE_KEY: Readonly<Record<AppMemberType, UsageKey>> = {
+/** Member types that run on nodes (certificates and logging environments run on none). */
+const USAGE_KEY: Readonly<Partial<Record<AppMemberType, UsageKey>>> = {
   container: 'containers',
   deployment: 'containers',
   compose: 'compose',
@@ -70,7 +71,8 @@ export class AppNodesService {
       nodes: rows.map((row) => {
         const usedBy = emptyUsage();
         for (const member of members) {
-          if (member.nodeIds.includes(row.nodeId)) usedBy[USAGE_KEY[member.type]] += 1;
+          const key = USAGE_KEY[member.type];
+          if (key && member.nodeIds.includes(row.nodeId)) usedBy[key] += 1;
         }
         return {
           nodeId: row.nodeId,

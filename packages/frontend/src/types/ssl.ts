@@ -1,3 +1,5 @@
+import type { AppMembershipRef } from "./apps";
+
 // SSL Certificate Types
 export type SSLCertType = "acme" | "upload" | "internal";
 export type SSLCertStatus = "active" | "expired" | "pending" | "error";
@@ -26,6 +28,8 @@ export interface CertificateDistributionState {
 }
 
 export interface SSLCertificate {
+  /** Set when the certificate is a member of an app environment. */
+  app?: AppMembershipRef | null;
   id: string;
   name: string;
   type: SSLCertType;

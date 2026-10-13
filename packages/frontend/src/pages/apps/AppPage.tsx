@@ -11,8 +11,10 @@ import {
   HardDrive,
   Layers,
   Link2,
+  Lock,
   Plus,
   RefreshCw,
+  ScrollText,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
@@ -44,6 +46,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
 import { canServeLicenseFeature } from "@/stores/license-paywall";
+import { useSystemConfigStore } from "@/stores/system-config";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import type { AppDetail, AppMemberFamily } from "@/types";
 import {
@@ -80,7 +83,9 @@ const NEW_ITEMS: Array<{
   { type: "database", variant: "external", label: "Database connection", icon: Database },
   { type: "storage", label: "Storage", icon: HardDrive },
   { type: "storage", variant: "external", label: "Storage connection", icon: HardDrive },
+  { type: "logging", label: "Logging environment", icon: ScrollText },
   { type: "route", label: "Route", icon: Globe },
+  { type: "certificate", label: "SSL certificate", icon: Lock },
   { type: "pages", label: "Pages project", icon: Globe2 },
   { type: "container-link", label: "Container link", icon: Link2 },
 ];
@@ -177,29 +182,36 @@ function AppPageContent({
     Object.values(permissions.operateEnv ?? {}).some(Boolean);
   const counts = app.environments.map((env) => env.memberCounts);
   const members = counts.reduce((sum, item) => sum + memberTotal(item), 0);
-  const hasData = counts.some((item) => (item.database ?? 0) + (item.storage ?? 0) > 0);
+  const hasData = counts.some(
+    (item) => (item.database ?? 0) + (item.storage ?? 0) + (item.logging ?? 0) > 0
+  );
   // Entry points of types the license plan lacks stay hidden; existing members stay listed.
   const license = useUIBootstrapStore((state) => state.snapshot?.license);
   const commercialModule = useUIBootstrapStore((state) => state.snapshot?.commercialModule);
+  // Logging environments also need logging turned on for this Opfield.
+  const loggingEnabled = useSystemConfigStore((state) => state.config.features.loggingEnabled);
   const planCreates = useCallback(
     (type: AppCreateType, variant?: "external") =>
+      (type !== "logging" || loggingEnabled) &&
       appCreateFeatures({ type, variant }).every((feature) =>
         canServeLicenseFeature({ license, commercialModule }, feature)
       ),
-    [license, commercialModule]
+    [license, commercialModule, loggingEnabled]
   );
   const planImports = useCallback(
     (family: AppMemberFamily) => {
+      if (family === "logging" && !loggingEnabled) return false;
       const feature = IMPORT_LICENSE_FEATURES[family];
       return !feature || canServeLicenseFeature({ license, commercialModule }, feature);
     },
-    [license, commercialModule]
+    [license, commercialModule, loggingEnabled]
   );
   const planHasData =
     planCreates("database") ||
     planCreates("database", "external") ||
     planCreates("storage") ||
-    planCreates("storage", "external");
+    planCreates("storage", "external") ||
+    planCreates("logging");
   const production = app.environments.find((env) => env.isProduction) ?? app.environments[0];
   // Allowed nodes are environment settings: shown for environments the user sees with apps:view.
   const hasSettingsEnvironments = app.environments.some((env) => env.access !== "members");

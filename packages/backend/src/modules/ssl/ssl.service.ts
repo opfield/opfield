@@ -14,6 +14,7 @@ import {
   pageWildcardProfiles,
   permissionGroups,
   proxyHosts,
+  sslCertificateFolders,
   sslCertificates,
   users,
 } from '@/db/schema/index.js';
@@ -22,6 +23,7 @@ import { transactionWithScopeCleanup } from '@/lib/resource-scope-cleanup.js';
 import { buildWhere, escapeLike, sleep } from '@/lib/utils.js';
 import { x509 } from '@/lib/x509.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { appMemberFolderCondition, withAppMembers } from '@/modules/apps/app-membership.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { IntegrationsService } from '@/modules/integrations/integrations.service.js';
 import { loadCertificateIssuerChainPem, loadIssuerChainPem } from '@/modules/pki/issuer-chain.js';
@@ -1924,6 +1926,12 @@ export class SSLService {
     }
 
     if (!params.showSystem) conditions.push(eq(sslCertificates.isSystem, false));
+    // App members: the normal list leaves them out, an app's Network tab asks for one app (before paging).
+    const appFilter = appMemberFolderCondition(sslCertificates.folderId, sslCertificateFolders, {
+      appId: params.appId ?? null,
+      excludeAppMembers: params.excludeAppMembers,
+    });
+    if (appFilter) conditions.push(appFilter);
     if (params.type) conditions.push(eq(sslCertificates.type, params.type));
     if (params.status) conditions.push(eq(sslCertificates.status, params.status));
     if (params.search) {
@@ -1954,7 +1962,10 @@ export class SSLService {
       entries.map((entry) => entry.id)
     );
     return {
-      data: entries.map((entry) => ({ ...entry, distribution: distribution.get(entry.id) })),
+      data: await withAppMembers(
+        'certificates',
+        entries.map((entry) => ({ ...entry, distribution: distribution.get(entry.id) }))
+      ),
       pagination: {
         page: params.page,
         limit: params.limit,

@@ -4,7 +4,7 @@ export const OPERATION_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_logging',
     description:
-      'Manage external logging environments, schemas, ingest tokens, metadata, facets, and search. Use canonical args like { resource: "schema", operation: "create", payload: { name, schemaMode, fieldSchema } } or { resource: "environment", operation: "list", search }. Resource slugs are assigned by the backend. Operation-specific logs:* scopes are enforced. { resource: "health", operation: "get" } returns the logging storage maintenance snapshot (any logs view scope or housekeeping:view).',
+      'Manage external logging environments, schemas, ingest tokens, metadata, facets, and search. Use canonical args like { resource: "schema", operation: "create", payload: { name, schemaMode, fieldSchema } } or { resource: "environment", operation: "list", search }. Environment list takes excludeAppMembers (leave out app members) or appId (only the environments of one app); each environment carries app (its app and environment, or null) and lastIngestAt. Resource slugs are assigned by the backend. Operation-specific logs:* scopes are enforced. { resource: "health", operation: "get" } returns the logging storage maintenance snapshot (any logs view scope or housekeeping:view).',
     parameters: {
       type: 'object',
       properties: {
@@ -17,10 +17,12 @@ export const OPERATION_AI_TOOLS: AIToolDefinition[] = [
         schemaId: { type: 'string' },
         tokenId: { type: 'string' },
         search: { type: 'string' },
+        excludeAppMembers: { type: 'boolean', description: 'environment list: leave out environments of apps.' },
+        appId: { type: 'string', description: 'environment list: only the environments of this app.' },
         payload: {
           type: 'object',
           description:
-            'Create/update/search/facets body matching the logging API schema. Schema payload fields: name, description?, schemaMode ("loose"|"strip"|"reject"), fieldSchema[]. Environment payload fields: name, description?, enabled?, schemaId?, schemaMode, retentionDays, fieldSchema[]. Resource slugs are assigned by the backend. Search payload fields: from?, to?, query?, limit?, cursor?, services?, sources?, expression?.',
+            'Create/update/search/facets body matching the logging API schema. Schema payload fields: name, description?, schemaMode ("loose"|"strip"|"reject"), fieldSchema[]. Environment payload fields: name, description?, enabled?, schemaId?, schemaMode, retentionDays, fieldSchema[], folderId? (get_app placementFolderIds.logging creates it inside an app environment). Resource slugs are assigned by the backend. Search payload fields: from?, to?, query?, limit?, cursor?, services?, sources?, expression?.',
         },
       },
       required: ['resource', 'operation'],

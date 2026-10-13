@@ -24,7 +24,7 @@ import {
   hasAppWideScope,
   visibleEnvironmentIds,
 } from './app-access.js';
-import type { AppFamily, AppMemberType } from './app-families.js';
+import { type AppFamily, type AppMemberType, familyRecord } from './app-families.js';
 import type { AppFolderService } from './app-folders.service.js';
 import { type AppVisibility, memberKeysByEnvironment } from './app-member-visibility.js';
 import {
@@ -105,14 +105,7 @@ export function appIncidentState(
   return 'none';
 }
 
-const NO_FOLDERS: Record<AppFamily, string | null> = {
-  containers: null,
-  compose: null,
-  routes: null,
-  databases: null,
-  storage: null,
-  pages: null,
-};
+const NO_FOLDERS: Record<AppFamily, string | null> = familyRecord(() => null);
 
 const DEFAULT_HEALTH: EnvironmentHealthSummary = {
   health: 'healthy',

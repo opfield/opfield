@@ -1,5 +1,6 @@
 import { container } from '@/container.js';
 import { hasScopeBase, hasScopeForCreation, hasScopeForResource } from '@/lib/permissions.js';
+import { parseAppListFilter } from '@/modules/apps/app-membership.js';
 import { LicensePolicyService } from '@/modules/license/license-policy.service.js';
 import {
   CreateLoggingEnvironmentSchema,
@@ -44,6 +45,7 @@ export async function manageLoggingTool(user: User, args: Record<string, unknown
       return service.list({
         search: typeof args.search === 'string' ? args.search : undefined,
         allowedIds: visibleLoggingEnvironmentIds(user.scopes),
+        ...parseAppListFilter(args),
       });
     }
     if (operation === 'get') {

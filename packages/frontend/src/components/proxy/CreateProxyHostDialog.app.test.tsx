@@ -76,6 +76,8 @@ const environment: AppEnvironmentDetail = {
     databases: null,
     storage: null,
     pages: null,
+    certificates: null,
+    logging: null,
   },
   allowedNodeIds: ["edge-1", "edge-2"],
 };

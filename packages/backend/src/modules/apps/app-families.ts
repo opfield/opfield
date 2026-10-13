@@ -1,16 +1,27 @@
 import {
   databaseConnectionFolders,
   dockerContainerFolders,
+  loggingEnvironmentFolders,
   objectStorageFolders,
   pageProjectFolders,
   proxyHostFolders,
+  sslCertificateFolders,
 } from '@/db/schema/index.js';
 
 /**
  * Resource families an app holds. Each has one hidden app-root folder per app and one environment folder per
  * environment in its own folder table. Containers and deployments share the Docker container tree.
  */
-export const APP_FAMILIES = ['containers', 'compose', 'routes', 'databases', 'storage', 'pages'] as const;
+export const APP_FAMILIES = [
+  'containers',
+  'compose',
+  'routes',
+  'databases',
+  'storage',
+  'pages',
+  'certificates',
+  'logging',
+] as const;
 export type AppFamily = (typeof APP_FAMILIES)[number];
 
 /** Member types the API speaks (`place`, member lists, activity). */
@@ -22,6 +33,8 @@ export const APP_MEMBER_TYPES = [
   'storage',
   'route',
   'pages',
+  'certificate',
+  'logging',
 ] as const;
 export type AppMemberType = (typeof APP_MEMBER_TYPES)[number];
 
@@ -40,6 +53,10 @@ export function familyOfMemberType(type: AppMemberType): AppFamily {
       return 'routes';
     case 'pages':
       return 'pages';
+    case 'certificate':
+      return 'certificates';
+    case 'logging':
+      return 'logging';
   }
 }
 
@@ -59,4 +76,11 @@ export const APP_FAMILY_TABLES: Readonly<Record<AppFamily, AppFamilyTable>> = {
   databases: { table: databaseConnectionFolders, lockKey: 'resource-folders:database_connection_folder' },
   storage: { table: objectStorageFolders, lockKey: 'resource-folders:object_storage_folder' },
   pages: { table: pageProjectFolders, lockKey: 'resource-folders:page_project_folder' },
+  certificates: { table: sslCertificateFolders, lockKey: 'resource-folders:ssl_certificate_folder' },
+  logging: { table: loggingEnvironmentFolders, lockKey: 'resource-folders:logging_environment_folder' },
 };
+
+/** One entry per family (records keyed by family: placement folder ids, root folder ids). */
+export function familyRecord<T>(value: (family: AppFamily) => T): Record<AppFamily, T> {
+  return Object.fromEntries(APP_FAMILIES.map((family) => [family, value(family)])) as Record<AppFamily, T>;
+}

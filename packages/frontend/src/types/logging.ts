@@ -1,3 +1,5 @@
+import type { AppMembershipRef } from "./apps";
+
 export type LoggingSchemaMode = "loose" | "strip" | "reject";
 export type LoggingSeverity = "trace" | "debug" | "info" | "warn" | "error" | "fatal";
 export type LoggingFieldType = "string" | "number" | "boolean" | "datetime" | "json";
@@ -11,6 +13,10 @@ export interface LoggingFieldDefinition {
 }
 
 export interface LoggingEnvironment {
+  /** Set when the environment is a member of an app environment. */
+  app?: AppMembershipRef | null;
+  /** Last use of one of its ingest tokens (null: never). */
+  lastIngestAt?: string | null;
   id: string;
   name: string;
   slug: string;

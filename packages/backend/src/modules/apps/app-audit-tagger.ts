@@ -29,7 +29,7 @@ function text(value: unknown): string | null {
 /**
  * Tags audit rows with the app, environment and member they concern, when they are written: a container's audit id
  * changes on recreate, so matching rows to members later is unreliable. History starts when a resource joins an app.
- * Covers app rows, membership moves and the audit resource types of the six member families; other rows stay
+ * Covers app rows, membership moves and the audit resource types of the member families; other rows stay
  * untagged. Lookups are cached for 10 s and dropped on every app change.
  */
 export class AppAuditTagger {
@@ -101,6 +101,14 @@ export class AppAuditTagger {
       case 'page_tag': {
         const projectId = text(details.projectId);
         return projectId && UUID_RE.test(projectId) ? { type: 'pages', id: projectId } : null;
+      }
+      case 'ssl_certificate':
+        return id && UUID_RE.test(id) ? { type: 'certificate', id } : null;
+      case 'logging-environment':
+        return id && UUID_RE.test(id) ? { type: 'logging', id } : null;
+      case 'logging-token': {
+        const environmentId = text(details.environmentId);
+        return environmentId && UUID_RE.test(environmentId) ? { type: 'logging', id: environmentId } : null;
       }
       case 'docker-compose-project':
       case 'compose':

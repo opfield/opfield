@@ -257,19 +257,32 @@ export function typesManagingFolders(types: readonly AccessTypeId[]): AccessType
 }
 
 /**
- * The six types an app environment holds, one hidden folder each (containers and deployments,
- * Compose projects, routes, databases, object storage, Pages). Their ids are the app families.
+ * The types an app environment holds, one hidden folder each (containers and deployments, Compose
+ * projects, routes, databases, object storage, Pages, SSL certificates). Logging environments are
+ * app members too but have no access type here: their grants are set in the scope picker.
  */
 export const APP_ACCESS_TYPE_IDS: readonly AccessTypeId[] = [
   "containers",
   "compose",
   "routes",
+  "ssl",
   "databases",
   "storage",
   "pages",
 ];
 
 type AppFamily = keyof AppScopeApp["environments"][number]["folderIds"];
+
+/** The app family (hidden folder) of each access type an app environment holds. */
+const APP_TYPE_FAMILY: Readonly<Partial<Record<AccessTypeId, AppFamily>>> = {
+  containers: "containers",
+  compose: "compose",
+  routes: "routes",
+  databases: "databases",
+  storage: "storage",
+  pages: "pages",
+  ssl: "certificates",
+};
 
 /**
  * The app scopes each role holds in an app line, qualified by the environment (`:env/<envId>`) or
@@ -421,10 +434,10 @@ export function appLineFolderIds(
   where: Extract<AccessWhere, { kind: "app" }>,
   type: AccessTypeId
 ): string[] {
-  if (!APP_ACCESS_TYPE_IDS.includes(type)) return [];
+  const family = APP_TYPE_FAMILY[type];
+  if (!family || !APP_ACCESS_TYPE_IDS.includes(type)) return [];
   const app = accessApp(ctx, where.appId);
   if (!app) return [];
-  const family = type as AppFamily;
   if (where.envId !== null) {
     const id = app.environments.find((environment) => environment.id === where.envId)?.folderIds[
       family
@@ -464,7 +477,10 @@ export function appMemberCount(
   return environments.reduce(
     (total, environment) =>
       total +
-      types.reduce((sum, type) => sum + (environment.memberCounts[type as AppFamily] ?? 0), 0),
+      types.reduce((sum, type) => {
+        const family = APP_TYPE_FAMILY[type];
+        return sum + (family ? (environment.memberCounts[family] ?? 0) : 0);
+      }, 0),
     0
   );
 }

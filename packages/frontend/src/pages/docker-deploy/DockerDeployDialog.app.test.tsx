@@ -71,6 +71,8 @@ const environment = (allowedNodeIds: string[]): AppEnvironmentDetail => ({
     databases: null,
     storage: null,
     pages: null,
+    certificates: null,
+    logging: null,
   },
   allowedNodeIds,
 });

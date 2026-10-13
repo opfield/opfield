@@ -424,6 +424,8 @@ export const APP_FAMILY_FOLDER_FAMILY: Readonly<Record<AppMemberFamily, FolderFa
   databases: "databases",
   storage: "storage",
   pages: "pages",
+  certificates: "ssl",
+  logging: "logging-environments",
 };
 
 export const APP_SCOPE_PREFIX = "apps:";
@@ -450,6 +452,8 @@ function familyMemberCounts(
     databases: counts.database ?? 0,
     storage: counts.storage ?? 0,
     pages: counts.pages ?? 0,
+    certificates: counts.certificate ?? 0,
+    logging: counts.logging ?? 0,
   };
 }
 

@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { DrizzleClient, DrizzleExecutor } from '@/db/client.js';
-import { APP_FAMILIES, APP_FAMILY_TABLES, type AppFamily } from './app-families.js';
+import { APP_FAMILIES, APP_FAMILY_TABLES, type AppFamily, familyRecord } from './app-families.js';
 
 /** A hidden folder: an app root (`environmentId` null) or an environment folder. */
 export interface AppFolderRef {
@@ -143,7 +143,10 @@ export class AppFolderService {
   ): Promise<Map<string, Record<AppFamily, string | null>>> {
     const result = new Map<string, Record<AppFamily, string | null>>();
     for (const id of environmentIds) {
-      result.set(id, { containers: null, compose: null, routes: null, databases: null, storage: null, pages: null });
+      result.set(
+        id,
+        familyRecord(() => null)
+      );
     }
     if (environmentIds.length === 0) return result;
     for (const family of APP_FAMILIES) {
@@ -165,14 +168,7 @@ export class AppFolderService {
 
   /** App-root folder ids per family of an app. */
   async appRootFolders(appId: string, db: DrizzleExecutor = this.db): Promise<Record<AppFamily, string | null>> {
-    const result: Record<AppFamily, string | null> = {
-      containers: null,
-      compose: null,
-      routes: null,
-      databases: null,
-      storage: null,
-      pages: null,
-    };
+    const result = familyRecord<string | null>(() => null);
     for (const family of APP_FAMILIES) {
       const { table } = APP_FAMILY_TABLES[family];
       const [row] = (await (db as any)

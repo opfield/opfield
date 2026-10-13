@@ -2,6 +2,13 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Minus, Plus, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { AppEnvironmentFields } from "@/components/apps/AppEnvironmentFields";
+import {
+  type AppCreateContext,
+  appPlacementFolderId,
+  rememberAppCreation,
+  useAppEnvironmentChoice,
+} from "@/components/apps/app-create-context";
 import { AnimatedHeight } from "@/components/common/AnimatedHeight";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { ContentLoading } from "@/components/common/ContentLoading";
@@ -49,6 +56,8 @@ interface SSLCertificateCreateDialogProps {
   onCloudflareRequired: () => void;
   initialTab?: CertificateCreationMethod;
   devPreview?: SSLCertificateCreateDialogDevPreview | null;
+  /** Opened from an app: locked App field, environment choice, the environment's placement folder. */
+  appContext?: AppCreateContext;
 }
 
 export type CertificateCreationMethod = "acme" | "upload" | "internal";
@@ -80,6 +89,7 @@ export function SSLCertificateCreateDialog({
   onCloudflareRequired,
   initialTab,
   devPreview,
+  appContext,
 }: SSLCertificateCreateDialogProps) {
   const resetTimerRef = useRef<number | null>(null);
   const availableTabs = useMemo<CertificateCreationMethod[]>(() => {
@@ -139,7 +149,20 @@ export function SSLCertificateCreateDialog({
     () => creationFolderChoices(scopes, "ssl:cert:issue", flattenCreationFolders(folders ?? [])),
     [folders, scopes]
   );
-  const canCreateInSelectedFolder = canCreateInFolder(scopes, "ssl:cert:issue", folderId || null);
+  const { environment, environmentId, setEnvironmentId } = useAppEnvironmentChoice(
+    appContext,
+    open
+  );
+  const placementFolderId = appContext ? appPlacementFolderId(environment, "certificates") : null;
+  // From an app the certificate lands in the environment's placement folder.
+  const destinationFolderId = appContext ? placementFolderId : folderId || null;
+  const canCreateInSelectedFolder =
+    (!appContext || !!placementFolderId) &&
+    canCreateInFolder(scopes, "ssl:cert:issue", destinationFolderId);
+  const created = () => {
+    rememberAppCreation(appContext, environment);
+    onCreated();
+  };
 
   useEffect(() => {
     if (open && resetTimerRef.current !== null) {
@@ -150,7 +173,7 @@ export function SSLCertificateCreateDialog({
     setActiveTab(defaultTab);
     setChallengeMode(defaultChallengeMode);
     setFolderId("");
-    void fetchFolders("ssl-certificate");
+    if (!appContext) void fetchFolders("ssl-certificate");
     if (!pkiEnabled) {
       setPkiCerts([]);
       return;
@@ -169,7 +192,7 @@ export function SSLCertificateCreateDialog({
       }
     };
     void loadPkiCerts();
-  }, [defaultChallengeMode, defaultTab, fetchFolders, open, pkiEnabled]);
+  }, [appContext, defaultChallengeMode, defaultTab, fetchFolders, open, pkiEnabled]);
 
   useEffect(() => {
     if (!open) return;
@@ -272,7 +295,7 @@ export function SSLCertificateCreateDialog({
         challengeType,
         provider: acmeProvider,
         ...(usesCloudflareDns ? { dnsProvider: "cloudflare" as const } : {}),
-        folderId: folderId || null,
+        folderId: destinationFolderId,
         autoRenew: challengeType === "http-01" || usesCloudflareDns,
       });
       if (result.status === "pending_dns_verification" && result.challenges) {
@@ -282,7 +305,7 @@ export function SSLCertificateCreateDialog({
       } else {
         toast.success("Certificate requested successfully");
         onOpenChange(false);
-        onCreated();
+        created();
         scheduleResetForm();
       }
     } catch (err) {
@@ -314,7 +337,7 @@ export function SSLCertificateCreateDialog({
       await api.completeDNSVerify(pendingCertId);
       toast.success("DNS verification complete. Certificate issued.");
       onOpenChange(false);
-      onCreated();
+      created();
       scheduleResetForm();
     } catch (err) {
       toastApiError(err, "DNS verification failed");
@@ -341,7 +364,7 @@ export function SSLCertificateCreateDialog({
       await api.cancelPendingACMECert(pendingCertId);
       toast.success("Certificate request cancelled");
       onOpenChange(false);
-      onCreated();
+      created();
       scheduleResetForm();
     } catch (err) {
       toastApiError(err, "Failed to cancel certificate request");
@@ -367,14 +390,14 @@ export function SSLCertificateCreateDialog({
     try {
       await api.uploadCert({
         name: uploadName,
-        folderId: folderId || null,
+        folderId: destinationFolderId,
         certificatePem: certPem,
         privateKeyPem: keyPem,
         chainPem: chainPem || undefined,
       });
       toast.success("Certificate uploaded successfully");
       onOpenChange(false);
-      onCreated();
+      created();
       scheduleResetForm();
     } catch (err) {
       toastApiError(err, "Failed to upload certificate");
@@ -397,11 +420,11 @@ export function SSLCertificateCreateDialog({
       await api.linkInternalCert({
         internalCertId: selectedPkiCertId,
         name: internalName || undefined,
-        folderId: folderId || null,
+        folderId: destinationFolderId,
       });
       toast.success("Internal certificate linked");
       onOpenChange(false);
-      onCreated();
+      created();
       scheduleResetForm();
     } catch (err) {
       toastApiError(err, "Failed to link certificate");
@@ -430,29 +453,39 @@ export function SSLCertificateCreateDialog({
         </DialogHeader>
         <DialogDescription>Choose a method to add an SSL certificate.</DialogDescription>
 
-        <div className="space-y-1.5">
-          <ContentLoading loading={foldersLoading} />
-          <label className="text-sm font-medium">Folder</label>
-          <Select
-            value={folderId || (folderChoices.allowRoot ? "__none__" : "")}
-            onValueChange={(value) => setFolderId(value === "__none__" ? "" : value)}
-            disabled={foldersLoading || acmeFlowStarted}
-          >
-            <SelectTrigger aria-label="Folder" aria-busy={foldersLoading}>
-              <SelectValue
-                placeholder={folderChoices.allowRoot ? "No folder" : "Select a folder"}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {folderChoices.allowRoot && <SelectItem value="__none__">No folder</SelectItem>}
-              {folderChoices.folders.map((folder) => (
-                <SelectItem key={folder.id} value={folder.id}>
-                  {"  ".repeat(folder.depth) + folder.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {appContext ? (
+          <AppEnvironmentFields
+            context={appContext}
+            environmentId={environmentId}
+            onEnvironmentChange={setEnvironmentId}
+            hint={`Opened from ${appContext.app.name}. The certificate joins the environment.`}
+            disabled={acmeFlowStarted}
+          />
+        ) : (
+          <div className="space-y-1.5">
+            <ContentLoading loading={foldersLoading} />
+            <label className="text-sm font-medium">Folder</label>
+            <Select
+              value={folderId || (folderChoices.allowRoot ? "__none__" : "")}
+              onValueChange={(value) => setFolderId(value === "__none__" ? "" : value)}
+              disabled={foldersLoading || acmeFlowStarted}
+            >
+              <SelectTrigger aria-label="Folder" aria-busy={foldersLoading}>
+                <SelectValue
+                  placeholder={folderChoices.allowRoot ? "No folder" : "Select a folder"}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {folderChoices.allowRoot && <SelectItem value="__none__">No folder</SelectItem>}
+                {folderChoices.folders.map((folder) => (
+                  <SelectItem key={folder.id} value={folder.id}>
+                    {"  ".repeat(folder.depth) + folder.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <Tabs
           value={activeTab}

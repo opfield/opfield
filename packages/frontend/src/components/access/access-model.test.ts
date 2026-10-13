@@ -565,7 +565,15 @@ describe("token narrowing", () => {
 });
 
 describe("app environment lines", () => {
-  const FAMILIES = ["containers", "compose", "routes", "databases", "storage", "pages"] as const;
+  const FAMILIES = [
+    "containers",
+    "compose",
+    "routes",
+    "databases",
+    "storage",
+    "pages",
+    "certificates",
+  ] as const;
   const environment = (
     id: string,
     name: string,
@@ -610,15 +618,18 @@ describe("app environment lines", () => {
     expect(scopes).toContain("docker:compose:manage:folder/hidden-env-staging-compose");
     expect(scopes).toContain("proxy:edit:folder/hidden-env-staging-routes");
     expect(scopes).toContain("pages:deploy:folder/hidden-env-staging-pages");
+    expect(scopes).toContain("ssl:cert:issue:folder/hidden-env-staging-certificates");
     expect(sorted(scopes.filter((scope) => scope.startsWith("apps:")))).toEqual([
       "apps:env:manage:env/env-staging",
       "apps:promote:env/env-staging",
       "apps:view:env/env-staging",
     ]);
     expect(scopes.some((scope) => scope.includes("env-production"))).toBe(false);
-    expect(scopes.some((scope) => scope.startsWith("domains:") || scope.startsWith("ssl:"))).toBe(
-      false
-    );
+    // Domains are not app members; certificates are granted on the environment's folder only.
+    expect(scopes.some((scope) => scope.startsWith("domains:"))).toBe(false);
+    expect(
+      scopes.filter((scope) => scope.startsWith("ssl:")).every((scope) => scope.includes("folder/"))
+    ).toBe(true);
   });
 
   it("gives each role its app scopes", () => {
@@ -729,11 +740,11 @@ describe("app environment lines", () => {
     }
   });
 
-  it("names the app and environment and the six types", () => {
+  it("names the app and environment and the seven types", () => {
     const labels = contextLabels(appCtx);
     expect(describeLine(appLine("developer", staging), labels)).toEqual({
       title: "Developer in Shop · staging",
-      detail: "All 6 resource types",
+      detail: "All 7 resource types",
     });
     expect(
       describeLine({ ...appLine("viewer", everyEnvironment), types: ["routes"] }, labels)

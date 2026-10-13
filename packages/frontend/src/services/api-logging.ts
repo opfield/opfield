@@ -1,3 +1,4 @@
+import { type AppMemberListFilter, setAppMemberListParams } from "@/lib/app-members";
 import type {
   LoggingEnvironment,
   LoggingFacets,
@@ -20,9 +21,12 @@ export function withLoggingApi<TBase extends ApiClientBaseConstructor>(Base: TBa
       return this.unwrapData(this.request<{ data: LoggingMaintenanceSnapshot }>("/logging/health"));
     }
 
-    async listLoggingEnvironments(params?: { search?: string }): Promise<LoggingEnvironment[]> {
+    async listLoggingEnvironments(
+      params?: { search?: string } & AppMemberListFilter
+    ): Promise<LoggingEnvironment[]> {
       const query = new URLSearchParams();
       if (params?.search) query.set("search", params.search);
+      setAppMemberListParams(query, params);
       const qs = query.toString();
       return this.unwrapData(
         this.request<{ data: LoggingEnvironment[] }>(`/logging/environments${qs ? `?${qs}` : ""}`)
