@@ -9,6 +9,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  useDialogPresence,
 } from "@/components/ui/dialog";
 import { usePkiAvailable } from "@/hooks/use-plan-gated-features";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
@@ -270,11 +271,14 @@ function AppCertificateCreateDialog({
     cloudflare: boolean | null;
   } | null>(null);
 
+  // The checks stay while the dialog closes; they reset once it is gone.
+  const present = useDialogPresence(open);
   useEffect(() => {
-    if (!open) {
-      setChecked(null);
-      return;
-    }
+    if (!present) setChecked(null);
+  }, [present]);
+
+  useEffect(() => {
+    if (!open) return;
     let cancelled = false;
     void Promise.all([
       canViewDomains
