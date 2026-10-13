@@ -793,7 +793,7 @@ export async function createNetwork(
     throw new AppError(
       409,
       'RESERVED_NETWORK_NAME',
-      'Network names "gateway-secure-links", "gateway-db-*", "gateway-storage-*" and "gateway-link-*" are reserved for Opfield'
+      'Network names "opfield-secure-links", "opfield-db-*", "opfield-storage-*" and "opfield-link-*" are reserved for Opfield'
     );
   }
   const result = await context.nodeDispatch.sendDockerNetworkCommand(nodeId, 'create', {

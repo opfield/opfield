@@ -319,6 +319,60 @@ cases:
           external: true
           name: gateway-secure-links
 
+  - name: external Opfield Secure Links management network
+    valid: false
+    backendCode: RESERVED_NETWORK
+    daemonError: uses reserved network name "opfield-secure-links"
+    yaml: |
+      services:
+        web:
+          image: nginx:alpine
+          networks: [links]
+      networks:
+        links:
+          external: true
+          name: opfield-secure-links
+
+  - name: external Opfield managed database network under a user key
+    valid: false
+    backendCode: RESERVED_NETWORK
+    daemonError: uses reserved network name "opfield-db-0123456789abcdef"
+    yaml: |
+      services:
+        web:
+          image: nginx:alpine
+          networks: [db]
+      networks:
+        db:
+          external: true
+          name: opfield-db-0123456789abcdef
+
+  - name: project network named like an Opfield container link network
+    valid: false
+    backendCode: RESERVED_NETWORK
+    daemonError: uses reserved network name "opfield-link-0123456789abcdef"
+    yaml: |
+      services:
+        web:
+          image: nginx:alpine
+          networks: [shared]
+      networks:
+        shared:
+          name: opfield-link-0123456789abcdef
+
+  - name: managed database link network of a link created from 2.12.1 on
+    valid: true
+    yaml: |
+      services:
+        web:
+          image: nginx:alpine
+          networks:
+            opfield_db_0123456789abcdef:
+      networks:
+        opfield_db_0123456789abcdef:
+          external: true
+          name: opfield-db-0123456789abcdef
+
   - name: network name from a variable
     valid: false
     backendCode: INVALID_RESOURCE_NAME

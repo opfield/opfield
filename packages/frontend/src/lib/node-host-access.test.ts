@@ -7,6 +7,8 @@ import {
   nodeConsoleUnavailableMessage,
   nodeHostFeatureDisabledMessage,
   nodeHostFileAccessWarning,
+  RELAY_LEGACY_HOST_NAMES_HINT,
+  relayLegacyHostNameCount,
   withHostAccessInstallFlags,
 } from "./node-host-access";
 
@@ -87,6 +89,41 @@ describe("node host access", () => {
     expect(nodeHostFeatureDisabledMessage(relay(null), "console")).toContain(
       "(/etc/opfield-relay/config.yaml)"
     );
+  });
+
+  it("names the old config file of a 2.12.1 relay that reports its old host paths", () => {
+    const relay = (legacyNames: Record<string, number> | undefined, live = true) => ({
+      ...node("relay", {}),
+      daemonVersion: "v2.12.1-rc.3",
+      ...(live
+        ? { liveHealthReport: { legacyNames }, lastHealthReport: null }
+        : { lastHealthReport: { legacyNames } }),
+    });
+    expect(
+      nodeHostFeatureDisabledMessage(relay({ paths: 4, services: 1, config: 1 }), "console")
+    ).toContain("(/etc/gateway-relay-supervisor/config.yaml)");
+    expect(nodeHostFeatureDisabledMessage(relay({ paths: 2 }, false), "files")).toContain(
+      "(/etc/gateway-relay-supervisor/config.yaml)"
+    );
+    // Only the control section of the config file is old: the file itself has moved.
+    expect(nodeHostFeatureDisabledMessage(relay({ config: 1 }), "console")).toContain(
+      "(/etc/opfield-relay/config.yaml)"
+    );
+    expect(nodeHostFeatureDisabledMessage(relay(undefined), "console")).toContain(
+      "(/etc/opfield-relay/config.yaml)"
+    );
+    // Old paths on another node type do not change its daemon config path.
+    const docker = { ...node("docker", {}), liveHealthReport: { legacyNames: { paths: 3 } } };
+    expect(nodeHostFeatureDisabledMessage(docker, "console")).toContain(
+      "(/etc/docker-daemon/config.yaml)"
+    );
+  });
+
+  it("counts the host names a relay keeps until it is moved", () => {
+    expect(relayLegacyHostNameCount(undefined)).toBe(0);
+    expect(relayLegacyHostNameCount({ config: 1, containers: 5 })).toBe(0);
+    expect(relayLegacyHostNameCount({ paths: 4, services: 1, users: 1, config: 1 })).toBe(6);
+    expect(RELAY_LEGACY_HOST_NAMES_HINT).toContain("run the relay installer");
   });
 
   it("explains a console the daemon refuses because console.user needs root", () => {

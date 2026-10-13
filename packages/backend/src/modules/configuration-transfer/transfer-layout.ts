@@ -124,10 +124,19 @@ export interface ConfigurationExportManifest {
 export const ENVIRONMENT_PART = 'environment.json';
 export const DATABASE_PART = 'database.tar';
 export const DATABASE_DUMP_FILE = 'opfield-configuration-export.dump';
-export const COMMERCIAL_PART = 'host/gateway-commercial.tar';
+/**
+ * Part of the commercial core. The restore takes part names and roots from the manifest, so exports of earlier releases
+ * (`host/gateway-commercial.tar`, `volume/gateway_data.tar`, ...) restore as they are.
+ */
+export const COMMERCIAL_PART = 'host/opfield-commercial.tar';
+
+/** A volume's name inside an export: its part `volume/<name>.tar` and the top directory of that tar. */
+export function exportVolumeName(key: TransferVolumeKey): string {
+  return OPFIELD_VOLUME_KEYS[key] ?? key;
+}
 
 export function volumePartName(key: TransferVolumeKey): string {
-  return `volume/${key}.tar`;
+  return `volume/${exportVolumeName(key)}.tar`;
 }
 
 /** The portable environment values present in `env`. */
@@ -199,13 +208,16 @@ export function composeVolumeName(project: string, key: TransferVolumeKey, compo
   return (compose ? declaredVolumeName(compose, composeKey) : null) ?? `${project}_${composeKey}`;
 }
 
+/** The installer run that installs the version an export was made by and restores the export into it. */
+export const RESTORE_COMMAND = 'curl -fsSL https://get.opfield.dev | bash -s -- --restore';
+
 /** Same version only: an export restores into the Opfield release and schema it was made by. */
 export function versionMismatch(
   exported: { opfieldVersion: string; schemaMigration: string },
   current: { opfieldVersion: string; schemaMigration: string }
 ): string | null {
   if (exported.opfieldVersion !== current.opfieldVersion) {
-    return `This export was made by Opfield ${exported.opfieldVersion}, and this installation runs ${current.opfieldVersion}. Restore it into Opfield ${exported.opfieldVersion}: install that exact version, restore, then update.`;
+    return `This export was made by Opfield ${exported.opfieldVersion}, and this installation runs ${current.opfieldVersion}. Restore it on a fresh host with the installer, which installs Opfield ${exported.opfieldVersion} and restores it: ${RESTORE_COMMAND} <export file>. Then update.`;
   }
   if (exported.schemaMigration !== current.schemaMigration) {
     return `This export was made by a build of Opfield ${exported.opfieldVersion} with another database schema (${exported.schemaMigration}, this build has ${current.schemaMigration}). Restore it into the build it was made by.`;

@@ -466,7 +466,11 @@ func runLauncher(ctx context.Context, spec LauncherSpec, logger *slog.Logger) er
 		if outcome.err != nil {
 			logger.Warn("daemon child stopped", "error", outcome.err)
 		}
-		if !outcome.handoff {
+		if outcome.environment {
+			// A service the daemon depends on is down (dockerd): no fault of
+			// a launcher on trial. The child restarts with the backoff.
+			logger.Warn("daemon cannot start while a service it depends on is unavailable; retrying")
+		} else if !outcome.handoff {
 			if trialErr := trialChildFailed(); trialErr != nil {
 				return trialErr
 			}
@@ -494,7 +498,10 @@ type launcherChildOutcome struct {
 	stop bool
 	// handoff marks a child that exited to hand over to a staged update.
 	handoff bool
-	err     error
+	// environment marks a child that exited because a service it depends on
+	// is unavailable (DaemonEnvironmentExitCode).
+	environment bool
+	err         error
 }
 
 func prepareLauncherCandidate(spec LauncherSpec) (*launcherUpdateState, error) {
@@ -743,7 +750,7 @@ func superviseLauncherChild(ctx context.Context, spec LauncherSpec, initialState
 				return launcherChildOutcome{err: fmt.Errorf("daemon exited after staging an update without the update handoff code: %v", err)}
 			}
 			if state == nil {
-				return launcherChildOutcome{err: err}
+				return launcherChildOutcome{err: err, environment: daemonProcessExitCode(err) == DaemonEnvironmentExitCode}
 			}
 			return launcherChildOutcome{err: handleLauncherCandidateExit(spec, fresh, "candidate process exited", err, logger)}
 		}

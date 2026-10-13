@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"crypto/tls"
 	"errors"
 	"maps"
 	"net"
@@ -64,6 +65,17 @@ const (
 	// the Relay Pool), and its removal comes up to an hour later: the cut joins the node's last update report.
 	cutConnectorRetired = "connector_retired"
 )
+
+// linkCutClass is the class an update cuts a target connection under although
+// its stream is handed over: a PostgreSQL link whose TLS this daemon
+// terminates keeps its TLS state in this process (postgres_tls). A link over
+// the database's link socket is a plain socket and is handed over.
+func linkCutClass(connection net.Conn) string {
+	if _, terminated := connection.(*tls.Conn); terminated {
+		return cutPostgresTLS
+	}
+	return ""
+}
 
 // recordConnectorCut counts the sessions a removed Secure Link connector still carried (stand rc.7 O-15: 35 and 40
 // connections cut an hour after the Relay Pool update, reported nowhere).

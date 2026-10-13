@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { useRealtime } from "@/hooks/use-realtime";
 import { DATABASE_TYPE_LABELS } from "@/lib/database-type";
+import { RELAY_LEGACY_HOST_NAMES_HINT, relayLegacyHostNameCount } from "@/lib/node-host-access";
 import { formatBytes, formatUptime } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -460,7 +461,9 @@ export function NodeMonitoringTab({
           tone="info"
           title={`${legacyNameCount} ${legacyNameCount === 1 ? "object" : "objects"} on this node still use the previous names`}
         >
-          They are renamed when they are next recreated. Nothing needs to be done.
+          {nodeType === "relay" && relayLegacyHostNameCount(health?.legacyNames) > 0
+            ? RELAY_LEGACY_HOST_NAMES_HINT
+            : "They are renamed when they are next recreated. Nothing needs to be done."}
         </Notice>
       )}
       {nodeType === "nginx" && health?.nginxServiceProblem && (

@@ -1,5 +1,11 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { type HostMoveLaunchInput, hasLegacyLayout, hostMoveLaunchDecision } from './host-move-launcher.js';
+import {
+  type HostMoveLaunchInput,
+  hasLegacyLayout,
+  hostMoveContainerConfig,
+  hostMoveLaunchDecision,
+} from './host-move-launcher.js';
 
 const NOW = Date.parse('2026-10-13T12:00:00Z');
 const settled: HostMoveLaunchInput = {
@@ -97,5 +103,39 @@ describe('when the app starts the host move', () => {
     expect(
       hostMoveLaunchDecision({ ...settled, record: { attempts: 3, lastStartedAt: old.lastStartedAt } }).launch
     ).toBe(false);
+  });
+});
+
+describe('the host move container', () => {
+  it('runs the move from the app image without the app healthcheck, restarted after a crash', () => {
+    const config = hostMoveContainerConfig({
+      image: 'ghcr.io/opfield/opfield@sha256:abc',
+      composeDir: '/opt/gateway',
+      composeProject: 'gateway',
+      network: 'gateway_default',
+      retry: true,
+      parent: '/opt',
+      sandbox: '/var/lib/opfield/sandbox-workspaces',
+    });
+    expect(config.Healthcheck).toEqual({ Test: ['NONE'] });
+    expect(config.Cmd).toEqual([
+      'node',
+      'dist/cli/host-move.js',
+      '--dir',
+      '/opt/gateway',
+      '--project',
+      'gateway',
+      '--network',
+      'gateway_default',
+      '--retry',
+    ]);
+    expect(config.HostConfig?.RestartPolicy).toEqual({ Name: 'unless-stopped' });
+    expect(config.HostConfig?.NetworkMode).toBe('none');
+  });
+
+  it('is started without the app healthcheck by install.sh too', () => {
+    const installer = readFileSync(new URL('../../../../scripts/install.sh', import.meta.url), 'utf8');
+    const run = /run -d --name "\$HOST_MOVE_CONTAINER"[^\n]*\n[^\n]*/.exec(installer)?.[0] ?? '';
+    expect(run).toContain('--no-healthcheck');
   });
 });

@@ -325,13 +325,30 @@ export class DockerInternalRegistryService {
     requestedById?: string | null;
     leaseOwner?: string;
     retentionCount?: number;
+    /** Why the collection runs, for the log: it restarts the registry and stops it while it collects. */
+    reason?: string;
   }) {
     const owner = input.leaseOwner ?? `registry-gc:${randomUUID()}`;
-    const result = await this.executeMaintenance({
-      owner,
-      dryRun: input.dryRun === true,
-      retentionCount: input.retentionCount,
-    });
+    const reason = input.reason ?? (input.requestedById ? 'requested by a user' : 'housekeeping');
+    if (input.dryRun !== true) {
+      logger.info('Internal registry garbage collection starts: the registry restarts and stops while it collects', {
+        reason,
+      });
+    }
+    let result: MaintenanceRun;
+    try {
+      result = await this.executeMaintenance({
+        owner,
+        dryRun: input.dryRun === true,
+        retentionCount: input.retentionCount,
+      });
+    } catch (error) {
+      logger.warn('Internal registry garbage collection failed', { reason, error: (error as Error).message });
+      throw error;
+    }
+    if (input.dryRun !== true) {
+      logger.info('Internal registry garbage collection ended', { reason, status: result.status, runId: result.id });
+    }
     await this.auditService.log({
       action: 'docker.internal-registry.gc',
       userId: input.requestedById ?? null,

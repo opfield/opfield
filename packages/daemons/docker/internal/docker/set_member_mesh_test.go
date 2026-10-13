@@ -11,6 +11,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/moby/moby/api/types/network"
 )
 
 const meshTestSet = "11111111-1111-4111-8111-111111111111"
@@ -106,8 +108,38 @@ func TestSetMeshDialsTheLocalPrimaryWhileItServes(t *testing.T) {
 
 func TestSetMeshNetworkNameIsStable(t *testing.T) {
 	name := setMeshNetworkName(meshTestSet)
-	if name != setMeshNetworkName(strings.ToUpper(meshTestSet)) || !strings.HasPrefix(name, "gateway-set-") || len(name) != len("gateway-set-")+16 {
+	if name != setMeshNetworkName(strings.ToUpper(meshTestSet)) || !strings.HasPrefix(name, "opfield-set-") || len(name) != len("opfield-set-")+16 {
 		t.Fatalf("network name %q", name)
+	}
+	// A set that joined the node before 2.12.1 keeps its network; a start the launcher may still roll back names a
+	// new one the earlier way.
+	names := setMeshNetworkNames(meshTestSet)
+	if len(names) != 2 || names[0] != name || names[1] != "gateway-set-"+strings.TrimPrefix(name, "opfield-set-") {
+		t.Fatalf("network names %v", names)
+	}
+	withOpfieldNamesActive(t, false)
+	if got := setMeshNetworkName(meshTestSet); got != names[1] {
+		t.Fatalf("network name before the confirmed start %q", got)
+	}
+}
+
+// A member's set network created before 2.12.1 stays its network: the mesh binds on it and the member reaches the
+// engine through it.
+func TestSetMeshKeepsTheNetworkASetHasOnTheNode(t *testing.T) {
+	mesh, _ := newTestMesh(t)
+	legacy := setMeshNetworkNames(meshTestSet)[1]
+	mesh.inspect = func(_ context.Context, name string) (netip.Addr, bool, error) {
+		return netip.MustParseAddr("127.0.0.1"), name == legacy, nil
+	}
+	if got, err := mesh.NetworkName(context.Background(), meshTestSet); err != nil || got != legacy {
+		t.Fatalf("network %q, %v", got, err)
+	}
+	if !mesh.refresh(meshTestSet) {
+		t.Fatal("the set's earlier network was not found")
+	}
+	endpoint := &network.EndpointSettings{}
+	if setMeshEndpoint(map[string]*network.EndpointSettings{legacy: endpoint}, meshTestSet) != endpoint {
+		t.Fatal("a member on the earlier network has no endpoint")
 	}
 }
 

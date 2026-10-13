@@ -39,6 +39,9 @@ func (e *RestartRequestedError) Error() string {
 // while preserving the ordinary non-zero failure contract for every other
 // daemon error.
 func DaemonExitCode(err error) int {
+	if errors.Is(err, ErrEnvironmentUnavailable) {
+		return DaemonEnvironmentExitCode
+	}
 	var restart *RestartRequestedError
 	if errors.As(err, &restart) {
 		if restart.serviceStopped {
@@ -51,6 +54,16 @@ func DaemonExitCode(err error) int {
 	}
 	return 1
 }
+
+// DaemonEnvironmentExitCode is the exit status of a daemon that cannot start
+// because something it depends on is down (dockerd not answering), not
+// because it is broken (sysexits EX_UNAVAILABLE). A launcher trial does not
+// count such an exit against the staged launcher (O-5).
+const DaemonEnvironmentExitCode = 69
+
+// ErrEnvironmentUnavailable marks a start failure of that kind; wrap it with
+// the cause (fmt.Errorf("...: %w: %w", ErrEnvironmentUnavailable, err)).
+var ErrEnvironmentUnavailable = errors.New("a service the daemon depends on is unavailable")
 
 // RestartRequested reports whether err is the intentional exit for a restart
 // (a staged self-update): a normal exit, not a failure.

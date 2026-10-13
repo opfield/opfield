@@ -11,6 +11,7 @@ import { withDefaultPort } from './opfield-move.service.js';
 import { ExportArchiveError, ExportArchiveWriter, MANIFEST_PART } from './transfer-archive.js';
 import { dumpDatabaseName, forgetCloudLink, RESTORE_FORGOTTEN_SETTINGS, restoreDatabase } from './transfer-docker.js';
 import {
+  COMMERCIAL_PART,
   type ConfigurationExportManifest,
   composeVolumeKey,
   composeVolumeName,
@@ -18,6 +19,7 @@ import {
   DATABASE_PART,
   ENVIRONMENT_PART,
   exportFileName,
+  exportVolumeName,
   parsePortableEnvironment,
   portableEnvironment,
   versionMismatch,
@@ -55,7 +57,12 @@ function manifest(overrides: Partial<ConfigurationExportManifest> = {}): Configu
 
 async function exportFile(
   name: string,
-  options: { header?: Partial<typeof CURRENT>; manifest?: ConfigurationExportManifest; skipVolume?: boolean } = {}
+  options: {
+    header?: Partial<typeof CURRENT>;
+    manifest?: ConfigurationExportManifest;
+    skipVolume?: boolean;
+    volumePart?: string;
+  } = {}
 ): Promise<string> {
   const header = { ...CURRENT, ...options.header };
   const writer = await ExportArchiveWriter.create(PASSPHRASE, header, { kdf: FAST_KDF, chunkBytes: 4096 });
@@ -65,7 +72,9 @@ async function exportFile(
   await writer.addJsonPart(MANIFEST_PART, options.manifest ?? { ...manifest(), ...header });
   await writer.addJsonPart(ENVIRONMENT_PART, { PKI_MASTER_KEY: MASTER_KEY });
   await writer.addPart(DATABASE_PART, Readable.from([randomBytes(20_000)]));
-  if (!options.skipVolume) await writer.addPart(volumePartName('gateway_data'), Readable.from([randomBytes(9_000)]));
+  if (!options.skipVolume) {
+    await writer.addPart(options.volumePart ?? volumePartName('gateway_data'), Readable.from([randomBytes(9_000)]));
+  }
   await writer.finish();
   await ended;
   const path = join(work, name);
@@ -102,6 +111,26 @@ describe('restoring a configuration export', () => {
     ]);
     expect(verified.summary.parts.find((part) => part.name === DATABASE_PART)?.bytes).toBe(20_000);
     expect(progress).toBe(readFileSync(path).length);
+  });
+
+  it('names the parts of a new export with the Opfield names and still reads an export of an earlier release', async () => {
+    expect(volumePartName('gateway_data')).toBe('volume/app_data.tar');
+    expect(volumePartName('gateway_relay_identity')).toBe('volume/relay_identity.tar');
+    expect(volumePartName('clickhouse_data')).toBe('volume/clickhouse_data.tar');
+    expect(exportVolumeName('gateway_registry_auth')).toBe('registry_auth');
+    expect(COMMERCIAL_PART).toBe('host/opfield-commercial.tar');
+
+    // legacy-name: part and root names of exports made before 2.12.1 — they restore as long as such exports can.
+    const earlier = manifest({
+      volumes: [{ key: 'gateway_data', part: 'volume/gateway_data.tar', root: 'gateway_data' }],
+    });
+    const path = await exportFile('earlier.opfield-export', {
+      manifest: { ...earlier, ...CURRENT },
+      volumePart: 'volume/gateway_data.tar',
+    });
+    const verified = await verifyExport(path, PASSPHRASE, CURRENT);
+    expect(verified.summary.parts.map((part) => part.name)).toContain('volume/gateway_data.tar');
+    expect(verified.manifest.volumes[0]).toMatchObject({ key: 'gateway_data', root: 'gateway_data' });
   });
 
   it('refuses a wrong passphrase', async () => {
@@ -169,6 +198,9 @@ describe('configuration export layout', () => {
 
   it('names versions and files plainly', () => {
     expect(versionMismatch(CURRENT, CURRENT)).toBeNull();
+    expect(versionMismatch({ ...CURRENT, opfieldVersion: 'v2.11.4' }, CURRENT)).toContain(
+      'curl -fsSL https://get.opfield.dev | bash -s -- --restore <export file>'
+    );
     expect(exportFileName('https://gw.example.com', new Date('2026-10-11T08:05:00Z'))).toBe(
       'gw.example.com-20261011-0805.opfield-export'
     );

@@ -395,6 +395,13 @@ preflight_nginx_tree() {
 has_systemd() { command_exists systemctl && [[ -d /run/systemd/system ]]; }
 has_openrc() { command_exists rc-service && command_exists rc-update; }
 
+# OpenRC caches service dependencies (/run/openrc/deptree) and checks the cache against the init scripts' mtimes in
+# whole seconds: a script written in the second the cache was built (by a service started moments before) is missing
+# from it at the next boot, and its service does not start. Rebuilt after every init script the installer writes.
+openrc_refresh_deptree() {
+    rc-update -u >> "$LOG_FILE" 2>&1 || warn "Could not refresh the OpenRC dependency cache; run: rc-update -u"
+}
+
 # ── Non-root mode ────────────────────────────────────────────────────
 # A root daemon keeps its binary in /usr/local/bin. A daemon running as its own user must be able to replace its binary
 # when it updates itself, so the binary lives in a directory that user owns and /usr/local/bin holds a root-owned wrapper.
@@ -416,6 +423,19 @@ NGINX_DAEMON_RUNTIME_DIRS=(nginx-daemon opfield-secure-links opfield-registry-li
 # legacy-name: gateway-* nginx-daemon runtime directories — remove once every node reports none
 if [[ -d /var/lib/nginx-daemon && ! -e /var/lib/nginx-daemon/opfield-names ]]; then
     NGINX_DAEMON_RUNTIME_DIRS+=(gateway-secure-links gateway-registry-links gateway-ingress-health)
+fi
+# Whether this host ran daemons under the pre-Opfield names before this run (unmoved, or moved and left with their
+# links), read before the installer changes anything. Only such a host keeps old names: the old /run names at boot
+# (directories before the move, links to the Opfield ones after) and links next to directories created under the new
+# names. A fresh host gets none.
+# legacy-name: pre-Opfield daemon names on this host — remove once every node reports none
+NGINX_HAD_LEGACY_NAMES=0
+if [[ -d /var/lib/nginx-daemon && ! -e /var/lib/nginx-daemon/opfield-names ]] ||
+    [[ -e /etc/nginx/gateway || -L /etc/nginx/gateway || -e /var/lib/gateway || -L /var/lib/gateway ]] ||
+    [[ -e /run/gateway-secure-links || -L /run/gateway-secure-links ]] ||
+    [[ -e /etc/systemd/system/gateway-lease-watchdog.service || -e /etc/init.d/gateway-lease-watchdog ]] ||
+    grep -qs '^gateway:' /etc/nginx-daemon/config.yaml /etc/docker-daemon/config.yaml /etc/monitoring-daemon/config.yaml; then
+    NGINX_HAD_LEGACY_NAMES=1
 fi
 
 # Reads an installed binary's version. A binary another user can replace is never run as root.
@@ -616,6 +636,7 @@ ensure_nginx_openrc_pid_directory() {
     chmod "$mode" "$candidate"
     backup_if_exists "$service"
     mv -f "$candidate" "$service"
+    openrc_refresh_deptree
     log "Secured nginx OpenRC PID-directory and PID-file ownership for start and reload"
 }
 
@@ -833,9 +854,11 @@ shared_host_identity_path() {
     echo "$current"
 }
 
-# A shared identity directory created at /var/lib/opfield gets /var/lib/gateway as a link to it, the layout the daemons
-# leave after they move the directory, so a daemon of an earlier release on this host finds the same identity.
+# On a host that ran daemons under the pre-Opfield names, a shared identity directory created at /var/lib/opfield gets
+# /var/lib/gateway as a link to it, the layout the daemons leave after they move the directory, so a daemon of an
+# earlier release on this host finds the same identity. A fresh host gets no old name.
 link_legacy_host_identity_dir() {
+    [[ "$NGINX_HAD_LEGACY_NAMES" -eq 1 ]] || return 0
     [[ -d "$SHARED_HOST_IDENTITY_DIR" && ! -L "$SHARED_HOST_IDENTITY_DIR" ]] || return 0
     [[ ! -e "$LEGACY_SHARED_HOST_IDENTITY_DIR" && ! -L "$LEGACY_SHARED_HOST_IDENTITY_DIR" ]] || return 0
     ln -s "$(basename "$SHARED_HOST_IDENTITY_DIR")" "$LEGACY_SHARED_HOST_IDENTITY_DIR" 2>/dev/null || true
@@ -1968,6 +1991,9 @@ install_nginx_stable_repo() {
     log "Adding nginx.org stable repository..."
     case "$OS_LIKE" in
         *debian*|*ubuntu*)
+            # Refresh the package lists first: on a host whose lists are stale the install below asks for package
+            # versions the mirror no longer has (404).
+            run_apt_with_lock_retry update -qq
             run_apt_with_lock_retry install -y -qq gnupg2 ca-certificates lsb-release
             # --yes lets a re-run after a failed install replace the keyring; apt
             # verifies with an unprivileged user, so it must stay world-readable
@@ -2721,8 +2747,9 @@ rename_path() {
 # The nginx tree moves from /etc/nginx/gateway to /etc/nginx/opfield once, and /etc/nginx/gateway stays as a link to it:
 # configurations written for the old path (by Opfield and by the operator) keep working. The move is two renames with
 # the link made first under a temporary name, so one of the two paths names the tree at every moment. A run that
-# stopped between them leaves /etc/nginx/opfield without /etc/nginx/gateway, which the next run completes with the
-# link; a link left under its temporary name is removed. A tree another component already named the other way round
+# stopped between them leaves /etc/nginx/opfield and that temporary link, which the next run renames into place; any
+# other link left under a temporary name is removed. A fresh host gets /etc/nginx/opfield only. A tree another
+# component already named the other way round
 # (/etc/nginx/opfield a link to /etc/nginx/gateway) is left as it is: both paths work.
 migrate_nginx_tree() {
     local parent current legacy name stale link target
@@ -2732,8 +2759,17 @@ migrate_nginx_tree() {
     name=$(basename "$current")
     # The link that takes the place of /etc/nginx/gateway, under a temporary name until the tree has moved.
     link="${parent}/.gateway-link.$$"
+    local interrupted=""
     for stale in "${parent}"/.gateway-link.*; do
-        [[ ! -L "$stale" ]] || rm -f -- "$stale"
+        [[ -L "$stale" ]] || continue
+        # Left by a run that stopped between its two renames (the tree moved, the old name not linked yet): the link
+        # finishes that move below. Any other is removed.
+        if [[ -z "$interrupted" && "$(readlink -- "$stale")" == "$name" && -d "$current" && ! -L "$current" &&
+            ! -e "$legacy" && ! -L "$legacy" ]]; then
+            interrupted="$stale"
+            continue
+        fi
+        rm -f -- "$stale"
     done
     [[ ! -L "$current" ]] || return 0
     if [[ -d "$legacy" && ! -L "$legacy" ]]; then
@@ -2758,9 +2794,10 @@ migrate_nginx_tree() {
         fi
     fi
     mkdir -p "$current"
-    if [[ ! -e "$legacy" && ! -L "$legacy" ]]; then
-        ln -sfn "$name" "$link" || die "Could not prepare the link ${legacy} -> ${name}."
-        rename_path "$link" "$legacy" || { rm -f -- "$link"; die "Could not link ${legacy} to ${current}."; }
+    # Only a tree this installer moved gets the old name as a link; a fresh host has no /etc/nginx/gateway.
+    if [[ -n "$interrupted" ]]; then
+        rename_path "$interrupted" "$legacy" || die "Moved ${legacy} to ${current}, but could not link ${legacy} to it; run the installer again."
+        log "Finished moving ${legacy} to ${current}; ${legacy} links to it"
     fi
 }
 
@@ -3094,11 +3131,20 @@ start_daemon() {
     local unit_runtime="" openrc_capabilities="" runtime_dirs
     local openrc_runtime=$'\n\nstart_pre() {\n    checkpath --file --owner '"${RUN_USER}:${RUN_GROUP}"$' --mode 0640 /var/log/nginx-daemon.log\n    checkpath --file --owner '"${RUN_USER}:${RUN_GROUP}"$' --mode 0640 /var/log/nginx-daemon.err'
     if [[ "$RUN_USER" != "root" ]]; then
-        runtime_dirs=$(printf '%s ' "${NGINX_DAEMON_RUNTIME_DIRS[@]}")
-        runtime_dirs="${runtime_dirs% }"
+        # Only the Opfield names: a service that prepared the old ones would recreate them as real directories at every
+        # boot, also after the daemon moved to the new names.
+        runtime_dirs="nginx-daemon opfield-secure-links opfield-registry-links opfield-ingress-health"
         unit_runtime=$'\nRuntimeDirectory='"${runtime_dirs}"$'\nRuntimeDirectoryMode=0755\nRuntimeDirectoryPreserve=yes\nAmbientCapabilities=CAP_NET_BIND_SERVICE'
         openrc_capabilities=$'\ncapabilities="^cap_net_bind_service"'
         openrc_runtime+=$'\n    for dir in '"${runtime_dirs}"$'; do\n        checkpath --directory --mode 0755 --owner '"${RUN_USER}:${RUN_GROUP}"$' "/run/${dir}"\n    done'
+        if [[ "$NGINX_HAD_LEGACY_NAMES" -eq 1 ]]; then
+            # The old names at boot, as root: directories until the daemon moved (it writes opfield-names), then links
+            # to the Opfield directories, so raw routes that still name /run/gateway-* keep working.
+            unit_runtime+=$'\n# legacy-name: /run/gateway-* of a node before its move to the Opfield names — remove once every node reports none'
+            unit_runtime+=$'\nExecStartPre=+/bin/sh -c \'for d in secure-links registry-links ingress-health; do if [ -e /var/lib/nginx-daemon/opfield-names ]; then if [ -d /run/gateway-$$d ] && [ ! -L /run/gateway-$$d ]; then rmdir /run/gateway-$$d 2>/dev/null || true; fi; [ -e /run/gateway-$$d ] || [ -L /run/gateway-$$d ] || ln -s opfield-$$d /run/gateway-$$d || true; else install -d -o '"${RUN_USER}"' -g '"${RUN_GROUP}"$' -m 0755 /run/gateway-$$d; fi; done\''
+            openrc_runtime+=$'\n    # legacy-name: /run/gateway-* of a node before its move to the Opfield names — remove once every node reports none'
+            openrc_runtime+=$'\n    for dir in secure-links registry-links ingress-health; do\n        if [ -e /var/lib/nginx-daemon/opfield-names ]; then\n            if [ -d "/run/gateway-${dir}" ] && [ ! -L "/run/gateway-${dir}" ]; then\n                rmdir "/run/gateway-${dir}" 2>/dev/null || true\n            fi\n            [ -e "/run/gateway-${dir}" ] || [ -L "/run/gateway-${dir}" ] || ln -s "opfield-${dir}" "/run/gateway-${dir}" || true\n        else\n            checkpath --directory --mode 0755 --owner '"${RUN_USER}:${RUN_GROUP}"$' "/run/gateway-${dir}"\n        fi\n    done'
+        fi
     fi
     openrc_runtime+=$'\n}'
 
@@ -3151,6 +3197,7 @@ depend() {
 UNIT
         chmod +x /etc/init.d/nginx-daemon || die "Could not make the nginx-daemon OpenRC service executable."
         rc-update add nginx-daemon default >> "$LOG_FILE" 2>&1 || die "Could not enable nginx-daemon in OpenRC."
+        openrc_refresh_deptree
         forget_control_session
         if ! rc-service nginx-daemon restart >> "$LOG_FILE" 2>&1 && ! rc-service nginx-daemon start >> "$LOG_FILE" 2>&1; then
             fail_daemon_start "Could not start nginx-daemon in OpenRC."

@@ -51,6 +51,18 @@ type Runtime struct {
 	// traversableBase and workerUID: see SetReaderAccess (N-22).
 	traversableBase string
 	workerUID       func() (int, error)
+	// beginChange and scheduleReload: see SetDeferredReload.
+	beginChange    func() (func(), error)
+	scheduleReload func()
+}
+
+// SetDeferredReload lets a change made with deferReload load with the reload
+// of its batch, as the handler's route configs do: beginChange marks the
+// configuration on disk ahead of nginx before the write (its result takes the
+// mark back after a rollback), scheduleReload arranges the batch's reload.
+// Without it every change reloads at once.
+func (r *Runtime) SetDeferredReload(beginChange func() (func(), error), scheduleReload func()) {
+	r.beginChange, r.scheduleReload = beginChange, scheduleReload
 }
 
 type uploadMeta struct {
@@ -355,7 +367,7 @@ func (r *Runtime) MaterializePreview(profileID, deploymentID, hostname, certific
 		return err
 	}
 	content := r.previewConfig(hostname, deploymentID, certificateID, certificateVersion, runtimeConfigPath, fallback)
-	return r.applyConfig(r.previewConfigPath(hostname), []byte(content))
+	return r.applyConfigWith(r.previewConfigPath(hostname), []byte(content), fallback.DeferReload)
 }
 
 func (r *Runtime) RemovePreview(hostname string) error {
@@ -371,6 +383,12 @@ func (r *Runtime) RemovePreview(hostname string) error {
 }
 
 func (r *Runtime) ActivateTagRoute(routeID, deploymentID string) error {
+	return r.ActivateTagRouteDeferred(routeID, deploymentID, false)
+}
+
+// ActivateTagRouteDeferred is ActivateTagRoute; with deferReload the fragment
+// loads with the reload of its batch (SetDeferredReload).
+func (r *Runtime) ActivateTagRouteDeferred(routeID, deploymentID string, deferReload bool) error {
 	if err := validateID(routeID); err != nil {
 		return fmt.Errorf("route id: %w", err)
 	}
@@ -385,7 +403,7 @@ func (r *Runtime) ActivateTagRoute(routeID, deploymentID string) error {
 		return err
 	}
 	fragment := r.routeConfig(routeID, deploymentID, runtimeConfigPath)
-	return r.applyConfig(r.routeIncludePath(routeID), []byte(fragment))
+	return r.applyConfigWith(r.routeIncludePath(routeID), []byte(fragment), deferReload)
 }
 
 // revokedPreviewMarker starts the denial vhost of a revoked preview.

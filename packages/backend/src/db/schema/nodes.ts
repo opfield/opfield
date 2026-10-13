@@ -154,6 +154,9 @@ export interface NodeHealthReport {
   nginxServiceProblem?: string;
   // Daemons of 2.12.1 and later: objects on the node still under their pre-Opfield names, by kind. Absent when none.
   legacyNames?: Record<string, number>;
+  // Docker daemons that report it (HealthReport.lease_watchdog_version): the version of the node's lease watchdog,
+  // which updates on its own schedule. Absent when the daemon does not report it.
+  leaseWatchdogVersion?: string;
 }
 
 /**

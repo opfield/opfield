@@ -15,6 +15,7 @@ func (p *DockerPlugin) CollectHealth(base *pb.HealthReport) *pb.HealthReport {
 		return base
 	}
 	base.DockerVersion = p.version
+	base.LeaseWatchdogVersion = leaseWatchdogBuild()
 	// Lease state goes first: it must reach Opfield even when Docker
 	// itself does not answer.
 	base.AvailabilityLease = p.availabilityLeaseReport()

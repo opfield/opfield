@@ -75,7 +75,7 @@ func (s *seaweedfsSetImages) pending(setID string) bool {
 func (m *managedStorageManager) seaweedfsSetImageOutdated(ctx context.Context, record managedStorageRecord) (bool, map[swha.Role]bool, error) {
 	outdated, existing := false, map[swha.Role]bool{}
 	for _, role := range seaweedfsSetRoles {
-		name := seaweedfsSetContainerName(record.ID, record.Set.MemberIndex, role)
+		name := seaweedfsSetContainerName(record.namePrefix(), record.ID, record.Set.MemberIndex, role)
 		inspect, err := m.client.cli.ContainerInspect(ctx, name, mobyclient.ContainerInspectOptions{})
 		if isNotFoundErr(err) {
 			continue
@@ -140,7 +140,7 @@ func (m *managedStorageManager) moveSetMemberImage(ctx context.Context, record *
 	if err := m.ensureMounted(ctx, record); err != nil {
 		return err
 	}
-	if err := m.replaceSetContainers(ctx, record, existing, image, setMeshNetworkName(record.Set.SetID), staging, hostsPath); err != nil {
+	if err := m.replaceSetContainers(ctx, record, existing, image, m.setNetworkOf(ctx, *record), staging, hostsPath); err != nil {
 		return err
 	}
 	if input.OperationID != "" {
@@ -165,7 +165,7 @@ func (m *managedStorageManager) replaceSetContainers(ctx context.Context, record
 			_ = m.client.RemoveContainer(cleanupCtx, id, true)
 		}
 		for _, role := range kept {
-			name := seaweedfsSetContainerName(record.ID, index, role)
+			name := seaweedfsSetContainerName(record.namePrefix(), record.ID, index, role)
 			if err := m.client.RenameContainer(cleanupCtx, name+"-rollback", name); err != nil {
 				m.logger.Error("restore a SeaweedFS member container after a failed image move", "id", record.ID, "role", role, "error", err)
 			}
@@ -177,7 +177,7 @@ func (m *managedStorageManager) replaceSetContainers(ctx context.Context, record
 		if !existing[role] {
 			continue
 		}
-		name := seaweedfsSetContainerName(record.ID, index, role)
+		name := seaweedfsSetContainerName(record.namePrefix(), record.ID, index, role)
 		if err := m.client.StopContainer(ctx, name, 30); err != nil && !isNotFoundErr(err) {
 			restore(nil)
 			return fmt.Errorf("stop the SeaweedFS %s: %w", role, err)
@@ -205,11 +205,26 @@ func (m *managedStorageManager) replaceSetContainers(ctx context.Context, record
 		}
 	}
 	for _, role := range kept {
-		name := seaweedfsSetContainerName(record.ID, index, role) + "-rollback"
+		name := seaweedfsSetContainerName(record.namePrefix(), record.ID, index, role) + "-rollback"
 		if err := m.client.RemoveContainer(ctx, name, true); err != nil && !isNotFoundErr(err) {
 			m.logger.Warn("remove a replaced SeaweedFS member container", "id", record.ID, "role", role, "error", err)
 		}
 	}
 	m.forgetEngineRun(previous.ContainerID)
 	return nil
+}
+
+// setNetworkOf is the set network the member's filer is on: the name it has on this node (a set that joined the node
+// before 2.12.1 keeps its earlier name), or the name a new one gets.
+func (m *managedStorageManager) setNetworkOf(ctx context.Context, record managedStorageRecord) string {
+	filer := seaweedfsSetContainerName(record.namePrefix(), record.ID, record.Set.MemberIndex, swha.RoleFiler)
+	if inspect, err := m.client.cli.ContainerInspect(ctx, filer, mobyclient.ContainerInspectOptions{}); err == nil &&
+		inspect.Container.NetworkSettings != nil {
+		for _, name := range setMeshNetworkNames(record.Set.SetID) {
+			if inspect.Container.NetworkSettings.Networks[name] != nil {
+				return name
+			}
+		}
+	}
+	return setMeshNetworkName(record.Set.SetID)
 }

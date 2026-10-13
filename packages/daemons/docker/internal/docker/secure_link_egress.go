@@ -37,9 +37,7 @@ const (
 )
 
 var (
-	databaseLinkNetworkPattern  = regexp.MustCompile(`^gateway-db-(?:av-)?[0-9a-f]{16}$`)
-	containerLinkNetworkPattern = regexp.MustCompile(`^gateway-link-(?:av-)?[0-9a-f]{16}$`)
-	egressAliasPattern          = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
+	egressAliasPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
 )
 
 // egressNetworkPattern is the network an egress of ownerKind may use (nil: the kind has no egress).

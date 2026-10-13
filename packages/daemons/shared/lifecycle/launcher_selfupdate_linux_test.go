@@ -5,6 +5,7 @@ package lifecycle
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -33,7 +34,11 @@ const (
 )
 
 func TestMain(m *testing.M) {
-	if os.Getenv(launcherTestHelperEnv) == "1" {
+	// A test binary started with a command (version, launcher-probe, launcher,
+	// run) is a daemon or launcher of these tests, even when a test forgot the
+	// helper variable: running the whole suite there again would start
+	// launchers nobody stops and fill /tmp.
+	if os.Getenv(launcherTestHelperEnv) == "1" || (len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-")) {
 		os.Exit(runLauncherTestHelper())
 	}
 	os.Exit(m.Run())
@@ -459,9 +464,28 @@ func TestLauncherInPlaceTrialFallsBackWhenDaemonsFail(t *testing.T) {
 	h.waitFor("the known-good launcher started a daemon", func() bool { return len(h.daemonStarts()) == 2 })
 	h.waitFor("the known-good launcher wrote its owner record", func() bool { return h.owner().Version == "v1" })
 
-	// The same binary is never staged again.
-	if staged, err := stageLauncherRefresh(h.stateDir, h.launcherPath, writeNextAgain(t, h), "v2", time.Now()); err != nil || staged {
-		t.Fatalf("the abandoned binary was staged again: %v, %v", staged, err)
+	// The same binary is not staged again at once, only once its retry is due
+	// (O-5: a dependency that was down must not keep the old launcher for good).
+	// The same binary under a .next name, so its test helper reports v2 as
+	// the staged copy does.
+	again := writeNextAgain(t, h)
+	if err := os.Rename(again, again+".next"); err != nil {
+		t.Fatal(err)
+	}
+	again += ".next"
+	// Staging runs the binary (version, launcher probe): as the test helper,
+	// never as this test binary, which would run the whole suite again.
+	t.Setenv(launcherTestHelperEnv, "1")
+	staged, err := stageLauncherRefresh(h.stateDir, h.launcherPath, again, "v2", time.Now())
+	var retry *launcherRefreshRetryLater
+	if staged || !errors.As(err, &retry) || time.Until(retry.At) < 50*time.Minute {
+		t.Fatalf("the abandoned binary was staged again at once: %v, %v", staged, err)
+	}
+	if staged, err := stageLauncherRefresh(h.stateDir, h.launcherPath, again, "v2", retry.At.Add(time.Second)); err != nil || !staged {
+		t.Fatalf("the abandoned binary was not staged again once its retry was due: %v, %v", staged, err)
+	}
+	if state, err := readLauncherRefreshState(h.stateDir); err != nil || state == nil || state.Phase != launcherRefreshPhaseTrial || state.Abandons != 1 {
+		t.Fatalf("refresh journal of the retry = %+v, %v", state, err)
 	}
 }
 

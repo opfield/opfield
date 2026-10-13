@@ -37,7 +37,14 @@ func main() {
 		usage()
 		os.Exit(2)
 	}
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	// The service logs to stdout, as docker-daemon does: under OpenRC its
+	// output_log gets the log and error_log only what the runtime itself
+	// prints (O-10). The one-shot commands keep stdout for their answer.
+	logOutput := os.Stderr
+	if os.Args[1] == "run" {
+		logOutput = os.Stdout
+	}
+	logger := slog.New(slog.NewJSONHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	var err error
 	switch os.Args[1] {
 	case "run":

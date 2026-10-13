@@ -1,4 +1,4 @@
-import { chmod, lstat, mkdir, readFile, rename, rm, stat, symlink, unlink, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, readdir, readFile, rename, rm, stat, symlink, unlink, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { DOCKER_COMPOSE_CLI_IMAGE_REF } from '@/config/docker-compose-cli-image.js';
@@ -112,6 +112,13 @@ export class DockerHostMoveHost implements HostMoveHost {
   async mkdir(dir: string, mode = 0o700): Promise<void> {
     await mkdir(dir, { recursive: true, mode });
     await chmod(dir, mode);
+  }
+
+  async listDir(dir: string): Promise<string[]> {
+    return readdir(dir).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return [];
+      throw error;
+    });
   }
 
   removeTree(dir: string): Promise<void> {

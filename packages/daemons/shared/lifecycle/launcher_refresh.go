@@ -18,7 +18,10 @@ package lifecycle
 //     copy is kept as <launcher>.previous.
 //  4. abandon: a trial that did not confirm after launcherRefreshAttemptLimit
 //     starts, whose children kept failing, or whose staged file changed is
-//     abandoned. The copy is used again and the same binary is never retried.
+//     abandoned. The copy is used again. The same binary is staged again
+//     later (launcherRefreshRetryDelay), up to launcherRefreshAbandonLimit
+//     abandoned trials: a failure that came from the host (a dependency that
+//     was down) does not keep the node on its old launcher for good (O-5).
 //
 // A launcher process that predates the exec in place takes a refreshed
 // launcher only when it next starts; a daemon under it turns its next update
@@ -44,6 +47,9 @@ const (
 	launcherRefreshPhaseAbandoned    = "abandoned"
 	launcherRefreshAttemptLimit      = 3
 	launcherRefreshChildFailureLimit = 3
+	// launcherRefreshAbandonLimit: after this many abandoned trials of one
+	// binary it is not staged again.
+	launcherRefreshAbandonLimit = 4
 )
 
 var (
@@ -54,6 +60,11 @@ var (
 	// after the child ran stable, well under a minute).
 	launcherRefreshTrialWait   = 3 * time.Minute
 	launcherRefreshLockTimeout = 10 * time.Second
+	// launcherRefreshRetryBase is the wait before the first retry of an
+	// abandoned trial; every further one waits four times longer, at most
+	// launcherRefreshRetryMax.
+	launcherRefreshRetryBase = time.Hour
+	launcherRefreshRetryMax  = 24 * time.Hour
 
 	// Overridable in tests: the resolved path of the running executable and
 	// the exec used to fall back from a failed trial launcher.
@@ -79,6 +90,37 @@ type launcherRefreshState struct {
 	Attempts      int        `json:"attempts"`
 	Reason        string     `json:"reason,omitempty"`
 	AbandonedAt   *time.Time `json:"abandonedAt,omitempty"`
+	// Abandons counts the abandoned trials of this binary (a journal written
+	// before it counts as one).
+	Abandons int `json:"abandons,omitempty"`
+}
+
+// launcherRefreshRetryDelay is how long after its abandons-th abandoned trial
+// a binary waits before it is staged again.
+func launcherRefreshRetryDelay(abandons int) time.Duration {
+	delay := launcherRefreshRetryBase
+	for i := 1; i < abandons && delay < launcherRefreshRetryMax; i++ {
+		delay *= 4
+	}
+	return min(delay, launcherRefreshRetryMax)
+}
+
+// retryAt is when an abandoned trial of state's binary may be staged again,
+// and false when it never is.
+func (state *launcherRefreshState) retryAt() (time.Time, bool) {
+	abandons := max(state.Abandons, 1)
+	if abandons >= launcherRefreshAbandonLimit || state.AbandonedAt == nil {
+		return time.Time{}, false
+	}
+	return state.AbandonedAt.Add(launcherRefreshRetryDelay(abandons)), true
+}
+
+// launcherRefreshRetryLater: the binary failed a launcher trial here, and is
+// staged again from At.
+type launcherRefreshRetryLater struct{ At time.Time }
+
+func (e *launcherRefreshRetryLater) Error() string {
+	return "the launcher trial of this binary was abandoned; it is tried again at " + e.At.UTC().Format(time.RFC3339)
 }
 
 type launcherRefreshTrial struct {
@@ -219,10 +261,19 @@ func stageLauncherRefresh(stateDir, launcherPath, source, version string, now ti
 			// one); it promotes or abandons it shortly.
 			return errLauncherTrialInProgress
 		}
+		abandons := 0
 		if readErr == nil && current != nil && current.TargetSHA256 == sourceSum && filepath.Clean(current.LauncherPath) == filepath.Clean(launcherPath) {
 			if current.Phase == launcherRefreshPhaseAbandoned {
-				// This binary already failed a launcher trial on this node.
-				return nil
+				// This binary already failed a launcher trial on this node:
+				// it is tried again after a while, a few times.
+				at, retry := current.retryAt()
+				if !retry {
+					return nil
+				}
+				if now.Before(at) {
+					return &launcherRefreshRetryLater{At: at}
+				}
+				abandons = max(current.Abandons, 1)
 			}
 			if nextSum, err := executableChecksum(next); err == nil && nextSum == sourceSum {
 				return nil
@@ -263,6 +314,7 @@ func stageLauncherRefresh(stateDir, launcherPath, source, version string, now ti
 			TargetSHA256:  sourceSum,
 			TargetVersion: version,
 			StagedAt:      now.UTC(),
+			Abandons:      abandons,
 		}); err != nil {
 			return discard(fmt.Errorf("persist launcher refresh state: %w", err))
 		}
@@ -345,6 +397,7 @@ func abandonLauncherRefresh(stateDir string, state *launcherRefreshState, reason
 		return err
 	}
 	abandonedAt := time.Now().UTC()
+	state.Abandons++
 	state.Phase = launcherRefreshPhaseAbandoned
 	state.Reason = reason
 	state.AbandonedAt = &abandonedAt
@@ -485,6 +538,14 @@ func scheduleLauncherRefresh(version string, logger *slog.Logger) {
 				logger.Info("launcher refresh skipped; the launcher trial did not end in time, the next daemon start stages it", "version", version)
 				return
 			}
+		}
+		var retry *launcherRefreshRetryLater
+		for errors.As(err, &retry) {
+			// An abandoned trial of this binary: stage it again when its
+			// retry is due, if this process still runs then.
+			logger.Info("launcher refresh of this binary was abandoned earlier; it is tried again later", "version", version, "retry_at", retry.At.UTC().Format(time.RFC3339))
+			time.Sleep(time.Until(retry.At))
+			staged, err = stageLauncherRefresh(stateDir, launcherPath, executable, version, time.Now())
 		}
 		if err != nil {
 			logger.Warn("launcher refresh was not staged", "error", err, "version", version)

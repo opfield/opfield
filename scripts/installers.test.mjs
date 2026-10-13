@@ -616,6 +616,212 @@ test('the nginx installer keeps Pages hostnames valid and restores its files whe
   }
 });
 
+// O-4 (B): a non-root nginx-daemon's service prepares only the Opfield /run names. A node that had the old names gets
+// them at boot from a loop keyed on the daemon's opfield-names marker; a fresh node never gets them.
+test('the nginx-daemon service prepares the old /run names only on a node that had them', () => {
+  const source = readFileSync(path.join(scriptsDir, 'setup-node.sh'), 'utf8');
+  const body = shellFunction(source, 'start_daemon');
+  const from = body.indexOf('    local unit_runtime=');
+  const to = body.indexOf("    openrc_runtime+=$'\\n}'");
+  assert.ok(from > 0 && to > from, 'the runtime section of start_daemon is found');
+  const render = (hadLegacy) =>
+    runShell(
+      [
+        'RUN_USER=svc RUN_GROUP=svc',
+        `NGINX_HAD_LEGACY_NAMES=${hadLegacy}`,
+        'f() {',
+        body.slice(from, to),
+        "    openrc_runtime+=$'\\n}'",
+        '    printf "%s\\n===\\n%s\\n" "$unit_runtime" "$openrc_runtime"',
+        '}',
+        'f',
+      ].join('\n')
+    );
+  const fresh = render(0);
+  assert.equal(fresh.status, 0, fresh.output);
+  assert.doesNotMatch(fresh.output, /gateway/);
+  assert.match(fresh.output, /^RuntimeDirectory=nginx-daemon opfield-secure-links opfield-registry-links opfield-ingress-health$/m);
+
+  const moved = render(1);
+  assert.equal(moved.status, 0, moved.output);
+  const [unit, openrc] = moved.output.split('\n===\n');
+  assert.doesNotMatch(unit.match(/^RuntimeDirectory=.*$/m)[0], /gateway/);
+  const pre = unit.match(/^ExecStartPre=\+\/bin\/sh -c '(.*)'$/m);
+  assert.ok(pre, unit);
+  // systemd turns $$ into $; the command must then be valid sh that links after the move and creates before it.
+  const command = pre[1].replaceAll('$$', '$');
+  assert.match(command, /opfield-names/);
+  assert.match(command, /ln -s opfield-\$d \/run\/gateway-\$d/);
+  assert.match(command, /install -d -o svc -g svc -m 0755 \/run\/gateway-\$d/);
+  assert.equal(spawnSync('sh', ['-n', '-c', command]).status, 0, command);
+  assert.equal(spawnSync('sh', ['-n', '-c', openrc]).status, 0, openrc);
+  assert.match(openrc, /checkpath --directory --mode 0755 --owner svc:svc "\/run\/gateway-\$\{dir\}"/);
+  assert.match(openrc, /ln -s "opfield-\$\{dir\}" "\/run\/gateway-\$\{dir\}"/);
+});
+
+// O-2 (A): a fresh host gets no pre-Opfield names from the installers; a host that had them keeps links to the new ones.
+test('the installers link pre-Opfield names only on a host that had them', { skip: !linux }, async () => {
+  const nginx = readFileSync(path.join(scriptsDir, 'setup-node.sh'), 'utf8');
+  const docker = readFileSync(path.join(scriptsDir, 'setup-docker-node.sh'), 'utf8');
+  const work = await mkdtemp(path.join(tmpdir(), 'legacy-links-'));
+  try {
+    const tree = (setup) =>
+      runShell(
+        [
+          'set -e',
+          `dir='${work}'/$RANDOM$RANDOM; mkdir -p "$dir"; cd "$dir"`,
+          'log() { echo "log $*"; }',
+          'die() { echo "die $*"; exit 1; }',
+          'NGINX_OPFIELD_DIR="$dir/opfield" NGINX_LEGACY_DIR="$dir/gateway"',
+          shellFunction(nginx, 'rename_path'),
+          shellFunction(nginx, 'migrate_nginx_tree'),
+          setup,
+          'migrate_nginx_tree',
+          'ls -A "$dir" | tr "\\n" " "; echo; [ ! -L "$dir/gateway" ] || readlink "$dir/gateway"',
+        ].join('\n')
+      );
+    const fresh = tree(':');
+    assert.equal(fresh.status, 0, fresh.output);
+    assert.match(fresh.output, /^opfield $/m, 'a fresh host gets the Opfield tree only');
+    const moved = tree('mkdir "$dir/gateway"; touch "$dir/gateway/site.conf"');
+    assert.match(moved.output, /^gateway opfield $/m);
+    assert.match(moved.output, /^opfield$/m, 'the old tree name links to the moved tree');
+    const interrupted = tree('mkdir "$dir/opfield"; ln -s opfield "$dir/.gateway-link.123"');
+    assert.match(interrupted.output, /^gateway opfield $/m, 'a move stopped between its renames is finished');
+    const stale = tree('mkdir "$dir/opfield"; ln -s elsewhere "$dir/.gateway-link.123"');
+    assert.match(stale.output, /^opfield $/m, 'any other temporary link is removed');
+
+    const identity = (script, variable, had) =>
+      runShell(
+        [
+          `root='${work}'/id$RANDOM$RANDOM; mkdir -p "$root/opfield"`,
+          'SHARED_HOST_IDENTITY_DIR="$root/opfield" LEGACY_SHARED_HOST_IDENTITY_DIR="$root/gateway"',
+          `${variable}=${had}`,
+          shellFunction(script, 'link_legacy_host_identity_dir'),
+          'link_legacy_host_identity_dir',
+          '[ -L "$root/gateway" ] && echo linked || echo none',
+        ].join('\n')
+      );
+    for (const [script, variable] of [
+      [nginx, 'NGINX_HAD_LEGACY_NAMES'],
+      [docker, 'DOCKER_HOST_HAD_LEGACY_NAMES'],
+    ]) {
+      assert.equal(identity(script, variable, 0).output.trim(), 'none', variable);
+      assert.equal(identity(script, variable, 1).output.trim(), 'linked', variable);
+    }
+
+    const builder = (had) =>
+      runShell(
+        [
+          `root='${work}'/b$RANDOM$RANDOM; mkdir -p "$root"`,
+          `DOCKER_HAD_LEGACY_BUILDER=${had}`,
+          shellFunction(docker, 'builder_dir'),
+          shellFunction(docker, 'ensure_builder_dir'),
+          'ensure_builder_dir "$root/opfield-builder" "$root/gateway-builder" 700',
+          'ls -A "$root" | tr "\\n" " "',
+        ].join('\n')
+      );
+    assert.equal(builder(0).output.trim(), 'opfield-builder');
+    assert.equal(builder(1).output.trim(), 'gateway-builder opfield-builder');
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+});
+
+// The lines of each top-level function, ended by its closing brace outside heredocs (a heredoc may hold an init
+// script's own functions).
+function functionBodies(source) {
+  const bodies = new Map();
+  let current = null;
+  let heredoc = null;
+  for (const line of source.split('\n')) {
+    if (heredoc) {
+      if ((heredoc.strip ? line.replace(/^\t+/, '') : line) === heredoc.word) heredoc = null;
+      if (current) current.push(line);
+      continue;
+    }
+    const definition = current ? null : /^([A-Za-z_][A-Za-z0-9_]*)\(\) \{/.exec(line);
+    if (definition) {
+      current = [];
+      bodies.set(definition[1], current);
+      continue;
+    }
+    if (current && line === '}') {
+      current = null;
+      continue;
+    }
+    if (current) current.push(line);
+    const opened = /<<(-?)\s*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?/.exec(line);
+    if (opened) heredoc = { strip: opened[1] === '-', word: opened[2] };
+  }
+  return bodies;
+}
+
+// OpenRC checks its dependency cache against the init scripts' mtimes in whole seconds: a script written in the second
+// the cache was built (a service started moments before) is missing from it at the next boot and its service never
+// starts (F-4). Every function that writes an init script rebuilds the cache after its last write.
+test('every installer rebuilds the OpenRC dependency cache after it writes an init script', () => {
+  let writers = 0;
+  for (const script of installers) {
+    const source = readFileSync(path.join(scriptsDir, script), 'utf8');
+    for (const [name, lines] of functionBodies(source)) {
+      const lastWrite = lines.findLastIndex((line) => /\bcat\s*>\s*"?\/etc\/init\.d\//.test(line));
+      if (lastWrite < 0) continue;
+      writers += 1;
+      assert.ok(
+        lines.slice(lastWrite + 1).some((line) => /^\s*(?:!\s+command_exists rc-update \|\|\s+)?openrc_refresh_deptree\b/.test(line)),
+        `${script} ${name} writes an OpenRC init script without rebuilding the dependency cache afterwards`
+      );
+    }
+    if (/\bcat\s*>\s*"?\/etc\/init\.d\//.test(source)) {
+      const helper = shellFunction(source, 'openrc_refresh_deptree');
+      const run = runShell(
+        [
+          'LOG_FILE=/dev/null',
+          'calls=$(mktemp)',
+          'warn() { echo "warn $*"; }',
+          'rc-update() { echo "rc-update $*" >> "$calls"; echo noise; }',
+          helper,
+          'openrc_refresh_deptree',
+          'cat "$calls"',
+          'rm -f "$calls"',
+        ].join('\n')
+      );
+      assert.equal(run.status, 0, run.output);
+      assert.equal(run.output.trim(), 'rc-update -u', `${script}: rebuilds the cache, its output goes to the log`);
+      const failing = runShell(
+        ['LOG_FILE=/dev/null', 'warn() { echo "warn $*"; }', 'rc-update() { return 1; }', helper, 'openrc_refresh_deptree'].join('\n')
+      );
+      assert.equal(failing.status, 0, failing.output);
+      assert.match(failing.output, /rc-update -u/, `${script}: a failed rebuild names the command`);
+    }
+  }
+  // docker-daemon, its lease watchdog, nginx-daemon, monitoring-daemon and the relay supervisor.
+  assert.ok(writers >= 5, `found ${writers} init script writers`);
+});
+
+// A host whose package lists are stale asks the mirror for package versions it no longer has (404): the nginx.org
+// repository step refreshes the lists before it installs its own dependencies.
+test('the nginx.org repository step refreshes the package lists before it installs anything', () => {
+  const source = readFileSync(path.join(scriptsDir, 'setup-node.sh'), 'utf8');
+  const run = runShell(
+    [
+      'log() { :; }',
+      'warn() { :; }',
+      'OS_LIKE=debian',
+      // The install of the repository dependencies is the last call this test needs; stop before the host changes.
+      'run_apt_with_lock_retry() { echo "apt $*"; if [[ "$1" == install ]]; then exit 0; fi; }',
+      shellFunction(source, 'install_nginx_stable_repo'),
+      'install_nginx_stable_repo',
+    ].join('\n')
+  );
+  assert.equal(run.status, 0, run.output);
+  assert.deepEqual(run.output.trim().split('\n'), [
+    'apt update -qq',
+    'apt install -y -qq gnupg2 ca-certificates lsb-release',
+  ]);
+});
+
 // The installer secures the pid directory of Alpine's nginx service for a root nginx (the stock service gives it to the
 // unprivileged nginx user on every start and reload). The service must still give the directory to the user nginx runs
 // as when /etc/conf.d/nginx sets command_user, which is how docs/nodes.md prepares a non-root nginx.
@@ -2062,6 +2268,57 @@ test('install.sh --restore reads the export version and refuses what it cannot r
     const missing = run(path.join(work, 'missing.opfield-export'));
     assert.notEqual(missing.status, 0);
     assert.match(missing.stdout + missing.stderr, /Cannot read the export file/);
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+});
+
+// O-8: release candidates (and any exact release) can be installed on purpose, never by default.
+test('install.sh --version installs an exact release on a fresh host, with the relay of that release or its line', async () => {
+  const installSh = path.join(scriptsDir, 'install.sh');
+  const source = readFileSync(installSh, 'utf8');
+  const help = spawnSync('bash', [installSh, '--help'], { encoding: 'utf8', timeout: 30_000, input: '' });
+  assert.equal(help.status, 0, help.stderr);
+  assert.match(help.stdout, /--version VERSION installs exactly that Opfield release/);
+  const work = await mkdtemp(path.join(tmpdir(), 'install-version-'));
+  try {
+    const run = (args) =>
+      spawnSync('bash', [installSh, '--dry-run', '--install-dir', path.join(work, 'opt'), ...args], {
+        encoding: 'utf8',
+        timeout: 30_000,
+        input: '',
+        env: { ...process.env, TERM: 'dumb', RELEASES_API_URL: 'http://127.0.0.1:9/never' },
+      });
+    for (const [args, message] of [
+      [['--version', '2.12'], /--version takes a release such as v2\.12\.1/],
+      [['--version', 'v2.12.1-beta.1'], /--version takes a release/],
+      [['--version', 'v2.12.1', '--restore', path.join(work, 'x.opfield-export')], /cannot be combined: a restore/],
+      [['--version', 'v2.12.1-rc.5', '--source-dir', work], /cannot be combined: a source build/],
+    ]) {
+      const result = run(args);
+      assert.notEqual(result.status, 0, args.join(' '));
+      assert.match(result.stdout + result.stderr, message, args.join(' '));
+    }
+
+    // The relay: the pinned release's own, else the newest of its line; never one of the next line.
+    const relay = (published, resolverTag) =>
+      runShell(
+        [
+          'LOG_FILE=/dev/null',
+          `download_release_artifact() { [[ " ${published.join(' ')} " == *" $2 "* ]]; }`,
+          `fetch_release() { echo "fetch $*" >&2; ${resolverTag ? `printf '{"target":{"tag_name":"%s"}}' '${resolverTag}'` : ':'}; }`,
+          shellFunction(source, 'pinned_relay_tag'),
+          'pinned_relay_tag v2.12.1-rc.5',
+        ].join('\n')
+      );
+    const own = relay(['v2.12.1-rc.5-relay'], 'v2.12.1-rc.7-relay');
+    assert.equal(own.output.trim(), 'v2.12.1-rc.5-relay');
+    const line = relay([], 'v2.12.1-rc.3-relay');
+    assert.match(line.output, /fetch relay v2\.12\.0-rc\.0 preview/);
+    assert.match(line.output, /^v2\.12\.1-rc\.3-relay$/m);
+    const nextLine = relay([], 'v2.13.0-relay');
+    assert.equal(nextLine.status, 0, nextLine.output);
+    assert.doesNotMatch(nextLine.output, /v2\.13\.0-relay/);
   } finally {
     await rm(work, { recursive: true, force: true });
   }

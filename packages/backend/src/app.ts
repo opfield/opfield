@@ -1145,6 +1145,9 @@ export function createApp(): OpfieldAppRuntime {
     c.json<ApiError>({ code: 'NOT_FOUND', message: `No API endpoint at ${c.req.method} ${c.req.path}` }, 404);
   app.all('/api/*', unknownApiPath);
   app.all('/auth/*', unknownApiPath);
+  // The same for /.well-known/: clients probe there (OAuth discovery, the removed companion endpoints) and must get a
+  // 404 for a document Opfield does not publish, not the Console page with 200.
+  app.all('/.well-known/*', unknownApiPath);
 
   // In production, serve the frontend SPA
   const statusPublicDir = resolve(process.cwd(), 'status-public');

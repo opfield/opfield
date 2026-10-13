@@ -243,25 +243,45 @@ func (m *Manager) HasSecureLinkModule() (bool, error) {
 	return !strings.Contains(string(output), "--without-http_secure_link_module"), nil
 }
 
+// IsRunning reports whether the nginx this daemon manages runs: the master
+// process named by its pid file. Another nginx on the host (a container's, a
+// second instance) does not count (F-7: a stopped node nginx reported running
+// next to a foreign one).
 func (m *Manager) IsRunning() bool {
-	pidFile := m.findPidFile()
-	if pidFile != "" {
-		data, err := os.ReadFile(pidFile)
-		if err == nil {
-			pid, parseErr := strconv.Atoi(strings.TrimSpace(string(data)))
-			if parseErr == nil {
-				proc, findErr := os.FindProcess(pid)
-				if findErr == nil {
-					// On Unix, FindProcess always succeeds. Check if process exists via signal 0.
-					if signalErr := proc.Signal(syscall.Signal(0)); signalErr == nil {
-						return true
-					}
-				}
-			}
-		}
+	if pid, err := m.CachedPID(); err == nil && managedMasterAlive(pid) {
+		return true
 	}
+	// The authoritative path needs nginx -T, which a broken configuration
+	// fails: the pid file nginx.conf or the distribution names.
+	pidFile := m.findPidFile()
+	if pidFile == "" {
+		return false
+	}
+	data, err := os.ReadFile(pidFile)
+	if err != nil {
+		return false
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	return err == nil && managedMasterAlive(pid)
+}
 
-	return m.hasRunningProcess()
+// processCmdline reads a process's command line (replaceable in tests).
+var processCmdline = func(pid int) (string, error) {
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
+	return strings.ReplaceAll(string(data), "\x00", " "), err
+}
+
+// managedMasterAlive reports whether pid, read from the managed nginx's pid
+// file, is a live nginx master process (not a reused pid).
+func managedMasterAlive(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	if err := syscall.Kill(pid, 0); err != nil && err != syscall.EPERM {
+		return false
+	}
+	commandLine, err := processCmdline(pid)
+	return err == nil && strings.Contains(commandLine, "nginx: master process")
 }
 
 // GetPID returns the PID of the nginx master process owned by this manager's
@@ -500,14 +520,17 @@ func (m *Manager) GetWorkerCount() (int, error) {
 	return count, nil
 }
 
+// defaultPIDFiles are where distributions' nginx keeps its pid file.
+var defaultPIDFiles = []string{
+	"/run/nginx.pid",
+	"/var/run/nginx.pid",
+	"/run/nginx/nginx.pid",
+	"/var/run/nginx/nginx.pid",
+	"/etc/nginx/nginx.pid",
+}
+
 func (m *Manager) findPidFile() string {
-	candidates := []string{
-		"/run/nginx.pid",
-		"/var/run/nginx.pid",
-		"/run/nginx/nginx.pid",
-		"/var/run/nginx/nginx.pid",
-		"/etc/nginx/nginx.pid",
-	}
+	candidates := append([]string(nil), defaultPIDFiles...)
 	// Also try to parse from nginx.conf
 	if m.globalCfg != "" {
 		data, err := os.ReadFile(m.globalCfg)
@@ -529,41 +552,6 @@ func (m *Manager) findPidFile() string {
 		}
 	}
 	return ""
-}
-
-func (m *Manager) hasRunningProcess() bool {
-	entries, err := os.ReadDir("/proc")
-	if err != nil {
-		return false
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		pid := entry.Name()
-		if _, err := strconv.Atoi(pid); err != nil {
-			continue
-		}
-
-		cmdline, err := os.ReadFile(filepath.Join("/proc", pid, "cmdline"))
-		if err == nil {
-			cmdlineText := strings.ReplaceAll(string(cmdline), "\x00", " ")
-			if strings.Contains(cmdlineText, "nginx: master process") {
-				return true
-			}
-			if strings.Contains(cmdlineText, m.binary) {
-				return true
-			}
-		}
-
-		comm, err := os.ReadFile(filepath.Join("/proc", pid, "comm"))
-		if err == nil && strings.TrimSpace(string(comm)) == "nginx" {
-			return true
-		}
-	}
-
-	return false
 }
 
 // GetProcessRSS scans /proc for all nginx processes and sums their RSS in bytes.

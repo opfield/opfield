@@ -12,7 +12,7 @@ import {
   OPFIELD_DATABASE,
 } from '@/foundation/opfield-names.js';
 import { createChildLogger } from '@/lib/logger.js';
-import type { DockerService } from './docker.service.js';
+import type { DockerCreateContainerConfig, DockerService } from './docker.service.js';
 
 const logger = createChildLogger('HostMoveLauncher');
 
@@ -111,6 +111,45 @@ export interface HostMoveLauncherDeps {
  * Starts the host move (foundation/host-move.ts) once an update to this release has settled: no update attempt on
  * record, no sidecar left, the app up for a while. The move stops this app, so it runs in its own container.
  */
+/** The container that runs the host move, from the app's own image. */
+export function hostMoveContainerConfig(input: {
+  image: string;
+  composeDir: string;
+  composeProject: string;
+  network: string;
+  retry: boolean;
+  parent: string;
+  sandbox: string;
+}): DockerCreateContainerConfig {
+  return {
+    Image: input.image,
+    Cmd: [
+      'node',
+      'dist/cli/host-move.js',
+      '--dir',
+      input.composeDir,
+      '--project',
+      input.composeProject,
+      '--network',
+      input.network,
+      ...(input.retry ? ['--retry'] : []),
+    ],
+    Labels: { [HOST_MOVE_ROLE_LABEL]: HOST_MOVE_ROLE },
+    // The app image's healthcheck probes the app's HTTP port, which the move does not serve: it would read unhealthy.
+    Healthcheck: { Test: ['NONE'] },
+    HostConfig: {
+      Binds: [
+        '/var/run/docker.sock:/var/run/docker.sock',
+        `${input.parent}:${input.parent}`,
+        `${input.sandbox}:${input.sandbox}`,
+      ],
+      NetworkMode: 'none',
+      // A crash or reboot restarts it; it resumes the recorded step and turns this off when it ends.
+      RestartPolicy: { Name: 'unless-stopped' },
+    },
+  };
+}
+
 export class HostMoveLauncher {
   private timer: ReturnType<typeof setInterval> | null = null;
   private watcher: ReturnType<typeof setInterval> | null = null;
@@ -204,27 +243,15 @@ export class HostMoveLauncher {
       const parent = path.dirname(composeDir);
       const sandbox = DEFAULT_SANDBOX_WORKSPACE_DIR;
       await docker.createContainer(
-        {
-          Image: self.Config.Image,
-          Cmd: [
-            'node',
-            'dist/cli/host-move.js',
-            '--dir',
-            composeDir,
-            '--project',
-            composeProject,
-            '--network',
-            network,
-            ...(decision.retry ? ['--retry'] : []),
-          ],
-          Labels: { [HOST_MOVE_ROLE_LABEL]: HOST_MOVE_ROLE },
-          HostConfig: {
-            Binds: ['/var/run/docker.sock:/var/run/docker.sock', `${parent}:${parent}`, `${sandbox}:${sandbox}`],
-            NetworkMode: 'none',
-            // A crash or reboot restarts it; it resumes the recorded step and turns this off when it ends.
-            RestartPolicy: { Name: 'unless-stopped' },
-          },
-        },
+        hostMoveContainerConfig({
+          image: self.Config.Image,
+          composeDir,
+          composeProject,
+          network,
+          retry: decision.retry,
+          parent,
+          sandbox,
+        }),
         HOST_MOVE_CONTAINER_NAME
       );
       await docker.startContainer(HOST_MOVE_CONTAINER_NAME);

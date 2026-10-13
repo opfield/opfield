@@ -227,7 +227,7 @@ func moveNodeDir(dir naming.DirPair) error {
 		}
 		// Neither exists (no socket was ever made there): make the new one, the old name linking to it, since this
 		// process keeps using the old path.
-		_, err := hostrename.EnsureRunDir(pair, 0o755)
+		_, err := hostrename.EnsureRunDirLinked(pair, 0o755, true)
 		return err
 	}
 	bothDirs := currentErr == nil && currentInfo.IsDir() && currentInfo.Mode()&os.ModeSymlink == 0

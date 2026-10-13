@@ -28,7 +28,13 @@ import {
 } from "@/lib/node-update-connections";
 import { dockerNodeListRoute, proxyHostRoute } from "@/lib/resource-routes";
 import { deriveAllowedResourceIdsByScope, scopeMatches } from "@/lib/scope-utils";
-import { cn, formatBytes, formatDateTime, formatUptime } from "@/lib/utils";
+import {
+  cn,
+  formatBytes,
+  formatDateTime,
+  formatFileDescriptorLimit,
+  formatUptime,
+} from "@/lib/utils";
 import { api } from "@/services/api";
 import { accessContextKey, useAuthStore } from "@/stores/auth";
 import {
@@ -825,6 +831,16 @@ export function NodeDetailsTab({
               }
             />
           )}
+          {typeof h?.leaseWatchdogVersion === "string" && h.leaseWatchdogVersion && (
+            <DetailRow
+              label="Lease Watchdog Version"
+              value={
+                <Badge variant="secondary" className="uppercase">
+                  {h.leaseWatchdogVersion}
+                </Badge>
+              }
+            />
+          )}
           {/* What the next daemon update does to open connections, also with no update available. The Update
               Available and Update Waiting panels show it themselves. */}
           {updateConnectionsPlacement(
@@ -938,7 +954,7 @@ export function NodeDetailsTab({
               <DetailRow label="Uptime" value={formatUptime(h.systemUptimeSeconds)} />
               <DetailRow
                 label="File Descriptors"
-                value={`${h.openFileDescriptors.toLocaleString()} / ${h.maxFileDescriptors.toLocaleString()}`}
+                value={`${h.openFileDescriptors.toLocaleString()} / ${formatFileDescriptorLimit(h.maxFileDescriptors)}`}
               />
             </PanelShell>
           </div>

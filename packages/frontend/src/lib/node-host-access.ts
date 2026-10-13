@@ -1,4 +1,4 @@
-import type { Node, NodeDetail, NodeType } from "@/types";
+import type { Node, NodeDetail, NodeHealthReport, NodeType } from "@/types";
 
 /** Host access a node operator can turn off in the daemon config file on the node. */
 export type NodeHostFeature = "console" | "files";
@@ -44,12 +44,44 @@ function beforeOpfieldRelayLayout(version: string | null | undefined): boolean {
   return match[4] !== undefined && Number(match[4]) < 3;
 }
 
-function daemonConfigPath(
-  node: (Pick<Node, "type"> & { daemonVersion?: string | null }) | null | undefined
-): string | undefined {
+type NodeConfigPathSource = Pick<Node, "type"> & {
+  daemonVersion?: string | null;
+  lastHealthReport?: Pick<NodeHealthReport, "legacyNames"> | null;
+  liveHealthReport?: Pick<NodeHealthReport, "legacyNames"> | null;
+};
+
+/** Host objects (paths, services, users) a relay still keeps under its pre-Opfield names, as it last reported them. */
+export function relayLegacyHostNameCount(
+  legacyNames: Record<string, number> | null | undefined
+): number {
+  if (!legacyNames) return 0;
+  return ["paths", "services", "users"].reduce((total, kind) => {
+    const count = legacyNames[kind];
+    return total + (typeof count === "number" && count > 0 ? count : 0);
+  }, 0);
+}
+
+/**
+ * What the node page says next to a relay's previous host names: a relay moves its host paths and service to the
+ * Opfield names by itself only when it runs as root; a relay running as its own user moves when its installer runs again.
+ */
+export const RELAY_LEGACY_HOST_NAMES_HINT =
+  "This relay keeps its previous host paths and service. A relay running as root renames them at its next start; a relay running as its own user keeps them until you run the relay installer on the host again.";
+
+function daemonConfigPath(node: NodeConfigPathSource | null | undefined): string | undefined {
   if (!node) return undefined;
-  if (node.type === "relay" && beforeOpfieldRelayLayout(node.daemonVersion))
-    return LEGACY_RELAY_CONFIG_PATH;
+  if (node.type === "relay") {
+    // What the relay reports wins over its version: a relay of 2.12.1 that runs as its own user keeps its old paths
+    // (and the old config file) until its installer runs again. The old path also resolves while a moved relay still
+    // keeps the old link, so it is right whenever any old path is reported.
+    const legacyNames = (node.liveHealthReport ?? node.lastHealthReport)?.legacyNames;
+    const legacyPaths = legacyNames?.paths;
+    if (
+      (typeof legacyPaths === "number" && legacyPaths > 0) ||
+      beforeOpfieldRelayLayout(node.daemonVersion)
+    )
+      return LEGACY_RELAY_CONFIG_PATH;
+  }
   return DAEMON_CONFIG_PATHS[node.type];
 }
 
@@ -86,7 +118,7 @@ export function isNodeHostFeatureDisabled(
 
 /** Why the feature is unavailable and where the node operator turns it back on. */
 export function nodeHostFeatureDisabledMessage(
-  node: (Pick<Node, "type"> & { daemonVersion?: string | null }) | null | undefined,
+  node: NodeConfigPathSource | null | undefined,
   feature: NodeHostFeature
 ): string {
   const { key, label } = FEATURES[feature];

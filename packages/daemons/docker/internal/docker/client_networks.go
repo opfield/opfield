@@ -259,15 +259,18 @@ func (c *Client) removeStaleEndpoints(ctx context.Context, name string, networkN
 // names.
 func (c *Client) withLinkNetworks(ctx context.Context, networkNames []string) []string {
 	listed, err := c.cli.NetworkList(ctx, client.NetworkListOptions{
-		Filters: make(client.Filters).Add("name", "gateway-db-").Add("name", "gateway-storage-").Add("name", "gateway-link-"),
+		Filters: make(client.Filters).Add("name", databaseLinkNetworkPrefix).Add("name", storageLinkNetworkPrefix).
+			Add("name", containerLinkNetworkPrefix).
+			// legacy-name: link networks created before 2.12.1 (see legacyDatabaseLinkNetworkPrefix) — remove once every node reports none
+			Add("name", legacyDatabaseLinkNetworkPrefix).Add("name", legacyStorageLinkNetworkPrefix).Add("name", legacyContainerLinkNetworkPrefix),
 	})
 	if err != nil {
 		return networkNames
 	}
 	names := slices.Clone(networkNames)
 	for _, item := range listed.Items {
-		linkNetwork := strings.HasPrefix(item.Name, "gateway-db-") || strings.HasPrefix(item.Name, "gateway-storage-") ||
-			strings.HasPrefix(item.Name, "gateway-link-")
+		linkNetwork := isDatabaseLinkNetworkName(item.Name) || isStorageNetworkName(item.Name) ||
+			isContainerLinkNetworkName(item.Name)
 		if linkNetwork && !slices.Contains(names, item.Name) {
 			names = append(names, item.Name)
 		}
@@ -365,11 +368,11 @@ func (c *Client) releaseSecureLinkConnector(ctx context.Context, network string,
 
 // isSecureLinkConnectorName reports the connector's containers: its slots and the anchor holding its endpoints.
 func isSecureLinkConnectorName(name string) bool {
-	if name == secureLinkAnchorName {
+	if isSecureLinkAnchorName(name) {
 		return true
 	}
-	for _, slot := range secureLinkConnectorSlots {
-		if slot.name == name {
+	for _, family := range secureLinkNameFamilies {
+		if slices.Contains(secureLinkConnectorSlotNames(family), name) {
 			return true
 		}
 	}

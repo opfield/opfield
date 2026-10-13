@@ -104,12 +104,16 @@ func (m *Migrator) withWorkerLocked(fn func() error) error {
 func (m *Migrator) Run() error {
 	l := m.Layout
 	var failures []error
+	// A relay installed with the Opfield names gets no old names; one that had
+	// them keeps them as links (also for a directory an interrupted move left
+	// under its new name only).
+	linkOld := len(m.Legacy()) > 0
 	// The directories and the worker binary move while no worker update or
 	// identity renewal writes into them.
 	if err := m.withWorkerLocked(func() error {
 		var moveFailures []error
 		for _, pair := range []hostrename.Pair{l.State, l.Config, l.Witness} {
-			outcome, err := hostrename.Move(pair)
+			outcome, err := hostrename.MoveLinked(pair, linkOld)
 			if err != nil {
 				moveFailures = append(moveFailures, fmt.Errorf("move %s: %w", pair.Old, err))
 				continue
@@ -396,6 +400,9 @@ func (m *Migrator) switchService() error {
 		script := filepath.Join(l.InitDir, ServiceName)
 		if err := writeIfChanged(script, l.withOpenRCGuard(l.replaceLegacyLogs(l.replaceLegacyPaths(string(legacy)))), 0o755); err != nil {
 			return fmt.Errorf("write %s: %w", script, err)
+		}
+		if err := m.Services.Reload(); err != nil {
+			return err
 		}
 	default:
 		return nil

@@ -79,8 +79,17 @@ func (h *Handler) prepareSecureLinkListeners(configs ...string) {
 }
 
 func NewHandler(cfg *config.Config, mgr *nginx.Manager, st *sharedstate.State, logger *slog.Logger, secureLinkState *securelink.StateStore, pagesRuntime *pages.Runtime, pagesRuntimeConfigAvailable bool) *Handler {
-	return &Handler{cfg: cfg, mgr: mgr, state: st, logger: logger, secureLinkState: secureLinkState, pagesRuntime: pagesRuntime, pagesRuntimeConfigAvailable: pagesRuntimeConfigAvailable}
+	h := &Handler{cfg: cfg, mgr: mgr, state: st, logger: logger, secureLinkState: secureLinkState, pagesRuntime: pagesRuntime, pagesRuntimeConfigAvailable: pagesRuntimeConfigAvailable}
+	if pagesRuntime != nil && mgr != nil {
+		// Pages configs sent with defer_reload load with the reload of their batch, as route configs do
+		// (pagesDeferredReloadCapability).
+		pagesRuntime.SetDeferredReload(mgr.BeginChange, h.scheduleDeferredReload)
+	}
+	return h
 }
+
+// pagesDeferredReloadCapability: PagesMaterializePreviewCommand and PagesActivateTagRouteCommand take defer_reload.
+const pagesDeferredReloadCapability = "pages_deferred_reload_v1"
 
 const (
 	configOwnershipManagedSecureLink = "managed_secure_link"

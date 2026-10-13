@@ -24,7 +24,6 @@ import (
 // and no address or alias ever moves (F3). The anchor runs the connector image in its pause mode; it is replaced only
 // when it is missing or its own small shape changes, never for another connector image.
 const (
-	secureLinkAnchorName      = "gateway-secure-link-anchor"
 	secureLinkRoleLabel       = "net.opfield.secure-link.role"
 	secureLinkAnchorRole      = "anchor"
 	secureLinkAnchorMemory    = 32 * 1024 * 1024
@@ -99,12 +98,12 @@ func (m *dockerSecureLinkManager) networkHolder() string {
 // removeUnusedAnchor removes an anchor no connector runs in any more: the connector image went back to one without
 // the anchor (an Opfield rollback), and the anchor's link aliases would answer for nothing.
 func (m *dockerSecureLinkManager) removeUnusedAnchor(ctx context.Context) {
-	inspected, err := m.plugin.client.cli.ContainerInspect(ctx, secureLinkAnchorName, mobyclient.ContainerInspectOptions{})
+	inspected, err := m.plugin.client.cli.ContainerInspect(ctx, m.plugin.secureLinkNames(ctx).anchor, mobyclient.ContainerInspectOptions{})
 	if err != nil {
 		return
 	}
-	for _, slot := range secureLinkConnectorSlots {
-		connector, err := m.plugin.client.cli.ContainerInspect(ctx, slot.name, mobyclient.ContainerInspectOptions{})
+	for _, name := range secureLinkConnectorSlotNames(m.plugin.secureLinkNames(ctx)) {
+		connector, err := m.plugin.client.cli.ContainerInspect(ctx, name, mobyclient.ContainerInspectOptions{})
 		if err == nil && inSecureLinkAnchor(connector.Container, inspected.Container.ID) {
 			return
 		}
@@ -119,7 +118,7 @@ func (m *dockerSecureLinkManager) removeUnusedAnchor(ctx context.Context) {
 
 // ensureAnchor returns the running anchor, created (with image) or started when needed.
 func (m *dockerSecureLinkManager) ensureAnchor(ctx context.Context, image string) (*container.InspectResponse, error) {
-	inspected, err := m.plugin.client.cli.ContainerInspect(ctx, secureLinkAnchorName, mobyclient.ContainerInspectOptions{})
+	inspected, err := m.plugin.client.cli.ContainerInspect(ctx, m.plugin.secureLinkNames(ctx).anchor, mobyclient.ContainerInspectOptions{})
 	switch {
 	case err == nil && validSecureLinkAnchor(inspected.Container):
 		if inspected.Container.State != nil && inspected.Container.State.Running {
@@ -146,7 +145,7 @@ func (m *dockerSecureLinkManager) ensureAnchor(ctx context.Context, image string
 	default:
 		return nil, secureLinkConnectorUnchangedError{fmt.Errorf("inspect secure-link anchor: %w", err)}
 	}
-	inspected, err = m.plugin.client.cli.ContainerInspect(ctx, secureLinkAnchorName, mobyclient.ContainerInspectOptions{})
+	inspected, err = m.plugin.client.cli.ContainerInspect(ctx, m.plugin.secureLinkNames(ctx).anchor, mobyclient.ContainerInspectOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("inspect secure-link anchor: %w", err)
 	}
@@ -161,6 +160,7 @@ func (m *dockerSecureLinkManager) createAnchor(ctx context.Context, image string
 		}
 	}
 	pids := secureLinkAnchorPidsLimit
+	names := m.plugin.secureLinkNames(ctx)
 	created, err := m.plugin.client.cli.ContainerCreate(ctx, mobyclient.ContainerCreateOptions{
 		Config: &container.Config{
 			Image: image, User: "65532:65532", Cmd: secureLinkAnchorCommand,
@@ -174,8 +174,8 @@ func (m *dockerSecureLinkManager) createAnchor(ctx context.Context, image string
 			// The anchor owns the network namespace the connectors' listeners live in.
 			Sysctls: secureLinkAnchorSysctls(),
 		},
-		NetworkingConfig: &network.NetworkingConfig{EndpointsConfig: map[string]*network.EndpointSettings{secureLinkManagementNetwork: {}}},
-		Name:             secureLinkAnchorName,
+		NetworkingConfig: &network.NetworkingConfig{EndpointsConfig: map[string]*network.EndpointSettings{names.network: {}}},
+		Name:             names.anchor,
 	})
 	if err != nil {
 		return fmt.Errorf("create secure-link anchor: %w", err)
@@ -190,7 +190,7 @@ func (m *dockerSecureLinkManager) createAnchor(ctx context.Context, image string
 // change leaves the anchor as it is.
 func validSecureLinkAnchor(inspect container.InspectResponse) bool {
 	config, host := inspect.Config, inspect.HostConfig
-	if strings.TrimPrefix(inspect.Name, "/") != secureLinkAnchorName || config == nil || host == nil {
+	if !isSecureLinkAnchorName(strings.TrimPrefix(inspect.Name, "/")) || config == nil || host == nil {
 		return false
 	}
 	return allowedSecureLinkConnectorImage(config.Image) && config.User == "65532:65532" &&
@@ -236,7 +236,7 @@ func joinedBeforeAnchorStart(connector, anchor container.InspectResponse) bool {
 
 // removeAnchor removes the anchor (teardown: no link remains).
 func (m *dockerSecureLinkManager) removeAnchor(ctx context.Context) error {
-	inspected, err := m.plugin.client.cli.ContainerInspect(ctx, secureLinkAnchorName, mobyclient.ContainerInspectOptions{})
+	inspected, err := m.plugin.client.cli.ContainerInspect(ctx, m.plugin.secureLinkNames(ctx).anchor, mobyclient.ContainerInspectOptions{})
 	if isNotFoundErr(err) {
 		m.anchorID = ""
 		return nil
@@ -305,7 +305,7 @@ func (m *dockerSecureLinkManager) controlDirectory() string {
 
 // slotSocketPath is the control socket of the connector in a slot.
 func (m *dockerSecureLinkManager) slotSocketPath(slot int) string {
-	return filepath.Join(m.controlDirectory(), secureLinkConnectorSlots[slot].socket)
+	return filepath.Join(m.controlDirectory(), secureLinkConnectorSockets[slot])
 }
 
 // anchorNetworks returns the network endpoints of the container holding them.

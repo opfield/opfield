@@ -211,6 +211,13 @@ prune_older_backups() {
 has_systemd() { command_exists systemctl && [[ -d /run/systemd/system ]]; }
 has_openrc() { command_exists rc-service && command_exists rc-update; }
 
+# OpenRC caches service dependencies (/run/openrc/deptree) and checks the cache against the init scripts' mtimes in
+# whole seconds: a script written in the second the cache was built (by a service started moments before) is missing
+# from it at the next boot, and its service does not start. Rebuilt after every init script the installer writes.
+openrc_refresh_deptree() {
+    rc-update -u >> "$LOG_FILE" 2>&1 || warn "Could not refresh the OpenRC dependency cache; run: rc-update -u"
+}
+
 # A root daemon keeps its binary in /usr/local/bin. A daemon running as its own user must be able to replace its binary
 # when it updates itself, so the binary lives in a directory that user owns and /usr/local/bin holds a root-owned wrapper.
 MONITORING_BIN_LINK="/usr/local/bin/monitoring-daemon"
@@ -1730,6 +1737,7 @@ start_pre() {
 UNIT
         chmod +x /etc/init.d/monitoring-daemon || die "Could not make the monitoring-daemon OpenRC service executable."
         rc-update add monitoring-daemon default >> "$LOG_FILE" 2>&1 || die "Could not enable monitoring-daemon in OpenRC."
+        openrc_refresh_deptree
         forget_control_session
         if ! rc-service monitoring-daemon restart >> "$LOG_FILE" 2>&1 && ! rc-service monitoring-daemon start >> "$LOG_FILE" 2>&1; then
             fail_daemon_start "Could not start monitoring-daemon in OpenRC."

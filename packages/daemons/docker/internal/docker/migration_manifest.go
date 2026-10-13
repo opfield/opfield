@@ -45,6 +45,29 @@ const archiveImageReferenceLabel = "net.opfield.archive.image.reference"
 // migration with this daemon: the daemon advertises docker_migration_v2 only.
 const migrationManifestSchemaVersion = 2
 
+// migrationManifestLabels are the labels of a manifest in their Opfield keys
+// only. The source and the target capture the same manifest and Opfield
+// compares the two, but the target is created with Opfield keys (both families
+// before its start is confirmed) while a container labelled before Opfield
+// carries the old ones, so both sides write every key the same way.
+func migrationManifestLabels(labels map[string]string) map[string]string {
+	if labels == nil {
+		return nil
+	}
+	out := make(map[string]string, len(labels))
+	for key, value := range labels {
+		if next := opfieldLabelKey(key); next != "" {
+			// legacy-name: wiolett.gateway.* labels of a source container — remove once every node reports none
+			if _, ok := labels[next]; !ok {
+				out[next] = value
+			}
+			continue
+		}
+		out[key] = value
+	}
+	return out
+}
+
 func configuredArchiveImageReference(image string, labels map[string]string) string {
 	if archivedReference := strings.TrimSpace(labelValue(labels, archiveImageReferenceLabel)); archivedReference != "" {
 		return archivedReference
@@ -92,6 +115,7 @@ func (c *Client) captureMigrationManifest(ctx context.Context, id string, withSi
 		imageEnv = sourceImage.Config.Env
 	}
 	config := cloneContainerConfig(ctr.Config)
+	config.Labels = migrationManifestLabels(config.Labels)
 	delete(config.Labels, migrationOwnershipLabel)
 	imageReference := configuredArchiveImageReference(ctr.Config.Image, config.Labels)
 	delete(config.Labels, archiveImageReferenceLabel)
@@ -300,7 +324,7 @@ func (c *Client) CreateContainerStopped(ctx context.Context, req createStoppedCo
 		return "", err
 	}
 	if existing, err := c.cli.ContainerInspect(ctx, manifest.Name, mobyclient.ContainerInspectOptions{}); err == nil {
-		if existing.Container.Config != nil && existing.Container.Config.Labels[migrationOwnershipLabel] == req.MigrationID {
+		if existing.Container.Config != nil && labelValue(existing.Container.Config.Labels, migrationOwnershipLabel) == req.MigrationID {
 			return existing.Container.ID, nil
 		}
 		return "", fmt.Errorf("target container name %q is already in use", manifest.Name)

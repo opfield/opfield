@@ -146,8 +146,8 @@ func setMemberRefs(members []managedStorageSetMember) []swha.MemberRef {
 	return out
 }
 
-func seaweedfsSetContainerName(id string, index uint32, role swha.Role) string {
-	base := fmt.Sprintf("gateway-storage-%s-%d", id, index)
+func seaweedfsSetContainerName(prefix, id string, index uint32, role swha.Role) string {
+	base := fmt.Sprintf("%s%s-%d", prefix, id, index)
 	if role == swha.RoleFiler {
 		return base
 	}
@@ -416,7 +416,7 @@ func (m *managedStorageManager) createSetContainer(ctx context.Context, record m
 		Sysctls:     seaweedfsSysctls(),
 	}
 	created, err := m.client.cli.ContainerCreate(ctx, mobyclient.ContainerCreateOptions{
-		Config: containerCfg, HostConfig: hostCfg, Name: seaweedfsSetContainerName(record.ID, set.MemberIndex, role),
+		Config: containerCfg, HostConfig: hostCfg, Name: seaweedfsSetContainerName(record.namePrefix(), record.ID, set.MemberIndex, role),
 		NetworkingConfig: &network.NetworkingConfig{EndpointsConfig: map[string]*network.EndpointSettings{setNetwork: {Aliases: aliases}}},
 	})
 	if err != nil {
@@ -524,7 +524,7 @@ func (m *managedStorageManager) ensureSetContainers(ctx context.Context, record 
 	}
 	hostsPath := filepath.Join(m.seaweedfsSetDir(record.ID, set.MemberIndex), seaweedfsSetHostsFile)
 	for _, role := range []swha.Role{swha.RoleVolume, swha.RoleFiler, swha.RoleMaster} {
-		name := seaweedfsSetContainerName(record.ID, set.MemberIndex, role)
+		name := seaweedfsSetContainerName(record.namePrefix(), record.ID, set.MemberIndex, role)
 		inspect, err := m.client.cli.ContainerInspect(ctx, name, mobyclient.ContainerInspectOptions{})
 		var containerID string
 		switch {
@@ -550,7 +550,7 @@ func (m *managedStorageManager) ensureSetContainers(ctx context.Context, record 
 			}
 		}
 	}
-	record.ContainerName = seaweedfsSetContainerName(record.ID, set.MemberIndex, swha.RoleFiler)
+	record.ContainerName = seaweedfsSetContainerName(record.namePrefix(), record.ID, set.MemberIndex, swha.RoleFiler)
 	record.DesiredRunning = true
 	if input.OperationID != "" {
 		record.OperationID = input.OperationID
@@ -594,7 +594,8 @@ func (m *managedStorageManager) convertToSetMember(ctx context.Context, record *
 	}
 	releaseOrigin := func() {}
 	if mesh := m.mesh(); mesh != nil {
-		host := &seaweedfsSetHost{plugin: m.plugin, storage: m, initial: memberha.Config{SetID: set.SetID}, id: record.ID, index: set.MemberIndex}
+		host := &seaweedfsSetHost{plugin: m.plugin, storage: m, initial: memberha.Config{SetID: set.SetID}, id: record.ID, index: set.MemberIndex,
+			prefix: record.namePrefix()}
 		releaseOrigin = mesh.SetOriginPrimary(set.SetID, func(ctx context.Context, port string) (net.Conn, bool) {
 			target := uint16(swha.MasterHTTPPort)
 			switch port {
@@ -626,7 +627,7 @@ func (m *managedStorageManager) convertToSetMember(ctx context.Context, record *
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), managedDatabaseCleanupTimeout)
 		defer cancel()
 		for _, role := range []swha.Role{swha.RoleVolume, swha.RoleFiler, swha.RoleMaster} {
-			_ = m.client.RemoveContainer(cleanupCtx, seaweedfsSetContainerName(record.ID, set.MemberIndex, role), true)
+			_ = m.client.RemoveContainer(cleanupCtx, seaweedfsSetContainerName(record.namePrefix(), record.ID, set.MemberIndex, role), true)
 		}
 		*record = previous
 		if err := m.client.RenameContainer(cleanupCtx, previous.ContainerID, previous.ContainerName); err != nil {
@@ -658,7 +659,7 @@ func (m *managedStorageManager) convertToSetMember(ctx context.Context, record *
 	if err := m.ensureSetContainers(ctx, &converted, input); err != nil {
 		return restore(err)
 	}
-	masterName := seaweedfsSetContainerName(record.ID, set.MemberIndex, swha.RoleMaster)
+	masterName := seaweedfsSetContainerName(record.namePrefix(), record.ID, set.MemberIndex, swha.RoleMaster)
 	if err := m.startContainer(ctx, masterName); err != nil {
 		return restore(err)
 	}
@@ -726,7 +727,7 @@ func (m *managedStorageManager) restoreSetStorageNetwork(ctx context.Context, re
 	if memberNetworkID != "" && inspected.Network.ID == memberNetworkID {
 		return nil
 	}
-	filer := seaweedfsSetContainerName(record.ID, record.Set.MemberIndex, swha.RoleFiler)
+	filer := seaweedfsSetContainerName(record.namePrefix(), record.ID, record.Set.MemberIndex, swha.RoleFiler)
 	_, _ = m.client.cli.NetworkDisconnect(ctx, record.NetworkName, mobyclient.NetworkDisconnectOptions{Container: filer, Force: true})
 	if _, err := m.client.cli.NetworkConnect(ctx, record.NetworkName, mobyclient.NetworkConnectOptions{
 		Container: filer, EndpointConfig: &network.EndpointSettings{Aliases: []string{"s3"}},
@@ -772,7 +773,7 @@ func (m *managedStorageManager) waitSetMaster(ctx context.Context, record manage
 	selfURL := swha.VolumeURL(set.MemberID, set.MemberIndex)
 	var lastErr error
 	for time.Now().Before(deadline) {
-		raw, err := m.engineExec(ctx, seaweedfsSetContainerName(record.ID, set.MemberIndex, swha.RoleMaster),
+		raw, err := m.engineExec(ctx, seaweedfsSetContainerName(record.namePrefix(), record.ID, set.MemberIndex, swha.RoleMaster),
 			[]string{"curl", "-fsS", "--max-time", "3", "http://127.0.0.1:" + strconv.Itoa(swha.MasterHTTPPort) + "/dir/status"}, "")
 		if err == nil {
 			topology, perr := swha.ParseTopology(raw)
@@ -857,7 +858,7 @@ func (m *managedStorageManager) updateSetMember(ctx context.Context, record *man
 	for _, role := range []swha.Role{swha.RoleVolume, swha.RoleFiler, swha.RoleMaster} {
 		memory := seaweedfsSetMemory(record.MemoryBytes, role)
 		resources := container.Resources{Memory: memory, NanoCPUs: record.NanoCPUs}
-		if _, err := m.client.cli.ContainerUpdate(ctx, seaweedfsSetContainerName(record.ID, set.MemberIndex, role),
+		if _, err := m.client.cli.ContainerUpdate(ctx, seaweedfsSetContainerName(record.namePrefix(), record.ID, set.MemberIndex, role),
 			mobyclient.ContainerUpdateOptions{Resources: &resources}); err != nil && !isNotFoundErr(err) {
 			return fmt.Errorf("update the SeaweedFS %s resources: %w", role, err)
 		}
@@ -882,7 +883,7 @@ func (m *managedStorageManager) updateSetMember(ctx context.Context, record *man
 		restartFiler = restartFiler || changed
 	}
 	if grown {
-		volume := seaweedfsSetContainerName(record.ID, set.MemberIndex, swha.RoleVolume)
+		volume := seaweedfsSetContainerName(record.namePrefix(), record.ID, set.MemberIndex, swha.RoleVolume)
 		if err := m.client.RemoveContainer(ctx, volume, true); err != nil && !isNotFoundErr(err) {
 			return err
 		}
@@ -896,7 +897,7 @@ func (m *managedStorageManager) updateSetMember(ctx context.Context, record *man
 		}
 	}
 	if restartFiler {
-		filer := seaweedfsSetContainerName(record.ID, set.MemberIndex, swha.RoleFiler)
+		filer := seaweedfsSetContainerName(record.namePrefix(), record.ID, set.MemberIndex, swha.RoleFiler)
 		if err := m.client.StopContainer(ctx, filer, 20); err != nil && !isNotFoundErr(err) {
 			return err
 		}
@@ -936,7 +937,9 @@ type seaweedfsSetHost struct {
 	initial memberha.Config
 	id      string
 	index   uint32
-	engine  *leaseEngine
+	// prefix is the prefix of the member's container names (its record's).
+	prefix string
+	engine *leaseEngine
 }
 
 func newSeaweedFSSetHost(p *DockerPlugin, config memberha.Config) (*seaweedfsSetHost, error) {
@@ -947,8 +950,14 @@ func newSeaweedFSSetHost(p *DockerPlugin, config memberha.Config) (*seaweedfsSet
 	if !ok {
 		return nil, errors.New("the member is not listed in its set")
 	}
+	prefix := newManagedStorageNamePrefix()
+	if p.storageManager != nil {
+		if record, err := p.storageManager.loadRecord(config.OwnerID); err == nil {
+			prefix = record.namePrefix()
+		}
+	}
 	return &seaweedfsSetHost{plugin: p, storage: p.storageManager, initial: config, id: config.OwnerID, index: self.MemberIndex,
-		engine: &leaseEngine{client: p.client, cgroupRoot: leasefence.DefaultCgroupRoot}}, nil
+		prefix: prefix, engine: &leaseEngine{client: p.client, cgroupRoot: leasefence.DefaultCgroupRoot}}, nil
 }
 
 func (h *seaweedfsSetHost) Config() memberha.Config {
@@ -961,7 +970,7 @@ func (h *seaweedfsSetHost) Config() memberha.Config {
 }
 
 func (h *seaweedfsSetHost) name(role swha.Role) string {
-	return seaweedfsSetContainerName(h.id, h.index, role)
+	return seaweedfsSetContainerName(h.prefix, h.id, h.index, role)
 }
 
 func (h *seaweedfsSetHost) Container(ctx context.Context, role swha.Role) (swha.ContainerInfo, error) {
@@ -1043,7 +1052,7 @@ func (h *seaweedfsSetHost) DialContainer(ctx context.Context, role swha.Role, po
 	if inspect.Container.NetworkSettings == nil {
 		return nil, fmt.Errorf("container %s has no network", h.name(role))
 	}
-	endpoint := inspect.Container.NetworkSettings.Networks[setMeshNetworkName(h.initial.SetID)]
+	endpoint := setMeshEndpoint(inspect.Container.NetworkSettings.Networks, h.initial.SetID)
 	if endpoint == nil || !endpoint.IPAddress.IsValid() {
 		return nil, fmt.Errorf("container %s is not on the set network", h.name(role))
 	}
@@ -1144,13 +1153,13 @@ func leaseContainer(info swha.ContainerInfo) lease.Container {
 // restarts the filer.
 func (m *managedStorageManager) startSetMember(ctx context.Context, record managedStorageRecord, restart bool) error {
 	index := record.Set.MemberIndex
-	filer := seaweedfsSetContainerName(record.ID, index, swha.RoleFiler)
+	filer := seaweedfsSetContainerName(record.namePrefix(), record.ID, index, swha.RoleFiler)
 	if restart {
 		if err := m.client.StopContainer(ctx, filer, 20); err != nil && !isNotFoundErr(err) {
 			return err
 		}
 	}
-	for _, name := range []string{seaweedfsSetContainerName(record.ID, index, swha.RoleVolume), filer} {
+	for _, name := range []string{seaweedfsSetContainerName(record.namePrefix(), record.ID, index, swha.RoleVolume), filer} {
 		if err := m.startContainer(ctx, name); err != nil {
 			return err
 		}
@@ -1186,13 +1195,13 @@ func (m *managedStorageManager) revertSetMember(ctx context.Context, record *man
 	single := *record
 	single.Set = nil
 	single.ContainerID = ""
-	single.ContainerName = fmt.Sprintf("gateway-storage-%s-%d", record.ID, record.MemberIndex)
+	single.ContainerName = fmt.Sprintf("%s%s-%d", record.namePrefix(), record.ID, record.MemberIndex)
 	single.PublishS3, single.PublishedPort = input.PublishS3, input.PublishedPort
 	if input.TLS != nil {
 		single.TLSEnabled, single.TLSServerName = true, input.TLS.ServerName
 	}
 	for _, role := range []swha.Role{swha.RoleMaster, swha.RoleFiler, swha.RoleVolume} {
-		if err := m.client.StopContainer(ctx, seaweedfsSetContainerName(record.ID, set.MemberIndex, role), 20); err != nil && !isNotFoundErr(err) {
+		if err := m.client.StopContainer(ctx, seaweedfsSetContainerName(record.namePrefix(), record.ID, set.MemberIndex, role), 20); err != nil && !isNotFoundErr(err) {
 			return err
 		}
 	}
@@ -1207,14 +1216,14 @@ func (m *managedStorageManager) revertSetMember(ctx context.Context, record *man
 		}
 		restorePublished()
 		for _, role := range []swha.Role{swha.RoleVolume, swha.RoleFiler} {
-			if err := m.startContainer(cleanupCtx, seaweedfsSetContainerName(record.ID, set.MemberIndex, role)); err != nil {
+			if err := m.startContainer(cleanupCtx, seaweedfsSetContainerName(record.namePrefix(), record.ID, set.MemberIndex, role)); err != nil {
 				m.logger.Error("could not restart the storage member", "id", record.ID, "role", role, "error", err)
 			}
 		}
 		return fmt.Errorf("the storage member was not turned back into a single node and runs as before: %w", cause)
 	}
 	// The filer container holds the single-node name: set it aside first.
-	filer := seaweedfsSetContainerName(record.ID, set.MemberIndex, swha.RoleFiler)
+	filer := seaweedfsSetContainerName(record.namePrefix(), record.ID, set.MemberIndex, swha.RoleFiler)
 	setAside := filer + "-member"
 	if err := m.client.RenameContainer(ctx, filer, setAside); err != nil && !isNotFoundErr(err) {
 		return restore(err)
@@ -1246,7 +1255,7 @@ func (m *managedStorageManager) revertSetMember(ctx context.Context, record *man
 		m.logger.Warn("the volumes of the storage that left its set keep two copies; new objects still get one", "id", record.ID, "error", err)
 	}
 	for _, role := range []swha.Role{swha.RoleMaster, swha.RoleVolume} {
-		_ = m.client.RemoveContainer(ctx, seaweedfsSetContainerName(record.ID, set.MemberIndex, role), true)
+		_ = m.client.RemoveContainer(ctx, seaweedfsSetContainerName(record.namePrefix(), record.ID, set.MemberIndex, role), true)
 	}
 	_ = m.client.RemoveContainer(ctx, setAside, true)
 	if m.plugin != nil && m.plugin.setMembers != nil {

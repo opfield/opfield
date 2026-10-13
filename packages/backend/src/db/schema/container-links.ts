@@ -31,8 +31,8 @@ export type ContainerLinkStatus =
 
 /**
  * A private TCP path from a consumer workload to one port of a target workload, served by the shared secure-link
- * connector on both nodes: the consumer reaches `alias:targetPort` on the link network `gateway-link-<16 hex>`, the
- * target needs no published port and no route.
+ * connector on both nodes: the consumer reaches `alias:targetPort` on the link network `opfield-link-<16 hex>` (a
+ * link created before 2.12.1 keeps its earlier name), the target needs no published port and no route.
  */
 export const containerLinks = pgTable(
   'container_links',

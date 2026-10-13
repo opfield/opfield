@@ -218,6 +218,11 @@ export const dockerAvailabilityPlacements = pgTable(
       onDelete: 'set null',
     }),
     runtimeIdentity: jsonb('runtime_identity').$type<Record<string, unknown>>().notNull().default({}),
+    /**
+     * Prefix of the copy's runtime names on a node other than its workload's: `opfav`; placements created before
+     * 2.12.1 keep `gwav`, the names their containers, networks and Compose projects already have (migration 0250).
+     */
+    runtimeNamePrefix: varchar('runtime_name_prefix', { length: 16 }).notNull().default('opfav'),
     dependencyState: varchar('dependency_state', { length: 32 })
       .$type<DockerAvailabilityDependencyState>()
       .notNull()

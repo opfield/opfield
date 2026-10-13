@@ -52,7 +52,7 @@ export class AISandboxRunnerService {
   private stopping = false;
 
   constructor(
-    private readonly socketPath = process.env.SANDBOX_RUNNER_SOCKET || `/tmp/gateway-sandbox-${process.pid}.sock`
+    private readonly socketPath = process.env.SANDBOX_RUNNER_SOCKET || `/tmp/opfield-sandbox-${process.pid}.sock`
   ) {}
 
   get status() {

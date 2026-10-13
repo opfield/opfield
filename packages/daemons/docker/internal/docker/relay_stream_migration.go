@@ -2,7 +2,6 @@ package docker
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"net"
 	"sort"
@@ -379,12 +378,7 @@ func (p *DockerPlugin) bridgeTargetSession(assignment *pb.RelayGrantAssignment, 
 func (p *DockerPlugin) bridgeTargetConnection(ownerKind, ownerID string, session *relayresume.Session, connection net.Conn, ingress bool, started func()) {
 	labels := handover.Labels{handoverRole: handoverRoleTarget, handoverOwnerKind: ownerKind, handoverOwnerID: ownerID,
 		handoverConnector: connectionConnector(connection)}
-	cutClass := ""
-	if _, terminated := connection.(*tls.Conn); terminated {
-		// A PostgreSQL link whose TLS this daemon terminates: its state lives
-		// in this process.
-		cutClass = cutPostgresTLS
-	}
+	cutClass := linkCutClass(connection)
 	if ingress {
 		// Tracked so a restart finishes the request in flight and closes the
 		// stream once it is idle (B-13).

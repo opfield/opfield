@@ -1232,6 +1232,8 @@ export interface DockerCreateContainerConfig {
   Entrypoint?: string[];
   Env?: string[];
   Labels?: Record<string, string>;
+  /** `{ Test: ['NONE'] }` turns off a healthcheck the image declares. */
+  Healthcheck?: { Test: string[] };
   User?: string;
   WorkingDir?: string;
   AttachStdout?: boolean;

@@ -212,14 +212,16 @@ export async function openVolumeArchive(
   docker: DockerService,
   installation: Pick<ComposeInstallation, 'helperImage' | 'project'>,
   volume: string,
-  key: TransferVolumeKey
+  /** Top directory of the tar stream (the volume's name in the export). */
+  root: string
 ): Promise<TransferStream> {
-  const helper = await createHelper(docker, installation, [`${volume}:${MOUNT_BASE}/${key}:ro`]);
+  if (!/^[a-zA-Z0-9._-]+$/.test(root) || root === '.' || root === '..') throw new Error(`Invalid volume root ${root}`);
+  const helper = await createHelper(docker, installation, [`${volume}:${MOUNT_BASE}/${root}:ro`]);
   const close = closeOnce(() => docker.removeContainer(helper));
   try {
-    const stream = await docker.openContainerArchive(helper, `${MOUNT_BASE}/${key}`);
+    const stream = await docker.openContainerArchive(helper, `${MOUNT_BASE}/${root}`);
     stream.once('close', () => void close());
-    return { stream, root: key, close };
+    return { stream, root, close };
   } catch (error) {
     await close();
     throw error;

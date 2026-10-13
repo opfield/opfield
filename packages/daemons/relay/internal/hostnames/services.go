@@ -58,8 +58,12 @@ type openrc struct {
 	service, update, runlevelDir string
 }
 
-func (o openrc) Kind() string  { return "openrc" }
-func (o openrc) Reload() error { return nil }
+func (o openrc) Kind() string { return "openrc" }
+
+// Reload rebuilds the dependency cache: OpenRC compares it with the scripts'
+// mtimes in whole seconds, so a cache built in the second a script was written
+// misses that script at the next boot.
+func (o openrc) Reload() error { return run(o.update, "-u") }
 func (o openrc) Enable(name string) error {
 	if _, err := os.Lstat(o.runlevelDir + "/" + name); err == nil {
 		return nil

@@ -149,7 +149,7 @@ func (p *DockerPlugin) importMigrationImage(ctx context.Context, migrationID, ar
 		return migrationArtifactMetadata{}, fmt.Errorf("loaded Docker image digest mismatch")
 	}
 	if len(sourceTags) == 0 {
-		internalTag := "gateway-migration:" + strings.TrimPrefix(req.ExpectedImageID, "sha256:")[:12]
+		internalTag := "opfield-migration:" + strings.TrimPrefix(req.ExpectedImageID, "sha256:")[:12]
 		if _, err := p.client.cli.ImageTag(ctx, mobyclient.ImageTagOptions{Source: loaded.ID, Target: internalTag}); err != nil {
 			return migrationArtifactMetadata{}, fmt.Errorf("tag untagged migration image: %w", err)
 		}

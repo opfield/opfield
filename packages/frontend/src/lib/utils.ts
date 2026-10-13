@@ -110,6 +110,15 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / k ** i).toFixed(1)} ${sizes[i]}`;
 }
 
+/**
+ * A file descriptor limit as the node reports it. An unlimited one arrives as RLIM_INFINITY (2^64 - 1, or 2^63 - 1
+ * once read as a signed number); no host has a real limit anywhere near 2^62.
+ */
+export function formatFileDescriptorLimit(limit: number): string {
+  if (!Number.isFinite(limit) || limit >= 2 ** 62) return "Unlimited";
+  return limit.toLocaleString();
+}
+
 export function formatUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);

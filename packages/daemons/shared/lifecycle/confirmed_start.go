@@ -47,6 +47,21 @@ func StartConfirmed() bool {
 	return startConfirmed.fired
 }
 
+// UpdateCandidate reports whether the launcher may still roll this start back: it runs a pending update the launcher
+// has not committed yet. False once the start is confirmed, and for a start without a pending update (nothing to roll
+// back to), which is confirmed as soon as Opfield accepts its control session.
+func UpdateCandidate() bool {
+	if StartConfirmed() {
+		return false
+	}
+	stateDir := strings.TrimSpace(launcherEnv(LauncherStateDirEnv, legacyLauncherStateDirEnv))
+	if launcherManagedFromEnvironment() != "1" || !filepath.IsAbs(stateDir) {
+		return false
+	}
+	pending, err := readLauncherUpdateState(stateDir)
+	return err != nil || pending != nil
+}
+
 func fireStartConfirmed() {
 	startConfirmed.Lock()
 	if startConfirmed.fired {

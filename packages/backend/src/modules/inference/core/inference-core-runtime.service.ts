@@ -26,6 +26,7 @@ import {
   fetchLatestOpenCodexTag,
   fetchOpenCodexImageManifest,
 } from './inference-core.manifest.js';
+import { type CoreLayout, inferenceCoreLayout } from './inference-core-layout.js';
 import {
   INFERENCE_CORE_CHANGED_CHANNEL,
   type InferenceCoreOperationService,
@@ -103,15 +104,6 @@ const DEFAULT_TIMINGS: InferenceCoreTimings = {
 export interface InferenceCoreRuntimeOptions {
   timings?: Partial<InferenceCoreTimings>;
   backupDir?: string;
-}
-
-interface CoreLayout {
-  project: string;
-  network: string;
-  opfieldAlias: string;
-  containerName: string;
-  stateVolume: string;
-  secretVolume: string;
 }
 
 function newCoreCredential(): string {
@@ -833,14 +825,7 @@ export class InferenceCoreRuntimeService {
     const networks = self.NetworkSettings?.Networks ?? {};
     for (const [name, attachment] of Object.entries(networks)) {
       if (attachment.Aliases?.includes(service)) {
-        return {
-          project,
-          network: name,
-          opfieldAlias: service,
-          containerName: `${project}-inference-core`,
-          stateVolume: `${project}-inference-core-state`,
-          secretVolume: `${project}-inference-core-secrets`,
-        };
+        return inferenceCoreLayout(project, name, service, await this.loadStateRow());
       }
     }
     throw new AppError(

@@ -7,17 +7,19 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	mobyclient "github.com/moby/moby/client"
 )
 
 // newRecord is the record a create of id writes once its container serves.
 func (m *managedDatabaseManager) newRecord(id string, input managedDatabaseCommand) managedDatabaseRecord {
+	prefix := managedDatabaseContainerPrefix()
 	record := managedDatabaseRecord{
 		ID:                     id,
 		Type:                   input.Type,
-		ContainerName:          "gwdb-" + id,
-		NetworkName:            "gwdb-" + id + "-net",
+		ContainerName:          prefix + id,
+		NetworkName:            prefix + id + "-net",
 		ImagePath:              filepath.Join(m.root, "images", id+".img"),
 		MountPath:              filepath.Join(m.root, "mounts", id),
 		StorageSize:            input.StorageSizeBytes,
@@ -39,26 +41,31 @@ func (m *managedDatabaseManager) newRecord(id string, input managedDatabaseComma
 
 // ownedDatabaseContainer finds the container of a managed database by its
 // owner label, which only a create of that id sets, so it is found without
-// the record that names it. Empty when the node has none.
-func (m *managedDatabaseManager) ownedDatabaseContainer(ctx context.Context, id string) (string, error) {
+// the record that names it, with the name prefix it carries (a container
+// created before 2.12.1 keeps gwdb-). Empty when the node has none.
+func (m *managedDatabaseManager) ownedDatabaseContainer(ctx context.Context, id string) (string, string, error) {
 	listed, err := m.client.cli.ContainerList(ctx, mobyclient.ContainerListOptions{
 		All:     true,
 		Filters: mobyclient.Filters{}.Add("label", managedDatabaseLabel+"="+id),
 	})
 	if err != nil {
-		return "", fmt.Errorf("list managed database containers: %w", err)
+		return "", "", fmt.Errorf("list managed database containers: %w", err)
 	}
 	if len(listed.Items) == 0 {
-		return "", nil
+		return "", "", nil
 	}
-	if len(listed.Items) == 1 && slices.Contains(listed.Items[0].Names, "/gwdb-"+id) {
-		return listed.Items[0].ID, nil
+	if len(listed.Items) == 1 {
+		for _, name := range managedDatabaseContainerNames(id) {
+			if slices.Contains(listed.Items[0].Names, "/"+name) {
+				return listed.Items[0].ID, strings.TrimSuffix(name, id), nil
+			}
+		}
 	}
 	names := []string{}
 	for _, item := range listed.Items {
 		names = append(names, item.Names...)
 	}
-	return "", fmt.Errorf("the node has %d containers of this managed database (%v) and no record of it; keep the one that serves its data and remove the others", len(listed.Items), names)
+	return "", "", fmt.Errorf("the node has %d containers of this managed database (%v) and no record of it; keep the one that serves its data and remove the others", len(listed.Items), names)
 }
 
 // labelledDatabaseIDs are the managed database ids the node has containers
@@ -105,7 +112,9 @@ func (m *managedDatabaseManager) removeLostRecord(ctx context.Context, id string
 		m.logger.Info("removing a managed database the node holds no record of", "id", id, "containers", len(listed.Items))
 	}
 	record := m.newRecord(id, managedDatabaseCommand{})
-	_, _ = m.client.cli.NetworkRemove(ctx, record.NetworkName, mobyclient.NetworkRemoveOptions{})
+	for _, name := range managedDatabaseContainerNames(id) {
+		_, _ = m.client.cli.NetworkRemove(ctx, name+"-net", mobyclient.NetworkRemoveOptions{})
+	}
 	return m.cleanupStorage(ctx, &record, true)
 }
 

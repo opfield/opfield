@@ -84,14 +84,24 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 			return "", err
 		}
 	}
+	linkSocketDir := ""
+	if linkSocketWanted(*record, input) {
+		dir, err := m.prepareLinkSocketDir(*record)
+		if err != nil {
+			// Its links keep TLS over the bridge, as before.
+			m.logger.Warn("managed PostgreSQL gets no link socket; its links use TLS over the bridge", "id", record.ID, "error", err)
+		} else {
+			linkSocketDir = dir
+		}
+	}
 	if input.Type == "postgres" && input.TLSEnabled {
 		postgresHBAPath := managedPostgresTLSHBAPath(*record)
-		if err := writeManagedPostgresTLSHBA(postgresHBAPath); err != nil {
+		if err := writeManagedPostgresTLSHBA(postgresHBAPath, linkSocketDir != ""); err != nil {
 			return "", fmt.Errorf("write PostgreSQL TLS authentication config: %w", err)
 		}
 	}
 	if input.Type == "postgres" {
-		containerCfg.Cmd = managedPostgresCommand(input)
+		containerCfg.Cmd = managedPostgresCommandWith(input, linkSocketDir != "")
 	}
 	if input.Type == "redis" {
 		if err := ensureManagedRedisACLFile(dataSource, input.OwnerPassword); err != nil {
@@ -135,6 +145,9 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 	}
 	if input.Type == "postgres" && input.TLSEnabled {
 		binds = append(binds, managedPostgresTLSHBAPath(*record)+":/run/gateway-config/pg_hba.conf:ro")
+	}
+	if linkSocketDir != "" {
+		binds = append(binds, linkSocketDir+":"+pgLinkSocketContainerDir)
 	}
 	if input.TLSEnabled {
 		binds = append(binds, tlsDir+":/run/gateway-tls:ro")
@@ -233,6 +246,7 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 			m.logger.Warn("cleanup legacy ClickHouse system logs", "id", record.ID, "error", err)
 		}
 	}
+	record.PostgresLinkSocket = linkSocketDir != ""
 	return created.ID, nil
 }
 
@@ -309,6 +323,12 @@ func writeClickHouseConfig(path, contents string) error {
 // managedPostgresCommand is the server command line of a managed PostgreSQL
 // container, or nil to keep the image default when no setting needs a flag.
 func managedPostgresCommand(input managedDatabaseCommand) []string {
+	return managedPostgresCommandWith(input, false)
+}
+
+// managedPostgresCommandWith is managedPostgresCommand; linkSocket adds the
+// link socket directory (managed_database_link_socket.go) to the engine's own.
+func managedPostgresCommandWith(input managedDatabaseCommand, linkSocket bool) []string {
 	var flags []string
 	if maxConnections := managedPostgresMaxConnections(input); maxConnections > 0 {
 		flags = append(flags, "-c", "max_connections="+strconv.Itoa(maxConnections))
@@ -320,6 +340,9 @@ func managedPostgresCommand(input managedDatabaseCommand) []string {
 			"-c", "ssl_key_file=/run/gateway-tls/key.pem",
 			"-c", "hba_file=/run/gateway-config/pg_hba.conf",
 		)
+		if linkSocket {
+			flags = append(flags, "-c", "unix_socket_directories=/var/run/postgresql,"+pgLinkSocketContainerDir)
+		}
 	}
 	if len(flags) == 0 {
 		return nil
@@ -490,12 +513,26 @@ hostssl all all 0.0.0.0/0 scram-sha-256
 hostssl all all ::0/0 scram-sha-256
 `
 
+// managedPostgresLinkSocketHBA is the pg_hba of a container with the link
+// socket: the daemon's link connections arrive on a unix socket, so a socket
+// connection needs the role's password as a TCP one does (the engine's tools
+// pass the owner password).
+const managedPostgresLinkSocketHBA = `# Managed by Opfield. Direct TCP clients must negotiate TLS; socket connections (the daemon's links) need the password.
+local all all scram-sha-256
+hostssl all all 0.0.0.0/0 scram-sha-256
+hostssl all all ::0/0 scram-sha-256
+`
+
 func managedPostgresTLSHBAPath(record managedDatabaseRecord) string {
 	return filepath.Join(record.MountPath, "gateway-pg_hba.conf")
 }
 
-func writeManagedPostgresTLSHBA(path string) error {
-	return os.WriteFile(path, []byte(managedPostgresTLSHBA), 0644)
+func writeManagedPostgresTLSHBA(path string, linkSocket bool) error {
+	content := managedPostgresTLSHBA
+	if linkSocket {
+		content = managedPostgresLinkSocketHBA
+	}
+	return os.WriteFile(path, []byte(content), 0644)
 }
 
 // All accepted engine images are digest-pinned and use these service accounts.
@@ -705,6 +742,7 @@ func (m *managedDatabaseManager) cleanupStorage(ctx context.Context, record *man
 		if err := os.RemoveAll(m.tlsDirectory(*record)); err != nil {
 			return fmt.Errorf("remove managed database TLS material: %w", err)
 		}
+		m.removeLinkSocketDir(*record)
 		if err := os.Remove(record.ImagePath); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("remove database storage image: %w", err)
 		}

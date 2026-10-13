@@ -54,6 +54,7 @@ beforeEach(() => {
   container.registerInstance(OAuthService, {
     getApiResourceUrl: () => 'http://gateway.test/api',
     getMcpResourceUrl: () => 'http://gateway.test/api/mcp',
+    getIssuerUrl: () => 'http://gateway.test',
     getProtectedResourceMetadataUrl: () => 'http://gateway.test/.well-known/oauth-protected-resource/api/mcp',
     validateAccessToken: validateOAuth,
   } as unknown as OAuthService);
@@ -177,6 +178,8 @@ describe('unknown API paths', () => {
     ['GET', '/api/system/diagnostics', true],
     ['DELETE', '/api/not-a-module/1', false],
     ['POST', '/auth/not-a-route', false],
+    ['GET', '/.well-known/wiolett-inference', false],
+    ['GET', '/.well-known/oauth-protected-resource/api/inference/setup', false],
   ])('answers %s %s with a JSON 404, not the Console page', async (method, path, signedIn) => {
     if (signedIn) {
       validateOAuth.mockResolvedValueOnce({
@@ -195,5 +198,14 @@ describe('unknown API paths', () => {
     expect(response.status).toBe(404);
     expect(response.headers.get('content-type')).toContain('application/json');
     expect(await response.json()).toEqual({ code: 'NOT_FOUND', message: `No API endpoint at ${method} ${path}` });
+  });
+
+  it('still answers the /.well-known/ documents Opfield publishes', async () => {
+    const response = await createApp().app.request('/.well-known/oauth-protected-resource/api/mcp', {
+      headers: { host: 'gateway.test' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ resource: 'http://gateway.test/api/mcp' });
   });
 });

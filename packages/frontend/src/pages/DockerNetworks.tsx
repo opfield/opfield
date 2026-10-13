@@ -63,7 +63,15 @@ interface DockerNetworkListItem extends DockerNetwork {
   scopeResourceId?: string | null;
 }
 
-const CONTROLLER_NETWORK_PREFIXES = ["gwav-", "gwdep-", "gateway-db-", "gateway-db-av-"];
+const CONTROLLER_NETWORK_PREFIXES = [
+  "opfav-",
+  "opfdep-",
+  "opfield-db-",
+  // legacy-name: networks of Availability copies, deployments and database links created before 2.12.1 — remove once every node reports none
+  "gwav-",
+  "gwdep-",
+  "gateway-db-",
+];
 
 function isControllerOwnedNetwork(network: DockerNetwork): boolean {
   const name = String(network.name ?? "").toLowerCase();

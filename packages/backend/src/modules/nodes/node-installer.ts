@@ -305,8 +305,15 @@ export function relayReenrollmentInstallation(
 
 async function daemonInstallVersion(nodeType: string, relayVersion: string | null | undefined): Promise<string | null> {
   if (nodeType === 'relay') {
-    if (relayVersion !== undefined) return relayVersion;
-    return container.isRegistered(RelayPoolService) ? container.resolve(RelayPoolService).currentRelayVersion() : null;
+    const poolVersion =
+      relayVersion !== undefined
+        ? relayVersion
+        : container.isRegistered(RelayPoolService)
+          ? await container.resolve(RelayPoolService).currentRelayVersion()
+          : null;
+    // The pool's release only when the release feed publishes it: a command for a missing release fails with a 404.
+    if (!container.isRegistered(DaemonUpdateService)) return poolVersion;
+    return container.resolve(DaemonUpdateService).relayInstallVersion(poolVersion);
   }
   const daemonType = daemonTypeForNodeType(nodeType);
   if (!daemonType || !container.isRegistered(DaemonUpdateService)) return null;

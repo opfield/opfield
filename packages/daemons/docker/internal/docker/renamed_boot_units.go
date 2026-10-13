@@ -62,6 +62,7 @@ func retireLegacyBootUnit(host volumeImageBootHost, legacy string) error {
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
+		return host.run("rc-update", "-u")
 	}
 	return nil
 }

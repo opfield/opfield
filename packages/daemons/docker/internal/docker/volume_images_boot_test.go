@@ -157,7 +157,7 @@ func TestVolumeBootUnitIsInstalledBeforeDocker(t *testing.T) {
 	if err != nil || !strings.Contains(string(script), "before docker") || !strings.Contains(string(script), "'/usr/local/bin/docker-daemon' mount-volume-images") {
 		t.Fatalf("OpenRC service = %s, %v", script, err)
 	}
-	if !slices.Equal(commands, []string{"rc-update add " + volumeImageBootService + " boot"}) {
+	if !slices.Equal(commands, []string{"rc-update add " + volumeImageBootService + " boot", "rc-update -u"}) {
 		t.Fatalf("commands = %v", commands)
 	}
 }

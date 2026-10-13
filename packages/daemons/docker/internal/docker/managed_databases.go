@@ -283,6 +283,9 @@ type managedDatabaseRecord struct {
 	// AvailabilityLiftedFrom is the member this single-node database was
 	// lifted from (close or detach), so a repeated lift answers ready.
 	AvailabilityLiftedFrom string `json:"availabilityLiftedFrom,omitempty"`
+	// PostgresLinkSocket: the container was created with the link socket and
+	// its pg_hba (managed_database_link_socket.go).
+	PostgresLinkSocket bool `json:"postgresLinkSocket,omitempty"`
 }
 
 // managedDatabaseRuntimeStats is intentionally a narrow managed-database

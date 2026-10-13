@@ -265,3 +265,15 @@ func orDefault(value, fallback string) string {
 	}
 	return value
 }
+
+// Older reports whether the watchdog release watchdog (its build, as its
+// heartbeat names it) comes before the daemon release daemon. Builds that are
+// no release (development builds) are never older.
+func Older(watchdog, daemon string) bool {
+	running, ok := parseReleaseVersion(strings.TrimSuffix(watchdog, "-"+DaemonType))
+	if !ok {
+		return false
+	}
+	current, ok := parseReleaseVersion(daemon)
+	return ok && current.newerThan(running)
+}

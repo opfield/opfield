@@ -320,6 +320,8 @@ func (m *managedDatabaseManager) createBindingPrincipal(ctx context.Context, rec
 	case "postgres":
 		stdin = postgresBindingCreateSQL(input)
 		command = []string{"psql", "-v", "ON_ERROR_STOP=1", "-U", input.OwnerUsername, "-d", input.DatabaseName}
+		// A container with the link socket asks for the password on the socket too.
+		env = []string{"PGPASSWORD=" + input.OwnerPassword}
 	case "redis":
 		// Redis accepts the ACL password only as a command argument; the script
 		// feeds it to redis-cli through stdin, and the owner password stays in
@@ -952,6 +954,8 @@ func (m *managedDatabaseManager) removeBindingPrincipal(ctx context.Context, rec
 	case "postgres":
 		stdin = postgresBindingRemoveSQL(input)
 		command = []string{"psql", "-v", "ON_ERROR_STOP=1", "-U", input.OwnerUsername, "-d", input.DatabaseName}
+		// A container with the link socket asks for the password on the socket too.
+		env = []string{"PGPASSWORD=" + input.OwnerPassword}
 	case "redis":
 		command = []string{"sh", "-ec", `redis-cli --no-auth-warning --user default ACL DELUSER "$OPFIELD_DB_BINDING_USER" >/dev/null || true`}
 		env = []string{"REDISCLI_AUTH=" + input.OwnerPassword, "OPFIELD_DB_BINDING_USER=" + input.Username}

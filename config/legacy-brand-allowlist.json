@@ -264,22 +264,6 @@
     },
     {
       "paths": [
-        "packages/daemons/docker/internal/docker/**",
-        "packages/backend/src/db/schema/container-links.ts",
-        "packages/backend/src/modules/docker/**",
-        "packages/backend/src/grpc/generated/types.ts",
-        "proto/opfield/v1/nginx-daemon.proto",
-        "packages/daemons/shared/opfieldv1/**",
-        "packages/frontend/src/lib/docker-networks.ts",
-        "packages/frontend/src/pages/DockerNetworks.tsx",
-        "commercial:backend/**"
-      ],
-      "pattern": "gateway-(?:db|storage|link|set|secure-links?|secure-link-connector|secure-link-anchor|storage-connector)\\b[\\w.*<>${}-]*|gateway-migration:|gateway_(?:db|link)_[\\w<>${}.-]*|\\^?gateway-\\(\\?:[\\w|]+\\)-",
-      "reason": "Docker network/container names of existing managed objects; stored in Opfield rows and looked up by both sides; Docker cannot rename a network in place without cutting connections.",
-      "removeIn": "planned recreate of each object (operator-run rename)"
-    },
-    {
-      "paths": [
         "packages/daemons/docker/internal/docker/managed_*.go",
         "packages/daemons/docker/internal/chha/**",
         "packages/backend/src/grpc/services/health-report.ts",
@@ -669,7 +653,7 @@
         "commercial:backend/docker/availability/docker-availability.service.ts"
       ],
       "pattern": "managed\\.gateway\\.internal|gateway\\.managed-storage\\.[\\w.*-]*|gateway\\.sandbox[\\w.*-]*|gateway-sandbox-[\\w.*-]*|__GATEWAY_AVAILABILITY_ENVIRONMENT_SNAPSHOT__",
-      "reason": "Names inside customers' running workloads and stored snapshots: the managed database host in consumers' connection strings, labels of existing containers, sandbox images in the internal registry, a sentinel stored in Availability environment snapshots.",
+      "reason": "Names inside customers' running workloads and stored snapshots: the managed database host in consumers' connection strings, labels of managed storage containers created before 2.12.1, the gateway.sandbox label kept reserved (sandbox containers created before 2.12.1 carry it, new ones get net.opfield.sandbox), sandbox images and the sandbox workspace directory already on hosts, a sentinel stored in Availability environment snapshots.",
       "removeIn": "with a planned recreate of the objects that carry them"
     },
     {

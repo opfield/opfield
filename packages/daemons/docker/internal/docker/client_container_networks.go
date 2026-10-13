@@ -20,7 +20,7 @@ import (
 func (c *Client) managedDatabaseHostEntries(ctx context.Context, networkNames []string) ([]string, error) {
 	entries := make([]string, 0)
 	for _, networkName := range networkNames {
-		if !strings.HasPrefix(networkName, "gateway-db-") {
+		if !isDatabaseLinkNetworkName(networkName) {
 			continue
 		}
 		if c.databaseLinkOnConnector != nil && c.databaseLinkOnConnector(networkName) {
@@ -40,7 +40,7 @@ func (c *Client) managedDatabaseHostEntries(ctx context.Context, networkNames []
 }
 
 func managedDatabaseHostEntry(networkName string, inspected network.Inspect) (string, error) {
-	suffix, managed := strings.CutPrefix(networkName, "gateway-db-")
+	suffix, managed := databaseLinkNetworkSuffix(networkName)
 	if !managed || suffix == "" {
 		return "", fmt.Errorf("managed database network name %q is invalid", networkName)
 	}

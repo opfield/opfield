@@ -252,6 +252,8 @@ export interface HealthReport {
   nginxServiceProblem?: string;
   /** Daemons of 2.12.1 and later: objects still under their pre-Opfield names, by kind (field 44). */
   legacyNames?: Record<string, number>;
+  /** Docker daemons: the build of the node's lease watchdog from its heartbeat; empty when none runs (field 45). */
+  leaseWatchdogVersion?: string;
   /** Present when the daemon advertises ingress_group_v1 (field 195). */
   ingressHealth?: IngressHealthReport | null;
   /** Storage-profile docker daemons: their availability set members. */
@@ -641,6 +643,11 @@ export interface PagesMaterializePreviewCommand {
   fallbackUrl: string;
   /** Only sent to daemons advertising nginx_pages_preview_access_v1. */
   access?: PagesPreviewAccess;
+  /**
+   * Written and tested now, loaded with the reload of its batch (as ApplyConfigCommand.deferReload). Only sent to
+   * daemons advertising pages_deferred_reload_v1.
+   */
+  deferReload?: boolean;
 }
 
 export interface PagesPreviewAccess {
@@ -670,6 +677,8 @@ export interface PagesRemovePreviewCommand {
 export interface PagesActivateTagRouteCommand {
   routeId: string;
   deploymentId: string;
+  /** As PagesMaterializePreviewCommand.deferReload (pages_deferred_reload_v1). */
+  deferReload?: boolean;
 }
 
 export interface PagesDeactivateTagRouteCommand {
@@ -1288,7 +1297,7 @@ export interface ManagedDatabaseListener {
 }
 
 export interface SecureLinkEgress {
-  /** gateway-db-*, gateway-storage-* or gateway-link-* */
+  /** opfield-db-*, opfield-storage-* or opfield-link-* (or a link's earlier name) */
   networkName: string;
   /** DNS alias the connector gets on that network */
   alias: string;

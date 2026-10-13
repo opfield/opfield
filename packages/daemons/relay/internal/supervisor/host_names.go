@@ -2,8 +2,13 @@ package supervisor
 
 import (
 	"errors"
+	"log/slog"
+	"maps"
 	"os"
+	"os/user"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"time"
 
 	"github.com/opfield/opfield/daemon-shared/lifecycle"
@@ -28,10 +33,39 @@ func (p *Plugin) systemLayout() bool {
 // belong to root; a supervisor running as its own user moves when the
 // installer runs again.
 func (p *Plugin) scheduleHostNames() {
-	if os.Geteuid() != 0 || !p.systemLayout() {
+	if !p.systemLayout() {
+		return
+	}
+	if os.Geteuid() != 0 {
+		lifecycle.OnStartConfirmed(func() {
+			migrator := &hostnames.Migrator{Layout: hostnames.System, Users: hostnames.SystemUsers{}}
+			warnHostNamesNeedInstaller(p.logger, migrator.Legacy(), currentUserName())
+		})
 		return
 	}
 	lifecycle.OnStartConfirmed(p.runHostNames)
+}
+
+// warnHostNamesNeedInstaller tells the owner of a relay that runs as its own
+// user, and so cannot move its root-owned directories and service, how it gets
+// its Opfield names; the health report lists what is left (legacy names).
+func warnHostNamesNeedInstaller(logger *slog.Logger, legacy hostnames.LegacyCount, runUser string) {
+	if len(legacy) == 0 || logger == nil {
+		return
+	}
+	attrs := []any{"run_user", runUser}
+	for _, kind := range slices.Sorted(maps.Keys(legacy)) {
+		attrs = append(attrs, kind, legacy[kind])
+	}
+	logger.Warn("relay host keeps its pre-Opfield paths, service and configuration: a relay running as its own user cannot move them; "+
+		"run the relay installer of this release again as root with OPFIELD_RELAY_RUN_USER="+runUser+" (it keeps the enrollment)", attrs...)
+}
+
+func currentUserName() string {
+	if found, err := user.Current(); err == nil && found.Username != "" {
+		return found.Username
+	}
+	return strconv.Itoa(os.Geteuid())
 }
 
 func (p *Plugin) hostNamesMigrator() *hostnames.Migrator {

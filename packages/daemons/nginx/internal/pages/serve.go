@@ -31,6 +31,9 @@ type PreviewFallback struct {
 	SPAFallback bool
 	URL         string
 	Access      *PreviewAccess
+	// DeferReload loads the preview with the reload of its batch
+	// (SetDeferredReload) instead of at once.
+	DeferReload bool
 }
 
 func validPagesFallbackURL(value string) bool {
@@ -42,6 +45,15 @@ func validPagesFallbackURL(value string) bool {
 }
 
 func (r *Runtime) applyConfig(configPath string, next []byte) error {
+	return r.applyConfigWith(configPath, next, false)
+}
+
+// applyConfigWith writes, tests and loads a config: at once, or with deferred
+// (and SetDeferredReload) with the reload of its batch, which the next
+// command that reloads nginx or the handler's deferred reload runs (F-9: a
+// Pages reconcile of four previews reloaded nginx four times).
+func (r *Runtime) applyConfigWith(configPath string, next []byte, deferred bool) error {
+	deferred = deferred && r.beginChange != nil && r.scheduleReload != nil
 	old, err := os.ReadFile(configPath)
 	oldExists := err == nil
 	if err != nil && !os.IsNotExist(err) {
@@ -51,11 +63,19 @@ func (r *Runtime) applyConfig(configPath string, next []byte) error {
 	if (next == nil && !oldExists) || (next != nil && oldExists && string(old) == string(next)) {
 		return nil
 	}
+	undoChange := func() {}
+	if deferred {
+		if undoChange, err = r.beginChange(); err != nil {
+			return err
+		}
+	}
 	if next == nil {
 		if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
+			undoChange()
 			return err
 		}
 	} else if err := writeAtomic(configPath, next, 0o640); err != nil {
+		undoChange()
 		return err
 	}
 	restore := func() error {
@@ -70,8 +90,13 @@ func (r *Runtime) applyConfig(configPath string, next []byte) error {
 	valid, output := r.nginx.TestConfig()
 	if !valid {
 		_ = restore()
+		undoChange()
 		_, _ = r.nginx.TestConfig()
 		return fmt.Errorf("nginx config test failed: %s", output)
+	}
+	if deferred {
+		r.scheduleReload()
+		return nil
 	}
 	if err := r.nginx.Reload(); err != nil {
 		if restoreErr := restore(); restoreErr != nil {

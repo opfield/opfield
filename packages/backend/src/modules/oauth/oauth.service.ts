@@ -16,7 +16,7 @@ import {
   withoutManualApprovalScopes,
 } from '@/lib/scopes.js';
 import { delegatedScopeIssue } from '@/lib/scopes-schemas.js';
-import { TOKEN_PREFIXES } from '@/lib/token-prefixes.js';
+import { OAUTH_CLIENT_ID_PREFIX, TOKEN_PREFIXES } from '@/lib/token-prefixes.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { AuthSettingsService } from '@/modules/auth/auth.settings.service.js';
@@ -189,7 +189,7 @@ export class OAuthService {
     const oauthExtendedCallbackCompatibility = await this.authSettingsService.getOAuthExtendedCallbackCompatibility();
     for (const uri of input.redirect_uris) assertRedirectUriAllowed(uri, oauthExtendedCallbackCompatibility);
 
-    const clientId = `goc_${randomBytes(18).toString('base64url')}`;
+    const clientId = `${OAUTH_CLIENT_ID_PREFIX}${randomBytes(18).toString('base64url')}`;
     const clientName = input.client_name?.trim() || 'OAuth Client';
     const [client] = await this.db
       .insert(oauthClients)

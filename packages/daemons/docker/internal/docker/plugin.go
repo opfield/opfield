@@ -303,9 +303,11 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 		return fmt.Errorf("init docker client: %w", err)
 	}
 	p.client = c
+	p.registerOpfieldNamesOnConfirmedStart()
 
 	if err := c.Ping(ctx); err != nil {
-		return fmt.Errorf("docker ping failed: %w", err)
+		// dockerd being down is no fault of this daemon (a launcher trial does not count it).
+		return fmt.Errorf("docker ping failed: %w: %w", lifecycle.ErrEnvironmentUnavailable, err)
 	}
 
 	ver, err := c.GetVersion(ctx)
@@ -449,6 +451,7 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 	if p.lease == nil {
 		go alignInstalledWatchdogChannel(p.logger, p.cfg.Docker.LeaseWatchdogReleasesURL, p.cfg.Docker.LeaseWatchdogArtifactBaseURL)
 	}
+	p.scheduleLeaseWatchdogRefresh()
 	if p.databaseListeners != nil {
 		// The host listeners the restore brought back adopt the database connections the previous process handed over.
 		p.databaseListeners.mu.Lock()
@@ -588,6 +591,7 @@ func (p *DockerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 			if p.backupHandler != nil {
 				values = append(values, "database_backups_v1", "database_backups_deadline_v1", "database_backups_tls_verification_v1", storageCopyCapability)
 			}
+			values = append(values, p.opfieldNamesCapabilities()...)
 			return values
 		}
 		values := []string{nodeKeeperWitnessCapability, "docker_deployments_v1", "docker_gpu_v1", dockerMigrationCapability, "docker_archive_v1", "docker_port_bind_ip_v1", "generic_relay_tunnel_v1", "relay_pool_v1", relayresume.Capability, handover.Capability, "proxy_secure_links_v1", "docker_registry_proxy_v1", "docker_runtime_management_v1", "docker_managed_volumes_v1", "docker_duplicate_label_filter_v1", "docker_duplicate_env_removal_v1", TaskCommandLookupCapability, dockerNetworkIsolationCapability}
@@ -618,6 +622,7 @@ func (p *DockerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 		if p.composeExecutor != nil {
 			values = append(values, "docker_compose_v1", composeLoggingCapability)
 		}
+		values = append(values, p.opfieldNamesCapabilities()...)
 		return values
 	}()
 	message := &pb.RegisterMessage{

@@ -92,6 +92,7 @@ func migrateSystemd(ctx context.Context, host ServiceHost, executable, fallbackA
 		"systemctl daemon-reload",
 		"systemctl start " + UnitName + ".service",
 		"rm -f " + shellQuote(LegacyBinaryPath),
+		legacyBackupStep,
 	}
 	if host.UnderLegacyService() {
 		// Outside the old unit's cgroup (systemd-run in Detach), or stopping
@@ -135,13 +136,21 @@ func migrateOpenRC(ctx context.Context, host ServiceHost, executable, fallbackAr
 			return NothingToMigrate, fmt.Errorf("rc-update add %s: %w", UnitName, err)
 		}
 	}
+	// OpenRC compares the dependency cache with the scripts' mtimes in whole
+	// seconds: a cache built in the second the script was written misses it at
+	// the next boot. Rebuild it now that the script is there.
+	if err := host.Run(ctx, "rc-update", "-u"); err != nil {
+		return NothingToMigrate, fmt.Errorf("rc-update -u: %w", err)
+	}
 	// The script goes before its runlevel links, as in migrateSystemd.
 	steps := []string{
 		"rc-service " + LegacyUnitName + " stop",
 		"rm -f " + shellQuote(LegacyOpenRCPath),
 		"rm -f " + legacyOpenRCRunlevelGlob,
+		"rc-update -u",
 		"rc-service " + UnitName + " start",
 		"rm -f " + shellQuote(LegacyBinaryPath),
+		legacyBackupStep,
 	}
 	if host.UnderLegacyService() {
 		if err := host.Detach(strings.Join(steps, "; ")); err != nil {
@@ -156,8 +165,16 @@ func migrateOpenRC(ctx context.Context, host ServiceHost, executable, fallbackAr
 	if err := removeMatching(host.path(legacyOpenRCRunlevelGlob)); err != nil {
 		return NothingToMigrate, err
 	}
+	if err := host.Run(ctx, "rc-update", "-u"); err != nil {
+		return NothingToMigrate, fmt.Errorf("rc-update -u: %w", err)
+	}
 	return RemovedLegacy, removeLegacyBinary(host, executable)
 }
+
+// legacyBackupStep is moveLegacyBackup for the detached switch-over.
+var legacyBackupStep = "if [ -e " + shellQuote(LegacyBinaryPath+".previous") + " ]; then " +
+	"if [ -e " + shellQuote(BinaryPath+".previous") + " ]; then rm -f " + shellQuote(LegacyBinaryPath+".previous") + "; " +
+	"else mv -f " + shellQuote(LegacyBinaryPath+".previous") + " " + shellQuote(BinaryPath+".previous") + "; fi; fi"
 
 // Enablement links of the old service; removed by hand because systemctl
 // disable and rc-update del need the definition that is already gone.
@@ -207,6 +224,26 @@ func removeLegacyBinary(host ServiceHost, executable string) error {
 	legacy := host.path(LegacyBinaryPath)
 	if filepath.Clean(executable) == filepath.Clean(legacy) {
 		return nil
+	}
+	if err := os.Remove(legacy); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return moveLegacyBackup(host)
+}
+
+// moveLegacyBackup gives the backup the watchdog's self-update kept of its
+// pre-Opfield binary (gateway-lease-watchdog.previous) the Opfield name, or
+// removes it when the Opfield binary has a backup of its own (O-7).
+func moveLegacyBackup(host ServiceHost) error {
+	legacy := host.path(LegacyBinaryPath) + ".previous"
+	current := host.path(BinaryPath) + ".previous"
+	if _, err := os.Lstat(legacy); errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if _, err := os.Lstat(current); errors.Is(err, os.ErrNotExist) {
+		if err := os.Rename(legacy, current); err == nil {
+			return nil
+		}
 	}
 	if err := os.Remove(legacy); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err

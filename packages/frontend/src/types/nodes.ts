@@ -127,6 +127,8 @@ export interface NodeHealthReport {
   nginxServiceProblem?: string;
   /** Daemons of 2.12.1 and later: objects on the node still under their previous names, by kind. */
   legacyNames?: Record<string, number>;
+  /** Docker daemons that report it: the version of the node's lease watchdog, which updates on its own schedule. */
+  leaseWatchdogVersion?: string;
 }
 
 /** Connections across a daemon update, as the daemon reports them; cut classes are an open set. */

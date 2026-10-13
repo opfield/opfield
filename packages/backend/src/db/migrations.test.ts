@@ -519,3 +519,32 @@ describe('inference companion removal migration', () => {
     expect(changed).toEqual(['public.inference_tokens']);
   });
 });
+
+describe('Availability runtime name prefix migration', () => {
+  it('keeps gwav for every placement that exists and gives new placements opfav', () => {
+    const migration = readFileSync(
+      join(process.cwd(), 'src/db/migrations/0250_opfield_availability_runtime_names.sql'),
+      'utf8'
+    );
+    const [add, setDefault] = migration
+      .split('--> statement-breakpoint')
+      .map((statement) => statement.replace(/^--.*$/gm, '').trim());
+    expect(add).toBe(
+      `ALTER TABLE "docker_availability_placements" ADD COLUMN "runtime_name_prefix" varchar(16) DEFAULT 'gwav' NOT NULL;`
+    );
+    expect(setDefault).toBe(
+      `ALTER TABLE "docker_availability_placements" ALTER COLUMN "runtime_name_prefix" SET DEFAULT 'opfav';`
+    );
+
+    const previous = JSON.parse(readFileSync(join(process.cwd(), 'src/db/migrations/meta/0249_snapshot.json'), 'utf8'));
+    const current = JSON.parse(readFileSync(join(process.cwd(), 'src/db/migrations/meta/0250_snapshot.json'), 'utf8'));
+    expect(current.prevId).toBe(previous.id);
+    expect(current.tables['public.docker_availability_placements'].columns.runtime_name_prefix).toEqual({
+      name: 'runtime_name_prefix',
+      type: 'varchar(16)',
+      primaryKey: false,
+      notNull: true,
+      default: "'opfav'",
+    });
+  });
+});

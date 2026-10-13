@@ -343,15 +343,6 @@ func validateTopLevelResources(node *yaml.Node, resource string, reservedPolicy 
 	return nil
 }
 
-// composeManagedDatabaseNetworkKey is the logical network the backend adds to
-// a project for a managed database link (compose-managed-bindings.ts
-// networkKey): it names the link's gateway-db-* network as external.
-var composeManagedDatabaseNetworkKey = regexp.MustCompile(`^gateway_db_[0-9a-f]{16}$`)
-
-// composeContainerLinkNetworkKey is the logical network the backend adds to a project for a container link whose
-// source is one of its services: it names the link's gateway-link-* network as external.
-var composeContainerLinkNetworkKey = regexp.MustCompile(`^gateway_link_[0-9a-f]{16}$`)
-
 // validateComposeNetworkNames keeps Compose networks off the host's network
 // namespaces and off the networks Opfield owns on the node, which a user
 // container may not join either (validateUserWorkloadNetworkMode, the
@@ -379,7 +370,9 @@ func validateComposeNetworkNames(networks *yaml.Node) error {
 		if name != "host" && name != "none" && !isReservedOpfieldNetworkName(name) {
 			continue
 		}
-		if external && composeManagedDatabaseNetworkKey.MatchString(key) && strings.HasPrefix(name, "gateway-db-") {
+		// The key and the network may be of different families: a link keeps its key while its network moves to
+		// the network of an Availability copy.
+		if external && composeManagedDatabaseNetworkKey.MatchString(key) && isDatabaseLinkNetworkName(name) {
 			continue
 		}
 		if external && composeContainerLinkNetworkKey.MatchString(key) && containerLinkNetworkPattern.MatchString(name) {
@@ -394,8 +387,8 @@ func validateComposeNetworkNames(networks *yaml.Node) error {
 // every name Opfield owns or will own on a node, the Secure Links management
 // network and managed database and storage link networks.
 func isReservedOpfieldNetworkName(name string) bool {
-	return name == secureLinkManagementNetwork || strings.HasPrefix(name, "gateway-db-") || strings.HasPrefix(name, "gateway-storage-") ||
-		strings.HasPrefix(name, "gateway-link-")
+	return isSecureLinkManagementNetwork(name) || isDatabaseLinkNetworkName(name) || isStorageNetworkName(name) ||
+		isContainerLinkNetworkName(name)
 }
 
 // validateServiceVolumes mirrors the backend Compose policy: only declared named

@@ -53,8 +53,9 @@ const (
 	Moved
 	// Done: it already was.
 	Done
-	// Conflict: both names hold different, non-empty directories (or the old
-	// name is something else than a directory). Nothing was changed; the old
+	// Conflict: both names hold non-empty directories that do not merge
+	// (an entry of the same name in both, see mergeNewEntries), or the old
+	// name is something else than a directory. Nothing was changed; the old
 	// one stays in use (Resolve returns it) and the conflict is reported as a
 	// legacy name.
 	Conflict
@@ -117,8 +118,17 @@ func Legacy(p Pair) bool {
 }
 
 // Move moves p.Old to p.New and leaves p.Old as a symlink to it. It finishes a
-// move a crash interrupted. See Outcome for the results.
+// move a crash interrupted. See Outcome for the results. A directory found
+// only under its new name gets no old name (a host installed with the Opfield
+// names), unless a move of this package left it there.
 func Move(p Pair) (Outcome, error) {
+	return MoveLinked(p, false)
+}
+
+// MoveLinked is Move for a caller that knows its node had the old names: a
+// directory found only under its new name gets the old name as a link too (a
+// move an older release interrupted after its rename).
+func MoveLinked(p Pair, linkOld bool) (Outcome, error) {
 	if err := p.validate(); err != nil {
 		return Conflict, err
 	}
@@ -130,17 +140,34 @@ func Move(p Pair) (Outcome, error) {
 		return Conflict, err
 	}
 	defer unlock()
-	return moveLocked(p, false, 0)
+	return moveLocked(p, false, 0, linkOld)
+}
+
+// hadLegacyNames reports whether this host ran components under the
+// pre-Opfield names: the shared state root exists under its old name (a
+// directory, or the link a move left). A host installed with 2.12.1 or later
+// has none (replaceable in tests).
+var hadLegacyNames = func() bool {
+	_, err := os.Lstat(StateRoot.Old)
+	return err == nil
 }
 
 // EnsureRunDir makes the directory exist for a tmpfs path pair (under /run,
 // recreated at every boot by whichever component starts first, possibly an
 // older one that only knows the old name) and returns the path to use. When
-// neither exists it creates the new one (mode, owner unchanged) and links the
-// old name to it; when only an older component created the old one, it is
-// moved like Move does, so every component of either release meets in one
-// directory.
+// neither exists it creates the new one (mode, owner unchanged) and, on a host
+// that ran components under the pre-Opfield names, links the old name to it;
+// when only an older component created the old one, it is moved like Move
+// does, so every component of either release meets in one directory. A host
+// installed with the Opfield names gets no old name.
 func EnsureRunDir(p Pair, mode os.FileMode) (string, error) {
+	return EnsureRunDirLinked(p, mode, hadLegacyNames())
+}
+
+// EnsureRunDirLinked is EnsureRunDir with the caller deciding whether a new
+// directory gets the old name as a link (a component that knows its node had
+// the old names).
+func EnsureRunDirLinked(p Pair, mode os.FileMode, linkOld bool) (string, error) {
 	if err := p.validate(); err != nil {
 		return "", err
 	}
@@ -152,17 +179,22 @@ func EnsureRunDir(p Pair, mode os.FileMode) (string, error) {
 		return "", err
 	}
 	defer unlock()
-	if _, err := moveLocked(p, true, mode); err != nil && !errors.Is(err, ErrConflict) {
+	if _, err := moveLocked(p, true, mode, linkOld); err != nil && !errors.Is(err, ErrConflict) {
 		return "", err
 	}
 	return Resolve(p), nil
 }
 
 // moveLocked runs with the parent locked. create makes the new directory when
-// neither name exists.
-func moveLocked(p Pair, create bool, mode os.FileMode) (Outcome, error) {
+// neither name exists, and linkOld links the old name to a directory it
+// created. Otherwise the old name becomes a link only when a move put the
+// directory under the new name (this call, or one a crash interrupted, which
+// left its link under the staging name): a host that never had the old name
+// does not get it.
+func moveLocked(p Pair, create bool, mode os.FileMode, linkOld bool) (Outcome, error) {
 	staging := p.stagingPath()
 	moved := false
+	linkDue := false
 	// A few rounds: each one either finishes or makes progress (an older
 	// component may create the old name between two steps).
 	for round := 0; round < 6; round++ {
@@ -197,7 +229,11 @@ func moveLocked(p Pair, create bool, mode os.FileMode) (Outcome, error) {
 			return Conflict, fmt.Errorf("%w: %s and %s", ErrConflict, staging, p.New)
 		}
 		if stagingErr == nil {
-			// A stale link from an interrupted fallback move.
+			// The link of an interrupted move. Once the directory is under
+			// the new name the move only lacks the old name's link.
+			if !oldExists && newExists {
+				linkDue = true
+			}
 			_ = os.Remove(staging)
 		}
 		switch {
@@ -211,8 +247,14 @@ func moveLocked(p Pair, create bool, mode os.FileMode) (Outcome, error) {
 			if err := os.Chmod(p.New, mode); err != nil {
 				return Conflict, err
 			}
+			create = false
 			continue
 		case !oldExists && newExists:
+			if !moved && !linkDue && !linkOld {
+				// Only the new name, and no move of ours put it there: a host
+				// installed with the Opfield names.
+				return Done, nil
+			}
 			// New in place: (re)create the old name as a link to it.
 			if err := placeLink(p, staging); err != nil {
 				if errors.Is(err, os.ErrExist) || errors.Is(err, syscall.EISDIR) || errors.Is(err, syscall.ENOTEMPTY) {
@@ -278,13 +320,162 @@ func moveLocked(p Pair, create bool, mode os.FileMode) (Outcome, error) {
 				if err := os.Remove(p.Old); err != nil && !errors.Is(err, os.ErrNotExist) {
 					return Conflict, err
 				}
+				// The old name existed: it stays, as the link.
+				linkDue = true
 				continue
 			}
-			return Conflict, fmt.Errorf("%w: %s and %s", ErrConflict, p.Old, p.New)
+			// A component of the new release created entries under the new
+			// name first (the app's host move binds
+			// /var/lib/opfield/sandbox-workspaces on a host whose node daemon
+			// still has /var/lib/gateway): carry them into the old directory,
+			// which then moves as a whole. Two entries of the same name are a
+			// conflict unless they merge (see mergeNewEntries); then nothing
+			// changes.
+			if err := mergeNewEntries(p, false); err != nil {
+				return Conflict, err
+			}
+			if err := mergeNewEntries(p, true); err != nil {
+				return Conflict, err
+			}
+			continue
 		}
 	}
 	return Conflict, fmt.Errorf("move of %s did not settle", p.Old)
 }
+
+// mergeStep runs before every change a merge makes; tests stop a merge there
+// to cover each state a crash can leave.
+var mergeStep = func() error { return nil }
+
+// mergeNewEntries carries every entry of the new directory into the old one,
+// which the move renames to the new name afterwards. It only renames whole
+// entries and never empties a directory of the new side that something may
+// use (a bind mount source of a running container keeps its inode):
+//   - an entry the old directory lacks is renamed into it;
+//   - an entry the old directory has as an empty directory replaces it;
+//   - a directory both have: the old one's entries move into the new one
+//     (recursively, by the same rules, files of the same name are a
+//     conflict), the emptied old one is removed and the new one renamed in.
+//
+// With apply false it only checks that the merge can finish and changes
+// nothing; a conflict leaves both directories as they are. Every step is one
+// rename or one removal of an empty directory, so a crash leaves a state the
+// next call finishes the same way.
+func mergeNewEntries(p Pair, apply bool) error {
+	entries, err := os.ReadDir(p.New)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		newPath := filepath.Join(p.New, entry.Name())
+		oldPath := filepath.Join(p.Old, entry.Name())
+		newInfo, err := os.Lstat(newPath)
+		if err != nil {
+			return err
+		}
+		oldInfo, err := os.Lstat(oldPath)
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+		case err != nil:
+			return err
+		case isRealDir(oldInfo) && isRealDir(newInfo):
+			if err := mergeDirInto(oldPath, newPath, apply); err != nil {
+				return err
+			}
+			if err := removeEmpty(oldPath, apply); err != nil {
+				return err
+			}
+		case isRealDir(oldInfo):
+			if empty, _ := dirEmpty(oldPath); !empty {
+				return fmt.Errorf("%w: %s and %s", ErrConflict, oldPath, newPath)
+			}
+			if err := removeEmpty(oldPath, apply); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("%w: %s and %s", ErrConflict, oldPath, newPath)
+		}
+		if apply {
+			if err := mergeStep(); err != nil {
+				return err
+			}
+			if err := renameNoReplace(newPath, oldPath); err != nil {
+				return fmt.Errorf("move %s into %s: %w", newPath, p.Old, err)
+			}
+		}
+	}
+	if apply {
+		syncDir(p.New)
+		syncDir(p.Old)
+	}
+	return nil
+}
+
+// mergeDirInto moves the entries of the directory src into the directory dst
+// (see mergeNewEntries); src is left empty.
+func mergeDirInto(src, dst string, apply bool) error {
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		from := filepath.Join(src, entry.Name())
+		to := filepath.Join(dst, entry.Name())
+		fromInfo, err := os.Lstat(from)
+		if err != nil {
+			return err
+		}
+		toInfo, err := os.Lstat(to)
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			if apply {
+				if err := mergeStep(); err != nil {
+					return err
+				}
+				if err := renameNoReplace(from, to); err != nil {
+					return fmt.Errorf("move %s to %s: %w", from, to, err)
+				}
+			}
+		case err != nil:
+			return err
+		case isRealDir(fromInfo) && isRealDir(toInfo):
+			if err := mergeDirInto(from, to, apply); err != nil {
+				return err
+			}
+			if err := removeEmpty(from, apply); err != nil {
+				return err
+			}
+		case isRealDir(fromInfo):
+			if empty, _ := dirEmpty(from); !empty {
+				return fmt.Errorf("%w: %s and %s", ErrConflict, from, to)
+			}
+			if err := removeEmpty(from, apply); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("%w: %s and %s", ErrConflict, from, to)
+		}
+	}
+	if apply {
+		syncDir(dst)
+	}
+	return nil
+}
+
+func removeEmpty(path string, apply bool) error {
+	if !apply {
+		return nil
+	}
+	if err := mergeStep(); err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+func isRealDir(info os.FileInfo) bool { return info.IsDir() && info.Mode()&os.ModeSymlink == 0 }
 
 // renameWithLink moves the directory at p.Old to p.New and leaves p.Old as a
 // link. With RENAME_EXCHANGE the old name is never missing: it turns into the
@@ -306,8 +497,10 @@ func renameWithLink(p Pair, staging string) error {
 		syncDir(filepath.Dir(p.New))
 		return nil
 	case errors.Is(err, errExchangeUnsupported):
-		_ = os.Remove(staging)
+		// The staging link stays until the old name links: a crash after the
+		// rename leaves it as the mark of a move to finish.
 		if err := os.Rename(p.Old, p.New); err != nil {
+			_ = os.Remove(staging)
 			return fmt.Errorf("move %s to %s: %w", p.Old, p.New, err)
 		}
 		syncDir(filepath.Dir(p.New))
@@ -417,4 +610,16 @@ func (p Pair) ToNew(path string) string {
 		return path
 	}
 	return p.New + strings.TrimPrefix(filepath.Clean(path), p.Old)
+}
+
+// renameIfAbsent is renameNoReplace for file systems without it: the check
+// and the rename run under the parent lock, which every component of this
+// package takes.
+func renameIfAbsent(a, b string) error {
+	if _, err := os.Lstat(b); err == nil {
+		return os.ErrExist
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return os.Rename(a, b)
 }

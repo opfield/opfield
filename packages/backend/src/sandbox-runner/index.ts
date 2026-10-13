@@ -60,7 +60,33 @@ import {
 } from './workspace-policy.js';
 
 const logger = createChildLogger('SandboxRunner');
-const SOCKET_PATH = process.env.SANDBOX_RUNNER_SOCKET || '/tmp/gateway-sandbox-runner.sock';
+
+/** Labels of sandbox containers: `net.opfield.sandbox` and `net.opfield.sandbox.<name>`. */
+const SANDBOX_LABEL = 'net.opfield.sandbox';
+// legacy-name: gateway.sandbox* labels of sandbox containers created before 2.12.1 (they expire with their job) —
+// remove once no installation runs one
+const LEGACY_SANDBOX_LABEL = 'gateway.sandbox';
+
+function sandboxLabelKey(name: string | null, prefix = SANDBOX_LABEL): string {
+  return name ? `${prefix}.${name}` : prefix;
+}
+
+/** A sandbox label's value: the Opfield key, else the earlier one. */
+function sandboxLabel(labels: Record<string, string> | undefined, name: string): string | undefined {
+  return labels?.[sandboxLabelKey(name)] ?? labels?.[sandboxLabelKey(name, LEGACY_SANDBOX_LABEL)];
+}
+
+/** Sandbox containers whose label `name` (null: the marker) equals value, under either label family. */
+async function listSandboxContainers(name: string | null, value: string) {
+  const lists = await Promise.all(
+    [SANDBOX_LABEL, LEGACY_SANDBOX_LABEL].map((prefix) =>
+      docker.listContainersByLabel(`${sandboxLabelKey(name, prefix)}=${value}`)
+    )
+  );
+  const seen = new Set<string>();
+  return lists.flat().filter((container) => !seen.has(container.Id) && seen.add(container.Id));
+}
+const SOCKET_PATH = process.env.SANDBOX_RUNNER_SOCKET || '/tmp/opfield-sandbox-runner.sock';
 const DOCKER_SOCKET = process.env.SANDBOX_DOCKER_SOCKET || '/var/run/docker.sock';
 const OUTPUT_LIMIT_BYTES = 256 * 1024;
 const STDIN_LIMIT_BYTES = 64 * 1024;
@@ -256,16 +282,16 @@ function sandboxLabels(
   workspaceDir: string
 ): Record<string, string> {
   return {
-    'gateway.sandbox': 'true',
-    'gateway.sandbox.user_id': policy.userId,
-    'gateway.sandbox.conversation_id': policy.conversationId ?? '',
-    'gateway.sandbox.job_id': policy.jobId,
-    'gateway.sandbox.kind': policy.kind,
-    'gateway.sandbox.tier': policy.tier,
-    'gateway.sandbox.required_scopes': policy.requiredScopes.join(','),
-    'gateway.sandbox.expires_at': expiresAt.toISOString(),
-    'gateway.sandbox.workspace_dir': workspaceDir,
-    'gateway.sandbox.workspace_reservation_bytes': String(policy.workspaceBytes),
+    [sandboxLabelKey(null)]: 'true',
+    [sandboxLabelKey('user_id')]: policy.userId,
+    [sandboxLabelKey('conversation_id')]: policy.conversationId ?? '',
+    [sandboxLabelKey('job_id')]: policy.jobId,
+    [sandboxLabelKey('kind')]: policy.kind,
+    [sandboxLabelKey('tier')]: policy.tier,
+    [sandboxLabelKey('required_scopes')]: policy.requiredScopes.join(','),
+    [sandboxLabelKey('expires_at')]: expiresAt.toISOString(),
+    [sandboxLabelKey('workspace_dir')]: workspaceDir,
+    [sandboxLabelKey('workspace_reservation_bytes')]: String(policy.workspaceBytes),
   };
 }
 
@@ -343,7 +369,7 @@ async function removeContainerAndWorkspace(containerId: string): Promise<boolean
   let workspaceDir = workspaceDirs.get(containerId);
   if (!workspaceDir) {
     const inspect = (await docker.inspectContainer(containerId).catch(() => null)) as any;
-    const label = inspect?.Config?.Labels?.['gateway.sandbox.workspace_dir'];
+    const label = sandboxLabel(inspect?.Config?.Labels, 'workspace_dir');
     workspaceDir = typeof label === 'string' ? label : undefined;
   }
   if (!(await cleanupWorkspaceDir(workspaceDir))) return false;
@@ -357,7 +383,7 @@ async function workspaceDirForProcess(processId: string): Promise<string> {
   const mapped = workspaceDirs.get(processId);
   if (mapped) return mapped;
   const inspect = (await docker.inspectContainer(processId)) as any;
-  const workspaceDir = inspect?.Config?.Labels?.['gateway.sandbox.workspace_dir'];
+  const workspaceDir = sandboxLabel(inspect?.Config?.Labels, 'workspace_dir');
   if (typeof workspaceDir !== 'string' || !workspaceDir) {
     throw new Error('sandbox workspace is not available for this process; restart the sandbox process');
   }
@@ -378,10 +404,10 @@ async function workspaceReservationForProcess(processId: string): Promise<number
 }
 
 function workspaceReservationFromLabels(labels: Record<string, string> | undefined): number {
-  const raw = labels?.['gateway.sandbox.workspace_reservation_bytes'];
+  const raw = sandboxLabel(labels, 'workspace_reservation_bytes');
   const reservation = typeof raw === 'string' ? Number(raw) : 0;
   if (Number.isSafeInteger(reservation) && reservation > 0) return reservation;
-  return LEGACY_WORKSPACE_RESERVATION_BYTES[labels?.['gateway.sandbox.tier'] ?? ''] ?? 0;
+  return LEGACY_WORKSPACE_RESERVATION_BYTES[sandboxLabel(labels, 'tier') ?? ''] ?? 0;
 }
 
 async function workspaceUsageForProcess(processId: string): Promise<number> {
@@ -417,22 +443,22 @@ async function getWorkspaceUsage(params: SandboxRunnerProcessParams): Promise<Sa
 async function findJobContainer(
   params: SandboxRunnerFindJobContainerParams
 ): Promise<SandboxRunnerFindJobContainerResult> {
-  const containers = await docker.listContainersByLabel(`gateway.sandbox.job_id=${params.jobId}`);
+  const containers = await listSandboxContainers('job_id', params.jobId);
   const container = containers[0];
   return {
     jobId: params.jobId,
     containerId: container?.Id ?? null,
-    expiresAt: container?.Labels?.['gateway.sandbox.expires_at'] ?? null,
+    expiresAt: sandboxLabel(container?.Labels, 'expires_at') ?? null,
   };
 }
 
 async function activeWorkspaceReservationBytes(): Promise<number> {
-  const containers = await docker.listContainersByLabel('gateway.sandbox=true');
+  const containers = await listSandboxContainers(null, 'true');
   let remainingBytes = 0;
   for (const container of containers) {
     const labels = container.Labels;
     const reservationBytes = workspaceReservationFromLabels(labels);
-    const workspaceDir = labels?.['gateway.sandbox.workspace_dir'];
+    const workspaceDir = sandboxLabel(labels, 'workspace_dir');
     const usageBytes =
       typeof workspaceDir === 'string'
         ? await measureWorkspaceUsageBytes(workspaceDir).catch((error) => {
@@ -925,7 +951,7 @@ async function sendArtifact(params: SandboxRunnerSendArtifactParams): Promise<Sa
   }
   const filename = sanitizeArtifactFilename(params.filename ?? path.posix.basename(result.path));
   const mediaType = params.mediaType ?? 'application/octet-stream';
-  const tempFilePath = path.join(os.tmpdir(), `gateway-sandbox-artifact-${randomUUID()}`);
+  const tempFilePath = path.join(os.tmpdir(), `opfield-sandbox-artifact-${randomUUID()}`);
   await fs.writeFile(tempFilePath, result.bytes, { mode: 0o600 });
   return {
     processId: params.processId,
@@ -985,11 +1011,11 @@ async function killProcess(params: SandboxRunnerProcessParams): Promise<SandboxR
 }
 
 async function revokeUserSandboxAccess(params: SandboxRunnerRevokeUserParams): Promise<{ revoked: number }> {
-  const containers = await docker.listContainersByLabel('gateway.sandbox=true');
+  const containers = await listSandboxContainers(null, 'true');
   let revoked = 0;
   for (const container of containers) {
-    if (container.Labels?.['gateway.sandbox.user_id'] !== params.userId) continue;
-    const required = (container.Labels?.['gateway.sandbox.required_scopes'] ?? '').split(',').filter(Boolean);
+    if (sandboxLabel(container.Labels, 'user_id') !== params.userId) continue;
+    const required = (sandboxLabel(container.Labels, 'required_scopes') ?? '').split(',').filter(Boolean);
     const stillAllowed = required.every((scope) => params.currentScopes.includes(scope));
     if (stillAllowed) continue;
     await killContainerIfRunning(container.Id).catch(() => {});
@@ -1001,12 +1027,12 @@ async function revokeUserSandboxAccess(params: SandboxRunnerRevokeUserParams): P
 }
 
 async function reconcileSandboxContainers(): Promise<{ removed: number }> {
-  const containers = await docker.listContainersByLabel('gateway.sandbox=true');
+  const containers = await listSandboxContainers(null, 'true');
   const now = Date.now();
   let removed = 0;
 
   for (const container of containers) {
-    const expiresAt = container.Labels?.['gateway.sandbox.expires_at'];
+    const expiresAt = sandboxLabel(container.Labels, 'expires_at');
     const expired = !expiresAt || Date.parse(expiresAt) <= now;
     const terminal = container.State === 'exited' || container.State === 'dead';
     if (!expiresAt) {

@@ -207,6 +207,10 @@ message HealthReport {
   // config, ...). Absent when there are none. A later release drops the reads
   // of the old names once every node reports none.
   map<string, uint32> legacy_names = 44;
+  // Docker daemons of 2.12.1 and later: the build of the running Availability
+  // lease watchdog as its heartbeat names it (vX.Y.Z or vX.Y.Z-rc.N); empty
+  // when no watchdog runs on the node.
+  string lease_watchdog_version = 45;
   // Nginx daemons advertising ingress_group_v1: what the reserved endpoint
   // /.well-known/gateway-ingress-health answers (sf-ingress range 195-199).
   IngressHealthReport ingress_health = 195;
@@ -866,6 +870,10 @@ message PagesMaterializePreviewCommand {
   // nginx_pages_preview_access_v1; older daemons would ignore it and publish the
   // preview unprotected, so the control plane never materializes there.
   PagesPreviewAccess access = 8;
+  // As in ApplyConfigCommand: the preview config is written and tested, and
+  // loaded with the reload of its batch (a reconcile of several previews).
+  // Only sent to daemons advertising pages_deferred_reload_v1.
+  bool defer_reload = 9;
 }
 
 // IP allow/deny rules and optional basic authentication for a Pages preview.
@@ -911,6 +919,9 @@ message PagesRemovePreviewCommand {
 message PagesActivateTagRouteCommand {
   string route_id = 1;
   string deployment_id = 2;
+  // As in PagesMaterializePreviewCommand.defer_reload
+  // (pages_deferred_reload_v1).
+  bool defer_reload = 3;
 }
 
 message PagesDeactivateTagRouteCommand {
@@ -1098,7 +1109,7 @@ message RelayRouteResume {
 // Desired connector egress listener for a consumer-side link. Carried with the
 // signed connect assignment so revocation also removes the local entry point.
 message SecureLinkEgress {
-  string network_name = 1;      // gateway-db-*, gateway-storage-*, gateway-link-*
+  string network_name = 1;      // opfield-db-*, opfield-storage-*, opfield-link-* (or a link's earlier name)
   string alias = 2;             // DNS alias the connector gets on that network
   uint32 listen_port = 3;
   uint32 max_sessions = 4;      // 0 = unlimited

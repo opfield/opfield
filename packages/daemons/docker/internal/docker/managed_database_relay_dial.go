@@ -78,7 +78,11 @@ func (m *managedDatabaseManager) prepareLinkConnection(ctx context.Context, conn
 		_ = connection.Close()
 		return nil, err
 	}
-	linked, err := negotiateManagedPostgresLink(ctx, connection, stream, cancel, config)
+	var plain func(context.Context) (net.Conn, error)
+	if record.PostgresLinkSocket {
+		plain = func(ctx context.Context) (net.Conn, error) { return m.dialLinkSocket(ctx, record) }
+	}
+	linked, err := negotiateManagedPostgresLink(ctx, connection, stream, cancel, config, plain)
 	if err != nil {
 		_ = connection.Close()
 		return nil, fmt.Errorf("managed PostgreSQL link: %w", err)
@@ -140,13 +144,16 @@ func (m *managedDatabaseManager) dialRecord(ctx context.Context, managedDatabase
 //   - SSLRequest: forwarded unchanged; the client negotiates TLS end to end
 //     with PostgreSQL (Opfield's verified database tools, sslmode=require).
 //   - GSSENCRequest: answered 'N' here; the client's next packet is read.
-//   - StartupMessage, CancelRequest or anything else: the daemon opens TLS to
-//     PostgreSQL itself and forwards the packet through it.
+//   - StartupMessage, CancelRequest or anything else: the daemon forwards
+//     the packet over the database's link socket when plain dials one (the
+//     connection is then a plain socket a daemon update hands over), else it
+//     opens TLS to PostgreSQL itself over connection and forwards the packet
+//     through it.
 //
 // Only a packet whose length field is 8 can be a negotiation request, so the
 // remaining bytes of any other packet are never waited for. On error the
 // caller closes connection; the relay stream is cancelled on client timeout.
-func negotiateManagedPostgresLink(ctx context.Context, connection net.Conn, stream relayFrameStream, cancel context.CancelFunc, config *tls.Config) (net.Conn, error) {
+func negotiateManagedPostgresLink(ctx context.Context, connection net.Conn, stream relayFrameStream, cancel context.CancelFunc, config *tls.Config, plain func(context.Context) (net.Conn, error)) (net.Conn, error) {
 	reader := &relayStreamReader{stream: stream}
 	clientTimer := time.AfterFunc(managedPostgresLinkClientTimeout, cancel)
 	opening, clientTLS, err := readManagedPostgresLinkOpening(reader, stream)
@@ -157,7 +164,19 @@ func negotiateManagedPostgresLink(ctx context.Context, connection net.Conn, stre
 		return nil, err
 	}
 	target := connection
-	if !clientTLS {
+	if !clientTLS && plain != nil {
+		dialCtx, stop := context.WithTimeout(ctx, managedPostgresLinkServerTimeout)
+		socket, err := plain(dialCtx)
+		stop()
+		if err == nil {
+			// The TCP connection to the bridge address is not needed.
+			_ = connection.Close()
+			target = socket
+		}
+		// Otherwise (the engine is not listening there yet, an older
+		// container): TLS over the bridge, as before.
+	}
+	if !clientTLS && target == connection {
 		secured, tlsErr := startManagedPostgresTLS(ctx, connection, config)
 		if tlsErr != nil {
 			return nil, tlsErr
@@ -166,6 +185,9 @@ func negotiateManagedPostgresLink(ctx context.Context, connection net.Conn, stre
 	}
 	_ = target.SetDeadline(time.Now().Add(managedPostgresLinkServerTimeout))
 	if err := writeDatabaseTunnelBytes(target, append(opening, reader.pending...)); err != nil {
+		if target != connection {
+			_ = target.Close()
+		}
 		return nil, fmt.Errorf("forward PostgreSQL startup packet: %w", err)
 	}
 	_ = target.SetDeadline(time.Time{})

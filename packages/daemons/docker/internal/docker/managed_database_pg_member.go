@@ -411,8 +411,13 @@ const maxPGExecOutput = 1 << 20
 // pgExecOutput runs a fixed command in the container as postgres and returns
 // its stdout.
 func (m *managedDatabaseManager) pgExecOutput(ctx context.Context, containerID string, command []string, stdin string) (string, error) {
+	return m.pgExecOutputEnv(ctx, containerID, command, stdin, nil)
+}
+
+// pgExecOutputEnv is pgExecOutput with env added to the command's environment.
+func (m *managedDatabaseManager) pgExecOutputEnv(ctx context.Context, containerID string, command []string, stdin string, env []string) (string, error) {
 	created, err := m.client.cli.ExecCreate(ctx, containerID, mobyclient.ExecCreateOptions{
-		Cmd: command, AttachStdin: stdin != "", AttachStdout: true, AttachStderr: true, User: "postgres",
+		Cmd: command, AttachStdin: stdin != "", AttachStdout: true, AttachStderr: true, User: "postgres", Env: env,
 	})
 	if err != nil {
 		return "", fmt.Errorf("managed database engine command could not start: %w", err)

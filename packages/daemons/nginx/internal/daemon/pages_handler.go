@@ -98,7 +98,7 @@ func (h *Handler) handlePagesMaterializePreview(cmd *pb.PagesMaterializePreviewC
 	if h.pagesUnavailable(result) {
 		return
 	}
-	options := pages.PreviewFallback{SPAFallback: cmd.SpaFallback, URL: cmd.FallbackUrl, Access: pagesPreviewAccess(cmd.Access)}
+	options := pages.PreviewFallback{SPAFallback: cmd.SpaFallback, URL: cmd.FallbackUrl, Access: pagesPreviewAccess(cmd.Access), DeferReload: cmd.DeferReload}
 	if err := h.pagesRuntime.MaterializePreview(cmd.ProfileId, cmd.DeploymentId, cmd.Hostname, cmd.CertificateId, cmd.CertificateVersion, options); err != nil {
 		h.pagesCommandError(result, "preview materialization", err)
 	}
@@ -142,7 +142,7 @@ func (h *Handler) handlePagesActivateTagRoute(cmd *pb.PagesActivateTagRouteComma
 	if h.pagesUnavailable(result) {
 		return
 	}
-	if err := h.pagesRuntime.ActivateTagRoute(cmd.RouteId, cmd.DeploymentId); err != nil {
+	if err := h.pagesRuntime.ActivateTagRouteDeferred(cmd.RouteId, cmd.DeploymentId, cmd.DeferReload); err != nil {
 		h.pagesCommandError(result, "tag route activation", err)
 		return
 	}

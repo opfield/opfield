@@ -46,6 +46,9 @@ RESTORE_FILE=""
 RESTORE_PUBLIC_URL=""
 RESTORE_GRPC_TARGET=""
 RESTORE_VERSION=""
+# --version: an exact Opfield release for a fresh install, release candidates included. Without it the newest stable
+# release is installed.
+PIN_VERSION="${OPFIELD_INSTALL_VERSION:-}"
 CONSOLE_DOMAIN=""
 ACME_EMAIL=""
 UPDATE_SIGNING_PUBLIC_KEY='-----BEGIN PUBLIC KEY-----
@@ -117,12 +120,42 @@ download_release_artifact() {
 }
 
 fetch_release() {
-  local component="$1" current_version="${2:-}" url
+  local component="$1" current_version="${2:-}" channel="${3:-}" url
   url="${RELEASES_API_URL}?component=${component}"
   if [[ -n "$current_version" ]]; then
     url="${url}&current=${current_version}"
   fi
+  if [[ -n "$channel" ]]; then
+    url="${url}&channel=${channel}"
+  fi
   curl -fsSL "$url" 2>>"$LOG_FILE"
+}
+
+# The relay release a pinned Opfield release (--version) installs with: the relay of that very release when it has
+# one (a relay is released only when it changes), else the newest relay of its minor line, release candidates
+# included for a release candidate. The relay manifest's minimum Opfield version still has to accept the release.
+pinned_relay_tag() {
+  local version="$1" line channel relay_json probe tag
+  probe="$(mktemp)"
+  if download_release_artifact relay "${version}-relay" relay-image.update.json "$probe"; then
+    rm -f "$probe"
+    printf '%s\n' "${version}-relay"
+    return 0
+  fi
+  rm -f "$probe"
+  line="$(printf '%s' "${version#v}" | cut -d. -f1-2)"
+  channel=stable
+  [[ "$version" != *-rc.* ]] || channel=preview
+  relay_json="$(fetch_release relay "v${line}.0-rc.0" "$channel")" || return 1
+  tag="$(
+    printf '%s' "$relay_json" |
+      grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"[^"]+"' |
+      sed -E 's/^.*"([^"]+)"$/\1/' |
+      grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?-relay$' |
+      head -n1 || true
+  )"
+  # The resolver answers with the next minor line when this one has no relay release: that one does not belong here.
+  [[ "${tag#v}" != "${line}."* ]] || printf '%s\n' "$tag"
 }
 
 # Whether a terminal can really be opened: under cloud-init or cron /dev/tty exists and passes -r/-w but has no
@@ -706,7 +739,13 @@ prepare_install_metadata() {
   fi
 
   local release_json relay_json relay_tag relay_version current_opfield_version current_relay_version
-  if [[ -n "$RESTORE_FILE" ]]; then
+  if [[ -n "$PIN_VERSION" ]]; then
+    # An exact release, only for a fresh install: updates of an installation go through Opfield itself.
+    [[ "$FRESH" == 1 ]] || die "--version installs a fresh Opfield only; ${INSTALL_DIR} has an installation already"
+    VERSION="$PIN_VERSION"
+    info "Version: ${VERSION} (--version)"
+    verify_signed_release "$VERSION"
+  elif [[ -n "$RESTORE_FILE" ]]; then
     # An export restores into the exact Opfield version that made it.
     [[ "$RESTORE_VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] ||
       die "This export was made by a development build (${RESTORE_VERSION}); restore it with --source-dir and the same source"
@@ -742,18 +781,22 @@ prepare_install_metadata() {
   fi
   current_relay_version="$(setting_value RELAY_BUILD_VERSION)"
   if [[ "$FRESH" == 1 || -z "$(setting_value RELAY_IMAGE_REF)" || -z "$current_relay_version" ]]; then
-    relay_json="$(fetch_release relay "$current_relay_version")" || die "Unable to query Relay releases"
-    if [[ -z "$relay_json" && -n "$current_relay_version" ]]; then
-      relay_tag="${current_relay_version}-relay"
+    if [[ -n "$PIN_VERSION" ]]; then
+      relay_tag="$(pinned_relay_tag "$VERSION")" || die "Unable to query Relay releases"
     else
-      relay_tag="$(
-        printf '%s' "$relay_json" |
-          grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"[^"]+"' |
-          sed -E 's/^.*"([^"]+)"$/\1/' |
-          grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+-relay$' |
-          sort -V |
-          tail -n1 || true
-      )"
+      relay_json="$(fetch_release relay "$current_relay_version")" || die "Unable to query Relay releases"
+      if [[ -z "$relay_json" && -n "$current_relay_version" ]]; then
+        relay_tag="${current_relay_version}-relay"
+      else
+        relay_tag="$(
+          printf '%s' "$relay_json" |
+            grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"[^"]+"' |
+            sed -E 's/^.*"([^"]+)"$/\1/' |
+            grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+-relay$' |
+            sort -V |
+            tail -n1 || true
+        )"
+      fi
     fi
     [[ -n "$relay_tag" ]] || die "The release API did not return an eligible Relay release"
     relay_version="${relay_tag%-relay}"
@@ -952,7 +995,7 @@ run_host_move() {
   if [[ "$state" != running && "$state" != restarting ]]; then
     "${DOCKER[@]}" rm -f "$HOST_MOVE_CONTAINER" >>"$LOG_FILE" 2>&1 || true
     run_quiet "Host move start" "${DOCKER[@]}" run -d --name "$HOST_MOVE_CONTAINER" \
-      --label net.opfield.role=opfield-host-move --restart unless-stopped --network none \
+      --label net.opfield.role=opfield-host-move --restart unless-stopped --network none --no-healthcheck \
       -v /var/run/docker.sock:/var/run/docker.sock -v "${parent}:${parent}" \
       -v /var/lib/opfield/sandbox-workspaces:/var/lib/opfield/sandbox-workspaces \
       "$IMAGE_REF" node dist/cli/host-move.js --dir "$INSTALL_DIR" --project "$project" --network "$network" --retry
@@ -979,7 +1022,7 @@ run_host_move() {
 usage() {
   cat <<'EOF'
 Usage: install.sh [--install-dir PATH] [--image IMAGE] [--source-dir PATH] [--http|--https]
-                  [--domain FQDN --acme-email EMAIL] [--dry-run]
+                  [--domain FQDN --acme-email EMAIL] [--version VERSION] [--dry-run]
        install.sh --restore FILE [--public-url URL] [--grpc-target HOST:PORT] [--install-dir PATH]
 
 Installs or updates Opfield in /opt/opfield (or --install-dir). An update
@@ -1002,6 +1045,13 @@ Until FQDN points at this host the console on 443 uses the System CA
 certificate. The public URL becomes https://FQDN. --acme-email is the
 Let's Encrypt account contact and is required with --domain.
 
+--version VERSION installs exactly that Opfield release (for example
+v2.12.1 or a release candidate such as v2.12.1-rc.5) on a fresh host, with the
+relay of that release (or the newest relay of its line). Off by default:
+without it the installer takes the newest stable release. Release candidates
+are for testing; an installation updates from there through Opfield. Also
+read from OPFIELD_INSTALL_VERSION.
+
 --source-dir builds the Opfield image from a local source checkout on this
 host. It is intended for a fresh test installation and skips remote release
 discovery and image pulls.
@@ -1020,6 +1070,7 @@ while (($#)); do
     --https) TRANSPORT="https"; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --restore) RESTORE_FILE="${2:?missing export file}"; shift 2 ;;
+    --version) PIN_VERSION="${2:?missing version}"; shift 2 ;;
     --public-url) RESTORE_PUBLIC_URL="${2:?missing URL}"; shift 2 ;;
     --grpc-target) RESTORE_GRPC_TARGET="${2:?missing host:port}"; shift 2 ;;
     --domain) CONSOLE_DOMAIN="${2:?missing domain}"; shift 2 ;;
@@ -1029,6 +1080,13 @@ while (($#)); do
   esac
 done
 validate_console_options
+if [[ -n "$PIN_VERSION" ]]; then
+  [[ "$PIN_VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] ||
+    die "--version takes a release such as v2.12.1 or v2.12.1-rc.5, not ${PIN_VERSION}"
+  PIN_VERSION="v${PIN_VERSION#v}"
+  [[ -z "$RESTORE_FILE" ]] || die "--version and --restore cannot be combined: a restore installs the version that made the export"
+  [[ -z "$SOURCE_DIR" ]] || die "--version and --source-dir cannot be combined: a source build has its own version"
+fi
 
 # Without --install-dir: /opt/opfield, or an installation made before 2.12.1 that has not moved yet.
 INSTALL_DIR_DEFAULTED=0

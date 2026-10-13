@@ -628,9 +628,11 @@ func (m *managedDatabaseManager) create(ctx context.Context, id string, input ma
 	}
 	record := m.newRecord(id, input)
 	// The instance's container outlived its record: its image holds the data.
-	if containerID, err := m.ownedDatabaseContainer(ctx, id); err != nil {
+	if containerID, prefix, err := m.ownedDatabaseContainer(ctx, id); err != nil {
 		return managedDatabaseRecord{}, err
 	} else if containerID != "" {
+		// The instance keeps the names it has.
+		record.ContainerName, record.NetworkName = prefix+id, prefix+id+"-net"
 		return m.adoptLostRecord(ctx, record, containerID, input)
 	}
 	release, err := m.reserveCapacity(input.StorageSizeBytes)

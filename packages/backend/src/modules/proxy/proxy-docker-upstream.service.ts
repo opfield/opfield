@@ -378,7 +378,7 @@ export class ProxyDockerUpstreamService {
   /**
    * The logical source of an Availability container: its original node and name, which the Availability ingress
    * projection uses to find the policy. After a failover the original is stopped (or its node is offline) while a
-   * replica serves elsewhere, so neither is required here; a reference to a replica's runtime name (gwav-…) maps to
+   * replica serves elsewhere, so neither is required here; a reference to a replica's runtime name (opfav-…) maps to
    * the workload too, so the Route follows the next failover. Null for a container without Availability.
    */
   private async resolveAvailabilityContainer(

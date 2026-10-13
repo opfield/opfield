@@ -60,6 +60,7 @@ type watchdogBootstrap struct {
 	rename          func(from, to string) error
 	remove          func(path string) error
 	run             func(ctx context.Context, name string, args ...string) error
+	runOutput       func(ctx context.Context, name string, args ...string) (string, error)
 	wait            func(ctx context.Context, d time.Duration) bool
 	onPresent       func()
 
@@ -96,6 +97,7 @@ func newWatchdogBootstrap(logger *slog.Logger, heartbeatFresh func() bool, relea
 		run: func(ctx context.Context, name string, args ...string) error {
 			return exec.CommandContext(ctx, name, args...).Run()
 		},
+		runOutput: runCommandOutput,
 		wait: func(ctx context.Context, d time.Duration) bool {
 			select {
 			case <-ctx.Done():
@@ -285,6 +287,11 @@ func (b *watchdogBootstrap) installService(ctx context.Context) error {
 		}
 		if err := b.run(ctx, "rc-update", "add", leasewatchdog.UnitName, "default"); err != nil {
 			return fmt.Errorf("rc-update: %w", err)
+		}
+		// The dependency cache must know the script at the next boot (OpenRC
+		// compares mtimes in whole seconds).
+		if err := b.run(ctx, "rc-update", "-u"); err != nil {
+			return fmt.Errorf("rc-update -u: %w", err)
 		}
 		if err := b.run(ctx, "rc-service", leasewatchdog.UnitName, "start"); err != nil {
 			return fmt.Errorf("rc-service: %w", err)

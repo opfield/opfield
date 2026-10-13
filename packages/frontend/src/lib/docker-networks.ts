@@ -1,15 +1,27 @@
-/** A storage link network (`gateway-storage-<16 hex>`) or a managed storage cluster network. */
-const OPFIELD_STORAGE_NETWORK =
-  /^gateway-storage-(?:[0-9a-f]{16}|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/;
+/**
+ * Opfield's own Docker network names (mirrors the backend's docker-object-names.ts). Networks created before 2.12.1
+ * keep their earlier names.
+ */
+// legacy-name: gateway-* networks of links created before 2.12.1 — remove once every node reports none
+const NETWORK_FAMILY = "(?:opfield|gateway)";
 
-/** A container link network (`gateway-link-<16 hex>`). */
-const OPFIELD_LINK_NETWORK = /^gateway-link-[0-9a-f]{16}$/;
+/** A storage link network (`opfield-storage-<16 hex>`) or a managed storage cluster network. */
+const OPFIELD_STORAGE_NETWORK = new RegExp(
+  `^${NETWORK_FAMILY}-storage-(?:[0-9a-f]{16}|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$`
+);
+
+/** A container link network (`opfield-link-<16 hex>`). */
+const OPFIELD_LINK_NETWORK = new RegExp(`^${NETWORK_FAMILY}-link-[0-9a-f]{16}$`);
+
+/** The Secure Links management network and managed database link networks. */
+const OPFIELD_SECURE_LINK_NETWORK = new RegExp(`^${NETWORK_FAMILY}-secure-links$`);
+const OPFIELD_DATABASE_NETWORK = new RegExp(`^${NETWORK_FAMILY}-db-`);
 
 /** Mirrors the backend: Secure Links, managed database, managed storage and container link networks. */
 export function isOpfieldManagedDockerNetwork(name: string) {
   return (
-    name === "gateway-secure-links" ||
-    name.startsWith("gateway-db-") ||
+    OPFIELD_SECURE_LINK_NETWORK.test(name) ||
+    OPFIELD_DATABASE_NETWORK.test(name) ||
     OPFIELD_STORAGE_NETWORK.test(name) ||
     OPFIELD_LINK_NETWORK.test(name)
   );

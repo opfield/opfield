@@ -4,12 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 
 	mobyclient "github.com/moby/moby/client"
 )
-
-var storageBindingNetworkNamePattern = regexp.MustCompile(`^gateway-storage-(?:[0-9a-f]{16}|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$`)
 
 func storageBindingAlias(bindingID string) string {
 	compact := ""

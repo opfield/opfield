@@ -92,7 +92,7 @@ func main() {
 	d, err := lifecycle.NewDaemonBase(&cfg.BaseConfig, configPath, plugin, logger)
 	if err != nil {
 		logger.Error("failed to initialize daemon", "error", err)
-		os.Exit(1)
+		os.Exit(lifecycle.DaemonExitCode(err))
 	}
 	lifecycle.MigrateControlConfigKeyOnConfirmedStart(&cfg.BaseConfig, configPath, logger)
 	lifecycle.NotifyLauncherLocalReadyAwaitingControl(Version)

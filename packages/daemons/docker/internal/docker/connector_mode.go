@@ -218,8 +218,8 @@ func (p *DockerPlugin) reconcileStorageConnectorGroups(ctx context.Context) {
 // runningSecureLinkConnectorImage is the image of a running Secure Link
 // connector, for the cleanup of a node without storage connectors.
 func (p *DockerPlugin) runningSecureLinkConnectorImage(ctx context.Context) string {
-	for _, slot := range secureLinkConnectorSlots {
-		inspected, err := p.client.cli.ContainerInspect(ctx, slot.name, mobyclient.ContainerInspectOptions{})
+	for _, name := range secureLinkConnectorSlotNames(p.secureLinkNames(ctx)) {
+		inspected, err := p.client.cli.ContainerInspect(ctx, name, mobyclient.ContainerInspectOptions{})
 		if err == nil && inspected.Container.State != nil && inspected.Container.State.Running && inspected.Container.Config != nil {
 			return inspected.Container.Config.Image
 		}
@@ -242,7 +242,7 @@ func storageConnectorConfigOf(inspect container.InspectResponse) (ContainerCreat
 		Labels:           inspect.Config.Labels,
 		Binds:            inspect.HostConfig.Binds,
 	}
-	bindingID := strings.TrimPrefix(config.Name, "gateway-storage-connector-")
+	bindingID, _ := storageConnectorBindingID(config.Name)
 	for name, endpoint := range inspect.NetworkSettings.Networks {
 		config.NetworkMode = name
 		if endpoint != nil {

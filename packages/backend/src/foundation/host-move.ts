@@ -5,11 +5,13 @@ import { COMMERCIAL_HOST_DIR, LEGACY_COMMERCIAL_HOST_DIR } from '@/edition/prepa
 import { toOpfieldLayout } from './opfield-layout.js';
 import {
   databaseIdentity,
+  FOUNDATION_BACKUPS_DIR,
   isOpfieldComposeLayout,
   isSafeDatabaseIdentifier,
   LEGACY_CLICKHOUSE_ALIAS,
   LEGACY_DATABASE,
   LEGACY_DATABASE_ROLE,
+  LEGACY_FOUNDATION_BACKUPS_DIR,
   LEGACY_INSTALL_DIR_NAME,
   LEGACY_LOGS_DATABASE,
   LEGACY_MANAGED_CLICKHOUSE_LABEL,
@@ -163,6 +165,8 @@ export interface HostMoveHost {
   symlink(target: string, file: string): Promise<void>;
   unlink(file: string): Promise<void>;
   mkdir(dir: string, mode?: number): Promise<void>;
+  /** Names in a directory; empty when it does not exist. */
+  listDir(dir: string): Promise<string[]>;
   removeTree(dir: string): Promise<void>;
   /** Docker Compose in the project directory; throws when it fails. */
   compose(target: { project: string; dir: string; file: string; envFile?: string }, args: string[]): Promise<void>;
@@ -826,6 +830,43 @@ async function moveDirectory(host: HostMoveHost, state: HostMoveState): Promise<
     const current = path.join(plan.newDir, COMMERCIAL_HOST_DIR);
     if ((await host.exists(legacy)) && !(await host.exists(current))) await host.rename(legacy, current);
   }
+  await foldLegacyBackups(host, plan.newDir);
+}
+
+/**
+ * Moves the backups that updates before 2.12.1 kept under the earlier name (LEGACY_FOUNDATION_BACKUPS_DIR) into
+ * FOUNDATION_BACKUPS_DIR, one entry at a time with a rename, so a crash leaves every backup in one of the two and the
+ * next run finishes it. The backups stay in the Opfield directory if the move goes back: the app of this release reads
+ * only that one. An entry whose name the Opfield directory has already gets a suffix; the earlier directory goes once
+ * it is empty.
+ */
+async function foldLegacyBackups(host: HostMoveHost, dir: string): Promise<void> {
+  // legacy-name: `.gateway-foundation-backups` of updates before 2.12.1 — remove once every installation reports the
+  // Opfield layout.
+  const legacy = path.join(dir, LEGACY_FOUNDATION_BACKUPS_DIR);
+  const current = path.join(dir, FOUNDATION_BACKUPS_DIR);
+  if (!(await host.exists(legacy)) || (await host.isSymlink(legacy))) return;
+  if (!(await host.exists(current))) {
+    await host.rename(legacy, current);
+    return;
+  }
+  let kept = 0;
+  for (const name of await host.listDir(legacy)) {
+    const target = [path.join(current, name), path.join(current, `${name}.earlier`)];
+    const free = (await host.exists(target[0] as string))
+      ? (await host.exists(target[1] as string))
+        ? null
+        : target[1]
+      : target[0];
+    if (!free) {
+      kept += 1;
+      continue;
+    }
+    await host.rename(path.join(legacy, name), free);
+  }
+  if (kept === 0 && (await host.listDir(legacy)).length === 0) await host.removeTree(legacy);
+  else if (kept > 0)
+    host.log('warn', 'Some earlier backups keep their directory: their names are taken', { legacy, kept });
 }
 
 async function writeOpfieldFiles(host: HostMoveHost, state: HostMoveState): Promise<void> {
@@ -833,7 +874,8 @@ async function writeOpfieldFiles(host: HostMoveHost, state: HostMoveState): Prom
   const staging = path.join(dir, HOST_MOVE_DIR);
   const compose = await host.readFile(path.join(staging, STAGED_COMPOSE));
   const env = await host.readFile(path.join(staging, STAGED_ENV));
-  await host.writeFile(path.join(dir, 'docker-compose.yml'), compose, 0o644);
+  // Root only, as the installer writes both: they carry the installation's secrets.
+  await host.writeFile(path.join(dir, 'docker-compose.yml'), compose, 0o600);
   await host.writeFile(path.join(dir, '.env'), env, 0o600);
   const sandbox = /^SANDBOX_RUNNER_WORKSPACE_DIR=(\/.+)$/m.exec(env)?.[1];
   if (sandbox) await host.mkdir(sandbox, 0o700);
@@ -946,7 +988,7 @@ async function restoreLegacyFiles(host: HostMoveHost, state: HostMoveState): Pro
   await host.writeFile(
     path.join(dir, 'docker-compose.yml'),
     await host.readFile(path.join(legacy, 'docker-compose.yml')),
-    0o644
+    0o600
   );
   await host.writeFile(path.join(dir, '.env'), await host.readFile(path.join(legacy, '.env')), 0o600);
 }

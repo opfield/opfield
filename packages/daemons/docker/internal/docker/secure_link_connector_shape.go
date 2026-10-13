@@ -41,7 +41,7 @@ func secureLinkConnectorMemory() int64 {
 
 // secureLinkConnectorEnv is the environment of the connector in slot.
 func secureLinkConnectorEnv(slot int) []string {
-	socket := secureLinkConnectorMount + "/" + secureLinkConnectorSlots[slot].socket
+	socket := secureLinkConnectorMount + "/" + secureLinkConnectorSockets[slot]
 	return []string{secureLinkConnectorSocketVar + "=" + socket, legacySecureLinkConnectorSocketVar + "=" + socket}
 }
 
@@ -85,7 +85,7 @@ func validSecureLinkConnectorEnv(values []string, binds []string, slot int) bool
 	if len(binds) == 1 && strings.HasSuffix(binds[0], ":"+secureLinkConnectorMount) {
 		mount = secureLinkConnectorMount
 	}
-	socket := mount + "/" + secureLinkConnectorSlots[slot].socket
+	socket := mount + "/" + secureLinkConnectorSockets[slot]
 	current := secureLinkConnectorSocketVar + "=" + socket
 	legacy := legacySecureLinkConnectorSocketVar + "=" + socket
 	seenCurrent, seenLegacy, seenPath := false, false, false

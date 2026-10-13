@@ -188,10 +188,16 @@ func (m *Migrator) retireLegacyService() error {
 				return err
 			}
 			m.logger().Info("removed the pre-Opfield relay supervisor service", "service", LegacyServiceName)
+			if err := m.Services.Reload(); err != nil {
+				return err
+			}
 		}
 		if content, err := os.ReadFile(script); err == nil {
 			if stripped := l.withoutOpenRCGuard(string(content)); stripped != string(content) {
 				if err := writeIfChanged(script, stripped, 0o755); err != nil {
+					return err
+				}
+				if err := m.Services.Reload(); err != nil {
 					return err
 				}
 			}

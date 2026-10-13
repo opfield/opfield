@@ -1186,6 +1186,10 @@ type HealthReport struct {
 	// config, ...). Absent when there are none. A later release drops the reads
 	// of the old names once every node reports none.
 	LegacyNames map[string]uint32 `protobuf:"bytes,44,rep,name=legacy_names,json=legacyNames,proto3" json:"legacy_names,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	// Docker daemons of 2.12.1 and later: the build of the running Availability
+	// lease watchdog as its heartbeat names it (vX.Y.Z or vX.Y.Z-rc.N); empty
+	// when no watchdog runs on the node.
+	LeaseWatchdogVersion string `protobuf:"bytes,45,opt,name=lease_watchdog_version,json=leaseWatchdogVersion,proto3" json:"lease_watchdog_version,omitempty"`
 	// Nginx daemons advertising ingress_group_v1: what the reserved endpoint
 	// /.well-known/gateway-ingress-health answers (sf-ingress range 195-199).
 	IngressHealth *IngressHealthReport `protobuf:"bytes,195,opt,name=ingress_health,json=ingressHealth,proto3" json:"ingress_health,omitempty"`
@@ -1517,6 +1521,13 @@ func (x *HealthReport) GetLegacyNames() map[string]uint32 {
 		return x.LegacyNames
 	}
 	return nil
+}
+
+func (x *HealthReport) GetLeaseWatchdogVersion() string {
+	if x != nil {
+		return x.LeaseWatchdogVersion
+	}
+	return ""
 }
 
 func (x *HealthReport) GetIngressHealth() *IngressHealthReport {
@@ -6244,7 +6255,11 @@ type PagesMaterializePreviewCommand struct {
 	// every location of the preview. Only sent to daemons advertising
 	// nginx_pages_preview_access_v1; older daemons would ignore it and publish the
 	// preview unprotected, so the control plane never materializes there.
-	Access        *PagesPreviewAccess `protobuf:"bytes,8,opt,name=access,proto3" json:"access,omitempty"`
+	Access *PagesPreviewAccess `protobuf:"bytes,8,opt,name=access,proto3" json:"access,omitempty"`
+	// As in ApplyConfigCommand: the preview config is written and tested, and
+	// loaded with the reload of its batch (a reconcile of several previews).
+	// Only sent to daemons advertising pages_deferred_reload_v1.
+	DeferReload   bool `protobuf:"varint,9,opt,name=defer_reload,json=deferReload,proto3" json:"defer_reload,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6333,6 +6348,13 @@ func (x *PagesMaterializePreviewCommand) GetAccess() *PagesPreviewAccess {
 		return x.Access
 	}
 	return nil
+}
+
+func (x *PagesMaterializePreviewCommand) GetDeferReload() bool {
+	if x != nil {
+		return x.DeferReload
+	}
+	return false
 }
 
 // IP allow/deny rules and optional basic authentication for a Pages preview.
@@ -6592,9 +6614,12 @@ func (x *PagesRemovePreviewCommand) GetHostname() string {
 // Opfield validates its fixed /pages/routes/<route UUID>.inc suffix before
 // placing it in a generated host config.
 type PagesActivateTagRouteCommand struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RouteId       string                 `protobuf:"bytes,1,opt,name=route_id,json=routeId,proto3" json:"route_id,omitempty"`
-	DeploymentId  string                 `protobuf:"bytes,2,opt,name=deployment_id,json=deploymentId,proto3" json:"deployment_id,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	RouteId      string                 `protobuf:"bytes,1,opt,name=route_id,json=routeId,proto3" json:"route_id,omitempty"`
+	DeploymentId string                 `protobuf:"bytes,2,opt,name=deployment_id,json=deploymentId,proto3" json:"deployment_id,omitempty"`
+	// As in PagesMaterializePreviewCommand.defer_reload
+	// (pages_deferred_reload_v1).
+	DeferReload   bool `protobuf:"varint,3,opt,name=defer_reload,json=deferReload,proto3" json:"defer_reload,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6641,6 +6666,13 @@ func (x *PagesActivateTagRouteCommand) GetDeploymentId() string {
 		return x.DeploymentId
 	}
 	return ""
+}
+
+func (x *PagesActivateTagRouteCommand) GetDeferReload() bool {
+	if x != nil {
+		return x.DeferReload
+	}
+	return false
 }
 
 type PagesDeactivateTagRouteCommand struct {
@@ -7848,7 +7880,7 @@ func (x *RelayRouteResume) GetPrevKey() []byte {
 // signed connect assignment so revocation also removes the local entry point.
 type SecureLinkEgress struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
-	NetworkName     string                 `protobuf:"bytes,1,opt,name=network_name,json=networkName,proto3" json:"network_name,omitempty"` // gateway-db-*, gateway-storage-*, gateway-link-*
+	NetworkName     string                 `protobuf:"bytes,1,opt,name=network_name,json=networkName,proto3" json:"network_name,omitempty"` // opfield-db-*, opfield-storage-*, opfield-link-* (or a link's earlier name)
 	Alias           string                 `protobuf:"bytes,2,opt,name=alias,proto3" json:"alias,omitempty"`                                // DNS alias the connector gets on that network
 	ListenPort      uint32                 `protobuf:"varint,3,opt,name=listen_port,json=listenPort,proto3" json:"listen_port,omitempty"`
 	MaxSessions     uint32                 `protobuf:"varint,4,opt,name=max_sessions,json=maxSessions,proto3" json:"max_sessions,omitempty"` // 0 = unlimited
@@ -15334,7 +15366,7 @@ const file_opfield_v1_nginx_daemon_proto_rawDesc = "" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x03 \x01(\tR\x05error\x12\x16\n" +
 	"\x06detail\x18\x04 \x01(\tR\x06detail\x12\x12\n" +
-	"\x04data\x18\x05 \x01(\fR\x04data\"\xab\x12\n" +
+	"\x04data\x18\x05 \x01(\fR\x04data\"\xe1\x12\n" +
 	"\fHealthReport\x12#\n" +
 	"\rnginx_running\x18\x01 \x01(\bR\fnginxRunning\x12!\n" +
 	"\fconfig_valid\x18\x02 \x01(\bR\vconfigValid\x120\n" +
@@ -15381,7 +15413,8 @@ const file_opfield_v1_nginx_daemon_proto_rawDesc = "" +
 	"\rrelay_streams\x18) \x01(\v2\x1c.opfield.v1.RelayStreamStatsR\frelayStreams\x12R\n" +
 	"\x12update_connections\x18* \x01(\v2#.opfield.v1.DaemonUpdateConnectionsR\x11updateConnections\x122\n" +
 	"\x15nginx_service_problem\x18+ \x01(\tR\x13nginxServiceProblem\x12L\n" +
-	"\flegacy_names\x18, \x03(\v2).opfield.v1.HealthReport.LegacyNamesEntryR\vlegacyNames\x12G\n" +
+	"\flegacy_names\x18, \x03(\v2).opfield.v1.HealthReport.LegacyNamesEntryR\vlegacyNames\x124\n" +
+	"\x16lease_watchdog_version\x18- \x01(\tR\x14leaseWatchdogVersion\x12G\n" +
 	"\x0eingress_health\x18\xc3\x01 \x01(\v2\x1f.opfield.v1.IngressHealthReportR\ringressHealth\x12X\n" +
 	"\x14availability_members\x18\xc4\x01 \x03(\v2$.opfield.v1.AvailabilityMemberReportR\x13availabilityMembers\x1a>\n" +
 	"\x10LegacyNamesEntry\x12\x10\n" +
@@ -15797,7 +15830,7 @@ const file_opfield_v1_nginx_daemon_proto_rawDesc = "" +
 	"\rdeployment_id\x18\x02 \x01(\tR\fdeploymentId\"X\n" +
 	"\x19PagesVerifyReleaseCommand\x12#\n" +
 	"\rdeployment_id\x18\x01 \x01(\tR\fdeploymentId\x12\x16\n" +
-	"\x06sha256\x18\x02 \x01(\tR\x06sha256\"\xd6\x02\n" +
+	"\x06sha256\x18\x02 \x01(\tR\x06sha256\"\xf9\x02\n" +
 	"\x1ePagesMaterializePreviewCommand\x12\x1d\n" +
 	"\n" +
 	"profile_id\x18\x01 \x01(\tR\tprofileId\x12#\n" +
@@ -15807,7 +15840,8 @@ const file_opfield_v1_nginx_daemon_proto_rawDesc = "" +
 	"\x13certificate_version\x18\x05 \x01(\tR\x12certificateVersion\x12!\n" +
 	"\fspa_fallback\x18\x06 \x01(\bR\vspaFallback\x12!\n" +
 	"\ffallback_url\x18\a \x01(\tR\vfallbackUrl\x126\n" +
-	"\x06access\x18\b \x01(\v2\x1e.opfield.v1.PagesPreviewAccessR\x06access\"\xa3\x01\n" +
+	"\x06access\x18\b \x01(\v2\x1e.opfield.v1.PagesPreviewAccessR\x06access\x12!\n" +
+	"\fdefer_reload\x18\t \x01(\bR\vdeferReload\"\xa3\x01\n" +
 	"\x12PagesPreviewAccess\x12$\n" +
 	"\x0eaccess_list_id\x18\x01 \x01(\tR\faccessListId\x129\n" +
 	"\bip_rules\x18\x02 \x03(\v2\x1e.opfield.v1.PagesPreviewIpRuleR\aipRules\x12,\n" +
@@ -15823,10 +15857,11 @@ const file_opfield_v1_nginx_daemon_proto_rawDesc = "" +
 	"\aversion\x18\x05 \x01(\tR\aversion\x12-\n" +
 	"\x12replica_generation\x18\x06 \x01(\tR\x11replicaGeneration\"7\n" +
 	"\x19PagesRemovePreviewCommand\x12\x1a\n" +
-	"\bhostname\x18\x01 \x01(\tR\bhostname\"^\n" +
+	"\bhostname\x18\x01 \x01(\tR\bhostname\"\x81\x01\n" +
 	"\x1cPagesActivateTagRouteCommand\x12\x19\n" +
 	"\broute_id\x18\x01 \x01(\tR\arouteId\x12#\n" +
-	"\rdeployment_id\x18\x02 \x01(\tR\fdeploymentId\";\n" +
+	"\rdeployment_id\x18\x02 \x01(\tR\fdeploymentId\x12!\n" +
+	"\fdefer_reload\x18\x03 \x01(\bR\vdeferReload\";\n" +
 	"\x1ePagesDeactivateTagRouteCommand\x12\x19\n" +
 	"\broute_id\x18\x01 \x01(\tR\arouteId\"D\n" +
 	"\x1dPagesCleanupDeploymentCommand\x12#\n" +

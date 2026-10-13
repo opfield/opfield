@@ -652,10 +652,13 @@ func (m *managedStorageManager) create(ctx context.Context, id string, input man
 		return managedStorageRecord{}, err
 	}
 	// The member's container outlived its record: its image holds the data.
-	if containerID, err := m.ownedMemberContainer(ctx, id, input.MemberIndex); err != nil {
+	if containerID, prefix, err := m.ownedMemberContainer(ctx, id, input.MemberIndex); err != nil {
 		return managedStorageRecord{}, err
 	} else if containerID != "" {
-		return m.adoptLostRecord(ctx, m.newRecord(id, input, ""), containerID, input)
+		// The instance keeps the names it has.
+		record := m.newRecord(id, input, "")
+		record.ContainerName, record.NetworkName = fmt.Sprintf("%s%s-%d", prefix, id, input.MemberIndex), prefix+id
+		return m.adoptLostRecord(ctx, record, containerID, input)
 	}
 	release, err := m.reserveCapacity(input.Resources.StorageBytes)
 	if err != nil {

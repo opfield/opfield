@@ -706,6 +706,13 @@ prune_older_backups() {
 has_systemd() { command_exists systemctl && [[ -d /run/systemd/system ]]; }
 has_openrc() { command_exists rc-service && command_exists rc-update; }
 
+# OpenRC caches service dependencies (/run/openrc/deptree) and checks the cache against the init scripts' mtimes in
+# whole seconds: a script written in the second the cache was built (by a service started moments before) is missing
+# from it at the next boot, and its service does not start. Rebuilt after every init script the installer writes.
+openrc_refresh_deptree() {
+    rc-update -u >> "$LOG_FILE" 2>&1 || warn "Could not refresh the OpenRC dependency cache; run: rc-update -u"
+}
+
 # ── Non-root mode (standard profile) ─────────────────────────────────
 # A root daemon keeps its binary in /usr/local/bin. A daemon running as its own user must be able to replace its binary
 # when it updates itself, so the binary lives in a directory that user owns and /usr/local/bin holds a root-owned wrapper.
@@ -719,6 +726,23 @@ SHARED_HOST_IDENTITY_DIR="/var/lib/opfield"
 # legacy-name: /var/lib/gateway shared host identity directory of daemons before 2.12.1 — remove once every node
 # reports none
 LEGACY_SHARED_HOST_IDENTITY_DIR="/var/lib/gateway"
+# Whether this host ran daemons under the pre-Opfield names before this run, read before the installer changes anything.
+# Only such a host gets old names as links next to directories created under the new ones; a fresh host gets none.
+# legacy-name: pre-Opfield daemon names on this host — remove once every node reports none
+DOCKER_HOST_HAD_LEGACY_NAMES=0
+if [[ -e "$LEGACY_SHARED_HOST_IDENTITY_DIR" || -L "$LEGACY_SHARED_HOST_IDENTITY_DIR" ]] ||
+    [[ -e /etc/systemd/system/gateway-lease-watchdog.service || -e /etc/init.d/gateway-lease-watchdog ]] ||
+    [[ -e /usr/local/bin/gateway-lease-watchdog ]] ||
+    grep -qs '^gateway:' /etc/docker-daemon/config.yaml /etc/nginx-daemon/config.yaml /etc/monitoring-daemon/config.yaml; then
+    DOCKER_HOST_HAD_LEGACY_NAMES=1
+fi
+# Whether this node ran a Build Worker under the pre-Opfield names (any of its old directories exists).
+# legacy-name: gateway-builder directories — remove once every node reports none
+DOCKER_HAD_LEGACY_BUILDER=0
+for legacy_builder_dir in /etc/gateway-builder /usr/local/lib/gateway-builder "$LEGACY_BUILDER_RUNTIME_ROOT" /run/gateway-builder; do
+    [[ ! -e "$legacy_builder_dir" && ! -L "$legacy_builder_dir" ]] || DOCKER_HAD_LEGACY_BUILDER=1
+done
+unset legacy_builder_dir
 # Docker trusts the daemon's registry proxy through this directory; root creates it on demand.
 DOCKER_REGISTRY_PROXY_TRUST_DIR="/etc/docker/certs.d/127.0.0.1:5443"
 
@@ -971,9 +995,11 @@ shared_host_identity_path() {
     echo "$current"
 }
 
-# A shared identity directory created at /var/lib/opfield gets /var/lib/gateway as a link to it, the layout the daemons
-# leave after they move the directory, so a daemon of an earlier release on this host finds the same identity.
+# On a host that ran daemons under the pre-Opfield names, a shared identity directory created at /var/lib/opfield gets
+# /var/lib/gateway as a link to it, the layout the daemons leave after they move the directory, so a daemon of an
+# earlier release on this host finds the same identity. A fresh host gets no old name.
 link_legacy_host_identity_dir() {
+    [[ "$DOCKER_HOST_HAD_LEGACY_NAMES" -eq 1 ]] || return 0
     [[ -d "$SHARED_HOST_IDENTITY_DIR" && ! -L "$SHARED_HOST_IDENTITY_DIR" ]] || return 0
     [[ ! -e "$LEGACY_SHARED_HOST_IDENTITY_DIR" && ! -L "$LEGACY_SHARED_HOST_IDENTITY_DIR" ]] || return 0
     ln -s "$(basename "$SHARED_HOST_IDENTITY_DIR")" "$LEGACY_SHARED_HOST_IDENTITY_DIR" 2>/dev/null || true
@@ -2434,14 +2460,15 @@ builder_dir() {
     fi
 }
 
-# Makes a Build Worker directory exist. One created under the Opfield name gets the pre-Opfield name as a link to it, the
-# layout the daemon leaves after its move, so a daemon of an earlier release (a pinned --version) finds it too.
+# Makes a Build Worker directory exist. On a node that had a pre-Opfield Build Worker, one created under the Opfield name
+# gets the pre-Opfield name as a link to it, the layout the daemon leaves after its move, so a daemon of an earlier
+# release finds it too. A fresh node gets no old name.
 ensure_builder_dir() {
     local current="$1" legacy="$2" mode="$3" dir
     dir=$(builder_dir "$current" "$legacy")
     mkdir -p "$dir"
     chmod "$mode" "$dir"
-    if [[ "$dir" == "$current" && ! -e "$legacy" && ! -L "$legacy" ]]; then
+    if [[ "$DOCKER_HAD_LEGACY_BUILDER" -eq 1 && "$dir" == "$current" && ! -e "$legacy" && ! -L "$legacy" ]]; then
         ln -s "$(basename "$current")" "$legacy" 2>/dev/null || true
     fi
 }
@@ -3096,6 +3123,7 @@ start_pre() {
 }
 UNIT
     chmod +x "/etc/init.d/${LEASE_WATCHDOG_UNIT}"
+    openrc_refresh_deptree
 }
 
 # Called once the Opfield service is written and enabled: stops the pre-Opfield service and removes it, so the Opfield
@@ -3122,6 +3150,7 @@ retire_legacy_lease_watchdog() {
         rm -f "$script"
         # What rc-update del removes; it cannot once the service script is gone.
         rm -f /etc/runlevels/*/"${LEGACY_LEASE_WATCHDOG_UNIT}"
+        openrc_refresh_deptree
     fi
 }
 
@@ -3259,6 +3288,7 @@ start_pre() {
 UNIT
         chmod +x /etc/init.d/docker-daemon || die "Could not make the docker-daemon OpenRC service executable."
         rc-update add docker-daemon default >> "$LOG_FILE" 2>&1 || die "Could not enable docker-daemon in OpenRC."
+        openrc_refresh_deptree
         forget_control_session
         if ! rc-service docker-daemon restart >> "$LOG_FILE" 2>&1 && ! rc-service docker-daemon start >> "$LOG_FILE" 2>&1; then
             fail_daemon_start "Could not start docker-daemon in OpenRC."

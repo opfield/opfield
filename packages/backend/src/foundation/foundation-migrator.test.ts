@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -459,6 +459,28 @@ describe('runFoundationMigrations', () => {
     expect(await run({ driver: 'json-file', logOpts: 'set' })).toBe(0);
     expect(await run({ driver: 'journald', logOpts: null })).toBe(0);
     expect(await run(undefined)).toBe(0);
+  });
+
+  it('takes group and other permissions off docker-compose.yml and .env, also when nothing else changes', async () => {
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'gateway-foundation-migrator-test-'));
+    const compose = path.join(tempDir, 'docker-compose.yml');
+    const env = path.join(tempDir, '.env');
+    await writeFile(env, 'GATEWAY_VERSION=v2.4.2\n', { mode: 0o600 });
+    await writeFile(compose, OLD_COMPOSE, { mode: 0o600 });
+    const options = {
+      hostDir: tempDir,
+      relayImageRef: `registry/gateway/relay@sha256:${'a'.repeat(64)}`,
+      sandboxWorkspaceDir: path.join(tempDir, 'sandbox-workspaces'),
+    };
+    await runFoundationMigrations(options);
+    await chmod(compose, 0o644);
+    await chmod(env, 0o640);
+
+    const result = await runFoundationMigrations(options);
+
+    expect(result.changedFiles).toEqual([]);
+    expect((await stat(compose)).mode & 0o777).toBe(0o600);
+    expect((await stat(env)).mode & 0o777).toBe(0o600);
   });
 
   it('patches host foundation files and writes backups only when files change', async () => {

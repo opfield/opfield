@@ -2853,6 +2853,32 @@
       ]
     },
     {
+      "id": "GW-08",
+      "area": "installer",
+      "title": "An exact Opfield release, a release candidate included, installed on a fresh host",
+      "where": "stand",
+      "os": [
+        "debian"
+      ],
+      "covers": [
+        "install.sh --version",
+        "install.sh $OPFIELD_INSTALL_VERSION"
+      ],
+      "preconditions": [
+        "A clean host with Docker Engine and Compose v2, curl and openssl; <candidate> published as a release candidate."
+      ],
+      "steps": [
+        "install.sh --version <candidate> --https.",
+        "Run install.sh --version <candidate> again on the installed host.",
+        "On another clean host: OPFIELD_INSTALL_VERSION=<candidate> install.sh."
+      ],
+      "expect": [
+        "The installer installs exactly <candidate> with the relay of that release (or the newest of its line); without --version it installs the newest stable release.",
+        "The second run refuses: --version installs a fresh Opfield only.",
+        "The environment variable works like the option."
+      ]
+    },
+    {
       "id": "GW-07",
       "area": "installer",
       "title": "Opfield console on its own domain with a Let's Encrypt certificate",

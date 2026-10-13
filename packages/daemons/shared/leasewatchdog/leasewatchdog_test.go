@@ -128,3 +128,23 @@ func TestNextTagTakesOnlyNewerReleasesOfTheChannel(t *testing.T) {
 		}
 	}
 }
+
+func TestOlderComparesReleases(t *testing.T) {
+	for _, tc := range []struct {
+		watchdog, daemon string
+		older            bool
+	}{
+		{"v2.12.0", "v2.12.1-rc.3", true},
+		{"v2.12.1-rc.3", "v2.12.1-rc.3", false},
+		{"v2.12.1-rc.3-watchdog", "v2.12.1", true},
+		{"v2.12.1", "v2.12.1-rc.4", false},
+		{"v2.12.2", "v2.12.1", false},
+		{"dev", "v2.12.1", false},
+		{"", "v2.12.1", false},
+		{"v2.12.0", "dev", false},
+	} {
+		if got := Older(tc.watchdog, tc.daemon); got != tc.older {
+			t.Errorf("Older(%q, %q) = %v, want %v", tc.watchdog, tc.daemon, got, tc.older)
+		}
+	}
+}

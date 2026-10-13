@@ -16,8 +16,9 @@ import (
 // newRecord is the record a create of one member writes once its container
 // serves.
 func (m *managedStorageManager) newRecord(id string, input managedStorageCommand, image string) managedStorageRecord {
+	prefix := newManagedStorageNamePrefix()
 	record := managedStorageRecord{
-		ID: id, Engine: input.Engine, ContainerName: fmt.Sprintf("gateway-storage-%s-%d", id, input.MemberIndex), NetworkName: "gateway-storage-" + id,
+		ID: id, Engine: input.Engine, ContainerName: fmt.Sprintf("%s%s-%d", prefix, id, input.MemberIndex), NetworkName: prefix + id,
 		ImagePath: filepath.Join(m.root, "storage", "images", fmt.Sprintf("%s-%d.img", id, input.MemberIndex)), MountPath: filepath.Join(m.root, "storage", "mounts", fmt.Sprintf("%s-%d", id, input.MemberIndex)),
 		StorageBytes: input.Resources.StorageBytes, NanoCPUs: input.Resources.NanoCPUs, MemoryBytes: input.Resources.MemoryBytes,
 		MemorySwapBytes: input.Resources.MemorySwapBytes, Image: image, MemberIndex: input.MemberIndex, MemberCount: max(1, len(input.Members)), PublishS3: input.PublishS3,
@@ -39,8 +40,9 @@ func (m *managedStorageManager) newRecord(id string, input managedStorageCommand
 }
 
 // ownedMemberContainer finds the container of one member of a managed
-// storage id by its owner labels. Empty when the node has none.
-func (m *managedStorageManager) ownedMemberContainer(ctx context.Context, id string, member int) (string, error) {
+// storage id by its owner labels, with the name prefix it carries. Empty when
+// the node has none.
+func (m *managedStorageManager) ownedMemberContainer(ctx context.Context, id string, member int) (string, string, error) {
 	listed, err := m.client.cli.ContainerList(ctx, mobyclient.ContainerListOptions{
 		All: true,
 		Filters: mobyclient.Filters{}.
@@ -48,19 +50,23 @@ func (m *managedStorageManager) ownedMemberContainer(ctx context.Context, id str
 			Add("label", managedStorageMemberLabel+"="+strconv.Itoa(member)),
 	})
 	if err != nil {
-		return "", fmt.Errorf("list managed storage containers: %w", err)
+		return "", "", fmt.Errorf("list managed storage containers: %w", err)
 	}
 	if len(listed.Items) == 0 {
-		return "", nil
+		return "", "", nil
 	}
-	if len(listed.Items) == 1 && slices.Contains(listed.Items[0].Names, fmt.Sprintf("/gateway-storage-%s-%d", id, member)) {
-		return listed.Items[0].ID, nil
+	if len(listed.Items) == 1 {
+		for _, prefix := range managedStorageNamePrefixes {
+			if slices.Contains(listed.Items[0].Names, fmt.Sprintf("/%s%s-%d", prefix, id, member)) {
+				return listed.Items[0].ID, prefix, nil
+			}
+		}
 	}
 	names := []string{}
 	for _, item := range listed.Items {
 		names = append(names, item.Names...)
 	}
-	return "", fmt.Errorf("the node has %d containers of this managed storage member (%v) and no record of it; keep the one that serves its data and remove the others", len(listed.Items), names)
+	return "", "", fmt.Errorf("the node has %d containers of this managed storage member (%v) and no record of it; keep the one that serves its data and remove the others", len(listed.Items), names)
 }
 
 // missingRecordDetail answers an inspect of an id the node holds no record
@@ -150,7 +156,9 @@ func (m *managedStorageManager) removeLostRecord(ctx context.Context, id string,
 	if len(listed.Items) > 0 {
 		m.logger.Info("removed the containers of a managed storage the node holds no record of", "id", id, "containers", len(listed.Items))
 	}
-	_, _ = m.client.cli.NetworkRemove(ctx, "gateway-storage-"+id, mobyclient.NetworkRemoveOptions{})
+	for _, prefix := range managedStorageNamePrefixes {
+		_, _ = m.client.cli.NetworkRemove(ctx, prefix+id, mobyclient.NetworkRemoveOptions{})
+	}
 	for _, dir := range []string{"images", "mounts"} {
 		names, err := filepath.Glob(filepath.Join(m.root, "storage", dir, id+"-*"))
 		if err != nil {

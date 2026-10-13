@@ -395,7 +395,7 @@ func managedDatabaseHostListenerConfigFromAssignment(assignment *pb.RelayGrantAs
 	if !managedDatabaseIDPattern.MatchString(assignment.GetOwnerId()) {
 		return managedDatabaseHostListenerConfig{}, errors.New("managed database listener binding id is invalid")
 	}
-	if listener == nil || !strings.HasPrefix(listener.GetNetworkName(), "gateway-db-") {
+	if listener == nil || !isDatabaseLinkNetworkName(listener.GetNetworkName()) {
 		return managedDatabaseHostListenerConfig{}, errors.New("managed database listener network is invalid")
 	}
 	address, err := netip.ParseAddr(listener.GetListenAddress())

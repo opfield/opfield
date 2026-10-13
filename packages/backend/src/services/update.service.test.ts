@@ -503,7 +503,7 @@ describe('UpdateService foundation migration', () => {
     );
     expect(sidecarCommand).toContain('chmod 600 "$OPFIELD_DB_DUMP"');
     expect(sidecarCommand).toContain(
-      'for old_dump in /srv/gateway/.opfield-foundation-backups/pre-update-*/opfield-db.dump /srv/gateway/.gateway-foundation-backups/pre-update-*/gateway-db.dump; do'
+      'for old_dump in /srv/gateway/.opfield-foundation-backups/pre-update-*/opfield-db.dump /srv/gateway/.opfield-foundation-backups/pre-update-*/gateway-db.dump /srv/gateway/.gateway-foundation-backups/pre-update-*/gateway-db.dump; do'
     );
     // The rollback restores the snapshot once postgres is ready, before the previous app starts.
     const rollbackBody = sidecarCommand.slice(

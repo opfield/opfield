@@ -99,6 +99,11 @@ export interface DockerAvailabilityPlacementResult {
 export interface DockerAvailabilityAdapterContext {
   policyId: string;
   placementId: string;
+  /**
+   * Prefix of the placement's runtime names on a node other than its workload's (docker_availability_placements
+   * .runtime_name_prefix): `opfav`, or `gwav` for a placement created before 2.12.1, which keeps it.
+   */
+  runtimeNamePrefix: string;
   operationId: string;
   leaseOwner?: string;
   nodeId: string;

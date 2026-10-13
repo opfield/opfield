@@ -1,37 +1,35 @@
-/**
- * The network a storage link's connector shares with its one workload on a
- * Docker node (`gateway-storage-<16 hex>`, see managed-storage-bindings), or a
- * managed storage cluster network (`gateway-storage-<cluster uuid>`). Mirrors
- * the daemon's storageBindingNetworkNamePattern.
- */
-const OPFIELD_STORAGE_NETWORK =
-  /^gateway-storage-(?:[0-9a-f]{16}|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/;
-
-/** A container link network (`gateway-link-<16 hex>`): the consumer and the shared connector, nothing else. */
-const OPFIELD_LINK_NETWORK = /^gateway-link-[0-9a-f]{16}$/;
+import {
+  CONTAINER_LINK_NETWORK_PATTERN,
+  isContainerLinkNetworkName,
+  isManagedDatabaseLinkNetworkName,
+  isManagedStorageNetworkName,
+  isSecureLinkManagementNetwork,
+  MANAGED_STORAGE_NETWORK_PATTERN,
+} from './docker-object-names.js';
 
 /**
  * Networks Opfield owns on a Docker node. Users can neither list, connect,
  * disconnect nor remove them, and a user container cannot be created on one:
  * the Secure Links management network, managed database link networks
- * (`gateway-db-*`), managed storage networks and container link networks. The link services attach
- * their workloads through the daemon directly.
+ * (`opfield-db-*`), managed storage networks (`opfield-storage-<16 hex>` of a storage link, the cluster id of a
+ * managed storage cluster) and container link networks (`opfield-link-<16 hex>`); objects created before 2.12.1 keep
+ * their earlier names (docker-object-names.ts). The link services attach their workloads through the daemon directly.
  */
 export function isOpfieldManagedDockerNetwork(name: string) {
   return (
-    name === 'gateway-secure-links' ||
-    name.startsWith('gateway-db-') ||
-    OPFIELD_STORAGE_NETWORK.test(name) ||
-    OPFIELD_LINK_NETWORK.test(name)
+    isSecureLinkManagementNetwork(name) ||
+    isManagedDatabaseLinkNetworkName(name) ||
+    MANAGED_STORAGE_NETWORK_PATTERN.test(name) ||
+    CONTAINER_LINK_NETWORK_PATTERN.test(name)
   );
 }
 
 /** Names users may not give a network they create: every Opfield-managed name, now or later. */
 export function isReservedOpfieldNetworkName(name: string) {
   return (
-    name === 'gateway-secure-links' ||
-    name.startsWith('gateway-db-') ||
-    name.startsWith('gateway-storage-') ||
-    name.startsWith('gateway-link-')
+    isSecureLinkManagementNetwork(name) ||
+    isManagedDatabaseLinkNetworkName(name) ||
+    isManagedStorageNetworkName(name) ||
+    isContainerLinkNetworkName(name)
   );
 }

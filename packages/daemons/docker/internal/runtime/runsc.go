@@ -475,7 +475,11 @@ func installedRunscVersion(ctx context.Context, path string) (string, bool) {
 
 func detectDockerService(ctx context.Context) (string, error) {
 	if _, err := exec.LookPath("systemctl"); err != nil {
-		return "", errors.New("systemd Docker service reload is not available on this host")
+		manager := "a service manager other than systemd"
+		if _, openrcErr := exec.LookPath("rc-service"); openrcErr == nil {
+			manager = "OpenRC"
+		}
+		return "", fmt.Errorf("Secure Runtime needs Docker run by systemd; this host runs Docker under %s", manager)
 	}
 	for _, service := range []string{"docker.service", "snap.docker.dockerd.service"} {
 		if exec.CommandContext(ctx, "systemctl", "cat", service).Run() == nil {

@@ -783,7 +783,7 @@ func (h *kvSetHost) DialServer(ctx context.Context) (net.Conn, error) {
 	if inspect.Container.NetworkSettings == nil {
 		return nil, errors.New("the Valkey member has no network")
 	}
-	endpoint := inspect.Container.NetworkSettings.Networks[setMeshNetworkName(h.initial.SetID)]
+	endpoint := setMeshEndpoint(inspect.Container.NetworkSettings.Networks, h.initial.SetID)
 	if endpoint == nil || !endpoint.IPAddress.IsValid() {
 		return nil, errors.New("the Valkey member is not on its set's network")
 	}

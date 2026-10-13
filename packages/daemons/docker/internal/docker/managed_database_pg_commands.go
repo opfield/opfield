@@ -323,7 +323,7 @@ func (m *managedDatabaseManager) pgEnsureOrigin(ctx context.Context, members *me
 		if err := m.waitForDatabaseReady(ctx, record.ContainerID, input.Database); err != nil {
 			return "", err
 		}
-		if err := m.ensurePGLocalRole(ctx, record, input.ControlUsername); err != nil {
+		if err := m.ensurePGLocalRole(ctx, record, input.ControlUsername, input.Database.OwnerPassword); err != nil {
 			return "", err
 		}
 		if identities := config.Engine.Identities; identities != nil {
@@ -448,10 +448,16 @@ func (m *managedDatabaseManager) applyPGMemberRecord(record *managedDatabaseReco
 
 // ensurePGLocalRole creates the node-local superuser through the unix socket
 // as the control account (pg_hba rejects it on TCP).
-func (m *managedDatabaseManager) ensurePGLocalRole(ctx context.Context, record managedDatabaseRecord, controlUsername string) error {
+// password is the control account's (the owner's): a single-node database with
+// the link socket asks for it on the socket too.
+func (m *managedDatabaseManager) ensurePGLocalRole(ctx context.Context, record managedDatabaseRecord, controlUsername, password string) error {
 	statement := fmt.Sprintf("DO $gw$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = %s) THEN CREATE ROLE %s LOGIN SUPERUSER; END IF; END $gw$",
 		pgLiteral(pgLocalRole), pgIdentifier(pgLocalRole))
-	_, err := m.pgExecOutput(ctx, record.ContainerID, []string{"psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "-h", "/var/run/postgresql", "-U", controlUsername, "-d", "postgres", "-c", statement}, "")
+	var env []string
+	if password != "" {
+		env = []string{"PGPASSWORD=" + password}
+	}
+	_, err := m.pgExecOutputEnv(ctx, record.ContainerID, []string{"psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "-h", "/var/run/postgresql", "-U", controlUsername, "-d", "postgres", "-c", statement}, "", env)
 	if err != nil {
 		return fmt.Errorf("create the node-local role: %w", err)
 	}

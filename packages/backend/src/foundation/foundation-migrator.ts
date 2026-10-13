@@ -254,6 +254,11 @@ export async function runFoundationMigrations(options: FoundationMigrationOption
     }
   }
 
+  // The installer writes both files for root only: they carry the installation's secrets. The host move of 2.12.1
+  // release candidates wrote docker-compose.yml readable for everyone; every update puts the mode back.
+  await restrictToOwner(composePath);
+  await restrictToOwner(envPath);
+
   if (path.isAbsolute(effectiveSandboxWorkspaceDir)) {
     await fs.mkdir(effectiveSandboxWorkspaceDir, { recursive: true, mode: 0o700 }).catch(() => {});
     await fs.chmod(effectiveSandboxWorkspaceDir, 0o700).catch(() => {});
@@ -1279,6 +1284,12 @@ async function restoreBackups(backupDir: string, writes: PendingFoundationWrite[
     await fs.copyFile(backupPath, write.filePath);
     await fs.chmod(write.filePath, backupStat.mode & 0o777);
   }
+}
+
+/** Takes group and other permissions off a file; the owner keeps what it has. */
+async function restrictToOwner(filePath: string): Promise<void> {
+  const stat = await fs.stat(filePath).catch(() => null);
+  if (stat && (stat.mode & 0o077) !== 0) await fs.chmod(filePath, stat.mode & 0o700);
 }
 
 export async function writeFileAtomic(filePath: string, content: string): Promise<void> {

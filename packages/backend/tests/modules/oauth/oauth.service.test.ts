@@ -179,6 +179,8 @@ describe('OAuthService.registerClient', () => {
         client_name: 'Local CLI',
       })
     ).resolves.toMatchObject({
+      // New clients get the Opfield client id prefix; clients registered before 2.12.1 keep goc_ ids.
+      client_id: expect.stringMatching(/^opfc_[A-Za-z0-9_-]{24}$/),
       redirect_uris: ['http://127.0.0.1:39231/callback', 'http://localhost:39232/callback'],
     });
   });

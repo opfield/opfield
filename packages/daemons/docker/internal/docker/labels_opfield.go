@@ -152,11 +152,15 @@ func labelsForCreate(labels map[string]string, confirmed bool) map[string]string
 	out := make(map[string]string, len(labels))
 	for key, value := range labels {
 		if next := opfieldLabelKey(key); next != "" {
-			if _, ok := labels[next]; !ok {
+			current, ok := labels[next]
+			if !ok {
 				out[next] = value
+				current = value
 			}
 			if !confirmed {
-				out[key] = value
+				// The Opfield key is the one the daemon updates (a recreate
+				// with a new image reference), so the old key gets its value.
+				out[key] = current
 			}
 			continue
 		}

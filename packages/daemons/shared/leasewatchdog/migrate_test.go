@@ -137,11 +137,44 @@ func TestMigrateFromTheLegacyOpenRCService(t *testing.T) {
 	if err != nil || !strings.Contains(string(script), `command_args="`+legacyArgs+`"`) || !strings.Contains(string(script), "start_pre()") {
 		t.Fatalf("new OpenRC service:\n%s %v", script, err)
 	}
-	if !slices.Equal(f.commands, []string{"rc-update add " + UnitName + " default"}) {
+	// The dependency cache is rebuilt after the script is written and after
+	// the old one is removed (B F-4: a cache built in the same second misses a
+	// new script at boot).
+	if !slices.Equal(f.commands, []string{"rc-update add " + UnitName + " default", "rc-update -u"}) {
 		t.Fatalf("commands %v", f.commands)
 	}
-	if len(f.detached) != 1 || !strings.Contains(f.detached[0], "rc-service "+LegacyUnitName+" stop") || !strings.Contains(f.detached[0], "rc-service "+UnitName+" start") {
+	if len(f.detached) != 1 || !strings.Contains(f.detached[0], "rc-service "+LegacyUnitName+" stop") || !strings.Contains(f.detached[0], "rc-update -u; rc-service "+UnitName+" start") {
 		t.Fatalf("detached %v", f.detached)
+	}
+	// O-7: the old binary's backup takes the Opfield name.
+	if !strings.Contains(f.detached[0], "mv -f '"+LegacyBinaryPath+".previous' '"+BinaryPath+".previous'") {
+		t.Fatalf("detached %v", f.detached)
+	}
+}
+
+// O-7: once the watchdog runs under its Opfield name, the backup of its old
+// binary gets that name, or goes when the Opfield binary has its own.
+func TestLegacyWatchdogBackupTakesTheOpfieldName(t *testing.T) {
+	f := newFakeServiceHost(t, false, true)
+	f.write(t, LegacyBinaryPath, "binary-v1")
+	f.write(t, LegacyBinaryPath+".previous", "binary-v0")
+	if _, err := MigrateLegacyService(context.Background(), f.host, f.host.path(BinaryPath), "run"); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(f.host.path(BinaryPath + ".previous")); err != nil || string(data) != "binary-v0" {
+		t.Fatalf("backup under the Opfield name: %q %v", data, err)
+	}
+	for _, path := range []string{LegacyBinaryPath, LegacyBinaryPath + ".previous"} {
+		if _, err := os.Lstat(f.host.path(path)); !os.IsNotExist(err) {
+			t.Fatalf("%s stays: %v", path, err)
+		}
+	}
+	f.write(t, LegacyBinaryPath+".previous", "binary-v0")
+	if _, err := MigrateLegacyService(context.Background(), f.host, f.host.path(BinaryPath), "run"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(f.host.path(LegacyBinaryPath + ".previous")); !os.IsNotExist(err) {
+		t.Fatalf("the old backup stays next to the Opfield one: %v", err)
 	}
 }
 

@@ -3,6 +3,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { Env } from '@/config/env.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { type NodeUpdateConnectionResult, nodes } from '@/db/schema/nodes.js';
+import { relayInstances } from '@/db/schema/relay.js';
 import { settings } from '@/db/schema/settings.js';
 import type { CommandResult } from '@/grpc/generated/types.js';
 import { createChildLogger } from '@/lib/logger.js';
@@ -367,6 +368,22 @@ export function daemonTypeForNodeType(nodeType: string): DaemonType | null {
   return NODE_TYPE_MAP[nodeType] ?? null;
 }
 
+/**
+ * The version the release resolver stages the next release of a daemon type from: the oldest version its nodes
+ * report, or, for relays, the release their pool runs. A Relay Pool update moves every relay to the pool's next
+ * release, so an old relay (one offline for a while) must not hold the whole type on its own line.
+ */
+export function daemonUpdateBaseline(
+  nodeVersions: ReadonlyArray<string | null>,
+  relayPoolVersion: string | null
+): string | undefined {
+  if (relayPoolVersion) return relayPoolVersion;
+  return nodeVersions
+    .map((version) => version ?? '')
+    .filter((version) => version !== 'dev' && version !== 'unknown' && parseSemver(version) !== null)
+    .sort(compareSemver)[0];
+}
+
 export interface DaemonRelease {
   daemonType: DaemonType;
   tagName: string;
@@ -451,18 +468,24 @@ export class DaemonUpdateService {
       const allNodes = await this.db.select().from(nodes);
       const updateChannel = (await this.generalSettings?.getConfig())?.updateChannel ?? 'stable';
 
-      // Resolve one staged target for the oldest compatible cohort of each type.
+      const relayPool = await this.relayPoolVersion();
+      // Resolve one staged target for the oldest compatible cohort of each type; relays follow their pool.
       for (const type of DAEMON_TYPES) {
         const suffix = TAG_SUFFIX_MAP[type];
-        const currentVersion = allNodes
-          .filter((node) => NODE_TYPE_MAP[node.type] === type)
-          .map((node) => node.daemonVersion ?? '')
-          .filter((version) => version !== 'dev' && version !== 'unknown' && parseSemver(version) !== null)
-          .sort(compareSemver)[0];
+        const poolVersion = type === 'relay' ? relayPool : null;
+        const currentVersion = daemonUpdateBaseline(
+          allNodes.filter((node) => NODE_TYPE_MAP[node.type] === type).map((node) => node.daemonVersion),
+          poolVersion
+        );
         const release = currentVersion
           ? await this.fetchNextRelease(DAEMON_PACKAGE_MAP[type], currentVersion, updateChannel)
           : null;
-        const latest = release ? { ...release, version: release.tag_name.replace(suffix, '') } : null;
+        const latest = release
+          ? { ...release, version: release.tag_name.replace(suffix, '') }
+          : poolVersion
+            ? // The pool runs the newest release: that is the release every relay of it gets.
+              { tag_name: `${poolVersion}${suffix}`, version: poolVersion }
+            : null;
         if (latest) {
           await this.upsertSetting(`daemon-update:${type}:latest_version`, latest.version);
           await this.upsertSetting(`daemon-update:${type}:latest_tag`, latest.tag_name);
@@ -481,6 +504,26 @@ export class DaemonUpdateService {
     }
 
     return this.getCachedStatus();
+  }
+
+  /**
+   * The release the relay pool runs, from its local relay (every Relay Pool update moves it), else the relay this app
+   * was installed with. Remote relays are updated by the Relay Pool update to that release, never one by one.
+   */
+  private async relayPoolVersion(): Promise<string | null> {
+    let version: string | null | undefined = null;
+    try {
+      const [local] = await this.db
+        .select({ buildVersion: relayInstances.buildVersion })
+        .from(relayInstances)
+        .where(and(eq(relayInstances.poolId, 'system'), eq(relayInstances.kind, 'local')))
+        .limit(1);
+      version = local?.buildVersion;
+    } catch (error) {
+      logger.debug('Could not read the relay pool release', { error });
+    }
+    version ||= this.env.OPFIELD_RELAY_BUILD_VERSION;
+    return version && RELEASE_VERSION_PATTERN.test(version) ? `v${version.replace(/^v/, '')}` : null;
   }
 
   async getCachedStatus(): Promise<DaemonUpdateStatus[]> {
@@ -549,7 +592,20 @@ export class DaemonUpdateService {
     const appVersion = RELEASE_VERSION_PATTERN.test(this.env.APP_VERSION) ? parseSemver(this.env.APP_VERSION) : null;
     if (!appVersion) return null;
     const channel = (await this.generalSettings?.getConfig())?.updateChannel ?? 'stable';
-    const key = `${daemonType}:${channel}:${appVersion.major}.${appVersion.minor}`;
+    return this.lineRelease(daemonType, appVersion.major, appVersion.minor, channel);
+  }
+
+  /**
+   * The newest daemon release of one minor line on a channel, cached like installVersion. Null when the line has no
+   * release of this daemon or the release resolver cannot be reached.
+   */
+  private async lineRelease(
+    daemonType: DaemonType,
+    major: number,
+    minor: number,
+    channel: UpdateChannel
+  ): Promise<string | null> {
+    const key = `${daemonType}:${channel}:${major}.${minor}`;
     const cached = this.installVersions.get(key);
     if (cached && cached.expiresAt > Date.now()) return cached.version;
     let version: string | null = null;
@@ -557,19 +613,73 @@ export class DaemonUpdateService {
       // rc.0 orders before every release of the line, so the resolver answers with the line's newest release.
       const release = await this.fetchNextRelease(
         DAEMON_PACKAGE_MAP[daemonType],
-        `v${appVersion.major}.${appVersion.minor}.0-rc.0`,
+        `v${major}.${minor}.0-rc.0`,
         channel,
         INSTALL_VERSION_TIMEOUT_MS
       );
       const candidate = release?.tag_name.replace(TAG_SUFFIX_MAP[daemonType], '') ?? '';
       const parsed = RELEASE_VERSION_PATTERN.test(candidate) ? parseSemver(candidate) : null;
-      if (parsed?.major === appVersion.major && parsed.minor === appVersion.minor) version = candidate;
+      if (parsed?.major === major && parsed.minor === minor) version = candidate;
     } catch (error) {
       logger.warn('Could not resolve the daemon release for new nodes', { daemonType, error });
       return null;
     }
     this.installVersions.set(key, { version, expiresAt: Date.now() + INSTALL_VERSION_TTL_MS });
     return version;
+  }
+
+  /**
+   * The relay release a new or re-enrolled relay of a pool on poolVersion installs. The pool's own release when the
+   * release feed publishes it. A pool can run a release the feed does not have (a deleted or never published build);
+   * its relay command would download nothing (404), so the relay then installs the newest published release of the
+   * pool's line, or else the relay release of Opfield's own line (installVersion), or null (the installer's own choice).
+   * When the feed cannot be reached nothing can be checked, so the pool's release stays.
+   */
+  async relayInstallVersion(poolVersion: string | null): Promise<string | null> {
+    const pool = poolVersion && RELEASE_VERSION_PATTERN.test(poolVersion) ? parseSemver(poolVersion) : null;
+    if (!pool || !poolVersion) return this.installVersion('relay');
+    const version = `v${poolVersion.replace(/^v/, '')}`;
+    const published = await this.relayReleasePublished(version);
+    if (published !== false) return version;
+    const configured = (await this.generalSettings?.getConfig())?.updateChannel ?? 'stable';
+    // A pool on a release candidate takes candidates of its line too.
+    const channel: UpdateChannel = isReleaseCandidateVersion(version) ? 'preview' : configured;
+    const line = await this.lineRelease('relay', pool.major, pool.minor, channel);
+    const replacement = line ?? (await this.installVersion('relay'));
+    logger.warn('The relay pool runs a release the release feed does not publish; new relays install another one', {
+      poolVersion: version,
+      installVersion: replacement,
+    });
+    return replacement;
+  }
+
+  /**
+   * Whether the release feed serves the relay release (its signed manifest): true or false from the feed, null when
+   * the feed cannot be reached or answers with an error of its own. Cached like installVersion.
+   */
+  private async relayReleasePublished(version: string): Promise<boolean | null> {
+    const key = `relay-published:${version}`;
+    const cached = this.installVersions.get(key);
+    if (cached && cached.expiresAt > Date.now()) return cached.version === 'yes';
+    let published: boolean;
+    try {
+      const response = await fetch(this.getManifestUrl('relay', `${version}${TAG_SUFFIX_MAP.relay}`, 'amd64'), {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(INSTALL_VERSION_TIMEOUT_MS),
+      });
+      await response.body?.cancel();
+      if (response.ok) published = true;
+      else if (response.status === 404 || response.status === 410) published = false;
+      else return null;
+    } catch (error) {
+      logger.warn('Could not check the relay release on the release feed', { version, error });
+      return null;
+    }
+    this.installVersions.set(key, {
+      version: published ? 'yes' : null,
+      expiresAt: Date.now() + INSTALL_VERSION_TTL_MS,
+    });
+    return published;
   }
 
   async isNodeUpdateInProgress(nodeId: string): Promise<boolean> {

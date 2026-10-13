@@ -474,7 +474,7 @@ func (c *Client) CreateContainer(ctx context.Context, configJSON string) (string
 // validateUserWorkloadNetworkMode rejects network modes that would share
 // another namespace or join the Secure Links management network.
 //
-// Managed database networks (gateway-db-*) are allowed: the HA adapter creates
+// Managed database networks (opfield-db-*, or their earlier names) are allowed: the HA adapter creates
 // placement and adoption containers of database-bound workloads directly on
 // them, and released control planes depend on that. The control plane rejects
 // managed networks on user create requests before they reach the daemon.
@@ -485,7 +485,7 @@ func validateUserWorkloadNetworkMode(mode string) error {
 		return errors.New("host networking is not allowed for user workloads")
 	case strings.Contains(mode, ":"):
 		return fmt.Errorf("network mode %q is not allowed for user workloads", mode)
-	case mode == secureLinkManagementNetwork:
+	case isSecureLinkManagementNetwork(mode):
 		return fmt.Errorf("Opfield-managed network %q cannot be attached to user workloads", mode)
 	}
 	return nil
@@ -854,7 +854,7 @@ func (c *Client) DuplicateContainer(ctx context.Context, id string, newName stri
 
 // isLinkNetwork reports a managed database binding, storage link or container link network.
 func isLinkNetwork(name string) bool {
-	return strings.HasPrefix(name, "gateway-db-") || storageBindingNetworkNamePattern.MatchString(name) ||
+	return isDatabaseLinkNetworkName(name) || storageBindingNetworkNamePattern.MatchString(name) ||
 		containerLinkNetworkPattern.MatchString(name)
 }
 

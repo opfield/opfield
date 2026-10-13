@@ -186,11 +186,19 @@ func installVolumeImageBootUnit(host volumeImageBootHost, executable, stateDir s
 		return retireLegacyBootUnit(host, legacyVolumeImageBootService)
 	case host.openrc:
 		path := filepath.Join(host.openrcDir, volumeImageBootService)
-		if _, err := writeFileIfChanged(path, openrcVolumeImageService(host, executable, stateDir), 0o755); err != nil {
+		changed, err := writeFileIfChanged(path, openrcVolumeImageService(host, executable, stateDir), 0o755)
+		if err != nil {
 			return err
 		}
 		if _, err := os.Lstat(filepath.Join(host.runlevels, "boot", volumeImageBootService)); err != nil {
 			if err := host.run("rc-update", "add", volumeImageBootService, "boot"); err != nil {
+				return err
+			}
+		}
+		if changed {
+			// OpenRC's dependency cache must know the script at the next boot
+			// (it compares mtimes in whole seconds).
+			if err := host.run("rc-update", "-u"); err != nil {
 				return err
 			}
 		}

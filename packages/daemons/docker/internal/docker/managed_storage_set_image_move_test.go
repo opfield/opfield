@@ -54,7 +54,7 @@ func newSWMoveFixture(t *testing.T, running string, withMaster bool) *swMoveFixt
 		if role == swha.RoleMaster && !withMaster {
 			continue
 		}
-		name := seaweedfsSetContainerName(swStorage, 0, role)
+		name := seaweedfsSetContainerName(legacyManagedStorageNamePrefix, swStorage, 0, role)
 		docker.images[name] = running
 		docker.labels[name] = map[string]string{managedStorageLabel: swStorage}
 		docker.running[name] = role != swha.RoleMaster
@@ -106,7 +106,7 @@ func TestASeaweedFSCopyMovesToThePinnedImageUnderTheHold(t *testing.T) {
 	}
 	log := f.docker.log()
 	for _, role := range seaweedfsSetRoles {
-		name := seaweedfsSetContainerName(swStorage, 0, role)
+		name := seaweedfsSetContainerName(legacyManagedStorageNamePrefix, swStorage, 0, role)
 		stop, rename, remove := indexOfCall(log, "stop "+name), indexOfCall(log, "rename "+name), indexOfCall(log, "remove "+name+"-rollback")
 		if stop < 0 || rename < stop || remove < rename {
 			t.Fatalf("%s is stopped, kept for a rollback and removed after the new one: %v", role, log)

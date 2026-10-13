@@ -531,6 +531,13 @@ supervisor_service_running() {
 }
 has_openrc() { command_exists rc-service && command_exists rc-update; }
 
+# OpenRC caches service dependencies (/run/openrc/deptree) and checks the cache against the init scripts' mtimes in
+# whole seconds: a script written in the second the cache was built (by a service started moments before) is missing
+# from it at the next boot, and its service does not start. Rebuilt after every init script the installer writes.
+openrc_refresh_deptree() {
+  rc-update -u >>"$LOG_FILE" 2>&1 || echo "Could not refresh the OpenRC dependency cache; run: rc-update -u" >&2
+}
+
 launcher_pid_from_json() {
   local metadata="$1"
   local pid
@@ -888,6 +895,7 @@ retire_legacy_relay_service() {
   if [[ -f "/etc/init.d/${LEGACY_RELAY_SERVICE}" ]]; then
     ! command_exists rc-update || rc-update del "$LEGACY_RELAY_SERVICE" default >>"$LOG_FILE" 2>&1 || true
     rm -f "/etc/init.d/${LEGACY_RELAY_SERVICE}"
+    ! command_exists rc-update || openrc_refresh_deptree
     for suffix in log err; do
       [[ -f "/var/log/${LEGACY_RELAY_SERVICE}.${suffix}" && ! -e "/var/log/${RELAY_SERVICE}.${suffix}.1" ]] \
         && mv "/var/log/${LEGACY_RELAY_SERVICE}.${suffix}" "/var/log/${RELAY_SERVICE}.${suffix}.1"
@@ -1224,6 +1232,7 @@ start_pre() {
 UNIT
     chmod +x "/etc/init.d/${RELAY_SERVICE}" && rc-update add "$RELAY_SERVICE" default >>"$LOG_FILE" 2>&1 \
       || fail_supervisor_start "Could not register the relay supervisor with OpenRC."
+    openrc_refresh_deptree
     forget_control_session
     if ! rc-service "$RELAY_SERVICE" restart >>"$LOG_FILE" 2>&1 && ! rc-service "$RELAY_SERVICE" start >>"$LOG_FILE" 2>&1; then
       fail_supervisor_start "Could not start the relay supervisor with OpenRC."

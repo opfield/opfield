@@ -202,7 +202,24 @@ func (w *nodeKeeperWitnesses) loop() {
 	}
 }
 
-func keeperWitnessName(id string) string { return "gwkw-" + id }
+// keeperWitnessName is the name of a witness's container (its network is the name with -net): the one an existing
+// container carries, else the Opfield name while new objects get it, else the earlier one.
+func (w *nodeKeeperWitnesses) keeperWitnessName(ctx context.Context, id string) (string, error) {
+	names := keeperWitnessNames(id)
+	for _, name := range names {
+		_, err := w.p.client.cli.ContainerInspect(ctx, name, mobyclient.ContainerInspectOptions{})
+		if err == nil {
+			return name, nil
+		}
+		if !isNotFoundErr(err) {
+			return "", err
+		}
+	}
+	if opfieldNamesActive() {
+		return names[0], nil
+	}
+	return names[len(names)-1], nil
+}
 
 // reconcile runs every desired witness and removes the others.
 func (w *nodeKeeperWitnesses) reconcile(ctx context.Context) {
@@ -271,7 +288,10 @@ func (w *nodeKeeperWitnesses) ensure(ctx context.Context, spec *pb.WitnessSpec) 
 			return err
 		}
 	}
-	name := keeperWitnessName(id)
+	name, err := w.keeperWitnessName(ctx, id)
+	if err != nil {
+		return err
+	}
 	inspect, err := w.p.client.cli.ContainerInspect(ctx, name, mobyclient.ContainerInspectOptions{})
 	exists := err == nil
 	if err != nil && !isNotFoundErr(err) {
@@ -373,7 +393,9 @@ func (w *nodeKeeperWitnesses) remove(ctx context.Context, id, containerID string
 		fw.Close()
 	}
 	_ = w.p.client.RemoveContainer(ctx, containerID, true)
-	_ = w.p.client.RemoveNetwork(ctx, keeperWitnessName(id)+"-net")
+	for _, name := range keeperWitnessNames(id) {
+		_ = w.p.client.RemoveNetwork(ctx, name+"-net")
+	}
 	if keeperWitnessIDPattern.MatchString(id) {
 		_ = os.RemoveAll(filepath.Join(w.dir, id))
 	}
@@ -429,7 +451,12 @@ func (w *nodeKeeperWitnesses) target(id string) (string, uint32, error) {
 	if err != nil || inspect.Container.State == nil || !inspect.Container.State.Running || inspect.Container.NetworkSettings == nil {
 		return "", 0, errors.New("the Keeper witness container is not running")
 	}
-	endpoint := inspect.Container.NetworkSettings.Networks[keeperWitnessName(id)+"-net"]
+	var endpoint *network.EndpointSettings
+	for _, name := range keeperWitnessNames(id) {
+		if endpoint = inspect.Container.NetworkSettings.Networks[name+"-net"]; endpoint != nil {
+			break
+		}
+	}
 	if endpoint == nil || !endpoint.IPAddress.IsValid() {
 		return "", 0, errors.New("the Keeper witness has no address")
 	}

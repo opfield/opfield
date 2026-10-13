@@ -412,11 +412,19 @@ func installLinkListenerBootUnit(host volumeImageBootHost, executable, stateDir 
 		return retireLegacyBootUnit(host, legacyLinkListenerBootService)
 	case host.openrc:
 		path := filepath.Join(host.openrcDir, linkListenerBootService)
-		if _, err := writeFileIfChanged(path, openrcLinkListenerService(host, executable, stateDir), 0o755); err != nil {
+		changed, err := writeFileIfChanged(path, openrcLinkListenerService(host, executable, stateDir), 0o755)
+		if err != nil {
 			return err
 		}
 		if _, err := os.Lstat(filepath.Join(host.runlevels, "boot", linkListenerBootService)); err != nil {
 			if err := host.run("rc-update", "add", linkListenerBootService, "boot"); err != nil {
+				return err
+			}
+		}
+		if changed {
+			// OpenRC's dependency cache must know the script at the next boot
+			// (it compares mtimes in whole seconds).
+			if err := host.run("rc-update", "-u"); err != nil {
 				return err
 			}
 		}

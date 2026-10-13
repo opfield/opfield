@@ -67,7 +67,7 @@ func validateManagedStorageConnectorConfig(config ContainerCreateConfig, socketD
 		return errors.New("invalid managed storage connector workload image")
 	}
 	bindingID := connectorEnvValue(config.Env, "BINDING_ID")
-	if bindingID == "" || config.Name != "gateway-storage-connector-"+bindingID {
+	if named, ok := storageConnectorBindingID(config.Name); bindingID == "" || !ok || named != bindingID {
 		return errors.New("managed storage connector name must be derived from its binding id")
 	}
 	if len(config.NetworkAliases) != 1 || config.NetworkAliases[0] != storageBindingAlias(bindingID) {

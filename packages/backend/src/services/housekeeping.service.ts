@@ -439,6 +439,7 @@ export class HousekeepingService {
             const run = await this.internalRegistryMaintenanceService!.runGarbageCollection({
               requestedById: userId ?? null,
               retentionCount: config.internalRegistry.retentionSuccessfulArtifacts,
+              reason: trigger === 'scheduled' ? 'scheduled housekeeping' : 'housekeeping run by a user',
             });
             const candidateIds = Array.isArray(run.progress?.candidateArtifactIds)
               ? run.progress.candidateArtifactIds

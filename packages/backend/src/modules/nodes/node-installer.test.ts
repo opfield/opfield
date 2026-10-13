@@ -247,6 +247,71 @@ describe('DaemonUpdateService.installVersion', () => {
   });
 });
 
+describe('DaemonUpdateService.relayInstallVersion', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function service(appVersion = 'v2.12.1', updateChannel = 'stable') {
+    const env = {
+      APP_VERSION: appVersion,
+      RELEASES_API_URL: 'https://updates.example.test/gateway/releases',
+      ARTIFACT_BASE_URL: 'https://updates.example.test/gateway',
+    } as Env;
+    const settings = { getConfig: async () => ({ updateChannel }) } as unknown as GeneralSettingsService;
+    return new DaemonUpdateService({} as never, env, settings);
+  }
+
+  /** The release feed: the relay manifests it serves, and the newest relay release of each minor line. */
+  function feed(published: string[], lines: Record<string, string>) {
+    const fetchMock = vi.fn(async (input: unknown) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith('.update.json')) {
+        const tag = url.pathname.split('/').at(-2) ?? '';
+        return new Response(published.includes(tag) ? '{}' : 'not found', {
+          status: published.includes(tag) ? 200 : 404,
+        });
+      }
+      const line = /^v(\d+\.\d+)\.0-rc\.0$/.exec(url.searchParams.get('current') ?? '')?.[1] ?? '';
+      const tag = lines[`${line}:${url.searchParams.get('channel')}`];
+      return tag ? new Response(JSON.stringify({ target: { tag_name: tag } })) : new Response(null, { status: 204 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  it("keeps the pool's release when the feed publishes it", async () => {
+    const fetchMock = feed(['v2.12.0-relay'], { '2.12:stable': 'v2.12.1-relay' });
+    await expect(service().relayInstallVersion('2.12.0')).resolves.toBe('v2.12.0');
+    expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toBe(
+      'https://updates.example.test/gateway/relay-supervisor/v2.12.0-relay/relay-supervisor-linux-amd64.update.json'
+    );
+  });
+
+  it("gives a pool on an unpublished release the published release of the pool's line", async () => {
+    feed(['v2.12.0-relay'], { '2.12:preview': 'v2.12.0-relay', '2.12:stable': 'v2.12.0-relay' });
+    // A pool on a stand-only candidate: its line on the preview channel.
+    await expect(service().relayInstallVersion('v2.12.0-rc.18')).resolves.toBe('v2.12.0');
+  });
+
+  it("falls back to the relay release of Opfield's line, and to the installer's own choice", async () => {
+    feed(['v2.12.1-relay'], { '2.12:stable': 'v2.12.1-relay' });
+    await expect(service('v2.12.1').relayInstallVersion('v2.10.9-rc.1')).resolves.toBe('v2.12.1');
+    await expect(service('v2.12.1').relayInstallVersion(null)).resolves.toBe('v2.12.1');
+    feed([], {});
+    await expect(service('v2.12.1').relayInstallVersion('v2.10.9-rc.1')).resolves.toBeNull();
+    await expect(service('dev').relayInstallVersion(null)).resolves.toBeNull();
+  });
+
+  it("keeps the pool's release when the feed cannot be reached", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('offline');
+      })
+    );
+    await expect(service().relayInstallVersion('v2.12.0-rc.18')).resolves.toBe('v2.12.0-rc.18');
+  });
+});
+
 describe('installer enrollment flags', () => {
   it('passes --opfield exactly to the installers of this release that parse it', () => {
     const scripts = fileURLToPath(new URL('../../../../../scripts/', import.meta.url));

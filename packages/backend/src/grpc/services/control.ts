@@ -35,6 +35,7 @@ import {
   relayStreamHealth,
   updateConnectionsHealth,
 } from './health-report.js';
+import { leaseWatchdogVersion } from './lease-watchdog-version.js';
 import { legacyNameCounts } from './legacy-names.js';
 
 const logger = createChildLogger('GrpcControl');
@@ -1267,6 +1268,7 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                 ...(legacyNameCounts(msg.healthReport.legacyNames)
                   ? { legacyNames: legacyNameCounts(msg.healthReport.legacyNames) as Record<string, number> }
                   : {}),
+                ...leaseWatchdogVersion(msg.healthReport),
                 // Docker-specific fields
                 ...(msg.healthReport.dockerVersion ? { dockerVersion: msg.healthReport.dockerVersion } : {}),
                 ...(msg.healthReport.containersRunning != null

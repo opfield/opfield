@@ -11,6 +11,12 @@ export const TOKEN_PREFIXES = {
 
 export type TokenKind = keyof typeof TOKEN_PREFIXES;
 
+/**
+ * Prefix of the client ids dynamic OAuth client registration issues (public identifiers, not secrets). Clients
+ * registered before 2.12.1 keep their `goc_` ids; a client id is only ever looked up whole, never by its prefix.
+ */
+export const OAUTH_CLIENT_ID_PREFIX = 'opfc_';
+
 // legacy-name: gw_/gwo_/gwr_/gwi_/gwl_/gwp_ token prefixes — tokens issued before 2.12.1 stay valid until they are
 // revoked or expire; remove once no stored token carries an old prefix (OAuth codes expire within minutes).
 const LEGACY_TOKEN_PREFIXES: Record<TokenKind, string> = {

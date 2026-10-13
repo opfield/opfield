@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,8 +26,9 @@ import (
 // engine container of this node's member reaches "primary-<port>",
 // "member-<member id>-<port>" or "witness-<witness id>-<port>".
 //
-// Every set gets its own internal bridge network (gateway-set-<16 hex of the set
-// id>, a /26 of the link subnet pool). The daemon listens on that network's
+// Every set gets its own internal bridge network (opfield-set-<16 hex of the set
+// id>, a /26 of the link subnet pool; a network created before 2.12.1 keeps
+// gateway-set-). The daemon listens on that network's
 // gateway address, one port per exposed alias, and the containers resolve each
 // alias host to that address through an ExtraHosts entry (the pattern of the
 // database host listener). Each accepted connection is carried to its alias
@@ -42,10 +44,12 @@ import (
 // time out.
 
 const (
-	setMeshNetworkPrefix = "gateway-set-"
-	setMeshNetworkLabel  = "availability-set"
-	setMeshRetry         = 5 * time.Second
-	setMeshInspectWait   = 5 * time.Second
+	setMeshNetworkPrefix = "opfield-set-"
+	// legacy-name: gateway-set-<hex> networks of sets that joined a node before 2.12.1 — remove once every node reports none
+	legacySetMeshNetworkPrefix = "gateway-set-"
+	setMeshNetworkLabel        = "availability-set"
+	setMeshRetry               = 5 * time.Second
+	setMeshInspectWait         = 5 * time.Second
 )
 
 // setMeshes holds the mesh of each plugin. A side table rather than a plugin
@@ -112,10 +116,46 @@ func (p *DockerPlugin) setMesh() *setMesh {
 	return actual.(*setMesh)
 }
 
-// setMeshNetworkName is the private network of a set's member on every node.
-func setMeshNetworkName(setID string) string {
+// setMeshNetworkNames are the names the private network of a set's member may have on a node, the Opfield name
+// first. A node keeps the network it has; a new one gets the Opfield name while new objects get it
+// (opfieldNamesActive).
+func setMeshNetworkNames(setID string) []string {
 	sum := sha256.Sum256([]byte(strings.ToLower(setID)))
-	return setMeshNetworkPrefix + hex.EncodeToString(sum[:8])
+	suffix := hex.EncodeToString(sum[:8])
+	return []string{setMeshNetworkPrefix + suffix, legacySetMeshNetworkPrefix + suffix}
+}
+
+// setMeshNetworkName is the name a new network of the set gets on this node.
+func setMeshNetworkName(setID string) string {
+	names := setMeshNetworkNames(setID)
+	if opfieldNamesActive() {
+		return names[0]
+	}
+	return names[len(names)-1]
+}
+
+// setMeshEndpoint is a container's endpoint on its set's network, under either name.
+func setMeshEndpoint(networks map[string]*network.EndpointSettings, setID string) *network.EndpointSettings {
+	for _, name := range setMeshNetworkNames(setID) {
+		if endpoint := networks[name]; endpoint != nil {
+			return endpoint
+		}
+	}
+	return nil
+}
+
+// NetworkName is the set's network on this node: the one that exists, else the name a new one gets.
+func (s *setMesh) NetworkName(ctx context.Context, setID string) (string, error) {
+	for _, name := range setMeshNetworkNames(setID) {
+		_, exists, err := s.inspect(ctx, name)
+		if err != nil {
+			return "", err
+		}
+		if exists {
+			return name, nil
+		}
+	}
+	return setMeshNetworkName(setID), nil
 }
 
 func (s *setMesh) set(setID string) *setMeshSet {
@@ -134,22 +174,25 @@ func (s *setMesh) Ensure(ctx context.Context, setID string) (string, error) {
 	if !uuidLike(setID) {
 		return "", errors.New("availability set id must be a UUID")
 	}
-	name := setMeshNetworkName(setID)
 	if s.plugin == nil || s.plugin.client == nil {
 		return "", errors.New("docker is not available")
 	}
 	linkNetworkCreate.Lock()
 	defer linkNetworkCreate.Unlock()
 	cli := s.plugin.client.cli
-	if existing, err := cli.NetworkInspect(ctx, name, mobyclient.NetworkInspectOptions{}); err == nil {
-		if existing.Network.Labels["net.opfield.managed"] != setMeshNetworkLabel || !existing.Network.Internal {
-			return "", fmt.Errorf("network %s exists and is not an Opfield availability set network", name)
+	// The network the set has on this node, under either name.
+	for _, name := range setMeshNetworkNames(setID) {
+		if existing, err := cli.NetworkInspect(ctx, name, mobyclient.NetworkInspectOptions{}); err == nil {
+			if existing.Network.Labels["net.opfield.managed"] != setMeshNetworkLabel || !existing.Network.Internal {
+				return "", fmt.Errorf("network %s exists and is not an Opfield availability set network", name)
+			}
+			s.kick()
+			return name, nil
+		} else if !isNotFoundErr(err) {
+			return "", fmt.Errorf("inspect availability set network: %w", err)
 		}
-		s.kick()
-		return name, nil
-	} else if !isNotFoundErr(err) {
-		return "", fmt.Errorf("inspect availability set network: %w", err)
 	}
+	name := setMeshNetworkName(setID)
 	pool, err := s.plugin.linkSubnetPool()
 	if err != nil {
 		return "", err
@@ -330,7 +373,9 @@ func (s *setMesh) releaseOrphans(ctx context.Context, members func() []string) {
 	}
 	keep := map[string]bool{}
 	for _, id := range members() {
-		keep[setMeshNetworkName(id)] = true
+		for _, name := range setMeshNetworkNames(id) {
+			keep[name] = true
+		}
 	}
 	inUse, known := s.plugin.availabilitySetsOfRecords()
 	if !known {
@@ -338,11 +383,13 @@ func (s *setMesh) releaseOrphans(ctx context.Context, members func() []string) {
 		return
 	}
 	for _, id := range inUse {
-		keep[setMeshNetworkName(id)] = true
+		for _, name := range setMeshNetworkNames(id) {
+			keep[name] = true
+		}
 	}
 	for _, item := range networks.Items {
 		setID := item.Labels["net.opfield.availability-set"]
-		if keep[item.Name] || !uuidLike(setID) || setMeshNetworkName(setID) != item.Name {
+		if keep[item.Name] || !uuidLike(setID) || !slices.Contains(setMeshNetworkNames(setID), item.Name) {
 			continue
 		}
 		s.plugin.logger.Info("releasing the member mesh of an availability set this node no longer belongs to", "set_id", setID)
@@ -367,7 +414,9 @@ func (s *setMesh) Release(ctx context.Context, setID string) {
 		}
 	}
 	if s.plugin != nil && s.plugin.client != nil {
-		_, _ = s.plugin.client.cli.NetworkRemove(ctx, setMeshNetworkName(setID), mobyclient.NetworkRemoveOptions{})
+		for _, name := range setMeshNetworkNames(setID) {
+			_, _ = s.plugin.client.cli.NetworkRemove(ctx, name, mobyclient.NetworkRemoveOptions{})
+		}
 	}
 }
 
@@ -397,9 +446,18 @@ func (s *setMesh) run() {
 func (s *setMesh) refresh(setID string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), setMeshInspectWait)
 	defer cancel()
-	gateway, exists, err := s.inspect(ctx, setMeshNetworkName(setID))
-	if err != nil {
-		return false
+	var gateway netip.Addr
+	exists := false
+	networkName := ""
+	for _, name := range setMeshNetworkNames(setID) {
+		var err error
+		if gateway, exists, err = s.inspect(ctx, name); err != nil {
+			return false
+		}
+		if exists {
+			networkName = name
+			break
+		}
 	}
 	if !exists {
 		// The network is gone: its listeners must not keep its addresses (a
@@ -418,6 +476,7 @@ func (s *setMesh) refresh(setID string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entry := s.set(setID)
+	entry.network = networkName
 	if entry.gateway != gateway {
 		for key, l := range entry.listeners {
 			_ = l.listener.Close()

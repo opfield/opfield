@@ -32,6 +32,7 @@ import {
   DATABASE_PART,
   ENVIRONMENT_PART,
   exportFileName,
+  exportVolumeName,
   HOST_SPECIFIC_VALUES,
   portableEnvironment,
   TRANSFER_VOLUMES,
@@ -367,7 +368,7 @@ export class ConfigurationExportService {
         volumes.push({
           key: volume.key,
           part: volumePartName(volume.key),
-          root: volume.key === 'clickhouse_data' ? '.opfield-export-snapshot' : volume.key,
+          root: volume.key === 'clickhouse_data' ? '.opfield-export-snapshot' : exportVolumeName(volume.key),
         });
       }
       const manifest: ConfigurationExportManifest = {
@@ -398,7 +399,7 @@ export class ConfigurationExportService {
         await addStream(volume.part, () =>
           volume.key === 'clickhouse_data'
             ? openClickHouseSnapshot(this.docker, installation)
-            : openVolumeArchive(this.docker, installation, name, volume.key)
+            : openVolumeArchive(this.docker, installation, name, volume.root)
         );
       }
       if (manifest.commercial && installation.app) {

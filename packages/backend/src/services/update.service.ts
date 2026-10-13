@@ -2628,8 +2628,9 @@ function databaseSnapshotShell(composeDir: string, database: { role: string; dat
   return `OPFIELD_DB_DUMP="$FOUNDATION_BACKUP_DIR/${DATABASE_SNAPSHOT_FILE}"
 db_snapshot_ready=0
 prune_database_snapshots() {
-  # Left by an update whose sidecar was killed, or kept after a failed restore (also those of updates before 2.12.1).
-  for old_dump in ${composeDir}/${FOUNDATION_BACKUPS_DIR}/pre-update-*/${DATABASE_SNAPSHOT_FILE} ${composeDir}/${LEGACY_FOUNDATION_BACKUPS_DIR}/pre-update-*/${LEGACY_DATABASE_SNAPSHOT_FILE}; do
+  # Left by an update whose sidecar was killed, or kept after a failed restore (also those of updates before 2.12.1,
+  # in their own directory or folded into the Opfield one by the host move).
+  for old_dump in ${composeDir}/${FOUNDATION_BACKUPS_DIR}/pre-update-*/${DATABASE_SNAPSHOT_FILE} ${composeDir}/${FOUNDATION_BACKUPS_DIR}/pre-update-*/${LEGACY_DATABASE_SNAPSHOT_FILE} ${composeDir}/${LEGACY_FOUNDATION_BACKUPS_DIR}/pre-update-*/${LEGACY_DATABASE_SNAPSHOT_FILE}; do
     [ -f "$old_dump" ] || continue
     [ "$old_dump" != "$OPFIELD_DB_DUMP" ] || continue
     [ -n "$(find "$old_dump" -mtime +7)" ] || continue

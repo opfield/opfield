@@ -11,7 +11,7 @@ import (
 	"github.com/opfield/opfield/daemon-shared/securelink"
 )
 
-// A connector slot (secureLinkConnectorSlots) is free for a new connector when it is empty or holds a connector that
+// A connector slot (secureLinkConnectorSockets) is free for a new connector when it is empty or holds a connector that
 // carries no session: a leftover, or one whose retirement passed its deadline. A connector still finishing its
 // sessions keeps its slot (the rc.1 stand lost 4 container link sessions to a second replacement that took the slot of
 // the connector still retiring with them). A replacement never waits for a slot: when both other slots hold one, the
@@ -38,19 +38,19 @@ func (m *dockerSecureLinkManager) replacementSlotLocked(ctx context.Context, ser
 	var refused error
 	var oldest *container.InspectResponse
 	oldestSlot, oldestUntil := -1, time.Time{}
-	for slot, candidate := range secureLinkConnectorSlots {
+	for slot, name := range secureLinkConnectorSlotNames(m.plugin.secureLinkNames(ctx)) {
 		if slot == serving {
 			continue
 		}
-		inspected, err := m.plugin.client.cli.ContainerInspect(ctx, candidate.name, mobyclient.ContainerInspectOptions{})
+		inspected, err := m.plugin.client.cli.ContainerInspect(ctx, name, mobyclient.ContainerInspectOptions{})
 		if isNotFoundErr(err) {
 			return slot, nil, false, nil
 		}
 		if err != nil {
-			return 0, nil, false, fmt.Errorf("inspect secure-link connector %s: %w", candidate.name, err)
+			return 0, nil, false, fmt.Errorf("inspect secure-link connector %s: %w", name, err)
 		}
 		if !managedSecureLinkConnector(inspected.Container, m.controlDirectory()) {
-			refused = fmt.Errorf("refusing to remove non-managed container %s", candidate.name)
+			refused = fmt.Errorf("refusing to remove non-managed container %s", name)
 			continue
 		}
 		if m.carriesSessionsLocked(inspected.Container.ID, now) {
@@ -85,7 +85,7 @@ func (m *dockerSecureLinkManager) retirementEndLocked(id string) time.Time {
 
 // oldestRetiringSlotLocked returns the slot of the connector among the retiring ones in found whose retirement ends
 // first (-1: none of this node's).
-func (m *dockerSecureLinkManager) oldestRetiringSlotLocked(found [len(secureLinkConnectorSlots)]*container.InspectResponse, retiring [len(secureLinkConnectorSlots)]bool) int {
+func (m *dockerSecureLinkManager) oldestRetiringSlotLocked(found [len(secureLinkConnectorSockets)]*container.InspectResponse, retiring [len(secureLinkConnectorSockets)]bool) int {
 	oldest, oldestUntil := -1, time.Time{}
 	for slot, inspect := range found {
 		if inspect == nil || !retiring[slot] || !ownedSecureLinkConnector(*inspect) {
@@ -107,7 +107,7 @@ func (m *dockerSecureLinkManager) cutOldestRetirementLocked(ctx context.Context,
 	}
 	if m.plugin.logger != nil {
 		m.plugin.logger.Warn("every secure-link connector slot holds a connector finishing its sessions; the oldest was removed for a new one",
-			"connector", inspect.ID, "sessions_cut", sessions, "slots", len(secureLinkConnectorSlots))
+			"connector", inspect.ID, "sessions_cut", sessions, "slots", len(secureLinkConnectorSockets))
 	}
 	return nil
 }

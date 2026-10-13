@@ -102,12 +102,25 @@ class FakeHost implements HostMoveHost {
     if (content === undefined) throw new Error(`ENOENT ${file}`);
     return content;
   }
-  async writeFile(file: string, content: string) {
+  /** File modes the move wrote (the real host sets the mode on an unchanged file too). */
+  modes = new Map<string, number>();
+  async writeFile(file: string, content: string, mode = 0o600) {
     const real = this.real(file);
-    if (this.files.get(real) === content) return;
+    if (this.files.get(real) === content) {
+      this.modes.set(real, mode);
+      return;
+    }
     this.mutate('write', file);
     if (!this.dirs.has(path.dirname(real))) throw new Error(`ENOENT dir of ${file}`);
     this.files.set(real, content);
+    this.modes.set(real, mode);
+  }
+  async listDir(dir: string) {
+    const real = this.real(dir);
+    return [...new Set([...this.dirs, ...this.files.keys()])]
+      .filter((entry) => entry !== real && path.dirname(entry) === real)
+      .map((entry) => path.basename(entry))
+      .sort();
   }
   async rename(from: string, to: string) {
     this.mutate('rename', `${from} -> ${to}`);
@@ -118,6 +131,7 @@ class FakeHost implements HostMoveHost {
       value === source || value.startsWith(`${source}/`) ? `${target}${value.slice(source.length)}` : value;
     this.dirs = new Set([...this.dirs].map(move));
     this.files = new Map([...this.files].map(([key, value]) => [move(key), value]));
+    this.modes = new Map([...this.modes].map(([key, value]) => [move(key), value]));
   }
   async symlink(target: string, file: string) {
     this.mutate('symlink', file);
@@ -807,6 +821,89 @@ describe('host move to the Opfield layout', () => {
         'com.docker.compose.project.working_dir'
       ]
     ).toBe(OLD_DIR);
+  });
+});
+
+/** Backups of earlier updates: 2.12.0's under the old name, 2.12.1's own already under the Opfield one. */
+function addBackups(host: FakeHost, opfield: boolean): void {
+  const legacy = `${OLD_DIR}/.gateway-foundation-backups`;
+  for (const [dir, file] of [
+    [`${legacy}/pre-update-a`, 'gateway-db.dump'],
+    [`${legacy}/2026-10-01T00-00-00-000Z`, '.env'],
+  ] as const) {
+    host.dirs.add(legacy);
+    host.dirs.add(dir);
+    host.files.set(`${dir}/${file}`, 'earlier');
+  }
+  if (opfield) {
+    const current = `${OLD_DIR}/.opfield-foundation-backups`;
+    for (const dir of [current, `${current}/pre-update-a`, `${current}/2026-10-13T00-00-00-000Z`]) host.dirs.add(dir);
+    host.files.set(`${current}/pre-update-a/opfield-db.dump`, 'current');
+    host.files.set(`${current}/2026-10-13T00-00-00-000Z/docker-compose.yml`, 'current');
+  }
+  host.operations = 0;
+}
+
+function backupFiles(host: FakeHost): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(host.snapshot().files).filter(([file]) => file.includes('-foundation-backups/'))
+  );
+}
+
+describe('host move: backups and file modes', () => {
+  it('folds the backups of earlier updates into the Opfield backups directory through a crash at any point', async () => {
+    const reference = await legacyInstallation();
+    addBackups(reference, true);
+    expect(await runToEnd(reference)).toBe('done');
+    const total = reference.operations;
+    for (let crashAt = 0; crashAt <= total; crashAt += 1) {
+      const host = await legacyInstallation();
+      addBackups(host, true);
+      if (crashAt > 0) host.crashAt = crashAt;
+      expect(await runToEnd(host), `crash before operation ${crashAt}`).toBe('done');
+      expect(backupFiles(host), `crash before operation ${crashAt}`).toEqual({
+        [`${NEW_DIR}/.opfield-foundation-backups/2026-10-01T00-00-00-000Z/.env`]: 'earlier',
+        [`${NEW_DIR}/.opfield-foundation-backups/2026-10-13T00-00-00-000Z/docker-compose.yml`]: 'current',
+        [`${NEW_DIR}/.opfield-foundation-backups/pre-update-a.earlier/gateway-db.dump`]: 'earlier',
+        [`${NEW_DIR}/.opfield-foundation-backups/pre-update-a/opfield-db.dump`]: 'current',
+      });
+      expect(host.snapshot().dirs).not.toContain(`${NEW_DIR}/.gateway-foundation-backups`);
+    }
+  });
+
+  it('renames the earlier backups directory when there is no Opfield one yet', async () => {
+    const host = await legacyInstallation();
+    addBackups(host, false);
+    expect(await runToEnd(host)).toBe('done');
+    expect(Object.keys(backupFiles(host)).sort()).toEqual([
+      `${NEW_DIR}/.opfield-foundation-backups/2026-10-01T00-00-00-000Z/.env`,
+      `${NEW_DIR}/.opfield-foundation-backups/pre-update-a/gateway-db.dump`,
+    ]);
+    expect(host.snapshot().dirs).not.toContain(`${NEW_DIR}/.gateway-foundation-backups`);
+  });
+
+  it('keeps the folded backups when the move goes back', async () => {
+    const host = await legacyInstallation();
+    addBackups(host, true);
+    host.failing = (operation, detail) => operation === 'compose' && detail === 'opfield up --detach';
+    expect(await runToEnd(host)).toBe('rolled_back');
+    expect(
+      Object.keys(backupFiles(host)).every((file) => file.startsWith(`${OLD_DIR}/.opfield-foundation-backups/`))
+    ).toBe(true);
+    expect(Object.keys(backupFiles(host))).toHaveLength(4);
+  });
+
+  it('writes docker-compose.yml and .env for root only, moving and going back', async () => {
+    const moved = await legacyInstallation();
+    expect(await runToEnd(moved)).toBe('done');
+    expect(moved.modes.get(`${NEW_DIR}/docker-compose.yml`)).toBe(0o600);
+    expect(moved.modes.get(`${NEW_DIR}/.env`)).toBe(0o600);
+
+    const back = await legacyInstallation();
+    back.failing = (operation, detail) => operation === 'compose' && detail === 'opfield up --detach';
+    expect(await runToEnd(back)).toBe('rolled_back');
+    expect(back.modes.get(`${OLD_DIR}/docker-compose.yml`)).toBe(0o600);
+    expect(back.modes.get(`${OLD_DIR}/.env`)).toBe(0o600);
   });
 });
 
