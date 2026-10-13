@@ -31,9 +31,9 @@ import { useAuthStore } from "@/stores/auth";
 import type { AppDetail, DockerContainer, PageProject } from "@/types";
 import {
   type AppComposeRow,
+  type AppComposeService,
   loadAppCompute,
   loadAppPages,
-  serviceName,
   useAppLoad,
 } from "../app-resources";
 import {
@@ -177,6 +177,30 @@ export function ComputeTab({
         ? dockerDeploymentRoute(container._nodeSlug ?? "", container.name, tab)
         : dockerContainerRoute(container._nodeSlug ?? "", container.name, tab)
     );
+
+  /** A service's container by its canonical name, as the Compose page opens it; else the project's services. */
+  const openService = async (
+    project: AppComposeRow["project"],
+    service: AppComposeService,
+    tab?: string
+  ) => {
+    const containerId = service.containerIds[0];
+    if (!containerId || !project._nodeSlug) {
+      navigate(dockerComposeProjectRoute(project.id, "services"));
+      return;
+    }
+    try {
+      const container = await api.inspectContainer(project.nodeId, containerId);
+      const name = String(container.Name ?? container.name ?? "").replace(/^\/+/, "");
+      navigate(
+        name
+          ? dockerContainerRoute(project._nodeSlug, name, tab)
+          : dockerComposeProjectRoute(project.id, "services")
+      );
+    } catch (error) {
+      toastApiError(error, "Failed to open the service container");
+    }
+  };
 
   const lifecycle = async (container: DockerContainer, action: "start" | "stop" | "restart") => {
     const nodeId = nodeIdOf(container);
@@ -412,49 +436,46 @@ export function ComputeTab({
           </ResourceListCell>
         </ResourceListRow>,
         ...services.map((service) => {
-          const serviceStatus = containerStatus(service);
-          const serviceHealth = containerHealth(service);
+          const image = workloadImageLabel(service);
           return (
             <ResourceListRow
-              key={`${project.id}/${service.id}`}
+              key={`${project.id}/${service.name}`}
               interactive
-              onClick={() => openContainer(service)}
+              onClick={() => void openService(project, service)}
             >
               <ResourceListCell depth={1}>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{serviceName(service)}</p>
+                  <p className="truncate text-sm font-medium">{service.name}</p>
                   <p className="truncate font-mono text-xs text-muted-foreground">
-                    {service.id.slice(0, 12)}
+                    {service.containerIds[0]?.slice(0, 12) ?? "No container"}
                   </p>
                 </div>
               </ResourceListCell>
               <ResourceListCell>
-                <Badge
-                  variant="secondary"
-                  className="max-w-full font-mono"
-                  title={workloadImageLabel(service).title}
-                >
-                  {workloadImageLabel(service).text}
+                <Badge variant="secondary" className="max-w-full font-mono" title={image.title}>
+                  {image.text}
                 </Badge>
               </ResourceListCell>
               <ResourceListCell />
               <ResourceListCell>
-                <Badge variant={STATUS_BADGE[serviceStatus] ?? "secondary"}>
-                  {serviceStatus.replaceAll("_", " ")}
+                <Badge variant={service.state === "running" ? "success" : "secondary"}>
+                  {service.state.replaceAll("_", " ")}
                 </Badge>
               </ResourceListCell>
               <ResourceListCell>
-                <Badge variant={STATUS_BADGE[serviceHealth] ?? "secondary"}>{serviceHealth}</Badge>
+                <Badge variant={service.health === "healthy" ? "success" : "secondary"}>
+                  {service.health}
+                </Badge>
               </ResourceListCell>
               <ResourceListCell align="right">
-                <RowMenu label={`Actions for ${serviceName(service)}`}>
-                  <DropdownMenuItem onClick={() => openContainer(service)}>
+                <RowMenu label={`Actions for ${service.name}`}>
+                  <DropdownMenuItem onClick={() => void openService(project, service)}>
                     Container details
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => openContainer(service, "logs")}>
+                  <DropdownMenuItem onClick={() => void openService(project, service, "logs")}>
                     Logs
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => openContainer(service, "console")}>
+                  <DropdownMenuItem onClick={() => void openService(project, service, "console")}>
                     Console
                   </DropdownMenuItem>
                 </RowMenu>
