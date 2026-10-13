@@ -22,7 +22,10 @@ export interface AlertRule {
     | "database_redis"
     | "managed_storage"
     | "hosting_vm"
-    | "hosting_account";
+    | "hosting_account"
+    | "app"
+    | "backup"
+    | "domain";
   severity: "info" | "warning" | "critical";
   metric: string | null;
   metricTarget: string | null;
@@ -159,6 +162,10 @@ export interface SiemDelivery {
 export interface AlertCategoryDef {
   id: string;
   label: string;
+  /** What the rule's scope picks, plural and lower case ("routes"). */
+  resourceLabel?: string;
+  /** False when the category has no resources to pick. */
+  scopable?: boolean;
   metrics: Array<{
     id: string;
     label: string;

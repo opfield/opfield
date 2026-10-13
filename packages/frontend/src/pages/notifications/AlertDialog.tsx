@@ -52,7 +52,19 @@ const ALERT_CATEGORY_FEATURES: Partial<Record<string, LicenseFeature>> = {
   database_postgres: "external-database-connections",
   database_clickhouse: "external-database-connections",
   database_redis: "external-database-connections",
+  backup: "external-database-connections",
 };
+
+/** Every page of a paginated list (scope lists name all resources, not the first page of them). */
+async function allPages<T>(
+  load: (page: number) => Promise<{ data?: T[]; pagination?: { totalPages?: number } }>
+): Promise<T[]> {
+  const first = await load(1);
+  const rows = [...(first.data ?? [])];
+  const pages = Math.min(first.pagination?.totalPages ?? 1, 50);
+  for (let page = 2; page <= pages; page += 1) rows.push(...((await load(page)).data ?? []));
+  return rows;
+}
 
 const ROOT_DISK_TARGET = "/";
 const CERTIFICATE_EXPIRY_METRIC = "days_until_expiry";
@@ -178,10 +190,11 @@ export function AlertDialog({
     setMetricTarget(rule?.metricTarget ?? ROOT_DISK_TARGET);
     setOperator(rule?.operator ?? ">");
     setThresholdValue(String(rule?.thresholdValue ?? ""));
-    setDurationMinutes(String(rule?.durationSeconds ? Math.round(rule.durationSeconds / 60) : 0));
+    // Minutes as saved (30 s shows 0.5), so saving the rule again keeps its windows.
+    setDurationMinutes(String(rule?.durationSeconds ? rule.durationSeconds / 60 : 0));
     setFireThresholdPercent(String(rule?.fireThresholdPercent ?? 100));
     setResolveAfterMinutes(
-      String(rule?.resolveAfterSeconds != null ? Math.round(rule.resolveAfterSeconds / 60) : 1)
+      String(rule?.resolveAfterSeconds != null ? rule.resolveAfterSeconds / 60 : 1)
     );
     setResolveThresholdPercent(String(rule?.resolveThresholdPercent ?? 100));
     setEventPattern(rule?.eventPattern ?? "");
@@ -249,10 +262,10 @@ export function AlertDialog({
         return;
       }
       if (category === "node") {
-        const response = await api.listNodes({ limit: 100 });
+        const nodes = await allPages((page) => api.listNodes({ page, limit: 100 }));
         if (resourceLoadTokenRef.current !== loadToken) return;
         setAvailableResources(
-          response.data.map((node) => ({
+          nodes.map((node) => ({
             id: node.id,
             label: node.displayName || node.hostname,
             diskOptions: [
@@ -273,10 +286,10 @@ export function AlertDialog({
       }
 
       if (category === "proxy") {
-        const response = await api.listProxyHosts({ limit: 100 });
+        const routes = await allPages((page) => api.listProxyHosts({ page, limit: 100 }));
         if (resourceLoadTokenRef.current !== loadToken) return;
         setAvailableResources(
-          (response.data ?? []).map((proxyHost) => ({
+          routes.map((proxyHost) => ({
             id: proxyHost.id,
             label: Array.isArray(proxyHost.domainNames) ? proxyHost.domainNames[0] : proxyHost.id,
           }))
@@ -297,10 +310,12 @@ export function AlertDialog({
       }
 
       if (category === "certificate") {
-        const response = await api.listSSLCertificates({ limit: 100 });
+        const certificates = await allPages((page) =>
+          api.listSSLCertificates({ page, limit: 100 })
+        );
         if (resourceLoadTokenRef.current !== loadToken) return;
         setAvailableResources(
-          (response.data ?? []).map((certificate) => ({
+          certificates.map((certificate) => ({
             id: certificate.id,
             label: certificate.name || certificate.id,
           }))
@@ -349,6 +364,41 @@ export function AlertDialog({
         const projects = await api.listDockerComposeProjects();
         if (resourceLoadTokenRef.current !== loadToken) return;
         setAvailableResources(projects.map((project) => ({ id: project.id, label: project.name })));
+        return;
+      }
+
+      if (category === "app") {
+        // A rule scoped to an app covers all its environments; one scoped to an environment covers only it.
+        const appList = await api.listApps();
+        if (resourceLoadTokenRef.current !== loadToken) return;
+        setAvailableResources(
+          appList.flatMap((app) => [
+            { id: app.id, label: `${app.name} · all environments` },
+            ...app.environments.map((environment) => ({
+              id: environment.id,
+              label: `${app.name} · ${environment.name}`,
+            })),
+          ])
+        );
+        return;
+      }
+
+      if (category === "backup") {
+        // Backup alerts are scoped by database: each backup policy of a picked database counts.
+        const databases = await allPages((page) => api.listDatabases({ page, limit: 100 }));
+        if (resourceLoadTokenRef.current !== loadToken) return;
+        setAvailableResources(
+          databases.map((database) => ({ id: database.id, label: database.name }))
+        );
+        return;
+      }
+
+      if (category === "domain") {
+        const domainList = await allPages((page) => api.listDomains({ page, limit: 100 }));
+        if (resourceLoadTokenRef.current !== loadToken) return;
+        setAvailableResources(
+          domainList.map((domain) => ({ id: domain.id, label: domain.domain }))
+        );
         return;
       }
 
@@ -401,13 +451,12 @@ export function AlertDialog({
             : category === "database_clickhouse"
               ? "clickhouse"
               : "redis";
-        const response = await api.listDatabases({
-          limit: 200,
-          type: databaseType,
-        });
+        const databases = await allPages((page) =>
+          api.listDatabases({ page, limit: 100, type: databaseType })
+        );
         if (resourceLoadTokenRef.current !== loadToken) return;
         setAvailableResources(
-          response.data.map((database) => ({
+          databases.map((database) => ({
             id: database.id,
             label: `${database.name} (${database.host}:${database.port})`,
           }))
@@ -443,6 +492,12 @@ export function AlertDialog({
       ? (selectedMetricDef?.label.replace(/\s*\([^)]*\)\s*$/, "") ?? "{{metric.name}}")
       : (selectedEventDef?.label ?? "{{alert.name}}");
   const metricUnit = selectedMetricDef?.unit === "%" ? "%" : "";
+  /** The unit shown with the threshold value ("%", "ms", "req/s"); none for states and counts without one. */
+  const metricUnitLabel =
+    selectedMetricDef?.unit && selectedMetricDef.unit !== "state" ? selectedMetricDef.unit : "";
+  /** Categories whose resources can be picked; the rest always cover everything. */
+  const scopable = cat?.scopable !== false;
+  const resourceNoun = cat?.resourceLabel ?? `${cat?.label?.toLowerCase() ?? category} resources`;
   const messagePlaceholder =
     type === "threshold"
       ? `${templateSubject} at {{metric.value}}${metricUnit} on {{resource.name}} (threshold: {{metric.operator}} {{metric.threshold}}${metricUnit})`
@@ -457,9 +512,9 @@ export function AlertDialog({
     setMetric(metricDef.id);
     setOperator(metricDef.defaultOperator);
     setThresholdValue(String(metricDef.defaultValue));
-    setDurationMinutes(String(Math.round((metricDef.defaultDurationSeconds ?? 0) / 60)));
+    setDurationMinutes(String((metricDef.defaultDurationSeconds ?? 0) / 60));
     setFireThresholdPercent("100");
-    setResolveAfterMinutes(String(Math.round((metricDef.defaultResolveAfterSeconds ?? 60) / 60)));
+    setResolveAfterMinutes(String((metricDef.defaultResolveAfterSeconds ?? 60) / 60));
     setResolveThresholdPercent("100");
   }, []);
 
@@ -670,26 +725,28 @@ export function AlertDialog({
             : null;
         data.operator = operator;
         data.thresholdValue = Number(thresholdValue);
-        data.durationSeconds = isCertificateExpiryThreshold ? 0 : Number(durationMinutes) * 60;
+        data.durationSeconds = isCertificateExpiryThreshold
+          ? 0
+          : Math.round(Number(durationMinutes) * 60);
         data.fireThresholdPercent = isCertificateExpiryThreshold
           ? 100
           : Number(fireThresholdPercent);
         data.resolveAfterSeconds = isCertificateExpiryThreshold
           ? 0
-          : Number(resolveAfterMinutes) * 60;
+          : Math.round(Number(resolveAfterMinutes) * 60);
         data.resolveThresholdPercent = isCertificateExpiryThreshold
           ? 100
           : Number(resolveThresholdPercent);
       } else {
         data.eventPattern = eventPattern;
         data.durationSeconds = selectedEventDef?.supportsThreshold
-          ? Number(durationMinutes) * 60
+          ? Math.round(Number(durationMinutes) * 60)
           : 0;
         data.fireThresholdPercent = selectedEventDef?.supportsThreshold
           ? Number(fireThresholdPercent)
           : 100;
         data.resolveAfterSeconds = selectedEventDef?.supportsThreshold
-          ? Number(resolveAfterMinutes) * 60
+          ? Math.round(Number(resolveAfterMinutes) * 60)
           : 0;
         data.resolveThresholdPercent = selectedEventDef?.supportsThreshold
           ? Number(resolveThresholdPercent)
@@ -834,7 +891,9 @@ export function AlertDialog({
                       </Select>
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-sm font-medium">Value</label>
+                      <label className="text-sm font-medium">
+                        {metricUnitLabel ? `Value (${metricUnitLabel})` : "Value"}
+                      </label>
                       <Input
                         type="number"
                         value={thresholdValue}
@@ -1073,55 +1132,57 @@ export function AlertDialog({
             {step === 2 && (
               <motion.div key="step-2" {...STEP_ANIMATION} className="space-y-5">
                 {/* Scope */}
-                <div className="space-y-3">
-                  <SwitchCard
-                    label={`Limit to specific ${cat?.label?.toLowerCase() ?? category}s`}
-                    description={
-                      scopeEnabled
-                        ? "Only selected resources will trigger this alert."
-                        : `Alert applies to all ${cat?.label?.toLowerCase() ?? category}s.`
-                    }
-                    checked={scopeEnabled}
-                    onCheckedChange={(v) => {
-                      setScopeEnabled(v);
-                      if (!v) setResourceIds([]);
-                    }}
-                  />
-                  <div
-                    className={`border border-border transition-opacity ${scopeEnabled ? "" : "opacity-40 pointer-events-none"}`}
-                  >
-                    <ScopeSearchFilter
-                      search={resourceSearch}
-                      onSearchChange={setResourceSearch}
-                      filter={resourceFilter}
-                      onFilterChange={setResourceFilter}
-                      placeholder="Search resources..."
-                      disabled={!scopeEnabled}
+                {scopable && (
+                  <div className="space-y-3">
+                    <SwitchCard
+                      label={`Limit to specific ${resourceNoun}`}
+                      description={
+                        scopeEnabled
+                          ? "Only selected resources will trigger this alert."
+                          : `Alert applies to all ${resourceNoun}.`
+                      }
+                      checked={scopeEnabled}
+                      onCheckedChange={(v) => {
+                        setScopeEnabled(v);
+                        if (!v) setResourceIds([]);
+                      }}
                     />
-                    <div>
-                      {availableResources.length === 0 ? (
-                        <p className="p-3 text-sm text-muted-foreground">
-                          {resourcesLoading ? "Loading resources…" : "No resources found."}
+                    <div
+                      className={`border border-border transition-opacity ${scopeEnabled ? "" : "opacity-40 pointer-events-none"}`}
+                    >
+                      <ScopeSearchFilter
+                        search={resourceSearch}
+                        onSearchChange={setResourceSearch}
+                        filter={resourceFilter}
+                        onFilterChange={setResourceFilter}
+                        placeholder="Search resources..."
+                        disabled={!scopeEnabled}
+                      />
+                      <div>
+                        {availableResources.length === 0 ? (
+                          <p className="p-3 text-sm text-muted-foreground">
+                            {resourcesLoading ? "Loading resources…" : "No resources found."}
+                          </p>
+                        ) : (
+                          <ScopeList
+                            scopes={resourceScopeItems}
+                            search={resourceSearch}
+                            selectionFilter={resourceFilter}
+                            selected={resourceIds}
+                            onToggle={toggleResource}
+                            readOnly={!scopeEnabled}
+                            viewportClassName={DIALOG_LIST_CLASS}
+                          />
+                        )}
+                      </div>
+                      <div className="border-t border-border px-3 py-1.5">
+                        <p className="text-xs text-muted-foreground">
+                          {scopeEnabled ? `${resourceIds.length} selected` : "All resources"}
                         </p>
-                      ) : (
-                        <ScopeList
-                          scopes={resourceScopeItems}
-                          search={resourceSearch}
-                          selectionFilter={resourceFilter}
-                          selected={resourceIds}
-                          onToggle={toggleResource}
-                          readOnly={!scopeEnabled}
-                          viewportClassName={DIALOG_LIST_CLASS}
-                        />
-                      )}
-                    </div>
-                    <div className="border-t border-border px-3 py-1.5">
-                      <p className="text-xs text-muted-foreground">
-                        {scopeEnabled ? `${resourceIds.length} selected` : "All resources"}
-                      </p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {type === "threshold" && category === "node" && metric === "disk" && (
                   <div className="space-y-1.5">
