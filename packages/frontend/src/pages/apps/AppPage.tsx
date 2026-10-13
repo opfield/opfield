@@ -12,7 +12,6 @@ import {
   Layers,
   Link2,
   Plus,
-  RefreshCw,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
@@ -25,7 +24,6 @@ import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
 import { PageBackButton } from "@/components/common/PageBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
-import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,7 +38,6 @@ import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { useUrlTab } from "@/hooks/use-url-tab";
 import { toastApiError } from "@/lib/api-error-toast";
 import { APP_TABS, type AppTab, appRoute, appsRoute } from "@/lib/app-routes";
-import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
 import { canServeLicenseFeature } from "@/stores/license-paywall";
@@ -53,6 +50,7 @@ import {
   appCreateFeatures,
   IMPORT_LICENSE_FEATURES,
 } from "./AppCreateDialogs";
+import { AppHeaderActions } from "./AppHeaderActions";
 import { HealthBadge, memberTotal, plural } from "./app-shared";
 import { AccessCodeDialog, type AccessCodeState } from "./dialogs/AccessCodeDialog";
 import { ImportDialog, type ImportRequest } from "./dialogs/ImportDialog";
@@ -307,35 +305,22 @@ function AppPageContent({
             `${plural(app.environments.length, "environment")} · ${plural(members, "resource")}`
           }
           actions={
-            <ResponsiveHeaderActions
-              reservedContentWidth={360}
-              actions={[
-                {
-                  label: "Refresh",
-                  icon: <RefreshCw className="h-4 w-4" />,
-                  onClick: () => void doRefresh(),
-                },
-              ]}
-            >
-              <Button
-                variant="outline"
-                size="icon"
-                title="Refresh"
-                aria-label="Refresh app"
-                onClick={() => void doRefresh()}
-                disabled={refreshing}
-              >
-                <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
-              </Button>
-              {(canCreate || permissions.edit) && (
-                <NewMenu
-                  canCreate={canCreate}
-                  planCreates={planCreates}
-                  onCreate={(type, variant) => setCreateRequest({ type, variant })}
-                  onNewEnvironment={permissions.edit ? () => setNewEnvOpen(true) : undefined}
-                />
-              )}
-            </ResponsiveHeaderActions>
+            <AppHeaderActions
+              app={app}
+              refreshing={refreshing}
+              onRefresh={() => void doRefresh()}
+              onChanged={() => void refresh()}
+              newMenu={
+                canCreate || permissions.edit ? (
+                  <NewMenu
+                    canCreate={canCreate}
+                    planCreates={planCreates}
+                    onCreate={(type, variant) => setCreateRequest({ type, variant })}
+                    onNewEnvironment={permissions.edit ? () => setNewEnvOpen(true) : undefined}
+                  />
+                ) : undefined
+              }
+            />
           }
         />
 

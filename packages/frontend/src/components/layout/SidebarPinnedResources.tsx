@@ -1,7 +1,9 @@
 import { Box, Boxes, Database, GitBranch, Globe, Server } from "lucide-react";
 import { useCallback, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { AppMark } from "@/components/apps/AppMark";
 import {
+  appHealthTone,
   databaseHealthTone,
   dockerStateTone,
   isDockerStateTransitional,
@@ -12,6 +14,8 @@ import {
 } from "@/components/common/resource-status";
 import { Separator } from "@/components/ui/separator";
 import { useLoadDashboardBootstrap } from "@/hooks/use-dashboard-bootstrap";
+import { usePinnedApps } from "@/hooks/use-pinned-apps";
+import { appRoute } from "@/lib/app-routes";
 import {
   databaseRoute,
   dockerComposeProjectRoute,
@@ -61,6 +65,7 @@ export function SidebarPinnedResources({
   const sidebarPinnedContainerIds = usePinnedContainersStore((s) => s.sidebarContainerIds);
   const pinnedContainerMeta = usePinnedContainersStore((s) => s.containerMeta);
   const dashboardBootstrap = useDashboardBootstrapStore((s) => s.snapshot);
+  const pinnedApps = usePinnedApps("sidebar");
   const canViewDockerResource = useCallback(
     (
       nodeId: string,
@@ -138,6 +143,7 @@ export function SidebarPinnedResources({
   }
 
   const hasPinnedResources =
+    pinnedApps.length > 0 ||
     pinnedNodes.length > 0 ||
     pinnedProxies.length > 0 ||
     sidebarPinnedDatabaseIds.length > 0 ||
@@ -159,16 +165,18 @@ export function SidebarPinnedResources({
     );
   const statusDot = (
     status: string | null | undefined,
-    kind: "proxy" | "node" | "database" | "docker"
+    kind: "proxy" | "node" | "database" | "docker" | "app"
   ) => {
     const tone =
-      kind === "proxy"
-        ? proxyHealthTone(status)
-        : kind === "node"
-          ? pinnedNodeTone(status)
-          : kind === "database"
-            ? databaseHealthTone(status)
-            : dockerStateTone(status);
+      kind === "app"
+        ? appHealthTone(status)
+        : kind === "proxy"
+          ? proxyHealthTone(status)
+          : kind === "node"
+            ? pinnedNodeTone(status)
+            : kind === "database"
+              ? databaseHealthTone(status)
+              : dockerStateTone(status);
     return cn(
       "ml-auto h-2 w-2 shrink-0",
       statusDotClass(tone),
@@ -182,6 +190,23 @@ export function SidebarPinnedResources({
         <p className="px-3 py-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Pinned Items
         </p>
+        {pinnedApps.map((app) => {
+          const path = appRoute(app.slug);
+          return (
+            <Link
+              key={`app:${app.id}`}
+              to={path}
+              onClick={onNavigate}
+              className={linkClass(
+                location.pathname === path || location.pathname.startsWith(`${path}/`)
+              )}
+            >
+              <AppMark logoUrl={app.logoUrl} size="sm" />
+              <span className="truncate">{app.name}</span>
+              <span className={statusDot(app.health, "app")} />
+            </Link>
+          );
+        })}
         {pinnedProxies.map((proxy) => {
           const path = proxyHostRoute(proxy.slug);
           const health = (proxy as any).effectiveHealthStatus ?? proxy.healthStatus;

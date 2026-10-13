@@ -20,6 +20,14 @@ export function nodeStatusTone(status: string | null | undefined): StatusTone {
   return "secondary";
 }
 
+/** App health (healthy / degraded / failing / unknown). */
+export function appHealthTone(status: string | null | undefined): StatusTone {
+  if (status === "healthy") return "success";
+  if (status === "degraded") return "warning";
+  if (status === "failing") return "destructive";
+  return "secondary";
+}
+
 export function databaseHealthTone(status: string | null | undefined): StatusTone {
   if (status === "online") return "success";
   if (status === "degraded") return "warning";

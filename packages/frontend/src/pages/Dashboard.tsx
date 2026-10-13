@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useLoadDashboardBootstrap } from "@/hooks/use-dashboard-bootstrap";
+import { usePinnedApps } from "@/hooks/use-pinned-apps";
 import { usePkiAvailable } from "@/hooks/use-plan-gated-features";
 import { dockerResourceKey } from "@/lib/dashboard-attention";
 import { refreshDynamicScopes } from "@/lib/live-scopes";
@@ -58,7 +59,11 @@ import { ManagedCertificatesNotice } from "./dashboard/ManagedCertificatesNotice
 import { NodesCard } from "./dashboard/NodesCard";
 import { PinnedNodeCard } from "./dashboard/PinnedNodeCard";
 import { PinnedProxyCard } from "./dashboard/PinnedProxyCard";
-import { PinnedDatabaseCard, PinnedDockerResourceCard } from "./dashboard/PinnedResourceCard";
+import {
+  PinnedAppCard,
+  PinnedDatabaseCard,
+  PinnedDockerResourceCard,
+} from "./dashboard/PinnedResourceCard";
 import { QuickStatsCard } from "./dashboard/QuickStatsCard";
 import { RecentActivityCard } from "./dashboard/RecentActivityCard";
 import { DashboardInferenceUsage } from "./inference/InferenceUsagePanels";
@@ -358,6 +363,7 @@ export function Dashboard() {
   const dashboardPinnedIds = usePinnedNodesStore((s) => s.dashboardNodeIds);
   const dashboardPinnedProxyIds = usePinnedProxiesStore((s) => s.dashboardProxyIds);
   const dashboardPinnedDatabaseIds = usePinnedDatabasesStore((s) => s.dashboardDatabaseIds);
+  const pinnedApps = usePinnedApps("dashboard");
   const dashboardPinnedContainerIds = usePinnedContainersStore((s) => s.dashboardContainerIds);
   const dashboardBootstrap = useDashboardBootstrapStore((s) => s.snapshot);
   const dashboardBootstrapLoading = useDashboardBootstrapStore((s) => s.loading);
@@ -814,7 +820,11 @@ export function Dashboard() {
             usage={dashboardBootstrap?.inferenceUsage as InferenceSelfUsage | null | undefined}
           />
 
-          {/* Pinned Proxy Host Cards */}
+          {pinnedApps.map((app) => (
+            <PinnedAppCard key={`app:${app.id}`} app={app} />
+          ))}
+
+          {/* Pinned Route Cards */}
           {pinnedProxyHosts
             .filter(
               // Server-filtered like the other bootstrap lists.

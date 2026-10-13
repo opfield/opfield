@@ -1,7 +1,13 @@
 import { Box, Boxes, Database } from "lucide-react";
 import { Link } from "react-router-dom";
-import { databaseHealthTone, dockerStateTone } from "@/components/common/resource-status";
+import { AppMark } from "@/components/apps/AppMark";
+import {
+  appHealthTone,
+  databaseHealthTone,
+  dockerStateTone,
+} from "@/components/common/resource-status";
 import { Badge } from "@/components/ui/badge";
+import { appRoute } from "@/lib/app-routes";
 import { databaseTypeLabel } from "@/lib/database-type";
 import {
   databaseRoute,
@@ -10,6 +16,7 @@ import {
   dockerDeploymentRoute,
 } from "@/lib/resource-routes";
 import { cn } from "@/lib/utils";
+import type { AppSummary } from "@/types";
 import type { DashboardBootstrapPinnedResources } from "@/types/dashboard";
 
 type DatabaseResource = DashboardBootstrapPinnedResources["databases"][number];
@@ -20,6 +27,26 @@ function pinnedCardClass(attention: boolean): string {
   return cn(
     "flex items-center justify-between border bg-card px-4 py-3 transition-colors hover:bg-accent",
     attention ? "border-warning/60" : "border-border"
+  );
+}
+
+export function PinnedAppCard({ app }: { app: AppSummary }) {
+  return (
+    <Link
+      to={appRoute(app.slug)}
+      className={pinnedCardClass(app.health === "failing" || app.health === "degraded")}
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <AppMark logoUrl={app.logoUrl} size="sm" />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{app.name}</p>
+          <p className="text-xs text-muted-foreground">App</p>
+        </div>
+      </div>
+      <Badge variant={appHealthTone(app.health)} size="inline">
+        {app.health}
+      </Badge>
+    </Link>
   );
 }
 
