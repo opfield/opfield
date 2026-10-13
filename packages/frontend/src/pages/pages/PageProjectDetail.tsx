@@ -42,12 +42,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useUrlTab } from "@/hooks/use-url-tab";
 import { toastApiError } from "@/lib/api-error-toast";
 import { loadPageDeployments } from "@/lib/page-deployments";
 import { proxyHostRoute } from "@/lib/resource-routes";
 import { api } from "@/services/api";
+import { ApiRequestError } from "@/services/api-base";
 import { useAuthStore } from "@/stores/auth";
 import { hasLicenseFeature, usePlanIncludes } from "@/stores/license-paywall";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
@@ -277,6 +279,7 @@ export function PageProjectDetail({
   initialProject?: PageProject;
 }) {
   const navigate = useNavigate();
+  const leavePage = useLeavePage();
   const canView = useAuthStore((state) => state.hasScopedAccess(`pages:view:${projectId}`));
   const canDeploy = useAuthStore((state) => state.hasScopedAccess(`pages:deploy:${projectId}`));
   const canEdit = useAuthStore((state) => state.hasScopedAccess(`pages:edit:${projectId}`));
@@ -305,6 +308,7 @@ export function PageProjectDetail({
   );
   const [latestPreviewHostname, setLatestPreviewHostname] = useState<string | null>(null);
   const deletingRef = useRef(false);
+  const loadedProjectIdRef = useRef<string | null>(null);
   const latestPreviewRequestRef = useRef(0);
   const [activeTab, setActiveTab] = useUrlTab(
     [...PROJECT_TABS],
@@ -349,15 +353,25 @@ export function PageProjectDetail({
     try {
       const next = await api.getPageProject(projectId);
       if (deletingRef.current) return;
+      loadedProjectIdRef.current = projectId;
       setProject(next);
     } catch (error) {
-      if (!deletingRef.current) {
-        toastApiError(error, "Failed to load Page Project");
+      if (deletingRef.current) return;
+      if (
+        error instanceof ApiRequestError &&
+        error.status === 404 &&
+        loadedProjectIdRef.current === projectId
+      ) {
+        // Deleted elsewhere while shown: back to where it was opened from.
+        toast.info("Page Project was deleted");
+        leavePage("/pages");
+        return;
       }
+      toastApiError(error, "Failed to load Page Project");
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [leavePage, projectId]);
 
   const loadLatestPreview = useCallback(
     async ({ fresh = true }: { fresh?: boolean } = {}) => {
@@ -479,7 +493,7 @@ export function PageProjectDetail({
       deletingRef.current = true;
       await api.deletePageProject(project.id);
       toast.success("Page Project deleted");
-      navigate("/pages");
+      leavePage("/pages");
     } catch (error) {
       deletingRef.current = false;
       toastApiError(error, "Failed to delete Page Project");

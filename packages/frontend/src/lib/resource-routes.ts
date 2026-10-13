@@ -22,6 +22,13 @@ export const dockerDeploymentRoute = (nodeSlug: string, name: string, tab?: stri
   withTab(`/docker/deployments/${segment(nodeSlug)}/${segment(name)}`, tab);
 export const dockerVolumeRoute = (nodeSlug: string, name: string, tab?: string) =>
   withTab(`/docker/volumes/${segment(nodeSlug)}/${segment(name)}`, tab);
+/** Pages that go away with a node: the node and the containers, deployments and volumes on it. */
+export const nodeScopedPaths = (nodeSlug: string) => [
+  nodeRoute(nodeSlug),
+  `/docker/containers/${segment(nodeSlug)}`,
+  `/docker/deployments/${segment(nodeSlug)}`,
+  `/docker/volumes/${segment(nodeSlug)}`,
+];
 export const dockerComposeRootRoute = () => "/docker/compose";
 export const dockerComposeProjectRoute = (projectId: string, tab?: string) =>
   withTab(`${dockerComposeRootRoute()}/${segment(projectId)}`, tab);

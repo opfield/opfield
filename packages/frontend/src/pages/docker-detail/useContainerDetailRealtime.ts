@@ -17,6 +17,8 @@ interface UseContainerDetailRealtimeParams {
   routeContainerName: string;
   activeTab: string;
   navigate: (to: string, options?: { replace?: boolean }) => void;
+  /** Leaves the page once the container is gone (back to where it was opened from). */
+  leave: () => void;
   refreshContainer: () => Promise<void>;
   transition?: string;
   clearMutationTransition: () => void;
@@ -56,6 +58,7 @@ export function useContainerDetailRealtime({
   routeContainerName,
   activeTab,
   navigate,
+  leave,
   refreshContainer,
   transition,
   clearMutationTransition,
@@ -173,7 +176,7 @@ export function useContainerDetailRealtime({
         removalFallback.current = null;
         if (cutoverSeen.current) return;
         toast.info("Container was removed");
-        navigate("/docker");
+        leave();
       }, MIGRATION_RELOCATION_GRACE_MS);
       return;
     }

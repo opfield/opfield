@@ -16,6 +16,7 @@ import { SwitchCard } from "@/components/common/SwitchCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { HealthBars } from "@/components/ui/health-bars";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
@@ -84,6 +85,7 @@ function DatabaseDetailContent({
   const routeSlug = resolvedDatabaseSlug ?? params.databaseSlug ?? params.id ?? "";
   const initialMonitoringCache = readDatabaseMonitoringCache(id);
   const navigate = useStableNavigate();
+  const leavePage = useLeavePage();
   const { hasScope } = useAuthStore();
   const [database, setDatabase] = useState<DatabaseConnection | null>(null);
   const [loading, setLoading] = useState(true);
@@ -209,11 +211,11 @@ function DatabaseDetailContent({
       });
     } catch (error) {
       toastApiError(error, "Failed to load database");
-      navigate("/databases");
+      leavePage("/databases");
     } finally {
       setLoading(false);
     }
-  }, [id, navigate]);
+  }, [id, leavePage]);
 
   useEffect(() => {
     void load();
@@ -409,7 +411,7 @@ function DatabaseDetailContent({
       return;
     }
     if (event.action === "deleted") {
-      navigate("/databases");
+      leavePage("/databases");
       return;
     }
     if (event.action === "health.sampled") {
@@ -465,7 +467,7 @@ function DatabaseDetailContent({
       await api.deleteDatabase(id);
       usePinnedDatabasesStore.getState().removePin(id);
       toast.success(deletion.successMessage);
-      navigate("/databases");
+      leavePage("/databases");
     } catch (error) {
       toastApiError(error, "Failed to delete database");
     }

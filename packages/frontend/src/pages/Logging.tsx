@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
+import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
 import { loggingEnvironmentRoute, loggingSchemaRoute } from "@/lib/resource-routes";
@@ -75,6 +76,7 @@ export function Logging({
     resolvedResourceSlug ?? params.environmentSlug ?? params.schemaSlug ?? params.id ?? "";
   const tab = params.tab;
   const navigate = useNavigate();
+  const leavePage = useLeavePage();
   const { user, hasAnyScope, hasScopedAccess } = useAuthStore();
   const isEnvironmentDetail = section === "environments" && !!id;
   const isSchemaDetail = section === "schemas" && !!id;
@@ -335,7 +337,7 @@ export function Logging({
           await api.deleteLoggingEnvironment(environment.id);
           toast.success("Logging environment deleted");
           await load();
-          navigate("/logging/environments", { replace: true });
+          leavePage("/logging/environments");
         }}
       />
     );
@@ -351,7 +353,7 @@ export function Logging({
         onSave={(patch) => updateSchema(id!, patch)}
         onDelete={async (schema) => {
           const deleted = await deleteSchema(schema);
-          if (deleted) navigate("/logging/schemas", { replace: true });
+          if (deleted) leavePage("/logging/schemas");
           return deleted;
         }}
       />

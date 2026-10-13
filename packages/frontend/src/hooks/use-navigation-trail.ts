@@ -1,7 +1,12 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useLocation, useNavigate, useNavigationType } from "react-router-dom";
-import { type NavigationTrailState, pageKeyForPath, planBackStep } from "@/lib/navigation-trail";
-import { getReturnNavigationTarget } from "@/lib/return-navigation";
+import {
+  type NavigationTrailState,
+  pageKeyForPath,
+  planBackStep,
+  planLeaveStep,
+} from "@/lib/navigation-trail";
+import { getReturnNavigationTarget, readReturnNavigationTarget } from "@/lib/return-navigation";
 import { useNavigationTrailStore } from "@/stores/navigation-trail";
 
 let lastRecordedLocationKey: string | null = null;
@@ -100,6 +105,48 @@ export function useBackNavigation(): BackNavigation {
 /** URL the page back arrow would open, or null when the page's own fallback applies. */
 export function useBackTarget(): string | null {
   return useBackNavigation().target;
+}
+
+export interface LeavePageOptions {
+  /** Further paths that are gone with this page (pages of a deleted node, app, ...). */
+  gonePaths?: readonly string[];
+}
+
+/**
+ * Leaves a page whose resource is gone (deleted here or elsewhere, failed to load): back to where
+ * the user opened it from (app tab, environment, node, folder, dashboard, search), else to a
+ * `returnTo` link state, else to `fallback` (the type's list). Runs once per location, so a delete
+ * and its own realtime event never navigate twice.
+ */
+export function useLeavePage(): (fallback: string, options?: LeavePageOptions) => void {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const locationRef = useRef(location);
+  locationRef.current = location;
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
+  const leftKeyRef = useRef<string | null>(null);
+
+  return useCallback((fallback: string, options?: LeavePageOptions) => {
+    const current = locationRef.current;
+    if (leftKeyRef.current === current.key) return;
+    leftKeyRef.current = current.key;
+    const store = useNavigationTrailStore.getState();
+    const step = planLeaveStep({
+      trail: store.trail,
+      pathname: current.pathname,
+      historyIdx: currentHistoryIdx(),
+      returnTo: readReturnNavigationTarget(current.state),
+      fallback,
+      gonePaths: options?.gonePaths,
+    });
+    if (step.kind === "history") {
+      navigateRef.current(-1);
+      return;
+    }
+    if (step.nextState) store.setTrail(step.nextState);
+    navigateRef.current(step.url, { replace: true });
+  }, []);
 }
 
 /** Test hook: forget which location was recorded last. */

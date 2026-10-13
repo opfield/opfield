@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
 import { analyzeTemplateContent } from "@/lib/nginx-template-analysis";
@@ -81,6 +82,7 @@ const CHEATSHEET_HELPERS: ReferenceTableRow[] = [
 export function NginxTemplateEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const leavePage = useLeavePage();
   const isNew = !id;
   const backHref = "/routes/templates";
 
@@ -139,11 +141,11 @@ export function NginxTemplateEdit() {
       setIsBuiltin(t.isBuiltin);
     } catch {
       toast.error("Failed to load template");
-      navigate(backHref);
+      leavePage(backHref);
     } finally {
       setIsLoading(false);
     }
-  }, [id, isNew, navigate]);
+  }, [id, isNew, leavePage]);
 
   useEffect(() => {
     loadTemplate();
@@ -154,7 +156,7 @@ export function NginxTemplateEdit() {
     if (!id || (event?.id && event.id !== id)) return;
     if (event?.action === "deleted") {
       toast.error("Template was deleted");
-      navigate(backHref);
+      leavePage(backHref);
       return;
     }
     loadTemplate();

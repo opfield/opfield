@@ -45,6 +45,7 @@ import {
 import { HealthBars } from "@/components/ui/health-bars";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
@@ -73,7 +74,7 @@ import {
   nodeHostFileAccessWarning,
 } from "@/lib/node-host-access";
 import { confirmAndDeleteNode } from "@/lib/remove-node";
-import { dockerNodeListRoute, nodeRoute } from "@/lib/resource-routes";
+import { dockerNodeListRoute, nodeRoute, nodeScopedPaths } from "@/lib/resource-routes";
 import { createReturnNavigationState } from "@/lib/return-navigation";
 import { canCreateInFolder } from "@/lib/scope-utils";
 import { cn } from "@/lib/utils";
@@ -164,6 +165,10 @@ export function AdminNodeDetail({
   const { user, hasScope, hasScopedAccess } = useAuthStore();
 
   const [node, setNode] = useState<NodeDetail | null>(null);
+  const leavePage = useLeavePage();
+  // A removed node takes its container, deployment and volume pages with it.
+  const leaveDeletedNode = () =>
+    leavePage("/nodes", { gonePaths: nodeScopedPaths(node?.slug || routeSlug) });
   const [hosting, setHosting] = useState<HostingNodeProjection | null>(null);
   const [hostingLoadState, setHostingLoadState] = useState<"loading" | "ready" | "error">(
     "loading"
@@ -651,13 +656,13 @@ export function AdminNodeDetail({
         }
         if (!silent) {
           toast.error("Failed to load node");
-          navigate("/nodes");
+          leavePage("/nodes");
         }
       } finally {
         if (!silent) setIsLoading(false);
       }
     },
-    [id, navigate]
+    [id, leavePage]
   );
 
   const refreshNodeDetails = useCallback(async () => {
@@ -732,7 +737,7 @@ export function AdminNodeDetail({
       const changes = id ? nodeChangesFor(payload, id) : [];
       if (!id || changes.length === 0) return;
       if (changes.some((change) => change.action === "deleted")) {
-        navigate("/nodes");
+        leaveDeletedNode();
         return;
       }
       loadNode(true);
@@ -885,7 +890,7 @@ export function AdminNodeDetail({
       if (!(await confirmAndDeleteNode(node.id, node.hostname))) return;
       usePinnedNodesStore.getState().removePin(node.id);
       toast.success("Node removed");
-      navigate("/nodes");
+      leaveDeletedNode();
     } catch (err) {
       toastApiError(err, "Failed to remove");
     }

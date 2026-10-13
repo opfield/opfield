@@ -70,6 +70,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { StatCard } from "@/components/ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useUrlTab } from "@/hooks/use-url-tab";
 import { toastApiError } from "@/lib/api-error-toast";
@@ -220,6 +221,9 @@ export function DockerComposeProjectDetail() {
     (tab) => dockerComposeProjectRoute(projectId, tab)
   );
   const backTarget = getReturnNavigationTarget(location.state, dockerComposeRootRoute());
+  const leavePage = useLeavePage();
+  const deletingRef = useRef(false);
+  const loadedRef = useRef(false);
   const planIncludesCompose = usePlanIncludes("compose-applications");
 
   const load = useCallback(async () => {
@@ -227,11 +231,20 @@ export function DockerComposeProjectDetail() {
     try {
       const summaries = await api.listDockerComposeProjects();
       const summary = summaries.find((candidate) => candidate.id === projectId);
-      if (!summary) throw new Error("Compose project not found");
+      if (!summary) {
+        // Deleted while shown (here or elsewhere): back to where it was opened from.
+        if (deletingRef.current || loadedRef.current) {
+          if (!deletingRef.current) toast.info("Compose project was deleted");
+          leavePage(dockerComposeRootRoute());
+          return;
+        }
+        throw new Error("Compose project not found");
+      }
       const [detail, nodeDetail] = await Promise.all([
         api.getDockerComposeProject(summary.nodeId, projectId),
         api.getNode(summary.nodeId),
       ]);
+      loadedRef.current = true;
       setProject(detail);
       setNode(nodeDetail);
       setLatestOperation(summary.lastOperation ?? null);
@@ -241,7 +254,7 @@ export function DockerComposeProjectDetail() {
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [leavePage, projectId]);
 
   useEffect(() => {
     void load();
@@ -454,11 +467,13 @@ export function DockerComposeProjectDetail() {
       return;
     }
     setDeleting(true);
+    deletingRef.current = true;
     try {
       await api.deleteDockerComposeProject(project.nodeId, project.id);
       toast.success("Compose project and runtime resources deleted");
-      navigate(dockerComposeRootRoute(), { replace: true });
+      leavePage(dockerComposeRootRoute());
     } catch (error) {
+      deletingRef.current = false;
       toastApiError(error, "Failed to delete Compose project");
     } finally {
       setDeleting(false);
