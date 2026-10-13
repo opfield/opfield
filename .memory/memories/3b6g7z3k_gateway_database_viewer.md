@@ -6,7 +6,7 @@
     "backend",
     "database",
     "frontend",
-    "gateway",
+    "opfield",
     "postgres",
     "verification"
   ],
@@ -16,10 +16,10 @@
   "confidence": 0.99,
   "importance": 0.9,
   "created_at": 1781735109831,
-  "updated_at": 1790812436666
+  "updated_at": 1791851159804
 }
 ---
-Gateway PostgreSQL viewer contract (the backend implementation now lives in the private gateway-commercial repo under backend/databases; the frontend viewer is in this repo):
+Opfield PostgreSQL viewer contract (the backend implementation now lives in the private gateway-commercial repo under backend/databases; the frontend viewer is in this repo):
 - Row edits must not rely on frontend-only coercion. The backend must cast insert/update/delete parameters by column metadata, including numeric, date, timestamp, JSON, and USER-DEFINED enum types using the correct schema/name.
 - Send only changed-column deltas for edits; do not rewrite a whole row from the original frontend clone.
 - Map only user-actionable PostgreSQL query failures (constraint, type, invalid input, and similar client-correctable errors) to AppError 400 / DATABASE_QUERY_FAILED with a useful message.

@@ -3,53 +3,23 @@
   "edges": [
     {
       "from_id": "lct3cijz",
+      "to_id": "aizao4zl",
+      "relation": "depends_on",
+      "weight": 0.84,
+      "reason": "Availability placements for managed storage links are constrained by connector identity, relay ownership, and cross-node runtime rules.",
+      "source": "auto",
+      "created_at": 1791851728443,
+      "updated_at": 1791851728443
+    },
+    {
+      "from_id": "lct3cijz",
       "to_id": "j6oni2tm",
       "relation": "uses_service",
-      "weight": 0.5217,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
+      "weight": 0.78,
+      "reason": "Availability explicitly includes managed Compose Projects and relies on their implemented lifecycle and management boundaries.",
       "source": "auto",
-      "created_at": 1790813100875,
-      "updated_at": 1790813100875
-    },
-    {
-      "from_id": "lct3cijz",
-      "to_id": "02e60mqr",
-      "relation": "same_workflow",
-      "weight": 0.4505,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
-      "source": "auto",
-      "created_at": 1790813100875,
-      "updated_at": 1790813100875
-    },
-    {
-      "from_id": "lct3cijz",
-      "to_id": "adzvqx6l",
-      "relation": "related_to",
-      "weight": 0.4454,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100875,
-      "updated_at": 1790813100875
-    },
-    {
-      "from_id": "lct3cijz",
-      "to_id": "pzorr3qy",
-      "relation": "uses_service",
-      "weight": 0.4399,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813100875,
-      "updated_at": 1790813100875
-    },
-    {
-      "from_id": "lct3cijz",
-      "to_id": "nr9hvzr3",
-      "relation": "uses_service",
-      "weight": 0.4255,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813100875,
-      "updated_at": 1790813100875
+      "created_at": 1791851728443,
+      "updated_at": 1791851728443
     }
   ]
 }

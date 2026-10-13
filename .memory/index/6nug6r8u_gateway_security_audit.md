@@ -3,10 +3,10 @@
   "id": "6nug6r8u",
   "file_name": "6nug6r8u_gateway_security_audit",
   "tags": [
-    "gateway",
+    "opfield",
     "remediation-decisions",
-    "security-audit",
-    "workflow"
+    "security",
+    "security-audit"
   ],
   "layer": "lite",
   "ref": "b3glzfjy",
@@ -14,7 +14,8 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1782693736671,
-  "updated_at": 1782741015869
+  "updated_at": 1791851406079
 }
 ---
-[→ b3glzfjy] Gateway audit remediation decisions recalibrated for F-001 and F-005/F-006
+[→ b3glzfjy] Opfield security remediation boundaries:
+- Docker webhook environment corruption prevention is distinct from repair. Existing data cleanup is not implied; pr...

@@ -16,9 +16,9 @@
   "ref": null,
   "source": "model_inferred",
   "confidence": 0.99,
-  "importance": 0.95,
+  "importance": 0.94,
   "created_at": 1786111914144,
-  "updated_at": 1790812605532
+  "updated_at": 1791851663704
 }
 ---
 # Managed-database relay migration, storage and connector contract
@@ -27,7 +27,7 @@ Relay architecture (public port ownership, multiplexed process-lifetime tunnels,
 
 ## Supervision
 
-- Gateway supervises relay health with bounded automatic recovery; failed recovery produces a critical Dashboard notice linked to shared-shell details.
+- Opfield supervises relay health with bounded automatic recovery; failed recovery produces a critical Dashboard notice linked to shared-shell details.
 
 ## Stateful migration
 

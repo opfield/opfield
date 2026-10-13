@@ -15,7 +15,9 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1787137855135,
-  "updated_at": 1787862522385
+  "updated_at": 1791851654769
 }
 ---
-[→ ifp3c48s] Remove completed-plan and internal-port evidence from inference-core memory
+[→ ifp3c48s] # Managed inference-core integration contract
+
+- Opfield owns the control plane: `gwi_` authentication, model/provider configuration, limits, pricing, and ac...

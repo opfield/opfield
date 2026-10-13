@@ -16,10 +16,10 @@
   "confidence": 0.99,
   "importance": 0.9,
   "created_at": 1785917497779,
-  "updated_at": 1790812696670
+  "updated_at": 1791851914584
 }
 ---
-Gateway browser session cookie contract (merged 2026-10-01 with the localhost auth-recovery note):
+Opfield browser session cookie contract (merged 2026-10-01 with the localhost auth-recovery note):
 
 - Session cookies use separate, installation-namespaced names for HTTP and HTTPS. A browser cannot overwrite a pre-existing Secure cookie with an HTTP Set-Cookie of the same name, which otherwise causes a successful login followed by `/auth/me` 401 after switching an installation from internal HTTPS to HTTP.
 - Derive the short namespace from the persistent per-install PKI master key, write the name matching the configured public URL transport, and accept both new names plus the legacy `session_id` during migration. Preserve legacy cookie support for upgrade compatibility.

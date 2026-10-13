@@ -13,13 +13,13 @@
   "layer": "deep",
   "ref": null,
   "source": "model_inferred",
-  "confidence": 0.5,
-  "importance": 0.5,
+  "confidence": 0.99,
+  "importance": 0.95,
   "created_at": 1781721373255,
-  "updated_at": 1784851372530
+  "updated_at": 1791851249026
 }
 ---
-Gateway Docker detail mutation-settle and node-migration contract:
+Opfield Docker detail mutation-settle and node-migration contract:
 - When an env/settings mutation starts, DockerContainerDetail sets a local mutation lock immediately and derives one effective transition from backend _transition plus the local lock.
 - Keep the page blocked until it observes backend transition state, a refreshed changed payload, or recreated-id remap; never clear the lock merely because the mutation request returned.
 - A stopped-container live save may produce no daemon transition event. Clear its local lock through explicit refresh/settle logic instead of waiting indefinitely for _transition or inspect-only deltas.

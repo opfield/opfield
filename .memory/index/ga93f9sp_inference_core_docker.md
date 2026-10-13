@@ -15,7 +15,7 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1790155283819,
-  "updated_at": 1790812703890
+  "updated_at": 1791851580597
 }
 ---
 [→ gz01c8d5] Managed inference core in local development (verified 2026-09-28/29 with core `2.60.0-thesqlabs.3`):

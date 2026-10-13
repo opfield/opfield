@@ -7,7 +7,7 @@
     "backend",
     "conversation-status",
     "frontend",
-    "gateway",
+    "opfield",
     "verification"
   ],
   "layer": "lite",
@@ -16,7 +16,7 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1782909966338,
-  "updated_at": 1787862664871
+  "updated_at": 1791851549509
 }
 ---
-[→ fk86zmru] Remove machine-specific absolute checkout path
+[→ fk86zmru] In the Opfield repository, AI chat terminal state is represented by hidden assistant messages with conversationStatus "ended" or "context_blocked" plus block...

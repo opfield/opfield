@@ -5,31 +5,21 @@
       "from_id": "lvklfxgs",
       "to_id": "8v2nc5jg",
       "relation": "same_workflow",
-      "weight": 0.93,
-      "reason": "Both document Gateway fresh-install and upgrade E2E flows, including setup APIs, installer behavior, and stepwise release updates.",
+      "weight": 0.96,
+      "reason": "Both document Opfield fresh-install and upgrade E2E flows using install.sh, setup APIs, preview releases, and state-preservation checks.",
       "source": "auto",
-      "created_at": 1790877577022,
-      "updated_at": 1790877577022
-    },
-    {
-      "from_id": "lvklfxgs",
-      "to_id": "acdy69d9",
-      "relation": "same_workflow",
-      "weight": 0.86,
-      "reason": "The release-upgrade workflow explicitly tests license-server reachability modes and paid license behavior covered by this licensing contract.",
-      "source": "auto",
-      "created_at": 1790877577022,
-      "updated_at": 1790877577022
+      "created_at": 1791851742767,
+      "updated_at": 1791851742767
     },
     {
       "from_id": "lvklfxgs",
       "to_id": "02e60mqr",
       "relation": "same_workflow",
-      "weight": 0.78,
-      "reason": "The upgrade test targets stable and RC Gateway tags, directly relying on the release tag and component versioning conventions.",
+      "weight": 0.84,
+      "reason": "Release-upgrade testing depends on the repository's tag classification, RC versioning, and component release conventions.",
       "source": "auto",
-      "created_at": 1790877577022,
-      "updated_at": 1790877577022
+      "created_at": 1791851742767,
+      "updated_at": 1791851742767
     }
   ]
 }

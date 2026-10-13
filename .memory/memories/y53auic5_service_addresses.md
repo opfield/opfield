@@ -12,11 +12,14 @@
   ],
   "layer": "deep",
   "ref": null,
+  "source": "model_inferred",
+  "confidence": 0.99,
+  "importance": 0.9,
   "created_at": 1787215910208,
-  "updated_at": 1787215910208
+  "updated_at": 1791851975317
 }
 ---
-# Gateway Node Service Address Contract
+# Opfield Node Service Address Contract
 
 - The canonical node address field is `serviceAddresses: string[]`, persisted as PostgreSQL `text[]`.
 - The list is ordered, trimmed, unique, and limited to 10 entries.

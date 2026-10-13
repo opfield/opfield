@@ -5,9 +5,9 @@
   "tags": [
     "ai-tools",
     "error-handling",
-    "gateway",
     "gitlab",
     "integrations",
+    "opfield",
     "uuid",
     "validation"
   ],
@@ -17,7 +17,8 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1783270157285,
-  "updated_at": 1784761710630
+  "updated_at": 1791851588986
 }
 ---
-[→ h130czul] Validate GitLab connector IDs before database access
+[→ h130czul] Opfield GitLab connector-ID validation contract:
+- Before performing any getConnectorRow/database query, GitLab AI tools must validate connectorId, since int...

@@ -14,22 +14,22 @@
     {
       "from_id": "orq9dru7",
       "to_id": "ip47mets",
-      "relation": "same_area",
-      "weight": 0.93,
-      "reason": "Both document the branch-only design-system viewer and its package/API architecture.",
+      "relation": "same_workflow",
+      "weight": 0.92,
+      "reason": "Both define branch-only @wiolett/design-system viewer architecture and implementation contracts.",
       "source": "auto",
-      "created_at": 1790813297046,
-      "updated_at": 1790813297046
+      "created_at": 1791851814249,
+      "updated_at": 1791851814249
     },
     {
       "from_id": "orq9dru7",
       "to_id": "0s83sww0",
-      "relation": "same_area",
-      "weight": 0.78,
-      "reason": "Both cover the unmerged design-system viewer branch and its frontend integration boundaries.",
+      "relation": "same_workflow",
+      "weight": 0.8,
+      "reason": "Both document the unmerged design-system-viewer branch and its frontend integration rules.",
       "source": "auto",
-      "created_at": 1790813297046,
-      "updated_at": 1790813297046
+      "created_at": 1791851814249,
+      "updated_at": 1791851814249
     }
   ]
 }

@@ -5,22 +5,22 @@
   "tags": [
     "ai-tools",
     "error-handling",
-    "gateway",
     "gitlab",
     "integrations",
+    "opfield",
     "uuid",
     "validation"
   ],
   "layer": "deep",
   "ref": null,
   "source": "model_inferred",
-  "confidence": 0.64,
-  "importance": 0.75,
+  "confidence": 0.99,
+  "importance": 0.86,
   "created_at": 1783270157285,
-  "updated_at": 1784761710630
+  "updated_at": 1791851588986
 }
 ---
-Gateway GitLab connector-ID validation contract:
+Opfield GitLab connector-ID validation contract:
 - Before performing any getConnectorRow/database query, GitLab AI tools must validate connectorId, since integration_connectors.id is a UUID column.
 - Invalid IDs must return a stable tool/input validation error, not a raw Drizzle/Postgres error.
 - GitLab AI tool schemas must declare the UUID format and instruct the assistant to use the exact IDs returned by gitlab_list_connectors.

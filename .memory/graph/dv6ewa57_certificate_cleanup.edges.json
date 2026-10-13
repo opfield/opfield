@@ -4,52 +4,12 @@
     {
       "from_id": "dv6ewa57",
       "to_id": "v80uezny",
-      "relation": "related_to",
-      "weight": 0.4757,
-      "reason": "The memories are similar enough to be useful related context.",
+      "relation": "same_area",
+      "weight": 0.78,
+      "reason": "Both define durable system-PKI certificate lifecycle and governance boundaries.",
       "source": "auto",
-      "created_at": 1790813100792,
-      "updated_at": 1790813100792
-    },
-    {
-      "from_id": "dv6ewa57",
-      "to_id": "x8kr3aye",
-      "relation": "same_workflow",
-      "weight": 0.4211,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
-      "source": "auto",
-      "created_at": 1790813100792,
-      "updated_at": 1790813100792
-    },
-    {
-      "from_id": "dv6ewa57",
-      "to_id": "wlmqdf8c",
-      "relation": "related_to",
-      "weight": 0.3394,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100792,
-      "updated_at": 1790813100792
-    },
-    {
-      "from_id": "dv6ewa57",
-      "to_id": "acdy69d9",
-      "relation": "same_workflow",
-      "weight": 0.3354,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
-      "source": "auto",
-      "created_at": 1790813100792,
-      "updated_at": 1790813100792
-    },
-    {
-      "from_id": "dv6ewa57",
-      "to_id": "p3e1ow76",
-      "relation": "same_workflow",
-      "weight": 0.3232,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
-      "source": "auto",
-      "created_at": 1790813100792,
-      "updated_at": 1790813100792
+      "created_at": 1791851504812,
+      "updated_at": 1791851504812
     }
   ]
 }

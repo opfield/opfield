@@ -5,7 +5,7 @@
   "tags": [
     "ai-chat",
     "drizzle",
-    "gateway",
+    "opfield",
     "search",
     "verification"
   ],
@@ -15,7 +15,7 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1782520378979,
-  "updated_at": 1787862613124
+  "updated_at": 1791851267652
 }
 ---
-[→ 7oked0dp] Remove machine-specific absolute checkout path
+[→ 7oked0dp] In the Opfield repository, AI chat retrieval tools must not make read paths depend on rebuilding ai_conversation_search_documents. `find_in_chat` should sear...

@@ -16,12 +16,12 @@
   "ref": null,
   "source": "model_inferred",
   "confidence": 0.99,
-  "importance": 0.93,
+  "importance": 0.95,
   "created_at": 1788297772805,
-  "updated_at": 1788308023199
+  "updated_at": 1791851357659
 }
 ---
-Gateway Docker build terminal and rollout contract as of 2026-09-02:
+Opfield Docker build terminal and rollout contract as of 2026-09-02:
 
 - State-bearing DockerBuildEvent messages are serialized per node/build. Logs and heartbeats bypass the lifecycle tail.
 - Build commands/events carry an attempt number. Terminal ACK is attempt-scoped with disposition accepted or obsolete. accepted means durable backend acceptance, not rollout completion. obsolete releases stale/conflicting workers.

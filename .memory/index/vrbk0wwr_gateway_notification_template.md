@@ -3,8 +3,8 @@
   "id": "vrbk0wwr",
   "file_name": "vrbk0wwr_gateway_notification_template",
   "tags": [
-    "gateway",
     "notifications",
+    "opfield",
     "templates",
     "webhooks"
   ],
@@ -14,7 +14,7 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1783070851927,
-  "updated_at": 1790812797054
+  "updated_at": 1791851291837
 }
 ---
-[→ 8irxtjyz] Gateway notification templates use one canonical nested render context across alert messages, webhook dispatch, webhook preview, presets and frontend help (`...
+[→ 8irxtjyz] Opfield notification templates use one canonical nested render context across alert messages, webhook dispatch, webhook preview, presets and frontend help (`...

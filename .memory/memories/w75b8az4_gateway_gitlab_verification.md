@@ -5,9 +5,9 @@
   "tags": [
     "ai-tools",
     "approval",
-    "gateway",
     "gitlab",
     "integrations",
+    "opfield",
     "redirects",
     "secrets",
     "verification"
@@ -16,12 +16,12 @@
   "ref": null,
   "source": "model_inferred",
   "confidence": 0.99,
-  "importance": 0.96,
+  "importance": 0.95,
   "created_at": 1783125493749,
-  "updated_at": 1787862529599
+  "updated_at": 1791851921471
 }
 ---
-Gateway GitLab/VCS connector safety contract:
+Opfield GitLab/VCS connector safety contract:
 
 - AI approval UI, runtime tool-call history, saved history, snapshots, audit rows, and MCP-visible data persist only display-safe/redacted arguments.
 - Raw one-time PAT, deploy-token, variable, or webhook values needed for approval continuation may exist only in short-lived protected server-side checkpoint state and are cleared on terminal transitions.

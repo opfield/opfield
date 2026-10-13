@@ -4,22 +4,12 @@
     {
       "from_id": "ip47mets",
       "to_id": "0s83sww0",
-      "relation": "depends_on",
-      "weight": 0.9,
-      "reason": "The migration rules apply the design-system architecture and API boundaries defined here.",
-      "source": "auto",
-      "created_at": 1790813286980,
-      "updated_at": 1790813286980
-    },
-    {
-      "from_id": "ip47mets",
-      "to_id": "orq9dru7",
       "relation": "same_workflow",
-      "weight": 0.86,
-      "reason": "Both records document the same branch-only design-system and viewer workflow.",
+      "weight": 0.88,
+      "reason": "Both define branch-only design-system work and its migration boundaries.",
       "source": "auto",
-      "created_at": 1790813286980,
-      "updated_at": 1790813286980
+      "created_at": 1791851678401,
+      "updated_at": 1791851678401
     },
     {
       "from_id": "ip47mets",
@@ -30,6 +20,16 @@
       "source": "manual",
       "created_at": 1784761805144,
       "updated_at": 1784761805144
+    },
+    {
+      "from_id": "ip47mets",
+      "to_id": "94t2cjlq",
+      "relation": "same_area",
+      "weight": 0.7,
+      "reason": "The frontend shared primitives are the production visual source of truth for the design-system contract.",
+      "source": "auto",
+      "created_at": 1791851678401,
+      "updated_at": 1791851678401
     }
   ]
 }

@@ -6,9 +6,9 @@
     "alpine",
     "debian",
     "docker",
-    "gateway",
     "installer",
     "openrc",
+    "opfield",
     "regression"
   ],
   "layer": "lite",
@@ -17,10 +17,10 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1786049117386,
-  "updated_at": 1790812629655
+  "updated_at": 1791851507216
 }
 ---
-[→ e5deql0f] Gateway installer and daemon setup-script contract (Docker provisioning, unit detection, terminal output):
+[→ e5deql0f] Opfield installer and daemon setup-script contract (Docker provisioning, unit detection, terminal output):
 
 Docker bootstrap
 - `scripts/install.sh` must boot...

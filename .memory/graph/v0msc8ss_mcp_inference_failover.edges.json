@@ -3,53 +3,43 @@
   "edges": [
     {
       "from_id": "v0msc8ss",
-      "to_id": "z36pcfh4",
-      "relation": "same_workflow",
-      "weight": 0.9,
-      "reason": "Both cover inference candidate selection, rejection, and failover troubleshooting.",
-      "source": "auto",
-      "created_at": 1790818836436,
-      "updated_at": 1790818836436
-    },
-    {
-      "from_id": "v0msc8ss",
       "to_id": "123u7vfm",
       "relation": "same_area",
-      "weight": 0.88,
-      "reason": "Both define Gateway MCP OAuth tokens, scopes, and authentication behavior.",
+      "weight": 0.92,
+      "reason": "Both define Opfield MCP OAuth tokens, scopes, and access semantics relevant to read-only diagnostics.",
       "source": "auto",
-      "created_at": 1790818836436,
-      "updated_at": 1790818836436
-    },
-    {
-      "from_id": "v0msc8ss",
-      "to_id": "xg6y81q3",
-      "relation": "same_workflow",
-      "weight": 0.86,
-      "reason": "Diagnostics depends on MCP tool discovery and delegated scope enforcement.",
-      "source": "auto",
-      "created_at": 1790818836436,
-      "updated_at": 1790818836436
+      "created_at": 1791851896397,
+      "updated_at": 1791851896397
     },
     {
       "from_id": "v0msc8ss",
       "to_id": "ifp3c48s",
       "relation": "same_workflow",
-      "weight": 0.78,
-      "reason": "Managed inference-core health and request handling are key diagnostic dependencies.",
+      "weight": 0.8,
+      "reason": "The inference-core proxy, request lifecycle, and private runtime behavior are central to diagnosing inference failures.",
       "source": "auto",
-      "created_at": 1790818836436,
-      "updated_at": 1790818836436
+      "created_at": 1791851896397,
+      "updated_at": 1791851896397
+    },
+    {
+      "from_id": "v0msc8ss",
+      "to_id": "gz01c8d5",
+      "relation": "same_workflow",
+      "weight": 0.76,
+      "reason": "Compose-managed inference-core deployment and credential/container state explain common provider and runtime failures.",
+      "source": "auto",
+      "created_at": 1791851896397,
+      "updated_at": 1791851896397
     },
     {
       "from_id": "v0msc8ss",
       "to_id": "dcfkgqwx",
       "relation": "same_area",
       "weight": 0.7,
-      "reason": "Inference limits, usage, and quota state complement failure diagnosis.",
+      "reason": "Quota snapshots and usage accounting are key evidence when diagnosing inference admission or quota failures.",
       "source": "auto",
-      "created_at": 1790818836436,
-      "updated_at": 1790818836436
+      "created_at": 1791851896397,
+      "updated_at": 1791851896397
     }
   ]
 }

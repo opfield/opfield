@@ -5,9 +5,9 @@
   "tags": [
     "assistant",
     "compatibility",
-    "gateway",
     "inference",
     "mcp",
+    "opfield",
     "settings"
   ],
   "layer": "lite",
@@ -16,9 +16,9 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1786047219057,
-  "updated_at": 1790812620333
+  "updated_at": 1791851565032
 }
 ---
-[→ gpx2fdwu] Gateway Assistant guidance for Gateway Inference setup:
+[→ gpx2fdwu] Opfield Assistant guidance for Opfield Inference setup:
 
-- For Gateway Inference setup the embedded Assistant reads the internal inference documentation firs...
+- For Opfield Inference setup the embedded Assistant reads the internal inference documentation firs...

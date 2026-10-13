@@ -3,53 +3,23 @@
   "edges": [
     {
       "from_id": "z638qk12",
-      "to_id": "dcfkgqwx",
-      "relation": "uses_service",
-      "weight": 0.5366,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813100581,
-      "updated_at": 1790813100581
-    },
-    {
-      "from_id": "z638qk12",
       "to_id": "8zbznen7",
-      "relation": "same_area",
-      "weight": 0.4977,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "relation": "same_workflow",
+      "weight": 0.94,
+      "reason": "Both define AI Workspace setup decisions and how connector or node prerequisites interact with onboarding without routing through Finalize Setup.",
       "source": "auto",
-      "created_at": 1790813100581,
-      "updated_at": 1790813100581
+      "created_at": 1791852017714,
+      "updated_at": 1791852017714
     },
     {
       "from_id": "z638qk12",
       "to_id": "gpx2fdwu",
-      "relation": "uses_service",
-      "weight": 0.4767,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
+      "relation": "same_area",
+      "weight": 0.78,
+      "reason": "Both specify Opfield Inference setup within the shared AI Workspace and Assistant configuration flow, including permission-aware guidance.",
       "source": "auto",
-      "created_at": 1790813100581,
-      "updated_at": 1790813100581
-    },
-    {
-      "from_id": "z638qk12",
-      "to_id": "xg6y81q3",
-      "relation": "uses_service",
-      "weight": 0.4389,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813100581,
-      "updated_at": 1790813100581
-    },
-    {
-      "from_id": "z638qk12",
-      "to_id": "ifp3c48s",
-      "relation": "uses_service",
-      "weight": 0.4375,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813100581,
-      "updated_at": 1790813100581
+      "created_at": 1791852017714,
+      "updated_at": 1791852017714
     }
   ]
 }

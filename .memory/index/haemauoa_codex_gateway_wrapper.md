@@ -16,7 +16,9 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1787493437067,
-  "updated_at": 1787862547447
+  "updated_at": 1791851770707
 }
 ---
-[→ mzmjdewo] Replace removed experimental usage-wrapper behavior with current cleanup contract
+[→ mzmjdewo] # Opfield Codex companion lifecycle
+
+- `@sqgateway/inference` configures Codex through `setup codex` and never shadows or replaces the system `codex` executa...

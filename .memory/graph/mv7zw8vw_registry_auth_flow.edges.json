@@ -4,52 +4,12 @@
     {
       "from_id": "mv7zw8vw",
       "to_id": "hh3v2vdi",
-      "relation": "same_area",
-      "weight": 0.52,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "relation": "same_workflow",
+      "weight": 0.86,
+      "reason": "GitLab registry connectivity testing implements the registry authentication and endpoint behavior defined by this RBAC contract.",
       "source": "auto",
-      "created_at": 1790813101629,
-      "updated_at": 1790813101629
-    },
-    {
-      "from_id": "mv7zw8vw",
-      "to_id": "adzvqx6l",
-      "relation": "same_area",
-      "weight": 0.493,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101629,
-      "updated_at": 1790813101629
-    },
-    {
-      "from_id": "mv7zw8vw",
-      "to_id": "w75b8az4",
-      "relation": "related_to",
-      "weight": 0.408,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101629,
-      "updated_at": 1790813101629
-    },
-    {
-      "from_id": "mv7zw8vw",
-      "to_id": "j6oni2tm",
-      "relation": "related_to",
-      "weight": 0.3782,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101629,
-      "updated_at": 1790813101629
-    },
-    {
-      "from_id": "mv7zw8vw",
-      "to_id": "e5deql0f",
-      "relation": "related_to",
-      "weight": 0.3737,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101629,
-      "updated_at": 1790813101629
+      "created_at": 1791851755702,
+      "updated_at": 1791851755702
     }
   ]
 }

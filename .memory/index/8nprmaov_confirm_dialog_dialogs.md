@@ -11,8 +11,11 @@
   ],
   "layer": "lite",
   "ref": "u5q52k7m",
+  "source": "model_inferred",
+  "confidence": 0.5,
+  "importance": 0.5,
   "created_at": 1785449001135,
-  "updated_at": 1785449001135
+  "updated_at": 1791851872708
 }
 ---
-[→ u5q52k7m] Confirmation dialog copy is always modal body content
+[→ u5q52k7m] Opfield frontend modal convention: the shared ConfirmDialog must render its confirmation description as a top-level DialogDescription body child outside Dial...

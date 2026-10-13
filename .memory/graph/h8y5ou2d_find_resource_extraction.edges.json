@@ -3,53 +3,13 @@
   "edges": [
     {
       "from_id": "h8y5ou2d",
-      "to_id": "ph8ejel0",
-      "relation": "same_area",
-      "weight": 0.6273,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813100420,
-      "updated_at": 1790813100420
-    },
-    {
-      "from_id": "h8y5ou2d",
       "to_id": "duvbj7h2",
       "relation": "same_area",
-      "weight": 0.4823,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.78,
+      "reason": "Both document the backend AI tool architecture and refactor boundaries, including how resource-search tools integrate with the central registry and execution path.",
       "source": "auto",
-      "created_at": 1790813100420,
-      "updated_at": 1790813100420
-    },
-    {
-      "from_id": "h8y5ou2d",
-      "to_id": "asy6c7bj",
-      "relation": "same_area",
-      "weight": 0.3763,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813100420,
-      "updated_at": 1790813100420
-    },
-    {
-      "from_id": "h8y5ou2d",
-      "to_id": "412x4uua",
-      "relation": "same_area",
-      "weight": 0.374,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813100420,
-      "updated_at": 1790813100420
-    },
-    {
-      "from_id": "h8y5ou2d",
-      "to_id": "fgmxlp0p",
-      "relation": "related_to",
-      "weight": 0.3676,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100420,
-      "updated_at": 1790813100420
+      "created_at": 1791851600764,
+      "updated_at": 1791851600764
     }
   ]
 }

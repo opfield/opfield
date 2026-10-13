@@ -9,8 +9,11 @@
   ],
   "layer": "lite",
   "ref": "elp4yliv",
+  "source": "model_inferred",
+  "confidence": 0.5,
+  "importance": 0.5,
   "created_at": 1785710126602,
-  "updated_at": 1785710126602
+  "updated_at": 1791851527317
 }
 ---
-[→ elp4yliv] Legacy browser sessions may omit the cached user object; session auth must use userId.
+[→ elp4yliv] Opfield session compatibility: Older Redis sessions may include session.userId but not a nested session.user object. Middleware, session listing, and WebSock...

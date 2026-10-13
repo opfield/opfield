@@ -15,16 +15,16 @@
   "confidence": 0.99,
   "importance": 0.9,
   "created_at": 1787137855135,
-  "updated_at": 1787862522385
+  "updated_at": 1791851654769
 }
 ---
 # Managed inference-core integration contract
 
-- Gateway owns the control plane: `gwi_` authentication, model/provider configuration, limits, pricing, and accounting.
+- Opfield owns the control plane: `gwi_` authentication, model/provider configuration, limits, pricing, and accounting.
 - The managed inference core is a private runtime dependency reachable only over the internal service network; it must not publish a public port.
 - The data plane is the stable transparent `/api/inference/v1/*` proxy with signed `wiolett-core/v1` context.
 - Create the request/accounting row before signing context, and keep `rootRequestId` equal to that durable request ID.
-- WebSocket proxying is per turn. Because the core socket may be multi-turn, Gateway closes the upstream socket after a terminal event so the client turn cannot hang.
+- WebSocket proxying is per turn. Because the core socket may be multi-turn, Opfield closes the upstream socket after a terminal event so the client turn cannot hang.
 - Hold the concurrency lease for the entire turn and release it only in finalization.
 - Database mocks can hide missing persistence fields. Accounting regression tests must assert durable pricing snapshot linkage rather than only successful responses.
 - Idempotent redelivery replays persisted admission decisions, including admitted output limits.

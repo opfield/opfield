@@ -3,53 +3,23 @@
   "edges": [
     {
       "from_id": "ph8ejel0",
-      "to_id": "h8y5ou2d",
-      "relation": "same_area",
-      "weight": 0.6273,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813100405,
-      "updated_at": 1790813100405
-    },
-    {
-      "from_id": "ph8ejel0",
       "to_id": "duvbj7h2",
       "relation": "same_area",
-      "weight": 0.4205,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.84,
+      "reason": "The web_search implementation is an AI tool whose registry and category-file placement are governed by this tool-layout convention.",
       "source": "auto",
-      "created_at": 1790813100405,
-      "updated_at": 1790813100405
+      "created_at": 1791851834505,
+      "updated_at": 1791851834505
     },
     {
       "from_id": "ph8ejel0",
-      "to_id": "412x4uua",
+      "to_id": "h8y5ou2d",
       "relation": "same_area",
-      "weight": 0.367,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.78,
+      "reason": "Both document extracted AI tool implementations and their executeTool behavior in the backend AI module.",
       "source": "auto",
-      "created_at": 1790813100405,
-      "updated_at": 1790813100405
-    },
-    {
-      "from_id": "ph8ejel0",
-      "to_id": "fgmxlp0p",
-      "relation": "related_to",
-      "weight": 0.3659,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100405,
-      "updated_at": 1790813100405
-    },
-    {
-      "from_id": "ph8ejel0",
-      "to_id": "pstn8fla",
-      "relation": "related_to",
-      "weight": 0.3357,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100405,
-      "updated_at": 1790813100405
+      "created_at": 1791851834505,
+      "updated_at": 1791851834505
     }
   ]
 }

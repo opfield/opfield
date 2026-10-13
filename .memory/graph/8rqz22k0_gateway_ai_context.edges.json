@@ -3,53 +3,13 @@
   "edges": [
     {
       "from_id": "8rqz22k0",
-      "to_id": "fgmxlp0p",
-      "relation": "same_area",
-      "weight": 0.5765,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101327,
-      "updated_at": 1790813101327
-    },
-    {
-      "from_id": "8rqz22k0",
       "to_id": "7oked0dp",
       "relation": "same_area",
-      "weight": 0.5441,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.66,
+      "reason": "Both concern Opfield AI chat tool exposure and retrieval-related verification.",
       "source": "auto",
-      "created_at": 1790813101327,
-      "updated_at": 1790813101327
-    },
-    {
-      "from_id": "8rqz22k0",
-      "to_id": "fk86zmru",
-      "relation": "same_area",
-      "weight": 0.5362,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101327,
-      "updated_at": 1790813101327
-    },
-    {
-      "from_id": "8rqz22k0",
-      "to_id": "duvbj7h2",
-      "relation": "same_area",
-      "weight": 0.5098,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101327,
-      "updated_at": 1790813101327
-    },
-    {
-      "from_id": "8rqz22k0",
-      "to_id": "pstn8fla",
-      "relation": "same_area",
-      "weight": 0.4894,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101327,
-      "updated_at": 1790813101327
+      "created_at": 1791851304558,
+      "updated_at": 1791851304558
     }
   ]
 }

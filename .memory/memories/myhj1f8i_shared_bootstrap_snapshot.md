@@ -13,12 +13,12 @@
   "ref": null,
   "source": "model_inferred",
   "confidence": 0.99,
-  "importance": 0.92,
+  "importance": 0.93,
   "created_at": 1785949175721,
-  "updated_at": 1790812562948
+  "updated_at": 1791851758586
 }
 ---
-# Gateway Dashboard Bootstrap, Sidebar and Assistant Pins Contract
+# Opfield Dashboard Bootstrap, Sidebar and Assistant Pins Contract
 
 ## Bootstrap, realtime, authorization, and invalidation
 
@@ -40,7 +40,7 @@
 
 ## Assistant pins
 
-- The embedded Gateway Assistant supports `find_resource` and `set_resource_pin` for Dashboard or Sidebar. Pins are browser-local and excluded from MCP.
+- The embedded Opfield Assistant supports `find_resource` and `set_resource_pin` for Dashboard or Sidebar. Pins are browser-local and excluded from MCP.
 - Tool results emit a one-time `client.action` WebSocket event that updates the current browser's pin stores and invalidates bootstrap.
 - Pin actions apply only to the active conversation; if an active run exists it must match the message run. Historic or delayed actions must not overwrite later manual choices.
 - Docker pin actions require `nodeId`, `nodeSlug`, and `name` so local metadata remains resolvable.

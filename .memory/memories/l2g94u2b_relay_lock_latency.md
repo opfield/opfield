@@ -15,10 +15,10 @@
   "confidence": 0.99,
   "importance": 0.95,
   "created_at": 1790522295535,
-  "updated_at": 1790812737387
+  "updated_at": 1791851707441
 }
 ---
-Root cause of ~2 s new-connection latency to managed databases through the relay (docker daemon up to v2.11.0-rc.16): `managedDatabaseManager.handle()` held `m.mu` for the whole command, and the `stats` action called Docker `ContainerStats` with `Stream: false, IncludePreviousSample: true`, which Docker answers only after a second CPU sample (~2 s; `one-shot=true` answers in ~1 ms but has no precpu, so CPU % cannot be computed). Relay link dials (`dialRecord`) took the same `m.mu` just to read the record, so every new tunnel to any database on that node waited for the in-flight stats call; with Gateway polling stats continuously, tunnels were released on a ~2 s grid. Managed storage `dial` had the same shape behind lifecycle commands.
+Root cause of ~2 s new-connection latency to managed databases through the relay (docker daemon up to v2.11.0-rc.16): `managedDatabaseManager.handle()` held `m.mu` for the whole command, and the `stats` action called Docker `ContainerStats` with `Stream: false, IncludePreviousSample: true`, which Docker answers only after a second CPU sample (~2 s; `one-shot=true` answers in ~1 ms but has no precpu, so CPU % cannot be computed). Relay link dials (`dialRecord`) took the same `m.mu` just to read the record, so every new tunnel to any database on that node waited for the in-flight stats call; with Opfield polling stats continuously, tunnels were released on a ~2 s grid. Managed storage `dial` had the same shape behind lifecycle commands.
 
 Fix (commit c50c9ce1, first shipped in v2.11.0-rc.17-docker): relay dials read records without the manager lock (records are replaced atomically via temp file + rename, and the dial verifies the live container), and `stats` runs outside the lock like `probe_tls`. Its regression test (`managed_relay_dial_lock_test.go`, which held the lock or blocked a stats sample in the fake engine and asserted dials still proceed) was removed by the 2026-09-29 light-suite cut.
 

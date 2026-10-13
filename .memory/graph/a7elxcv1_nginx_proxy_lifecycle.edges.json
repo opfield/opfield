@@ -4,52 +4,32 @@
     {
       "from_id": "a7elxcv1",
       "to_id": "8c9f2oec",
-      "relation": "related_to",
-      "weight": 0.465,
-      "reason": "The memories are similar enough to be useful related context.",
+      "relation": "same_workflow",
+      "weight": 0.88,
+      "reason": "Both define Nginx node and proxy-host lifecycle constraints involving Domain assignments, node affinity, and deletion blockers.",
       "source": "auto",
-      "created_at": 1790813101586,
-      "updated_at": 1790813101586
+      "created_at": 1791851346590,
+      "updated_at": 1791851346590
     },
     {
       "from_id": "a7elxcv1",
       "to_id": "3ta908aa",
       "relation": "same_workflow",
-      "weight": 0.4257,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
+      "weight": 0.82,
+      "reason": "Both cover Secure Link relay routes, policy revocation, Nginx integration, and deferred reconciliation when Relay is unreachable.",
       "source": "auto",
-      "created_at": 1790813101586,
-      "updated_at": 1790813101586
-    },
-    {
-      "from_id": "a7elxcv1",
-      "to_id": "rzidwe4n",
-      "relation": "same_workflow",
-      "weight": 0.4173,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
-      "source": "auto",
-      "created_at": 1790813101586,
-      "updated_at": 1790813101586
-    },
-    {
-      "from_id": "a7elxcv1",
-      "to_id": "7uk369vl",
-      "relation": "related_to",
-      "weight": 0.3868,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101586,
-      "updated_at": 1790813101586
+      "created_at": 1791851346590,
+      "updated_at": 1791851346590
     },
     {
       "from_id": "a7elxcv1",
       "to_id": "8vganhe2",
-      "relation": "related_to",
-      "weight": 0.3839,
-      "reason": "The memories are similar enough to be useful related context.",
+      "relation": "same_workflow",
+      "weight": 0.79,
+      "reason": "Both require desired-state reconciliation to preserve or remove relay routes based on durable lifecycle state rather than transient readiness.",
       "source": "auto",
-      "created_at": 1790813101586,
-      "updated_at": 1790813101586
+      "created_at": 1791851346590,
+      "updated_at": 1791851346590
     }
   ]
 }

@@ -15,9 +15,9 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1785448712405,
-  "updated_at": 1790812541697
+  "updated_at": 1791851648092
 }
 ---
-[→ i5ntywfb] Gateway frontend details for inference usage cards, the Command Palette and AI conversation titles:
+[→ i5ntywfb] Opfield frontend details for inference usage cards, the Command Palette and AI conversation titles:
 
 - Superseded (2026-09): the July 2026 rule that derived ...

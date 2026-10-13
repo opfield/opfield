@@ -4,23 +4,23 @@
   "file_name": "dcfkgqwx_accounting_gateway_inference",
   "tags": [
     "accounting",
-    "gateway",
     "inference",
     "limits",
+    "opfield",
     "quota"
   ],
   "layer": "deep",
   "ref": null,
   "source": "model_inferred",
   "confidence": 0.99,
-  "importance": 0.96,
+  "importance": 0.95,
   "created_at": 1784934085269,
-  "updated_at": 1788961810731
+  "updated_at": 1791851484337
 }
 ---
-# Gateway inference product contract
+# Opfield inference product contract
 
-Gateway Inference is a standalone bounded context with the OpenAI-compatible `/api/inference/v1` data plane, dedicated `gwi_` tokens, and isolated provider/runtime credentials. Gateway owns authentication, provider/model configuration, limits, pricing, accounting, routing, and quota UX.
+Opfield Inference is a standalone bounded context with the OpenAI-compatible `/api/inference/v1` data plane, dedicated `gwi_` tokens, and isolated provider/runtime credentials. Opfield owns authentication, provider/model configuration, limits, pricing, accounting, routing, and quota UX.
 
 ## User limit windows
 
@@ -29,7 +29,7 @@ Gateway Inference is a standalone bounded context with the OpenAI-compatible `/a
 - At the boundary, the whole window expires and usage becomes zero. No next window is created by time, status reads, dashboard refresh, or polling; the next subscription-backed request starts it.
 - Manual administrator reset closes subscription windows and leaves them idle until the user's next subscription-backed request. It does not delete immutable request or ledger history.
 - The monthly API budget remains calendar/anchor based and keeps its existing reset semantics.
-- Subscription windows and ledger attribution share one authoritative Gateway admission timestamp. Do not substitute an earlier core callback timestamp or overwrite the accounting anchor at dispatch; latency timing is separate. A long request that finishes after a boundary remains charged to its admission window.
+- Subscription windows and ledger attribution share one authoritative Opfield admission timestamp. Do not substitute an earlier core callback timestamp or overwrite the accounting anchor at dispatch; latency timing is separate. A long request that finishes after a boundary remains charged to its admission window.
 - Redis live reservations are scoped to the concrete window identity; reservations admitted in an expired window must not reduce capacity in the next lazily started window.
 - Usage remains monotonic while a fixed window is active. Frontend inference usage snapshots carry a measurement time, and consumers reject older dashboard/bootstrap snapshots so stale responses cannot roll displayed usage backward.
 

@@ -3,43 +3,23 @@
   "edges": [
     {
       "from_id": "gz01c8d5",
-      "to_id": "nr9hvzr3",
-      "relation": "related_to",
-      "weight": 0.4336,
-      "reason": "The memories are similar enough to be useful related context.",
+      "to_id": "dcfkgqwx",
+      "relation": "same_area",
+      "weight": 0.72,
+      "reason": "Both document Opfield's managed inference product and its provider/runtime model configuration.",
       "source": "auto",
-      "created_at": 1790813100530,
-      "updated_at": 1790813100530
+      "created_at": 1791851586731,
+      "updated_at": 1791851586731
     },
     {
       "from_id": "gz01c8d5",
-      "to_id": "ifp3c48s",
+      "to_id": "40lzh793",
       "relation": "related_to",
-      "weight": 0.4175,
-      "reason": "The memories are similar enough to be useful related context.",
+      "weight": 0.58,
+      "reason": "Both rely on managed Docker container lifecycle and identity behavior for runtime services.",
       "source": "auto",
-      "created_at": 1790813100530,
-      "updated_at": 1790813100530
-    },
-    {
-      "from_id": "gz01c8d5",
-      "to_id": "j6oni2tm",
-      "relation": "related_to",
-      "weight": 0.374,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100530,
-      "updated_at": 1790813100530
-    },
-    {
-      "from_id": "gz01c8d5",
-      "to_id": "mzmjdewo",
-      "relation": "related_to",
-      "weight": 0.3553,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100530,
-      "updated_at": 1790813100530
+      "created_at": 1791851586731,
+      "updated_at": 1791851586731
     }
   ]
 }

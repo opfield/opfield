@@ -4,10 +4,10 @@
   "file_name": "jmanm7iw_onboarding_completion",
   "tags": [
     "ai-workspace",
-    "gateway",
     "inference",
     "navigation",
     "onboarding",
+    "opfield",
     "rbac"
   ],
   "layer": "lite",
@@ -16,10 +16,10 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1786048875275,
-  "updated_at": 1790812664681
+  "updated_at": 1791852012087
 }
 ---
-[→ z638qk12] # Gateway Onboarding, AI Workspace, and Interface Contract
+[→ z638qk12] # Opfield Onboarding, AI Workspace, and Interface Contract
 
 ## Finalize Setup and Browser Setup
 

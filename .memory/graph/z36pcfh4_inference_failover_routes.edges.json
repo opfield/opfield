@@ -3,53 +3,33 @@
   "edges": [
     {
       "from_id": "z36pcfh4",
-      "to_id": "ifp3c48s",
-      "relation": "related_to",
-      "weight": 0.3941,
-      "reason": "The memories are similar enough to be useful related context.",
+      "to_id": "v0msc8ss",
+      "relation": "same_workflow",
+      "weight": 0.9,
+      "reason": "Both define and diagnose Opfield inference failover using connection eligibility, discovery freshness, and upstream rejection evidence.",
       "source": "auto",
-      "created_at": 1790813101439,
-      "updated_at": 1790813101439
+      "created_at": 1791852009327,
+      "updated_at": 1791852009327
+    },
+    {
+      "from_id": "z36pcfh4",
+      "to_id": "ifp3c48s",
+      "relation": "same_workflow",
+      "weight": 0.82,
+      "reason": "Both specify the managed inference-core data-plane contract, including candidate routing and per-turn failover behavior.",
+      "source": "auto",
+      "created_at": 1791852009327,
+      "updated_at": 1791852009327
     },
     {
       "from_id": "z36pcfh4",
       "to_id": "dcfkgqwx",
-      "relation": "related_to",
-      "weight": 0.3463,
-      "reason": "The memories are similar enough to be useful related context.",
+      "relation": "same_area",
+      "weight": 0.78,
+      "reason": "Both establish durable Opfield inference routing and admission rules across providers, limits, accounting, and connection eligibility.",
       "source": "auto",
-      "created_at": 1790813101439,
-      "updated_at": 1790813101439
-    },
-    {
-      "from_id": "z36pcfh4",
-      "to_id": "mzmjdewo",
-      "relation": "related_to",
-      "weight": 0.3416,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101439,
-      "updated_at": 1790813101439
-    },
-    {
-      "from_id": "z36pcfh4",
-      "to_id": "8c9f2oec",
-      "relation": "related_to",
-      "weight": 0.3294,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101439,
-      "updated_at": 1790813101439
-    },
-    {
-      "from_id": "z36pcfh4",
-      "to_id": "ub47mk8e",
-      "relation": "related_to",
-      "weight": 0.3269,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101439,
-      "updated_at": 1790813101439
+      "created_at": 1791852009327,
+      "updated_at": 1791852009327
     }
   ]
 }

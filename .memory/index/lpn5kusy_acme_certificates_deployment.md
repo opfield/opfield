@@ -11,8 +11,11 @@
   ],
   "layer": "lite",
   "ref": "gqzqcsgc",
+  "source": "model_inferred",
+  "confidence": 0.5,
+  "importance": 0.5,
   "created_at": 1785396977270,
-  "updated_at": 1785396977270
+  "updated_at": 1791851571712
 }
 ---
-[→ gqzqcsgc] Gateway nginx daemon must concatenate certificatePem and chainPem into fullchain.pem
+[→ gqzqcsgc] Opfield TLS deployment gotcha: ACME certificate rows can correctly store a leaf certificate in certificatePem and intermediates in chainPem while public clie...

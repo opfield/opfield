@@ -3,53 +3,23 @@
   "edges": [
     {
       "from_id": "pzorr3qy",
-      "to_id": "lct3cijz",
-      "relation": "related_to",
-      "weight": 0.4399,
-      "reason": "The memories are similar enough to be useful related context.",
+      "to_id": "40lzh793",
+      "relation": "same_area",
+      "weight": 0.84,
+      "reason": "Both define durable Docker managed-container identity and ownership rules, including internal service markers and lifecycle handling.",
       "source": "auto",
-      "created_at": 1790813101698,
-      "updated_at": 1790813101698
+      "created_at": 1791851855819,
+      "updated_at": 1791851855819
     },
     {
       "from_id": "pzorr3qy",
-      "to_id": "adzvqx6l",
-      "relation": "related_to",
-      "weight": 0.4217,
-      "reason": "The memories are similar enough to be useful related context.",
+      "to_id": "ehwd5n85",
+      "relation": "same_area",
+      "weight": 0.8,
+      "reason": "The safety contract explicitly identifies secure-link connector containers as internal, while this record defines their shared connector architecture and migration behavior.",
       "source": "auto",
-      "created_at": 1790813101698,
-      "updated_at": 1790813101698
-    },
-    {
-      "from_id": "pzorr3qy",
-      "to_id": "3mk44b9q",
-      "relation": "related_to",
-      "weight": 0.4012,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101698,
-      "updated_at": 1790813101698
-    },
-    {
-      "from_id": "pzorr3qy",
-      "to_id": "nr9hvzr3",
-      "relation": "related_to",
-      "weight": 0.3969,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101698,
-      "updated_at": 1790813101698
-    },
-    {
-      "from_id": "pzorr3qy",
-      "to_id": "j6oni2tm",
-      "relation": "related_to",
-      "weight": 0.3911,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101698,
-      "updated_at": 1790813101698
+      "created_at": 1791851855819,
+      "updated_at": 1791851855819
     }
   ]
 }

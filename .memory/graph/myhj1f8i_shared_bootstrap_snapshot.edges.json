@@ -3,53 +3,23 @@
   "edges": [
     {
       "from_id": "myhj1f8i",
-      "to_id": "z638qk12",
-      "relation": "related_to",
-      "weight": 0.4206,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100731,
-      "updated_at": 1790813100731
-    },
-    {
-      "from_id": "myhj1f8i",
       "to_id": "gahvf5k5",
-      "relation": "related_to",
-      "weight": 0.4051,
-      "reason": "The memories are similar enough to be useful related context.",
+      "relation": "same_workflow",
+      "weight": 0.82,
+      "reason": "Group MFA policy events invalidate the shared dashboard/sidebar bootstrap snapshot.",
       "source": "auto",
-      "created_at": 1790813100731,
-      "updated_at": 1790813100731
+      "created_at": 1791851766490,
+      "updated_at": 1791851766490
     },
     {
       "from_id": "myhj1f8i",
-      "to_id": "2tjfa2g5",
-      "relation": "related_to",
-      "weight": 0.3681,
-      "reason": "The memories are similar enough to be useful related context.",
+      "to_id": "4tmpz7of",
+      "relation": "same_workflow",
+      "weight": 0.68,
+      "reason": "Docker mutation events and settle transitions feed the realtime invalidation flow for dashboard Docker pins.",
       "source": "auto",
-      "created_at": 1790813100731,
-      "updated_at": 1790813100731
-    },
-    {
-      "from_id": "myhj1f8i",
-      "to_id": "ip47mets",
-      "relation": "related_to",
-      "weight": 0.3549,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100731,
-      "updated_at": 1790813100731
-    },
-    {
-      "from_id": "myhj1f8i",
-      "to_id": "dcfkgqwx",
-      "relation": "related_to",
-      "weight": 0.3546,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100731,
-      "updated_at": 1790813100731
+      "created_at": 1791851766490,
+      "updated_at": 1791851766490
     }
   ]
 }

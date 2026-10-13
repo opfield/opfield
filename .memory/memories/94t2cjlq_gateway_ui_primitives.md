@@ -5,20 +5,20 @@
   "tags": [
     "design-system",
     "frontend",
-    "gateway",
+    "opfield",
     "shared-components",
     "ui"
   ],
   "layer": "deep",
   "ref": null,
   "source": "model_inferred",
-  "confidence": 0.78,
-  "importance": 0.75,
+  "confidence": 0.99,
+  "importance": 0.88,
   "created_at": 1782203110045,
-  "updated_at": 1784761765199
+  "updated_at": 1791851332992
 }
 ---
-Gateway frontend shared shell/table layer:
+Opfield frontend shared shell/table layer:
 - Prefer packages/frontend/src/components/common/PanelShell.tsx for canonical bordered sections/cards with header, description/actions, and body hooks.
 - Prefer SimpleTable for fixed modal/panel data, ResourceListLayout primitives for folder-style and main resource lists, DetailRow for label/value details, PageBackButton for the shared 36x36 back action, and the shared CodeEditor (bordered=false when PanelShell owns the border).
 - Do not create domain-specific shells/tables/detail wrappers when these primitives can express the layout.

@@ -4,7 +4,7 @@
   "file_name": "2tjfa2g5_gateway_route_verification",
   "tags": [
     "docker",
-    "gateway",
+    "opfield",
     "permissions",
     "realtime",
     "routing",
@@ -13,11 +13,14 @@
   ],
   "layer": "deep",
   "ref": null,
+  "source": "model_inferred",
+  "confidence": 0.99,
+  "importance": 0.9,
   "created_at": 1783637960104,
-  "updated_at": 1783637960104
+  "updated_at": 1791851138113
 }
 ---
-Gateway human-readable main detail routes use this contract:
+Opfield human-readable main detail routes use this contract:
 - Persist backend-generated collision-safe slugs (base limited to 60 characters before adding -1/-2 suffixes) only for nodes, database connections, proxy hosts, plus the existing logging environment/schema slug fields.
 - Docker containers, deployments, and volumes use their exact case-sensitive names as the child route identity, scoped by node slug. Technical APIs, mutations, and popouts remain ID-based.
 - Do not add slug systems for PKI, domains, certificates/ CAs, or templates unless separately requested. Frontend never computes canonical slugs.

@@ -5,51 +5,11 @@
       "from_id": "hic3s1ta",
       "to_id": "elp4yliv",
       "relation": "same_area",
-      "weight": 0.4924,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.76,
+      "reason": "Both define defensive session handling across authentication flows, including session creation metadata and legacy session compatibility.",
       "source": "auto",
-      "created_at": 1790813101808,
-      "updated_at": 1790813101808
-    },
-    {
-      "from_id": "hic3s1ta",
-      "to_id": "c49ob9tl",
-      "relation": "related_to",
-      "weight": 0.3637,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101808,
-      "updated_at": 1790813101808
-    },
-    {
-      "from_id": "hic3s1ta",
-      "to_id": "vrru6m60",
-      "relation": "related_to",
-      "weight": 0.3592,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101808,
-      "updated_at": 1790813101808
-    },
-    {
-      "from_id": "hic3s1ta",
-      "to_id": "a8l959n1",
-      "relation": "same_workflow",
-      "weight": 0.3429,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
-      "source": "auto",
-      "created_at": 1790813101808,
-      "updated_at": 1790813101808
-    },
-    {
-      "from_id": "hic3s1ta",
-      "to_id": "3fym4ikf",
-      "relation": "related_to",
-      "weight": 0.2737,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101808,
-      "updated_at": 1790813101808
+      "created_at": 1791851621978,
+      "updated_at": 1791851621978
     }
   ]
 }

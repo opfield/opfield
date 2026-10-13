@@ -5,7 +5,7 @@
   "tags": [
     "authentication",
     "delivery-log",
-    "gateway",
+    "opfield",
     "siem",
     "ui"
   ],
@@ -15,15 +15,15 @@
   "confidence": 0.99,
   "importance": 0.9,
   "created_at": 1786140832137,
-  "updated_at": 1790812580962
+  "updated_at": 1791851223079
 }
 ---
-# Gateway SIEM contract
+# Opfield SIEM contract
 
 ## Feature flag
 
 - `generalSettings.features.siemEnabled` is installation-wide and defaults to `true` for backward-compatible upgrades.
-- It is configured through **Settings → Gateway → General settings → SIEM audit export**.
+- It is configured through **Settings → Opfield → General settings → SIEM audit export**.
 - When disabled, SIEM tabs/preloads disappear, SIEM-only users lose Notifications navigation, `/api/audit/siem` and SIEM AI tools fail closed, local audit records continue, new SIEM outbox rows are not created, and in-process delivery pauses.
 - Destinations, history, and queued records remain and resume when re-enabled.
 - Existing `system.config.changed` invalidation refreshes UI/config caches; no restart or extra service is required.

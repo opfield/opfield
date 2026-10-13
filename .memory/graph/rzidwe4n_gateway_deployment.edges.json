@@ -3,43 +3,43 @@
   "edges": [
     {
       "from_id": "rzidwe4n",
-      "to_id": "3ta908aa",
+      "to_id": "ehwd5n85",
       "relation": "same_workflow",
-      "weight": 0.5129,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
+      "weight": 0.9,
+      "reason": "Both define Secure Link connector migration and deployment cutover safety.",
       "source": "auto",
-      "created_at": 1790813100697,
-      "updated_at": 1790813100697
+      "created_at": 1791851870648,
+      "updated_at": 1791851870648
     },
     {
       "from_id": "rzidwe4n",
       "to_id": "iois3ul4",
       "relation": "same_workflow",
-      "weight": 0.507,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
+      "weight": 0.88,
+      "reason": "Both govern state-preserving relay migration, supervision, and connector replacement.",
       "source": "auto",
-      "created_at": 1790813100697,
-      "updated_at": 1790813100697
+      "created_at": 1791851870648,
+      "updated_at": 1791851870648
     },
     {
       "from_id": "rzidwe4n",
-      "to_id": "02e60mqr",
+      "to_id": "3ta908aa",
       "relation": "same_workflow",
-      "weight": 0.4539,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
+      "weight": 0.84,
+      "reason": "Both specify relay/Secure Link deployment, cutover, and end-to-end validation.",
       "source": "auto",
-      "created_at": 1790813100697,
-      "updated_at": 1790813100697
+      "created_at": 1791851870648,
+      "updated_at": 1791851870648
     },
     {
       "from_id": "rzidwe4n",
-      "to_id": "a7elxcv1",
+      "to_id": "lvklfxgs",
       "relation": "same_workflow",
-      "weight": 0.4173,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
+      "weight": 0.75,
+      "reason": "Release-upgrade E2E validates the deployment and migration safety rules.",
       "source": "auto",
-      "created_at": 1790813100697,
-      "updated_at": 1790813100697
+      "created_at": 1791851870648,
+      "updated_at": 1791851870648
     }
   ]
 }

@@ -3,53 +3,33 @@
   "edges": [
     {
       "from_id": "asy6c7bj",
-      "to_id": "nr9hvzr3",
-      "relation": "same_area",
-      "weight": 0.5278,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813100906,
-      "updated_at": 1790813100906
-    },
-    {
-      "from_id": "asy6c7bj",
       "to_id": "412x4uua",
       "relation": "same_area",
-      "weight": 0.4825,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.92,
+      "reason": "Both document the Opfield frontend refactor pattern of extracting domain logic while preserving existing API or page call sites.",
       "source": "auto",
-      "created_at": 1790813100906,
-      "updated_at": 1790813100906
+      "created_at": 1791851396429,
+      "updated_at": 1791851396429
     },
     {
       "from_id": "asy6c7bj",
-      "to_id": "j6oni2tm",
-      "relation": "related_to",
-      "weight": 0.456,
-      "reason": "The memories are similar enough to be useful related context.",
+      "to_id": "4tmpz7of",
+      "relation": "same_workflow",
+      "weight": 0.86,
+      "reason": "The refactor's Docker detail seams directly implement this mutation-lock, settle-detection, and recreate-transition behavior.",
       "source": "auto",
-      "created_at": 1790813100906,
-      "updated_at": 1790813100906
+      "created_at": 1791851396429,
+      "updated_at": 1791851396429
     },
     {
       "from_id": "asy6c7bj",
-      "to_id": "adzvqx6l",
-      "relation": "related_to",
-      "weight": 0.4558,
-      "reason": "The memories are similar enough to be useful related context.",
+      "to_id": "3mk44b9q",
+      "relation": "same_workflow",
+      "weight": 0.68,
+      "reason": "Docker detail extraction must preserve runtime identity handling across recreates, restarts, and replacement refreshes.",
       "source": "auto",
-      "created_at": 1790813100906,
-      "updated_at": 1790813100906
-    },
-    {
-      "from_id": "asy6c7bj",
-      "to_id": "37llsl1w",
-      "relation": "same_area",
-      "weight": 0.4553,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813100906,
-      "updated_at": 1790813100906
+      "created_at": 1791851396429,
+      "updated_at": 1791851396429
     }
   ]
 }

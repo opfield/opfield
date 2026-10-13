@@ -4,10 +4,10 @@
   "file_name": "z638qk12_onboarding_completion",
   "tags": [
     "ai-workspace",
-    "gateway",
     "inference",
     "navigation",
     "onboarding",
+    "opfield",
     "rbac"
   ],
   "layer": "deep",
@@ -16,36 +16,36 @@
   "confidence": 0.99,
   "importance": 0.95,
   "created_at": 1786048875275,
-  "updated_at": 1790812664681
+  "updated_at": 1791852012087
 }
 ---
-# Gateway Onboarding, AI Workspace, and Interface Contract
+# Opfield Onboarding, AI Workspace, and Interface Contract
 
 ## Finalize Setup and Browser Setup
 
 - Finalize Setup is a terminal per-step checklist, not a dismissible dashboard notice.
 - Version 3 raw steps are `nodes`, `ai_workspace`, `cloudflare`, `gitlab`, `mfa`, and `invite_users`.
-- Gateway Inference is nested in the shared AI Workspace flow and is not a root checklist step. Normalize legacy `ai_assistant` to `ai_workspace`; legacy `inference` does not gate completion.
+- Opfield Inference is nested in the shared AI Workspace flow and is not a root checklist step. Normalize legacy `ai_assistant` to `ai_workspace`; legacy `inference` does not gate completion.
 - The Integrations row is complete only when both Cloudflare and GitLab have outcomes. `Skip for now` closes without changing outcomes; `Finish` is available only after all raw steps have outcomes.
 - Browser Setup applies core configuration first, persists phase `ai_workspace`, and remains incomplete until AI Workspace is configured or explicitly skipped.
 - Reuse `ConfigureAIWorkspaceWizard` in Browser Setup, Finalize Setup, and the installation-owner interface chooser. Do not create a separate persistent sidebar CTA.
-- The wizard supports an OpenAI-compatible provider or Gateway Inference. Show Inference only when the caller has every required management scope.
+- The wizard supports an OpenAI-compatible provider or Opfield Inference. Show Inference only when the caller has every required management scope.
 - Setup-purpose sessions are bounded to the active setup session, are never refreshed, are omitted from public session lists, are restricted to required setup endpoints, and are revoked on completion.
 - `/api/ai/status` remains in the setup-purpose allowlist because setup refreshes provider state after saving.
 
-## AI Workspace and Gateway Inference Scopes
+## AI Workspace and Opfield Inference Scopes
 
 - `ai:workspace:use` is the dedicated AI Workspace access scope.
 - The built-in `viewer`, `operator`, `admin`, and `system-admin` groups receive `ai:workspace:use` by default. `guest` does not.
-- `feat:ai:use` remains the separate Gateway Inference and personal inference-usage scope. It must never substitute for AI Workspace access.
+- `feat:ai:use` remains the separate Opfield Inference and personal inference-usage scope. It must never substitute for AI Workspace access.
 - Existing groups and user-specific grants that had `feat:ai:use` before the split are migrated to also receive `ai:workspace:use`, preserving prior AI Workspace access without granting the new scope to programmatic tokens.
 - AI Workspace browser routes, WebSocket authorization, embedded AI tools, provider shell state, connector handoffs, command palette actions, sidebar AI controls, and personal AI approval controls use `ai:workspace:use`.
-- Gateway Inference management/data-plane access, inference tokens, model access, personal usage, usage cards, and inference endpoint preferences remain on `feat:ai:use` and their operation-specific inference scopes.
+- Opfield Inference management/data-plane access, inference tokens, model access, personal usage, usage cards, and inference endpoint preferences remain on `feat:ai:use` and their operation-specific inference scopes.
 
 ## Interface Choice and Navigation
 
 - Persist each user's `preferredInterface` as `ai_workspace` or `operations_console`, with a server timestamp. Clear local preference state while another user's preference is loading.
-- Users without `ai:workspace:use` never see the first-run interface chooser. Gateway immediately applies and persists `operations_console`, including when a stale stored preference says `ai_workspace`.
+- Users without `ai:workspace:use` never see the first-run interface chooser. Opfield immediately applies and persists `operations_console`, including when a stale stored preference says `ai_workspace`.
 - Users without the Workspace scope do not see Workspace actions in Sidebar, Command Palette, or Profile. Direct `/ai/chats/:conversationId` access redirects to `/profile`.
 - Users with `ai:workspace:use` see the non-dismissible chooser when AI Workspace is configured. The installation owner may configure Workspace through the same chooser.
 - Choosing AI Workspace opens the shared setup flow and saves the preference only after successful setup.
@@ -67,13 +67,13 @@
 
 ## Handoffs and resource links
 
-- AI resource links use backend-issued canonical `uiHref` and `workspaceEmbeddable`; never derive Gateway routes from model text.
+- AI resource links use backend-issued canonical `uiHref` and `workspaceEmbeddable`; never derive Opfield routes from model text.
 - Scenario prerequisite handoffs (`open_connector_setup`, `open_node_enrollment`) and terminal Work Session markers are specified in their own memories (scenario prerequisites; AI chat terminal state).
 
-## Gateway Inference Boundary
+## Opfield Inference Boundary
 
-- Gateway Inference administration is under Settings > Inference; personal usage and inference-token management are under Profile. The bounded-context contract lives in the inference product memory.
-- The embedded Assistant may expose permission-aware inference management tools, but Gateway Inference remains excluded from remote Gateway MCP.
+- Opfield Inference administration is under Settings > Inference; personal usage and inference-token management are under Profile. The bounded-context contract lives in the inference product memory.
+- The embedded Assistant may expose permission-aware inference management tools, but Opfield Inference remains excluded from remote Opfield MCP.
 
 ## Verification
 

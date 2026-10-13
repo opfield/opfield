@@ -3,53 +3,23 @@
   "edges": [
     {
       "from_id": "pstn8fla",
-      "to_id": "7oked0dp",
-      "relation": "same_area",
-      "weight": 0.532,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1787862735817,
-      "updated_at": 1787862735817
-    },
-    {
-      "from_id": "pstn8fla",
-      "to_id": "8rqz22k0",
-      "relation": "same_area",
-      "weight": 0.4894,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1787862735817,
-      "updated_at": 1787862735817
-    },
-    {
-      "from_id": "pstn8fla",
       "to_id": "fgmxlp0p",
       "relation": "same_area",
-      "weight": 0.6491,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.91,
+      "reason": "Both define durable AI conversation retrieval boundaries, including prompt tail context, exact-message reads, and protection of tool call/result content.",
       "source": "auto",
-      "created_at": 1787862735817,
-      "updated_at": 1787862735817
+      "created_at": 1791851841146,
+      "updated_at": 1791851841146
     },
     {
       "from_id": "pstn8fla",
-      "to_id": "fk86zmru",
-      "relation": "same_area",
-      "weight": 0.5003,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "to_id": "7oked0dp",
+      "relation": "same_workflow",
+      "weight": 0.86,
+      "reason": "The retrieval contract directly depends on the search_chats, find_in_chat, and read_chat_slice behavior and verification requirements described here.",
       "source": "auto",
-      "created_at": 1787862735817,
-      "updated_at": 1787862735817
-    },
-    {
-      "from_id": "pstn8fla",
-      "to_id": "qme9z5oh",
-      "relation": "related_to",
-      "weight": 0.4259,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1787862735817,
-      "updated_at": 1787862735817
+      "created_at": 1791851841146,
+      "updated_at": 1791851841146
     }
   ]
 }

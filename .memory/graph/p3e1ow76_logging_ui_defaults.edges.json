@@ -4,52 +4,12 @@
     {
       "from_id": "p3e1ow76",
       "to_id": "2npkkqwm",
-      "relation": "same_area",
-      "weight": 0.6399,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101219,
-      "updated_at": 1790813101219
-    },
-    {
-      "from_id": "p3e1ow76",
-      "to_id": "43cdn720",
       "relation": "same_workflow",
-      "weight": 0.4274,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
+      "weight": 0.88,
+      "reason": "Both define Logging housekeeping behavior, including persisted ClickHouse Internals settings and retention-related maintenance.",
       "source": "auto",
-      "created_at": 1790813101219,
-      "updated_at": 1790813101219
-    },
-    {
-      "from_id": "p3e1ow76",
-      "to_id": "acdy69d9",
-      "relation": "same_workflow",
-      "weight": 0.3603,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
-      "source": "auto",
-      "created_at": 1790813101219,
-      "updated_at": 1790813101219
-    },
-    {
-      "from_id": "p3e1ow76",
-      "to_id": "z638qk12",
-      "relation": "related_to",
-      "weight": 0.3546,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101219,
-      "updated_at": 1790813101219
-    },
-    {
-      "from_id": "p3e1ow76",
-      "to_id": "x2uskhdm",
-      "relation": "same_workflow",
-      "weight": 0.3525,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
-      "source": "auto",
-      "created_at": 1790813101219,
-      "updated_at": 1790813101219
+      "created_at": 1791851826988,
+      "updated_at": 1791851826988
     }
   ]
 }

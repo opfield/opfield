@@ -5,15 +5,18 @@
   "tags": [
     "design-system",
     "frontend",
-    "gateway",
+    "opfield",
     "primitives",
     "viewer",
     "widgets"
   ],
   "layer": "lite",
   "ref": "ip47mets",
+  "source": "model_inferred",
+  "confidence": 0.5,
+  "importance": 0.5,
   "created_at": 1790813281335,
-  "updated_at": 1790813281335
+  "updated_at": 1791851673630
 }
 ---
-[→ ip47mets] Branch-only @wiolett/design-system architecture contract (primitives/widgets/helpers, component boundaries); not in main
+[→ ip47mets] Status (verified 2026-10-01): @wiolett/design-system and its viewer exist only on the unmerged branches `codex/design-system` (2026-06-09) and `codex/design-...

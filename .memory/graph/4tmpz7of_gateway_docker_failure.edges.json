@@ -3,53 +3,23 @@
   "edges": [
     {
       "from_id": "4tmpz7of",
-      "to_id": "adzvqx6l",
-      "relation": "same_area",
-      "weight": 0.121,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101955,
-      "updated_at": 1790813101955
-    },
-    {
-      "from_id": "4tmpz7of",
-      "to_id": "iv7hhye3",
-      "relation": "related_to",
-      "weight": 0.1071,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101955,
-      "updated_at": 1790813101955
-    },
-    {
-      "from_id": "4tmpz7of",
-      "to_id": "2tjfa2g5",
-      "relation": "related_to",
-      "weight": 0.1068,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101955,
-      "updated_at": 1790813101955
-    },
-    {
-      "from_id": "4tmpz7of",
-      "to_id": "gahvf5k5",
-      "relation": "related_to",
-      "weight": 0.1059,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101955,
-      "updated_at": 1790813101955
-    },
-    {
-      "from_id": "4tmpz7of",
       "to_id": "3mk44b9q",
-      "relation": "related_to",
-      "weight": 0.1041,
-      "reason": "The memories are similar enough to be useful related context.",
+      "relation": "same_workflow",
+      "weight": 0.9,
+      "reason": "Both define Docker container recreate identity changes, replacement-ID adoption, and detail-page refresh behavior.",
       "source": "auto",
-      "created_at": 1790813101955,
-      "updated_at": 1790813101955
+      "created_at": 1791851257586,
+      "updated_at": 1791851257586
+    },
+    {
+      "from_id": "4tmpz7of",
+      "to_id": "40lzh793",
+      "relation": "same_area",
+      "weight": 0.78,
+      "reason": "Shares the Docker recreate lifecycle and replacement-runtime identity concerns, including preserving ownership across ID changes.",
+      "source": "auto",
+      "created_at": 1791851257586,
+      "updated_at": 1791851257586
     }
   ]
 }

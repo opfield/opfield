@@ -16,7 +16,7 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1785878943106,
-  "updated_at": 1787955601466
+  "updated_at": 1791851365560
 }
 ---
-[→ ac5muwri] Keep localized Markdown, operational guides, and embedded MCP documentation synchronized and verify live publication separately.
+[→ ac5muwri] Documentation maintenance rule: when Opfield adds or changes a user-visible feature, update all three root README locales (EN/RU/CN), docs/capabilities.md, t...

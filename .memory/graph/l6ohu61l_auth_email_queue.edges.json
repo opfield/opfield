@@ -3,53 +3,13 @@
   "edges": [
     {
       "from_id": "l6ohu61l",
-      "to_id": "a8l959n1",
-      "relation": "related_to",
-      "weight": 0.3577,
-      "reason": "The memories are similar enough to be useful related context.",
+      "to_id": "8v2nc5jg",
+      "relation": "depends_on",
+      "weight": 0.76,
+      "reason": "Setup-wizard password and email-OTP sign-in depends on verified SMTP and the queued email-delivery workflow described here.",
       "source": "auto",
-      "created_at": 1790813101897,
-      "updated_at": 1790813101897
-    },
-    {
-      "from_id": "l6ohu61l",
-      "to_id": "43cdn720",
-      "relation": "same_area",
-      "weight": 0.3215,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101897,
-      "updated_at": 1790813101897
-    },
-    {
-      "from_id": "l6ohu61l",
-      "to_id": "gahvf5k5",
-      "relation": "related_to",
-      "weight": 0.3072,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101897,
-      "updated_at": 1790813101897
-    },
-    {
-      "from_id": "l6ohu61l",
-      "to_id": "elp4yliv",
-      "relation": "related_to",
-      "weight": 0.2834,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101897,
-      "updated_at": 1790813101897
-    },
-    {
-      "from_id": "l6ohu61l",
-      "to_id": "3fym4ikf",
-      "relation": "related_to",
-      "weight": 0.2782,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101897,
-      "updated_at": 1790813101897
+      "created_at": 1791851719560,
+      "updated_at": 1791851719560
     }
   ]
 }

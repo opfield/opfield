@@ -1,0 +1,25 @@
+{
+  "file_name": "vrch49nc_gateway_migrator_update",
+  "edges": [
+    {
+      "from_id": "vrch49nc",
+      "to_id": "lvklfxgs",
+      "relation": "same_workflow",
+      "weight": 0.78,
+      "reason": "Release-upgrade E2E validates the self-update and compose-recreate workflow implemented by the foundation migrator.",
+      "source": "auto",
+      "created_at": 1791851910820,
+      "updated_at": 1791851910820
+    },
+    {
+      "from_id": "vrch49nc",
+      "to_id": "8v2nc5jg",
+      "relation": "same_workflow",
+      "weight": 0.63,
+      "reason": "Both document Opfield upgrade sequencing, update-channel/version handling, and installer/update behavior.",
+      "source": "auto",
+      "created_at": 1791851910820,
+      "updated_at": 1791851910820
+    }
+  ]
+}

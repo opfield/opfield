@@ -7,8 +7,8 @@
     "dev-env",
     "docker",
     "frontend",
-    "gateway",
     "local-setup",
+    "opfield",
     "postgres"
   ],
   "layer": "deep",
@@ -17,10 +17,10 @@
   "confidence": 0.99,
   "importance": 0.9,
   "created_at": 1782911201956,
-  "updated_at": 1790812689304
+  "updated_at": 1791851791152
 }
 ---
-Gateway local development stack gotchas (merged 2026-10-01 from four notes written April–August 2026).
+Opfield local development stack gotchas (merged 2026-10-01 from four notes written April–August 2026).
 
 Status first: since 2026-09-28/29 the repository owner does not want tests, tsc or image builds on the development Mac (they run on a build server), and the local Docker stacks described in older notes were not running on 2026-10-01. Container and Compose project names below are historical (seen: `gateway_app_local`, `gateway-upgrade-e2e`, `gateway-local`, `daemon-docker`, `gateway-dind`, `gateway-docker-daemon`, `gateway-monitoring-daemon`, `gateway-nginx-daemon`). Run `docker ps -a` before assuming any of them exists. The Docker socket is blocked by the agent sandbox, so docker commands need the sandbox disabled.
 
@@ -29,7 +29,7 @@ Still-valid repository facts (verified 2026-10-01)
 - The Vite dev proxy target comes from `GATEWAY_DEV_PROXY_TARGET` (default http://localhost:3000) in `packages/frontend/vite.config.ts`. When another project owns port 3000, run the backend with PORT=3001 (gRPC stays on GRPC_PORT=9443) and set `GATEWAY_DEV_PROXY_TARGET=http://localhost:3001` in `packages/frontend/.env`. Smoke check: `curl -i http://localhost:5173/auth/me` must match `http://localhost:3001/auth/me` (usually 401), not a 404 from another project.
 
 Recreating containers
-- `docker compose ... up -d --build app` recreates the app and re-reads `.env`. A recreated app with a missing or different DB password crashes in migrations. Before recreating only the app, compare the running container's effective `DATABASE_URL`/Compose environment with the env file and pass the existing effective database configuration (never record its secret); require `/health` to report lifecycleState running afterwards. Replacing only the app while PostgreSQL, Redis and Gateway volumes stay intact preserves browser sessions.
+- `docker compose ... up -d --build app` recreates the app and re-reads `.env`. A recreated app with a missing or different DB password crashes in migrations. Before recreating only the app, compare the running container's effective `DATABASE_URL`/Compose environment with the env file and pass the existing effective database configuration (never record its secret); require `/health` to report lifecycleState running afterwards. Replacing only the app while PostgreSQL, Redis and Opfield volumes stay intact preserves browser sessions.
 - To ship a frontend change to a running app without recreating it: `pnpm --filter frontend build`, then `docker cp packages/frontend/dist/. <app-container>:/app/public/` and hard-refresh (asset names are hashed).
 
 Local daemons

@@ -3,53 +3,23 @@
   "edges": [
     {
       "from_id": "iv7hhye3",
-      "to_id": "adzvqx6l",
+      "to_id": "2tjfa2g5",
       "relation": "same_area",
-      "weight": 0.4743,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.72,
+      "reason": "Both define Docker volume detail route behavior, including node-scoped volume name identity and API resolution.",
       "source": "auto",
-      "created_at": 1790813101523,
-      "updated_at": 1790813101523
+      "created_at": 1791851688916,
+      "updated_at": 1791851688916
     },
     {
       "from_id": "iv7hhye3",
       "to_id": "3mk44b9q",
-      "relation": "same_area",
-      "weight": 0.4561,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "relation": "same_workflow",
+      "weight": 0.68,
+      "reason": "Both rely on DockerSnapshotReconciler snapshot refresh, stale-data handling, and runtime-aware Docker monitoring state.",
       "source": "auto",
-      "created_at": 1790813101523,
-      "updated_at": 1790813101523
-    },
-    {
-      "from_id": "iv7hhye3",
-      "to_id": "loolos87",
-      "relation": "uses_service",
-      "weight": 0.414,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813101523,
-      "updated_at": 1790813101523
-    },
-    {
-      "from_id": "iv7hhye3",
-      "to_id": "nr9hvzr3",
-      "relation": "uses_service",
-      "weight": 0.4078,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813101523,
-      "updated_at": 1790813101523
-    },
-    {
-      "from_id": "iv7hhye3",
-      "to_id": "lct3cijz",
-      "relation": "related_to",
-      "weight": 0.3897,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101523,
-      "updated_at": 1790813101523
+      "created_at": 1791851688916,
+      "updated_at": 1791851688916
     }
   ]
 }

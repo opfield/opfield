@@ -3,6 +3,16 @@
   "edges": [
     {
       "from_id": "yjerrsgn",
+      "to_id": "8v2nc5jg",
+      "relation": "same_workflow",
+      "weight": 0.91,
+      "reason": "Both document Opfield first-run setup gating, wizard routes, and installer-versus-manual deployment behavior.",
+      "source": "auto",
+      "created_at": 1791851996238,
+      "updated_at": 1791851996238
+    },
+    {
+      "from_id": "yjerrsgn",
       "to_id": "nr9hvzr3",
       "relation": "related_to",
       "weight": 0.75,
@@ -13,53 +23,13 @@
     },
     {
       "from_id": "yjerrsgn",
-      "to_id": "8v2nc5jg",
-      "relation": "uses_service",
-      "weight": 0.5393,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
+      "to_id": "lvklfxgs",
+      "relation": "same_workflow",
+      "weight": 0.64,
+      "reason": "The release-upgrade E2E workflow provisions an install and completes setup through the same setup API lifecycle.",
       "source": "auto",
-      "created_at": 1790813100968,
-      "updated_at": 1790813100968
-    },
-    {
-      "from_id": "yjerrsgn",
-      "to_id": "acdy69d9",
-      "relation": "uses_service",
-      "weight": 0.4384,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813100968,
-      "updated_at": 1790813100968
-    },
-    {
-      "from_id": "yjerrsgn",
-      "to_id": "z638qk12",
-      "relation": "uses_service",
-      "weight": 0.4092,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813100968,
-      "updated_at": 1790813100968
-    },
-    {
-      "from_id": "yjerrsgn",
-      "to_id": "dcfkgqwx",
-      "relation": "uses_service",
-      "weight": 0.3811,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813100968,
-      "updated_at": 1790813100968
-    },
-    {
-      "from_id": "yjerrsgn",
-      "to_id": "02e60mqr",
-      "relation": "related_to",
-      "weight": 0.3732,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100968,
-      "updated_at": 1790813100968
+      "created_at": 1791851996238,
+      "updated_at": 1791851996238
     }
   ]
 }

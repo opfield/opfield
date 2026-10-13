@@ -5,8 +5,8 @@
   "tags": [
     "daemon",
     "docker",
-    "gateway",
     "github-actions",
+    "opfield",
     "rc",
     "relay",
     "release"
@@ -17,7 +17,7 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1785765229346,
-  "updated_at": 1790812367204
+  "updated_at": 1791851095383
 }
 ---
-[→ 02e60mqr] Gateway and daemon release conventions, verified against the repository on 2026-09-02 and re-checked against `scripts/release-tag.sh` and `.github/workflows`...
+[→ 02e60mqr] Opfield and daemon release conventions, verified against the repository on 2026-09-02 and re-checked against `scripts/release-tag.sh` and `.github/workflows`...

@@ -5,8 +5,8 @@
   "tags": [
     "containers",
     "docker",
-    "gateway",
     "monitoring",
+    "opfield",
     "recreate",
     "restart",
     "snapshots"
@@ -17,7 +17,9 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1787594299433,
-  "updated_at": 1787862535431
+  "updated_at": 1791851170436
 }
 ---
-[→ 3mk44b9q] Remove implementation verification snapshot from runtime identity memory
+[→ 3mk44b9q] # Opfield container monitoring runtime identity contract
+
+- Container monitoring state belongs to one runtime generation, identified by Docker runtime contai...

@@ -4,9 +4,9 @@
   "file_name": "tb1144u1_enrollment_token_fix",
   "tags": [
     "enrollment",
-    "gateway",
     "grpc",
     "local-smoke",
+    "opfield",
     "security",
     "verification"
   ],
@@ -16,7 +16,10 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1782930153895,
-  "updated_at": 1787862320816
+  "updated_at": 1791851983826
 }
 ---
-[→ yfhytkcz] Remove one-off local enrollment smoke topology and retain selector security contract
+[→ yfhytkcz] Opfield node-enrollment selector contract:
+
+- Issue v2 tokens as `gw_node_v2_<selector>_<secret>`.
+- Store an indexed nullable `nodes.enrollment_token_select...

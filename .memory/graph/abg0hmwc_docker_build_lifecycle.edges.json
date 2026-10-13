@@ -4,42 +4,12 @@
     {
       "from_id": "abg0hmwc",
       "to_id": "02e60mqr",
-      "relation": "related_to",
-      "weight": 0.4012,
-      "reason": "The memories are similar enough to be useful related context.",
+      "relation": "same_area",
+      "weight": 0.56,
+      "reason": "Both define durable Docker release/build lifecycle conventions, including component artifacts and rollout-related handling.",
       "source": "auto",
-      "created_at": 1790813101190,
-      "updated_at": 1790813101190
-    },
-    {
-      "from_id": "abg0hmwc",
-      "to_id": "nr9hvzr3",
-      "relation": "related_to",
-      "weight": 0.3859,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101190,
-      "updated_at": 1790813101190
-    },
-    {
-      "from_id": "abg0hmwc",
-      "to_id": "j6oni2tm",
-      "relation": "related_to",
-      "weight": 0.3669,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101190,
-      "updated_at": 1790813101190
-    },
-    {
-      "from_id": "abg0hmwc",
-      "to_id": "adzvqx6l",
-      "relation": "related_to",
-      "weight": 0.3565,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101190,
-      "updated_at": 1790813101190
+      "created_at": 1791851363232,
+      "updated_at": 1791851363232
     }
   ]
 }

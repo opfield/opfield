@@ -13,39 +13,9 @@
     },
     {
       "from_id": "wlmqdf8c",
-      "to_id": "dv6ewa57",
-      "relation": "related_to",
-      "weight": 0.3394,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101837,
-      "updated_at": 1790813101837
-    },
-    {
-      "from_id": "wlmqdf8c",
-      "to_id": "94t2cjlq",
-      "relation": "related_to",
-      "weight": 0.3276,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101837,
-      "updated_at": 1790813101837
-    },
-    {
-      "from_id": "wlmqdf8c",
       "to_id": "v80uezny",
       "relation": "related_to",
       "weight": 0.3211,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101837,
-      "updated_at": 1790813101837
-    },
-    {
-      "from_id": "wlmqdf8c",
-      "to_id": "0s83sww0",
-      "relation": "related_to",
-      "weight": 0.2835,
       "reason": "The memories are similar enough to be useful related context.",
       "source": "auto",
       "created_at": 1790813101837,

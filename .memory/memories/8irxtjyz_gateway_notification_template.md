@@ -3,8 +3,8 @@
   "id": "8irxtjyz",
   "file_name": "8irxtjyz_gateway_notification_template",
   "tags": [
-    "gateway",
     "notifications",
+    "opfield",
     "templates",
     "webhooks"
   ],
@@ -12,12 +12,12 @@
   "ref": null,
   "source": "model_inferred",
   "confidence": 0.99,
-  "importance": 0.88,
+  "importance": 0.9,
   "created_at": 1783070851927,
-  "updated_at": 1790812797054
+  "updated_at": 1791851291837
 }
 ---
-Gateway notification templates use one canonical nested render context across alert messages, webhook dispatch, webhook preview, presets and frontend help (`packages/backend/src/modules/notifications/notification-templates.ts`, `notification-dispatcher.service.ts`).
+Opfield notification templates use one canonical nested render context across alert messages, webhook dispatch, webhook preview, presets and frontend help (`packages/backend/src/modules/notifications/notification-templates.ts`, `notification-dispatcher.service.ts`).
 
 - Supported namespaced variable families: notification.*, alert.*, resource.*, metric.*, node.*, health.*, certificate.*, state.*, event.*, fired.*, resolution.*, and gateway.*. Helpers: coalesce plus the existing formatting helpers.
 - Historical flat variables (value, data_value, resourceName, fired_at, fired_duration and similar) are intentionally excluded from the generated context.

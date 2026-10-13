@@ -3,53 +3,13 @@
   "edges": [
     {
       "from_id": "x8kr3aye",
-      "to_id": "dv6ewa57",
-      "relation": "same_workflow",
-      "weight": 0.4211,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
+      "to_id": "gqzqcsgc",
+      "relation": "same_area",
+      "weight": 0.84,
+      "reason": "Both define certificate bundle and fullchain PEM semantics, including leaf-first certificates followed by intermediates.",
       "source": "auto",
-      "created_at": 1790813101554,
-      "updated_at": 1790813101554
-    },
-    {
-      "from_id": "x8kr3aye",
-      "to_id": "v80uezny",
-      "relation": "related_to",
-      "weight": 0.3593,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101554,
-      "updated_at": 1790813101554
-    },
-    {
-      "from_id": "x8kr3aye",
-      "to_id": "adzvqx6l",
-      "relation": "related_to",
-      "weight": 0.3225,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101554,
-      "updated_at": 1790813101554
-    },
-    {
-      "from_id": "x8kr3aye",
-      "to_id": "nuc3c3hq",
-      "relation": "related_to",
-      "weight": 0.3139,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101554,
-      "updated_at": 1790813101554
-    },
-    {
-      "from_id": "x8kr3aye",
-      "to_id": "ov8vmocj",
-      "relation": "uses_service",
-      "weight": 0.3124,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813101554,
-      "updated_at": 1790813101554
+      "created_at": 1791851955710,
+      "updated_at": 1791851955710
     }
   ]
 }

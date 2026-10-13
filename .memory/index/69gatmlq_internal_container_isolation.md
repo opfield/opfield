@@ -11,8 +11,11 @@
   ],
   "layer": "lite",
   "ref": "pzorr3qy",
+  "source": "model_inferred",
+  "confidence": 0.5,
+  "importance": 0.5,
   "created_at": 1786557839910,
-  "updated_at": 1786557839910
+  "updated_at": 1791851850957
 }
 ---
-[→ pzorr3qy] Gateway internal Docker containers stay out of public read models
+[→ pzorr3qy] Opfield-owned implementation containers are identified by explicit labels and filtered only at the public Docker presentation boundary. Current internal mark...

@@ -12,8 +12,14 @@
   ],
   "layer": "lite",
   "ref": "y53auic5",
+  "source": "model_inferred",
+  "confidence": 0.5,
+  "importance": 0.5,
   "created_at": 1787215910208,
-  "updated_at": 1787215910208
+  "updated_at": 1791851975317
 }
 ---
-[→ y53auic5] Gateway node service addresses use one ordered list with legacy compatibility and consumer-specific semantics.
+[→ y53auic5] # Opfield Node Service Address Contract
+
+- The canonical node address field is `serviceAddresses: string[]`, persisted as PostgreSQL `text[]`.
+- The list is ...

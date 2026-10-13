@@ -5,9 +5,9 @@
   "tags": [
     "ai-tools",
     "approval",
-    "gateway",
     "gitlab",
     "integrations",
+    "opfield",
     "redirects",
     "secrets",
     "verification"
@@ -18,7 +18,9 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1783125493749,
-  "updated_at": 1787862529599
+  "updated_at": 1791851921471
 }
 ---
-[→ w75b8az4] Remove dated audit findings and retain VCS secret and redirect safety requirements
+[→ w75b8az4] Opfield GitLab/VCS connector safety contract:
+
+- AI approval UI, runtime tool-call history, saved history, snapshots, audit rows, and MCP-visible data persis...

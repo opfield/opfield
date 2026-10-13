@@ -3,8 +3,8 @@
   "id": "gahvf5k5",
   "file_name": "gahvf5k5_gateway_mfa_policy",
   "tags": [
-    "gateway",
     "mfa",
+    "opfield",
     "realtime",
     "security",
     "sessions"
@@ -13,12 +13,12 @@
   "ref": null,
   "source": "model_inferred",
   "confidence": 0.99,
-  "importance": 0.93,
+  "importance": 0.9,
   "created_at": 1785708614178,
-  "updated_at": 1790812555791
+  "updated_at": 1791851557433
 }
 ---
-## Gateway Local MFA
+## Opfield Local MFA
 
 - Local accounts with a registered TOTP factor or passkey receive an MFA challenge after password/email-OTP sign-in, regardless of group policy.
 - `requireGateway2fa` remains a direct-group-only policy. It requires enrollment for local non-OIDC users without a factor; OIDC users remain excluded because their identity provider manages MFA, and bearer API/OAuth credentials are unchanged.

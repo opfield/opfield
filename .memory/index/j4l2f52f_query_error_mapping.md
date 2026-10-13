@@ -6,7 +6,7 @@
     "backend",
     "database",
     "frontend",
-    "gateway",
+    "opfield",
     "postgres",
     "verification"
   ],
@@ -16,7 +16,7 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1781735109831,
-  "updated_at": 1790812436666
+  "updated_at": 1791851159804
 }
 ---
-[→ 3b6g7z3k] Gateway PostgreSQL viewer contract (the backend implementation now lives in the private gateway-commercial repo under backend/databases; the frontend viewer ...
+[→ 3b6g7z3k] Opfield PostgreSQL viewer contract (the backend implementation now lives in the private gateway-commercial repo under backend/databases; the frontend viewer ...

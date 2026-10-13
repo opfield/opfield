@@ -3,53 +3,33 @@
   "edges": [
     {
       "from_id": "mzmjdewo",
-      "to_id": "hc1xhdcx",
-      "relation": "related_to",
-      "weight": 0.4286,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101371,
-      "updated_at": 1790813101371
-    },
-    {
-      "from_id": "mzmjdewo",
-      "to_id": "ifp3c48s",
-      "relation": "related_to",
-      "weight": 0.3976,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101371,
-      "updated_at": 1790813101371
-    },
-    {
-      "from_id": "mzmjdewo",
-      "to_id": "z638qk12",
-      "relation": "related_to",
-      "weight": 0.3926,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101371,
-      "updated_at": 1790813101371
-    },
-    {
-      "from_id": "mzmjdewo",
       "to_id": "dcfkgqwx",
-      "relation": "related_to",
-      "weight": 0.3909,
-      "reason": "The memories are similar enough to be useful related context.",
+      "relation": "same_area",
+      "weight": 0.86,
+      "reason": "Codex usage and quota behavior depends on the shared Opfield Inference contract for the stable API prefix, dedicated credentials, limits, and native quota semantics.",
       "source": "auto",
-      "created_at": 1790813101371,
-      "updated_at": 1790813101371
+      "created_at": 1791851776462,
+      "updated_at": 1791851776462
     },
     {
       "from_id": "mzmjdewo",
-      "to_id": "xg6y81q3",
-      "relation": "related_to",
-      "weight": 0.3756,
-      "reason": "The memories are similar enough to be useful related context.",
+      "to_id": "hc1xhdcx",
+      "relation": "same_workflow",
+      "weight": 0.84,
+      "reason": "Both define @sqgateway/inference CLI setup, dedicated gwi_ credentials, model discovery, proxy configuration, and ownership-aware cleanup for coding assistants.",
       "source": "auto",
-      "created_at": 1790813101371,
-      "updated_at": 1790813101371
+      "created_at": 1791851776462,
+      "updated_at": 1791851776462
+    },
+    {
+      "from_id": "mzmjdewo",
+      "to_id": "gpx2fdwu",
+      "relation": "uses_service",
+      "weight": 0.7,
+      "reason": "Both establish the supported Opfield Inference setup path through @sqgateway/inference and the single stable /api/inference/v1 contract.",
+      "source": "auto",
+      "created_at": 1791851776462,
+      "updated_at": 1791851776462
     }
   ]
 }

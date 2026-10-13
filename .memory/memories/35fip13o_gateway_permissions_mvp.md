@@ -16,18 +16,18 @@
   "confidence": 0.99,
   "importance": 0.9,
   "created_at": 1780866370686,
-  "updated_at": 1790812523022
+  "updated_at": 1791851145466
 }
 ---
 Status (verified 2026-10-01): the App entity is NOT in main. It exists only on the unmerged branch `app-entity-mvp` (2026-06-09; its .workflow plan is marked complete). Main has no App tables or `app_id` columns, and the accepted Compose Projects design (2026-08-24) says not to introduce or depend on an Apps model. Use this contract only if the owner revives Apps.
 
-Gateway App contract (branch-only), merged from the former ownership and lifecycle notes:
+Opfield App contract (branch-only), merged from the former ownership and lifecycle notes:
 
 Ownership and resource model
 - A supported app-scoped resource belongs to at most one App, modelled with a nullable app_id on each supported resource table, not a many-to-many link table.
 - Resources are either global/standalone or app-scoped. Creating or linking a resource in an App sets app_id; app-scoped resources are hidden from global/common lists and APIs and managed through App UI/API routes.
 - Supported App-owned resources: Docker containers and blue/green deployments, database connections, logging environments, access lists, proxy hosts, SSL certificates, and PKI leaf certificates.
-- Nodes and PKI certificate authorities remain Gateway-owned root infrastructure. Apps may reference Nodes only as placement/runtime targets or service bindings.
+- Nodes and PKI certificate authorities remain Opfield-owned root infrastructure. Apps may reference Nodes only as placement/runtime targets or service bindings.
 - Linking or creating one resource never moves referenced dependencies (certificates, access lists, Nodes, other resources) into the App.
 
 Lifecycle, routing, permissions and health

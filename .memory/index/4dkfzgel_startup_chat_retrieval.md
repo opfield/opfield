@@ -5,7 +5,7 @@
   "tags": [
     "ai-chat",
     "conversation-retrieval",
-    "gateway",
+    "opfield",
     "system-prompt"
   ],
   "layer": "lite",
@@ -14,7 +14,7 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1782520699038,
-  "updated_at": 1787862705051
+  "updated_at": 1791851836625
 }
 ---
-[→ pstn8fla] Remove machine-specific absolute checkout path
+[→ pstn8fla] In the Opfield repository, the AI system prompt/retrieval contract is enterprise-grade rather than MVP: at the first substantive request in a new conversatio...

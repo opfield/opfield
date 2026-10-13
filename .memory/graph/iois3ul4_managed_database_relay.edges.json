@@ -3,43 +3,33 @@
   "edges": [
     {
       "from_id": "iois3ul4",
+      "to_id": "ehwd5n85",
+      "relation": "same_workflow",
+      "weight": 0.91,
+      "reason": "Specifies the shared per-node connector, network, alias, and drain behavior central to the connector contract.",
+      "source": "auto",
+      "created_at": 1791851670712,
+      "updated_at": 1791851670712
+    },
+    {
+      "from_id": "iois3ul4",
       "to_id": "3ta908aa",
-      "relation": "uses_service",
-      "weight": 0.5402,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
+      "relation": "same_workflow",
+      "weight": 0.88,
+      "reason": "Defines the relay admission, tunnel, and telemetry architecture that the migration and supervision contract relies on.",
       "source": "auto",
-      "created_at": 1790813100661,
-      "updated_at": 1790813100661
-    },
-    {
-      "from_id": "iois3ul4",
-      "to_id": "rzidwe4n",
-      "relation": "uses_service",
-      "weight": 0.507,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813100661,
-      "updated_at": 1790813100661
-    },
-    {
-      "from_id": "iois3ul4",
-      "to_id": "l2g94u2b",
-      "relation": "uses_service",
-      "weight": 0.462,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813100661,
-      "updated_at": 1790813100661
+      "created_at": 1791851670712,
+      "updated_at": 1791851670712
     },
     {
       "from_id": "iois3ul4",
       "to_id": "8vganhe2",
-      "relation": "related_to",
-      "weight": 0.4148,
-      "reason": "The memories are similar enough to be useful related context.",
+      "relation": "same_area",
+      "weight": 0.78,
+      "reason": "Provides the desired-state reconciliation rule needed to keep relay resources available during in-flight migration.",
       "source": "auto",
-      "created_at": 1790813100661,
-      "updated_at": 1790813100661
+      "created_at": 1791851670712,
+      "updated_at": 1791851670712
     }
   ]
 }

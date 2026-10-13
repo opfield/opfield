@@ -4,7 +4,7 @@
   "file_name": "o3fs6euy_state_machine_gotchas",
   "tags": [
     "ai-chat",
-    "gateway",
+    "opfield",
     "production-readiness",
     "providers",
     "recovery",
@@ -17,7 +17,9 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1783631313911,
-  "updated_at": 1787862465912
+  "updated_at": 1791851858395
 }
 ---
-[→ qme9z5oh] Convert dated AI runtime findings into revalidation requirements
+[→ qme9z5oh] Opfield AI chat state-machine verification contract:
+
+- Snapshot ordering must be monotonic per conversation. Assemble snapshots consistently, serialize or c...

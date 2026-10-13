@@ -3,53 +3,13 @@
   "edges": [
     {
       "from_id": "h130czul",
-      "to_id": "w75b8az4",
+      "to_id": "duvbj7h2",
       "relation": "same_area",
-      "weight": 0.4842,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.78,
+      "reason": "GitLab AI tool UUID validation belongs in the category-based AI tool registry, especially ai.tools.gitlab.ts.",
       "source": "auto",
-      "created_at": 1790813101999,
-      "updated_at": 1790813101999
-    },
-    {
-      "from_id": "h130czul",
-      "to_id": "evv95a8g",
-      "relation": "same_area",
-      "weight": 0.4204,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101999,
-      "updated_at": 1790813101999
-    },
-    {
-      "from_id": "h130czul",
-      "to_id": "hh3v2vdi",
-      "relation": "related_to",
-      "weight": 0.3897,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101999,
-      "updated_at": 1790813101999
-    },
-    {
-      "from_id": "h130czul",
-      "to_id": "92pnq26b",
-      "relation": "same_area",
-      "weight": 0.3462,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101999,
-      "updated_at": 1790813101999
-    },
-    {
-      "from_id": "h130czul",
-      "to_id": "mv7zw8vw",
-      "relation": "related_to",
-      "weight": 0.3421,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101999,
-      "updated_at": 1790813101999
+      "created_at": 1791851593544,
+      "updated_at": 1791851593544
     }
   ]
 }

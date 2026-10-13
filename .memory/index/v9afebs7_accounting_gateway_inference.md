@@ -4,9 +4,9 @@
   "file_name": "v9afebs7_accounting_gateway_inference",
   "tags": [
     "accounting",
-    "gateway",
     "inference",
     "limits",
+    "opfield",
     "quota"
   ],
   "layer": "lite",
@@ -15,7 +15,9 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1784934085269,
-  "updated_at": 1788961810731
+  "updated_at": 1791851484337
 }
 ---
-[→ dcfkgqwx] Clarify recovery of expired legacy subscription windows without crossing the prior window or manual-reset boundary.
+[→ dcfkgqwx] # Opfield inference product contract
+
+Opfield Inference is a standalone bounded context with the OpenAI-compatible `/api/inference/v1` data plane, dedicated ...

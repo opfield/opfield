@@ -3,53 +3,23 @@
   "edges": [
     {
       "from_id": "l2g94u2b",
-      "to_id": "8vganhe2",
-      "relation": "related_to",
-      "weight": 0.486,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100467,
-      "updated_at": 1790813100467
-    },
-    {
-      "from_id": "l2g94u2b",
-      "to_id": "3ta908aa",
-      "relation": "same_workflow",
-      "weight": 0.4648,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
-      "source": "auto",
-      "created_at": 1790813100467,
-      "updated_at": 1790813100467
-    },
-    {
-      "from_id": "l2g94u2b",
       "to_id": "iois3ul4",
       "relation": "same_workflow",
-      "weight": 0.462,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
+      "weight": 0.9,
+      "reason": "Both document managed-database relay supervision, daemon tunnel behavior, and migration/runtime contracts.",
       "source": "auto",
-      "created_at": 1790813100467,
-      "updated_at": 1790813100467
+      "created_at": 1791851711855,
+      "updated_at": 1791851711855
     },
     {
       "from_id": "l2g94u2b",
-      "to_id": "nr9hvzr3",
+      "to_id": "aizao4zl",
       "relation": "same_workflow",
-      "weight": 0.371,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
+      "weight": 0.75,
+      "reason": "The latency issue also affects managed-storage dialing, and this memory documents managed-storage relay runtime constraints.",
       "source": "auto",
-      "created_at": 1790813100467,
-      "updated_at": 1790813100467
-    },
-    {
-      "from_id": "l2g94u2b",
-      "to_id": "02e60mqr",
-      "relation": "same_workflow",
-      "weight": 0.3601,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
-      "source": "auto",
-      "created_at": 1790813100467,
-      "updated_at": 1790813100467
+      "created_at": 1791851711855,
+      "updated_at": 1791851711855
     }
   ]
 }

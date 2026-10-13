@@ -1,0 +1,35 @@
+{
+  "file_name": "ehwd5n85_secure_link_connector",
+  "edges": [
+    {
+      "from_id": "ehwd5n85",
+      "to_id": "aizao4zl",
+      "relation": "same_area",
+      "weight": 0.86,
+      "reason": "Both define storage-link connector naming, relay ownership, and multi-node runtime constraints.",
+      "source": "auto",
+      "created_at": 1791851525210,
+      "updated_at": 1791851525210
+    },
+    {
+      "from_id": "ehwd5n85",
+      "to_id": "40lzh793",
+      "relation": "same_area",
+      "weight": 0.82,
+      "reason": "Both define Docker managed-link ownership and identity behavior across container replacement.",
+      "source": "auto",
+      "created_at": 1791851525210,
+      "updated_at": 1791851525210
+    },
+    {
+      "from_id": "ehwd5n85",
+      "to_id": "cf7jghu8",
+      "relation": "same_area",
+      "weight": 0.74,
+      "reason": "Both address relay address changes, DNS resolution, and reconnect behavior after container replacement.",
+      "source": "auto",
+      "created_at": 1791851525210,
+      "updated_at": 1791851525210
+    }
+  ]
+}

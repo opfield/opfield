@@ -14,9 +14,9 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1787844764519,
-  "updated_at": 1790813315128
+  "updated_at": 1791851124832
 }
 ---
-[→ 29r4kznl] Gateway nginx ingress file-descriptor exhaustion hardening:
+[→ 29r4kznl] Opfield nginx ingress file-descriptor exhaustion hardening:
 
 - If Nginx begins returning broad HTTP failures and logs `accept4()`, `socket()`, or `open()` wi...

@@ -4,52 +4,12 @@
     {
       "from_id": "y53auic5",
       "to_id": "8c9f2oec",
-      "relation": "related_to",
-      "weight": 0.484,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101539,
-      "updated_at": 1790813101539
-    },
-    {
-      "from_id": "y53auic5",
-      "to_id": "vks9ym4c",
-      "relation": "related_to",
-      "weight": 0.3961,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101539,
-      "updated_at": 1790813101539
-    },
-    {
-      "from_id": "y53auic5",
-      "to_id": "2tjfa2g5",
-      "relation": "related_to",
-      "weight": 0.3285,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101539,
-      "updated_at": 1790813101539
-    },
-    {
-      "from_id": "y53auic5",
-      "to_id": "a7elxcv1",
       "relation": "same_workflow",
-      "weight": 0.3264,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
+      "weight": 0.93,
+      "reason": "Both define how effective Nginx node addresses are selected and consumed for Domain DNS and ingress reconciliation.",
       "source": "auto",
-      "created_at": 1790813101539,
-      "updated_at": 1790813101539
-    },
-    {
-      "from_id": "y53auic5",
-      "to_id": "x2uskhdm",
-      "relation": "same_workflow",
-      "weight": 0.3118,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
-      "source": "auto",
-      "created_at": 1790813101539,
-      "updated_at": 1790813101539
+      "created_at": 1791851981861,
+      "updated_at": 1791851981861
     }
   ]
 }

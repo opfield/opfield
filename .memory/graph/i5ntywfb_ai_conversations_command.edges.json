@@ -4,52 +4,12 @@
     {
       "from_id": "i5ntywfb",
       "to_id": "dcfkgqwx",
-      "relation": "related_to",
-      "weight": 0.4445,
-      "reason": "The memories are similar enough to be useful related context.",
+      "relation": "depends_on",
+      "weight": 0.94,
+      "reason": "Frontend inference usage cards must follow the fixed lazy subscription-window and recovery-time contract.",
       "source": "auto",
-      "created_at": 1790813100760,
-      "updated_at": 1790813100760
-    },
-    {
-      "from_id": "i5ntywfb",
-      "to_id": "z638qk12",
-      "relation": "related_to",
-      "weight": 0.391,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100760,
-      "updated_at": 1790813100760
-    },
-    {
-      "from_id": "i5ntywfb",
-      "to_id": "fk86zmru",
-      "relation": "related_to",
-      "weight": 0.3597,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100760,
-      "updated_at": 1790813100760
-    },
-    {
-      "from_id": "i5ntywfb",
-      "to_id": "mzmjdewo",
-      "relation": "related_to",
-      "weight": 0.3474,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100760,
-      "updated_at": 1790813100760
-    },
-    {
-      "from_id": "i5ntywfb",
-      "to_id": "ub47mk8e",
-      "relation": "related_to",
-      "weight": 0.3384,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100760,
-      "updated_at": 1790813100760
+      "created_at": 1791851651535,
+      "updated_at": 1791851651535
     }
   ]
 }

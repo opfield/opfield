@@ -6,9 +6,9 @@
     "backend",
     "cache",
     "frontend",
-    "gateway",
     "gitlab",
-    "integrations"
+    "integrations",
+    "opfield"
   ],
   "layer": "lite",
   "ref": "evv95a8g",
@@ -16,7 +16,7 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1783269480066,
-  "updated_at": 1787862652653
+  "updated_at": 1791851532961
 }
 ---
-[→ evv95a8g] Remove machine-specific absolute checkout path
+[→ evv95a8g] In the Opfield repository, GitLab connector edit UI should not fetch available projects directly from GitLab on modal open or during edit search. Existing co...

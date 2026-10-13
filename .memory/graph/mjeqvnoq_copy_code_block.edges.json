@@ -5,51 +5,31 @@
       "from_id": "mjeqvnoq",
       "to_id": "94t2cjlq",
       "relation": "same_area",
-      "weight": 0.4766,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.86,
+      "reason": "Both define durable frontend layout conventions and shared component usage for Opfield UI.",
       "source": "auto",
-      "created_at": 1790813101782,
-      "updated_at": 1790813101782
-    },
-    {
-      "from_id": "mjeqvnoq",
-      "to_id": "bf8b2nk9",
-      "relation": "same_area",
-      "weight": 0.3892,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101782,
-      "updated_at": 1790813101782
-    },
-    {
-      "from_id": "mjeqvnoq",
-      "to_id": "ip47mets",
-      "relation": "related_to",
-      "weight": 0.3701,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101782,
-      "updated_at": 1790813101782
-    },
-    {
-      "from_id": "mjeqvnoq",
-      "to_id": "0s83sww0",
-      "relation": "related_to",
-      "weight": 0.3579,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101782,
-      "updated_at": 1790813101782
+      "created_at": 1791852066653,
+      "updated_at": 1791852066653
     },
     {
       "from_id": "mjeqvnoq",
       "to_id": "z638qk12",
-      "relation": "related_to",
-      "weight": 0.3515,
-      "reason": "The memories are similar enough to be useful related context.",
+      "relation": "same_workflow",
+      "weight": 0.78,
+      "reason": "The default-model row is part of the inference onboarding and AI Workspace setup flow.",
       "source": "auto",
-      "created_at": 1790813101782,
-      "updated_at": 1790813101782
+      "created_at": 1791852066653,
+      "updated_at": 1791852066653
+    },
+    {
+      "from_id": "mjeqvnoq",
+      "to_id": "bza0frbi",
+      "relation": "related_to",
+      "weight": 0.62,
+      "reason": "Both address dialog/panel containment and width overflow caused by frontend layout structure.",
+      "source": "auto",
+      "created_at": 1791852066653,
+      "updated_at": 1791852066653
     }
   ]
 }

@@ -16,16 +16,16 @@
   "confidence": 0.99,
   "importance": 0.9,
   "created_at": 1787839113583,
-  "updated_at": 1790812650371
+  "updated_at": 1791851898681
 }
 ---
-# Gateway Nginx upstream IPv6 and template regeneration
+# Opfield Nginx upstream IPv6 and template regeneration
 
 ## Upstream IPv6
 
-- Gateway proxy hosts expose `Settings → Upstream → upstreamIpv6Enabled`, defaulting to `false`.
+- Opfield proxy hosts expose `Settings → Upstream → upstreamIpv6Enabled`, defaulting to `false`.
 - For managed manual hostname upstreams with IPv6 disabled:
-  - Render runtime DNS resolution through Gateway’s configured IPv4 `DNS_RESOLVERS`.
+  - Render runtime DNS resolution through Opfield’s configured IPv4 `DNS_RESOLVERS`.
   - Include `ipv6=off`.
   - Use compact deterministic Nginx variable names (currently a `gw_up_` prefix plus 16 hex characters) so production defaults such as `variables_hash_bucket_size 64` remain valid.
   - Validate generated configs against the production Nginx version with realistic generated identifier lengths; a minimal syntax test with a shorter placeholder can miss hash-bucket failures.

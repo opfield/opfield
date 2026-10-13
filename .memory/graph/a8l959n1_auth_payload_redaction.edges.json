@@ -3,53 +3,13 @@
   "edges": [
     {
       "from_id": "a8l959n1",
-      "to_id": "l6ohu61l",
-      "relation": "related_to",
-      "weight": 0.3577,
-      "reason": "The memories are similar enough to be useful related context.",
+      "to_id": "43cdn720",
+      "relation": "same_area",
+      "weight": 0.55,
+      "reason": "Both define security-sensitive authentication audit behavior, including safe handling of audit records that may be forwarded to SIEM.",
       "source": "auto",
-      "created_at": 1790813101851,
-      "updated_at": 1790813101851
-    },
-    {
-      "from_id": "a8l959n1",
-      "to_id": "hic3s1ta",
-      "relation": "same_workflow",
-      "weight": 0.3429,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
-      "source": "auto",
-      "created_at": 1790813101851,
-      "updated_at": 1790813101851
-    },
-    {
-      "from_id": "a8l959n1",
-      "to_id": "b3glzfjy",
-      "relation": "same_workflow",
-      "weight": 0.3408,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
-      "source": "auto",
-      "created_at": 1790813101851,
-      "updated_at": 1790813101851
-    },
-    {
-      "from_id": "a8l959n1",
-      "to_id": "x7unpgb6",
-      "relation": "related_to",
-      "weight": 0.3223,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101851,
-      "updated_at": 1790813101851
-    },
-    {
-      "from_id": "a8l959n1",
-      "to_id": "vrru6m60",
-      "relation": "related_to",
-      "weight": 0.2998,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101851,
-      "updated_at": 1790813101851
+      "created_at": 1791851355366,
+      "updated_at": 1791851355366
     }
   ]
 }

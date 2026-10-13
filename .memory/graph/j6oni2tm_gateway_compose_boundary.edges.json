@@ -3,53 +3,13 @@
   "edges": [
     {
       "from_id": "j6oni2tm",
-      "to_id": "lct3cijz",
-      "relation": "same_workflow",
-      "weight": 0.5217,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
+      "to_id": "40lzh793",
+      "relation": "same_area",
+      "weight": 0.86,
+      "reason": "Both define Docker-managed resource ownership and lifecycle contracts, including Compose-related managed links.",
       "source": "auto",
-      "created_at": 1790813100892,
-      "updated_at": 1790813100892
-    },
-    {
-      "from_id": "j6oni2tm",
-      "to_id": "nr9hvzr3",
-      "relation": "uses_service",
-      "weight": 0.5051,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813100892,
-      "updated_at": 1790813100892
-    },
-    {
-      "from_id": "j6oni2tm",
-      "to_id": "adzvqx6l",
-      "relation": "related_to",
-      "weight": 0.4683,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100892,
-      "updated_at": 1790813100892
-    },
-    {
-      "from_id": "j6oni2tm",
-      "to_id": "asy6c7bj",
-      "relation": "uses_service",
-      "weight": 0.456,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813100892,
-      "updated_at": 1790813100892
-    },
-    {
-      "from_id": "j6oni2tm",
-      "to_id": "02e60mqr",
-      "relation": "same_workflow",
-      "weight": 0.4451,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
-      "source": "auto",
-      "created_at": 1790813100892,
-      "updated_at": 1790813100892
+      "created_at": 1791851698110,
+      "updated_at": 1791851698110
     }
   ]
 }

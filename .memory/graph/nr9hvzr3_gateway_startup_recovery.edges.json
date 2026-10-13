@@ -3,53 +3,23 @@
   "edges": [
     {
       "from_id": "nr9hvzr3",
-      "to_id": "asy6c7bj",
-      "relation": "uses_service",
-      "weight": 0.5278,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813100562,
-      "updated_at": 1790813100562
-    },
-    {
-      "from_id": "nr9hvzr3",
       "to_id": "j6oni2tm",
-      "relation": "uses_service",
-      "weight": 0.5051,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
+      "relation": "same_area",
+      "weight": 0.72,
+      "reason": "Both document Opfield Docker Compose projects, lifecycle, and local stack status/conventions.",
       "source": "auto",
-      "created_at": 1790813100562,
-      "updated_at": 1790813100562
+      "created_at": 1791851799524,
+      "updated_at": 1791851799524
     },
     {
       "from_id": "nr9hvzr3",
-      "to_id": "02e60mqr",
-      "relation": "same_workflow",
-      "weight": 0.4938,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
+      "to_id": "s3jakmn4",
+      "relation": "same_area",
+      "weight": 0.68,
+      "reason": "Both capture durable monorepo sandbox restrictions affecting Docker access and local development verification.",
       "source": "auto",
-      "created_at": 1790813100562,
-      "updated_at": 1790813100562
-    },
-    {
-      "from_id": "nr9hvzr3",
-      "to_id": "e5deql0f",
-      "relation": "uses_service",
-      "weight": 0.4865,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813100562,
-      "updated_at": 1790813100562
-    },
-    {
-      "from_id": "nr9hvzr3",
-      "to_id": "adzvqx6l",
-      "relation": "related_to",
-      "weight": 0.4835,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100562,
-      "updated_at": 1790813100562
+      "created_at": 1791851799524,
+      "updated_at": 1791851799524
     }
   ]
 }

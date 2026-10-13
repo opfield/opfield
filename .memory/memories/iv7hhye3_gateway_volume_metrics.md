@@ -4,19 +4,22 @@
   "file_name": "iv7hhye3_gateway_volume_metrics",
   "tags": [
     "docker",
-    "gateway",
     "metrics",
+    "opfield",
     "snapshots",
     "stale-while-revalidate",
     "volumes"
   ],
   "layer": "deep",
   "ref": null,
+  "source": "model_inferred",
+  "confidence": 0.99,
+  "importance": 0.9,
   "created_at": 1787590590176,
-  "updated_at": 1787590590176
+  "updated_at": 1791851684128
 }
 ---
-# Gateway Docker volume metrics snapshot contract
+# Opfield Docker volume metrics snapshot contract
 
 - Volume usage metrics must not be collected synchronously in the HTTP request path. The `GET /api/docker/nodes/:nodeId/volumes/:name/metrics` route reads the latest persisted `volume-metrics` detail snapshot.
 - `DockerSnapshotReconciler` owns collection through the daemon `metrics` command, using the same queue, deduplication, retry/backoff, event publication, stale-data retention, and periodic detail refresh flow as other Docker snapshots.

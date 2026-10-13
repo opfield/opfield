@@ -3,53 +3,33 @@
   "edges": [
     {
       "from_id": "acdy69d9",
-      "to_id": "yjerrsgn",
-      "relation": "uses_service",
-      "weight": 0.4384,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813100953,
-      "updated_at": 1790813100953
-    },
-    {
-      "from_id": "acdy69d9",
       "to_id": "8v2nc5jg",
-      "relation": "uses_service",
-      "weight": 0.4304,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
+      "relation": "same_workflow",
+      "weight": 0.78,
+      "reason": "Setup wizard includes license/community flow alongside installation and upgrade handling.",
       "source": "auto",
-      "created_at": 1790813100953,
-      "updated_at": 1790813100953
-    },
-    {
-      "from_id": "acdy69d9",
-      "to_id": "dcfkgqwx",
-      "relation": "uses_service",
-      "weight": 0.428,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813100953,
-      "updated_at": 1790813100953
+      "created_at": 1791851383177,
+      "updated_at": 1791851383177
     },
     {
       "from_id": "acdy69d9",
       "to_id": "02e60mqr",
       "relation": "same_workflow",
-      "weight": 0.4143,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
+      "weight": 0.74,
+      "reason": "License service also serves signed private-core releases governed by these release tag conventions.",
       "source": "auto",
-      "created_at": 1790813100953,
-      "updated_at": 1790813100953
+      "created_at": 1791851383177,
+      "updated_at": 1791851383177
     },
     {
       "from_id": "acdy69d9",
       "to_id": "43cdn720",
-      "relation": "uses_service",
-      "weight": 0.3933,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
+      "relation": "same_area",
+      "weight": 0.62,
+      "reason": "SIEM forwarding behavior explicitly depends on license grace-period enforcement.",
       "source": "auto",
-      "created_at": 1790813100953,
-      "updated_at": 1790813100953
+      "created_at": 1791851383177,
+      "updated_at": 1791851383177
     }
   ]
 }

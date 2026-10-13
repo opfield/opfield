@@ -5,51 +5,31 @@
       "from_id": "hjj0ldnf",
       "to_id": "ac5muwri",
       "relation": "related_to",
-      "weight": 0.4468,
-      "reason": "The memories are similar enough to be useful related context.",
+      "weight": 0.78,
+      "reason": "Both define complementary documentation maintenance boundaries: root localized guides versus the separate public portal, with cross-linking and verification expectations.",
       "source": "auto",
-      "created_at": 1790813101142,
-      "updated_at": 1790813101142
+      "created_at": 1791851632232,
+      "updated_at": 1791851632232
     },
     {
       "from_id": "hjj0ldnf",
-      "to_id": "x2uskhdm",
-      "relation": "related_to",
-      "weight": 0.3743,
-      "reason": "The memories are similar enough to be useful related context.",
+      "to_id": "123u7vfm",
+      "relation": "same_area",
+      "weight": 0.71,
+      "reason": "The portal places API and MCP documentation under Automation while retaining an integrations URL; this memory defines the corresponding OAuth and MCP contract.",
       "source": "auto",
-      "created_at": 1790813101142,
-      "updated_at": 1790813101142
+      "created_at": 1791851632232,
+      "updated_at": 1791851632232
     },
     {
       "from_id": "hjj0ldnf",
-      "to_id": "j6oni2tm",
+      "to_id": "8zbznen7",
       "relation": "related_to",
-      "weight": 0.3454,
-      "reason": "The memories are similar enough to be useful related context.",
+      "weight": 0.58,
+      "reason": "The portal's guidance to link node enrollment and connector setup with hosting and source-control workflows complements this AI Workspace setup handoff contract.",
       "source": "auto",
-      "created_at": 1790813101142,
-      "updated_at": 1790813101142
-    },
-    {
-      "from_id": "hjj0ldnf",
-      "to_id": "evv95a8g",
-      "relation": "related_to",
-      "weight": 0.3396,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101142,
-      "updated_at": 1790813101142
-    },
-    {
-      "from_id": "hjj0ldnf",
-      "to_id": "02e60mqr",
-      "relation": "related_to",
-      "weight": 0.3388,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101142,
-      "updated_at": 1790813101142
+      "created_at": 1791851632232,
+      "updated_at": 1791851632232
     }
   ]
 }

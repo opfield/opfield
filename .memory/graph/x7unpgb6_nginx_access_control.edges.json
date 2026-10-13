@@ -4,52 +4,12 @@
     {
       "from_id": "x7unpgb6",
       "to_id": "vks9ym4c",
-      "relation": "same_area",
-      "weight": 0.4661,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "relation": "same_workflow",
+      "weight": 0.78,
+      "reason": "Both define managed Nginx template rendering, generated configuration validation, and reconciliation after template changes.",
       "source": "auto",
-      "created_at": 1790813101724,
-      "updated_at": 1790813101724
-    },
-    {
-      "from_id": "x7unpgb6",
-      "to_id": "ml88valu",
-      "relation": "same_area",
-      "weight": 0.4353,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101724,
-      "updated_at": 1790813101724
-    },
-    {
-      "from_id": "x7unpgb6",
-      "to_id": "jlx77t6m",
-      "relation": "related_to",
-      "weight": 0.4067,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101724,
-      "updated_at": 1790813101724
-    },
-    {
-      "from_id": "x7unpgb6",
-      "to_id": "b3glzfjy",
-      "relation": "related_to",
-      "weight": 0.3802,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101724,
-      "updated_at": 1790813101724
-    },
-    {
-      "from_id": "x7unpgb6",
-      "to_id": "7uk369vl",
-      "relation": "related_to",
-      "weight": 0.3693,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101724,
-      "updated_at": 1790813101724
+      "created_at": 1791851945139,
+      "updated_at": 1791851945139
     }
   ]
 }

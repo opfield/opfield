@@ -17,16 +17,16 @@
   "ref": null,
   "source": "model_inferred",
   "confidence": 0.99,
-  "importance": 0.95,
+  "importance": 0.94,
   "created_at": 1786463265800,
-  "updated_at": 1790812596353
+  "updated_at": 1791851192783
 }
 ---
 # Relay, Secure Link admission and telemetry contract
 
 ## Relay architecture
 
-- Standalone `gateway-relay` owns the public relay port; the Gateway app retains its HTTP port. Do not add another public relay port.
+- Standalone `gateway-relay` owns the public relay port; the Opfield app retains its HTTP port. Do not add another public relay port.
 - Daemons maintain process-lifetime multiplexed HTTP/2 mTLS data tunnels. Binding and logical proxy streams remain multiplexed; never open one connection per binding or request. Control-plane monitoring stays on the app session.
 - Nginx secure-link proxying uses deterministic Unix sockets under `/run/gateway-secure-links`; loopback TCP exists only as a rolling-upgrade fallback.
 - Generated Nginx config uses a named upstream, connection reuse for non-WebSocket traffic, and the Unix-socket target.

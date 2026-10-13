@@ -3,43 +3,33 @@
   "edges": [
     {
       "from_id": "7uk369vl",
-      "to_id": "x2uskhdm",
-      "relation": "related_to",
-      "weight": 0.4436,
-      "reason": "The memories are similar enough to be useful related context.",
+      "to_id": "3ta908aa",
+      "relation": "same_workflow",
+      "weight": 0.78,
+      "reason": "Both document Nginx deployment behavior involving Secure Link, relay paths, generated upstreams, and end-to-end verification.",
       "source": "auto",
-      "created_at": 1790813101048,
-      "updated_at": 1790813101048
+      "created_at": 1791851282649,
+      "updated_at": 1791851282649
     },
     {
       "from_id": "7uk369vl",
-      "to_id": "vks9ym4c",
-      "relation": "related_to",
-      "weight": 0.4405,
-      "reason": "The memories are similar enough to be useful related context.",
+      "to_id": "29r4kznl",
+      "relation": "same_area",
+      "weight": 0.55,
+      "reason": "Both are durable Nginx deployment and provisioning gotchas requiring generated-config validation rather than ad hoc host edits.",
       "source": "auto",
-      "created_at": 1790813101048,
-      "updated_at": 1790813101048
+      "created_at": 1791851282649,
+      "updated_at": 1791851282649
     },
     {
       "from_id": "7uk369vl",
-      "to_id": "a7elxcv1",
-      "relation": "related_to",
-      "weight": 0.3868,
-      "reason": "The memories are similar enough to be useful related context.",
+      "to_id": "3fym4ikf",
+      "relation": "same_area",
+      "weight": 0.48,
+      "reason": "Both address WebSocket deployment correctness, though this document focuses on origin validation while the source covers upgrade-header generation.",
       "source": "auto",
-      "created_at": 1790813101048,
-      "updated_at": 1790813101048
-    },
-    {
-      "from_id": "7uk369vl",
-      "to_id": "x7unpgb6",
-      "relation": "related_to",
-      "weight": 0.3693,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101048,
-      "updated_at": 1790813101048
+      "created_at": 1791851282649,
+      "updated_at": 1791851282649
     }
   ]
 }

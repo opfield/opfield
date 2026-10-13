@@ -5,51 +5,21 @@
       "from_id": "ifp3c48s",
       "to_id": "dcfkgqwx",
       "relation": "same_area",
-      "weight": 0.5566,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.93,
+      "reason": "Both define Opfield Inference ownership of authentication, limits, pricing, accounting, and the stable inference API.",
       "source": "auto",
-      "created_at": 1790813101422,
-      "updated_at": 1790813101422
-    },
-    {
-      "from_id": "ifp3c48s",
-      "to_id": "z638qk12",
-      "relation": "related_to",
-      "weight": 0.4375,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101422,
-      "updated_at": 1790813101422
-    },
-    {
-      "from_id": "ifp3c48s",
-      "to_id": "gpx2fdwu",
-      "relation": "related_to",
-      "weight": 0.4204,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101422,
-      "updated_at": 1790813101422
+      "created_at": 1791851661227,
+      "updated_at": 1791851661227
     },
     {
       "from_id": "ifp3c48s",
       "to_id": "gz01c8d5",
-      "relation": "related_to",
-      "weight": 0.4175,
-      "reason": "The memories are similar enough to be useful related context.",
+      "relation": "uses_service",
+      "weight": 0.78,
+      "reason": "The integration contract depends on the managed inference-core service and its private internal-network deployment.",
       "source": "auto",
-      "created_at": 1790813101422,
-      "updated_at": 1790813101422
-    },
-    {
-      "from_id": "ifp3c48s",
-      "to_id": "mzmjdewo",
-      "relation": "related_to",
-      "weight": 0.3976,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101422,
-      "updated_at": 1790813101422
+      "created_at": 1791851661227,
+      "updated_at": 1791851661227
     }
   ]
 }

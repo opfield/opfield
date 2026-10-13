@@ -3,43 +3,13 @@
   "edges": [
     {
       "from_id": "8v2nc5jg",
-      "to_id": "yjerrsgn",
-      "relation": "same_area",
-      "weight": 0.5393,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101079,
-      "updated_at": 1790813101079
-    },
-    {
-      "from_id": "8v2nc5jg",
       "to_id": "02e60mqr",
       "relation": "same_workflow",
-      "weight": 0.4622,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
+      "weight": 0.68,
+      "reason": "Both describe Opfield release and component upgrade conventions, including RC version handling.",
       "source": "auto",
-      "created_at": 1790813101079,
-      "updated_at": 1790813101079
-    },
-    {
-      "from_id": "8v2nc5jg",
-      "to_id": "nr9hvzr3",
-      "relation": "same_workflow",
-      "weight": 0.4405,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
-      "source": "auto",
-      "created_at": 1790813101079,
-      "updated_at": 1790813101079
-    },
-    {
-      "from_id": "8v2nc5jg",
-      "to_id": "acdy69d9",
-      "relation": "same_workflow",
-      "weight": 0.4304,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
-      "source": "auto",
-      "created_at": 1790813101079,
-      "updated_at": 1790813101079
+      "created_at": 1791851312057,
+      "updated_at": 1791851312057
     }
   ]
 }

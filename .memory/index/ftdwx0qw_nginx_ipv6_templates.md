@@ -16,11 +16,11 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1787839113583,
-  "updated_at": 1790812650371
+  "updated_at": 1791851898681
 }
 ---
-[→ vks9ym4c] # Gateway Nginx upstream IPv6 and template regeneration
+[→ vks9ym4c] # Opfield Nginx upstream IPv6 and template regeneration
 
 ## Upstream IPv6
 
-- Gateway proxy hosts expose `Settings → Upstream → upstreamIpv6Enabled`, defaulti...
+- Opfield proxy hosts expose `Settings → Upstream → upstreamIpv6Enabled`, defaulti...

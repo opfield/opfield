@@ -14,7 +14,9 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1787903456664,
-  "updated_at": 1787903599195
+  "updated_at": 1791851823089
 }
 ---
-[→ p3e1ow76] Logging connection UI and safe housekeeping defaults
+[→ p3e1ow76] Opfield logging and housekeeping UI contract updated on 2026-08-28:
+
+- Logging list and Page Project detail headers do not show redundant plan/type badges. L...

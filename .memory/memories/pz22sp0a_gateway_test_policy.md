@@ -11,11 +11,14 @@
   ],
   "layer": "deep",
   "ref": null,
+  "source": "model_inferred",
+  "confidence": 0.99,
+  "importance": 0.9,
   "created_at": 1790812345137,
-  "updated_at": 1790812345137
+  "updated_at": 1791851844034
 }
 ---
-Gateway test policy since commit 49c72381 ("test: cut the suites down to the light suite", 2026-09-29), decided by the repository owner:
+Opfield test policy since commit 49c72381 ("test: cut the suites down to the light suite", 2026-09-29), decided by the repository owner:
 
 - `pnpm test` runs only the light suite (`test:light:backend`, `test:light:packages`, `test:light:go`), about 205 test files and roughly 30 s. Main CI runs it; RC release jobs only build.
 - Keep-criteria for tests: authorization, authentication and credentials, update trust and licensing, data integrity and migrations, untrusted input at the edge, daemon lease/fencing and relay trust. Tests of UI shape, copy, call order or mocks are not kept or re-added.

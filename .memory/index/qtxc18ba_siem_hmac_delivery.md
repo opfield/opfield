@@ -5,7 +5,7 @@
   "tags": [
     "authentication",
     "delivery-log",
-    "gateway",
+    "opfield",
     "siem",
     "ui"
   ],
@@ -15,10 +15,10 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1786140832137,
-  "updated_at": 1790812580962
+  "updated_at": 1791851223079
 }
 ---
-[→ 43cdn720] # Gateway SIEM contract
+[→ 43cdn720] # Opfield SIEM contract
 
 ## Feature flag
 

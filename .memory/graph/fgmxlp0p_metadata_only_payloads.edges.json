@@ -5,51 +5,21 @@
       "from_id": "fgmxlp0p",
       "to_id": "7oked0dp",
       "relation": "same_area",
-      "weight": 0.6491,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.88,
+      "reason": "Both define Opfield AI conversation retrieval behavior and verification requirements across search, in-memory reads, and index handling.",
       "source": "auto",
-      "created_at": 1790813101312,
-      "updated_at": 1790813101312
+      "created_at": 1791851545742,
+      "updated_at": 1791851545742
     },
     {
       "from_id": "fgmxlp0p",
-      "to_id": "pstn8fla",
+      "to_id": "b3glzfjy",
       "relation": "same_area",
-      "weight": 0.6491,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.67,
+      "reason": "Both establish security boundaries for AI conversation history, preserving ordinary search usefulness while limiting sensitive tool-derived data.",
       "source": "auto",
-      "created_at": 1790813101312,
-      "updated_at": 1790813101312
-    },
-    {
-      "from_id": "fgmxlp0p",
-      "to_id": "8rqz22k0",
-      "relation": "same_area",
-      "weight": 0.5765,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101312,
-      "updated_at": 1790813101312
-    },
-    {
-      "from_id": "fgmxlp0p",
-      "to_id": "fk86zmru",
-      "relation": "same_area",
-      "weight": 0.5263,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101312,
-      "updated_at": 1790813101312
-    },
-    {
-      "from_id": "fgmxlp0p",
-      "to_id": "duvbj7h2",
-      "relation": "same_area",
-      "weight": 0.4489,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101312,
-      "updated_at": 1790813101312
+      "created_at": 1791851545742,
+      "updated_at": 1791851545742
     }
   ]
 }

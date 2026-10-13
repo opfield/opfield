@@ -3,43 +3,13 @@
   "edges": [
     {
       "from_id": "vks9ym4c",
-      "to_id": "x7unpgb6",
-      "relation": "same_area",
-      "weight": 0.4661,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813100597,
-      "updated_at": 1790813100597
-    },
-    {
-      "from_id": "vks9ym4c",
-      "to_id": "7uk369vl",
-      "relation": "related_to",
-      "weight": 0.4405,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100597,
-      "updated_at": 1790813100597
-    },
-    {
-      "from_id": "vks9ym4c",
       "to_id": "8c9f2oec",
-      "relation": "related_to",
-      "weight": 0.4348,
-      "reason": "The memories are similar enough to be useful related context.",
+      "relation": "same_area",
+      "weight": 0.58,
+      "reason": "Both cover Opfield Nginx ingress behavior involving DNS resolution, proxy hosts, and production reconciliation.",
       "source": "auto",
-      "created_at": 1790813100597,
-      "updated_at": 1790813100597
-    },
-    {
-      "from_id": "vks9ym4c",
-      "to_id": "x2uskhdm",
-      "relation": "related_to",
-      "weight": 0.397,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100597,
-      "updated_at": 1790813100597
+      "created_at": 1791851903501,
+      "updated_at": 1791851903501
     }
   ]
 }

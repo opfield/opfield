@@ -5,20 +5,23 @@
   "tags": [
     "design-system",
     "frontend",
-    "gateway",
+    "opfield",
     "primitives",
     "viewer",
     "widgets"
   ],
   "layer": "deep",
   "ref": null,
+  "source": "model_inferred",
+  "confidence": 0.99,
+  "importance": 0.9,
   "created_at": 1781442235588,
-  "updated_at": 1790813281335
+  "updated_at": 1791851673630
 }
 ---
 Status (verified 2026-10-01): @wiolett/design-system and its viewer exist only on the unmerged branches `codex/design-system` (2026-06-09) and `codex/design-system-viewer` (2026-06-17). Main has no `packages/design-system`; the production kit is `packages/frontend/src/components/ui` plus `components/common`. Use this contract only if that work is revived.
 
-Gateway design-system (DS) architecture contract (branch-only):
+Opfield design-system (DS) architecture contract (branch-only):
 - When work asks to populate or expand @wiolett/design-system or its viewer, prioritize the library and registry docs. Do not migrate the main frontend or AI assistant UI unless that scope is explicit.
 - Use existing frontend UI as the visual source of truth; public DS APIs should expose generic components, not page/domain wrappers or accidental Radix-style subparts.
 
@@ -29,7 +32,7 @@ Layering:
 - Typography stays limited to distinct contracts: PageTitle, SectionTitle, FieldLabel, BodyText, Caption, Overline, MonoText, and CodeText. Do not add aliases without a distinct semantic/style contract.
 
 Key component boundaries:
-- ScopeList is a generic grouped checklist; Gateway resource mappings stay in frontend consumers. Its own search input follows the AdminGroups selector geometry, not SearchFilterBar.
+- ScopeList is a generic grouped checklist; Opfield resource mappings stay in frontend consumers. Its own search input follows the AdminGroups selector geometry, not SearchFilterBar.
 - Combobox owns generic input/suggestion behavior; consumers own domain data and APIs.
 - FolderTree owns generic folders/items/renderItem/dnd data; consumers own resource rows and persistence.
 - Command palette stays in the frontend because it depends on app routing/auth/stores/API/AI.

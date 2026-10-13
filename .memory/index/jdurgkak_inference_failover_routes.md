@@ -15,7 +15,9 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1787837324629,
-  "updated_at": 1787862474181
+  "updated_at": 1791852003012
 }
 ---
-[→ z36pcfh4] Remove production account topology and release status from inference failover memory
+[→ z36pcfh4] Opfield Inference runtime candidate-selection contract:
+
+- The model administration UI account count represents persisted enabled source bindings; it does no...

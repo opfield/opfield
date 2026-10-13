@@ -4,52 +4,32 @@
     {
       "from_id": "xg6y81q3",
       "to_id": "123u7vfm",
-      "relation": "same_area",
-      "weight": 0.5978,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "relation": "same_workflow",
+      "weight": 0.86,
+      "reason": "MCP tool eligibility and discovery depend on the OAuth token, delegated scopes, and resource semantics defined here.",
       "source": "auto",
-      "created_at": 1790813101755,
-      "updated_at": 1790813101755
+      "created_at": 1791851972784,
+      "updated_at": 1791851972784
+    },
+    {
+      "from_id": "xg6y81q3",
+      "to_id": "duvbj7h2",
+      "relation": "depends_on",
+      "weight": 0.84,
+      "reason": "MCP exposure relies on the shared AI_TOOLS registry and its centrally defined eligibility filtering.",
+      "source": "auto",
+      "created_at": 1791851972784,
+      "updated_at": 1791851972784
     },
     {
       "from_id": "xg6y81q3",
       "to_id": "gpx2fdwu",
       "relation": "same_area",
-      "weight": 0.546,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.78,
+      "reason": "Both define MCP tool discovery compatibility, including the extended-compatibility activation and settings contract.",
       "source": "auto",
-      "created_at": 1790813101755,
-      "updated_at": 1790813101755
-    },
-    {
-      "from_id": "xg6y81q3",
-      "to_id": "8rqz22k0",
-      "relation": "related_to",
-      "weight": 0.4567,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101755,
-      "updated_at": 1790813101755
-    },
-    {
-      "from_id": "xg6y81q3",
-      "to_id": "z638qk12",
-      "relation": "related_to",
-      "weight": 0.4389,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101755,
-      "updated_at": 1790813101755
-    },
-    {
-      "from_id": "xg6y81q3",
-      "to_id": "duvbj7h2",
-      "relation": "related_to",
-      "weight": 0.4164,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101755,
-      "updated_at": 1790813101755
+      "created_at": 1791851972784,
+      "updated_at": 1791851972784
     }
   ]
 }

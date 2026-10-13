@@ -12,8 +12,11 @@
   ],
   "layer": "lite",
   "ref": "0s83sww0",
+  "source": "model_inferred",
+  "confidence": 0.5,
+  "importance": 0.5,
   "created_at": 1790813260658,
-  "updated_at": 1790813260658
+  "updated_at": 1791851104351
 }
 ---
-[→ 0s83sww0] Branch-only (codex/design-system-viewer): frontend migration contract onto @wiolett/design-system; main has no DS package
+[→ 0s83sww0] Status (verified 2026-10-01): this contract belongs to the unmerged branch `codex/design-system-viewer` (last commit 2026-06-17). Main has no `packages/desig...

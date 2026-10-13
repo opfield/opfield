@@ -1,0 +1,15 @@
+{
+  "file_name": "7502moyd_deferred_button_heights",
+  "edges": [
+    {
+      "from_id": "7502moyd",
+      "to_id": "bza0frbi",
+      "relation": "same_area",
+      "weight": 0.52,
+      "reason": "Documents dialog layout behavior affecting several dialog buttons and related overflow fixes.",
+      "source": "auto",
+      "created_at": 1791618976798,
+      "updated_at": 1791618976798
+    }
+  ]
+}

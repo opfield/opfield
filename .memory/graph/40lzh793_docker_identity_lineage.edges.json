@@ -1,0 +1,35 @@
+{
+  "file_name": "40lzh793_docker_identity_lineage",
+  "edges": [
+    {
+      "from_id": "40lzh793",
+      "to_id": "3mk44b9q",
+      "relation": "same_area",
+      "weight": 0.84,
+      "reason": "Both define durable Docker runtime identity across recreates and restarts, including stale snapshot handling.",
+      "source": "auto",
+      "created_at": 1791851214651,
+      "updated_at": 1791851214651
+    },
+    {
+      "from_id": "40lzh793",
+      "to_id": "aizao4zl",
+      "relation": "same_workflow",
+      "weight": 0.82,
+      "reason": "The storage-link relay contract relies on stable link ownership, connector names, aliases, and identifiers across node placements.",
+      "source": "auto",
+      "created_at": 1791851214651,
+      "updated_at": 1791851214651
+    },
+    {
+      "from_id": "40lzh793",
+      "to_id": "8vganhe2",
+      "relation": "same_workflow",
+      "weight": 0.79,
+      "reason": "Both establish lifecycle-safe ownership rules for managed links and prevent reconciliation from removing resources during transitions.",
+      "source": "auto",
+      "created_at": 1791851214651,
+      "updated_at": 1791851214651
+    }
+  ]
+}

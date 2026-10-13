@@ -4,52 +4,22 @@
     {
       "from_id": "loolos87",
       "to_id": "adzvqx6l",
-      "relation": "same_area",
-      "weight": 0.439,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "relation": "depends_on",
+      "weight": 0.84,
+      "reason": "Volume export must enforce the separate docker:volumes:export permission contract.",
       "source": "auto",
-      "created_at": 1790813101711,
-      "updated_at": 1790813101711
-    },
-    {
-      "from_id": "loolos87",
-      "to_id": "iv7hhye3",
-      "relation": "same_area",
-      "weight": 0.414,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101711,
-      "updated_at": 1790813101711
-    },
-    {
-      "from_id": "loolos87",
-      "to_id": "nr9hvzr3",
-      "relation": "related_to",
-      "weight": 0.3778,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101711,
-      "updated_at": 1790813101711
+      "created_at": 1791851734485,
+      "updated_at": 1791851734485
     },
     {
       "from_id": "loolos87",
       "to_id": "gnonxe58",
-      "relation": "related_to",
-      "weight": 0.3651,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101711,
-      "updated_at": 1790813101711
-    },
-    {
-      "from_id": "loolos87",
-      "to_id": "37llsl1w",
       "relation": "same_area",
-      "weight": 0.3515,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.68,
+      "reason": "Both address safe Docker daemon data transport and bounded handling of potentially problematic streams.",
       "source": "auto",
-      "created_at": 1790813101711,
-      "updated_at": 1790813101711
+      "created_at": 1791851734485,
+      "updated_at": 1791851734485
     }
   ]
 }

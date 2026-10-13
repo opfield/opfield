@@ -13,12 +13,12 @@
   "ref": null,
   "source": "model_inferred",
   "confidence": 0.99,
-  "importance": 0.88,
+  "importance": 0.9,
   "created_at": 1787837324629,
-  "updated_at": 1787862474181
+  "updated_at": 1791852003012
 }
 ---
-Gateway Inference runtime candidate-selection contract:
+Opfield Inference runtime candidate-selection contract:
 
 - The model administration UI account count represents persisted enabled source bindings; it does not prove every binding survives the data-plane eligibility query.
 - A configured, enabled, non-deleted, core-backed source remains a routing candidate across transient discovery omissions.

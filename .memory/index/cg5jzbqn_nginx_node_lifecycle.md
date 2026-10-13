@@ -16,7 +16,7 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1786747174263,
-  "updated_at": 1786747611640
+  "updated_at": 1791851342126
 }
 ---
-[→ a7elxcv1] Offline Nginx node proxy cascade lifecycle
+[→ a7elxcv1] Opfield offline Nginx node removal must break the node/proxy-host deletion deadlock through an explicit node-level cascade, not a raw database cascade. The b...

@@ -10,8 +10,13 @@
   ],
   "layer": "lite",
   "ref": "8zbznen7",
+  "source": "model_inferred",
+  "confidence": 0.5,
+  "importance": 0.5,
   "created_at": 1786577233872,
-  "updated_at": 1786577233872
+  "updated_at": 1791851314656
 }
 ---
-[→ 8zbznen7] AI scenario prerequisites open direct setup dialogs
+[→ 8zbznen7] AI Workspace scenario prerequisite handoff contract:
+- A missing connector or Opfield-managed node is a setup decision, not a terminal scenario blocker.
+- Af...

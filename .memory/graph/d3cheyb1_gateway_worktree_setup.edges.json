@@ -3,43 +3,13 @@
   "edges": [
     {
       "from_id": "d3cheyb1",
-      "to_id": "nr9hvzr3",
-      "relation": "related_to",
-      "weight": 0.4173,
-      "reason": "The memories are similar enough to be useful related context.",
+      "to_id": "s3jakmn4",
+      "relation": "same_workflow",
+      "weight": 0.94,
+      "reason": "Both document pnpm sandbox restrictions and prerequisites for testing the monorepo.",
       "source": "auto",
-      "created_at": 1790813100514,
-      "updated_at": 1790813100514
-    },
-    {
-      "from_id": "d3cheyb1",
-      "to_id": "pz22sp0a",
-      "relation": "related_to",
-      "weight": 0.4159,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100514,
-      "updated_at": 1790813100514
-    },
-    {
-      "from_id": "d3cheyb1",
-      "to_id": "02e60mqr",
-      "relation": "related_to",
-      "weight": 0.4149,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100514,
-      "updated_at": 1790813100514
-    },
-    {
-      "from_id": "d3cheyb1",
-      "to_id": "92pnq26b",
-      "relation": "related_to",
-      "weight": 0.4026,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100514,
-      "updated_at": 1790813100514
+      "created_at": 1791851481747,
+      "updated_at": 1791851481747
     }
   ]
 }

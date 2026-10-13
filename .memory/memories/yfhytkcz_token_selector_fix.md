@@ -4,9 +4,9 @@
   "file_name": "yfhytkcz_token_selector_fix",
   "tags": [
     "enrollment",
-    "gateway",
     "grpc",
     "local-smoke",
+    "opfield",
     "security",
     "verification"
   ],
@@ -16,10 +16,10 @@
   "confidence": 0.99,
   "importance": 0.9,
   "created_at": 1782930153895,
-  "updated_at": 1787862320816
+  "updated_at": 1791851983826
 }
 ---
-Gateway node-enrollment selector contract:
+Opfield node-enrollment selector contract:
 
 - Issue v2 tokens as `gw_node_v2_<selector>_<secret>`.
 - Store an indexed nullable `nodes.enrollment_token_selector`, hash the full token, and resolve v2 enrollment by selector with at most one bcrypt comparison.

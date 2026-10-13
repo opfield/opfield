@@ -10,8 +10,11 @@
   ],
   "layer": "lite",
   "ref": "bf8b2nk9",
+  "source": "model_inferred",
+  "confidence": 0.5,
+  "importance": 0.5,
   "created_at": 1786045900381,
-  "updated_at": 1786045900381
+  "updated_at": 1791851431329
 }
 ---
-[→ bf8b2nk9] Responsive page actions must collapse by measured header capacity, not only viewport breakpoint
+[→ bf8b2nk9] Opfield responsive header-action contract: use the shared ResponsiveHeaderActions component for page-level action groups. It must collapse to the Page action...

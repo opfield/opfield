@@ -10,36 +10,6 @@
       "source": "manual",
       "created_at": 1784761805136,
       "updated_at": 1784761805136
-    },
-    {
-      "from_id": "0s83sww0",
-      "to_id": "ip47mets",
-      "relation": "same_workflow",
-      "weight": 0.93,
-      "reason": "Both define branch-only @wiolett/design-system migration and architecture rules.",
-      "source": "auto",
-      "created_at": 1790813266641,
-      "updated_at": 1790813266641
-    },
-    {
-      "from_id": "0s83sww0",
-      "to_id": "orq9dru7",
-      "relation": "same_workflow",
-      "weight": 0.84,
-      "reason": "Both concern the unmerged design-system viewer branch and its implementation contracts.",
-      "source": "auto",
-      "created_at": 1790813266641,
-      "updated_at": 1790813266641
-    },
-    {
-      "from_id": "0s83sww0",
-      "to_id": "94t2cjlq",
-      "relation": "same_area",
-      "weight": 0.8,
-      "reason": "Provides the production frontend shared primitives that the migration contract identifies as the current main-branch UI kit.",
-      "source": "auto",
-      "created_at": 1790813266641,
-      "updated_at": 1790813266641
     }
   ]
 }

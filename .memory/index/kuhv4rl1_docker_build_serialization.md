@@ -18,7 +18,9 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1788297772805,
-  "updated_at": 1788308023199
+  "updated_at": 1791851357659
 }
 ---
-[→ abg0hmwc] Docker build ACK, attempt fencing, worker capacity release, and fail-safe rollout recovery
+[→ abg0hmwc] Opfield Docker build terminal and rollout contract as of 2026-09-02:
+
+- State-bearing DockerBuildEvent messages are serialized per node/build. Logs and heart...

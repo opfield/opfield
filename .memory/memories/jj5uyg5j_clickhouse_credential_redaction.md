@@ -5,13 +5,16 @@
   "tags": [
     "clickhouse",
     "database-credentials",
-    "gateway",
+    "opfield",
     "security"
   ],
   "layer": "deep",
   "ref": null,
+  "source": "model_inferred",
+  "confidence": 0.99,
+  "importance": 0.9,
   "created_at": 1786152869542,
-  "updated_at": 1786152869542
+  "updated_at": 1791852053310
 }
 ---
 ## ClickHouse connection-view credential boundary

@@ -5,51 +5,11 @@
       "from_id": "bf8b2nk9",
       "to_id": "94t2cjlq",
       "relation": "same_area",
-      "weight": 0.4203,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.92,
+      "reason": "Both define shared frontend shell and header-action layout conventions, including reusable section header actions and responsive page structure.",
       "source": "auto",
-      "created_at": 1790813101795,
-      "updated_at": 1790813101795
-    },
-    {
-      "from_id": "bf8b2nk9",
-      "to_id": "mjeqvnoq",
-      "relation": "same_area",
-      "weight": 0.3892,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101795,
-      "updated_at": 1790813101795
-    },
-    {
-      "from_id": "bf8b2nk9",
-      "to_id": "d8e1oh13",
-      "relation": "related_to",
-      "weight": 0.3836,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101795,
-      "updated_at": 1790813101795
-    },
-    {
-      "from_id": "bf8b2nk9",
-      "to_id": "0s83sww0",
-      "relation": "same_area",
-      "weight": 0.3637,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101795,
-      "updated_at": 1790813101795
-    },
-    {
-      "from_id": "bf8b2nk9",
-      "to_id": "c3nk8hzp",
-      "relation": "same_area",
-      "weight": 0.3469,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813101795,
-      "updated_at": 1790813101795
+      "created_at": 1791851435010,
+      "updated_at": 1791851435010
     }
   ]
 }

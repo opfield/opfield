@@ -3,53 +3,43 @@
   "edges": [
     {
       "from_id": "b3glzfjy",
+      "to_id": "123u7vfm",
+      "relation": "same_workflow",
+      "weight": 0.92,
+      "reason": "The source explicitly accepts non-expiring MCP OAuth tokens, matching this candidate's MCP token and expiry contract.",
+      "source": "auto",
+      "created_at": 1791851414208,
+      "updated_at": 1791851414208
+    },
+    {
+      "from_id": "b3glzfjy",
       "to_id": "adzvqx6l",
       "relation": "same_area",
-      "weight": 0.5248,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.8,
+      "reason": "Both establish explicit Docker security permission boundaries and avoid conflating protected-data access with mutation or export rights.",
       "source": "auto",
-      "created_at": 1790813101970,
-      "updated_at": 1790813101970
+      "created_at": 1791851414208,
+      "updated_at": 1791851414208
     },
     {
       "from_id": "b3glzfjy",
-      "to_id": "w75b8az4",
-      "relation": "same_workflow",
-      "weight": 0.4606,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
-      "source": "auto",
-      "created_at": 1790813101970,
-      "updated_at": 1790813101970
-    },
-    {
-      "from_id": "b3glzfjy",
-      "to_id": "nuc3c3hq",
+      "to_id": "8v2nc5jg",
       "relation": "same_area",
-      "weight": 0.4309,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.68,
+      "reason": "Both address non-breaking installation and upgrade hardening, including controlled update paths and bootstrap behavior.",
       "source": "auto",
-      "created_at": 1790813101970,
-      "updated_at": 1790813101970
+      "created_at": 1791851414208,
+      "updated_at": 1791851414208
     },
     {
       "from_id": "b3glzfjy",
-      "to_id": "123u7vfm",
-      "relation": "uses_service",
-      "weight": 0.3995,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
+      "to_id": "a8l959n1",
+      "relation": "same_area",
+      "weight": 0.67,
+      "reason": "Both require preserving useful records while preventing raw secrets from entering durable audit or history data.",
       "source": "auto",
-      "created_at": 1790813101970,
-      "updated_at": 1790813101970
-    },
-    {
-      "from_id": "b3glzfjy",
-      "to_id": "asy6c7bj",
-      "relation": "uses_service",
-      "weight": 0.3977,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813101970,
-      "updated_at": 1790813101970
+      "created_at": 1791851414208,
+      "updated_at": 1791851414208
     }
   ]
 }

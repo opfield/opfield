@@ -3,53 +3,23 @@
   "edges": [
     {
       "from_id": "7abclq2n",
-      "to_id": "rofhavtg",
-      "relation": "related_to",
-      "weight": 0.4999,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100939,
-      "updated_at": 1790813100939
-    },
-    {
-      "from_id": "7abclq2n",
       "to_id": "3b6g7z3k",
-      "relation": "related_to",
-      "weight": 0.4794,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100939,
-      "updated_at": 1790813100939
-    },
-    {
-      "from_id": "7abclq2n",
-      "to_id": "jj5uyg5j",
-      "relation": "related_to",
-      "weight": 0.4119,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100939,
-      "updated_at": 1790813100939
-    },
-    {
-      "from_id": "7abclq2n",
-      "to_id": "acdy69d9",
       "relation": "same_workflow",
-      "weight": 0.3848,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
+      "weight": 0.9,
+      "reason": "Both define the managed database connection and viewer backend contract, including adapter behavior and PostgreSQL operations.",
       "source": "auto",
-      "created_at": 1790813100939,
-      "updated_at": 1790813100939
+      "created_at": 1791851264905,
+      "updated_at": 1791851264905
     },
     {
       "from_id": "7abclq2n",
-      "to_id": "2npkkqwm",
-      "relation": "related_to",
-      "weight": 0.3845,
-      "reason": "The memories are similar enough to be useful related context.",
+      "to_id": "rofhavtg",
+      "relation": "same_workflow",
+      "weight": 0.72,
+      "reason": "Both cover the managed database detail workflow and its commercial backend implementation, including connection-related routes and runtime behavior.",
       "source": "auto",
-      "created_at": 1790813100939,
-      "updated_at": 1790813100939
+      "created_at": 1791851264905,
+      "updated_at": 1791851264905
     }
   ]
 }

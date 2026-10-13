@@ -6,21 +6,21 @@
     "alpine",
     "debian",
     "docker",
-    "gateway",
     "installer",
     "openrc",
+    "opfield",
     "regression"
   ],
   "layer": "deep",
   "ref": null,
   "source": "model_inferred",
   "confidence": 0.99,
-  "importance": 0.92,
+  "importance": 0.9,
   "created_at": 1786049117386,
-  "updated_at": 1790812629655
+  "updated_at": 1791851507216
 }
 ---
-Gateway installer and daemon setup-script contract (Docker provisioning, unit detection, terminal output):
+Opfield installer and daemon setup-script contract (Docker provisioning, unit detection, terminal output):
 
 Docker bootstrap
 - `scripts/install.sh` must bootstrap Docker on fresh Debian, Ubuntu, Fedora, CentOS, and RHEL hosts.

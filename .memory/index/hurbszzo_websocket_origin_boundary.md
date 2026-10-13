@@ -14,7 +14,7 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1786190863596,
-  "updated_at": 1787862250997
+  "updated_at": 1791851165368
 }
 ---
-[→ 3fym4ikf] Remove illustrative LAN address from WebSocket origin contract
+[→ 3fym4ikf] Opfield WebSocket cookie authentication must not trust localhost or local-interface hosts as a broad Origin class. In production, accept the canonical public...

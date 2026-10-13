@@ -7,8 +7,8 @@
     "compose",
     "docker",
     "documentation",
-    "gateway",
     "licensing",
+    "opfield",
     "ui"
   ],
   "layer": "lite",
@@ -17,9 +17,9 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1787483483982,
-  "updated_at": 1790812463962
+  "updated_at": 1791851691865
 }
 ---
-[→ j6oni2tm] # Gateway Docker Compose Projects: status and original design boundary
+[→ j6oni2tm] # Opfield Docker Compose Projects: status and original design boundary
 
 Status (verified in main on 2026-10-01): first-class Compose Projects are implemented...

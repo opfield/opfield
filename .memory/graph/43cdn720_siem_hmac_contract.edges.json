@@ -3,53 +3,43 @@
   "edges": [
     {
       "from_id": "43cdn720",
-      "to_id": "p3e1ow76",
+      "to_id": "2npkkqwm",
       "relation": "uses_service",
-      "weight": 0.4274,
+      "weight": 0.3748,
       "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
       "source": "auto",
-      "created_at": 1790813100714,
-      "updated_at": 1790813100714
+      "created_at": 1791851226377,
+      "updated_at": 1791851226377
     },
     {
       "from_id": "43cdn720",
-      "to_id": "acdy69d9",
-      "relation": "uses_service",
-      "weight": 0.3933,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
+      "to_id": "adzvqx6l",
+      "relation": "related_to",
+      "weight": 0.3681,
+      "reason": "The memories are similar enough to be useful related context.",
       "source": "auto",
-      "created_at": 1790813100714,
-      "updated_at": 1790813100714
+      "created_at": 1791851226377,
+      "updated_at": 1791851226377
     },
     {
       "from_id": "43cdn720",
-      "to_id": "z638qk12",
-      "relation": "uses_service",
-      "weight": 0.3921,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
+      "to_id": "02e60mqr",
+      "relation": "same_workflow",
+      "weight": 0.3461,
+      "reason": "The memories appear to belong to the same workflow or operating process.",
       "source": "auto",
-      "created_at": 1790813100714,
-      "updated_at": 1790813100714
+      "created_at": 1791851226377,
+      "updated_at": 1791851226377
     },
     {
       "from_id": "43cdn720",
-      "to_id": "dcfkgqwx",
+      "to_id": "3ta908aa",
       "relation": "uses_service",
-      "weight": 0.3897,
+      "weight": 0.3362,
       "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
       "source": "auto",
-      "created_at": 1790813100714,
-      "updated_at": 1790813100714
-    },
-    {
-      "from_id": "43cdn720",
-      "to_id": "8v2nc5jg",
-      "relation": "uses_service",
-      "weight": 0.3825,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
-      "source": "auto",
-      "created_at": 1790813100714,
-      "updated_at": 1790813100714
+      "created_at": 1791851226377,
+      "updated_at": 1791851226377
     }
   ]
 }

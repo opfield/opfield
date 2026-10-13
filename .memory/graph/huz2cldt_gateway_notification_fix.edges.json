@@ -4,52 +4,12 @@
     {
       "from_id": "huz2cldt",
       "to_id": "8irxtjyz",
-      "relation": "same_area",
-      "weight": 0.5513,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "relation": "same_workflow",
+      "weight": 0.86,
+      "reason": "Alert evaluator resource-name handling feeds the canonical notification rendering and dispatch workflow.",
       "source": "auto",
-      "created_at": 1790813100375,
-      "updated_at": 1790813100375
-    },
-    {
-      "from_id": "huz2cldt",
-      "to_id": "2tjfa2g5",
-      "relation": "related_to",
-      "weight": 0.394,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100375,
-      "updated_at": 1790813100375
-    },
-    {
-      "from_id": "huz2cldt",
-      "to_id": "hh3v2vdi",
-      "relation": "same_area",
-      "weight": 0.391,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813100375,
-      "updated_at": 1790813100375
-    },
-    {
-      "from_id": "huz2cldt",
-      "to_id": "duvbj7h2",
-      "relation": "same_area",
-      "weight": 0.3482,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813100375,
-      "updated_at": 1790813100375
-    },
-    {
-      "from_id": "huz2cldt",
-      "to_id": "02e60mqr",
-      "relation": "related_to",
-      "weight": 0.3324,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100375,
-      "updated_at": 1790813100375
+      "created_at": 1791851645398,
+      "updated_at": 1791851645398
     }
   ]
 }

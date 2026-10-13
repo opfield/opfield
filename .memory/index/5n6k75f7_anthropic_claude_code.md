@@ -15,7 +15,9 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1785451683980,
-  "updated_at": 1787862569398
+  "updated_at": 1791851604077
 }
 ---
-[→ hc1xhdcx] Update Claude Code integration to the current @sqgateway inference contract
+[→ hc1xhdcx] Opfield supports Claude Code CLI through `npx -y @sqgateway/inference@latest setup claude-code`; Claude Code 2.1.129 or newer is required.
+
+- Setup issues a ...

@@ -3,53 +3,23 @@
   "edges": [
     {
       "from_id": "qme9z5oh",
-      "to_id": "7oked0dp",
-      "relation": "related_to",
-      "weight": 0.3786,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1787862736132,
-      "updated_at": 1787862736132
-    },
-    {
-      "from_id": "qme9z5oh",
-      "to_id": "fgmxlp0p",
-      "relation": "related_to",
-      "weight": 0.3767,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1787862736132,
-      "updated_at": 1787862736132
-    },
-    {
-      "from_id": "qme9z5oh",
       "to_id": "fk86zmru",
-      "relation": "uses_service",
-      "weight": 0.4649,
-      "reason": "The memory appears to describe a workflow that uses the related service or configuration.",
+      "relation": "same_workflow",
+      "weight": 0.82,
+      "reason": "Both define durable AI conversation state, snapshot ordering, terminal markers, and restart-safe run handling.",
       "source": "auto",
-      "created_at": 1787862736132,
-      "updated_at": 1787862736132
+      "created_at": 1791851863171,
+      "updated_at": 1791851863171
     },
     {
       "from_id": "qme9z5oh",
-      "to_id": "pstn8fla",
-      "relation": "related_to",
-      "weight": 0.4259,
-      "reason": "The memories are similar enough to be useful related context.",
+      "to_id": "axhme4ti",
+      "relation": "same_workflow",
+      "weight": 0.76,
+      "reason": "Both govern AI run failures, provider terminal states, idempotent retries, and continuation correctness.",
       "source": "auto",
-      "created_at": 1787862736132,
-      "updated_at": 1787862736132
-    },
-    {
-      "from_id": "qme9z5oh",
-      "to_id": "w75b8az4",
-      "relation": "related_to",
-      "weight": 0.3871,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1787862736132,
-      "updated_at": 1787862736132
+      "created_at": 1791851863171,
+      "updated_at": 1791851863171
     }
   ]
 }

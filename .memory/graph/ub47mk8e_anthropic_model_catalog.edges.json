@@ -3,53 +3,23 @@
   "edges": [
     {
       "from_id": "ub47mk8e",
+      "to_id": "gz01c8d5",
+      "relation": "same_workflow",
+      "weight": 0.83,
+      "reason": "Both describe inference model discovery and the Add Model UI metadata flow, including auto-filled limits and capabilities.",
+      "source": "auto",
+      "created_at": 1791851886058,
+      "updated_at": 1791851886058
+    },
+    {
+      "from_id": "ub47mk8e",
       "to_id": "hc1xhdcx",
       "relation": "same_area",
-      "weight": 0.4561,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.74,
+      "reason": "Both cover Anthropic model discovery and supported model metadata used by Opfield inference integrations.",
       "source": "auto",
-      "created_at": 1790813101095,
-      "updated_at": 1790813101095
-    },
-    {
-      "from_id": "ub47mk8e",
-      "to_id": "ifp3c48s",
-      "relation": "related_to",
-      "weight": 0.3878,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101095,
-      "updated_at": 1790813101095
-    },
-    {
-      "from_id": "ub47mk8e",
-      "to_id": "dcfkgqwx",
-      "relation": "related_to",
-      "weight": 0.3766,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101095,
-      "updated_at": 1790813101095
-    },
-    {
-      "from_id": "ub47mk8e",
-      "to_id": "z638qk12",
-      "relation": "related_to",
-      "weight": 0.3614,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101095,
-      "updated_at": 1790813101095
-    },
-    {
-      "from_id": "ub47mk8e",
-      "to_id": "gz01c8d5",
-      "relation": "related_to",
-      "weight": 0.3543,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101095,
-      "updated_at": 1790813101095
+      "created_at": 1791851886058,
+      "updated_at": 1791851886058
     }
   ]
 }

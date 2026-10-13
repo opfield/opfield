@@ -6,7 +6,7 @@
     "backend",
     "docker",
     "frontend",
-    "gateway",
+    "opfield",
     "proxy",
     "refactor",
     "testing"
@@ -17,8 +17,8 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1781739683142,
-  "updated_at": 1790812442821
+  "updated_at": 1791851390562
 }
 ---
-[→ asy6c7bj] Gateway safe-refactor pattern for oversized detail/service files (June 2026 refactor series):
+[→ asy6c7bj] Opfield safe-refactor pattern for oversized detail/service files (June 2026 refactor series):
 - Before extracting orchestration from a large page or service ...

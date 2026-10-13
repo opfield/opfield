@@ -5,41 +5,11 @@
       "from_id": "zzulrspz",
       "to_id": "02e60mqr",
       "relation": "same_workflow",
-      "weight": 0.4586,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
+      "weight": 0.86,
+      "reason": "Release tag and embedded version conventions directly govern the APP_VERSION and daemonVersion values used for compatibility checks.",
       "source": "auto",
-      "created_at": 1790813100983,
-      "updated_at": 1790813100983
-    },
-    {
-      "from_id": "zzulrspz",
-      "to_id": "vrch49nc",
-      "relation": "same_area",
-      "weight": 0.4296,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813100983,
-      "updated_at": 1790813100983
-    },
-    {
-      "from_id": "zzulrspz",
-      "to_id": "ov8vmocj",
-      "relation": "same_area",
-      "weight": 0.3894,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813100983,
-      "updated_at": 1790813100983
-    },
-    {
-      "from_id": "zzulrspz",
-      "to_id": "nr9hvzr3",
-      "relation": "same_workflow",
-      "weight": 0.3882,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
-      "source": "auto",
-      "created_at": 1790813100983,
-      "updated_at": 1790813100983
+      "created_at": 1791852032440,
+      "updated_at": 1791852032440
     }
   ]
 }

@@ -16,7 +16,7 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1786646672645,
-  "updated_at": 1786650487011
+  "updated_at": 1791851285058
 }
 ---
-[→ 8c9f2oec] Domain ingress targets use eligible Nginx nodes with atomic, CAS-safe and ownership-safe Cloudflare reconciliation.
+[→ 8c9f2oec] Opfield Domain ingress contract: a registered Domain targets one eligible Nginx node whose effective address is selected deterministically from daemon-report...

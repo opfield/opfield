@@ -3,53 +3,33 @@
   "edges": [
     {
       "from_id": "37llsl1w",
-      "to_id": "asy6c7bj",
-      "relation": "same_area",
-      "weight": 0.4553,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813102090,
-      "updated_at": 1790813102090
-    },
-    {
-      "from_id": "37llsl1w",
-      "to_id": "2tjfa2g5",
-      "relation": "related_to",
-      "weight": 0.4112,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813102090,
-      "updated_at": 1790813102090
-    },
-    {
-      "from_id": "37llsl1w",
-      "to_id": "nr9hvzr3",
-      "relation": "same_area",
-      "weight": 0.4094,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813102090,
-      "updated_at": 1790813102090
-    },
-    {
-      "from_id": "37llsl1w",
       "to_id": "412x4uua",
       "relation": "same_area",
-      "weight": 0.4003,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.92,
+      "reason": "Both concern the Opfield frontend API client architecture and error handling at the shared client boundary.",
       "source": "auto",
-      "created_at": 1790813102090,
-      "updated_at": 1790813102090
+      "created_at": 1791852049964,
+      "updated_at": 1791852049964
     },
     {
       "from_id": "37llsl1w",
-      "to_id": "3b6g7z3k",
+      "to_id": "4tmpz7of",
       "relation": "same_area",
-      "weight": 0.3818,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.68,
+      "reason": "Both document Docker mutation failure handling and frontend behavior when backend operations fail.",
       "source": "auto",
-      "created_at": 1790813102090,
-      "updated_at": 1790813102090
+      "created_at": 1791852049964,
+      "updated_at": 1791852049964
+    },
+    {
+      "from_id": "37llsl1w",
+      "to_id": "gnonxe58",
+      "relation": "related_to",
+      "weight": 0.55,
+      "reason": "Both address resilient Docker daemon failure handling and preventing backend failures from becoming unusable UI behavior.",
+      "source": "auto",
+      "created_at": 1791852049964,
+      "updated_at": 1791852049964
     }
   ]
 }

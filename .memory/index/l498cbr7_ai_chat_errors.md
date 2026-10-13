@@ -5,8 +5,8 @@
   "tags": [
     "ai-chat",
     "errors",
-    "gateway",
     "inference",
+    "opfield",
     "responses-api",
     "retry"
   ],
@@ -16,7 +16,7 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1785446256923,
-  "updated_at": 1785446626358
+  "updated_at": 1791851398669
 }
 ---
-[→ axhme4ti] AI run errors retain provider reason, support retry, and normalize Responses tool ids
+[→ axhme4ti] Opfield AI chat run failures are persisted as localOnly assistant messages prefixed with **Error:**. Render them as left-aligned assistant error blocks. Retr...

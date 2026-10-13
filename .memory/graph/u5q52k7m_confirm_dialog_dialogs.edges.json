@@ -3,13 +3,13 @@
   "edges": [
     {
       "from_id": "u5q52k7m",
-      "to_id": "c9rwyt9w",
+      "to_id": "bza0frbi",
       "relation": "same_area",
-      "weight": 0.1224,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.82,
+      "reason": "Both document durable shared dialog layout contracts involving header/body slot placement and content behavior.",
       "source": "auto",
-      "created_at": 1786064967520,
-      "updated_at": 1786064967520
+      "created_at": 1791851876685,
+      "updated_at": 1791851876685
     }
   ]
 }

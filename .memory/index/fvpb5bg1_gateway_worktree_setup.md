@@ -15,9 +15,9 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1790541257760,
-  "updated_at": 1790812718426
+  "updated_at": 1791851478014
 }
 ---
-[→ d3cheyb1] Things needed before verifying code in a fresh git worktree of the gateway repo:
+[→ d3cheyb1] Things needed before verifying code in a fresh git worktree of the Opfield repo:
 
 1. **Go daemon modules** (`packages/daemons/{shared,relay,nginx,docker}`) d...

@@ -1,0 +1,25 @@
+{
+  "file_name": "gqzqcsgc_acme_certificates_deployment",
+  "edges": [
+    {
+      "from_id": "gqzqcsgc",
+      "to_id": "d3cheyb1",
+      "relation": "depends_on",
+      "weight": 0.78,
+      "reason": "The nginx-daemon Go verification mentioned in the source requires the worktree trust-anchor setup described here.",
+      "source": "auto",
+      "created_at": 1791851577745,
+      "updated_at": 1791851577745
+    },
+    {
+      "from_id": "gqzqcsgc",
+      "to_id": "7uk369vl",
+      "relation": "same_area",
+      "weight": 0.68,
+      "reason": "Both document Opfield nginx deployment behavior and generated configuration pitfalls that affect proxy-host rollout.",
+      "source": "auto",
+      "created_at": 1791851577745,
+      "updated_at": 1791851577745
+    }
+  ]
+}

@@ -5,7 +5,7 @@
   "tags": [
     "ai-chat",
     "conversation-retrieval",
-    "gateway",
+    "opfield",
     "security",
     "verification"
   ],
@@ -15,7 +15,7 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1783279658914,
-  "updated_at": 1787862647197
+  "updated_at": 1791851541229
 }
 ---
-[→ fgmxlp0p] Remove machine-specific absolute checkout path
+[→ fgmxlp0p] In the Opfield repository, AI conversation retrieval (`search_chats`, `find_in_chat`, `read_chat_slice`, prompt tail context) must not index or return raw to...

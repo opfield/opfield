@@ -5,51 +5,21 @@
       "from_id": "duvbj7h2",
       "to_id": "8rqz22k0",
       "relation": "same_area",
-      "weight": 0.5098,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.86,
+      "reason": "Both document Opfield AI tool discovery and scoped tool exposure behavior in the gateway.",
       "source": "auto",
-      "created_at": 1790813100436,
-      "updated_at": 1790813100436
+      "created_at": 1791851497727,
+      "updated_at": 1791851497727
     },
     {
       "from_id": "duvbj7h2",
-      "to_id": "h8y5ou2d",
+      "to_id": "92pnq26b",
       "relation": "same_area",
-      "weight": 0.4823,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.7,
+      "reason": "The sandbox clone inspection tools are AI-only registry entries whose exposure and MCP exclusion follow this tool-layout convention.",
       "source": "auto",
-      "created_at": 1790813100436,
-      "updated_at": 1790813100436
-    },
-    {
-      "from_id": "duvbj7h2",
-      "to_id": "fgmxlp0p",
-      "relation": "same_area",
-      "weight": 0.4489,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813100436,
-      "updated_at": 1790813100436
-    },
-    {
-      "from_id": "duvbj7h2",
-      "to_id": "412x4uua",
-      "relation": "same_area",
-      "weight": 0.4404,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813100436,
-      "updated_at": 1790813100436
-    },
-    {
-      "from_id": "duvbj7h2",
-      "to_id": "ph8ejel0",
-      "relation": "same_area",
-      "weight": 0.4205,
-      "reason": "The memories share tags or vocabulary from the same area.",
-      "source": "auto",
-      "created_at": 1790813100436,
-      "updated_at": 1790813100436
+      "created_at": 1791851497727,
+      "updated_at": 1791851497727
     }
   ]
 }

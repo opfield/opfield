@@ -5,20 +5,20 @@
   "tags": [
     "alerts",
     "bugfix",
-    "gateway",
     "notifications",
+    "opfield",
     "verification"
   ],
   "layer": "deep",
   "ref": null,
   "source": "model_inferred",
   "confidence": 0.99,
-  "importance": 0.86,
+  "importance": 0.85,
   "created_at": 1783024139300,
-  "updated_at": 1790812801850
+  "updated_at": 1791851641620
 }
 ---
-Gateway threshold notification alerts track state with composite resource IDs; render labels must be derived separately from those state IDs (`packages/backend/src/modules/notifications/notification-evaluator.service.ts`, `getThresholdResourceName`, verified 2026-10-01).
+Opfield threshold notification alerts track state with composite resource IDs; render labels must be derived separately from those state IDs (`packages/backend/src/modules/notifications/notification-evaluator.service.ts`, `getThresholdResourceName`, verified 2026-10-01).
 
 - Node disk alerts use composite IDs like `nodeId:/`; on firing, notifications must use the node hostname/name as resource.name, not the raw mount `/`, otherwise Discord templates render `Resource: node//`.
 - Container metric alerts use composite IDs like `nodeId:containerName`; on resolve, notifications must keep the container name rather than switching to the node name.

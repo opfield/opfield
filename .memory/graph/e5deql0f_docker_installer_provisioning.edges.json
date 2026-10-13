@@ -3,53 +3,13 @@
   "edges": [
     {
       "from_id": "e5deql0f",
-      "to_id": "nr9hvzr3",
-      "relation": "related_to",
-      "weight": 0.4865,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100630,
-      "updated_at": 1790813100630
-    },
-    {
-      "from_id": "e5deql0f",
-      "to_id": "gnonxe58",
-      "relation": "related_to",
-      "weight": 0.4537,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100630,
-      "updated_at": 1790813100630
-    },
-    {
-      "from_id": "e5deql0f",
-      "to_id": "adzvqx6l",
-      "relation": "related_to",
-      "weight": 0.4454,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100630,
-      "updated_at": 1790813100630
-    },
-    {
-      "from_id": "e5deql0f",
-      "to_id": "zq6da64z",
-      "relation": "related_to",
-      "weight": 0.4402,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100630,
-      "updated_at": 1790813100630
-    },
-    {
-      "from_id": "e5deql0f",
       "to_id": "8v2nc5jg",
-      "relation": "related_to",
-      "weight": 0.4286,
-      "reason": "The memories are similar enough to be useful related context.",
+      "relation": "same_workflow",
+      "weight": 0.83,
+      "reason": "Both document Opfield installer/setup workflows, including fresh installation and upgrade-related provisioning behavior.",
       "source": "auto",
-      "created_at": 1790813100630,
-      "updated_at": 1790813100630
+      "created_at": 1791851512738,
+      "updated_at": 1791851512738
     }
   ]
 }

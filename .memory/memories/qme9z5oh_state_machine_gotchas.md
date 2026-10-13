@@ -4,7 +4,7 @@
   "file_name": "qme9z5oh_state_machine_gotchas",
   "tags": [
     "ai-chat",
-    "gateway",
+    "opfield",
     "production-readiness",
     "providers",
     "recovery",
@@ -15,12 +15,12 @@
   "ref": null,
   "source": "model_inferred",
   "confidence": 0.99,
-  "importance": 0.9,
+  "importance": 0.95,
   "created_at": 1783631313911,
-  "updated_at": 1787862465912
+  "updated_at": 1791851858395
 }
 ---
-Gateway AI chat state-machine verification contract:
+Opfield AI chat state-machine verification contract:
 
 - Snapshot ordering must be monotonic per conversation. Assemble snapshots consistently, serialize or coalesce publication, and reject non-newer revisions client-side so late responses cannot regress messages, tools, waits, runs, thinking state, or grouping.
 - Active execution and drafts require restart-safe ownership, reconciliation, and cancellation semantics; do not assume process-local state survives backend restart.

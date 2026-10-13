@@ -6,9 +6,9 @@
     "availability",
     "compose",
     "docker",
-    "gateway",
     "ha",
     "internal-registry",
+    "opfield",
     "secure-link"
   ],
   "layer": "lite",
@@ -17,7 +17,7 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1788310918318,
-  "updated_at": 1790812471219
+  "updated_at": 1791851722115
 }
 ---
-[→ lct3cijz] Gateway Multi-node Availability is intentionally not based on Docker Swarm because Swarm's manager/gossip/VXLAN and node-to-node connectivity conflict with G...
+[→ lct3cijz] Opfield Multi-node Availability is intentionally not based on Docker Swarm because Swarm's manager/gossip/VXLAN and node-to-node connectivity conflict with O...

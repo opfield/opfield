@@ -5,51 +5,21 @@
       "from_id": "vrru6m60",
       "to_id": "elp4yliv",
       "relation": "same_area",
-      "weight": 0.4465,
-      "reason": "The memories share tags or vocabulary from the same area.",
+      "weight": 0.82,
+      "reason": "Both define backward-compatible browser session handling across HTTP middleware and WebSocket authentication.",
       "source": "auto",
-      "created_at": 1790813100544,
-      "updated_at": 1790813100544
+      "created_at": 1791851919329,
+      "updated_at": 1791851919329
     },
     {
       "from_id": "vrru6m60",
       "to_id": "3fym4ikf",
-      "relation": "related_to",
-      "weight": 0.3997,
-      "reason": "The memories are similar enough to be useful related context.",
+      "relation": "same_area",
+      "weight": 0.58,
+      "reason": "Both specify security boundaries for cookie-authenticated WebSocket access.",
       "source": "auto",
-      "created_at": 1790813100544,
-      "updated_at": 1790813100544
-    },
-    {
-      "from_id": "vrru6m60",
-      "to_id": "hic3s1ta",
-      "relation": "related_to",
-      "weight": 0.3592,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100544,
-      "updated_at": 1790813100544
-    },
-    {
-      "from_id": "vrru6m60",
-      "to_id": "c49ob9tl",
-      "relation": "related_to",
-      "weight": 0.3581,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100544,
-      "updated_at": 1790813100544
-    },
-    {
-      "from_id": "vrru6m60",
-      "to_id": "z638qk12",
-      "relation": "related_to",
-      "weight": 0.3219,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813100544,
-      "updated_at": 1790813100544
+      "created_at": 1791851919329,
+      "updated_at": 1791851919329
     }
   ]
 }

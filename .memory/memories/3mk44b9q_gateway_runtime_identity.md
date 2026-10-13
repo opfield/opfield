@@ -5,8 +5,8 @@
   "tags": [
     "containers",
     "docker",
-    "gateway",
     "monitoring",
+    "opfield",
     "recreate",
     "restart",
     "snapshots"
@@ -17,10 +17,10 @@
   "confidence": 0.99,
   "importance": 0.9,
   "created_at": 1787594299433,
-  "updated_at": 1787862535431
+  "updated_at": 1791851170436
 }
 ---
-# Gateway container monitoring runtime identity contract
+# Opfield container monitoring runtime identity contract
 
 - Container monitoring state belongs to one runtime generation, identified by Docker runtime container ID plus inspect `State.StartedAt`. Recreate changes the ID; restart can keep the ID but changes `StartedAt`.
 - Filter stats history to samples whose timestamp is at or after the current runtime `StartedAt`. Ignore late history, process-list, or SSE responses from a previous identity.

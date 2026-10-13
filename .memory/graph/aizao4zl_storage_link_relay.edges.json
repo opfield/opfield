@@ -1,0 +1,15 @@
+{
+  "file_name": "aizao4zl_storage_link_relay",
+  "edges": [
+    {
+      "from_id": "aizao4zl",
+      "to_id": "8vganhe2",
+      "relation": "same_area",
+      "weight": 0.78,
+      "reason": "Both constrain relay-route reconciliation to preserve desired managed-link runtime resources.",
+      "source": "auto",
+      "created_at": 1790896693338,
+      "updated_at": 1790896693338
+    }
+  ]
+}

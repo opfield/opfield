@@ -16,9 +16,9 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1785917497779,
-  "updated_at": 1790812696670
+  "updated_at": 1791851914584
 }
 ---
-[→ vrru6m60] Gateway browser session cookie contract (merged 2026-10-01 with the localhost auth-recovery note):
+[→ vrru6m60] Opfield browser session cookie contract (merged 2026-10-01 with the localhost auth-recovery note):
 
 - Session cookies use separate, installation-namespaced n...

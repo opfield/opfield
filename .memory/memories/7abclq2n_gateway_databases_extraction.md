@@ -6,7 +6,7 @@
     "clickhouse",
     "connection-form",
     "databases",
-    "gateway",
+    "opfield",
     "postgresql",
     "sql-adapter",
     "verification"
@@ -15,12 +15,12 @@
   "ref": null,
   "source": "model_inferred",
   "confidence": 0.99,
-  "importance": 0.9,
+  "importance": 0.95,
   "created_at": 1782003066839,
-  "updated_at": 1790812428853
+  "updated_at": 1791851259900
 }
 ---
-Gateway database connections: code location, SQL connector contract and connection form.
+Opfield database connections: code location, SQL connector contract and connection form.
 
 Where the code lives (verified 2026-10-01)
 - The real databases implementation is in the private sibling repo `gateway-commercial` under `backend/databases/` (databases.service.ts, postgres-column-operations.ts, postgres-sql-adapter.ts, clickhouse-sql-adapter.ts, clickhouse-connection.ts, redis-key-operations.ts and friends). In this repo `packages/backend/src/modules/databases/databases.service.ts` is a Community contract stub (`commercialModuleUnavailable()`); the host keeps routes/docs/schemas, the neutral `sql-database-adapter.ts` contract and shared runtime contracts. Trace database bugs in gateway-commercial first.

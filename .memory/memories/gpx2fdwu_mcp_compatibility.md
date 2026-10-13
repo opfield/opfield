@@ -5,9 +5,9 @@
   "tags": [
     "assistant",
     "compatibility",
-    "gateway",
     "inference",
     "mcp",
+    "opfield",
     "settings"
   ],
   "layer": "deep",
@@ -16,12 +16,12 @@
   "confidence": 0.99,
   "importance": 0.86,
   "created_at": 1786047219057,
-  "updated_at": 1790812620333
+  "updated_at": 1791851565032
 }
 ---
-Gateway Assistant guidance for Gateway Inference setup:
+Opfield Assistant guidance for Opfield Inference setup:
 
-- For Gateway Inference setup the embedded Assistant reads the internal inference documentation first.
+- For Opfield Inference setup the embedded Assistant reads the internal inference documentation first.
 - If `get_gateway_settings` is available, it reports whether `generalSettings.features.inferenceEnabled` is enabled before giving setup instructions. Without `settings:gateway:view` it must not guess the installation state and should tell the user that an administrator must confirm it.
 - Setup guidance uses the `@sqgateway/inference` package (`packages/gateway-inference`), discovery, and the single stable `/api/inference/v1` contract; do not reference removed harness-specific endpoint toggles.
 

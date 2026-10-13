@@ -5,14 +5,17 @@
   "tags": [
     "compatibility",
     "daemon",
-    "gateway",
     "grpc",
-    "mtls"
+    "mtls",
+    "opfield"
   ],
   "layer": "lite",
   "ref": "ov8vmocj",
+  "source": "model_inferred",
+  "confidence": 0.5,
+  "importance": 0.5,
   "created_at": 1777128935634,
-  "updated_at": 1777128935634
+  "updated_at": 1791851816569
 }
 ---
-[→ ov8vmocj] gRPC optional client cert gotcha
+[→ ov8vmocj] In the Opfield repo, @grpc/grpc-js `ServerCredentials.createSsl(rootCerts, keyPairs, false)` sets `requestCert: false`, so the server will not request daemon...

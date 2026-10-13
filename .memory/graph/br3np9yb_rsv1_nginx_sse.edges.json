@@ -1,0 +1,25 @@
+{
+  "file_name": "br3np9yb_rsv1_nginx_sse",
+  "edges": [
+    {
+      "from_id": "br3np9yb",
+      "to_id": "e0oqvuoo",
+      "relation": "same_workflow",
+      "weight": 0.9,
+      "reason": "Both document RelayResume live-handover invariants, including stale-path signaling, resume refusal, and stream completion behavior.",
+      "source": "auto",
+      "created_at": 1791851442641,
+      "updated_at": 1791851442641
+    },
+    {
+      "from_id": "br3np9yb",
+      "to_id": "3ta908aa",
+      "relation": "same_area",
+      "weight": 0.76,
+      "reason": "Both cover the nginx/Secure Link relay path, Unix-socket upstream behavior, and multiplexed relay data tunnels.",
+      "source": "auto",
+      "created_at": 1791851442641,
+      "updated_at": 1791851442641
+    }
+  ]
+}

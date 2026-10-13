@@ -5,41 +5,11 @@
       "from_id": "35udxmwy",
       "to_id": "02e60mqr",
       "relation": "same_workflow",
-      "weight": 0.3619,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
+      "weight": 0.96,
+      "reason": "Both define Opfield release-tag workflows and require tag changelogs in plain bullet format.",
       "source": "auto",
-      "created_at": 1790813101642,
-      "updated_at": 1790813101642
-    },
-    {
-      "from_id": "35udxmwy",
-      "to_id": "d3cheyb1",
-      "relation": "related_to",
-      "weight": 0.2869,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101642,
-      "updated_at": 1790813101642
-    },
-    {
-      "from_id": "35udxmwy",
-      "to_id": "pstn8fla",
-      "relation": "related_to",
-      "weight": 0.286,
-      "reason": "The memories are similar enough to be useful related context.",
-      "source": "auto",
-      "created_at": 1790813101642,
-      "updated_at": 1790813101642
-    },
-    {
-      "from_id": "35udxmwy",
-      "to_id": "ac5muwri",
-      "relation": "same_workflow",
-      "weight": 0.2831,
-      "reason": "The memories appear to belong to the same workflow or operating process.",
-      "source": "auto",
-      "created_at": 1790813101642,
-      "updated_at": 1790813101642
+      "created_at": 1791851157192,
+      "updated_at": 1791851157192
     }
   ]
 }

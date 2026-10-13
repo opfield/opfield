@@ -5,8 +5,8 @@
   "tags": [
     "alerts",
     "bugfix",
-    "gateway",
     "notifications",
+    "opfield",
     "verification"
   ],
   "layer": "lite",
@@ -15,7 +15,7 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1783024139300,
-  "updated_at": 1790812801850
+  "updated_at": 1791851641620
 }
 ---
-[→ huz2cldt] Gateway threshold notification alerts track state with composite resource IDs; render labels must be derived separately from those state IDs (`packages/backe...
+[→ huz2cldt] Opfield threshold notification alerts track state with composite resource IDs; render labels must be derived separately from those state IDs (`packages/backe...

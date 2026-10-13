@@ -5,8 +5,8 @@
   "tags": [
     "bugfix",
     "docker-registries",
-    "gateway",
     "gitlab",
+    "opfield",
     "verification"
   ],
   "layer": "lite",
@@ -15,7 +15,7 @@
   "confidence": 0.5,
   "importance": 0.5,
   "created_at": 1783267576919,
-  "updated_at": 1787862671358
+  "updated_at": 1791851611468
 }
 ---
-[→ hh3v2vdi] Remove machine-specific absolute checkout path
+[→ hh3v2vdi] Project: `wiolett/gateway` in the Opfield repository. Issue: GitLab-provided Docker registries store repository URLs like registry.example.com/group/project/...
