@@ -38,6 +38,17 @@ export function withNotificationApi<TBase extends ApiClientBaseConstructor>(Base
       return this.request(`/notifications/alert-rules${qs ? `?${qs}` : ""}`);
     }
 
+    /** What a relay_pool or docker_availability rule can be scoped to (they have no list of their own). */
+    async getAlertCategoryResources(
+      category: "relay_pool" | "docker_availability"
+    ): Promise<Array<{ id: string; label: string }>> {
+      return this.unwrapData(
+        this.request<{ data: Array<{ id: string; label: string }> }>(
+          `/notifications/alert-rules/categories/${category}/resources`
+        )
+      );
+    }
+
     async getAlertCategories(): Promise<AlertCategoryDef[]> {
       return this.unwrapData(this.request("/notifications/alert-rules/categories"));
     }

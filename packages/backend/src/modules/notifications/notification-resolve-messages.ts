@@ -51,6 +51,16 @@ const EVENT_RESOLVE_TEXT: Record<string, (name: string) => string> = {
   'app:maintenance.active': (name) => `${name} is out of maintenance`,
   'backup:backup.failed': (name) => `Backups of ${name} succeed again`,
   'domain:dns.not_pointing': (name) => `DNS of ${name} points to Opfield again`,
+  'inference:provider.unavailable': (name) => `Provider connection ${name} is available again`,
+  'inference:provider.quota_low': (name) => `Provider connection ${name} has quota again`,
+  'inference:provider.reauth_required': (name) => `Provider connection ${name} is signed in again`,
+  'inference:core.unhealthy': () => 'The inference core is healthy again',
+  'relay_pool:member.offline': (name) => `Relay ${name} is back`,
+  'relay_pool:member.unreachable': (name) => `Nodes reach relay ${name} again`,
+  'relay_pool:pool.degraded': (name) => `${name} has all its relays ready again`,
+  'relay_pool:update.failed': (name) => `${name} updated successfully`,
+  'docker_availability:policy.degraded': (name) => `${name} has all its replicas again`,
+  'docker_availability:policy.unavailable': (name) => `${name} is available again`,
   ...Object.fromEntries(
     (['database_postgres', 'database_clickhouse', 'database_redis', 'managed_storage'] as const).flatMap((category) => {
       const noun = category === 'managed_storage' ? 'Storage' : 'Database';
@@ -96,6 +106,8 @@ export function defaultResolveMessage(
     const value = details.metric?.value;
     if (rule.category === 'certificate' && rule.metric === 'days_until_expiry') {
       text = `Certificate ${resourceName} no longer expires soon`;
+    } else if (rule.category === 'pki' && rule.metric === 'days_until_expiry') {
+      text = `${resourceName} no longer expires soon`;
     } else if (rule.category === 'backup' && rule.metric === 'hours_since_last_backup') {
       text = `A backup of ${resourceName} succeeded`;
     } else {

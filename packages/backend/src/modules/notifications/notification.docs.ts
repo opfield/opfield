@@ -15,6 +15,15 @@ export const listNotificationCategoriesRoute = appRoute({
   responses: okJson(UnknownDataResponseSchema),
 });
 
+export const listAlertCategoryResourcesRoute = appRoute({
+  method: 'get',
+  path: '/categories/{category}/resources',
+  tags: ['Notifications'],
+  summary: 'List what an alert rule of a category can be scoped to (relay pool, Docker Availability)',
+  request: { params: z.object({ category: z.enum(['relay_pool', 'docker_availability']) }) },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
 export const listNotificationAlertRulesRoute = appRoute({
   method: 'get',
   path: '/',

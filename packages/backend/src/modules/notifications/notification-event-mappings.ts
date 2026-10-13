@@ -449,6 +449,18 @@ export const EVENT_BUS_MAPPINGS: Record<string, EventMapping[]> = {
         observedPatterns: ['relay.unreachable'],
       },
     },
+    // The same report for Relay Pool rules, keyed by the relay (its instance id).
+    {
+      category: 'relay_pool',
+      eventId: 'member.unreachable',
+      match: (p) => p.action === 'data_plane' && typeof p.instanceId === 'string',
+      extractResource: (p) => ({ type: 'relay_pool', id: p.instanceId, name: p.instanceName ?? p.instanceId }),
+      extractData: (p) => ({ relay_address: p.address ?? null }),
+      stateful: {
+        currentState: (p) => (p.unreachable ? 'member.unreachable' : 'member.reachable'),
+        observedPatterns: ['member.unreachable'],
+      },
+    },
   ],
   'logging.health.changed': [
     {

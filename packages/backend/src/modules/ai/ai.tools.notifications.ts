@@ -5,7 +5,7 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_alert_rules',
     description:
-      'List notification alert rules. Returns id, name, enabled, type (threshold/event), category, severity, metric, operator, thresholdValue, eventPattern, resourceIds, webhookIds, cooldownSeconds. Categories include hosting VM/account, node, container, build, compose, proxy (routes: health events and request metrics such as the 5xx share), pages, opfield (the Opfield host, backend process, Postgres, Redis, stack containers and background jobs, plus relay and license), logging, integration, certificate, security, managed database types, managed_storage, app (app environment health, kill switch, shutdown, maintenance, 5xx share over its routes), backup (failed or missed scheduled backups), and domain (DNS not pointing to Opfield). Use manage_notifications alert_categories for each category metrics, events, and template variables.',
+      'List notification alert rules. Returns id, name, enabled, type (threshold/event), category, severity, metric, operator, thresholdValue, eventPattern, resourceIds, webhookIds, cooldownSeconds. Categories include hosting VM/account, node, container, build, compose, proxy (routes: health events and request metrics such as the 5xx share), pages, opfield (the Opfield host, backend process, Postgres, Redis, stack containers and background jobs, plus relay and license), logging, integration, certificate, security, managed database types, managed_storage, app (app environment health, kill switch, shutdown, maintenance, 5xx share over its routes), backup (failed or missed scheduled backups), domain (DNS not pointing to Opfield), pki (internal CA and certificate expiry), inference (provider connections and the inference core), relay_pool (relays, the pool, its updates), and docker_availability (failover, failback, degraded or unavailable workloads). Creating or editing a rule needs view of what it watches. Use manage_notifications alert_categories for each category metrics, events, and template variables.',
     parameters: {
       type: 'object',
       properties: {
@@ -59,7 +59,7 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
         metric: {
           type: 'string',
           description:
-            'For threshold: a metric id of the category, e.g. cpu, memory, disk (node), restarts_per_hour (container), error_5xx_percent, error_4xx_percent, requests_per_second, latency_p95_ms (proxy), error_5xx_percent (app), days_until_expiry (certificate), hours_since_last_backup (backup)',
+            'For threshold: a metric id of the category, e.g. cpu, memory, disk (node), restarts_per_hour (container), error_5xx_percent, error_4xx_percent, requests_per_second, latency_p95_ms (proxy), error_5xx_percent (app), days_until_expiry (certificate, pki), hours_since_last_backup (backup), managed_disk_pct (managed Postgres and key-value)',
         },
         metricTarget: {
           type: 'string',
@@ -88,7 +88,7 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
         eventPattern: {
           type: 'string',
           description:
-            'For event: an event id of the category, e.g. offline (node), stopped (container), health.offline (proxy), health.failing or kill_switch.on (app), backup.failed (backup), dns.not_pointing (domain)',
+            'For event: an event id of the category, e.g. offline (node), stopped (container), health.offline (proxy), health.failing or kill_switch.on (app), backup.failed (backup), dns.not_pointing (domain), provider.unavailable (inference), member.offline (relay_pool), failover.completed (docker_availability)',
         },
         resourceIds: {
           type: 'array',
@@ -107,7 +107,7 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
         },
         webhookIds: { type: 'array', items: { type: 'string' }, description: 'Webhook IDs to deliver to' },
         cooldownSeconds: { type: 'number', description: 'Cooldown between repeated firings (default 900)' },
-        enabled: { type: 'boolean', description: 'Whether the rule is active (default false, like the UI)' },
+        enabled: { type: 'boolean', description: 'Whether the rule is active (default true)' },
       },
       required: ['name', 'type', 'category', 'severity', 'webhookIds'],
     },
@@ -315,13 +315,25 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_notifications',
     description:
-      'Read notification catalogs and details. Operations: alert_categories (metrics, events, and template variables per alert category), webhook_get (one webhook; URL and headers need notifications:webhooks:manage), webhook_presets (built-in body templates), webhook_preview (render bodyTemplate with a sample event; needs notifications:webhooks:manage), delivery_get (one delivery attempt; payloads need notifications:webhooks:manage).',
+      'Read notification catalogs and details. Operations: alert_categories (metrics, events, template variables and the view scopes each alert category needs), alert_resources (what a relay_pool or docker_availability rule can be scoped to; pass category), webhook_get (one webhook; URL and headers need notifications:webhooks:manage), webhook_presets (built-in body templates), webhook_preview (render bodyTemplate with a sample event; needs notifications:webhooks:manage), delivery_get (one delivery attempt; payloads need notifications:webhooks:manage).',
     parameters: {
       type: 'object',
       properties: {
         operation: {
           type: 'string',
-          enum: ['alert_categories', 'webhook_get', 'webhook_presets', 'webhook_preview', 'delivery_get'],
+          enum: [
+            'alert_categories',
+            'alert_resources',
+            'webhook_get',
+            'webhook_presets',
+            'webhook_preview',
+            'delivery_get',
+          ],
+        },
+        category: {
+          type: 'string',
+          enum: ['relay_pool', 'docker_availability'],
+          description: 'Alert category for alert_resources',
         },
         webhookId: { type: 'string', description: 'Webhook UUID for webhook_get' },
         deliveryId: { type: 'string', description: 'Delivery UUID for delivery_get' },

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, isNull, ne } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import {
   appEnvironments,
@@ -6,9 +6,17 @@ import {
   apps,
   backupPolicies,
   backupRuns,
+  certificateAuthorities,
+  certificates,
   databaseConnections,
+  dockerAvailabilityOperations,
+  dockerAvailabilityPolicies,
   domains,
+  inferenceCoreState,
+  inferenceProviderConnections,
   proxyHosts,
+  relayInstances,
+  relayPoolUpdateRuns,
 } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { resolveIngressNodesForMany } from '@/modules/ingress-groups/ingress-nodes.js';
@@ -26,6 +34,9 @@ const TRAFFIC_WINDOW_SECONDS = 60;
 const TRAFFIC_TAIL_LINES = 5_000;
 const TRAFFIC_CONCURRENCY = 4;
 const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+/** The resource key of the inference core in inference alerts. */
+export const INFERENCE_CORE_RESOURCE_ID = 'inference-core';
 const OPEN_INCIDENT_STATES = ['applying', 'active', 'releasing'] as const;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -51,6 +62,7 @@ type Evaluator = Pick<
   | 'observeStatefulEvent'
   | 'hasEnabledRules'
   | 'enabledRuleScopes'
+  | 'emitEvent'
 >;
 
 type Dispatch = {
@@ -120,6 +132,8 @@ export class AlertSourceMonitor {
   private running: Promise<void> | null = null;
   /** RestartCount readings per `<node>\0<container>`, the last hour. */
   private readonly restartReadings = new Map<string, Array<{ at: number; runtimeId: string; restartCount: number }>>();
+  /** Docker Availability operations finished after this were not reported yet (events from when Opfield started). */
+  private availabilityOperationsSince = new Date();
 
   constructor(private readonly deps: AlertSourceDeps) {}
 
@@ -140,7 +154,11 @@ export class AlertSourceMonitor {
         ['app states', () => this.appStates()],
         ['container restarts', () => this.containerRestarts(now)],
         ['backups', () => this.backups(now)],
-        ['domains', () => this.domainDns()]
+        ['domains', () => this.domainDns()],
+        ['internal PKI', () => this.pkiExpiry(now)],
+        ['inference', () => this.inference()],
+        ['relay pool', () => this.relayPool()],
+        ['Docker Availability', () => this.dockerAvailability()]
       );
     }
     for (const [name, run] of parts) {
@@ -487,6 +505,259 @@ export class AlertSourceMonitor {
         ALERT_SOURCES_INTERVAL_MS * SLOW_SOURCES_EVERY
       );
     }
+  }
+
+  // ── Internal PKI expiry ─────────────────────────────────────────────
+
+  async pkiExpiry(now: number): Promise<void> {
+    const { evaluator } = this.deps;
+    if (!(await evaluator.hasEnabledRules('pki', 'threshold'))) return;
+    const cas = await this.deps.db
+      .select({
+        id: certificateAuthorities.id,
+        name: certificateAuthorities.commonName,
+        notAfter: certificateAuthorities.notAfter,
+      })
+      .from(certificateAuthorities)
+      .where(eq(certificateAuthorities.status, 'active'));
+    const leaves = await this.deps.db
+      .select({
+        id: certificates.id,
+        caId: certificates.caId,
+        name: certificates.commonName,
+        notAfter: certificates.notAfter,
+      })
+      .from(certificates)
+      // Certificates Opfield renews itself (managed storage and database TLS) are left out.
+      .where(and(eq(certificates.status, 'active'), isNull(certificates.systemOwnerType)));
+    const caNames = new Map(cas.map((ca) => [ca.id, ca.name]));
+    const days = (notAfter: Date) => Math.ceil((notAfter.getTime() - now) / DAY_MS);
+    const snapshots: MetricSnapshot[] = [
+      ...cas.map((ca) => ({
+        key: ca.id,
+        id: ca.id,
+        name: ca.name,
+        metrics: { days_until_expiry: days(ca.notAfter) },
+        details: { kind: 'ca', expires_at: ca.notAfter.toISOString(), ca: null },
+      })),
+      ...leaves.map((leaf) => ({
+        key: `${leaf.caId}:${leaf.id}`,
+        id: leaf.id,
+        name: leaf.name,
+        metrics: { days_until_expiry: days(leaf.notAfter) },
+        details: { kind: 'certificate', expires_at: leaf.notAfter.toISOString(), ca: caNames.get(leaf.caId) ?? null },
+      })),
+    ];
+    await evaluator.evaluateMetricSnapshots('pki', snapshots, ALERT_SOURCES_INTERVAL_MS * SLOW_SOURCES_EVERY);
+  }
+
+  // ── Inference ───────────────────────────────────────────────────────
+
+  async inference(): Promise<void> {
+    const { evaluator } = this.deps;
+    if (!(await evaluator.hasEnabledRules('inference', 'event'))) return;
+    const period = ALERT_SOURCES_INTERVAL_MS * SLOW_SOURCES_EVERY;
+    const connections = await this.deps.db
+      .select({
+        id: inferenceProviderConnections.id,
+        name: inferenceProviderConnections.name,
+        providerId: inferenceProviderConnections.providerId,
+        status: inferenceProviderConnections.status,
+        reason: inferenceProviderConnections.healthReason,
+      })
+      .from(inferenceProviderConnections)
+      .where(and(eq(inferenceProviderConnections.enabled, true), isNull(inferenceProviderConnections.deletedAt)));
+    for (const connection of connections) {
+      const resource = { type: 'inference', id: connection.id, name: connection.name };
+      const details = { status: connection.status, provider: connection.providerId, reason: connection.reason ?? null };
+      const observe = (active: boolean, pattern: string) =>
+        evaluator.observeStatefulEvent(
+          'inference',
+          active ? pattern : `${pattern}.clear`,
+          resource,
+          details,
+          [pattern],
+          period
+        );
+      await observe(connection.status === 'unavailable', 'provider.unavailable');
+      await observe(connection.status === 'quota_hot', 'provider.quota_low');
+      await observe(connection.status === 'reauth_required', 'provider.reauth_required');
+    }
+    const [core] = await this.deps.db
+      .select({
+        state: inferenceCoreState.state,
+        health: inferenceCoreState.healthStatus,
+        error: inferenceCoreState.lastError,
+      })
+      .from(inferenceCoreState)
+      .limit(1);
+    if (core && core.state !== 'not_installed') {
+      const unhealthy = core.state === 'degraded' || core.state === 'failed' || core.health === 'unhealthy';
+      await evaluator.observeStatefulEvent(
+        'inference',
+        unhealthy ? 'core.unhealthy' : 'core.healthy',
+        { type: 'inference', id: INFERENCE_CORE_RESOURCE_ID, name: 'Inference core' },
+        { status: core.state, reason: core.error ?? null },
+        ['core.unhealthy'],
+        period
+      );
+    }
+  }
+
+  // ── Relay pool ──────────────────────────────────────────────────────
+
+  async relayPool(): Promise<void> {
+    const { evaluator } = this.deps;
+    if (!(await evaluator.hasEnabledRules('relay_pool', 'event'))) return;
+    const period = ALERT_SOURCES_INTERVAL_MS * SLOW_SOURCES_EVERY;
+    const instances = await this.deps.db
+      .select({
+        id: relayInstances.id,
+        poolId: relayInstances.poolId,
+        name: relayInstances.displayName,
+        state: relayInstances.state,
+        health: relayInstances.health,
+      })
+      .from(relayInstances);
+    const pools = new Map<string, { ready: number; total: number }>();
+    for (const instance of instances) {
+      // A draining relay is planned (an operator's drain, a Relay Pool update): neither offline nor counted.
+      if (instance.state !== 'draining') {
+        const pool = pools.get(instance.poolId) ?? { ready: 0, total: 0 };
+        pool.total += 1;
+        if (instance.state === 'ready') pool.ready += 1;
+        pools.set(instance.poolId, pool);
+      }
+      const offline = instance.state === 'offline' || instance.state === 'error';
+      await evaluator.observeStatefulEvent(
+        'relay_pool',
+        offline ? 'member.offline' : 'member.online',
+        { type: 'relay_pool', id: instance.id, name: instance.name },
+        { state: instance.state, reason: instance.health?.lastError ?? null },
+        ['member.offline'],
+        period
+      );
+    }
+    const runs = await this.deps.db
+      .selectDistinctOn([relayPoolUpdateRuns.poolId], {
+        poolId: relayPoolUpdateRuns.poolId,
+        state: relayPoolUpdateRuns.state,
+        error: relayPoolUpdateRuns.terminalError,
+      })
+      .from(relayPoolUpdateRuns)
+      .orderBy(relayPoolUpdateRuns.poolId, desc(relayPoolUpdateRuns.startedAt));
+    const lastRun = new Map(runs.map((run) => [run.poolId, run]));
+    for (const poolId of new Set([...pools.keys(), ...lastRun.keys()])) {
+      const resource = {
+        type: 'relay_pool',
+        id: `pool:${poolId}`,
+        name: poolId === 'system' ? 'Relay pool' : `Relay pool ${poolId}`,
+      };
+      const counts = pools.get(poolId) ?? { ready: 0, total: 0 };
+      await evaluator.observeStatefulEvent(
+        'relay_pool',
+        counts.total > 0 && counts.ready < counts.total ? 'pool.degraded' : 'pool.healthy',
+        resource,
+        { ready: counts.ready, total: counts.total },
+        ['pool.degraded'],
+        period
+      );
+      const run = lastRun.get(poolId);
+      await evaluator.observeStatefulEvent(
+        'relay_pool',
+        run?.state === 'failed' ? 'update.failed' : 'update.ok',
+        resource,
+        { error: run?.state === 'failed' ? (run.error ?? null) : null },
+        ['update.failed'],
+        period
+      );
+    }
+  }
+
+  // ── Docker Availability ─────────────────────────────────────────────
+
+  async dockerAvailability(): Promise<void> {
+    const { evaluator } = this.deps;
+    const since = this.availabilityOperationsSince;
+    if (!(await evaluator.hasEnabledRules('docker_availability'))) {
+      this.availabilityOperationsSince = new Date();
+      return;
+    }
+    const policies = await this.deps.db
+      .select({
+        id: dockerAvailabilityPolicies.id,
+        name: dockerAvailabilityPolicies.displayName,
+        containerName: dockerAvailabilityPolicies.containerName,
+        kind: dockerAvailabilityPolicies.resourceKind,
+        status: dockerAvailabilityPolicies.status,
+        error: dockerAvailabilityPolicies.lastErrorMessage,
+      })
+      .from(dockerAvailabilityPolicies)
+      .where(ne(dockerAvailabilityPolicies.mode, 'single'));
+    const nameOf = (policy: { id: string; name: string; containerName: string | null }) =>
+      policy.name || policy.containerName || 'Availability workload';
+    for (const policy of policies) {
+      const resource = { type: 'docker_availability', id: policy.id, name: nameOf(policy) };
+      const details = { kind: policy.kind, status: policy.status, error: policy.error ?? null };
+      const unavailable = policy.status === 'unavailable' || policy.status === 'failed';
+      const period = ALERT_SOURCES_INTERVAL_MS * SLOW_SOURCES_EVERY;
+      await evaluator.observeStatefulEvent(
+        'docker_availability',
+        unavailable || policy.status === 'degraded' ? 'policy.degraded' : 'policy.healthy',
+        resource,
+        details,
+        ['policy.degraded'],
+        period
+      );
+      await evaluator.observeStatefulEvent(
+        'docker_availability',
+        unavailable ? 'policy.unavailable' : 'policy.available',
+        resource,
+        details,
+        ['policy.unavailable'],
+        period
+      );
+    }
+    // Failovers (a heal replaced what was lost on another node) and failbacks that finished since the last check.
+    const operations = await this.deps.db
+      .select({
+        policyId: dockerAvailabilityOperations.policyId,
+        type: dockerAvailabilityOperations.type,
+        status: dockerAvailabilityOperations.status,
+        error: dockerAvailabilityOperations.errorMessage,
+        completedAt: dockerAvailabilityOperations.completedAt,
+        name: dockerAvailabilityPolicies.displayName,
+        containerName: dockerAvailabilityPolicies.containerName,
+      })
+      .from(dockerAvailabilityOperations)
+      .innerJoin(dockerAvailabilityPolicies, eq(dockerAvailabilityPolicies.id, dockerAvailabilityOperations.policyId))
+      .where(
+        and(
+          inArray(dockerAvailabilityOperations.type, ['heal', 'failback']),
+          inArray(dockerAvailabilityOperations.status, ['completed', 'failed']),
+          gt(dockerAvailabilityOperations.completedAt, since)
+        )
+      );
+    let newest = since;
+    for (const operation of operations) {
+      if (operation.completedAt && operation.completedAt > newest) newest = operation.completedAt;
+      const eventId =
+        operation.type === 'failback'
+          ? operation.status === 'completed'
+            ? 'failback.completed'
+            : null
+          : operation.status === 'completed'
+            ? 'failover.completed'
+            : 'failover.failed';
+      if (!eventId) continue;
+      await evaluator.emitEvent(
+        'docker_availability',
+        eventId,
+        { type: 'docker_availability', id: operation.policyId, name: nameOf({ id: operation.policyId, ...operation }) },
+        { error: operation.error ?? null }
+      );
+    }
+    this.availabilityOperationsSince = newest;
   }
 }
 

@@ -1,5 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
-import { container } from '@/container.js';
+import { container, TOKENS } from '@/container.js';
+import type { DrizzleClient } from '@/db/client.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
 import { authMiddleware, requireAnyScope } from '@/modules/auth/auth.middleware.js';
 import type { AppEnv } from '@/types.js';
@@ -8,6 +9,7 @@ import {
   createNotificationAlertRuleRoute,
   deleteNotificationAlertRuleRoute,
   getNotificationAlertRuleRoute,
+  listAlertCategoryResourcesRoute,
   listNotificationAlertRulesRoute,
   listNotificationCategoriesRoute,
   updateNotificationAlertRuleRoute,
@@ -23,6 +25,7 @@ import {
   UpdateAlertRuleSchema,
 } from './notification-alert-rule.schemas.js';
 import { NotificationAlertRuleService } from './notification-alert-rule.service.js';
+import { type AlertResourceCategory, listAlertCategoryResources } from './notification-rule-resources.js';
 
 export const alertRuleRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
 
@@ -36,6 +39,23 @@ alertRuleRoutes.openapi(
   },
   async (c) => {
     return c.json({ data: ALERT_CATEGORIES });
+  }
+);
+
+// GET /categories/:category/resources — what a rule of a category without its own list can be scoped to
+alertRuleRoutes.openapi(
+  {
+    ...listAlertCategoryResourcesRoute,
+    middleware: requireAnyScope('notifications:alerts:view', 'notifications:alerts:manage'),
+  },
+  async (c) => {
+    const user = c.get('user')!;
+    const data = await listAlertCategoryResources(
+      container.resolve<DrizzleClient>(TOKENS.DrizzleClient),
+      c.req.param('category') as AlertResourceCategory,
+      c.get('effectiveScopes') ?? user.scopes
+    );
+    return c.json({ data });
   }
 );
 

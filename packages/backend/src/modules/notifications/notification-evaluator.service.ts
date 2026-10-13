@@ -3,8 +3,11 @@ import type { DrizzleClient, DrizzleTransaction } from '@/db/client.js';
 import {
   appEnvironments,
   backupPolicies,
+  certificateAuthorities,
+  certificates,
   databaseConnections,
   dockerAccessResources,
+  dockerAvailabilityPolicies,
   domains,
   loggingEnvironments,
   nodes,
@@ -12,6 +15,7 @@ import {
   notificationAlertStates,
   notificationDeliveryLog,
   proxyHosts,
+  relayInstances,
   sslCertificates,
 } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
@@ -171,7 +175,11 @@ type ResourceKind =
   | 'logging'
   | 'app_environment'
   | 'backup_policy'
-  | 'domain';
+  | 'domain'
+  | 'pki_ca'
+  | 'pki_certificate'
+  | 'relay_instance'
+  | 'availability_policy';
 
 /** One reading of a resource's metrics for a category's threshold rules (see evaluateMetricSnapshot). */
 export interface MetricSnapshot {
@@ -990,6 +998,21 @@ export class NotificationEvaluatorService {
           : null;
       case 'domain':
         return state.resourceType === 'domain' ? { kind: 'domain', id: state.resourceId } : null;
+      case 'pki':
+        // Keyed by CA id, or `<CA id>:<certificate id>`.
+        return state.resourceType === 'pki'
+          ? state.resourceId.includes(':')
+            ? { kind: 'pki_certificate', id: state.resourceId.slice(state.resourceId.indexOf(':') + 1) }
+            : { kind: 'pki_ca', id: state.resourceId }
+          : null;
+      case 'relay_pool':
+        return state.resourceType === 'relay_pool' && !state.resourceId.startsWith('pool:')
+          ? { kind: 'relay_instance', id: state.resourceId }
+          : null;
+      case 'docker_availability':
+        return state.resourceType === 'docker_availability'
+          ? { kind: 'availability_policy', id: state.resourceId }
+          : null;
       case 'certificate':
         return threshold && state.resourceType === 'certificate' ? { kind: 'certificate', id: state.resourceId } : null;
       case 'database_postgres':
@@ -1052,6 +1075,20 @@ export class NotificationEvaluatorService {
         return this.db.select({ id: backupPolicies.id }).from(backupPolicies).where(inArray(backupPolicies.id, ids));
       case 'domain':
         return this.db.select({ id: domains.id }).from(domains).where(inArray(domains.id, ids));
+      case 'pki_ca':
+        return this.db
+          .select({ id: certificateAuthorities.id })
+          .from(certificateAuthorities)
+          .where(inArray(certificateAuthorities.id, ids));
+      case 'pki_certificate':
+        return this.db.select({ id: certificates.id }).from(certificates).where(inArray(certificates.id, ids));
+      case 'relay_instance':
+        return this.db.select({ id: relayInstances.id }).from(relayInstances).where(inArray(relayInstances.id, ids));
+      case 'availability_policy':
+        return this.db
+          .select({ id: dockerAvailabilityPolicies.id })
+          .from(dockerAvailabilityPolicies)
+          .where(inArray(dockerAvailabilityPolicies.id, ids));
     }
   }
 
@@ -1602,37 +1639,38 @@ export class NotificationEvaluatorService {
         continue;
       }
 
-      // Find event-type alert rules matching this category + event
-      const eventRules = await this.getEventRules();
-
-      for (const rule of eventRules) {
-        if (rule.category !== mapping.category) continue;
-        if (rule.eventPattern !== mapping.eventId) continue;
-
-        // Check resource scope
-        if (rule.resourceIds?.length > 0) {
-          if (!rule.resourceIds.includes(resource.id)) continue;
-        }
-
-        if (eventSupportsThreshold(rule.category, rule.eventPattern)) {
-          continue;
-        }
-
-        // For events, check cooldown based on last notification time (not persistent firing state)
-        if (await this.isEventInCooldown(rule.id, resource.type, resource.id, rule.cooldownSeconds)) continue;
-
-        await this.fireEventAlert(
-          rule,
-          resource.type,
-          resource.id,
-          resource.name ?? resource.id,
-          this.getEventTemplateDetails(extraData, mapping.eventId, undefined, resource.id)
-        );
-      }
+      await this.emitEvent(mapping.category, mapping.eventId, resource, extraData);
     }
 
     if (channel === 'ssl.cert.changed') {
       await this.evaluateCertificateExpiry();
+    }
+  }
+
+  /**
+   * Something happened once (not a state): the event rules of the category for it fire, each at most once per
+   * cooldown for the resource. Bus events and periodic sources (Docker Availability operations) both come here.
+   */
+  async emitEvent(
+    category: string,
+    eventId: string,
+    resource: { type: string; id: string; name?: string },
+    context: Record<string, unknown> = {}
+  ): Promise<void> {
+    for (const rule of await this.getEventRules()) {
+      if (rule.category !== category || rule.eventPattern !== eventId) continue;
+      if (!this.stateInRuleScope(rule, { resourceId: resource.id })) continue;
+      // States (supportsThreshold) are observed with windows, see observeStatefulEvent.
+      if (eventSupportsThreshold(rule.category, rule.eventPattern)) continue;
+      // Cooldown from the last notification of the rule for the resource (events keep no firing state).
+      if (await this.isEventInCooldown(rule.id, resource.type, resource.id, rule.cooldownSeconds)) continue;
+      await this.fireEventAlert(
+        rule,
+        resource.type,
+        resource.id,
+        resource.name ?? resource.id,
+        this.getEventTemplateDetails(context, eventId, undefined, resource.id)
+      );
     }
   }
 
@@ -2607,7 +2645,8 @@ export class NotificationEvaluatorService {
       rule.category === 'opfield' ||
       rule.category === 'proxy' ||
       rule.category === 'app' ||
-      rule.category === 'backup'
+      rule.category === 'backup' ||
+      rule.category === 'pki'
     ) {
       return sourceId;
     }

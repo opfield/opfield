@@ -48,7 +48,11 @@ export type AlertCategory =
   | 'managed_storage'
   | 'app'
   | 'backup'
-  | 'domain';
+  | 'domain'
+  | 'pki'
+  | 'inference'
+  | 'relay_pool'
+  | 'docker_availability';
 
 export interface MetricDefinition {
   id: string;
@@ -79,6 +83,11 @@ export interface CategoryDefinition {
   resourceLabel: string;
   /** False when the category has no resources to pick (the rule always covers everything). */
   scopable?: boolean;
+  /**
+   * The view scopes a rule author needs to cover every resource of the category (all of them). A rule scoped to
+   * picked resources needs view of each instead (see notification-rule-access.ts).
+   */
+  viewScopes: string[];
   metrics: MetricDefinition[];
   events: EventDefinition[];
   /** Variables available in message templates for this category */
@@ -207,6 +216,15 @@ export const ROUTE_TRAFFIC_METRICS: MetricDefinition[] = [
 /** Requests a minute needs before its 4xx/5xx share counts; see ROUTE_TRAFFIC_METRICS. */
 export const ROUTE_SHARE_MIN_REQUESTS = 10;
 
+/** The data disk of a managed Postgres or key-value store (its disk image, as its node reports it). */
+const MANAGED_DATABASE_DISK_METRIC: MetricDefinition = {
+  id: 'managed_disk_pct',
+  label: 'Data Disk Usage (%)',
+  unit: '%',
+  defaultOperator: '>',
+  defaultValue: 85,
+};
+
 /** Container metrics of a managed database (CPU and memory of its container, as its node reports them). */
 const MANAGED_DATABASE_METRICS: MetricDefinition[] = [
   {
@@ -232,6 +250,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'hosting_vm',
     label: 'Hosting VM',
     resourceLabel: 'hosting VMs',
+    viewScopes: ['hosting:resources:view'],
     metrics: [],
     events: [
       ...['running', 'stopped', 'starting', 'stopping', 'unknown', 'missing'].map((state) => ({
@@ -268,6 +287,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'hosting_account',
     label: 'Hosting account',
     resourceLabel: 'hosting accounts',
+    viewScopes: ['integrations:hosting:view'],
     metrics: [
       { id: 'balance', label: 'Account balance', unit: 'currency', defaultOperator: '<', defaultValue: 10 },
       {
@@ -296,6 +316,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'node',
     label: 'Node',
     resourceLabel: 'nodes',
+    viewScopes: ['nodes:details'],
     metrics: [
       { id: 'cpu', label: 'CPU Usage (%)', unit: '%', defaultOperator: '>', defaultValue: 90 },
       { id: 'memory', label: 'Memory Usage (%)', unit: '%', defaultOperator: '>', defaultValue: 90 },
@@ -375,6 +396,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'container',
     label: 'Container',
     resourceLabel: 'containers',
+    viewScopes: ['docker:containers:view'],
     metrics: [
       { id: 'cpu', label: 'CPU Usage (%)', unit: '%', defaultOperator: '>', defaultValue: 90 },
       { id: 'memory', label: 'Memory Usage (%)', unit: '%', defaultOperator: '>', defaultValue: 90 },
@@ -431,6 +453,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'build',
     label: 'Docker Build',
     resourceLabel: 'build sources',
+    viewScopes: ['docker:containers:view'],
     metrics: [],
     events: [
       { id: 'succeeded', label: 'Build Succeeded', defaultSeverity: 'info' },
@@ -450,6 +473,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'compose',
     label: 'Compose Project',
     resourceLabel: 'Compose projects',
+    viewScopes: ['docker:compose:view'],
     metrics: [],
     events: [
       { id: 'operation.succeeded', label: 'Operation Succeeded', defaultSeverity: 'info' },
@@ -470,6 +494,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'proxy',
     label: 'Route',
     resourceLabel: 'routes',
+    viewScopes: ['proxy:view'],
     metrics: ROUTE_TRAFFIC_METRICS,
     events: [
       { id: 'health.offline', label: 'Health Offline', defaultSeverity: 'critical', supportsThreshold: true },
@@ -506,6 +531,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'pages',
     label: 'Pages',
     resourceLabel: 'Pages projects',
+    viewScopes: ['pages:view'],
     metrics: [],
     events: [
       { id: 'deployment.ready', label: 'Deployment Ready', defaultSeverity: 'info' },
@@ -558,6 +584,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'opfield',
     label: 'Opfield',
     resourceLabel: 'Opfield components',
+    viewScopes: ['settings:opfield:view'],
     scopable: false,
     // Opfield's own host, process and dependencies, sampled once a minute by Opfield diagnostics.
     metrics: [
@@ -710,6 +737,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'logging',
     label: 'Logging',
     resourceLabel: 'logging environments',
+    viewScopes: ['logs:environments:view'],
     metrics: [
       {
         id: 'error_fatal_ratio_percent',
@@ -744,6 +772,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'integration',
     label: 'Integration',
     resourceLabel: 'connectors',
+    viewScopes: ['integrations:gitlab:view', 'integrations:cloudflare:view'],
     metrics: [],
     events: [
       { id: 'sync.failed', label: 'Connector Sync Failed', defaultSeverity: 'warning', supportsThreshold: true },
@@ -760,6 +789,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'certificate',
     label: 'Certificate',
     resourceLabel: 'certificates',
+    viewScopes: ['ssl:cert:view'],
     metrics: [
       {
         id: 'days_until_expiry',
@@ -800,6 +830,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'security',
     label: 'Security',
     resourceLabel: 'permission groups',
+    viewScopes: ['admin:groups'],
     scopable: false,
     metrics: [],
     events: [{ id: 'mfa.required', label: 'Group MFA Required', defaultSeverity: 'warning' }],
@@ -814,6 +845,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'database_postgres',
     label: 'Database - Postgres',
     resourceLabel: 'Postgres databases',
+    viewScopes: ['databases:view'],
     metrics: [
       { id: 'latency_ms', label: 'Latency (ms)', unit: 'ms', defaultOperator: '>', defaultValue: 1000 },
       {
@@ -845,6 +877,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
         defaultOperator: '>',
         defaultValue: 1024,
       },
+      MANAGED_DATABASE_DISK_METRIC,
       ...MANAGED_DATABASE_METRICS,
       ...AVAILABILITY_METRICS,
     ],
@@ -893,6 +926,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'database_clickhouse',
     label: 'Database - ClickHouse',
     resourceLabel: 'ClickHouse databases',
+    viewScopes: ['databases:view'],
     metrics: [
       { id: 'latency_ms', label: 'Latency (ms)', unit: 'ms', defaultOperator: '>', defaultValue: 1000 },
       {
@@ -959,9 +993,11 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'database_redis',
     label: 'Database - Key-value',
     resourceLabel: 'key-value stores',
+    viewScopes: ['databases:view'],
     metrics: [
       { id: 'latency_ms', label: 'Latency (ms)', unit: 'ms', defaultOperator: '>', defaultValue: 1000 },
       { id: 'memory_pct', label: 'Memory Usage (% of maxmemory)', unit: '%', defaultOperator: '>', defaultValue: 90 },
+      MANAGED_DATABASE_DISK_METRIC,
       ...MANAGED_DATABASE_METRICS,
       ...AVAILABILITY_METRICS,
     ],
@@ -1010,6 +1046,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'managed_storage',
     label: 'Managed Storage',
     resourceLabel: 'storages',
+    viewScopes: ['storage:view'],
     metrics: [
       // The storage disk as its node reports it (managed storage monitoring).
       { id: 'disk_used_pct', label: 'Disk Usage (%)', unit: '%', defaultOperator: '>', defaultValue: 85 },
@@ -1043,6 +1080,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'app',
     label: 'App',
     resourceLabel: 'apps or environments',
+    viewScopes: ['apps:view'],
     metrics: [
       {
         ...ROUTE_TRAFFIC_METRICS[0]!,
@@ -1091,6 +1129,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'backup',
     label: 'Backup',
     resourceLabel: 'databases',
+    viewScopes: ['databases:backups:view'],
     metrics: [
       {
         id: 'hours_since_last_backup',
@@ -1118,6 +1157,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     id: 'domain',
     label: 'Domain',
     resourceLabel: 'domains',
+    viewScopes: ['domains:view'],
     metrics: [],
     events: [
       {
@@ -1131,6 +1171,132 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       { name: '{{resource.name}}', description: 'Domain' },
       { name: '{{resource.id}}', description: 'Domain ID' },
       { name: '{{details.dns_status}}', description: 'DNS check result' },
+    ],
+  },
+  {
+    // Internal PKI, checked every minute: active CAs (keyed by CA id) and active certificates they issued (keyed
+    // `<CA id>:<certificate id>`, so a rule scoped to a CA covers it and what it issued). Certificates Opfield renews
+    // itself (managed storage and database TLS) alert through "Managed Service Certificate Renewal Failed" instead.
+    id: 'pki',
+    label: 'Internal PKI',
+    resourceLabel: 'CAs or certificates',
+    viewScopes: ['pki:ca:view', 'pki:cert:view'],
+    metrics: [
+      {
+        id: 'days_until_expiry',
+        label: 'Days Until Expiry',
+        unit: 'days',
+        defaultOperator: '<=',
+        defaultValue: 30,
+        defaultDurationSeconds: 0,
+        defaultResolveAfterSeconds: 0,
+      },
+    ],
+    events: [],
+    variables: [
+      { name: '{{resource.name}}', description: 'CA or certificate common name' },
+      { name: '{{resource.id}}', description: 'CA or certificate ID' },
+      { name: '{{details.kind}}', description: 'ca or certificate' },
+      { name: '{{details.expires_at}}', description: 'Expiry time' },
+      { name: '{{details.ca}}', description: 'Issuing CA (certificates)' },
+      { name: '{{metric.value}}', description: 'Days until expiry' },
+      { name: '{{metric.threshold}}', description: 'Configured threshold' },
+    ],
+  },
+  {
+    // Inference, checked every minute: each provider connection (its id) and the inference core (`inference-core`).
+    id: 'inference',
+    label: 'Inference',
+    resourceLabel: 'provider connections',
+    viewScopes: ['inference:providers:view'],
+    metrics: [],
+    events: [
+      {
+        id: 'provider.unavailable',
+        label: 'Provider Connection Unavailable or Out of Quota',
+        defaultSeverity: 'critical',
+        supportsThreshold: true,
+      },
+      {
+        id: 'provider.quota_low',
+        label: 'Provider Quota Below 10%',
+        defaultSeverity: 'warning',
+        supportsThreshold: true,
+      },
+      {
+        id: 'provider.reauth_required',
+        label: 'Provider Needs Sign-In Again',
+        defaultSeverity: 'critical',
+        supportsThreshold: true,
+      },
+      { id: 'core.unhealthy', label: 'Inference Core Unhealthy', defaultSeverity: 'critical', supportsThreshold: true },
+    ],
+    variables: [
+      { name: '{{resource.name}}', description: 'Provider connection name, or "Inference core"' },
+      { name: '{{resource.id}}', description: 'Provider connection ID, or inference-core' },
+      { name: '{{details.status}}', description: 'Connection status or core state' },
+      { name: '{{details.provider}}', description: 'Provider of the connection' },
+      { name: '{{details.reason}}', description: 'Why the connection or core is not healthy' },
+    ],
+  },
+  {
+    // The relay pool, checked every minute: relays (their instance id) and the pool (`pool:<pool id>`).
+    id: 'relay_pool',
+    label: 'Relay Pool',
+    resourceLabel: 'relays',
+    viewScopes: ['settings:opfield:view'],
+    metrics: [],
+    events: [
+      { id: 'member.offline', label: 'Relay Offline or Failing', defaultSeverity: 'critical', supportsThreshold: true },
+      {
+        id: 'member.unreachable',
+        label: 'Relay Unreachable by Nodes',
+        defaultSeverity: 'critical',
+        supportsThreshold: true,
+      },
+      { id: 'pool.degraded', label: 'Relay Pool Degraded', defaultSeverity: 'warning', supportsThreshold: true },
+      { id: 'update.failed', label: 'Relay Pool Update Failed', defaultSeverity: 'critical', supportsThreshold: true },
+    ],
+    variables: [
+      { name: '{{resource.name}}', description: 'Relay name, or the pool' },
+      { name: '{{resource.id}}', description: 'Relay instance ID, or pool:<pool id>' },
+      { name: '{{details.state}}', description: 'Relay state (member.offline)' },
+      { name: '{{details.reason}}', description: 'Last reported problem' },
+      { name: '{{details.ready}}', description: 'Ready relays (pool.degraded)' },
+      { name: '{{details.total}}', description: 'Relays of the pool not draining (pool.degraded)' },
+      { name: '{{details.error}}', description: 'Why the update failed (update.failed)' },
+    ],
+  },
+  {
+    // Docker Availability policies (a container, deployment or Compose project on several nodes), checked every minute.
+    id: 'docker_availability',
+    label: 'Docker Availability',
+    resourceLabel: 'availability workloads',
+    viewScopes: ['docker:containers:view'],
+    metrics: [],
+    events: [
+      { id: 'failover.completed', label: 'Failover Happened', defaultSeverity: 'warning' },
+      { id: 'failover.failed', label: 'Failover Failed', defaultSeverity: 'critical' },
+      { id: 'failback.completed', label: 'Moved Back to the Preferred Node', defaultSeverity: 'info' },
+      {
+        id: 'policy.degraded',
+        label: 'Fewer Replicas Than Wanted (Cannot Fail Over)',
+        defaultSeverity: 'warning',
+        supportsThreshold: true,
+      },
+      {
+        id: 'policy.unavailable',
+        label: 'Workload Unavailable',
+        defaultSeverity: 'critical',
+        supportsThreshold: true,
+      },
+    ],
+    variables: [
+      { name: '{{resource.name}}', description: 'Workload name' },
+      { name: '{{resource.id}}', description: 'Availability policy ID' },
+      { name: '{{details.kind}}', description: 'container, deployment or compose' },
+      { name: '{{details.status}}', description: 'Availability status' },
+      { name: '{{details.error}}', description: 'Last error' },
     ],
   },
 ];

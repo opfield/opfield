@@ -1,3 +1,5 @@
+import { container, TOKENS } from '@/container.js';
+import type { DrizzleClient } from '@/db/client.js';
 import { hasScope } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
 import {
@@ -18,6 +20,11 @@ import {
   UpdateAlertRuleSchema,
 } from '@/modules/notifications/notification-alert-rule.schemas.js';
 import { DeliveryListQuerySchema } from '@/modules/notifications/notification-delivery.schemas.js';
+import {
+  ALERT_RESOURCE_CATEGORIES,
+  type AlertResourceCategory,
+  listAlertCategoryResources,
+} from '@/modules/notifications/notification-rule-resources.js';
 import {
   buildSampleEvent,
   buildTemplateContext,
@@ -146,7 +153,6 @@ export async function executeNotificationTool(
           resolveMessageTemplate: a.resolveMessageTemplate,
           webhookIds: a.webhookIds,
           cooldownSeconds: a.cooldownSeconds,
-          // The tool creates active rules unless told otherwise; the route schema defaults to disabled.
           enabled: a.enabled ?? true,
         })
       );
@@ -333,6 +339,17 @@ async function manageNotifications(context: NotificationToolContext, user: User,
     case 'alert_categories':
       requireAnyScope(user, ['notifications:alerts:view', 'notifications:alerts:manage']);
       return ALERT_CATEGORIES;
+    case 'alert_resources': {
+      requireAnyScope(user, ['notifications:alerts:view', 'notifications:alerts:manage']);
+      if (!ALERT_RESOURCE_CATEGORIES.includes(a.category)) {
+        return { error: `alert_resources takes category ${ALERT_RESOURCE_CATEGORIES.join(' or ')}` };
+      }
+      return listAlertCategoryResources(
+        container.resolve<DrizzleClient>(TOKENS.DrizzleClient),
+        a.category as AlertResourceCategory,
+        user.scopes
+      );
+    }
     case 'webhook_presets':
       requireAnyScope(user, ['notifications:webhooks:view', 'notifications:webhooks:manage']);
       return TEMPLATE_PRESETS;

@@ -36,7 +36,8 @@ export type AlertRuleListQuery = z.infer<typeof AlertRuleListQuerySchema>;
 export const CreateAlertRuleSchema = z
   .object({
     name: z.string().min(1).max(255),
-    enabled: z.boolean().default(false),
+    // Active unless told otherwise, as the UI and the AI tools create rules.
+    enabled: z.boolean().default(true),
     type: z.enum(['threshold', 'event']),
     category: alertCategorySchema,
     severity: z.enum(['info', 'warning', 'critical']).default('warning'),

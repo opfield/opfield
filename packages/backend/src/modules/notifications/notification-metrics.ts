@@ -190,7 +190,12 @@ export function extractMetricFromDatabaseSnapshot(
   if (category !== 'database_postgres' && category !== 'database_clickhouse' && category !== 'database_redis') {
     return null;
   }
-  const value = metric === 'managed_memory_pct' ? managedMemoryPercent(snapshot.metrics) : snapshot.metrics[metric];
+  const value =
+    metric === 'managed_memory_pct'
+      ? managedMemoryPercent(snapshot.metrics)
+      : metric === 'managed_disk_pct'
+        ? managedDiskPercent(snapshot.metrics)
+        : snapshot.metrics[metric];
   if (typeof value !== 'number' || Number.isNaN(value)) return null;
   return { values: [{ resourceId: snapshot.databaseId, value }] };
 }
@@ -201,6 +206,14 @@ function managedMemoryPercent(metrics: Record<string, number | null>): number | 
   const limit = metrics.managed_memory_limit_bytes;
   if (typeof used !== 'number' || typeof limit !== 'number' || !(limit > 0)) return null;
   return (used / limit) * 100;
+}
+
+/** The data disk of a managed database as a share of its size; null when its node does not report it. */
+function managedDiskPercent(metrics: Record<string, number | null>): number | null {
+  const used = metrics.managed_disk_used_bytes;
+  const total = metrics.managed_disk_total_bytes;
+  if (typeof used !== 'number' || typeof total !== 'number' || !(total > 0)) return null;
+  return (used / total) * 100;
 }
 
 /** HTTP numbers of a route over a window, as the nginx daemon reports them (summed over the nodes serving it). */

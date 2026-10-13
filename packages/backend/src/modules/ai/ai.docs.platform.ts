@@ -275,7 +275,7 @@ The notification system sends HTTP webhook notifications when alert conditions a
 
 ## Alert Rules
 Each alert rule defines:
-- **Category**: hosting_vm, hosting_account, node, container, build, compose, proxy (routes), pages, opfield, logging, integration, certificate, security, database_postgres, database_clickhouse, database_redis, managed_storage, app, backup, or domain
+- **Category**: hosting_vm, hosting_account, node, container, build, compose, proxy (routes), pages, opfield, logging, integration, certificate, security, database_postgres, database_clickhouse, database_redis, managed_storage, app, backup, domain, pki (internal PKI), inference, relay_pool, or docker_availability
 - **Type**: threshold (metric breaches a value) or event (something happens)
 - **Threshold fields** (for threshold type): metric, metricTarget (optional sub-target such as a specific node disk mount), operator (>, >=, <, <=), thresholdValue, durationSeconds (fire observation window), fireThresholdPercent (percent of probes in that window that must breach), resolveAfterSeconds (resolve observation window, default 60s), resolveThresholdPercent (percent of probes in that window that must be clear)
 - **Event fields** (for event type): eventPattern, one of the category's events (offline, stopped, health.offline, etc.). Events with supportsThreshold are states: they fire after durationSeconds in the state and resolve after resolveAfterSeconds out of it.
@@ -285,6 +285,10 @@ Each alert rule defines:
 - **Message template**: Handlebars template rendered with event-specific variables
 - **Resolve message**: resolveMessageTemplate — sent when the alert resolves; empty uses Opfield's resolve text for the rule (e.g. "Route example.com is back online after 13m 2s."), never the firing message
 - **Cooldown**: cooldownSeconds — won't re-fire within this period (default 900s = 15 min)
+- **Enabled**: a created rule is active unless the request sends \`enabled: false\` (REST, AI and MCP alike)
+
+## Who may create or edit a rule
+Besides notifications:alerts:manage, the author needs view of what the rule watches. A rule scoped to picked resources (resourceIds) needs view of each one (for example proxy:view on each route, databases:view on each database, apps:view on the app or environment, view of a container of that name). A rule on every resource of its category (empty resourceIds) needs that category's broad view, listed as viewScopes in the categories response (for example proxy:view, nodes:details, docker:containers:view); without it, pick the resources you can view. Categories without resources to pick (opfield, security, relay_pool, docker_availability without per-resource grants) need their broad view. Otherwise the API answers 403 FORBIDDEN.
 
 ## Webhooks
 Webhooks define where notifications are delivered:
@@ -317,12 +321,16 @@ The category metadata returned by \`GET /api/notifications/alert-rules/categorie
 - container metrics also include restarts_per_hour (Docker restarts in the last hour, from the container's inspect, refreshed every few minutes).
 - backup: scheduled database backups, keyed \`<database id>:<policy id>\` and scoped by database. Metric hours_since_last_backup (since the last successful backup, or since the policy was created) for missed backups; event backup.failed (a state: the last finished backup failed; resolves when one succeeds).
 - domain: event dns.not_pointing (a state: the domain's DNS check finds records that do not point to Opfield).
+- pki (internal PKI): metric days_until_expiry of active CAs (keyed by CA id) and active certificates they issued (keyed \`<CA id>:<certificate id>\`, so a rule scoped to a CA covers its certificates). Certificates Opfield renews itself are left out (certificate internal.renewal_failed covers them).
+- inference: events (states) provider.unavailable (unavailable or out of quota), provider.quota_low (below 10 %), provider.reauth_required, per provider connection; core.unhealthy for the inference core (resource id inference-core).
+- relay_pool: events (states) member.offline (a relay offline or failing; draining is planned and does not count), member.unreachable (nodes cannot reach the relay), pool.degraded (fewer ready relays than relays; resource \`pool:<pool id>\`), update.failed (the last Relay Pool update failed).
+- docker_availability: events failover.completed (a lost replica was replaced on another node), failover.failed, failback.completed (one-off), and states policy.degraded (fewer replicas than wanted, so it cannot fail over again) and policy.unavailable, per availability policy.
 
 ## Database Alert Categories
 - database_postgres metrics: latency_ms, active_connections_pct and total_connections_pct (% of max_connections), long_running_queries, database_size_mb.
 - database_clickhouse metrics: latency_ms, database_size_mb, disk_used_pct, disk_available_mb, pending_mutations.
 - database_redis (key-value stores) metrics: latency_ms, memory_pct (% of maxmemory).
-- managed databases (all three) also have managed_cpu_percent and managed_memory_pct (CPU and memory of the database container, % of its limit).
+- managed databases (all three) also have managed_cpu_percent and managed_memory_pct (CPU and memory of the database container, % of its limit). Managed Postgres and key-value stores also have managed_disk_pct (the data disk image, as the docker daemon reports it; needs a docker daemon from this release).
 - database health events: health.offline, health.degraded, health.online. These events can also be used with threshold-style observation windows when supportsThreshold is true.
 - Availability (a database or storage on several servers): the three database categories and managed_storage have the events availability.failover, availability.switchover, availability.forced_promotion, availability.degraded, availability.no_failover and availability.restored (set states, supportsThreshold), availability.member_offline, availability.sync_degraded, availability.sync_far, availability.witness_lost, availability.witness_moved, availability.fenced, availability.rejoined, availability.rebuilt and availability.cancelled_sync_wait. Their \`details.reason\`, \`details.member_id\` and \`details.occurred_at\` say why, which server, and when it happened (events the servers queued while Opfield was down keep their own time). The database categories also have the metrics replication_lag_bytes and replication_lag_seconds (worst copy) and rtt_ms (round trip between the servers). managed_storage rules name storage connection ids. managed_storage also has the events storage.full (the storage refuses uploads: its disk is full or it can create no volume; critical, a state with supportsThreshold) and storage.writable (its recovery), and the metric disk_used_pct (the storage disk as its node reports it).
 

@@ -1,13 +1,18 @@
-import { container } from '@/container.js';
+import { container, TOKENS } from '@/container.js';
+import type { DrizzleClient } from '@/db/client.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { CreateAlertRuleInput, UpdateAlertRuleInput } from './notification-alert-rule.schemas.js';
 import type { NotificationAlertRuleService } from './notification-alert-rule.service.js';
 import { NotificationEvaluatorService } from './notification-evaluator.service.js';
-import { assertHostingAlertAccess } from './notification-hosting-access.js';
+import { assertAlertRuleAccess } from './notification-rule-access.js';
 
 const logger = createChildLogger('AlertRuleRoutes');
 
 type RuleService = Pick<NotificationAlertRuleService, 'create' | 'update' | 'getById' | 'delete'>;
+
+function database(): DrizzleClient {
+  return container.resolve<DrizzleClient>(TOKENS.DrizzleClient);
+}
 
 function invalidateCache() {
   try {
@@ -60,7 +65,7 @@ export async function createAlertRuleWithEffects(
   scopes: string[],
   userId: string
 ) {
-  assertHostingAlertAccess(scopes, input);
+  await assertAlertRuleAccess(database, scopes, input);
   const rule = await service.create(input, userId);
   invalidateCache();
   triggerCertificateExpiryEvaluation(rule);
@@ -76,7 +81,7 @@ export async function updateAlertRuleWithEffects(
   userId: string
 ) {
   const previous = await service.getById(id);
-  assertHostingAlertAccess(scopes, { ...previous, ...input });
+  await assertAlertRuleAccess(database, scopes, { ...previous, ...input });
   const update = () => service.update(id, input, userId);
   const hostingRule = previous.category === 'hosting_account' || previous.category === 'hosting_vm';
   const rule = hostingRule

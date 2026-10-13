@@ -25,7 +25,11 @@ export interface AlertRule {
     | "hosting_account"
     | "app"
     | "backup"
-    | "domain";
+    | "domain"
+    | "pki"
+    | "inference"
+    | "relay_pool"
+    | "docker_availability";
   severity: "info" | "warning" | "critical";
   metric: string | null;
   metricTarget: string | null;
@@ -166,6 +170,8 @@ export interface AlertCategoryDef {
   resourceLabel?: string;
   /** False when the category has no resources to pick. */
   scopable?: boolean;
+  /** View scopes an author needs for a rule on every resource of the category. */
+  viewScopes?: string[];
   metrics: Array<{
     id: string;
     label: string;
