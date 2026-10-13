@@ -358,7 +358,8 @@ export class ConfigurationExportService {
           (volume.optional === 'registry' && ticket.options.includeRegistry) ||
           (volume.optional === 'logs' && ticket.options.includeLogs)
       );
-      const commercialDir = this.env.OPFIELD_COMMERCIAL_DIR?.startsWith('/var/lib/gateway/commercial/')
+      // Only an installed core goes into the export; the community directory holds none.
+      const commercialDir = this.env.OPFIELD_COMMERCIAL_DIR?.startsWith('/var/lib/gateway/commercial/versions/')
         ? this.env.OPFIELD_COMMERCIAL_DIR
         : null;
       const hasCommercial = Boolean(commercialDir && installation.app && existsSync('/var/lib/gateway/commercial'));
@@ -401,7 +402,7 @@ export class ConfigurationExportService {
         );
       }
       if (manifest.commercial && installation.app) {
-        await addStream(COMMERCIAL_PART, () => openCommercialArchive(this.docker, installation.app!));
+        await addStream(COMMERCIAL_PART, () => openCommercialArchive(this.docker, installation, installation.app!));
       }
       ticket.currentPart = null;
       await writer.finish();

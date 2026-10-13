@@ -70,6 +70,21 @@ describe('when the app starts the host move', () => {
     expect(hostMoveLaunchDecision({ ...settled, ...change }).launch).toBe(false);
   });
 
+  it('removes the container of a finished move once the installation has the Opfield layout', () => {
+    const moved = {
+      ...settled,
+      composeDir: '/opt/opfield',
+      composeProject: 'opfield',
+      databaseUrl: 'postgres://opfield:x@postgres:5432/opfield',
+    };
+    expect(hostMoveLaunchDecision({ ...moved, moveContainer: 'exited' })).toMatchObject({
+      launch: false,
+      removeFinished: true,
+    });
+    expect(hostMoveLaunchDecision({ ...moved, moveContainer: 'running' })).not.toHaveProperty('removeFinished');
+    expect(hostMoveLaunchDecision({ ...moved, moveContainer: null })).not.toHaveProperty('removeFinished');
+  });
+
   it('tries again six hours after a move went back, three times at most', () => {
     const recent = { attempts: 1, lastStartedAt: new Date(NOW - 60 * 60_000).toISOString() };
     expect(hostMoveLaunchDecision({ ...settled, moveContainer: 'exited', record: recent }).launch).toBe(false);

@@ -280,10 +280,30 @@ export async function openClickHouseSnapshot(
   }
 }
 
-/** The commercial core directory the app has mounted, as a tar stream rooted at `commercial`. */
-export async function openCommercialArchive(docker: DockerService, appContainer: string): Promise<TransferStream> {
-  const stream = await docker.openContainerArchive(appContainer, '/var/lib/gateway/commercial');
-  return { stream, root: 'commercial', close: async () => {} };
+/**
+ * The commercial core directory the app has mounted, as a tar stream rooted at `commercial`. It is read through a
+ * helper that binds the same host directory, like the volumes: Docker's archive API on the app container itself
+ * remounts the app's read-only binds, which an LXC host refuses for its lxcfs files (/proc/loadavg and others).
+ */
+export async function openCommercialArchive(
+  docker: DockerService,
+  installation: Pick<ComposeInstallation, 'helperImage' | 'project'>,
+  appContainer: string
+): Promise<TransferStream> {
+  const source = (await docker.inspectContainerDetails(appContainer))?.Mounts?.find(
+    (mount) => mount.Destination === '/var/lib/gateway/commercial'
+  )?.Source;
+  if (!source) throw new Error('The commercial core directory is not mounted into the Opfield app');
+  const helper = await createHelper(docker, installation, [`${source}:${MOUNT_BASE}/commercial:ro`]);
+  const close = closeOnce(() => docker.removeContainer(helper));
+  try {
+    const stream = await docker.openContainerArchive(helper, `${MOUNT_BASE}/commercial`);
+    stream.once('close', () => void close());
+    return { stream, root: 'commercial', close };
+  } catch (error) {
+    await close();
+    throw error;
+  }
 }
 
 // ── Restore ─────────────────────────────────────────────────────────
@@ -516,6 +536,7 @@ export const MANAGED_SIGN_IN_DETACH_SQL = [
  * agent and secret, remote management, a disconnect notice, the Opfield account sign-in client the cloud gave it or a
  * pending request for one).
  * Kept, both would share one agent and the copy would read as a managed cloud VM.
+ * The source's update attempt names a sidecar on the source host; kept, the copy would show its update banner.
  */
 export const RESTORE_FORGOTTEN_SETTINGS = [
   'cloud:enrollment',
@@ -523,6 +544,7 @@ export const RESTORE_FORGOTTEN_SETTINGS = [
   'cloud:disconnected',
   'cloud:opfield_account_client',
   'cloud:sso_client_request',
+  'update:gateway:attempt',
 ] as const;
 
 /** Drops {@link RESTORE_FORGOTTEN_SETTINGS} from the restored database; the export itself keeps them. */

@@ -189,7 +189,7 @@ describe('configuration export layout', () => {
 });
 
 describe('a restored copy and the cloud link', () => {
-  it('forgets the cloud link of the source installation in the restored database', async () => {
+  it('forgets the cloud link and the update attempt of the source installation in the restored database', async () => {
     const exec = vi.fn(async (_container: string, _command: string[]) => ({ exitCode: 0, output: 'DELETE 3' }));
     await forgetCloudLink(
       { execInContainer: exec } as never,
@@ -200,7 +200,7 @@ describe('a restored copy and the cloud link', () => {
     expect(container).toBe('pg-1');
     expect(command.at(-1)).toBe(
       "DELETE FROM settings WHERE key IN ('cloud:enrollment', 'cloud:remote_management', 'cloud:disconnected', " +
-        "'cloud:opfield_account_client', 'cloud:sso_client_request')"
+        "'cloud:opfield_account_client', 'cloud:sso_client_request', 'update:gateway:attempt')"
     );
     expect(RESTORE_FORGOTTEN_SETTINGS).toEqual([
       'cloud:enrollment',
@@ -208,6 +208,7 @@ describe('a restored copy and the cloud link', () => {
       'cloud:disconnected',
       OPFIELD_ACCOUNT_CLIENT_KEY,
       'cloud:sso_client_request',
+      'update:gateway:attempt',
     ]);
   });
 

@@ -51,7 +51,7 @@ export interface HostMoveLaunchInput {
 }
 
 export type HostMoveLaunchDecision =
-  | { launch: false; reason: string }
+  | { launch: false; reason: string; removeFinished?: boolean }
   | { launch: true; retry: boolean; removeContainer: boolean };
 
 /** Whether the installation still uses (part of) the layout of the releases before 2.12.1. */
@@ -73,7 +73,12 @@ export function hostMoveLaunchDecision(input: HostMoveLaunchInput): HostMoveLaun
       databaseUrl: input.databaseUrl,
     })
   ) {
-    return { launch: false, reason: 'the installation has the Opfield layout' };
+    // The move that got it there left its container behind when it ended.
+    return {
+      launch: false,
+      reason: 'the installation has the Opfield layout',
+      ...(input.moveContainer === 'exited' ? { removeFinished: true } : {}),
+    };
   }
   if (input.moveContainer === 'running') return { launch: false, reason: 'a host move is running' };
   if (input.updateBusy || input.sidecarRunning) return { launch: false, reason: 'an update has not settled yet' };
@@ -174,6 +179,10 @@ export class HostMoveLauncher {
       now: Date.now(),
     });
     if (!decision.launch) {
+      if (decision.removeFinished) {
+        await docker.removeContainer(HOST_MOVE_CONTAINER_NAME);
+        logger.info('Removed the container of the finished move to the Opfield layout');
+      }
       if (decision.reason !== this.lastReason) {
         this.lastReason = decision.reason;
         logger.info('The move to the Opfield layout waits', { reason: decision.reason });
