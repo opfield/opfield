@@ -8,6 +8,7 @@ import { hasDockerResourceScope } from '@/modules/docker/docker-access-resource.
 import { LicensePolicyService } from '@/modules/license/license-policy.service.js';
 import type { AppEnv } from '@/types.js';
 import { DockerAvailabilityService } from '../availability/docker-availability.service.js';
+import { parseInternalImageReference, withDockerImageSources } from '../docker-image-source.js';
 import {
   adoptComposeProjectRoute,
   composeProjectActionRoute,
@@ -133,7 +134,16 @@ export function registerDockerComposeRoutes(router: OpenAPIHono<AppEnv>) {
     { ...getComposeProjectRoute, middleware: requireComposeProjectScope('docker:compose:view') },
     async (c) => {
       const data = await container.resolve(DockerComposeService).get(c.req.param('nodeId')!, c.req.param('projectId')!);
-      return c.json({ data: { ...data, app: await appForMember({ type: 'compose', id: c.req.param('projectId')! }) } });
+      // A service built from Git runs an internal registry image: `source` names its repository instead.
+      const revisionServices = data.activeRevision?.normalizedModel?.services ?? {};
+      const imageOf = (service: { name: string; image: string }) =>
+        parseInternalImageReference(service.image)
+          ? service.image
+          : (revisionServices[service.name]?.image ?? service.image);
+      const services = await withDockerImageSources(data.services, imageOf);
+      return c.json({
+        data: { ...data, services, app: await appForMember({ type: 'compose', id: c.req.param('projectId')! }) },
+      });
     }
   );
 

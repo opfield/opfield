@@ -104,6 +104,7 @@ import {
 } from './docker-container-scope-requirements.js';
 import { assertDockerCreationAccess } from './docker-creation-access.js';
 import { isDockerDeploymentManaged } from './docker-deployment-labels.js';
+import { dockerImageOriginFields, withDockerImageSources } from './docker-image-source.js';
 import { assertUserContainerAccessible } from './docker-internal-containers.js';
 import { labelString } from './docker-managed-labels.js';
 import { answerNodeLoss } from './docker-node-loss.middleware.js';
@@ -193,6 +194,11 @@ export function compactContainerListItem(container: Record<string, any>) {
     name: ((container.name ?? container.Name ?? '') as string).replace(/^\//, ''),
     image: labelString(labels, 'archive.image.reference') || container.image || container.Image || '',
     pendingSourceBuild: container.pendingSourceBuild === true,
+    // A container whose first build has not run yet has no image: its Git source names it.
+    source:
+      container.pendingSourceBuild === true && typeof container.repositoryFullPath === 'string'
+        ? { repositoryFullPath: container.repositoryFullPath, branch: null, commitSha: null }
+        : null,
     state: container.state ?? container.State,
     status: container.status ?? container.Status,
     created: container.created ?? container.Created,
@@ -342,7 +348,11 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
           : item;
       });
       // `app` on every row; excludeAppMembers / appId filter (the normal list leaves app members out).
-      const listed = await withAppMembers('containers', logical, parseAppListFilter(c.req.query()));
+      const listed = await withAppMembers(
+        'containers',
+        await withDockerImageSources(logical),
+        parseAppListFilter(c.req.query())
+      );
       const truncated = listed.length > DOCKER_RESOURCE_LIST_MAX;
       return c.json({
         data: truncated ? listed.slice(0, DOCKER_RESOURCE_LIST_MAX) : listed,
@@ -416,6 +426,7 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
           data: {
             ...(data && typeof data === 'object' ? data : { value: data }),
             Name: `/${requestedName}`,
+            ...(await dockerImageOriginFields((data as any)?.Config?.Image)),
             nodeId: inspectNodeId,
             logicalWorkload: {
               policyId: runtimeTarget.workload.policy.id,
@@ -450,6 +461,7 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
       return c.json({
         data: {
           ...(data && typeof data === 'object' ? data : { value: data }),
+          ...(await dockerImageOriginFields((data as any)?.Config?.Image)),
           nodeId: inspectNodeId,
           availability: snapshots.availability(inspectNodeId, detail),
           app: await containerApp(inspectNodeId, data),
@@ -489,6 +501,7 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
       return c.json({
         data: {
           ...(data && typeof data === 'object' ? data : { value: data }),
+          ...(await dockerImageOriginFields((data as any)?.Config?.Image)),
           nodeId,
           availability: snapshots.availability(nodeId, detail),
           app: await containerApp(nodeId, data),

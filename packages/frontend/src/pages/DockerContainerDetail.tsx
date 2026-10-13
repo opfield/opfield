@@ -78,6 +78,7 @@ import {
 import { dockerComposeProjectRoute, dockerContainerRoute } from "@/lib/resource-routes";
 import { getReturnNavigationTarget, preserveReturnNavigationState } from "@/lib/return-navigation";
 import { formatBytes } from "@/lib/utils";
+import { shortCommitSha } from "@/lib/workload-image-label";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
 import { isPendingContainerOperation } from "@/services/api-docker";
@@ -1726,7 +1727,7 @@ export function DockerContainerDetail({
                   <>
                     <span aria-hidden="true">&middot;</span>
                     <span className="shrink-0 font-mono">
-                      {sourceIdentity.deployedCommitSha.slice(0, 10)}
+                      {shortCommitSha(sourceIdentity.deployedCommitSha)}
                     </span>
                   </>
                 ) : null}
@@ -1738,7 +1739,13 @@ export function DockerContainerDetail({
               </span>
             ) : (
               <span className="flex min-w-0 items-center gap-1.5">
-                <ImageReference value={image} copyable={false} className="justify-start" />
+                <ImageReference
+                  value={image}
+                  source={container.imageSource}
+                  sourceImage={container.imageSourceImage}
+                  copyable={false}
+                  className="justify-start"
+                />
                 <span className="shrink-0">
                   &middot; {(container.Id ?? containerId ?? "").slice(0, 12)}
                 </span>

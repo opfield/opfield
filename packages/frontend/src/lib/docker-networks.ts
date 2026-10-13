@@ -34,3 +34,16 @@ export function filterUserDockerNetworks<T extends { name?: string; Name?: strin
     (network) => !isOpfieldManagedDockerNetwork(String(network.name ?? network.Name ?? ""))
   );
 }
+
+/** Runtime containers Opfield runs for managed databases, storage, links, connectors and backups. */
+const OPFIELD_RUNTIME_CONTAINER = new RegExp(
+  `^${NETWORK_FAMILY}-(db|storage|link|managed|clickhouse|backup|secure-link|database-connector|storage-connector)(-|$)`
+);
+
+/** Whether a container name is one of Opfield's own runtime containers, never shown by its name. */
+export function isOpfieldRuntimeContainerName(name: string) {
+  return OPFIELD_RUNTIME_CONTAINER.test(name.replace(/^\//, ""));
+}
+
+/** What lists show for one of Opfield's own runtime containers. */
+export const OPFIELD_RUNTIME_CONTAINER_LABEL = "Opfield service";

@@ -30,6 +30,7 @@ import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { databaseTypeLabel } from "@/lib/database-type";
 import { cn } from "@/lib/utils";
+import { workloadImageLabel } from "@/lib/workload-image-label";
 import { api } from "@/services/api";
 import { planIncludes } from "@/stores/license-paywall";
 import type { AppDetail, AppMemberFamily, AppPlaceMemberInput, AppPlaceRefusal } from "@/types";
@@ -84,8 +85,10 @@ interface Candidate {
   key: string;
   member: AppPlaceMemberInput;
   name: string;
-  /** Second line under the name (the image of a container). */
+  /** Second line under the name (the image of a container, or the Git repository it was built from). */
   detail: string | null;
+  /** Hover text of the second line. */
+  detailTitle?: string;
   kind: string;
   nodeId: string | null;
   app: { id: string; name: string; environmentId: string; environmentName: string } | null;
@@ -100,13 +103,15 @@ async function loadCandidates(family: AppMemberFamily): Promise<Candidate[]> {
         .map((row) => {
           const nodeId = row.nodeId ?? row._nodeId ?? null;
           const deployment = row.kind === "deployment";
+          const image = workloadImageLabel(row);
           return {
             key: `${nodeId}:${row.id}`,
             member: deployment
               ? { type: "deployment", id: row.deploymentId ?? row.id, nodeId: nodeId ?? undefined }
               : { type: "container", id: row.name, nodeId: nodeId ?? undefined },
             name: row.name,
-            detail: row.image || null,
+            detail: image.kind === "none" ? null : image.text,
+            detailTitle: image.title,
             kind: deployment ? "deployment" : "container",
             nodeId,
             app: row.app ?? null,
@@ -481,7 +486,10 @@ export function ImportDialog({
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm">{row.name}</p>
                               {row.detail && (
-                                <p className="truncate font-mono text-xs text-muted-foreground">
+                                <p
+                                  className="truncate font-mono text-xs text-muted-foreground"
+                                  title={row.detailTitle}
+                                >
                                   {row.detail}
                                 </p>
                               )}

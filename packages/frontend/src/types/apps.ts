@@ -1,3 +1,4 @@
+import type { DockerImageSource } from "./docker";
 import type { NodeType } from "./nodes";
 import type { AuditLogEntry } from "./pki";
 
@@ -454,7 +455,15 @@ export interface AppIncidentPreview<K extends AppIncidentKind = AppIncidentKind>
 
 export type AppPromotableType = "container" | "deployment" | "compose" | "pages";
 
-export interface AppPromotionPreviewItem {
+/** Git source (or copied image) of the from/to images Opfield built, so they never show the internal registry. */
+export interface PromotionImageOrigins {
+  fromSource?: DockerImageSource | null;
+  fromSourceImage?: string | null;
+  toSource?: DockerImageSource | null;
+  toSourceImage?: string | null;
+}
+
+export interface AppPromotionPreviewItem extends PromotionImageOrigins {
   pairKey: string;
   type: AppPromotableType;
   sourceId: string;
@@ -475,7 +484,14 @@ export interface AppPromotionPreviewItem {
   compose?: {
     fromRevision: number | null;
     toRevision: number | null;
-    services: Array<{ name: string; from: string | null; to: string | null; changed: boolean }>;
+    services: Array<
+      {
+        name: string;
+        from: string | null;
+        to: string | null;
+        changed: boolean;
+      } & PromotionImageOrigins
+    >;
     changes: Array<{ path: string; from: string | null; to: string | null }>;
   };
   pages?: { fromSequence: number | null; toSequence: number | null; artifactSha256: string | null };
@@ -499,7 +515,7 @@ export interface AppPromotionPreview {
 
 export type AppPromotionItemStatus = "pending" | "running" | "succeeded" | "failed" | "skipped";
 
-export interface AppPromotionItem {
+export interface AppPromotionItem extends PromotionImageOrigins {
   pairKey: string;
   type: AppPromotableType;
   sourceId: string;

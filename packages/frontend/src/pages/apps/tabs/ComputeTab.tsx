@@ -15,7 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { toastApiError } from "@/lib/api-error-toast";
-import { formatDisplayImageRef } from "@/lib/docker-image-ref";
 import { nodeBadgeClassName, nodeIconClassNames } from "@/lib/node-appearance";
 import {
   dockerComposeProjectRoute,
@@ -24,6 +23,7 @@ import {
   pageProjectRoute,
 } from "@/lib/resource-routes";
 import { cn } from "@/lib/utils";
+import { workloadImageLabel } from "@/lib/workload-image-label";
 import { containerLifecycleActions, STATUS_BADGE } from "@/pages/docker-detail/helpers";
 import { formatPageBytes } from "@/pages/pages/page-format";
 import { api } from "@/services/api";
@@ -238,11 +238,14 @@ export function ComputeTab({
       id: "image",
       label: "Image",
       width: "22%",
-      renderCell: (row) => (
-        <Badge variant="secondary" className="max-w-full font-mono">
-          {row.pendingSourceBuild ? "Awaiting build" : formatDisplayImageRef(row.image ?? "")}
-        </Badge>
-      ),
+      renderCell: (row) => {
+        const image = workloadImageLabel(row);
+        return (
+          <Badge variant="secondary" className="max-w-full font-mono" title={image.title}>
+            {image.text}
+          </Badge>
+        );
+      },
     },
     {
       id: "node",
@@ -426,8 +429,12 @@ export function ComputeTab({
                 </div>
               </ResourceListCell>
               <ResourceListCell>
-                <Badge variant="secondary" className="max-w-full font-mono">
-                  {formatDisplayImageRef(service.image ?? "")}
+                <Badge
+                  variant="secondary"
+                  className="max-w-full font-mono"
+                  title={workloadImageLabel(service).title}
+                >
+                  {workloadImageLabel(service).text}
                 </Badge>
               </ResourceListCell>
               <ResourceListCell />

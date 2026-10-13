@@ -75,6 +75,7 @@ import {
 } from '@/modules/docker/docker-deployment.schemas.js';
 import { DockerDeploymentService } from '@/modules/docker/docker-deployment.service.js';
 import { presentDeploymentForCaller } from '@/modules/docker/docker-deployment-redaction.js';
+import { withDockerImageSources } from '@/modules/docker/docker-image-source.js';
 import { inspectUserContainer } from '@/modules/docker/docker-internal-containers.js';
 import { withNodeLossAnswer } from '@/modules/docker/docker-node-loss.js';
 import { DockerInternalRegistryService } from '@/modules/docker/docker-registry-internal.service.js';
@@ -266,15 +267,22 @@ export async function executeDockerTool(
         ? compactAgentList(
             await withDockerAppMembers(
               'container',
-              containers
-                .filter(
-                  (resource: any) =>
-                    canViewNode ||
-                    (!!resource.scopeResourceId &&
-                      hasDockerResourceScope(user.scopes, 'docker:containers:view', a.nodeId, resource.scopeResourceId))
-                )
-                .filter((container: any) => dockerContainerMatchesSearch(container, a.search))
-                .map((container: any) => compactDockerContainerForAgent(container)),
+              await withDockerImageSources(
+                containers
+                  .filter(
+                    (resource: any) =>
+                      canViewNode ||
+                      (!!resource.scopeResourceId &&
+                        hasDockerResourceScope(
+                          user.scopes,
+                          'docker:containers:view',
+                          a.nodeId,
+                          resource.scopeResourceId
+                        ))
+                  )
+                  .filter((container: any) => dockerContainerMatchesSearch(container, a.search))
+                  .map((container: any) => compactDockerContainerForAgent(container))
+              ),
               (row: any) => (row.name ? { nodeId: a.nodeId, resourceKey: String(row.name) } : null),
               parseAppListFilter(a)
             )
@@ -304,12 +312,15 @@ export async function executeDockerTool(
       return compactAgentList(
         await withDockerAppMembers(
           'container',
-          deployments
-            .filter((deployment: any) =>
-              hasDockerResourceScope(user.scopes, 'docker:containers:view', a.nodeId, deployment.id)
-            )
-            .filter((deployment: any) => dockerDeploymentMatchesSearch(deployment, a.search))
-            .map((deployment: any) => compactDockerDeploymentForAgent(deployment)),
+          await withDockerImageSources(
+            deployments
+              .filter((deployment: any) =>
+                hasDockerResourceScope(user.scopes, 'docker:containers:view', a.nodeId, deployment.id)
+              )
+              .filter((deployment: any) => dockerDeploymentMatchesSearch(deployment, a.search))
+              .map((deployment: any) => compactDockerDeploymentForAgent(deployment)),
+            (row: any) => row.desiredImage
+          ),
           (row: any) => (row.name ? { nodeId: a.nodeId, resourceKey: String(row.name) } : null),
           parseAppListFilter(a)
         )

@@ -62,7 +62,7 @@ const columns: DataTableColumn<AuditLogEntry>[] = [
     width: "minmax(260px, 1.6fr)",
     truncate: true,
     render: (entry) => {
-      const resource = getAuditResourceDisplay(entry);
+      const resource = getAuditResourceDisplay(entry, { feed: true });
       return (
         <span className="text-muted-foreground" title={resource.title}>
           {resource.label}

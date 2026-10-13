@@ -26,6 +26,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
+import { shortCommitSha, workloadImageLabel } from "@/lib/workload-image-label";
 import { api } from "@/services/api";
 import {
   APPS_REALTIME_CHANNEL,
@@ -35,6 +36,8 @@ import {
   type AppPromotionPreview,
   type AppPromotionPreviewItem,
   type AppsChangedPayload,
+  type DockerImageSource,
+  type PromotionImageOrigins,
 } from "@/types";
 import { orderedEnvironments, plural } from "../app-shared";
 import { APP_DIALOG_WIDTH } from "./AppNameDialog";
@@ -95,6 +98,27 @@ export function differenceSummary(items: AppPromotionPreviewItem[]): string {
     : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }
 
+/** One side of a from → to image: a Git-built image names its repository and commit, never the internal registry. */
+function promotedImage(
+  image: string | null,
+  source: DockerImageSource | null | undefined,
+  sourceImage: string | null | undefined
+): string | null {
+  if (!image) return null;
+  return workloadImageLabel({ image, source, sourceImage }).text;
+}
+
+/** "<from> → <to>" of an item; images of containers, deployments and Compose services through the shared label. */
+function fromTo(
+  row: PromotionImageOrigins & { from: string | null; to: string | null },
+  images: boolean,
+  missing = "not running"
+): string {
+  const from = images ? promotedImage(row.from, row.fromSource, row.fromSourceImage) : row.from;
+  const to = images ? promotedImage(row.to, row.toSource, row.toSourceImage) : row.to;
+  return `${from ?? missing} → ${to ?? missing}`;
+}
+
 function rolloutText(item: AppPromotionPreviewItem): string {
   if (item.type === "compose") {
     const changed =
@@ -105,7 +129,7 @@ function rolloutText(item: AppPromotionPreviewItem): string {
   if (item.type === "pages") {
     return `Deployment #${item.pages?.toSequence ?? "?"} becomes active${item.pages?.fromSequence ? ` (was #${item.pages.fromSequence})` : ""}`;
   }
-  const build = item.build ? ` · commit ${item.build.commitSha.slice(0, 7)} · not rebuilt` : "";
+  const build = item.build ? ` · commit ${shortCommitSha(item.build.commitSha)} · not rebuilt` : "";
   return `${item.rollout} with ${item.to}${build}`;
 }
 
@@ -285,12 +309,10 @@ export function PromoteDialog({
                         title={`${item.targetName} · ${TYPE_LABEL[item.type].toLowerCase()}`}
                         description={
                           <>
-                            <span className="block font-mono">
-                              {item.from ?? "not running"} → {item.to}
-                            </span>
+                            <span className="block font-mono">{fromTo(item, true)}</span>
                             {item.build ? (
                               <span className="block">
-                                Commit {item.build.commitSha.slice(0, 7)}
+                                Commit {shortCommitSha(item.build.commitSha)}
                               </span>
                             ) : null}
                             <span className="block">
@@ -321,8 +343,8 @@ export function PromoteDialog({
                         description={
                           <span className="font-mono">
                             {service.changed
-                              ? `${service.from ?? "not running"} → ${service.to ?? "not running"}`
-                              : service.to}
+                              ? fromTo(service, true)
+                              : promotedImage(service.to, service.toSource, service.toSourceImage)}
                           </span>
                         }
                       >
@@ -429,7 +451,9 @@ export function PromoteDialog({
                 key={item.pairKey}
                 title={item.targetName}
                 description={
-                  item.error ?? item.detail ?? `${item.from ?? "not running"} → ${item.to}`
+                  item.error ??
+                  item.detail ??
+                  fromTo(item, item.type === "container" || item.type === "deployment")
                 }
               >
                 <Badge variant={STATUS_BADGE[item.status].variant} size="inline">

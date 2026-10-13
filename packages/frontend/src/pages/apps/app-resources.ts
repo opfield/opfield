@@ -256,8 +256,13 @@ export async function loadAppNetwork(
     id: `link:${link.id}`,
     environmentId: workload.environmentId,
     from: workload.label,
-    to: link.alias || link.target.resourceId,
-    detail: `Container link · port ${link.targetPort}`,
+    // The target's name, never its id: a member by its label, a container by its name, else the alias.
+    to:
+      byKey.get(workloadKey(link.target.nodeId, link.target.type, link.target.resourceId))?.label ??
+      (link.target.type === "container" ? link.target.resourceId : link.alias || "Linked workload"),
+    detail: link.alias
+      ? `Container link · ${link.alias}:${link.targetPort}`
+      : `Container link · port ${link.targetPort}`,
     status: link.status,
     tone: LINK_TONE[link.status] ?? "secondary",
     route: workload.route,
