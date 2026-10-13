@@ -2,14 +2,14 @@ import { inArray } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { sslCertificates } from '@/db/schema/index.js';
 import { getEnvironmentSettingsSnapshot } from '@/modules/settings/environment-settings.service.js';
-import type { AppHealth } from './apps.service.js';
+import type { MemberHealth } from './app-environment-health.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_WARNING_DAYS = 14;
 
 /** A certificate member's state; `reason` says why it is not healthy. */
 export interface CertificateMemberHealth {
-  health: AppHealth | 'none';
+  health: MemberHealth;
   reason?: string;
 }
 

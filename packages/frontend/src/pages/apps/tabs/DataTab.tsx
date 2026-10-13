@@ -10,7 +10,6 @@ import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { databaseTypeLabel } from "@/lib/database-type";
 import { nodeIconClassNames } from "@/lib/node-appearance";
 import { databaseRoute, loggingEnvironmentRoute, storageRoute } from "@/lib/resource-routes";
-import { parseResourceTag, resourceTagBadgeProps } from "@/lib/resource-tags";
 import { cn } from "@/lib/utils";
 import { formatProviderLabel } from "@/pages/storage-detail/shared";
 import { useSystemConfigStore } from "@/stores/system-config";

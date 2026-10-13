@@ -139,10 +139,6 @@ export async function loadAppCompute(
   return { containers, compose, hidden };
 }
 
-export function serviceName(container: DockerContainer): string {
-  return container.labels?.[COMPOSE_SERVICE_LABEL] ?? container.name;
-}
-
 /**
  * Databases, storage and logging environments of the app; a family the license plan lacks or the
  * user may not view is not requested.
