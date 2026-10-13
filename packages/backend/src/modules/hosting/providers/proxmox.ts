@@ -1287,17 +1287,20 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
   async guestIdentity(resource: HostingResourceSnapshot): Promise<string | null> {
     if (resource.kind !== 'vm' || !resource.capabilities.guestIdentity.available || resource.powerState !== 'running')
       return null;
-    try {
-      const data = await this.request<{ content: string }>(`${this.base(resource)}/agent/file-read`, {
-        // Proxmox VE 9.1 accepts only `file`; count/decode were introduced in later API revisions.
-        query: { file: '/var/lib/gateway/host-identity' },
-      });
-      const value = data.content?.trim();
-      return value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value) ? value : null;
-    } catch (error) {
-      if (error instanceof HostingProviderError) return null;
-      throw error;
+    // legacy-name: /var/lib/gateway/host-identity of guests installed before 2.12.1 — remove once every node reports none
+    for (const file of ['/var/lib/opfield/host-identity', '/var/lib/gateway/host-identity']) {
+      try {
+        const data = await this.request<{ content: string }>(`${this.base(resource)}/agent/file-read`, {
+          // Proxmox VE 9.1 accepts only `file`; count/decode were introduced in later API revisions.
+          query: { file },
+        });
+        const value = data.content?.trim();
+        if (value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) return value;
+      } catch (error) {
+        if (!(error instanceof HostingProviderError)) throw error;
+      }
     }
+    return null;
   }
 
   async bootstrap(resource: HostingResourceSnapshot, script: string): Promise<HostingProviderOperation> {

@@ -135,7 +135,7 @@ export class HostingInventoryService {
   }
 
   // The daemon answers from the host identity it enrolled with: a daemon running as its own user keeps a copy in its
-  // state directory, because the shared /var/lib/gateway/host-identity is root's. Daemons without the command, or a
+  // state directory, because the shared /var/lib/opfield/host-identity is root's. Daemons without the command, or a
   // node that refuses it, are read at the shared path as before.
   private async readNodeHostIdentity(nodeId: string): Promise<string> {
     try {
@@ -144,7 +144,22 @@ export class HostingInventoryService {
     } catch {
       // Fall back to the shared path below.
     }
-    return (await this.nodeService.readFile(nodeId, '/var/lib/gateway/host-identity')).toString('utf8').trim();
+    return await this.readSharedHostIdentity(nodeId);
+  }
+
+  // The shared identity file: /var/lib/opfield on nodes installed or moved by 2.12.1+ (a moved node keeps the old path
+  // as a symlink).
+  private async readSharedHostIdentity(nodeId: string): Promise<string> {
+    try {
+      return (await this.nodeService.readFile(nodeId, '/var/lib/opfield/host-identity')).toString('utf8').trim();
+    } catch (error) {
+      // legacy-name: /var/lib/gateway/host-identity of daemons before 2.12.1 — remove once every node reports none
+      return (
+        await this.nodeService.readFile(nodeId, '/var/lib/gateway/host-identity').catch(() => Promise.reject(error))
+      )
+        .toString('utf8')
+        .trim();
+    }
   }
 
   async initialize(connectorId: string) {
@@ -875,9 +890,7 @@ export class HostingInventoryService {
       let hostIdentityId = node.hostIdentityId;
       if (!hostIdentityId && connected) {
         try {
-          const persisted = (await this.nodeService.readFile(node.id, '/var/lib/gateway/host-identity'))
-            .toString('utf8')
-            .trim();
+          const persisted = await this.readSharedHostIdentity(node.id);
           if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(persisted)) continue;
           hostIdentityId = persisted;
         } catch {

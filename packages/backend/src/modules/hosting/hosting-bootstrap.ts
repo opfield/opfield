@@ -14,15 +14,15 @@ const INSTALLERS: Record<HostingRole, string> = {
 };
 // Published revision containing the Storage wrapper and self-sufficient Relay installation.
 // Update revision and hashes together after publishing installer changes.
-export const HOSTING_INSTALLER_REVISION = '58d708bef30110bcc70a48ece0d32785b21001f4';
+export const HOSTING_INSTALLER_REVISION = '763cfa9b1e044ccc6ee3424eb43a378f86175c88';
 export const HOSTING_INSTALLER_BASE = `https://raw.githubusercontent.com/opfield/opfield/${HOSTING_INSTALLER_REVISION}/scripts`;
 const INSTALLER_SHA256: Record<string, string> = {
-  'setup-node.sh': 'c5afa65657389f9d3aa0a0b8c8e4e8410c598b6c6af4416e37c5db558450e560',
-  'setup-docker-node.sh': '31368ab6e92df1f284eac18fc9abe85214893ab0940854c9b68e99dd4ce57b1c',
-  'setup-database-node.sh': '955cba6ef03e9685e60371085b5d5086bd010be1d684c90c6e867384b1356a60',
-  'setup-storage-node.sh': '2af126db47e45e8350873eb13d17f73446fa77824c92d4ccfe9b15461548fc08',
-  'setup-monitoring-node.sh': '8915cd4c65a1af50948e2f367dde54a5e8b41f43c1abf906cf69b0519b2616a8',
-  'setup-relay-node.sh': '6b5d2b3429b7dfe36c6270cbf4b02f0aea582d609b72b7221cd7eef8e314bf8d',
+  'setup-node.sh': 'f154a8d1754e568d84f6daba5c93b7693d1344a1fe6f789edad6446b01133dcc',
+  'setup-docker-node.sh': 'e5deb71bc949401b7e168f97ea814ef0fe5db51d140acf7b65965fd17a683300',
+  'setup-database-node.sh': 'e723e6dbd0d479f1e0197461206722688a64a6b22a4e7b408d23e5aa588be984',
+  'setup-storage-node.sh': '9c6e8b709e494a35e41a976f1f96539fede89619530c552af3af01c23a3d74a8',
+  'setup-monitoring-node.sh': '0b42fb4247513d3b764070c69a2b9c66956e6342622c40fb821103537327ea64',
+  'setup-relay-node.sh': '38f73e5ebb977fb8b8a9db0753d410749d3d20be86f7f2d16a1da244caa2af22',
 };
 
 export function shellArgument(value: string): string {
@@ -52,14 +52,12 @@ export function buildHostingBootstrap(input: {
   const url = new URL(`https://${input.gateway}`);
   if (url.username || url.password || url.pathname !== '/' || url.search || url.hash)
     throw new AppError(400, 'HOSTING_OPFIELD_INVALID', 'Invalid Opfield enrollment endpoint');
-  // legacy-name: --gateway flags — the pinned installer (HOSTING_INSTALLER_REVISION) predates --opfield; switch with the
-  // next pin of a release whose installers take --opfield and --opfield-cert-sha256.
   const args = [
-    '--gateway',
+    '--opfield',
     input.gateway,
     '--token',
     input.token,
-    '--gateway-cert-sha256',
+    '--opfield-cert-sha256',
     input.certificateFingerprint,
   ];
   if (input.role !== 'relay') args.push('--yes');
@@ -72,7 +70,8 @@ export function buildHostingBootstrap(input: {
   const clean = input.requireCleanHost
     ? `
 # A cloned template must never inherit another Opfield host identity or certificate.
-if [ -s /var/lib/gateway/host-identity ]; then
+# legacy-name: /var/lib/gateway of guests installed before 2.12.1 — remove once every node reports none
+if [ -s /var/lib/opfield/host-identity ] || [ -s /var/lib/gateway/host-identity ]; then
   echo 'Opfield identity already exists; refusing to adopt or reinstall a cloned identity' >&2
   exit 42
 fi
@@ -87,9 +86,9 @@ fi
   return `#!/bin/bash
 set -eu
 umask 077
-mkdir -p /var/lib/gateway
+mkdir -p /var/lib/opfield
 # The lock also fences a timed-out installer that is still running inside the guest.
-exec 9>/var/lib/gateway/hosting-install.lock
+exec 9>/var/lib/opfield/hosting-install.lock
 flock -n 9 || { echo 'An Opfield hosting installer is already running' >&2; exit 44; }
 ${
   input.waitForCloudInit
@@ -111,7 +110,9 @@ fi`
 }
 ${
   input.expectedOperationMarker
-    ? `if [ "$(cat /var/lib/gateway/hosting-operation 2>/dev/null || true)" != ${shellArgument(input.expectedOperationMarker)} ] && { [ -s /var/lib/gateway/hosting-operation ] || [ -s /var/lib/gateway/host-identity ]; }; then
+    ? `# legacy-name: /var/lib/gateway markers of an installation attempt before 2.12.1 — remove once every node reports none
+marker=$(cat /var/lib/opfield/hosting-operation 2>/dev/null || cat /var/lib/gateway/hosting-operation 2>/dev/null || true)
+if [ "$marker" != ${shellArgument(input.expectedOperationMarker)} ] && { [ -n "$marker" ] || [ -s /var/lib/opfield/host-identity ] || [ -s /var/lib/gateway/host-identity ]; }; then
   echo 'This guest is not the original hosting installation target' >&2
   exit 45
 fi`
@@ -120,8 +121,8 @@ fi`
 ${clean}
 ${
   input.operationMarker
-    ? `mkdir -p /var/lib/gateway
-printf '%s\\n' ${shellArgument(input.operationMarker)} > /var/lib/gateway/hosting-operation
+    ? `mkdir -p /var/lib/opfield
+printf '%s\\n' ${shellArgument(input.operationMarker)} > /var/lib/opfield/hosting-operation
 `
     : ''
 }
