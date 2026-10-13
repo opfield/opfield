@@ -441,12 +441,21 @@ function responsesEvents(payload: JsonObject, state: ProviderStreamState): Infer
     return [
       {
         type: 'error',
-        code: 'upstream_error',
+        code: safeUpstreamErrorCode(object(response?.error) ?? object(payload.error)),
         message: SAFE_UPSTREAM_ERROR_MESSAGE,
       },
     ];
   }
   return [];
+}
+
+/**
+ * The machine code of a failed upstream response (for example upstream_server_error or server_is_overloaded),
+ * so callers can tell a transient provider failure from a request error. The upstream text is never kept.
+ */
+function safeUpstreamErrorCode(error: JsonObject | null): string {
+  const code = string(error?.code) ?? string(error?.type);
+  return code && /^[a-z][a-z0-9_.-]{0,63}$/i.test(code) ? code.toLowerCase() : 'upstream_error';
 }
 
 function chatEvents(payload: JsonObject, state: ProviderStreamState): InferenceStreamEvent[] {
@@ -743,7 +752,7 @@ function anthropicEvents(
     return [
       {
         type: 'error',
-        code: 'upstream_error',
+        code: safeUpstreamErrorCode(object(payload.error)),
         message: SAFE_UPSTREAM_ERROR_MESSAGE,
       },
     ];

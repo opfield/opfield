@@ -126,7 +126,7 @@ export type InferenceStreamEvent =
       status?: InferenceTerminalStatus;
       incompleteReason?: string;
     }
-  | { type: 'error'; code: string; message: string; retryable?: boolean };
+  | { type: 'error'; code: string; message: string; retryable?: boolean; provider?: string };
 
 export interface InferenceExecutionContext {
   requestId: string;

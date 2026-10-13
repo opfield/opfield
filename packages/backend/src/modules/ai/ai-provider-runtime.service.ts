@@ -1,12 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import OpenAI from 'openai';
-import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { InferenceBudgetPolicyService } from '@/modules/inference/accounting/inference-budget-policy.js';
 import type { InferenceRuntimeService } from '@/modules/inference/inference-runtime.service.js';
 import type { InferenceModelService } from '@/modules/inference/models/inference-model.service.js';
-import { InferenceProtocolError } from '@/modules/inference/protocol/inference-protocol.error.js';
 import type { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import type { User } from '@/types.js';
 import { streamOpfieldInferenceResponse } from './ai.opfield-inference-adapter.js';
@@ -15,19 +13,10 @@ import type { AISandboxArtifactService } from './ai.sandbox-artifact.service.js'
 import type { AISettingsService } from './ai.settings.service.js';
 import type { AIConfig, AIContextLimits, AIMessageAttachment } from './ai.types.js';
 import { directProviderContextLimits, normalizeAIContextLimits } from './ai-context-limits.js';
+import { streamModelCallWithRetry } from './ai-model-call-retry.js';
 
 const OPFIELD_INFERENCE_MAX_TOOL_ROUNDS = 20;
-const OPFIELD_INFERENCE_MAX_STREAM_ATTEMPTS = 2;
-const OPFIELD_INFERENCE_RETRY_MIN_DELAY_MS = 200;
-const OPFIELD_INFERENCE_RETRY_JITTER_MS = 300;
 const DIRECT_PROVIDER_REASONING_EFFORTS = ['default', 'low', 'medium', 'high'] as const;
-const RETRYABLE_OPFIELD_INFERENCE_CODES = new Set([
-  'provider_request_failed',
-  'provider_unavailable',
-  'upstream_error',
-  'upstream_stream_incomplete',
-]);
-const logger = createChildLogger('AIProviderRuntime');
 
 export interface AIInferenceModelOption {
   id: string;
@@ -266,7 +255,7 @@ export class AIProviderRuntimeService {
       contextLimits,
       reasoningEffort,
       stream: (messages, tools, streamOptions) =>
-        streamOpfieldInferenceWithRetry({
+        streamModelCallWithRetry({
           createAttempt: () =>
             streamOpfieldInferenceResponse({
               runtime: this.inferenceRuntime,
@@ -347,78 +336,6 @@ export class AIProviderRuntimeService {
 
     return parts.length > 0 ? parts : options.content;
   }
-}
-
-async function* streamOpfieldInferenceWithRetry(input: {
-  createAttempt: () => AsyncGenerator<ModelProviderEvent>;
-  requestId: string;
-  conversationId?: string;
-  model: string;
-  signal: AbortSignal;
-}): AsyncGenerator<ModelProviderEvent> {
-  for (let attempt = 1; attempt <= OPFIELD_INFERENCE_MAX_STREAM_ATTEMPTS; attempt += 1) {
-    let emittedOutput = false;
-    try {
-      for await (const event of input.createAttempt()) {
-        emittedOutput = true;
-        yield event;
-      }
-      return;
-    } catch (error) {
-      if (
-        input.signal.aborted ||
-        emittedOutput ||
-        attempt >= OPFIELD_INFERENCE_MAX_STREAM_ATTEMPTS ||
-        !isRetryableOpfieldInferenceStreamError(error)
-      ) {
-        throw error;
-      }
-      const delayMs =
-        OPFIELD_INFERENCE_RETRY_MIN_DELAY_MS + Math.floor(Math.random() * (OPFIELD_INFERENCE_RETRY_JITTER_MS + 1));
-      logger.warn('Retrying Opfield Inference before first model output', {
-        requestId: input.requestId,
-        conversationId: input.conversationId,
-        model: input.model,
-        attempt,
-        nextAttempt: attempt + 1,
-        delayMs,
-        code: error.code,
-        status: error.status,
-      });
-      await waitForOpfieldInferenceRetry(delayMs, input.signal);
-    }
-  }
-}
-
-function isRetryableOpfieldInferenceStreamError(error: unknown): error is InferenceProtocolError {
-  return (
-    error instanceof InferenceProtocolError &&
-    (error.status === 502 || error.status === 503) &&
-    error.details?.emittedOutput !== true &&
-    RETRYABLE_OPFIELD_INFERENCE_CODES.has(error.code)
-  );
-}
-
-function waitForOpfieldInferenceRetry(delayMs: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.reject(opfieldInferenceAbortError());
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort);
-      resolve();
-    }, delayMs);
-    const onAbort = () => {
-      clearTimeout(timer);
-      signal.removeEventListener('abort', onAbort);
-      reject(opfieldInferenceAbortError());
-    };
-    signal.addEventListener('abort', onAbort, { once: true });
-  });
-}
-
-function opfieldInferenceAbortError(): Error {
-  const error = new Error('Aborted');
-  error.name = 'AbortError';
-  return error;
 }
 
 function minimumReasoningEffort(efforts: string[]): string | null {

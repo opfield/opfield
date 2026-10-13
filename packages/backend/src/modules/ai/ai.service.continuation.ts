@@ -33,6 +33,7 @@ import {
 import { parseAndValidateAIToolArguments, validateAIToolArguments } from './ai.tools.js';
 import type { PageContext, WSServerMessage } from './ai.types.js';
 import { getAIToolApprovalDecision } from './ai-approval-policy.js';
+import { describeModelCallError } from './ai-model-call-retry.js';
 import type { AIProviderSession } from './ai-provider-runtime.service.js';
 import { assertProviderInputWithinLimits } from './ai-token-estimator.js';
 
@@ -348,7 +349,7 @@ export class AIServiceContinuation extends AIServiceStreaming {
         }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return;
-        const message = err instanceof Error ? err.message : 'Stream error';
+        const message = describeModelCallError(err);
         logger.error('AI provider error', { error: err });
         if (isContextWindowError(err)) {
           yield {
@@ -615,7 +616,7 @@ export class AIServiceContinuation extends AIServiceStreaming {
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
-      const message = err instanceof Error ? err.message : 'Stream error';
+      const message = describeModelCallError(err);
       logger.error('AI provider error', { error: err });
       if (isContextWindowError(err)) {
         yield {
