@@ -54,6 +54,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
+import { useLiveSearch } from "@/hooks/use-live-search";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
 import { hostingNodeLabel } from "@/lib/hosting-status";
@@ -113,6 +114,8 @@ export function AdminNodes() {
     useNodesStore();
 
   const [searchInput, setSearchInput] = useState(filters.search);
+  // The list follows the search as it is typed; Enter applies it at once.
+  useLiveSearch(searchInput, filters.search, (search) => setFilters({ search }));
   const [enrollDialogOpen, setEnrollDialogOpen] = useState(false);
   const [choiceOpen, setChoiceOpen] = useState(false);
   const [bulkUpdateOpen, setBulkUpdateOpen] = useState(false);

@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/select";
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
+import { useLiveSearch } from "@/hooks/use-live-search";
 import { usePkiAvailable } from "@/hooks/use-plan-gated-features";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
@@ -299,6 +300,8 @@ export function SSLCertificates() {
     deleteCert,
   } = useSSLStore();
   const [searchInput, setSearchInput] = useState(filters.search);
+  // The list follows the search as it is typed; Enter applies it at once.
+  useLiveSearch(searchInput, filters.search, (search) => setFilters({ search }));
   type PendingRenewal = {
     certId: string;
     certName: string;

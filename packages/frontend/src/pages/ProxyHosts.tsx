@@ -47,6 +47,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useFolderAccess } from "@/hooks/use-folder-access";
 import { useIsMobile } from "@/hooks/use-is-mobile";
+import { useLiveSearch } from "@/hooks/use-live-search";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
@@ -118,6 +119,8 @@ export function ProxyHosts({
   } = useFolderStore();
 
   const [searchInput, setSearchInput] = useState(filters.search);
+  // The list follows the search as it is typed; Enter applies it at once.
+  useLiveSearch(searchInput, filters.search, (search) => setFilters({ search }));
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
   const [createFolderParentId, setCreateFolderParentId] = useState<string | null>(null);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);

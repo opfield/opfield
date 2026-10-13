@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
+import { useLiveSearch } from "@/hooks/use-live-search";
 import { useRealtime } from "@/hooks/use-realtime";
 import { formatDateTime } from "@/lib/utils";
 import { api } from "@/services/api";
@@ -72,6 +73,7 @@ export function DeliveryLogTab({
   const [hasMore, setHasMore] = useState(true);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  useLiveSearch(searchInput, search, setSearch);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const {
     open: detailOpen,

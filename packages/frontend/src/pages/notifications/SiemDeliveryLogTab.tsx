@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
+import { useLiveSearch } from "@/hooks/use-live-search";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
 import { formatDateTime } from "@/lib/utils";
@@ -76,6 +77,7 @@ export function SiemDeliveryLogTab({
   const [hasMore, setHasMore] = useState(true);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  useLiveSearch(searchInput, search, setSearch);
   const [statusFilter, setStatusFilter] = useState<"all" | SiemDeliveryStatus>("all");
   const [destinations, setDestinations] = useState<SiemDestination[]>(
     () => api.getCached<SiemDestination[]>("audit:siem:destinations") ?? []

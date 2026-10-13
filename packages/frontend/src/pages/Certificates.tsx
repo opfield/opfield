@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
+import { useLiveSearch } from "@/hooks/use-live-search";
 import { useRealtime } from "@/hooks/use-realtime";
 import { cn, daysUntil, formatDate, hoursUntil } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth";
@@ -67,6 +68,8 @@ export function Certificates() {
     resetFilters,
   } = useCertificatesStore();
   const [searchInput, setSearchInput] = useState(filters.search);
+  // The list follows the search as it is typed; Enter applies it at once.
+  useLiveSearch(searchInput, filters.search, (search) => setFilters({ search }));
   const [issueDialogOpen, setIssueDialogOpen] = useState(false);
   const [createFolderAction, setCreateFolderAction] = useState<(() => void) | null>(null);
   const openIssueDialog = () => {
