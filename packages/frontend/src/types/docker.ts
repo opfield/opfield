@@ -65,10 +65,21 @@ export interface DockerRuntimeStatus {
   progressPercent?: number;
 }
 
+/** The Git source an image Opfield built comes from: lists name it instead of the internal registry image. */
+export interface DockerImageSource {
+  repositoryFullPath: string;
+  branch?: string | null;
+  commitSha?: string | null;
+}
+
 export interface DockerContainer {
   /** Set when the resource is a member of an app environment. */
   app?: AppMembershipRef | null;
   pendingSourceBuild?: boolean;
+  /** Git source of an image Opfield built (or of a container awaiting its first build). */
+  source?: DockerImageSource | null;
+  /** The image an internal Availability mirror or promotion copy was taken from. */
+  sourceImage?: string | null;
   id: string;
   /** Stable Opfield authorization identity. Unlike the Docker runtime ID, this survives recreate and migration. */
   scopeResourceId?: string;
@@ -210,6 +221,9 @@ export interface DockerDeploymentRelease {
   fromSlot: "blue" | "green" | null;
   toSlot: "blue" | "green" | null;
   image: string | null;
+  /** Git source of a release image Opfield built. */
+  source?: DockerImageSource | null;
+  sourceImage?: string | null;
   triggerSource: string;
   taskId: string | null;
   status: string;
@@ -232,6 +246,8 @@ export interface DockerDeploymentHealthConfig {
 export interface DockerDeployment {
   /** Set when the resource is a member of an app environment. */
   app?: AppMembershipRef | null;
+  /** Per internal image reference of the deployment: the Git source it was built from or the image it copies. */
+  imageOrigins?: Record<string, { source: DockerImageSource | null; sourceImage: string | null }>;
   id: string;
   scopeResourceId?: string;
   nodeId: string;
@@ -433,6 +449,9 @@ export interface DockerComposeProject extends DockerComposeProjectSummary {
   services: Array<{
     name: string;
     image: string;
+    /** Git source of a service image Opfield built. */
+    source?: DockerImageSource | null;
+    sourceImage?: string | null;
     state: string;
     health: string;
     containerIds: string[];

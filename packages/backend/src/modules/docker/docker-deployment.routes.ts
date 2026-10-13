@@ -52,6 +52,7 @@ import { DockerDeploymentService } from './docker-deployment.service.js';
 import { presentDeploymentForCaller } from './docker-deployment-redaction.js';
 import { ImageCleanupUpsertSchema } from './docker-image-cleanup.schemas.js';
 import { DockerImageCleanupService } from './docker-image-cleanup.service.js';
+import { dockerImageOriginMap, withDockerImageSources } from './docker-image-source.js';
 import { resolveDockerDeploymentIdByName } from './docker-route-resolvers.js';
 import { DockerSecretService } from './docker-secret.service.js';
 import { WebhookUpsertSchema } from './docker-webhook.schemas.js';
@@ -253,9 +254,22 @@ export function registerDockerDeploymentRoutes(router: OpenAPIHono<AppEnv>) {
       const data = await service.get(nodeId, deploymentId);
       const availability = container.resolve(NodeRegistryService).getNode(nodeId) ? 'available' : 'unavailable';
       const presented = presentDeploymentForCaller(data, c.get('effectiveScopes') || [], nodeId, deploymentId);
+      // A release of an image built from Git names its repository and commit instead of the internal image.
+      const releases = Array.isArray((presented as { releases?: unknown }).releases)
+        ? await withDockerImageSources((presented as { releases: Array<Record<string, any>> }).releases)
+        : undefined;
+      const deploymentImages = presented as {
+        desiredConfig?: { image?: string };
+        slots?: Array<{ image?: string | null }>;
+      };
       return c.json({
         data: {
           ...presented,
+          ...(releases ? { releases } : {}),
+          imageOrigins: await dockerImageOriginMap([
+            deploymentImages.desiredConfig?.image,
+            ...(deploymentImages.slots ?? []).map((slot) => slot.image),
+          ]),
           availability,
           app: await appForMember({ type: 'deployment', id: deploymentId }),
           _buildRollout: await deploymentBuildRollout(deploymentId),

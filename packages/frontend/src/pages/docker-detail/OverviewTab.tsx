@@ -10,7 +10,10 @@ import { ImageReference } from "@/components/docker/ImageReference";
 import { Badge } from "@/components/ui/badge";
 import { useRealtime } from "@/hooks/use-realtime";
 import { formatDisplayImageRef, resolveContainerImageReference } from "@/lib/docker-image-ref";
+import { isOpfieldManagedDockerNetwork } from "@/lib/docker-networks";
 import { normalizeDockerRuntimeProfile } from "@/lib/docker-runtime-profile";
+import { dockerVolumeLabel, isAnonymousVolumeName } from "@/lib/docker-volume-label";
+import { shortCommitSha } from "@/lib/workload-image-label";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import type { DockerAvailabilityPolicy } from "@/types";
@@ -80,15 +83,16 @@ export function OverviewTab({
   // Mounts
   const mounts = (data.Mounts ?? []) as Array<{
     Type: string;
+    Name?: string;
     Source: string;
     Destination: string;
     RW: boolean;
   }>;
 
-  // Networks
-  const networkEntries = Object.entries(data.NetworkSettings?.Networks ?? {}) as Array<
-    [string, any]
-  >;
+  // Networks the user attached; Opfield's own (links, managed databases, Secure Links) stay out, as in Settings.
+  const networkEntries = (
+    Object.entries(data.NetworkSettings?.Networks ?? {}) as Array<[string, any]>
+  ).filter(([name]) => !isOpfieldManagedDockerNetwork(name));
 
   // Recent tasks — refresh on inspect cycle and whenever a docker.task event arrives
   const containerName = logicalContainerName || (data.Name ?? "").replace(/^\//, "");
@@ -176,7 +180,7 @@ export function OverviewTab({
                         &middot;
                       </span>
                       <span className="shrink-0 font-mono">
-                        {sourceIdentity.deployedCommitSha.slice(0, 10)}
+                        {shortCommitSha(sourceIdentity.deployedCommitSha)}
                       </span>
                     </>
                   ) : null}
@@ -194,6 +198,8 @@ export function OverviewTab({
               ) : (
                 <ImageReference
                   value={imageReferenceOverride || resolveContainerImageReference(data)}
+                  source={data.imageSource}
+                  sourceImage={data.imageSourceImage}
                 />
               )
             }
@@ -304,7 +310,13 @@ export function OverviewTab({
           {mounts.map((m, i) => (
             <div key={i} className="flex items-center justify-between px-4 py-3 gap-4">
               <div className="min-w-0 flex-1">
-                <span className="text-sm font-mono truncate block">{m.Source}</span>
+                {m.Type === "volume" && isAnonymousVolumeName(m.Name) ? (
+                  <span className="text-sm truncate block" title={m.Name}>
+                    {dockerVolumeLabel(m.Name ?? "").text}
+                  </span>
+                ) : (
+                  <span className="text-sm font-mono truncate block">{m.Source}</span>
+                )}
                 <span className="text-xs text-muted-foreground font-mono">→ {m.Destination}</span>
               </div>
               <Badge variant={m.RW ? "success" : "secondary"}>{m.RW ? "RW" : "RO"}</Badge>

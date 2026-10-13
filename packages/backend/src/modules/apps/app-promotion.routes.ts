@@ -1,6 +1,7 @@
 import { z } from '@hono/zod-openapi';
 import { container } from '@/container.js';
 import { appRoute, jsonBody, okJson, pathParamSchema, UnknownDataResponseSchema } from '@/lib/openapi.js';
+import { type DockerImageOrigin, resolveDockerImageOrigins } from '@/modules/docker/docker-image-source.js';
 import { AppPromotionService } from './app-promotion.service.js';
 import { type AppsRouter, appActor } from './app-route-helpers.js';
 
@@ -64,6 +65,56 @@ export const getAppPromotionRoute = appRoute({
   responses: okJson(UnknownDataResponseSchema),
 });
 
+type PromotionImageRow = { from?: unknown; to?: unknown };
+type PromotionItemRow = PromotionImageRow & { type?: unknown; compose?: { services?: PromotionImageRow[] } };
+
+function originFields(row: PromotionImageRow, origins: Map<string, DockerImageOrigin>) {
+  const origin = (value: unknown) => (typeof value === 'string' ? origins.get(value.trim()) : undefined);
+  const from = origin(row.from);
+  const to = origin(row.to);
+  return {
+    fromSource: from && 'source' in from ? from.source : null,
+    fromSourceImage: from && 'image' in from ? from.image : null,
+    toSource: to && 'source' in to ? to.source : null,
+    toSourceImage: to && 'image' in to ? to.image : null,
+  };
+}
+
+/**
+ * Promotion items (preview or run) with the Git source of each image built by Opfield (`fromSource`, `toSource`) and
+ * the image an internal copy was taken from, so the dialog never shows the internal registry. Never fails the answer.
+ */
+async function withPromotionImageSources<T>(data: T): Promise<T> {
+  const items = (data as { items?: PromotionItemRow[] } | null)?.items;
+  if (!Array.isArray(items)) return data;
+  const imageItems = items.filter((item) => item.type === 'container' || item.type === 'deployment');
+  const rows: PromotionImageRow[] = [...imageItems, ...items.flatMap((item) => item.compose?.services ?? [])];
+  let origins = new Map<string, DockerImageOrigin>();
+  try {
+    origins = await resolveDockerImageOrigins(
+      rows.flatMap((row) => [row.from, row.to]).filter((value): value is string => typeof value === 'string')
+    );
+  } catch {
+    return data;
+  }
+  if (origins.size === 0) return data;
+  return {
+    ...data,
+    items: items.map((item) => ({
+      ...item,
+      ...(item.type === 'container' || item.type === 'deployment' ? originFields(item, origins) : {}),
+      ...(item.compose?.services
+        ? {
+            compose: {
+              ...item.compose,
+              services: item.compose.services.map((service) => ({ ...service, ...originFields(service, origins) })),
+            },
+          }
+        : {}),
+    })),
+  };
+}
+
 export function registerAppPromotionRoutes(router: AppsRouter): void {
   const service = () => container.resolve(AppPromotionService);
 
@@ -75,12 +126,14 @@ export function registerAppPromotionRoutes(router: AppsRouter): void {
       body.sourceEnvironmentId,
       body.targetEnvironmentId
     );
-    return c.json({ data });
+    return c.json({ data: await withPromotionImageSources(data) });
   });
 
   router.openapi(executeAppPromotionRoute, async (c) => {
     const body = PromotionExecuteBodySchema.parse(await c.req.json());
-    return c.json({ data: await service().execute(appActor(c), c.req.param('id')!, body) });
+    return c.json({
+      data: await withPromotionImageSources(await service().execute(appActor(c), c.req.param('id')!, body)),
+    });
   });
 
   router.openapi(listAppPromotionsRoute, async (c) => {
@@ -90,7 +143,9 @@ export function registerAppPromotionRoutes(router: AppsRouter): void {
 
   router.openapi(getAppPromotionRoute, async (c) => {
     return c.json({
-      data: await service().get(appActor(c).scopes, c.req.param('id')!, c.req.param('promotionId')!),
+      data: await withPromotionImageSources(
+        await service().get(appActor(c).scopes, c.req.param('id')!, c.req.param('promotionId')!)
+      ),
     });
   });
 }

@@ -59,7 +59,7 @@ export function RecentActivityCard({ activity, hasScope }: RecentActivityCardPro
       header: "Resource",
       cellClassName: "max-w-0 w-full text-muted-foreground",
       render: (entry) => {
-        const resource = getAuditResourceDisplay(entry);
+        const resource = getAuditResourceDisplay(entry, { feed: true });
         return (
           <span className="block truncate" title={resource.title}>
             {resource.label}

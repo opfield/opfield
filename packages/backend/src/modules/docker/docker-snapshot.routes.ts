@@ -20,6 +20,7 @@ import {
 } from './docker-access-resource.service.js';
 import { compactContainerListItem, matchesContainerSearch } from './docker-container.routes.js';
 import { compactImageListItem, matchesImageSearch } from './docker-image.routes.js';
+import { withDockerImageSources } from './docker-image-source.js';
 import { filterOpfieldInternalImages } from './docker-internal-images.js';
 import { isOpfieldManagedDockerNetwork } from './docker-internal-networks.js';
 import { compactNetworkListItem, matchesNetworkSearch } from './docker-network.routes.js';
@@ -178,7 +179,9 @@ async function aggregate(c: any, kind: DockerSnapshotKind) {
       });
       // Containers (and deployments) carry `app` and honour excludeAppMembers / appId.
       const listed =
-        kind === 'containers' ? await withAppMembers('containers', rows, parseAppListFilter(c.req.query())) : rows;
+        kind === 'containers'
+          ? await withAppMembers('containers', await withDockerImageSources(rows), parseAppListFilter(c.req.query()))
+          : rows;
       return { rows: listed, node: snapshots.toNodeMetadata(node, snapshot) };
     })
   );

@@ -37,13 +37,23 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
 import { toastApiError } from "@/lib/api-error-toast";
+import {
+  isOpfieldRuntimeContainerName,
+  OPFIELD_RUNTIME_CONTAINER_LABEL,
+} from "@/lib/docker-networks";
 import { canEditDockerVolume } from "@/lib/docker-volume-access";
+import {
+  anonymousVolumeOwner,
+  dockerVolumeLabel,
+  isAnonymousVolumeName,
+} from "@/lib/docker-volume-label";
 import {
   dockerComposeProjectRoute,
   dockerContainerRoute,
   dockerVolumeRoute,
 } from "@/lib/resource-routes";
 import { createReturnNavigationState, getReturnNavigationTarget } from "@/lib/return-navigation";
+import { workloadImageLabel } from "@/lib/workload-image-label";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { useDockerStore } from "@/stores/docker";
@@ -61,6 +71,18 @@ type VolumeUsageContainer = {
   state: string;
   canOpen: boolean;
 };
+/** Users of the volume the container list does not show: Opfield's own containers by what they are, never by name. */
+function unlistedUsage(usedBy: string[]): VolumeUsageContainer[] {
+  const rows: VolumeUsageContainer[] = [];
+  for (const raw of usedBy) {
+    const internal = isOpfieldRuntimeContainerName(raw);
+    const name = internal ? OPFIELD_RUNTIME_CONTAINER_LABEL : raw;
+    if (rows.some((row) => row.name === name)) continue;
+    rows.push({ id: raw, name, image: "", state: "", canOpen: false });
+  }
+  return rows;
+}
+
 const VOLUME_CLEANUP_PROTECTED_LABEL = "opfield.housekeeping.protected";
 // legacy-name: cleanup protection label of volumes protected before 2.12.1 — remove once no protected volume carries it
 const LEGACY_VOLUME_CLEANUP_PROTECTED_LABEL = "gateway.housekeeping.protected";
@@ -151,7 +173,7 @@ export function DockerVolumeDetail({
   const canDeleteVolume = hasVolumeScope("docker:volumes:delete");
   const canExportVolume = hasVolumeScope("docker:volumes:export");
   const canRenameVolume = canEditVolume;
-  const isAnonymousVolume = /^[a-f0-9]{64}$/i.test(decodedVolumeName);
+  const isAnonymousVolume = isAnonymousVolumeName(decodedVolumeName);
   const isCleanupProtected =
     volume?.labels?.[VOLUME_CLEANUP_PROTECTED_LABEL] === "true" ||
     volume?.labels?.[LEGACY_VOLUME_CLEANUP_PROTECTED_LABEL] === "true";
@@ -277,27 +299,18 @@ export function DockerVolumeDetail({
           .map((container: any) => ({
             id: container.id ?? "",
             name: (container.name ?? "").replace(/^\//, ""),
-            image: container.image ?? "",
+            image:
+              workloadImageLabel(container).kind === "none"
+                ? ""
+                : workloadImageLabel(container).text,
             state: container.state ?? "",
             canOpen: true,
           }));
-        setUsageContainers(
-          matched.length > 0
-            ? matched
-            : usedBy.map((name) => ({
-                id: name,
-                name,
-                image: "",
-                state: "",
-                canOpen: false,
-              }))
-        );
+        setUsageContainers(matched.length > 0 ? matched : unlistedUsage(usedBy));
       })
       .catch(() => {
         if (!cancelled) {
-          setUsageContainers(
-            usedBy.map((name) => ({ id: name, name, image: "", state: "", canOpen: false }))
-          );
+          setUsageContainers(unlistedUsage(usedBy));
         }
       })
       .finally(() => {
@@ -669,7 +682,15 @@ export function DockerVolumeDetail({
           <ContentLoading loading={isLoading || composeOwnerPending} />
           <PageHeader
             leading={<PageBackButton onClick={() => navigate(backTarget)} />}
-            title={decodedVolumeName}
+            title={
+              isAnonymousVolume ? (
+                <span title={decodedVolumeName}>
+                  {dockerVolumeLabel(decodedVolumeName, anonymousVolumeOwner(usedBy)).text}
+                </span>
+              ) : (
+                decodedVolumeName
+              )
+            }
             badges={
               unavailable ? (
                 <Badge variant="secondary" size="inline">

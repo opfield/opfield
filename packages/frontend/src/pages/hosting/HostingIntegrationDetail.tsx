@@ -238,7 +238,16 @@ export function HostingIntegrationDetail({
       {
         id: "resource",
         header: "Resource",
-        render: (operation) => operation.resourceId ?? operation.nodeId ?? "Account",
+        // Names, not ids: the resource of this integration, else the node the operation is for.
+        render: (operation) =>
+          (operation.resourceId
+            ? resources.find(
+                (resource) =>
+                  resource.id === operation.resourceId || resource.remoteId === operation.resourceId
+              )?.name
+            : undefined) ??
+          operation.node?.name ??
+          (operation.resourceId || operation.nodeId ? "Removed resource" : "Account"),
       },
       {
         id: "status",
@@ -260,7 +269,7 @@ export function HostingIntegrationDetail({
         render: (operation) => <RelativeTime value={operation.updatedAt} />,
       },
     ],
-    []
+    [resources]
   );
 
   if (!canView) {

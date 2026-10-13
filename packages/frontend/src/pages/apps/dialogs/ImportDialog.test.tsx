@@ -74,7 +74,15 @@ beforeEach(() => {
   window.localStorage.clear();
   api.listDockerContainerSnapshots.mockResolvedValue([
     container("oworia-api", "node-edge", { kind: "deployment", deploymentId: "dep-api" }),
-    container("oworia-jobs", "node-edge"),
+    container("oworia-jobs", "node-edge", {
+      // Built from Git: the list names the repository, never the internal registry image.
+      image: `127.0.0.1:5443/gateway/builds/3f1c2d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f@sha256:${"a".repeat(64)}`,
+      source: {
+        repositoryFullPath: "oworia/jobs",
+        branch: "main",
+        commitSha: "0123456789abcdef0123456789abcdef01234567",
+      },
+    }),
     container("oworia-payments", "node-edge", {
       app: {
         id: "billing",
@@ -118,7 +126,9 @@ describe("ImportDialog", () => {
     expect(screen.getByText("Root Workloads")).toBeInTheDocument();
     expect(screen.getByText("Not allowed in production")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Allow" })).toBeInTheDocument();
-    expect(screen.getByText("ghcr.io/oworia/oworia-api:1")).toBeInTheDocument();
+    expect(screen.getByText("oworia/oworia-api:1")).toBeInTheDocument();
+    expect(screen.getByText("oworia/jobs · 0123456789")).toBeInTheDocument();
+    expect(screen.queryByText(/5443|gateway\/builds/)).not.toBeInTheDocument();
     expect(screen.getByText("deployment")).toBeInTheDocument();
     expect(screen.getByText("in Billing · moves here")).toBeInTheDocument();
     expect(rowCheckbox("burnbox")).toBeDisabled();

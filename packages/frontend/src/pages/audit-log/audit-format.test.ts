@@ -33,6 +33,35 @@ describe("audit resource display", () => {
     ).toBe("Opfield account");
   });
 
+  it("never shows a raw id in an activity feed", () => {
+    const entry = {
+      ...base,
+      action: "docker.container.update",
+      resourceType: "docker-container",
+      resourceId: "8c6f93ad-d058-4c1e-9f1a-2a9b4d1e7c00",
+      resourceName: null,
+      summary: null,
+      details: null,
+    };
+    const feed = getAuditResourceDisplay(entry, { feed: true });
+    expect(feed.label).not.toContain(entry.resourceId);
+    expect(feed.title).toContain(entry.resourceId);
+    expect(getAuditResourceDisplay(entry).label).toContain(entry.resourceId);
+  });
+
+  it("names a built image instead of the internal registry in an activity feed", () => {
+    const entry = {
+      ...base,
+      action: "docker.image.pull",
+      resourceType: "docker-image",
+      resourceId: "img1",
+      resourceName: null,
+      summary: null,
+      details: { imageRef: "127.0.0.1:5443/gateway/builds/x@sha256:abc" },
+    };
+    expect(getAuditResourceDisplay(entry, { feed: true }).label).not.toContain("5443");
+  });
+
   it("keeps Type / name for other resources", () => {
     expect(
       getAuditResourceDisplay({

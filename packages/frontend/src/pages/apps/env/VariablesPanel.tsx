@@ -372,6 +372,7 @@ export function VariablesPanel({
         invalidKeyPattern={KEY_PATTERN}
         saveIcon={<Save className="h-3.5 w-3.5" />}
         description={`Encrypted values for every container of ${env.name}`}
+        dirty={editedSecrets}
       />
       <RecreateWorkloadsDialog
         appId={app.id}

@@ -231,6 +231,7 @@ export function SettingsTab({
           title="General"
           icon={<AppWindow className="h-4 w-4" />}
           description="Name, logo, description and app-wide maintenance"
+          dirty={permissions.edit && (nameChanged || descriptionChanged)}
           actions={
             <>
               {(permissions.edit || permissions.operate) && (

@@ -3,6 +3,7 @@ import type { Components } from "react-markdown";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useUIStore } from "@/stores/ui";
 import type { AIResourceReference } from "@/types/ai";
+import { dockerVolumeLabel } from "./docker-volume-label";
 import { getNodeAppearanceColor } from "./node-appearance";
 import { aiResourceHref, resourceTypeIcon, resourceTypeLabel } from "./resource-presentation";
 import { createReturnNavigationState } from "./return-navigation";
@@ -59,7 +60,9 @@ export function AIResourceLink({ reference }: { reference: AIResourceReference }
   const displayLabel =
     reference.type === "proxy_host"
       ? (reference.label.split(",")[0]?.trim() ?? reference.label)
-      : reference.label;
+      : reference.type === "docker_volume"
+        ? dockerVolumeLabel(reference.label).text
+        : reference.label;
   const appearance = getNodeAppearanceColor(reference.appearanceColor);
   const toneClassName =
     appearance?.badgeClassName ??
@@ -83,6 +86,7 @@ export function AIResourceLink({ reference }: { reference: AIResourceReference }
       onClick={openPrimary}
       className={`mx-0.5 inline box-decoration-clone rounded-sm px-1 py-0.5 align-baseline font-medium no-underline transition-colors [overflow-wrap:anywhere] hover:brightness-110 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${toneClassName} ${reference.relation === "deleted" ? "opacity-70" : ""}`}
       aria-label={`${typeLabel}: ${displayLabel}`}
+      title={displayLabel === reference.label ? undefined : reference.label}
     >
       <Icon className="mr-1 inline-block h-3 w-3 align-[-0.08em]" aria-hidden="true" />
       {displayLabel}

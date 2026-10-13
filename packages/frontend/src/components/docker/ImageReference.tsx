@@ -2,6 +2,8 @@ import { ClipboardCopy } from "lucide-react";
 import { toast } from "sonner";
 import { formatDisplayImageRef } from "@/lib/docker-image-ref";
 import { cn } from "@/lib/utils";
+import { isInternalRegistryImage, workloadImageLabel } from "@/lib/workload-image-label";
+import type { DockerImageSource } from "@/types";
 
 const DIGEST_PREFIX = "sha256:";
 const SHORT_DIGEST_LENGTH = 12;
@@ -20,20 +22,32 @@ function splitImageReference(value: string): { name: string; digest: string | nu
 
 /**
  * An image reference on one line: the repository truncates with an ellipsis, a digest stays
- * visible in short form, and the full reference is in the tooltip and copied by the icon.
+ * visible in short form, and the full reference is in the tooltip and copied by the icon. An image
+ * Opfield built from Git shows its repository and commit (the shared workload label), and an internal
+ * copy the image it was copied from; the internal reference stays in the tooltip and the copy.
  */
 export function ImageReference({
   value,
+  source,
+  sourceImage,
   copyable = true,
   className,
 }: {
   value: string | null | undefined;
+  source?: DockerImageSource | null;
+  sourceImage?: string | null;
   copyable?: boolean;
   className?: string;
 }) {
   const reference = (value ?? "").trim();
   if (!reference || reference === "—") return <span className={className}>{reference || "—"}</span>;
-  const { name, digest } = splitImageReference(reference);
+  const label = workloadImageLabel({ image: reference, source, sourceImage });
+  const internal = isInternalRegistryImage(reference);
+  const shown = internal && sourceImage?.trim() ? sourceImage.trim() : reference;
+  const { name, digest } =
+    label.kind === "source" || label.kind === "internal"
+      ? { name: label.text, digest: null }
+      : splitImageReference(shown);
   return (
     <span
       className={cn(

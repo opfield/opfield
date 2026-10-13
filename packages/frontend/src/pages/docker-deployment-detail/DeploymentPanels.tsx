@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CodeEditor } from "@/components/ui/code-editor";
 import { resolveDeploymentImageReference } from "@/lib/docker-image-ref";
+import { deploymentImageOrigin, workloadImageLabel } from "@/lib/workload-image-label";
 import { api } from "@/services/api";
 import type { DockerDeployment, DockerDeploymentRelease, DockerDeploymentSlot } from "@/types";
 import { copyToClipboard, type InspectData, STATUS_BADGE } from "../docker-detail/helpers";
@@ -102,8 +103,24 @@ export function DeploymentOverview({
               </button>
             }
           />
-          <DetailRow label="Desired Image" value={<ImageReference value={desiredImage} />} />
-          <DetailRow label="Active Image" value={<ImageReference value={activeImage} />} />
+          <DetailRow
+            label="Desired Image"
+            value={
+              <ImageReference
+                value={desiredImage}
+                {...deploymentImageOrigin(deployment, desiredImage)}
+              />
+            }
+          />
+          <DetailRow
+            label="Active Image"
+            value={
+              <ImageReference
+                value={activeImage}
+                {...deploymentImageOrigin(deployment, activeImage)}
+              />
+            }
+          />
           <DetailRow label="Created" value={<RelativeTime value={deployment.createdAt} />} />
           <DetailRow label="Updated" value={<RelativeTime value={deployment.updatedAt} />} />
         </PanelShell>
@@ -310,7 +327,10 @@ export function DeploymentSlots({
                 >
                   <span className="pt-0.5 text-sm text-muted-foreground">Image</span>
                   <span className="min-w-0 max-w-full justify-self-end text-right text-sm">
-                    <ImageReference value={effectiveImage} />
+                    <ImageReference
+                      value={effectiveImage}
+                      {...deploymentImageOrigin(deployment, effectiveImage)}
+                    />
                   </span>
                 </div>
               </div>
@@ -348,7 +368,12 @@ function ReleaseRow({ release }: { release: DockerDeploymentRelease }) {
             {release.toSlot ?? "-"}
           </span>
         </div>
-        <p className="text-xs text-muted-foreground font-mono truncate">{release.image ?? "-"}</p>
+        <p
+          className="text-xs text-muted-foreground font-mono truncate"
+          title={workloadImageLabel(release).title}
+        >
+          {workloadImageLabel(release).kind === "none" ? "-" : workloadImageLabel(release).text}
+        </p>
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
         <Badge variant={statusVariant(release.status)} size="inline">

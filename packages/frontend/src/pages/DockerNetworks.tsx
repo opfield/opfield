@@ -44,6 +44,10 @@ import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
 import { managedLabel } from "@/lib/docker-managed-labels";
+import {
+  isOpfieldRuntimeContainerName,
+  OPFIELD_RUNTIME_CONTAINER_LABEL,
+} from "@/lib/docker-networks";
 import { canCreateDockerResourceOnNode, loadVisibleDockerNodes } from "@/lib/docker-node-access";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
 import { dockerContainerRoute } from "@/lib/resource-routes";
@@ -94,6 +98,25 @@ interface NetworkContainerRow {
   state: string;
   nodeId: string;
   nodeSlug: string;
+}
+
+/**
+ * Containers of a network from its inspect, when the container list matches none of them: Opfield's own runtime
+ * containers read "Opfield service" once instead of their internal names.
+ */
+function networkPreviewRows(
+  containers: Record<string, { name?: string; Name?: string } | undefined>,
+  nodeId: string,
+  nodeSlug: string
+): NetworkContainerRow[] {
+  const rows: NetworkContainerRow[] = [];
+  for (const id of Object.keys(containers)) {
+    const raw = containers[id]?.name ?? containers[id]?.Name ?? id.slice(0, 12);
+    const name = isOpfieldRuntimeContainerName(raw) ? OPFIELD_RUNTIME_CONTAINER_LABEL : raw;
+    if (name === OPFIELD_RUNTIME_CONTAINER_LABEL && rows.some((row) => row.name === name)) continue;
+    rows.push({ id, name, state: "", nodeId, nodeSlug });
+  }
+  return rows;
 }
 
 export function DockerNetworks({
@@ -210,13 +233,7 @@ export function DockerNetworks({
       try {
         const c = (net as any).containers ?? (net as any).Containers ?? {};
         const containerIds = Object.keys(c);
-        const previewRows = containerIds.map((id) => ({
-          id,
-          name: c[id]?.name ?? c[id]?.Name ?? id.slice(0, 12),
-          state: "",
-          nodeId: nid,
-          nodeSlug,
-        }));
+        const previewRows = networkPreviewRows(c, nid, nodeSlug);
         const containers = await api.listDockerContainers(nid);
         const matched = (containers ?? [])
           .filter((ct: any) => containerIds.includes(ct.id))
@@ -230,15 +247,7 @@ export function DockerNetworks({
         setDetailContainers(matched.length > 0 ? matched : previewRows);
       } catch {
         const c = (net as any).containers ?? (net as any).Containers ?? {};
-        setDetailContainers(
-          Object.keys(c).map((id) => ({
-            id,
-            name: c[id]?.name ?? c[id]?.Name ?? id.slice(0, 12),
-            state: "",
-            nodeId: nid,
-            nodeSlug,
-          }))
-        );
+        setDetailContainers(networkPreviewRows(c, nid, nodeSlug));
       } finally {
         setDetailContainersLoading(false);
       }
@@ -851,6 +860,8 @@ export function DockerNetworks({
                   loading={detailContainersLoading}
                   emptyMessage="No containers found on this network."
                   onRowClick={(container) => {
+                    // Opfield's own containers have no container page.
+                    if (container.name === OPFIELD_RUNTIME_CONTAINER_LABEL) return;
                     closeNetworkDetails();
                     const nodeSlug =
                       storeDockerNodes.find((node) => node.id === container.nodeId)?.slug ||

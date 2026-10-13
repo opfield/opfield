@@ -84,6 +84,7 @@ import {
 } from "@/lib/resource-routes";
 import { getReturnNavigationTarget } from "@/lib/return-navigation";
 import { scopeMatches } from "@/lib/scope-utils";
+import { workloadImageLabel } from "@/lib/workload-image-label";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { useDockerStore } from "@/stores/docker";
@@ -1086,10 +1087,18 @@ export function DockerComposeProjectDetail() {
         ];
       })
     : [];
-  const serviceDisplayImage = (serviceName: string, runtimeImage?: string) =>
-    availabilityActive
+  // A service built from Git runs an internal registry image: name its repository, like the container page.
+  const serviceDisplayImage = (serviceName: string, runtimeImage?: string) => {
+    const service = project.services.find((candidate) => candidate.name === serviceName);
+    const label = workloadImageLabel({
+      image: availabilityActive
       ? project.activeRevision?.normalizedModel.services[serviceName]?.image || runtimeImage
-      : runtimeImage;
+        : runtimeImage,
+      source: service?.source,
+      sourceImage: service?.sourceImage,
+    });
+    return label.kind === "none" ? "" : label.text;
+  };
   const availabilityMonitoringInstances = availabilityActive
     ? (availabilityPolicy?.placements ?? []).flatMap((placement) => {
         if (!placement.serving || placement.actualState !== "serving") return [];

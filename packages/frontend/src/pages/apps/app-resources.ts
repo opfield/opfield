@@ -14,6 +14,7 @@ import { syncPinnedContainerMeta } from "@/stores/pinned-containers";
 import type {
   ContainerLink,
   DatabaseConnection,
+  DockerComposeProject,
   DockerComposeProjectSummary,
   DockerContainer,
   ManagedDatabaseBinding,
@@ -24,11 +25,13 @@ import type {
 } from "@/types";
 
 export const COMPOSE_PROJECT_LABEL = "com.docker.compose.project";
-export const COMPOSE_SERVICE_LABEL = "com.docker.compose.service";
+
+/** A service of a member Compose project, as the project's own page lists it. */
+export type AppComposeService = DockerComposeProject["services"][number];
 
 export interface AppComposeRow {
   project: DockerComposeProjectSummary;
-  services: DockerContainer[];
+  services: AppComposeService[];
 }
 
 /** A member type the user's scopes do not show: the tab names it inline instead of failing. */
@@ -110,27 +113,20 @@ export async function loadAppCompute(
     (row) => row.app?.id === appId && !row.labels?.[COMPOSE_PROJECT_LABEL]
   );
   syncPinnedContainerMeta(containers);
-  // A project's service containers are not members themselves: read them from the project's nodes.
-  const projectNodes = [...new Set(memberProjects.map((project) => project.nodeId))];
-  const nodeRows = await Promise.all(
-    projectNodes.map((nodeId) => api.listDockerContainerSnapshots({ nodeId }).catch(() => []))
+  // A project's services are not members themselves, and container lists leave Compose containers
+  // out: read them from each project, the same services its own page lists.
+  const compose = await Promise.all(
+    memberProjects.map(async (project) => ({
+      project,
+      services: [
+        ...((await api
+          .getDockerComposeProject(project.nodeId, project.id)
+          .then((detail) => detail.services)
+          .catch(() => [])) ?? []),
+      ].sort((a, b) => a.name.localeCompare(b.name)),
+    }))
   );
-  const snapshots = nodeRows.flat();
-  const compose = memberProjects.map((project) => ({
-    project,
-    services: snapshots
-      .filter(
-        (row) =>
-          (row.nodeId ?? row._nodeId) === project.nodeId &&
-          row.labels?.[COMPOSE_PROJECT_LABEL] === project.name
-      )
-      .sort((a, b) => serviceName(a).localeCompare(serviceName(b))),
-  }));
   return { containers, compose, hidden };
-}
-
-export function serviceName(container: DockerContainer): string {
-  return container.labels?.[COMPOSE_SERVICE_LABEL] ?? container.name;
 }
 
 /** Databases and storage of the app; a family the license plan lacks or the user may not view is not requested. */
@@ -223,7 +219,7 @@ export async function loadAppNetwork(
   for (const { project, services } of compute.compose) {
     if (!project.app) continue;
     for (const service of services) {
-      const name = serviceName(service);
+      const name = service.name;
       workloads.push({
         nodeId: project.nodeId,
         type: "compose_service",
@@ -256,8 +252,13 @@ export async function loadAppNetwork(
     id: `link:${link.id}`,
     environmentId: workload.environmentId,
     from: workload.label,
-    to: link.alias || link.target.resourceId,
-    detail: `Container link · port ${link.targetPort}`,
+    // The target's name, never its id: a member by its label, a container by its name, else the alias.
+    to:
+      byKey.get(workloadKey(link.target.nodeId, link.target.type, link.target.resourceId))?.label ??
+      (link.target.type === "container" ? link.target.resourceId : link.alias || "Linked workload"),
+    detail: link.alias
+      ? `Container link · ${link.alias}:${link.targetPort}`
+      : `Container link · port ${link.targetPort}`,
     status: link.status,
     tone: LINK_TONE[link.status] ?? "secondary",
     route: workload.route,

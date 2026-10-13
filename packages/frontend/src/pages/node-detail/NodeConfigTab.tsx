@@ -121,6 +121,7 @@ export function NodeConfigTab({ nodeId, nodeStatus, actionLocked = false }: Node
     <PanelShell
       title="Nginx Config"
       description="Edit and validate the node nginx configuration"
+      dirty={canManage && hasChanges}
       actions={
         <div className="flex items-center gap-2">
           <Button

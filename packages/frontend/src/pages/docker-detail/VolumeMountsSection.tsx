@@ -14,6 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { dockerVolumeLabel, isAnonymousVolumeName } from "@/lib/docker-volume-label";
+import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 
 export interface MountEntry {
@@ -113,7 +115,12 @@ export function VolumeMountsSection({
     };
   }, [nodeId]);
   const volumeOptions = useMemo<ComboboxOption[]>(
-    () => managedVolumeNames.map((name) => ({ value: name, label: name })),
+    () =>
+      managedVolumeNames.map((name) => ({
+        value: name,
+        label: dockerVolumeLabel(name).text,
+        keywords: name,
+      })),
     [managedVolumeNames]
   );
   const addMount = () =>
@@ -166,20 +173,27 @@ export function VolumeMountsSection({
                     key={i}
                     className={`grid ${canEdit ? "grid-cols-[1fr_1fr_100px_36px]" : "grid-cols-[1fr_1fr_100px]"} border-b border-border last:border-b-0`}
                   >
-                    <Combobox
-                      freeText
-                      inputClassName={inputCell}
-                      value={m.hostPath || m.name}
-                      options={volumeOptions}
-                      onValueChange={(value) => {
-                        updateMount(i, "name", value);
-                        updateMount(i, "hostPath", "");
-                      }}
-                      placeholder="Select or create a volume"
-                      searchPlaceholder="Search or enter a volume name..."
-                      emptyMessage="Enter a name to create a volume."
-                      disabled={!canEdit || legacy}
-                    />
+                    {!m.hostPath && isAnonymousVolumeName(m.name) ? (
+                      // An anonymous volume keeps its mount: a label instead of the 64-character name.
+                      <div className={cn(inputCell, "flex items-center truncate")} title={m.name}>
+                        {dockerVolumeLabel(m.name).text}
+                      </div>
+                    ) : (
+                      <Combobox
+                        freeText
+                        inputClassName={inputCell}
+                        value={m.hostPath || m.name}
+                        options={volumeOptions}
+                        onValueChange={(value) => {
+                          updateMount(i, "name", value);
+                          updateMount(i, "hostPath", "");
+                        }}
+                        placeholder="Select or create a volume"
+                        searchPlaceholder="Search or enter a volume name..."
+                        emptyMessage="Enter a name to create a volume."
+                        disabled={!canEdit || legacy}
+                      />
+                    )}
                     <div className="border-l border-border">
                       <Input
                         className={inputCell}

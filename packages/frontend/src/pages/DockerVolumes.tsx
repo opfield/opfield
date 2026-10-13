@@ -52,6 +52,11 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
 import { canCreateDockerResourceOnNode, loadVisibleDockerNodes } from "@/lib/docker-node-access";
 import { canEditDockerVolume } from "@/lib/docker-volume-access";
+import {
+  anonymousVolumeOwner,
+  dockerVolumeLabel,
+  isAnonymousVolumeName,
+} from "@/lib/docker-volume-label";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
 import { dockerVolumeRoute } from "@/lib/resource-routes";
 import { createReturnNavigationState } from "@/lib/return-navigation";
@@ -357,7 +362,13 @@ export function DockerVolumes({
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex min-w-0 items-center gap-2">
-                <TruncateStart text={v.name} className="text-sm font-medium" />
+                {isAnonymousVolumeName(v.name) ? (
+                  <span className="truncate text-sm font-medium" title={v.name}>
+                    {dockerVolumeLabel(v.name, anonymousVolumeOwner(v.usedBy)).text}
+                  </span>
+                ) : (
+                  <TruncateStart text={v.name} className="text-sm font-medium" />
+                )}
                 {v.managementState === "legacy" && (
                   <Badge variant="warning" size="inline">
                     Legacy

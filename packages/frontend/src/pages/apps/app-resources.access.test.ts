@@ -5,6 +5,7 @@ const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
 const api = vi.hoisted(() => ({
   listDockerContainerSnapshots: vi.fn(),
   listDockerComposeProjects: vi.fn(),
+  getDockerComposeProject: vi.fn(),
   listAppRoutes: vi.fn(),
   listContainerLinks: vi.fn(),
   listManagedDatabases: vi.fn(),
@@ -53,6 +54,53 @@ describe("app member loading by scope", () => {
     const compute = await loadAppCompute(APP);
     expect(compute.containers).toHaveLength(1);
     expect(compute.hidden.map((entry) => entry.scope)).toEqual(["docker:compose:view"]);
+  });
+
+  it("lists each member Compose project's services as its own page does", async () => {
+    const project = {
+      id: "p1",
+      name: "shop",
+      nodeId: "n1",
+      _nodeSlug: "edge-1",
+      app: { id: APP, environmentId: "env-1" },
+    };
+    const service = (name: string, extra: Record<string, unknown> = {}) => ({
+      name,
+      image: `${name}:1`,
+      state: "running",
+      health: "healthy",
+      containerIds: [`${name}-id`],
+      ...extra,
+    });
+    api.listDockerComposeProjects.mockResolvedValue([
+      project,
+      { ...project, id: "p2", app: { id: "other", environmentId: "env-9" } },
+    ]);
+    api.getDockerComposeProject.mockResolvedValue({
+      services: [
+        service("worker", {
+          image: `127.0.0.1:5443/gateway/builds/x@sha256:${"a".repeat(64)}`,
+          source: { repositoryFullPath: "acme/shop", branch: "main", commitSha: "0123456789ab" },
+        }),
+        service("api"),
+      ],
+    });
+    const compute = await loadAppCompute(APP);
+    // Only the member project is read; the container list never carries Compose services.
+    expect(api.getDockerComposeProject).toHaveBeenCalledTimes(1);
+    expect(api.getDockerComposeProject).toHaveBeenCalledWith("n1", "p1");
+    expect(compute.compose).toHaveLength(1);
+    expect(compute.compose[0]!.services.map((row) => row.name)).toEqual(["api", "worker"]);
+    expect(compute.compose[0]!.services[1]!.source?.repositoryFullPath).toBe("acme/shop");
+  });
+
+  it("keeps a member Compose project whose services cannot be read", async () => {
+    api.listDockerComposeProjects.mockResolvedValue([
+      { id: "p1", name: "shop", nodeId: "n1", app: { id: APP, environmentId: "env-1" } },
+    ]);
+    api.getDockerComposeProject.mockRejectedValue(new Error("node offline"));
+    const compute = await loadAppCompute(APP);
+    expect(compute.compose).toEqual([expect.objectContaining({ services: [] })]);
   });
 
   it("still fails on a real error", async () => {

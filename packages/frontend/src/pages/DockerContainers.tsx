@@ -62,13 +62,13 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { matchesDockerContainerStatus } from "@/lib/docker-container-filters";
-import { formatDisplayImageRef } from "@/lib/docker-image-ref";
 import { canCreateDockerResourceOnNode, loadVisibleDockerNodes } from "@/lib/docker-node-access";
 import { collectFolderTreeIds, findFolderTreeNode } from "@/lib/folder-tree";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
 import { dockerContainerRoute, dockerDeploymentRoute } from "@/lib/resource-routes";
 import { createReturnNavigationState } from "@/lib/return-navigation";
 import { canCreateInFolder } from "@/lib/scope-utils";
+import { workloadImageLabel } from "@/lib/workload-image-label";
 import { api } from "@/services/api";
 import { isPendingContainerOperation } from "@/services/api-docker";
 import { useAuthStore } from "@/stores/auth";
@@ -438,6 +438,7 @@ export function DockerContainers({
         (c) =>
           containerDisplayName(c.name).toLowerCase().includes(q) ||
           c.image.toLowerCase().includes(q) ||
+          workloadImageLabel(c).text.toLowerCase().includes(q) ||
           c.id.toLowerCase().includes(q)
       );
     }
@@ -860,13 +861,14 @@ export function DockerContainers({
       width: showNodeColumn ? "22%" : "28%",
       align: "right",
       cellContentClassName: "text-sm text-muted-foreground",
-      renderCell: (container) => (
-        <Badge variant="secondary" className="max-w-full font-mono">
-          {container.pendingSourceBuild
-            ? "Awaiting build"
-            : formatDisplayImageRef(container.image ?? "")}
+      renderCell: (container) => {
+        const image = workloadImageLabel(container);
+        return (
+          <Badge variant="secondary" className="max-w-full font-mono" title={image.title}>
+            {image.text}
         </Badge>
-      ),
+        );
+      },
     },
     ...(showNodeColumn
       ? [

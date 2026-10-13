@@ -461,7 +461,7 @@ export function DockerImages({
         align: "right" as const,
         renderCell: (img) => {
           const tags = img.repoTags ?? [];
-          const tag = tags.length > 0 ? tags[0] : "<none>:<none>";
+          const tag = tags.length > 0 ? formatDisplayImageRef(tags[0]) : "<none>:<none>";
           const id = img.id ?? "";
           const containerCount = img.containers ?? -1;
           const canDelete = containerCount === 0;
@@ -827,7 +827,9 @@ export function DockerImages({
           </DialogHeader>
           <DialogDescription>
             <span className="font-mono text-xs break-all">
-              {detailsImage?.repoTags?.[0] ?? detailsImage?.id ?? ""}
+              {detailsImage?.repoTags?.[0]
+                ? formatDisplayImageRef(detailsImage.repoTags[0])
+                : (detailsImage?.id ?? "")}
             </span>
           </DialogDescription>
           {detailsImage ? (
@@ -854,7 +856,10 @@ export function DockerImages({
                       : `${detailsImage.containers} containers`,
                   ],
                   ["Tags", detailsImage.repoTags?.map(formatDisplayImageRef).join(", ") || "-"],
-                  ["Digests", detailsImage.repoDigests?.join(", ") || "-"],
+                  [
+                    "Digests",
+                    detailsImage.repoDigests?.map(formatDisplayImageRef).join(", ") || "-",
+                  ],
                 ].map(([label, value, title]) => (
                   <div
                     key={label}

@@ -20,10 +20,13 @@ const FIELD_TYPES = ["string", "number", "boolean", "datetime", "json"] as const
 export function LoggingSchemaEditor({
   schema,
   canEdit,
+  dirty = false,
   onSave,
 }: {
   schema: { fieldSchema: LoggingFieldDefinition[]; schemaMode: LoggingSchemaMode };
   canEdit: boolean;
+  /** Unsaved field changes: the warning border of a changed block. */
+  dirty?: boolean;
   onSave: (patch: {
     fieldSchema?: LoggingFieldDefinition[];
     schemaMode?: LoggingSchemaMode;
@@ -75,6 +78,7 @@ export function LoggingSchemaEditor({
     <PanelShell
       title="Fields"
       description="Define accepted labels and typed fields for attached environments"
+      dirty={dirty}
       actions={
         canEdit ? (
           <Button

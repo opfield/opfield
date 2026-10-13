@@ -89,6 +89,12 @@ export function LoggingSchemaDetail({
     }
   };
   const dirty = isLoggingSchemaDirty(schema, draft);
+  // Per block, for the warning border of a changed panel.
+  const metadataDirty =
+    (draft.name ?? "") !== schema.name || (draft.description ?? null) !== schema.description;
+  const behaviorDirty = (draft.schemaMode ?? schema.schemaMode) !== schema.schemaMode;
+  const fieldsDirty =
+    JSON.stringify(draft.fieldSchema ?? schema.fieldSchema) !== JSON.stringify(schema.fieldSchema);
   const headerActions: ResponsiveHeaderAction[] = [
     ...(canEdit
       ? [
@@ -155,7 +161,11 @@ export function LoggingSchemaDetail({
         />
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <SettingsPanel title="Metadata" description="Reusable schema identity">
+          <SettingsPanel
+            title="Metadata"
+            description="Reusable schema identity"
+            dirty={canEdit && metadataDirty}
+          >
             <SettingsTextRow
               label="Name"
               description="Display name used in schema lists"
@@ -172,7 +182,11 @@ export function LoggingSchemaDetail({
             />
           </SettingsPanel>
 
-          <SettingsPanel title="Behavior" description="Validation mode for attached environments">
+          <SettingsPanel
+            title="Behavior"
+            description="Validation mode for attached environments"
+            dirty={canEdit && behaviorDirty}
+          >
             <SettingsControlRow
               title="Mode"
               description="Unknown labels and fields are handled during ingest"
@@ -203,6 +217,7 @@ export function LoggingSchemaDetail({
             fieldSchema: draft.fieldSchema ?? schema.fieldSchema,
           }}
           canEdit={canEdit}
+          dirty={canEdit && fieldsDirty}
           onSave={async (patch) => setDraft((current) => ({ ...current, ...patch }))}
         />
       </div>
@@ -460,6 +475,15 @@ function LoggingEnvironmentSettings({
 }) {
   const selectedSchemaId = draft.schemaId === undefined ? environment.schemaId : draft.schemaId;
   const selectedSchema = schemas.find((schema) => schema.id === selectedSchemaId) ?? null;
+  // The same comparisons as isLoggingEnvironmentSettingsDirty, per block.
+  const schemaBlockDirty =
+    (draft.schemaId === undefined ? environment.schemaId : draft.schemaId) !==
+      environment.schemaId || (draft.enabled ?? environment.enabled) !== environment.enabled;
+  const ingestBlockDirty = isLoggingEnvironmentSettingsDirty(environment, {
+    ...draft,
+    schemaId: environment.schemaId,
+    enabled: environment.enabled,
+  });
   const effectiveSchemaMode = selectedSchema?.schemaMode ?? "loose";
 
   return (
@@ -469,6 +493,7 @@ function LoggingEnvironmentSettings({
           title="Schema"
           description="Reusable validation attached to this environment"
           icon={<Braces className="h-4 w-4" />}
+          dirty={canEdit && schemaBlockDirty}
         >
           <SettingsControlRow
             title="Attached schema"
@@ -520,6 +545,7 @@ function LoggingEnvironmentSettings({
           title="Ingest"
           description="Environment-specific retention and throttles"
           icon={<Gauge className="h-4 w-4" />}
+          dirty={canEdit && ingestBlockDirty}
         >
           <SettingsNumberRow
             label="Retention days"
@@ -571,11 +597,14 @@ function SettingsPanel({
   title,
   description,
   icon,
+  dirty = false,
   children,
 }: {
   title: string;
   description: string;
   icon?: ReactNode;
+  /** Unsaved edits in this block: the warning border of a changed panel. */
+  dirty?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -583,6 +612,7 @@ function SettingsPanel({
       title={title}
       description={description}
       icon={icon}
+      dirty={dirty}
       bodyClassName="divide-y divide-border -mb-px [&>*:last-child]:border-b [&>*:last-child]:border-border"
     >
       {children}

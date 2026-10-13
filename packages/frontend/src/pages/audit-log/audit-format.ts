@@ -1,3 +1,4 @@
+import { isInternalRegistryImage, workloadImageLabel } from "@/lib/workload-image-label";
 import type { AuditLogEntry } from "@/types";
 import { formatAuditResourceType, getAuditActionLabel } from "./audit-action-labels";
 
@@ -68,17 +69,29 @@ export function getAuditResourceName(entry: AuditLogEntry): string {
  * "Type / name" for an audit entry's resource; the title adds the ID when a name hides it. The cloud link is named
  * after its Opfield account, never its agent ID.
  */
-export function getAuditResourceDisplay(entry: AuditLogEntry): { label: string; title: string } {
+/**
+ * Label and hover text of the entry's resource. The audit log shows the ID when no name is known; an activity
+ * feed (`feed`) never does: it shows the type alone, keeps the ID in the hover text, and names a Git-built image
+ * instead of its internal registry reference.
+ */
+export function getAuditResourceDisplay(
+  entry: AuditLogEntry,
+  options: { feed?: boolean } = {}
+): { label: string; title: string } {
   if (entry.resourceType === "cloud-link") {
     const label = entry.resourceName || "Opfield account";
     return { label, title: entry.resourceId ? `${label} (${entry.resourceId})` : label };
   }
-  const resourceName = entry.resourceName ?? getAuditResourceNameFromDetails(entry.details);
-  const resourceValue = resourceName ?? entry.resourceId;
+  const rawName = entry.resourceName ?? getAuditResourceNameFromDetails(entry.details);
+  const resourceName =
+    options.feed && rawName && isInternalRegistryImage(rawName)
+      ? workloadImageLabel({ image: rawName }).text
+      : rawName;
+  const resourceValue = resourceName ?? (options.feed ? null : entry.resourceId);
   const resourceType = formatAuditResourceType(entry.resourceType);
   const label = resourceValue ? `${resourceType} / ${resourceValue}` : resourceType;
   const title =
-    resourceName && entry.resourceId && resourceName !== entry.resourceId
+    entry.resourceId && resourceValue !== entry.resourceId
       ? `${label} (${entry.resourceId})`
       : label;
   return { label, title };

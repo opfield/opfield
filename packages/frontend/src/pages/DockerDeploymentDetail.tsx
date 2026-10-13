@@ -49,6 +49,7 @@ import {
 } from "@/lib/docker-migration-navigation";
 import { dockerDeploymentRoute } from "@/lib/resource-routes";
 import { getReturnNavigationTarget, preserveReturnNavigationState } from "@/lib/return-navigation";
+import { deploymentImageOrigin, shortCommitSha } from "@/lib/workload-image-label";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { useDockerStore } from "@/stores/docker";
@@ -1226,7 +1227,7 @@ export function DockerDeploymentDetail({
                   <>
                     <span aria-hidden="true">&middot;</span>
                     <span className="shrink-0 font-mono">
-                      {sourceIdentity.deployedCommitSha.slice(0, 10)}
+                      {shortCommitSha(sourceIdentity.deployedCommitSha)}
                     </span>
                   </>
                 ) : null}
@@ -1239,7 +1240,12 @@ export function DockerDeploymentDetail({
               </span>
             ) : (
               <span className="flex min-w-0 items-center gap-1.5">
-                <ImageReference value={displayImage} copyable={false} className="justify-start" />
+                <ImageReference
+                  value={displayImage}
+                  {...deploymentImageOrigin(deployment, displayImage)}
+                  copyable={false}
+                  className="justify-start"
+                />
                 <span className="shrink-0">&middot; active {deployment.activeSlot}</span>
                 {deployment.app ? (
                   <span className="shrink-0">

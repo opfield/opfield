@@ -2,6 +2,7 @@ import { ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PanelShell } from "@/components/common/PanelShell";
 import { useContentLoading } from "@/components/common/reveal-gate";
+import { dockerVolumeLabel } from "@/lib/docker-volume-label";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
 import type { DockerVolumeMetrics } from "@/types";
@@ -96,11 +97,6 @@ function mountedVolumes(
   return [...volumes.values()];
 }
 
-function volumeLabel(name: string) {
-  // Docker names anonymous volumes with 64 hex characters.
-  return /^[a-f0-9]{64}$/i.test(name) ? name.slice(0, 12) : name;
-}
-
 /** Disk usage of the mounted volumes, shown exactly as on the volume detail page. */
 function MountedVolumesSection({ volumes }: { volumes: MountedVolume[] }) {
   // Volume and node names never contain "|" or a newline.
@@ -189,7 +185,7 @@ function MountedVolumesSection({ volumes }: { volumes: MountedVolume[] }) {
         {visible.map((volume) => (
           <VolumeSpaceStatCard
             key={volume.key}
-            label={volumeLabel(volume.name)}
+            label={dockerVolumeLabel(volume.name).text}
             metrics={metricsByKey[volume.key] ?? null}
             history={historyByKey[volume.key] ?? []}
           />
