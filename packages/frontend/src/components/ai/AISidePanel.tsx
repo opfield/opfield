@@ -876,20 +876,21 @@ export function AIChatSurface({ active = true, onClose, onEnterLiteMode }: AICha
                   transition={{ duration: 0.16, ease: "easeOut" }}
                   className="overflow-hidden"
                 >
-              <div className="flex w-full items-center justify-between gap-2 border border-x-0 border-b-0 border-border bg-muted/40 px-2.5 text-xs text-muted-foreground">
+                  <div className="flex w-full items-center justify-between gap-2 border border-x-0 border-b-0 border-border bg-muted/40 py-1 pl-3 pr-1.5 text-sm text-muted-foreground">
                     <span className="min-w-0 truncate">Viewing {viewing}</span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setExcludedResourceContextKey(resourceContextKey)}
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      className="h-6 w-6"
+                      onClick={() => setExcludedResourceContextKey(resourceContextKey)}
                       title="Leave this page out of the next request"
                       aria-label="Leave this page out of the next request"
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </motion.div>
-            )}
+              )}
             </AnimatePresence>
             <AIQueuedMessages
               items={queuedInputs}
