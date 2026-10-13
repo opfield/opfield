@@ -71,16 +71,12 @@ export const RELAY_LEGACY_HOST_NAMES_HINT =
 function daemonConfigPath(node: NodeConfigPathSource | null | undefined): string | undefined {
   if (!node) return undefined;
   if (node.type === "relay") {
-    // What the relay reports wins over its version: a relay of 2.12.1 that runs as its own user keeps its old paths
-    // (and the old config file) until its installer runs again. The old path also resolves while a moved relay still
-    // keeps the old link, so it is right whenever any old path is reported.
-    const legacyNames = (node.liveHealthReport ?? node.lastHealthReport)?.legacyNames;
-    const legacyPaths = legacyNames?.paths;
-    if (
-      (typeof legacyPaths === "number" && legacyPaths > 0) ||
-      beforeOpfieldRelayLayout(node.daemonVersion)
-    )
-      return LEGACY_RELAY_CONFIG_PATH;
+    if (beforeOpfieldRelayLayout(node.daemonVersion)) return LEGACY_RELAY_CONFIG_PATH;
+    // A relay of 2.12.1 that reports old host paths may still read its old config file (a relay running as its own
+    // user keeps it until its installer runs again), or only keep an unrelated old path; the count does not say which.
+    const legacyPaths = (node.liveHealthReport ?? node.lastHealthReport)?.legacyNames?.paths;
+    if (typeof legacyPaths === "number" && legacyPaths > 0)
+      return `${DAEMON_CONFIG_PATHS.relay}, or ${LEGACY_RELAY_CONFIG_PATH} while the relay keeps its previous paths`;
   }
   return DAEMON_CONFIG_PATHS[node.type];
 }

@@ -529,6 +529,18 @@ nginx_service_pid_file() {
     printf '%s\n' "$pid_file"
 }
 
+# The directory of nginx's pid file. Its service creates it when it starts, so on a host whose nginx has not run since
+# boot (an OpenRC /run/nginx, a tmpfs /run) nginx -t fails before the service ever starts.
+ensure_nginx_pid_directory() {
+    [[ "$DRY_RUN" -eq 0 ]] || return 0
+    local pid_file pid_dir
+    pid_file=$(nginx -T 2>/dev/null | sed -nE 's/^[[:space:]]*pid[[:space:]]+([^;[:space:]]+)[[:space:]]*;.*/\1/p' | tail -n 1 || true)
+    [[ "$pid_file" =~ ^/[A-Za-z0-9._/-]+$ ]] || pid_file=$(nginx_service_pid_file)
+    pid_dir="${pid_file%/*}"
+    [[ -n "$pid_dir" && "$pid_dir" != /run && "$pid_dir" != /var/run && ! -e "$pid_dir" ]] || return 0
+    install -d -m 0755 "$pid_dir"
+}
+
 backup_if_exists() {
     local file="$1"
     BACKUP_PATH=""
@@ -2702,6 +2714,7 @@ configure_nginx() {
     start_nginx_after_service_repair
     ensure_nginx_service_limit
     ensure_nginx_runtime_directory_preserved
+    ensure_nginx_pid_directory
 
     if nginx -t >> "$LOG_FILE" 2>&1; then
         verify_nginx_server_tokens
@@ -2862,6 +2875,11 @@ create_directories() {
     mkdir -p /var/www/acme-challenge/.well-known/acme-challenge
     mkdir -p /etc/nginx-daemon/certs
     mkdir -p /var/lib/nginx-daemon
+    # A fresh host runs with the Opfield names from the start; recorded now, so a re-run after a failed first run does
+    # not mistake the state directory it left for a node from before the rename.
+    if [[ "$NGINX_HAD_LEGACY_NAMES" -eq 0 && ! -e /var/lib/nginx-daemon/opfield-names ]]; then
+        : > /var/lib/nginx-daemon/opfield-names
+    fi
     grant_daemon_paths_to_run_user
 
     ok "Directories created"

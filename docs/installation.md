@@ -55,6 +55,8 @@ To install an exact release instead of the newest stable one, for example to tes
 curl -fsSL https://get.opfield.dev | bash -s -- --version v2.12.1-rc.5
 ```
 
+`get.opfield.dev` serves the installer of the newest stable release, which takes `--version` from 2.12.1 on. To install a release candidate before that, run the installer of the release itself: `curl -fsSL https://get.opfield.dev/gateway/releases/download/v2.12.1-rc.5/install.sh | bash -s -- --version v2.12.1-rc.5`.
+
 The installer puts Opfield in `/opt/opfield` (Compose project `opfield`). Supported options are `--install-dir`, `--image`, `--source-dir`, `--http`, `--https`, `--dry-run`, `--version`, and `--restore` (with `--public-url` and `--grpc-target`). `--source-dir` builds a fresh test installation from a local Opfield checkout instead of discovering and pulling a release; it cannot update an existing installation. A source build needs 8 GB RAM, or swap on a 4 GB host. `--dry-run` verifies the selected signed release and renders the planned flow without creating files, building or pulling images, or starting services. Run with `--help` for syntax. The installer has no domain, nginx, Cloudflare, OIDC, SMTP, or ClickHouse prompts. Its settings can also come from the environment (`OPFIELD_INSTALL_DIR`, `OPFIELD_IMAGE`, `OPFIELD_WEB_TRANSPORT`, `OPFIELD_INSTALL_VERSION`, `OPFIELD_RESTORE_PASSPHRASE`); the `GATEWAY_*` names of earlier releases still work.
 
 ## Browser Setup Wizard

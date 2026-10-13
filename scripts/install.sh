@@ -604,7 +604,7 @@ verify_signed_relay() {
   min_gateway_version="$(json_string_field "$payload_file" minGatewayVersion)"
   secure_connector_image_ref="$(json_string_field "$payload_file" secureLinkConnectorImage)"
   if [[ "$kind" != "relay-image" || "$tag" != "$relay_tag" || "$relay_tag" != "${manifest_version}-relay" ||
-    ! "$manifest_version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ || "$image" != "${IMAGE}/relay" ||
+    ! "$manifest_version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ || "$image" != "${IMAGE}/relay" ||
     ! "$digest" =~ ^sha256:[a-f0-9]{64}$ || "$image_ref" != "${IMAGE}/relay@${digest}" || "$protocol_major" != "1" ]]; then
     rm -rf "$tmp_dir"
     die "Signed relay manifest does not match a compatible Relay image."

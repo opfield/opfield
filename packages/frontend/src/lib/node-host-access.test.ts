@@ -91,7 +91,7 @@ describe("node host access", () => {
     );
   });
 
-  it("names the old config file of a 2.12.1 relay that reports its old host paths", () => {
+  it("names both config files for a 2.12.1 relay that reports old host paths", () => {
     const relay = (legacyNames: Record<string, number> | undefined, live = true) => ({
       ...node("relay", {}),
       daemonVersion: "v2.12.1-rc.3",
@@ -99,12 +99,12 @@ describe("node host access", () => {
         ? { liveHealthReport: { legacyNames }, lastHealthReport: null }
         : { lastHealthReport: { legacyNames } }),
     });
+    const both =
+      "(/etc/opfield-relay/config.yaml, or /etc/gateway-relay-supervisor/config.yaml while the relay keeps its previous paths)";
     expect(
       nodeHostFeatureDisabledMessage(relay({ paths: 4, services: 1, config: 1 }), "console")
-    ).toContain("(/etc/gateway-relay-supervisor/config.yaml)");
-    expect(nodeHostFeatureDisabledMessage(relay({ paths: 2 }, false), "files")).toContain(
-      "(/etc/gateway-relay-supervisor/config.yaml)"
-    );
+    ).toContain(both);
+    expect(nodeHostFeatureDisabledMessage(relay({ paths: 2 }, false), "files")).toContain(both);
     // Only the control section of the config file is old: the file itself has moved.
     expect(nodeHostFeatureDisabledMessage(relay({ config: 1 }), "console")).toContain(
       "(/etc/opfield-relay/config.yaml)"
