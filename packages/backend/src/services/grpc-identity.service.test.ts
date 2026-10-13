@@ -146,12 +146,12 @@ describe('GrpcIdentityService', () => {
     expect(overlapped).toBe(false);
   });
 
-  it('accepts a custom gRPC TLS certificate issued by the Gateway system CA', async () => {
+  it('accepts a custom gRPC TLS certificate issued by the Opfield system CA', async () => {
     const { service, certPath, keyPath } = customService(pair.certPem, pair.keyPem, pair.caPem);
     await expect(service.resolve()).resolves.toMatchObject({ certPath, keyPath });
   });
 
-  it('rejects a custom gRPC TLS certificate not issued by the Gateway system CA', async () => {
+  it('rejects a custom gRPC TLS certificate not issued by the Opfield system CA', async () => {
     const { service } = customService(pair.certPem, pair.keyPem, foreignPair.caPem);
     await expect(service.resolve()).rejects.toThrow('certificate is not signed by the Opfield system CA');
   });

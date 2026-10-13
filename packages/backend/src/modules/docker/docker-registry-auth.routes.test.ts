@@ -32,7 +32,7 @@ describe('docker registry external token request parsing', () => {
     expect(assertExternalAccessEntitled).not.toHaveBeenCalled();
   });
 
-  it('accepts a Gateway API token only as the Basic password', () => {
+  it('accepts an Opfield API token only as the Basic password', () => {
     expect(__testOnly.basicPassword(`Basic ${Buffer.from('gateway:gw_secret').toString('base64')}`)).toBe('gw_secret');
     expect(__testOnly.basicPassword(`Basic ${Buffer.from('gateway:gwo_oauth').toString('base64')}`)).toBeNull();
     expect(__testOnly.basicPassword('Bearer gw_secret')).toBeNull();

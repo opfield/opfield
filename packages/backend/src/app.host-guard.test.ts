@@ -14,13 +14,13 @@ import { container, TOKENS } from './container.js';
 
 beforeAll(() => {
   process.env.NODE_ENV = 'test';
-  process.env.APP_URL = 'https://gateway.example.com';
+  process.env.APP_URL = 'https://opfield.example.com';
   process.env.DATABASE_URL ||= 'http://localhost/db';
   process.env.REDIS_URL ||= 'redis://localhost:6379';
   process.env.OIDC_ISSUER ||= 'http://localhost/oidc';
   process.env.OIDC_CLIENT_ID ||= 'test';
   process.env.OIDC_CLIENT_SECRET ||= 'test';
-  process.env.OIDC_REDIRECT_URI ||= 'https://gateway.example.com/auth/callback';
+  process.env.OIDC_REDIRECT_URI ||= 'https://opfield.example.com/auth/callback';
   process.env.PKI_MASTER_KEY ||= '0000000000000000000000000000000000000000000000000000000000000000';
 });
 
@@ -28,8 +28,8 @@ afterEach(() => container.reset());
 
 describe('normalizeRequestHost', () => {
   it.each([
-    ['Gateway.Example.COM:443', 'gateway.example.com'],
-    ['gateway.example.com.', 'gateway.example.com'],
+    ['Opfield.Example.COM:443', 'opfield.example.com'],
+    ['opfield.example.com.', 'opfield.example.com'],
     ['[::1]:3000', '::1'],
     ['127.0.0.1:3000', '127.0.0.1'],
   ])('normalizes %s', (input, expected) => {
@@ -66,18 +66,18 @@ describe('isLocalMachineHost', () => {
     'fd00::11',
     '203.0.113.197',
     '8.8.8.8',
-    'gateway.example.com',
+    'opfield.example.com',
   ])('rejects non-local or public address %s', (host) => expect(isLocalMachineHost(host, localAddresses)).toBe(false));
 });
 
 describe('WebSocket origin guard', () => {
   const localAddresses = new Set(['192.168.50.10', 'fd00::10']);
 
-  it('allows the canonical Gateway origin', () => {
-    expect(isAllowedWebSocketOrigin('https://gateway.example.com')).toBe(true);
+  it('allows the canonical Opfield origin', () => {
+    expect(isAllowedWebSocketOrigin('https://opfield.example.com')).toBe(true);
   });
 
-  it('allows a direct local Gateway origin with the matching host and port', () => {
+  it('allows a direct local Opfield origin with the matching host and port', () => {
     const directOrigin = getDirectLocalRequestOrigin(
       'http://192.168.50.10:3000/api/events',
       '192.168.50.10:3000',
@@ -104,15 +104,15 @@ describe('WebSocket origin guard', () => {
 
   it('does not create a direct origin for a non-local target host', () => {
     expect(
-      getDirectLocalRequestOrigin('https://gateway.example.com/api/events', 'gateway.example.com', localAddresses)
+      getDirectLocalRequestOrigin('https://opfield.example.com/api/events', 'opfield.example.com', localAddresses)
     ).toBeNull();
   });
 });
 
-describe('Gateway Host guard', () => {
+describe('Opfield Host guard', () => {
   it('allows the canonical APP_URL host', async () => {
     container.registerInstance(TOKENS.RedisClient, { ping: vi.fn().mockResolvedValue('PONG') } as any);
-    const response = await createApp().app.request('/health', { headers: { host: 'Gateway.Example.com:443' } });
+    const response = await createApp().app.request('/health', { headers: { host: 'Opfield.Example.com:443' } });
     expect(response.status).toBe(200);
   });
 
@@ -143,7 +143,7 @@ describe('Gateway Host guard', () => {
     '/api/ai/ws',
   ])('returns the branded 404 before routing %s for a legacy host', async (path) => {
     const response = await createApp().app.request(path, {
-      headers: { host: 'legacy.example.com', 'x-forwarded-host': 'gateway.example.com' },
+      headers: { host: 'legacy.example.com', 'x-forwarded-host': 'opfield.example.com' },
     });
     expect(response.status).toBe(404);
     expect(await response.text()).toBe(OPFIELD_NOT_FOUND_HTML);

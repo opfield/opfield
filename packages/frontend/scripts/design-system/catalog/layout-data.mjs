@@ -589,7 +589,7 @@ File paths, image references and long hostnames in narrow cells. The full text i
 \`text\` and span props.
 `,
     preview: () => `
-var PATH = "/var/lib/gateway/volumes/production/postgres/data/pg_wal/000000010000000000000042";
+var PATH = "/var/lib/opfield/volumes/production/postgres/data/pg_wal/000000010000000000000042";
 mount(stage(
   row("start", h("div", { className: "w-72 border border-border bg-card p-2 text-sm" }, h(G.TruncateStart, { text: PATH }))),
   row("end (CSS)", h("div", { className: "w-72 truncate border border-border bg-card p-2 text-sm" }, PATH))

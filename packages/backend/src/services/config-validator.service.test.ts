@@ -237,7 +237,7 @@ server {
 describe('ConfigValidatorService templates', () => {
   const service = new ConfigValidatorService();
 
-  it('allows the Pages include and access list password file Gateway templates emit', () => {
+  it('allows the Pages include and access list password file Opfield templates emit', () => {
     const result = service.validateTemplate(
       [
         'server {',

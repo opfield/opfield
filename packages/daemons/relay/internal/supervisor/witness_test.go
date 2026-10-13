@@ -732,6 +732,6 @@ func TestStandbyWitnessActivationByTheHolder(t *testing.T) {
 	still := h.manager.activated[witnessID]
 	h.manager.mu.Unlock()
 	if still {
-		t.Fatal("activation kept after Gateway adopted it")
+		t.Fatal("activation kept after Opfield adopted it")
 	}
 }

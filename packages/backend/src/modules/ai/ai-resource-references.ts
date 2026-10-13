@@ -7,7 +7,10 @@ import type {
 } from './ai.types.js';
 
 const MAX_REFERENCES_PER_RESULT = 64;
-const RESOURCE_MARKER_RE = /\[\[resource:(gwr_[a-f0-9]{24})\|((?:[^[\]\r\n]|\[[^[\]\r\n]*\]){1,240})\]\]/g;
+/** Prefix of reference ids; no token prefix, so secret masking leaves the markers alone. */
+const REFERENCE_ID_PREFIX = 'res_';
+// legacy-name: gwr_ reference ids in conversations stored before 2.12.1 — remove once those conversations aged out
+const RESOURCE_MARKER_RE = /\[\[resource:((?:res|gwr)_[a-f0-9]{24})\|((?:[^[\]\r\n]|\[[^[\]\r\n]*\]){1,240})\]\]/g;
 
 type RecordValue = Record<string, unknown>;
 
@@ -201,7 +204,7 @@ function createReference(
   input: Omit<AIResourceReference, 'refId' | 'uiHref' | 'workspaceEmbeddable'>
 ): AIResourceReference {
   const identity = [input.type, input.nodeId ?? '', input.resourceId].join('\u0000');
-  const refId = `gwr_${createHash('sha256').update(identity).digest('hex').slice(0, 24)}`;
+  const refId = `${REFERENCE_ID_PREFIX}${createHash('sha256').update(identity).digest('hex').slice(0, 24)}`;
   return {
     refId,
     ...input,

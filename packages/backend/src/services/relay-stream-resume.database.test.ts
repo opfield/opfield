@@ -304,7 +304,7 @@ describe.skipIf(!url)('resumable relay streams', () => {
       expect((await routeState()).resumeState).toBe('off');
     });
 
-    it('makes a new Gateway route resumable before Gateway opens it', async () => {
+    it('makes a new Opfield route resumable before Opfield opens it', async () => {
       await db
         .update(relayRoutes)
         .set({ sourceKind: 'gateway', sourceId: 'gateway' })
@@ -314,7 +314,7 @@ describe.skipIf(!url)('resumable relay streams', () => {
       expect((await routeState()).resumeState).toBe('on');
     });
 
-    it('needs no delivery for a Gateway source', async () => {
+    it('needs no delivery for an Opfield source', async () => {
       await db
         .update(relayRoutes)
         .set({ sourceKind: 'gateway', sourceId: 'gateway' })

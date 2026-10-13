@@ -5,7 +5,7 @@ export default defineConfig({
   out: './src/db/migrations',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.DATABASE_URL || 'postgres://dev:dev@localhost:5433/gateway',
+    url: process.env.DATABASE_URL || 'postgres://dev:dev@localhost:55432/opfield',
   },
   verbose: true,
   strict: true,

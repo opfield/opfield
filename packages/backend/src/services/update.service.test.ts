@@ -61,7 +61,7 @@ describe('isStaleRelayWorkerVersionError', () => {
 });
 
 describe('UpdateService release selection', () => {
-  it('passes the persisted Preview channel to Gateway and Relay resolution', async () => {
+  it('passes the persisted Preview channel to Opfield and Relay resolution', async () => {
     const db = {
       insert: vi.fn(() => ({ values: vi.fn(() => ({ onConflictDoUpdate: vi.fn() })) })),
       delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) })),
@@ -96,7 +96,7 @@ describe('UpdateService release selection', () => {
     }
   });
 
-  it('builds provider-neutral Gateway and Relay manifest URLs when configured', () => {
+  it('builds provider-neutral Opfield and Relay manifest URLs when configured', () => {
     const service = new UpdateService(
       {} as never,
       makeDockerService() as never,
@@ -151,7 +151,7 @@ describe('UpdateService release selection', () => {
     });
   });
 
-  it('selects relay releases independently from Gateway and daemon tags', () => {
+  it('selects relay releases independently from Opfield and daemon tags', () => {
     expect(isRelayReleaseTag('v2.2.0-relay')).toBe(true);
     expect(
       selectLatestRelayRelease([
@@ -204,12 +204,12 @@ describe('UpdateService release selection', () => {
   });
 
   describe('isRelayTooOldForOpfieldUpdate', () => {
-    it('allows Gateway updates while Relay is less than two minor versions behind', () => {
+    it('allows Opfield updates while Relay is less than two minor versions behind', () => {
       expect(isRelayTooOldForOpfieldUpdate('v2.6.12', 'v2.6.13')).toBe(false);
       expect(isRelayTooOldForOpfieldUpdate('v2.5.9', 'v2.6.0')).toBe(false);
     });
 
-    it('blocks Gateway updates when Relay is at least two minor versions behind', () => {
+    it('blocks Opfield updates when Relay is at least two minor versions behind', () => {
       expect(isRelayTooOldForOpfieldUpdate('v2.4.12', 'v2.6.0')).toBe(true);
       expect(isRelayTooOldForOpfieldUpdate('v2.9.0', 'v3.0.0')).toBe(true);
     });
@@ -220,14 +220,14 @@ describe('UpdateService release selection', () => {
   });
 
   describe('isOpfieldCompatibleWithRelayUpdate', () => {
-    it('allows independent Relay patches when their declared Gateway floor is satisfied', () => {
+    it('allows independent Relay patches when their declared Opfield floor is satisfied', () => {
       expect(isOpfieldCompatibleWithRelayUpdate('v2.7.6', 'v2.7.6')).toBe(true);
       expect(isOpfieldCompatibleWithRelayUpdate('v2.7.6', 'v2.7.5')).toBe(true);
       expect(isOpfieldCompatibleWithRelayUpdate('v2.7.5', 'v2.7.6')).toBe(false);
     });
   });
 
-  it('hides a cached Relay update until the Gateway compatibility floor is met', async () => {
+  it('hides a cached Relay update until the Opfield compatibility floor is met', async () => {
     const rows = [
       { key: 'update:relay:latest_version', value: 'v2.4.3' },
       { key: 'update:relay:min_gateway_version', value: 'v2.4.3' },
@@ -253,7 +253,7 @@ describe('UpdateService release selection', () => {
     expect((await service.getCachedStatus()).relay.updateAvailable).toBe(true);
   });
 
-  it('hides cached Gateway and Relay release candidates immediately after switching back to Stable', async () => {
+  it('hides cached Opfield and Relay release candidates immediately after switching back to Stable', async () => {
     const rows = [
       { key: 'update:latest_version', value: 'v2.5.0-rc.2' },
       { key: 'update:release_notes', value: 'Preview notes' },
@@ -314,7 +314,7 @@ describe('imageRepositoryFromRef', () => {
 });
 
 describe('UpdateService foundation migration', () => {
-  it('prevents concurrent module activation and Gateway updates from modifying the same installation', async () => {
+  it('prevents concurrent module activation and Opfield updates from modifying the same installation', async () => {
     const dockerService = makeDockerService();
     let rejectPull!: (reason: Error) => void;
     const waiting = new Promise<void>((_, reject) => {
@@ -534,13 +534,13 @@ describe('UpdateService foundation migration', () => {
     expect(sidecarCommand).not.toContain(
       'if [ "$app_health" = unhealthy ] || [ "$relay_health" = unhealthy ]; then break; fi'
     );
-    expect(sidecarCommand).toContain('CREATE OR REPLACE VIEW "public"."gateway_relay_bindings_v1"');
+    expect(sidecarCommand).not.toContain('CREATE OR REPLACE VIEW');
     const syntax = spawnSync('/bin/sh', ['-n'], { input: sidecarCommand, encoding: 'utf8' });
     expect(syntax.stderr).toBe('');
     expect(syntax.status).toBe(0);
   });
 
-  it('updates relay without recreating the Gateway app', async () => {
+  it('updates relay without recreating the Opfield app', async () => {
     const dockerService = makeDockerService();
     const relayRuntime = {
       setMaintenance: vi.fn().mockResolvedValue(undefined),
@@ -812,7 +812,7 @@ describe('UpdateService foundation migration', () => {
     }
   });
 
-  it('still refuses a signed Gateway image outside the official repositories', async () => {
+  it('still refuses a signed Opfield image outside the official repositories', async () => {
     const dockerService = makeDockerService();
     const service = makeUpdateService(dockerService, undefined, {
       OPFIELD_UPDATE_IMAGE_REPOSITORIES: OFFICIAL_IMAGE_REPOSITORIES.join(','),
@@ -1003,13 +1003,12 @@ echo "/dev/fake 999999999 1 $FAKE_FREE_KB 1% /"
     }
     expect(run.at('compose stop postgres')).toBe(-1);
     expect(drop).toBeLessThan(restore);
-    expect(restore).toBeLessThan(run.at('CREATE OR REPLACE VIEW'));
     expect(restore).toBeLessThan(run.calls.indexOf('compose up -d --no-deps app'));
     expect(run.stdout).toContain('Restored the Opfield database from the pre-update snapshot');
     expect(existsSync(run.dump)).toBe(false);
   });
 
-  it('keeps the snapshot and leaves Gateway stopped when the restore fails after the drop', async () => {
+  it('keeps the snapshot and leaves Opfield stopped when the restore fails after the drop', async () => {
     const run = await runSidecar({ targetApp: 'fail', restore: 'fail' });
 
     expect(run.status).not.toBe(0);
@@ -1741,7 +1740,7 @@ describe('UpdateService interrupted updates', () => {
     await expect(service.abandonRelayUpdate('admin-1')).rejects.toMatchObject({ code: 'RELAY_UPDATE_NOT_ACTIVE' });
   });
 
-  it('keeps Gateway and Relay Pool updates from running at the same time', async () => {
+  it('keeps Opfield and Relay Pool updates from running at the same time', async () => {
     const { db } = scriptedDb([[{ id: 'run-1' }]]);
     const { service } = serviceWith(db);
     service.setRelayPoolUpdateRuntime({

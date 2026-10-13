@@ -194,7 +194,7 @@ describe('update artifact trust', () => {
     expect(artifact.secureLinkConnectorImage).toContain('/secure-link-connector@sha256:');
   });
 
-  it('verifies a release-candidate Relay manifest and Gateway compatibility floor', () => {
+  it('verifies a release-candidate Relay manifest and Opfield compatibility floor', () => {
     const payload = Buffer.from(
       JSON.stringify({
         kind: 'relay-image',
@@ -368,7 +368,7 @@ describe('update artifact trust', () => {
     ).toThrow(UpdateArtifactTrustError);
   });
 
-  it('accepts only a digest-pinned Secure Link connector image in the Gateway repository', () => {
+  it('accepts only a digest-pinned Secure Link connector image in the Opfield repository', () => {
     const repository = 'registry.gitlab.wiolett.net/wiolett/gateway/secure-link-connector';
     expect(isDigestPinnedImageRef(`${repository}@sha256:${checksum}`, repository)).toBe(true);
     expect(isDigestPinnedImageRef(`${repository}:v2.5.0`, repository)).toBe(false);

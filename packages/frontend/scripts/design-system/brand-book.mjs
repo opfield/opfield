@@ -196,7 +196,7 @@ useContentLoading(loading);
 
 ## Brand assets
 
-- **Mark:** a shield split in two indigo halves with a four-point star cut out, on a light rounded tile. It is the product icon: the sidebar shows it at 20px (\`good-gateway-mark-192.png\`, served as \`android-chrome-192x192.png\`), browsers and devices use the favicons and touch icons.
+- **Mark:** a shield split in two indigo halves with a four-point star cut out, on a light rounded tile. It is the product icon: the sidebar shows it at 20px (\`opfield-mark-192.png\`, served as \`android-chrome-192x192.png\`), browsers and devices use the favicons and touch icons.
 - **Lockups:** the mark beside the lowercase wordmark "opfield" set in a bold sans, for light grounds (ink wordmark) and dark grounds (white wordmark on a rounded black plate).
 - Use the files as they are: never redraw, recolour, stretch or crop the mark, and never set the wordmark in the interface font. There is no vector version; use the 512px PNG where a large mark is needed.
 - The name is "Opfield" in titles and running product copy ("Opfield renews it automatically before it expires"); only the logo wordmark is lowercase "opfield".

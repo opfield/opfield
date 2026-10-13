@@ -178,7 +178,7 @@ describe('Opfield names: daemon, relay supervisor and watchdog manifests', () =>
   });
 });
 
-describe('Opfield names: Gateway and Relay image manifests', () => {
+describe('Opfield names: Opfield and Relay image manifests', () => {
   function opfieldManifest(repository: string) {
     return signed({
       kind: 'gateway-image',
@@ -207,7 +207,7 @@ describe('Opfield names: Gateway and Relay image manifests', () => {
     });
   }
 
-  it.each([OLD_REPO, NEW_REPO])('verifies a Gateway and a Relay manifest naming %s', (repository) => {
+  it.each([OLD_REPO, NEW_REPO])('verifies an Opfield and a Relay manifest naming %s', (repository) => {
     const gateway = verifyOpfieldImageManifest(
       opfieldManifest(repository),
       { version: 'v2.12.0', tag: 'v2.12.0', image: repository },
@@ -250,7 +250,7 @@ describe('Opfield names: Gateway and Relay image manifests', () => {
     [`${NEW_REPO}/database-connector`, 'database-connector'],
     ['registry.example.com/wiolett/gateway/secure-link-connector', 'secure-link-connector'],
     ['ghcr.io/opfield/other/secure-link-connector', null],
-  ])('classifies %s as a Gateway internal image: %s', (repository, kind) => {
+  ])('classifies %s as an Opfield internal image: %s', (repository, kind) => {
     expect(opfieldInternalImageKind({ RepoDigests: [`${repository}@sha256:${sha}`] })).toBe(kind);
   });
 });

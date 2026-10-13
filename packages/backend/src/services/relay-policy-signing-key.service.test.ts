@@ -306,7 +306,7 @@ describe('Relay policy trust assessment', () => {
     keyRecord('next', { status: 'pending', hasPrivateKey: true }),
   ];
 
-  it('knows a relay is locked out only when it trusts no key Gateway can sign with', () => {
+  it('knows a relay is locked out only when it trusts no key Opfield can sign with', () => {
     expect(trustIsSignable(records(), ['current'])).toBe(true);
     // A retained old key can still sign a snapshot that carries the active key.
     expect(trustIsSignable(records(), ['destroyed', 'retained'])).toBe(true);

@@ -37,6 +37,9 @@ const (
 	// seaweedfsUpstreamImage is listed in config/third-party-images.json, so
 	// EnsureThirdPartyImage tries the GHCR mirror before Docker Hub.
 	seaweedfsUpstreamImage = seaweedfsUpstreamRepo + "@" + seaweedfsImageDigest
+	// legacy-name: seaweedfs-gateway, the repository of the pinned build that
+	// storage containers run; renamed with the next SeaweedFS pin, which
+	// recreates storage containers anyway.
 	// seaweedfsImage is the image storage containers run: Opfield's patched
 	// build of 4.47 (packages/daemons/seaweedfs-image), which the Image
 	// workflow publishes as <image repository>/seaweedfs-gateway (both

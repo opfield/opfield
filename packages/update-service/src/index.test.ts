@@ -52,14 +52,14 @@ describe("gateway update facade", () => {
 		expect(fetcher).not.toHaveBeenCalled();
 	});
 
-	it("normalizes public GitHub releases for Gateway clients", async () => {
+	it("normalizes public GitHub releases for Opfield clients", async () => {
 		const fetcher = vi
 			.fn<typeof fetch>()
 			.mockResolvedValueOnce(
 				Response.json([
 					{
 						tag_name: "v2.9.11",
-						name: "Gateway v2.9.11",
+						name: "Opfield v2.9.11",
 						body: "Release notes",
 						html_url: "https://github.com/opfield/opfield/releases/tag/v2.9.11",
 						published_at: "2026-08-27T00:00:00Z",
@@ -112,7 +112,7 @@ describe("gateway update facade", () => {
 		["v1.1.9", "v1.1.12", "patch"],
 		["v1.1.12", "v1.2.0", "minor-baseline"],
 		["v1.2.0", "v1.2.1", "patch"],
-	])("stages Gateway updates from %s to %s", async (current, target, reason) => {
+	])("stages Opfield updates from %s to %s", async (current, target, reason) => {
 		const fetcher = vi
 			.fn<typeof fetch>()
 			.mockResolvedValue(
@@ -331,7 +331,7 @@ describe("gateway update facade", () => {
 		expect(response.status).toBe(502);
 	});
 
-	it("lists stable Gateway releases from a later page", async () => {
+	it("lists stable Opfield releases from a later page", async () => {
 		const fetcher = vi
 			.fn<typeof fetch>()
 			.mockResolvedValueOnce(releasePage(releaseCandidatePage, true))
@@ -770,7 +770,7 @@ describe("gateway update facade", () => {
 		expect(headers.get("Authorization")).toBe("Bearer private-core-token");
 	});
 
-	it("serves witness artifacts from the Gateway release", async () => {
+	it("serves witness artifacts from the Opfield release", async () => {
 		const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
 			Response.json({
 				...release("v2.12.0"),

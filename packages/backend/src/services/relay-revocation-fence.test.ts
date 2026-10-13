@@ -172,7 +172,7 @@ describe('relay route history', () => {
     ]);
   });
 
-  it('does not judge a relay before Gateway had the deadline to reach it', () => {
+  it('does not judge a relay before Opfield had the deadline to reach it', () => {
     const recorded = reconcileRevocations(builtAfterRevocation(), afterRevocation());
     const startedAt = T0 + 60_000;
     const afterStart = reconcileRevocations(
@@ -187,7 +187,7 @@ describe('relay route history', () => {
     expect(later.newlyStale).toHaveLength(1);
   });
 
-  it('trusts only acknowledgements of revisions Gateway issued', () => {
+  it('trusts only acknowledgements of revisions Opfield issued', () => {
     expect(trustedAcknowledgement(12, 20)).toBe(12);
     expect(trustedAcknowledgement(25, 20)).toBe(0);
     expect(trustedAcknowledgement(Number.NaN, 20)).toBe(0);

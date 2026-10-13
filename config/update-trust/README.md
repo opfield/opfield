@@ -1,6 +1,6 @@
 # Update Trust Anchor
 
-`update-signing-public-key.pem` is the canonical repo-wide update signing public key used by both Gateway backend and daemons.
+`update-signing-public-key.pem` is the canonical repo-wide update signing public key used by both the Opfield backend and the daemons.
 
 The daemon Go package needs a package-local generated copy for `go:embed`. The package-local backend Dockerfile also needs a context-local copy for standalone package builds. Run `scripts/sync-update-trust-anchor.sh` after rotating this key; daemon build, test, lint, and CI paths run that sync automatically.
 

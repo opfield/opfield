@@ -243,8 +243,8 @@ export class AppIncidentService {
 
   private async build(kind: AppIncidentKind, environmentId: string): Promise<NewIncidentItem[]> {
     const targets = await this.targets.collect(environmentId);
-    const gateway = await this.opfieldRouteIds(targets);
-    return kind === 'isolation' ? buildIsolationItems(targets, gateway) : buildShutdownItems(targets, gateway);
+    const routeIds = await this.opfieldRouteIds(targets);
+    return kind === 'isolation' ? buildIsolationItems(targets, routeIds) : buildShutdownItems(targets, routeIds);
   }
 
   /** What a shutdown or a kill switch would change, per environment and in total (the dialogs' consequences). */

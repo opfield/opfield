@@ -57,7 +57,7 @@ describe('cloud request audit coalescing', () => {
     expect(written.at(-1)?.requestId).toBe('r6');
   });
 
-  it('writes the open summaries when the socket stops or Gateway shuts down', async () => {
+  it('writes the open summaries when the socket stops or Opfield shuts down', async () => {
     const written: CloudRequestAudit[] = [];
     const coalescer = new CloudRequestAuditCoalescer(async (_agent, audit) => {
       written.push(audit);

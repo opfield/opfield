@@ -177,7 +177,7 @@ export class HostingProvisioningService {
     if (!gateway)
       throw new AppError(
         409,
-        'HOSTING_GATEWAY_NOT_READY',
+        'HOSTING_OPFIELD_NOT_READY',
         'Configure a reachable Opfield enrollment endpoint before creating a VM'
       );
     validateHostingGateway(gateway, connector.provider === 'proxmox');
@@ -461,7 +461,7 @@ export class HostingProvisioningService {
     const gateway =
       connector.provider === 'proxmox' ? targets.local?.address || targets.public.address : targets.public.address;
     if (!gateway)
-      throw new AppError(409, 'HOSTING_GATEWAY_NOT_READY', 'Configure a reachable Opfield enrollment endpoint');
+      throw new AppError(409, 'HOSTING_OPFIELD_NOT_READY', 'Configure a reachable Opfield enrollment endpoint');
     validateHostingGateway(gateway, connector.provider === 'proxmox');
     const certificateFingerprint = await this.nodeService.getOpfieldEnrollmentCertificateFingerprint();
     const marker =
@@ -1397,7 +1397,7 @@ export class HostingProvisioningService {
     const input = acceptedProvisionInput(row.request);
     const gateway = (await this.nodeService.getOpfieldEnrollmentTargets()).public.address;
     if (!gateway)
-      throw new AppError(409, 'HOSTING_GATEWAY_NOT_READY', 'Configure a reachable Opfield enrollment endpoint');
+      throw new AppError(409, 'HOSTING_OPFIELD_NOT_READY', 'Configure a reachable Opfield enrollment endpoint');
     validateHostingGateway(gateway, connector.provider === 'proxmox');
     return buildHostingBootstrap({
       // SSH comes up while cloud-init still runs apt on the new server.

@@ -1321,7 +1321,7 @@ export class NginxTemplateService {
     }
 
     const staticUpstream = `${host.forwardScheme}://${formatHostPort(forwardHost, host.forwardPort)}`;
-    const variableName = `gw_up_${createHash('sha256').update(host.id).digest('hex').slice(0, 16)}`;
+    const variableName = `opf_up_${createHash('sha256').update(host.id).digest('hex').slice(0, 16)}`;
     const dynamicUpstream = `${host.forwardScheme}://$${variableName}:${host.forwardPort}`;
     if (!rendered.includes(staticUpstream)) return rendered;
 
@@ -1668,8 +1668,8 @@ ${rendered}`;
       secureLinkUsesLoadBalancing: secureLinkSocketPaths.length > 1,
       registryAuthRealm,
       // Nginx variable names must stay short enough for the stock
-      // variables_hash_bucket_size 64 (see gw_up_ for dynamic upstreams).
-      registryAuthVariableName: `gw_rc_${createHash('sha256').update(host.id).digest('hex').slice(0, 16)}`,
+      // variables_hash_bucket_size 64 (see opf_up_ for dynamic upstreams).
+      registryAuthVariableName: `opf_rc_${createHash('sha256').update(host.id).digest('hex').slice(0, 16)}`,
       sslCertPath: host.sslCertPath,
       sslKeyPath: host.sslKeyPath,
       sslChainPath: host.sslChainPath,

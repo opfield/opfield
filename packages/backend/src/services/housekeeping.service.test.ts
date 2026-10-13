@@ -4,7 +4,7 @@ import { settings } from '@/db/schema/settings.js';
 import { HousekeepingService } from './housekeeping.service.js';
 
 describe('HousekeepingService system certificate cleanup', () => {
-  it('cleans only obsolete unused Gateway connector images on online Docker nodes', async () => {
+  it('cleans only obsolete unused Opfield connector images on online Docker nodes', async () => {
     const db = {
       select: vi.fn(() => ({
         from: vi.fn(() => ({ where: vi.fn().mockResolvedValue([{ id: 'node-1' }]) })),

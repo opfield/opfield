@@ -49,7 +49,7 @@ function issueIdentities() {
   };
 }
 
-describe('Gateway tunnel worker thread', () => {
+describe('Opfield tunnel worker thread', () => {
   let dir: string;
   let server: grpc.Server;
   let port = 0;

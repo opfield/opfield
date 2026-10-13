@@ -18,7 +18,7 @@ type Color = AIResourceReference["appearanceColor"];
 /** Resources the assistant read while answering; rendered as inline resource chips. */
 const refs = {
   route: {
-    refId: "gwr_4f1c0a9e22b7d4e1a0c3b5d7",
+    refId: "res_4f1c0a9e22b7d4e1a0c3b5d7",
     type: "proxy_host",
     resourceId: grafanaRoute.id,
     label: grafanaRoute.domains[0],
@@ -26,7 +26,7 @@ const refs = {
     relation: "read",
   },
   container: {
-    refId: "gwr_7b22d91c0a44e8f1c2d3a4b5",
+    refId: "res_7b22d91c0a44e8f1c2d3a4b5",
     type: "docker_container",
     resourceId: grafanaContainer.id,
     label: grafanaContainer.name,
@@ -36,7 +36,7 @@ const refs = {
     relation: "read",
   },
   node: {
-    refId: "gwr_a1b2c3d4e5f60718293a4b5c",
+    refId: "res_a1b2c3d4e5f60718293a4b5c",
     type: "node",
     resourceId: apps2.id,
     label: apps2.displayName ?? apps2.hostname,
@@ -45,7 +45,7 @@ const refs = {
     relation: "read",
   },
   database: {
-    refId: "gwr_0d9e8f7a6b5c4d3e2f1a0b9c",
+    refId: "res_0d9e8f7a6b5c4d3e2f1a0b9c",
     type: "database",
     resourceId: analytics.id,
     label: analytics.name,
@@ -53,7 +53,7 @@ const refs = {
     relation: "read",
   },
   certificate: {
-    refId: "gwr_5e6f7a8b9c0d1e2f3a4b5c6d",
+    refId: "res_5e6f7a8b9c0d1e2f3a4b5c6d",
     type: "ssl_certificate",
     resourceId: uuid(8001),
     label: "grafana.example.com",

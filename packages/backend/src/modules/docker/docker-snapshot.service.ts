@@ -37,7 +37,8 @@ export interface DockerSnapshotNodeMetadata {
   lastError: string | null;
 }
 
-const PREFIX = 'gateway:docker:snapshot:v1';
+export const DOCKER_SNAPSHOT_PREFIX = 'opfield:docker:snapshot:v1';
+const PREFIX = DOCKER_SNAPSHOT_PREFIX;
 const NODE_INDEX_KEY = `${PREFIX}:nodes`;
 const VIEW_SCOPES: Record<DockerSnapshotKind, string> = {
   containers: 'docker:containers:view',

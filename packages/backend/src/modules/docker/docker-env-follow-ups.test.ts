@@ -73,7 +73,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('env follow-ups of an update or recreate Gateway restarted during', () => {
+describe('env follow-ups of an update or recreate Opfield restarted during', () => {
   it('reconciles the stored env after an image update once the node finished it', async () => {
     const t = setup();
     const result = await updateContainer(t.first.ctx, NODE, 'api', { tag: '2' }, 'user-1');
@@ -104,7 +104,7 @@ describe('env follow-ups of an update or recreate Gateway restarted during', () 
         recreateWithConfig(ctx, NODE, 'api', { image: 'registry.local/app:2' }, 'user-1', { skipImagePull: true }),
     ],
     [
-      'a recreate whose image Gateway pulls in the background first',
+      'a recreate whose image Opfield pulls in the background first',
       {},
       (ctx: Parameters<typeof recreateWithConfig>[0]) =>
         recreateWithConfig(ctx, NODE, 'api', { image: 'registry.local/app:2' }, 'user-1', {
@@ -159,7 +159,7 @@ describe('env follow-ups of an update or recreate Gateway restarted during', () 
   });
 });
 
-describe('env follow-ups of an update or recreate Gateway restarted during before the daemon answered', () => {
+describe('env follow-ups of an update or recreate Opfield restarted during before the daemon answered', () => {
   it('restores the stored env after an env update the node got and failed', async () => {
     const t = setup({ answer: 'lost' });
     void updateContainerEnv(t.first.ctx, NODE, 'api', { API_KEY: NEW_SECRET }, undefined, 'user-1');

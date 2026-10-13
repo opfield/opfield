@@ -16,7 +16,7 @@ ARG GOLANG_IMAGE=docker.io/library/golang:1.26.6-alpine@sha256:3889b425f035be855
 FROM --platform=$BUILDPLATFORM ${GOLANG_IMAGE} AS build
 # The commit the upstream 4.47 image was built from (`weed version`).
 ARG SEAWEEDFS_COMMIT=c5073360007d28385a33426a42ac3e4ec504c5a3
-ARG GATEWAY_PATCH_LEVEL=1
+ARG OPFIELD_PATCH_LEVEL=1
 RUN apk add --no-cache git
 WORKDIR /src
 RUN git init -q . \
@@ -30,10 +30,10 @@ ARG TARGETOS TARGETARCH
 RUN cd weed \
   && GOOS="$TARGETOS" GOARCH="$TARGETARCH" CGO_ENABLED=0 GOTOOLCHAIN=local \
      go build -trimpath -buildvcs=false \
-       -ldflags "-extldflags -static -X github.com/seaweedfs/seaweedfs/weed/util/version.COMMIT=$(echo "$SEAWEEDFS_COMMIT" | cut -c1-9)-gateway.${GATEWAY_PATCH_LEVEL}" \
+       -ldflags "-extldflags -static -X github.com/seaweedfs/seaweedfs/weed/util/version.COMMIT=$(echo "$SEAWEEDFS_COMMIT" | cut -c1-9)-opfield.${OPFIELD_PATCH_LEVEL}" \
        -o /out/weed .
 
 FROM ${SEAWEEDFS_BASE}
 COPY --from=build /out/weed /usr/bin/weed
-LABEL org.opencontainers.image.title="SeaweedFS for Gateway managed storage" \
+LABEL org.opencontainers.image.title="SeaweedFS for Opfield managed storage" \
       org.opencontainers.image.description="Upstream SeaweedFS with the patches in packages/daemons/seaweedfs-image/patches"

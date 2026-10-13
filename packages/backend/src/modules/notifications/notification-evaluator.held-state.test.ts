@@ -91,7 +91,7 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 
-describe('Gateway relay alert: the supervisor state holds until its next change', () => {
+describe('Opfield relay alert: the supervisor state holds until its next change', () => {
   it('resolves within its resolve window once the relay serves again, with no further event', async () => {
     const t = setup({ eventPattern: 'relay.unavailable' });
     await t.publish({ state: 'critical', reason: 'unreachable', attempt: 0 });
@@ -158,7 +158,7 @@ describe('Gateway relay alert: the supervisor state holds until its next change'
   });
 });
 
-describe('Gateway relay alert duration (rc.8 O-1)', () => {
+describe('Opfield relay alert duration (rc.8 O-1)', () => {
   it('keeps the outage start the supervisor reports with the firing', async () => {
     const t = setup({ eventPattern: 'relay.unavailable' });
     const since = new Date(T0 - 8_000).toISOString();

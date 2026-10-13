@@ -118,7 +118,7 @@ describe('route health job: ingress members that reconnect', () => {
     expect((await check(['ingress-1', 'ingress-2'])).status).toBe('offline');
   });
 
-  it('keeps a route probed from Gateway online while its members reconnect', () => {
+  it('keeps a route probed from Opfield online while its members reconnect', () => {
     const member = (nodeId: string, extra: { connected: boolean; reconnecting?: boolean }) => ({
       nodeId,
       serving: null,
@@ -224,7 +224,7 @@ describe('route health job: relayed routes while the local relay settles', () =>
   });
 });
 
-describe('route health job: probes Gateway sends itself', () => {
+describe('route health job: probes Opfield sends itself', () => {
   const offlineContext = async (deps: ConstructorParameters<typeof HealthCheckJob>[2]) => {
     const t = setup();
     Object.assign(t.host, { forwardHost: 'app.pages.dev', forwardPort: 443, forwardScheme: 'https' });
@@ -235,7 +235,7 @@ describe('route health job: probes Gateway sends itself', () => {
     return (t.evaluator.observeStatefulEvent.mock.calls as unknown[][]).at(-1)?.[3];
   };
 
-  it('marks an offline sample whose probe got no answer, so its alert can fold under a Gateway outbound loss', async () => {
+  it('marks an offline sample whose probe got no answer, so its alert can fold under an Opfield outbound loss', async () => {
     const context = await offlineContext({
       checkTarget: async (url) => ({ url, resolvedAddresses: [], allowed: false, reason: 'did not resolve' }),
     });

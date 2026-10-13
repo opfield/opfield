@@ -44,7 +44,7 @@ func TestSessionEndExpected(t *testing.T) {
 	}{
 		{"planned end", status.Error(codes.Canceled, "grpc: the client connection is closing"), time.Hour, true},
 		// The monitoring daemon and the relay supervisor while Opfield restarted (stand rc.13 O-d).
-		{"refused while Gateway restarts", refused, 2 * time.Second, true},
+		{"refused while Opfield restarts", refused, 2 * time.Second, true},
 		{"refused for over a minute", refused, connector.RestartQuiet, false},
 		{"other failure", status.Error(codes.Unavailable, "connection error: desc = \"transport: Error while dialing: dial tcp 10.0.0.1:9443: i/o timeout\""), time.Second, false},
 	} {

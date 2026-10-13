@@ -63,7 +63,7 @@ describe('DockerRegistryTokenService', () => {
       aud: dockerRegistryTokenContract.service,
       sub: 'builder:node-1:build-1',
       access: [{ type: 'repository', name: 'gateway/source-1', actions: ['pull', 'push'] }],
-      gateway: { node_id: 'node-1', build_id: 'build-1' },
+      opfield: { node_id: 'node-1', build_id: 'build-1' },
     });
     expect(
       verify(

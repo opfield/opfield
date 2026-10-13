@@ -64,11 +64,11 @@ func TestActivationDesiredVoters(t *testing.T) {
 		t.Fatalf("activation applied: %+v", voters)
 	}
 	if act.adopted(ec) {
-		t.Fatal("Gateway has not adopted the activation yet")
+		t.Fatal("Opfield has not adopted the activation yet")
 	}
 	ec.KeeperServers[2].Role = RoleLeaving
 	if !act.adopted(ec) {
-		t.Fatal("the replaced witness is no voter in Gateway's configuration any more")
+		t.Fatal("the replaced witness is no voter in Opfield's configuration any more")
 	}
 	if !activationDue(time.Minute, 3*time.Minute, true, nil, pairEngineConfig()) {
 		t.Fatal("activation due")

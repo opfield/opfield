@@ -546,10 +546,10 @@ export class DaemonUpdateService {
    * latest stable daemon itself.
    */
   async installVersion(daemonType: DaemonType): Promise<string | null> {
-    const gateway = RELEASE_VERSION_PATTERN.test(this.env.APP_VERSION) ? parseSemver(this.env.APP_VERSION) : null;
-    if (!gateway) return null;
+    const appVersion = RELEASE_VERSION_PATTERN.test(this.env.APP_VERSION) ? parseSemver(this.env.APP_VERSION) : null;
+    if (!appVersion) return null;
     const channel = (await this.generalSettings?.getConfig())?.updateChannel ?? 'stable';
-    const key = `${daemonType}:${channel}:${gateway.major}.${gateway.minor}`;
+    const key = `${daemonType}:${channel}:${appVersion.major}.${appVersion.minor}`;
     const cached = this.installVersions.get(key);
     if (cached && cached.expiresAt > Date.now()) return cached.version;
     let version: string | null = null;
@@ -557,13 +557,13 @@ export class DaemonUpdateService {
       // rc.0 orders before every release of the line, so the resolver answers with the line's newest release.
       const release = await this.fetchNextRelease(
         DAEMON_PACKAGE_MAP[daemonType],
-        `v${gateway.major}.${gateway.minor}.0-rc.0`,
+        `v${appVersion.major}.${appVersion.minor}.0-rc.0`,
         channel,
         INSTALL_VERSION_TIMEOUT_MS
       );
       const candidate = release?.tag_name.replace(TAG_SUFFIX_MAP[daemonType], '') ?? '';
       const parsed = RELEASE_VERSION_PATTERN.test(candidate) ? parseSemver(candidate) : null;
-      if (parsed?.major === gateway.major && parsed.minor === gateway.minor) version = candidate;
+      if (parsed?.major === appVersion.major && parsed.minor === appVersion.minor) version = candidate;
     } catch (error) {
       logger.warn('Could not resolve the daemon release for new nodes', { daemonType, error });
       return null;

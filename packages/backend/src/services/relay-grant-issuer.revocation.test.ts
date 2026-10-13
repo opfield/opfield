@@ -153,7 +153,7 @@ describe('RelayGrantIssuerService revocation fences', () => {
     expect(bundle.revocationFences).toBeUndefined();
   });
 
-  it('keeps the Gateway itself away from a stale relay for the revoked route', async () => {
+  it('keeps Opfield itself away from a stale relay for the revoked route', async () => {
     const opfieldRoute = {
       ...route('route-narrowed', 2),
       sourceKind: 'gateway',

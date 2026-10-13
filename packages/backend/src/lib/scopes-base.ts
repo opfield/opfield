@@ -307,7 +307,7 @@ export type Scope = (typeof ALL_SCOPES)[number];
 
 /**
  * AI Workspace chat, skills, sandbox, and the MCP account gate.
- * `feat:ai:use` is not here: it gates Opfield Inference (a resource, including personal `gwi_` keys).
+ * `feat:ai:use` is not here: it gates Opfield Inference (a resource, including personal `opfi_` keys).
  */
 export const USER_ONLY_SCOPES = [
   'ai:workspace:use',

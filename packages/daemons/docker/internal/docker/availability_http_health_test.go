@@ -170,7 +170,7 @@ func TestAvailabilityHealthExpiresWithoutOpfield(t *testing.T) {
 	clock.Add(31 * time.Second)
 	h.step(context.Background())
 	if h.dormant("policy-1") || fmt.Sprint(dormantChanges) != "[true false]" {
-		t.Fatalf("a hold Gateway stopped renewing must lapse: dormant=%v changes %v", h.dormant("policy-1"), dormantChanges)
+		t.Fatalf("a hold Opfield stopped renewing must lapse: dormant=%v changes %v", h.dormant("policy-1"), dormantChanges)
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()

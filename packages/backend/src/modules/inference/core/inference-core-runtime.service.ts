@@ -683,7 +683,7 @@ export class InferenceCoreRuntimeService {
     await this.operations.updatePhase(operationId, 'updating', { stage: STAGE.updating });
     const credentials = this.openCredentials(row);
     const client = new InferenceCoreClient(this.coreBaseUrl(), credentials.managementCredential);
-    const initialStatus = await client.wiolettStatus();
+    const initialStatus = await client.drainStatus();
     if (!initialStatus) throw new Error('Cannot verify core shutdown capabilities; update cancelled');
     const supportsDrainCompletion = typeof initialStatus.drained === 'boolean';
     // The size preflight is deliberately while the old core still serves. The
@@ -1124,7 +1124,7 @@ export class InferenceCoreRuntimeService {
   private async awaitDrain(client: InferenceCoreClient): Promise<void> {
     const deadline = Date.now() + this.timings.drainTimeoutMs;
     for (;;) {
-      const status = await client.wiolettStatus();
+      const status = await client.drainStatus();
       if (status?.drained === true) return;
       if (Date.now() > deadline) {
         throw new Error('Core did not confirm persistence of interrupted requests; update cancelled');

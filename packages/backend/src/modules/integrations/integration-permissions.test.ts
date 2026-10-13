@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { assertConnectorOperationAccess } from './integration-permissions.js';
 
 describe('integration connector permission gate', () => {
-  it('denies an operation when the actor lacks the Gateway scope', () => {
+  it('denies an operation when the actor lacks the Opfield scope', () => {
     expect(() =>
       assertConnectorOperationAccess({
         actor: { userId: 'user-1', scopes: ['integrations:gitlab:view'] },
@@ -21,7 +21,7 @@ describe('integration connector permission gate', () => {
     );
   });
 
-  it('denies an operation when the PAT capability is missing even if the Gateway scope exists', () => {
+  it('denies an operation when the PAT capability is missing even if the Opfield scope exists', () => {
     expect(() =>
       assertConnectorOperationAccess({
         actor: { userId: 'user-1', scopes: ['integrations:gitlab:repo:write'] },

@@ -109,7 +109,7 @@ func TestAppClientCanInitiateRotationAfterFilesChangedBeforeRestart(t *testing.T
 		t.Fatalf("load changed identity state: %v", err)
 	}
 	if !restarted.AuthorizeAppClient(previous) {
-		t.Fatal("previous Gateway identity was not retained across pre-reload restart")
+		t.Fatal("previous Opfield identity was not retained across pre-reload restart")
 	}
 }
 

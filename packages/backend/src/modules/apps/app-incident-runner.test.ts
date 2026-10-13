@@ -355,7 +355,7 @@ describe('Incident items', () => {
     });
   });
 
-  it('never touches the route of the Gateway public URL', () => {
+  it('never touches the route of the Opfield public URL', () => {
     const items = buildIsolationItems(targets(), new Set(['r-app']));
     expect(items.some((item) => item.itemKey === 'route:r-app')).toBe(false);
   });

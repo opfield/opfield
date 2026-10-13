@@ -16,11 +16,11 @@ const requiredSeals = unix.F_SEAL_SEAL | unix.F_SEAL_SHRINK | unix.F_SEAL_GROW |
 // sealedFile writes data to a sealed memory file: it never touches a disk, and
 // it goes to the next process through the launcher's keeper only.
 func sealedFile(data []byte) (*os.File, error) {
-	fd, err := unix.MemfdCreate("gateway-daemon-handover", unix.MFD_CLOEXEC|unix.MFD_ALLOW_SEALING)
+	fd, err := unix.MemfdCreate("opfield-daemon-handover", unix.MFD_CLOEXEC|unix.MFD_ALLOW_SEALING)
 	if err != nil {
 		return nil, fmt.Errorf("create the handover memory file: %w", err)
 	}
-	file := os.NewFile(uintptr(fd), "gateway-daemon-handover")
+	file := os.NewFile(uintptr(fd), "opfield-daemon-handover")
 	for written := 0; written < len(data); {
 		n, err := unix.Write(fd, data[written:])
 		if err != nil {

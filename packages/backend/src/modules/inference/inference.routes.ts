@@ -65,7 +65,7 @@ import { InferenceProviderService } from './providers/inference-provider.service
 export const inferenceManagementRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
 
 inferenceManagementRoutes.use('*', authMiddleware);
-// Personal gwi_ inference keys need feat:ai:use on the caller itself, so a bearer token must hold it.
+// Personal opfi_ inference keys need feat:ai:use on the caller itself, so a bearer token must hold it.
 inferenceManagementRoutes.use('/tokens', requireScope('feat:ai:use'));
 inferenceManagementRoutes.use('/tokens/*', requireScope('feat:ai:use'));
 inferenceManagementRoutes.use('/catalog', requireScope('feat:ai:use'));

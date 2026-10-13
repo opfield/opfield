@@ -425,7 +425,7 @@ describe('authMiddleware browser session credentials', () => {
     expect(response.status).toBe(200);
   });
 
-  it('keeps OIDC browser sessions outside Gateway MFA grace enforcement', async () => {
+  it('keeps OIDC browser sessions outside Opfield MFA grace enforcement', async () => {
     registerSession({
       authMethod: 'oidc',
       require2fa: true,

@@ -27,7 +27,7 @@ export async function seedApiToken(databaseUrl: string): Promise<{ pool: Pool; s
     const groupId = randomUUID();
     const userId = randomUUID();
     const tokenId = randomUUID();
-    const token = `gw_${randomBytes(32).toString('hex')}`;
+    const token = `opf_${randomBytes(32).toString('hex')}`;
 
     await client.query('begin');
     const group = await client.query<{ id: string }>(

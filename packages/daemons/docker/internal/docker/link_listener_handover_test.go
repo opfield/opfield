@@ -225,7 +225,7 @@ func TestAnnouncedRestartSkipsTheRegistrationHold(t *testing.T) {
 		t.Fatal("restart marker not consumed")
 	}
 	if store, _ = newRelayGrantStore(stateDir); store.registrationHold(time.Now()) == 0 {
-		t.Fatal("a start without an announced restart registered before Gateway's bundle")
+		t.Fatal("a start without an announced restart registered before Opfield's bundle")
 	}
 	_ = writeRestartMarker(stateDir, time.Now().Add(-restartMarkerValid))
 	if store, _ = newRelayGrantStore(stateDir); store.registrationHold(time.Now()) == 0 {

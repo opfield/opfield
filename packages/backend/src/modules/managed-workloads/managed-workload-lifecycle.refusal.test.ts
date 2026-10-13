@@ -91,7 +91,7 @@ describe('managed workload update the node refused', () => {
   });
 });
 
-describe('managed workload delete whose Gateway-side cleanup fails', () => {
+describe('managed workload delete whose Opfield-side cleanup fails', () => {
   it('keeps the delete pending, says why, and sends nothing to the node', async () => {
     const row = {
       id: 'storage',
@@ -121,7 +121,7 @@ describe('managed workload delete whose Gateway-side cleanup fails', () => {
   });
 });
 
-describe('managed storage update the node refused, with the labels Gateway runs storage with', () => {
+describe('managed storage update the node refused, with the labels Opfield runs storage with', () => {
   it('records the refusal with the prefix the core answers 409 MANAGED_STORAGE_UPDATE_REFUSED by (rc.8 F-6)', async () => {
     const { STORAGE_WORKLOAD_LABELS } = await import('@/modules/storage/storage-workload-labels.js');
     const { UPDATE_REFUSED_PREFIX } = await import('./managed-workload-refusal.js');

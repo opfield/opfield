@@ -23,7 +23,7 @@ describe('rollout failure diagnostics', () => {
     expect(diagnostics).not.toContain('hunter2');
   });
 
-  it('keeps the log lines when the inspect cannot be read, redacted with the values Gateway stores', async () => {
+  it('keeps the log lines when the inspect cannot be read, redacted with the values Opfield stores', async () => {
     const diagnostics = await collectDockerRolloutDiagnostics({
       inspect: async () => {
         throw new Error('inspect timed out');
@@ -110,7 +110,7 @@ describe('rollout failure diagnostics', () => {
     expect(diagnostics).toContain('fatal: port in use');
   });
 
-  it('redacts the container secrets Gateway stores, whatever their length', async () => {
+  it('redacts the container secrets Opfield stores, whatever their length', async () => {
     const dispatch = {
       sendDockerContainerCommand: vi.fn(async () => ({
         success: true,

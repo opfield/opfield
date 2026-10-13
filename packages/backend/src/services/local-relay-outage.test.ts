@@ -118,7 +118,7 @@ describe('relay supervisor: local relay outages', () => {
     expect(t.supervisor.getSnapshot(false)?.outage).toBeNull();
   });
 
-  it('opens no outage for a relay that answers but is not what Gateway expects', async () => {
+  it('opens no outage for a relay that answers but is not what Opfield expects', async () => {
     const t = supervisorSetup({ expectedVersion: 'relay-2' });
     await t.supervisor.probeNow();
     await t.supervisor.probeNow();
@@ -409,7 +409,7 @@ describe('relay pool: remote relays that drop with the local relay', () => {
   });
 });
 
-describe('Gateway relay alert', () => {
+describe('Opfield relay alert', () => {
   const [mapping] = EVENT_BUS_MAPPINGS['system.relay.health.changed']!;
 
   it('follows only the relay supervisor, not pool or relay runtime events', () => {

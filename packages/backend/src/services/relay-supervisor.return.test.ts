@@ -93,7 +93,7 @@ describe('relay supervisor: a local relay that comes back', () => {
     await t.supervisor.stop();
   });
 
-  it('reconnects Gateway’s other channels to the relay as soon as it serves again (F-2)', async () => {
+  it('reconnects Opfield’s other channels to the relay as soon as it serves again (F-2)', async () => {
     const t = setup();
     await t.supervisor.probeNow();
     t.relay(false);
@@ -197,7 +197,7 @@ describe('relay supervisor: an answer from before the relay went down (stand rc.
   });
 });
 
-describe('relay supervisor: Gateway start', () => {
+describe('relay supervisor: Opfield start', () => {
   const persistedOutage = {
     state: 'critical',
     reason: 'unreachable',

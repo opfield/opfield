@@ -238,7 +238,7 @@ func TestPrimaryAssignmentSignatureVerifiesWithTheLeaseKeychain(t *testing.T) {
 		return node.VerifyOpfieldSigned(memberha.AssignmentDomain, a.SigningKeyID, memberha.AssignmentStatement(setID, a), a.Signature)
 	}
 	if err := verify(assignment); err != nil {
-		t.Fatalf("Gateway's assignment must verify: %v", err)
+		t.Fatalf("Opfield's assignment must verify: %v", err)
 	}
 	forged := assignment
 	forged.Generation = 8

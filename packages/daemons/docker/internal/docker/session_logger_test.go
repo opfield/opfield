@@ -53,7 +53,7 @@ func TestComponentWarningsReachTheSessionLogStream(t *testing.T) {
 
 	entries := commands.logEntries("managed link connection rejected")
 	if len(entries) != 1 {
-		t.Fatalf("rejection sent to Gateway %d times", len(entries))
+		t.Fatalf("rejection sent to Opfield %d times", len(entries))
 	}
 	if entry := entries[0]; entry.GetLevel() != "warn" || entry.GetFields()["binding_id"] != testListenerBindingA ||
 		entry.GetFields()["reason"] != linkRejectedLinkLimit || entry.GetFields()["limit"] != "64" {

@@ -163,7 +163,7 @@ export class DockerRegistryTokenService {
       iat: issuedAt,
       jti: randomUUID(),
       access,
-      gateway: input.context
+      opfield: input.context
         ? {
             node_id: input.context.nodeId,
             build_id: input.context.buildId,

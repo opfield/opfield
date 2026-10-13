@@ -88,7 +88,7 @@ afterEach(() => {
 });
 
 describe('Docker health: node not connected', () => {
-  it('records nothing while Gateway has just started and the node has not reconnected', async () => {
+  it('records nothing while Opfield has just started and the node has not reconnected', async () => {
     const t = setup({ connected: false });
     t.probe.mockResolvedValue(unreachable);
     await t.check();

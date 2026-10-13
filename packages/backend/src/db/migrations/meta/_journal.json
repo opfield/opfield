@@ -1737,6 +1737,20 @@
       "when": 1793035037000,
       "tag": "0247_opfield_certificate_owners",
       "breakpoints": true
+    },
+    {
+      "idx": 248,
+      "version": "7",
+      "when": 1793121437000,
+      "tag": "0248_opfield_inference_pricing_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 249,
+      "version": "7",
+      "when": 1793207837000,
+      "tag": "0249_opfield_compose_link_variables",
+      "breakpoints": true
     }
   ]
 }

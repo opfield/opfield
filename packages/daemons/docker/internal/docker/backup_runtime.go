@@ -685,7 +685,7 @@ func (r *backupRuntime) runTool(ctx context.Context, runID string, payload backu
 	}
 	created, err := r.plugin.client.cli.ContainerCreate(ctx, mobyclient.ContainerCreateOptions{
 		Config:     &container.Config{Image: payload.ToolImage, Cmd: []string{operation}, Labels: labels},
-		HostConfig: &container.HostConfig{NetworkMode: "host", ReadonlyRootfs: true, CapDrop: []string{"ALL"}, SecurityOpt: []string{"no-new-privileges:true"}, Resources: container.Resources{Memory: payload.Limits.MemoryMB * 1024 * 1024, NanoCPUs: payload.Limits.CPUCores * 1_000_000_000, PidsLimit: &pids}, Mounts: []mount.Mount{{Type: mount.TypeBind, Source: configDir, Target: "/run/gateway-backup", ReadOnly: true}, {Type: mount.TypeBind, Source: resultDir, Target: "/work"}}},
+		HostConfig: &container.HostConfig{NetworkMode: "host", ReadonlyRootfs: true, CapDrop: []string{"ALL"}, SecurityOpt: []string{"no-new-privileges:true"}, Resources: container.Resources{Memory: payload.Limits.MemoryMB * 1024 * 1024, NanoCPUs: payload.Limits.CPUCores * 1_000_000_000, PidsLimit: &pids}, Mounts: []mount.Mount{{Type: mount.TypeBind, Source: configDir, Target: "/run/opfield-backup", ReadOnly: true}, {Type: mount.TypeBind, Source: resultDir, Target: "/work"}}},
 	})
 	if err != nil {
 		return backupRunStatus{}, fmt.Errorf("create backup runner: %w", err)

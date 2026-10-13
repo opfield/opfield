@@ -53,7 +53,7 @@ function context(dispatch: ReturnType<typeof vi.fn>) {
 }
 
 describe('managed links of a container name', () => {
-  it('are released when Gateway removes the container, after its own secrets', async () => {
+  it('are released when Opfield removes the container, after its own secrets', async () => {
     const dispatch = vi.fn().mockResolvedValue({ success: true });
     const { ctx, releaseContainerLinks, deleteSecrets } = context(dispatch);
 

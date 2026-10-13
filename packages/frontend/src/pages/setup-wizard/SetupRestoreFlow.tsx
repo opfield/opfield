@@ -762,7 +762,7 @@ export function SetupRestoreFlow({
         {changes.publicUrl || changes.grpcPublicTarget ? (
           <Notice tone="warning" title="The address differs from the export">
             {changes.grpcPublicTarget
-              ? `Nodes connect to ${summary.sourceGrpcPublicTarget}. They move here on their own if the old installation announced this address under Settings > General; otherwise point the old address here or set gateway.address on each node.`
+              ? `Nodes connect to ${summary.sourceGrpcPublicTarget}. They move here on their own if the old installation announced this address under Settings > General; otherwise point the old address here or set the control-plane address in the daemon config on each node.`
               : "Update DNS, the identity provider callback and links that use the old address."}
           </Notice>
         ) : null}

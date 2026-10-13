@@ -1158,7 +1158,7 @@ function relayCoreResponseBody(
       if (!isSse) return;
       // Native compaction can stay silent for minutes. Keep the public HTTP stream
       // active without inventing model events or letting keepalives count as output.
-      const keepalive = encoder.encode(': gateway keepalive\n\n');
+      const keepalive = encoder.encode(': opfield keepalive\n\n');
       controller.enqueue(keepalive);
       heartbeat = setInterval(() => {
         // Never splice a comment into a fragmented SSE event, or queue unbounded

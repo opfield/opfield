@@ -243,8 +243,8 @@ function enrollmentTargetHost(target: string | null | undefined): string | null 
  */
 export function defaultStatusPageUpstreamUrl(context: StatusPageDefaultUpstreamContext): string {
   const normalize = (address: string) => address.trim().toLowerCase();
-  const gatewayHost = new Set(context.opfieldHostAddresses.map(normalize).filter(Boolean));
-  const onOpfieldHost = context.nodeAddresses.some((address) => gatewayHost.has(normalize(address)));
+  const opfieldHost = new Set(context.opfieldHostAddresses.map(normalize).filter(Boolean));
+  const onOpfieldHost = context.nodeAddresses.some((address) => opfieldHost.has(normalize(address)));
   const host = onOpfieldHost
     ? '127.0.0.1'
     : (enrollmentTargetHost(context.opfieldLocalTarget) ??

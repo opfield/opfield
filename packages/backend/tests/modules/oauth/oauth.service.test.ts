@@ -48,7 +48,7 @@ function createService(options?: {
   const cacheDelete = vi.fn().mockResolvedValue(undefined);
   const client = options?.client ?? {
     clientId: 'goc_client',
-    clientName: 'Gateway OAuth CLI Test',
+    clientName: 'Opfield OAuth CLI Test',
     clientUri: null,
     logoUri: null,
     redirectUris: ['http://127.0.0.1:8765/callback'],
@@ -307,7 +307,7 @@ describe('OAuthService.createConsentRequest', () => {
     expect(cacheSet).toHaveBeenCalledWith(expect.stringContaining('oauth:consent:'), pending, 600);
   });
 
-  it('grants every delegable scope the user holds to Gateway MCP, including connector operations', async () => {
+  it('grants every delegable scope the user holds to Opfield MCP, including connector operations', async () => {
     const { service } = createService();
     const connectorScopes = [
       'integrations:gitlab:repo:read',
@@ -516,7 +516,7 @@ describe('OAuthService.approveConsent', () => {
       id: 'request-1',
       userId: USER.id,
       clientId: 'goc_client',
-      clientName: 'Gateway OAuth CLI Test',
+      clientName: 'Opfield OAuth CLI Test',
       clientUri: null,
       logoUri: null,
       redirectUri: 'http://127.0.0.1:8765/callback',

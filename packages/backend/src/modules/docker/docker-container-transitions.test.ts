@@ -3,7 +3,7 @@ import { OperationLeaseStore } from '@/db/operation-lease.js';
 import { createFakeOperationLeaseDb } from '@/db/operation-lease.test-helpers.js';
 import { DockerContainerTransitions } from './docker-container-transitions.js';
 
-describe('container leases of an operation whose Gateway process is gone', () => {
+describe('container leases of an operation whose Opfield process is gone', () => {
   it('lets the follow-ups of its detached task take the lease over instead of waiting for it to lapse', async () => {
     const { db } = createFakeOperationLeaseDb();
     // The process that ran the update; it is gone without releasing the lease (Opfield restarted).

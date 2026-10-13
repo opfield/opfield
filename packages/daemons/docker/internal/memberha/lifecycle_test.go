@@ -323,6 +323,6 @@ func TestAStoppedConfigurationIsPersisted(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !reloaded.Stopped(testSet) {
-		t.Fatal("a pause survives a daemon restart (Gateway may be down)")
+		t.Fatal("a pause survives a daemon restart (Opfield may be down)")
 	}
 }

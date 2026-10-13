@@ -120,7 +120,7 @@ export class OpfieldLifecycleService {
 
 function safePath(url: string): string {
   try {
-    return new URL(url, 'http://gateway.local').pathname;
+    return new URL(url, 'http://opfield.local').pathname;
   } catch {
     return '/';
   }

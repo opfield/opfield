@@ -30,7 +30,8 @@ export interface ResourceSnapshotLease {
   token: string;
 }
 
-const PREFIX = 'gateway:read-model:v1';
+export const RESOURCE_SNAPSHOT_PREFIX = 'opfield:read-model:v1';
+const PREFIX = RESOURCE_SNAPSHOT_PREFIX;
 const DEFAULT_LEASE_MS = 15_000;
 
 function keyPart(value: string): string {

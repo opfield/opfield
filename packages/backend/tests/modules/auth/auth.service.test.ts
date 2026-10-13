@@ -668,7 +668,7 @@ describe('AuthService additional permissions', () => {
     expect(eventBus.publish).not.toHaveBeenCalledWith(`mfa.required.${targetUser.id}`, expect.anything());
   });
 
-  it('leaves OIDC group moves outside Gateway MFA grace handling', async () => {
+  it('leaves OIDC group moves outside Opfield MFA grace handling', async () => {
     const { service, sessionService, authSettingsService, eventBus } = createGroupMoveContext({
       sourceRequiresMfa: false,
       destinationRequiresMfa: true,
@@ -707,13 +707,13 @@ describe('normalizeOidcClaims', () => {
     });
   });
 
-  it('rejects subjects in the reserved Gateway system namespace', () => {
+  it('rejects subjects in the reserved Opfield system namespace', () => {
     expect(() => normalizeOidcClaims({ sub: 'system:external-user', email: 'user@example.com' })).toThrow(
       'OIDC subject uses a reserved Opfield namespace'
     );
   });
 
-  it('rejects subjects that collide with pre-created Gateway placeholders', () => {
+  it('rejects subjects that collide with pre-created Opfield placeholders', () => {
     for (const sub of ['manual:victim@example.com', 'MANUAL:victim@example.com', 'System:opfield-setup']) {
       expect(() => normalizeOidcClaims({ sub, email: 'victim@example.com', email_verified: true })).toThrow(
         'OIDC subject uses a reserved Opfield namespace'
@@ -870,7 +870,7 @@ describe('AuthService OIDC identity binding', () => {
       },
       {
         ipAddress: '203.0.113.10',
-        userAgent: 'Mozilla/5.0 Gateway test browser',
+        userAgent: 'Mozilla/5.0 Opfield test browser',
       }
     );
 
@@ -881,7 +881,7 @@ describe('AuthService OIDC identity binding', () => {
       {
         authMethod: 'oidc',
         ipAddress: '203.0.113.10',
-        userAgent: 'Mozilla/5.0 Gateway test browser',
+        userAgent: 'Mozilla/5.0 Opfield test browser',
       }
     );
   });

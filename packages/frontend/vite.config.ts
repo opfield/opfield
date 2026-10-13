@@ -16,7 +16,7 @@ function publicAssetVersion(file: string): string | null {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, import.meta.dirname, "");
-  const backendTarget = env.GATEWAY_DEV_PROXY_TARGET || "http://localhost:3000";
+  const backendTarget = env.OPFIELD_DEV_PROXY_TARGET || "http://localhost:3000";
 
   return {
     plugins: [
@@ -30,7 +30,7 @@ export default defineConfig(({ mode }) => {
         },
       },
       {
-        name: "gateway-login-entry",
+        name: "opfield-login-entry",
         configureServer(server) {
           server.middlewares.use((request, _response, next) => {
             if (!request.url) return next();

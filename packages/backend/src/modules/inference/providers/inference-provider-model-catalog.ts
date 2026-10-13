@@ -260,7 +260,7 @@ export function knownProviderModel(providerId: string, modelId: string): KnownIn
 export function pricingFromDiscoveredMetadata(
   metadata: Record<string, unknown> | null | undefined
 ): InferenceProviderModelPricing | undefined {
-  const candidate = object(metadata?.gatewayPricing);
+  const candidate = object(metadata?.opfieldPricing);
   if (!candidate || candidate.source !== 'provider' || typeof candidate.version !== 'string') return undefined;
   const input = safeInteger(candidate.inputMicrodollarsPerMillion);
   const output = safeInteger(candidate.outputMicrodollarsPerMillion);

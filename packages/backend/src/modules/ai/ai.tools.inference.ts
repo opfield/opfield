@@ -249,7 +249,7 @@ export const INFERENCE_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_inference_token',
     description:
-      'Manage dedicated gwi_ inference tokens for the current user only. Operations: list, create, revoke. A created secret is shown once and is redacted from assistant history; never create a token for another user.',
+      'Manage dedicated opfi_ inference tokens for the current user only. Operations: list, create, revoke. A created secret is shown once and is redacted from assistant history; never create a token for another user.',
     parameters: {
       type: 'object',
       properties: {

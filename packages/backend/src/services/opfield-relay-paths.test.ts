@@ -64,7 +64,7 @@ function paths(outage: () => LocalRelayOutage | null, now: () => number, pool?: 
 
 const ids = (candidates: OpfieldRelayCandidate[]) => candidates.map(({ relayInstanceId }) => relayInstanceId);
 
-describe("Gateway's own relayed streams choose relays by distance (O-1)", () => {
+describe("Opfield's own relayed streams choose relays by distance (O-1)", () => {
   it('takes the nearest standby, not the first listed, while the local relay does not serve', () => {
     let now = T0;
     const outage: LocalRelayOutage = { since: T0, servingAgainAt: null, planned: false };
@@ -135,7 +135,7 @@ describe("Gateway's own relayed streams choose relays by distance (O-1)", () => 
   });
 });
 
-describe("Gateway's own relayed streams during a staged placement change (stand rc.10, F-1)", () => {
+describe("Opfield's own relayed streams during a staged placement change (stand rc.10, F-1)", () => {
   // Endpoint 0bed542f at 13:31:12 of the rc.10 Relay Pool update: gen 58 `uk:primary, nl:fallback` active, gen 59
   // `local:primary, uk:fallback` staged (registered 13:31:10, activated 13:31:14), the local relay serving again since
   // 13:31:09 after its own update. netem NL 300 ms, UK 60 ms.
@@ -199,7 +199,7 @@ describe("Gateway's own relayed streams during a staged placement change (stand 
   });
 });
 
-describe("Gateway's own relayed streams know every relay's distance after a quiet period (F-3)", () => {
+describe("Opfield's own relayed streams know every relay's distance after a quiet period (F-3)", () => {
   it('measures every remote relay of the pool, not only those its recent assignments named', async () => {
     let now = T0;
     const t = paths(
@@ -273,7 +273,7 @@ describe("Gateway's own relayed streams know every relay's distance after a quie
     t.instance.stop();
   });
 
-  it("opens a stream on the nearest relay right after Gateway's start (RelayPolicyService)", async () => {
+  it("opens a stream on the nearest relay right after Opfield's start (RelayPolicyService)", async () => {
     const opened: string[] = [];
     const relay = {
       applySnapshot: vi.fn(),
@@ -301,7 +301,7 @@ describe("Gateway's own relayed streams know every relay's distance after a quie
   });
 });
 
-describe("Gateway's own relayed streams return to the nearest relay, paced (O-1)", () => {
+describe("Opfield's own relayed streams return to the nearest relay, paced (O-1)", () => {
   it('judges a return target as the daemons do', () => {
     const t = paths(
       () => null,

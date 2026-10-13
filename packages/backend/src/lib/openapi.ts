@@ -316,7 +316,7 @@ const tagExamples: Record<string, unknown> = {
   Tokens: {
     id: '550e8400-e29b-41d4-a716-446655440000',
     name: 'Automation token',
-    tokenPrefix: 'gw_abc123',
+    tokenPrefix: 'opf_abc123',
     scopes: ['nodes:details'],
   },
   Admin: {

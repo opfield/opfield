@@ -17,7 +17,7 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 source "${root}/scripts/release/manifest-download-base.sh"
 base_url="${ARTIFACT_BASE_URL:-$MANIFEST_DOWNLOAD_BASE_URL}"
 base_url="${base_url%/}"
-[[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] || { echo "not a Gateway release tag: $tag" >&2; exit 1; }
+[[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] || { echo "not an Opfield release tag: $tag" >&2; exit 1; }
 if [[ "${WITNESS_DRY_RUN:-}" != "1" && -z "${UPDATE_SIGNING_PRIVATE_KEY_PEM_B64:-}" ]]; then
   echo 'UPDATE_SIGNING_PRIVATE_KEY_PEM_B64 is required' >&2
   exit 1

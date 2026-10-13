@@ -64,7 +64,7 @@ func TestEffectiveRolesAfterRecovery(t *testing.T) {
 	}
 	voters, learners = effectiveRoles(config, ec, nil, nil)
 	if len(voters) != 1 || voters[0].ID != 1 || len(learners) != 1 || learners[0].ID != 2 {
-		t.Fatalf("Gateway's roles: %+v %+v", voters, learners)
+		t.Fatalf("Opfield's roles: %+v %+v", voters, learners)
 	}
 }
 

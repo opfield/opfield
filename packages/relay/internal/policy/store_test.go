@@ -736,7 +736,7 @@ func TestResetLocalPolicyTrustRebindsNextSnapshot(t *testing.T) {
 		t.Fatal("an older revision was accepted after the rebind")
 	}
 	if _, _, err := local.Apply(signedSnapshotForOpfield(t, newPrivate, "new", newPublic, grantPublic, 4, now, "gateway-1")); err == nil {
-		t.Fatal("another Gateway instance was accepted after the rebind")
+		t.Fatal("another Opfield instance was accepted after the rebind")
 	}
 }
 

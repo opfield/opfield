@@ -166,6 +166,8 @@ export class ManagedDatabaseBindingService {
       logicalConnectorAddress?: string;
       environment: Record<string, string>;
       composeServiceName?: string;
+      /** The link keeps the Compose variable names it had before 2.12.1. */
+      legacyVariables: boolean;
     }>
   > {
     return commercialModuleUnavailable();

@@ -292,7 +292,7 @@ cases:
         storage:
           name: gateway-storage-0123456789abcdef
 
-  - name: managed database link network added by Gateway
+  - name: managed database link network added by Opfield
     valid: true
     yaml: |
       services:

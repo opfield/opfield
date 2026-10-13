@@ -63,7 +63,7 @@ describe('API e2e scenarios contract', () => {
     expect(runtimeMutation?.skip?.(contextWithFlags({ allowRuntimeMutations: true }))).toBe(false);
   });
 
-  it('prefers a general-purpose runtime image over Gateway connector images', async () => {
+  it('prefers a general-purpose runtime image over Opfield connector images', async () => {
     const ctx = contextWithFlags({});
     ctx.client = {
       get: async () => ({

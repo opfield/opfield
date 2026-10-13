@@ -46,12 +46,12 @@ export function buildHostingBootstrap(input: {
   if (!input.gateway || !/^sha256:[a-f0-9]{64}$/i.test(input.certificateFingerprint))
     throw new AppError(
       409,
-      'HOSTING_GATEWAY_NOT_READY',
+      'HOSTING_OPFIELD_NOT_READY',
       'Configure the Opfield enrollment endpoint and certificate first'
     );
   const url = new URL(`https://${input.gateway}`);
   if (url.username || url.password || url.pathname !== '/' || url.search || url.hash)
-    throw new AppError(400, 'HOSTING_GATEWAY_INVALID', 'Invalid Opfield enrollment endpoint');
+    throw new AppError(400, 'HOSTING_OPFIELD_INVALID', 'Invalid Opfield enrollment endpoint');
   // legacy-name: --gateway flags — the pinned installer (HOSTING_INSTALLER_REVISION) predates --opfield; switch with the
   // next pin of a release whose installers take --opfield and --opfield-cert-sha256.
   const args = [
@@ -153,17 +153,17 @@ export function validateHostingGateway(value: string, allowPrivate: boolean): vo
   try {
     url = new URL(`https://${value}`);
   } catch {
-    throw new AppError(400, 'HOSTING_GATEWAY_INVALID', 'Invalid Opfield enrollment endpoint');
+    throw new AppError(400, 'HOSTING_OPFIELD_INVALID', 'Invalid Opfield enrollment endpoint');
   }
   const host = url.hostname.replace(/^\[|\]$/g, '');
   if (!host || host === 'localhost' || host === '127.0.0.1' || host === '::1' || !url.port)
-    throw new AppError(400, 'HOSTING_GATEWAY_INVALID', 'A remotely reachable Opfield endpoint with port is required');
+    throw new AppError(400, 'HOSTING_OPFIELD_INVALID', 'A remotely reachable Opfield endpoint with port is required');
   // Private Proxmox connectivity is allowed. Public provider reachability is checked before ordering.
   const ip = normalizeIp(host);
   if (ip && (isAlwaysBlockedOutboundIp(ip) || (!allowPrivate && !isPubliclyRoutableIp(ip))))
     throw new AppError(
       400,
-      'HOSTING_GATEWAY_PRIVATE',
+      'HOSTING_OPFIELD_PRIVATE',
       'Set a publicly reachable Opfield gRPC address in General settings so cloud nodes can connect. No VM was ordered.'
     );
 }

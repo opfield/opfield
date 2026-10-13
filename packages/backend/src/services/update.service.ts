@@ -1404,12 +1404,6 @@ rollback() {
       return 1
     fi
   fi
-  attempt=0
-  until compose exec -T postgres psql -v ON_ERROR_STOP=1 -U ${database.role} -d ${database.database} -c 'BEGIN; CREATE OR REPLACE VIEW "public"."gateway_relay_node_identities_v1" WITH (security_barrier = true) AS SELECT "id" AS "node_id", "type"::text AS "node_type", "status"::text AS "node_status", "certificate_serial" FROM "public"."nodes"; CREATE OR REPLACE VIEW "public"."gateway_relay_managed_databases_v1" WITH (security_barrier = true) AS SELECT "id" AS "managed_database_id", "node_id" AS "database_node_id", "status"::text AS "database_status" FROM "public"."managed_database_instances"; CREATE OR REPLACE VIEW "public"."gateway_relay_bindings_v1" WITH (security_barrier = true) AS SELECT binding."id" AS "binding_id", binding."managed_database_id", binding."target_node_id" AS "source_node_id", binding."status"::text AS "binding_status", managed."node_id" AS "database_node_id", managed."status"::text AS "database_status" FROM "public"."managed_database_bindings" binding INNER JOIN "public"."managed_database_instances" managed ON managed."id" = binding."managed_database_id"; COMMIT;'; do
-    attempt=$((attempt + 1))
-    [ "$attempt" -lt 10 ]
-    sleep 2
-  done
   ensure_foundation_services
   if [ "$rollback_has_relay" -eq 1 ]; then
     compose up -d --no-deps app

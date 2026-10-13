@@ -16,7 +16,7 @@ const runtime = (digit: string) => digit.repeat(64);
  * snapshot that still lists the replaced runtime cannot take the identity back. A container nobody recreated under
  * the same name still gets a new identity without the previous one's grants.
  */
-describe.skipIf(!url)('container access identity across Gateway recreates', () => {
+describe.skipIf(!url)('container access identity across Opfield recreates', () => {
   let database: Awaited<ReturnType<typeof disposableDatabase>>;
   let pool: pg.Pool;
   let db: DrizzleClient;

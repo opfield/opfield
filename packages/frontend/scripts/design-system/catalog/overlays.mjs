@@ -225,7 +225,7 @@ Every token, key or password Opfield shows once: API, deploy, inference and inge
 \`open\`, \`onOpenChange\`, \`title\`, optional \`description\`, \`fields\` (\`{ label, value, hint? }[]\` or null), optional \`children\`, \`onClosed\`, \`className\` for a wider dialog.
 `,
     preview: () => `
-mount(h(G.OneTimeSecretDialog, { open: true, onOpenChange: function () {}, title: "API Token Created", fields: [{ label: "API token", value: "gw_pat_4be1a0f2c9d84d6e9a7f1b3c5d7e9f01" }], onClosed: function () {} }));
+mount(h(G.OneTimeSecretDialog, { open: true, onOpenChange: function () {}, title: "API Token Created", fields: [{ label: "API token", value: "opf_4be1a0f2c9d84d6e9a7f1b3c5d7e9f01" }], onClosed: function () {} }));
 `,
   },
   {

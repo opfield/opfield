@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fixed native Gateway backup runner. It accepts no caller-provided commands or paths."""
+"""Fixed native Opfield backup runner. It accepts no caller-provided commands or paths."""
 import base64
 import contextlib
 import ftplib
@@ -24,7 +24,9 @@ from collections import deque
 import urllib.parse
 import urllib.request
 
-CONFIG = pathlib.Path("/run/gateway-backup/config.json")
+CONFIG = pathlib.Path("/run/opfield-backup/config.json")
+# legacy-name: config mount of Docker daemons before 2.12.1 — remove once every node reports none
+LEGACY_CONFIG = pathlib.Path("/run/gateway-backup/config.json")
 WORK = pathlib.Path("/work")
 RESULT = WORK / "result.json"
 STARTED_AT = time.time()
@@ -74,11 +76,17 @@ def stop_requested(_signum, _frame):
     raise BackupError("the run was stopped: it was cancelled or reached its time limit")
 
 
+def config_file():
+    """The run config: the Opfield mount, else the one Docker daemons before 2.12.1 mount."""
+    return CONFIG if CONFIG.exists() or not LEGACY_CONFIG.exists() else LEGACY_CONFIG
+
+
 def load_config():
-    st = CONFIG.stat()
+    path = config_file()
+    st = path.stat()
     if st.st_mode & 0o077:
         raise BackupError("backup config permissions are unsafe")
-    config = json.loads(CONFIG.read_text())
+    config = json.loads(path.read_text())
     required = {"runId", "version", "direction", "engine", "destination", "limits", "toolImage"}
     if set(config) - (required | {"source", "staging", "restoreTarget", "restoreArtifact", "redisStaging", "redisStageImage", "redisStageAdvertiseHost", "deadlineAt"}):
         raise BackupError("backup config has unrecognized fields")
@@ -287,7 +295,7 @@ def preflight(config):
                     raise BackupError("clickhouse native staging probe produced no objects")
     else:
         assert_empty_target(engine, config["restoreTarget"])
-    probe = WORK / "probe"; probe.write_bytes(b"gateway-backup-probe")
+    probe = WORK / "probe"; probe.write_bytes(b"opfield-backup-probe")
     remote = remote_key(config["destination"], f"{config['runId']}/.probe")
     with cleanup_after(lambda: delete_object(config["destination"], remote)):
         try:
@@ -360,7 +368,7 @@ def restore(config):
 # the database owner. Legacy managed databases (owner == restoring account) and
 # superuser-owned databases are left unchanged.
 POSTGRES_OWNERSHIP_TRANSFER_SQL = """
-DO $gateway$
+DO $opfield$
 DECLARE
   database_owner name;
   owner_is_superuser boolean;
@@ -373,7 +381,7 @@ BEGIN
   END IF;
   EXECUTE format('REASSIGN OWNED BY %I TO %I', current_user, database_owner);
 END
-$gateway$;
+$opfield$;
 """
 
 
@@ -1014,10 +1022,11 @@ def storage_copy_main():
 
 
 def load_copy_config():
-    st = CONFIG.stat()
+    path = config_file()
+    st = path.stat()
     if st.st_mode & 0o077:
         raise BackupError("storage copy config permissions are unsafe")
-    config = json.loads(CONFIG.read_text())
+    config = json.loads(path.read_text())
     if not isinstance(config, dict) or set(config) != COPY_CONFIG_FIELDS:
         raise BackupError("storage copy config has missing or unrecognized fields")
     if config["kind"] != "storage_copy" or config["version"] != 1 or config["mode"] not in {"copy", "sync"}:

@@ -116,9 +116,9 @@ func (m *Manager) manualPrimaryStepLocked(mem *member, now time.Duration) {
 		}
 		m.closeServingLocked(mem)
 		if mem.obs.container.Running && mem.obs.status.Writable {
-			m.demoteLocked(mem, EventSelfFenced, "gateway_and_peer_unreachable")
+			m.demoteLocked(mem, EventSelfFenced, "opfield_and_peer_unreachable")
 		} else {
-			m.eventLocked(mem, Event{Kind: EventSelfFenced, Reason: "gateway_and_peer_unreachable"})
+			m.eventLocked(mem, Event{Kind: EventSelfFenced, Reason: "opfield_and_peer_unreachable"})
 		}
 		return
 	}

@@ -72,7 +72,7 @@ describe('registry binding sync while the registry takes no writes', () => {
   });
 });
 
-describe('registry binding sync across a Gateway restart (S6)', () => {
+describe('registry binding sync across an Opfield restart (S6)', () => {
   function hanging() {
     const db = {
       select: () => ({

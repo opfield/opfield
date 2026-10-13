@@ -644,7 +644,7 @@ export class InferenceProviderService {
                 [CORE_MODEL_METADATA_KEY]: row.namespaced,
                 ...(row.inputModalities !== undefined ? { input_modalities: row.inputModalities } : {}),
                 ...(row.capabilities !== undefined ? { capabilities: row.capabilities } : {}),
-                ...(pricing ? { gatewayPricing: pricing } : {}),
+                ...(pricing ? { opfieldPricing: pricing } : {}),
                 ...(row.defaultReasoningEffort ? { default_reasoning_effort: row.defaultReasoningEffort } : {}),
                 ...(row.supportsReasoningSummaries !== undefined
                   ? { supports_reasoning_summaries: row.supportsReasoningSummaries }

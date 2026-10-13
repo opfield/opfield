@@ -91,7 +91,7 @@ function migratedProgrammaticStoredScopes(scopes: string[]): string[] {
 }
 
 describe('canonical scope definitions', () => {
-  it('delegates the same scopes to Gateway MCP as to API tokens, including connector operations', () => {
+  it('delegates the same scopes to Opfield MCP as to API tokens, including connector operations', () => {
     expect(MCP_TOKEN_SCOPES).toEqual(API_TOKEN_SCOPES);
     expect(MCP_TOKEN_SCOPES).toContain('nodes:details');
     expect(MCP_TOKEN_SCOPES).not.toContain('mcp:use');

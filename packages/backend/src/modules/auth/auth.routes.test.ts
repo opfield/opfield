@@ -300,7 +300,7 @@ describe('OIDC callback route', () => {
 
     const response = await app.request('/auth/callback?code=code&state=state', {
       headers: {
-        'User-Agent': 'Mozilla/5.0 Gateway browser',
+        'User-Agent': 'Mozilla/5.0 Opfield browser',
         'X-Forwarded-For': '203.0.113.10',
         Cookie: `${OIDC_STATE_COOKIE_NAME}=${hashOidcState('state')}`,
       },
@@ -312,7 +312,7 @@ describe('OIDC callback route', () => {
       'state',
       {
         ipAddress: '203.0.113.10',
-        userAgent: 'Mozilla/5.0 Gateway browser',
+        userAgent: 'Mozilla/5.0 Opfield browser',
       }
     );
     expect(auditLog).toHaveBeenCalledWith(expect.objectContaining({ action: 'auth.login', userId: USER.id }));

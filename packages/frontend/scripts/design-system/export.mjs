@@ -32,7 +32,7 @@ import { createProgram, readCva, readExports } from "./lib/source-meta.mjs";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND = path.resolve(HERE, "../..");
 const REPO = path.resolve(FRONTEND, "../..");
-const DOCS_REPO = path.resolve(REPO, "../gateway-docs");
+const DOCS_REPO = path.resolve(REPO, "../opfield-docs");
 const DESIGN = path.join(REPO, ".design");
 const SYSTEM = path.join(DESIGN, "system");
 const TITLE = "Opfield";
@@ -65,10 +65,9 @@ const EXPECTED_TIMINGS = {
 
 const ASSETS = [
   { group: "Logos", files: [
-    [path.join(DOCS_REPO, "public/brand/good-gateway-lockup-light.png"), "good-gateway-lockup-light.png", "Lockup for light grounds: the mark and the ink wordmark \"opfield\". 1968 × 584."],
-    [path.join(DOCS_REPO, "public/brand/good-gateway-lockup-dark.png"), "good-gateway-lockup-dark.png", "Lockup for dark grounds: white wordmark on a rounded black plate. 1932 × 512."],
-    [path.join(FRONTEND, "public/android-chrome-512x512.png"), "good-gateway-mark-512.png", "The mark on its tile, 512px (the product's android-chrome-512, og-image and the docs logo are this same file)."],
-    [path.join(FRONTEND, "public/android-chrome-192x192.png"), "good-gateway-mark-192.png", "The mark, 192px: what the sidebar shows at 20px."],
+    [path.join(DOCS_REPO, "public/brand/opfield.png"), "opfield-mark-dark.png", "The mark on a dark tile, 400 × 400 (the docs logo)."],
+    [path.join(FRONTEND, "public/android-chrome-512x512.png"), "opfield-mark-512.png", "The mark on its tile, 512px (the product's android-chrome-512 and og-image)."],
+    [path.join(FRONTEND, "public/android-chrome-192x192.png"), "opfield-mark-192.png", "The mark, 192px: what the sidebar shows at 20px."],
   ] },
   { group: "Favicons", files: [
     [path.join(FRONTEND, "public/favicon-48x48.png"), "favicon-48x48.png", "Browser favicon, 48px."],

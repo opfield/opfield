@@ -80,7 +80,7 @@ function repair(
 }
 
 describe('managed leftovers on nodes (rc.8 O-5)', () => {
-  it('removes leftovers Gateway has no instance of after two sightings 5+ minutes apart, and audits them', async () => {
+  it('removes leftovers Opfield has no instance of after two sightings 5+ minutes apart, and audits them', async () => {
     const { service, deps, advance } = repair();
     expect(await service.run()).toBe(0);
     advance(LEFTOVER_CONFIRMATION_MS - 1);
@@ -94,7 +94,7 @@ describe('managed leftovers on nodes (rc.8 O-5)', () => {
     expect(deps.audit).toHaveBeenCalledWith({ nodeId: NODE, kind: 'storage', leftover: deleted });
   });
 
-  it('never removes an id Gateway has an instance of, even with an unreadable record', async () => {
+  it('never removes an id Opfield has an instance of, even with an unreadable record', async () => {
     const { service, deps, advance } = repair({ list: [live] });
     await service.run();
     advance(LEFTOVER_CONFIRMATION_MS);
@@ -134,7 +134,7 @@ describe('managed leftovers on nodes (rc.8 O-5)', () => {
     expect(deps.removeLeftover).not.toHaveBeenCalled();
   });
 
-  it('removes an availability member whose database or member Gateway no longer has (a leaked set member)', async () => {
+  it('removes an availability member whose database or member Opfield no longer has (a leaked set member)', async () => {
     const MEMBER = '03ecf0b8-553f-44ab-8641-511daadad9a2';
     const KEPT_MEMBER = 'b6d3e641-a3c9-456b-ab91-93ca7c011961';
     const SET = '082d2a9a-db4b-4b00-b2e7-2a566aec89b6';

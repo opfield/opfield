@@ -21,8 +21,8 @@ function classify(tag: string) {
 
 describe('release tag classifier', () => {
   it.each([
-    ['v2.10.0', 'gateway', '', 'v2.10.0', 'false'],
-    ['v2.10.0-rc.1', 'gateway', '', 'v2.10.0-rc.1', 'true'],
+    ['v2.10.0', 'opfield', '', 'v2.10.0', 'false'],
+    ['v2.10.0-rc.1', 'opfield', '', 'v2.10.0-rc.1', 'true'],
     ['v2.10.0-nginx', 'component', 'nginx', 'v2.10.0', 'false'],
     ['v2.10.0-rc.2-nginx', 'component', 'nginx', 'v2.10.0-rc.2', 'true'],
     ['v2.10.0-rc.3-relay', 'component', 'relay', 'v2.10.0-rc.3', 'true'],
@@ -42,6 +42,6 @@ describe('release tag classifier', () => {
   ])('rejects unsupported tag %s', (tag) => {
     const result = classify(tag);
     expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain('is not a supported Gateway release tag');
+    expect(result.stderr).toContain('is not a supported Opfield release tag');
   });
 });

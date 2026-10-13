@@ -35,10 +35,10 @@ if (runner.startsWith('ghcr.io/')) {
   }
 }
 
-const prefix = `gateway-backup-smoke-${randomUUID().slice(0, 8)}`;
+const prefix = `opfield-backup-smoke-${randomUUID().slice(0, 8)}`;
 const pg = `${prefix}-pg`, s3 = `${prefix}-s3`;
 const configVolume = `${prefix}-config`, workVolume = `${prefix}-work`;
-const fixture = mkdtempSync(join(tmpdir(), 'gateway-backup-smoke-'));
+const fixture = mkdtempSync(join(tmpdir(), 'opfield-backup-smoke-'));
 const postgresImage = readFileSync(new URL('../packages/daemons/backup-runner/Dockerfile', import.meta.url), 'utf8').match(/^FROM (\S+)/m)?.[1];
 // The disposable S3 fixture must not depend on the private managed-storage catalog. MinIO withdrew its public
 // images, so the fixture is SeaweedFS 4.47 pinned by digest in the third-party mirror list. Prefer the GHCR
@@ -82,7 +82,7 @@ function execute(config, operation, shouldFail = false) {
     '-c', 'cp /input/config.json /config/config.json && chown 65532:65532 /config/config.json /work && chmod 600 /config/config.json');
   const result = spawnSync('docker', ['run', '--rm', '--network', prefix, '--read-only',
     '--cap-drop=ALL', '--security-opt=no-new-privileges:true', '--memory=512m', '--cpus=1',
-    ...mount(configVolume, '/run/gateway-backup', true), ...mount(workVolume, '/work'), runner, operation],
+    ...mount(configVolume, '/run/opfield-backup', true), ...mount(workVolume, '/work'), runner, operation],
     { encoding: 'utf8', timeout: 120_000 });
   if (result.error) throw result.error;
   const payload = JSON.parse(docker('run', '--rm', '--network', 'none', '--entrypoint', 'cat',

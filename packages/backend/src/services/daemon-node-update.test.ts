@@ -297,7 +297,7 @@ describe('daemon update task wait', () => {
     expect(node.metadata.updatePhase).toBe('executing');
   });
 
-  it('takes a waiting update up again after a Gateway restart, bounded from when its wait began', async () => {
+  it('takes a waiting update up again after an Opfield restart, bounded from when its wait began', async () => {
     const startedAt = new Date(Date.now() - 40 * 60_000);
     const { deps, node, sendUpdateDaemonCommand } = harness({
       tasks: [BACKUP],

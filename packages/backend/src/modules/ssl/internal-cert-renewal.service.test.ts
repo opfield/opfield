@@ -168,7 +168,7 @@ describe('InternalCertificateRenewalService', () => {
     expect(certService.issueCertificate).not.toHaveBeenCalled();
   });
 
-  it('scheduled pass reissues only due leaves Gateway holds the key for', async () => {
+  it('scheduled pass reissues only due leaves Opfield holds the key for', async () => {
     const due = source({ id: 'pki-due' });
     const fresh = source({ id: 'pki-fresh', notBefore: new Date(), notAfter: new Date(Date.now() + 365 * DAY_MS) });
     const csr = source({ id: 'pki-csr', encryptedPrivateKey: null, encryptedDek: null });

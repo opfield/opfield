@@ -18,7 +18,7 @@ const serviceWorker = path.join(path.dirname(require.resolve("msw/package.json")
 
 function previewEntry(): Plugin {
   return {
-    name: "gateway-app-preview",
+    name: "opfield-app-preview",
     transformIndexHtml: {
       order: "pre",
       handler: (html) => html.replace('src="/src/main.tsx"', 'src="/scripts/app-preview/main.ts"'),

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { redactText } from './diagnostics-logs.js';
 
 describe('redactText', () => {
-  it('masks the secret formats Gateway and its stack containers write to their logs', () => {
+  it('masks the secret formats Opfield and its stack containers write to their logs', () => {
     const cases: Array<[string, string]> = [
       ['redis://:RedisPassw0rd@redis:6379/0', 'RedisPassw0rd'],
       ['connect postgres://gateway:S3cr3tPass@postgres:5432/gateway', 'S3cr3tPass'],

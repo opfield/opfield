@@ -79,7 +79,7 @@ describe('paid module activation', () => {
     expect(f.jobs).toHaveLength(1);
   });
 
-  it('refuses activation while a Gateway update runs, without touching the update screen', async () => {
+  it('refuses activation while an Opfield update runs, without touching the update screen', async () => {
     const f = fixture();
     f.updates.isOpfieldUpdateInProgress.mockReturnValue(true);
 

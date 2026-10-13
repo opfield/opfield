@@ -211,30 +211,30 @@ func editControlConfigFile(path string, set map[string]string, remove ...string)
 	}
 	root := document.Content[0]
 	// The section the daemon loaded: opfield:, else the pre-Opfield gateway:.
-	var gateway *yaml.Node
+	var section *yaml.Node
 	for _, key := range ControlSectionKeys {
-		if gateway = yamlMappingValue(root, key); gateway != nil {
+		if section = yamlMappingValue(root, key); section != nil {
 			break
 		}
 	}
-	if gateway == nil {
-		gateway = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-		root.Content = append(root.Content, yamlString(ControlSectionKeys[0]), gateway)
+	if section == nil {
+		section = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+		root.Content = append(root.Content, yamlString(ControlSectionKeys[0]), section)
 	}
-	if gateway.Kind != yaml.MappingNode {
+	if section.Kind != yaml.MappingNode {
 		return errors.New("config file has no opfield mapping")
 	}
 	for _, key := range remove {
-		yamlMappingDelete(gateway, key)
+		yamlMappingDelete(section, key)
 	}
 	for key, value := range set {
-		if existing := yamlMappingValue(gateway, key); existing != nil {
+		if existing := yamlMappingValue(section, key); existing != nil {
 			replacement := yamlString(value)
 			replacement.LineComment = existing.LineComment
 			*existing = *replacement
 			continue
 		}
-		gateway.Content = append(gateway.Content, yamlString(key), yamlString(value))
+		section.Content = append(section.Content, yamlString(key), yamlString(value))
 	}
 	var out bytes.Buffer
 	encoder := yaml.NewEncoder(&out)

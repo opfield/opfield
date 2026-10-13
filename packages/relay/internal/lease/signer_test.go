@@ -43,7 +43,7 @@ func TestRelayKeyRenewalKeepsItsVotesCounting(t *testing.T) {
 		t.Fatal("relay did not dual-sign while the manifests list its previous key")
 	}
 	if report := h.relay.Report(); bytes.Equal(report.GetIdentityPublicKey(), oldKey) || !bytes.Equal(report.GetIdentityPublicKey(), h.publicKey(relayID)) {
-		t.Fatal("report does not carry the renewed identity key for the Gateway to publish")
+		t.Fatal("report does not carry the renewed identity key for Opfield to publish")
 	}
 
 	// Opfield republishes the manifest with the relay's new key.

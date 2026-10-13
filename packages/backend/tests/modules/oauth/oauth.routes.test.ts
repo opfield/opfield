@@ -329,7 +329,7 @@ describe('OAuth authorization route', () => {
     expect(createConsentRequest).not.toHaveBeenCalled();
   });
 
-  it('redirects invalid target errors to the Gateway OAuth error UI', async () => {
+  it('redirects invalid target errors to the Opfield OAuth error UI', async () => {
     registerSession();
     registerOAuthService({
       createConsentRequest: vi
@@ -352,7 +352,7 @@ describe('OAuth authorization route', () => {
     expect(redirect.searchParams.get('message')).toBe('OAuth authorization is not available for this resource');
   });
 
-  it('redirects malformed authorization requests to the Gateway OAuth error UI', async () => {
+  it('redirects malformed authorization requests to the Opfield OAuth error UI', async () => {
     const response = await createApp().request('/api/oauth/authorize?response_type=code&client_id=goc_client');
     const location = response.headers.get('location');
 

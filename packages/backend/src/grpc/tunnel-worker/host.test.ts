@@ -225,7 +225,7 @@ function newHost(client: RelayTunnelClient): RelayTunnelHost {
   return host;
 }
 
-describe('Gateway tunnel worker engine', () => {
+describe('Opfield tunnel worker engine', () => {
   it('runs a connection to an endpoint through a resumable tunnel the main thread dials', async () => {
     const { client, opened } = fakeClient();
     const host = newHost(client);

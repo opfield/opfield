@@ -787,7 +787,7 @@ export class HousekeepingService {
 
   private async getNginxLogStats(): Promise<HousekeepingStats['nginxLogs']> {
     // Logs are managed by daemon nodes (7-day local retention) and streamed to Opfield
-    const logsPath = '/var/log/gateway-logs'; // Opfield-side log storage (future)
+    const logsPath = '/var/log/opfield-logs'; // Opfield-side log storage (future)
     try {
       const entries = await readdir(logsPath);
       let totalSize = 0;

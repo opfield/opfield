@@ -53,13 +53,13 @@ Options:
                            its host name is the installation name the license server sees)
   --docker-address-pool CIDR
                            default-address-pools base for the Docker the run installs (e.g. 10.201.0.0/16)
-  --license-server MODE    block (default): reachable only while a Gateway update runs;
+  --license-server MODE    block (default): reachable only while an Opfield update runs;
                            block-all: never reachable (Community updates must succeed without it);
                            allow: never blocked. A license key implies allow until the fresh install.
-  --max-api-downtime SEC   Longest acceptable API outage during a Gateway update (default: 120)
+  --max-api-downtime SEC   Longest acceptable API outage during an Opfield update (default: 120)
   --workdir DIR            Working directory (default: /var/tmp/gateway-e2e-<run>)
   --logs-out FILE          Write a tar.gz of the run logs and API evidence before removing the workdir
-  --via TAG                Stable release to update to first (Gateway, daemons, relay), then to the candidate:
+  --via TAG                Stable release to update to first (Opfield, daemons, relay), then to the candidate:
                            the path a customer on --base takes through an intermediate release
   --before-candidate CMD   With --via: run CMD (bash -c) between the two hops and go on when it exits 0; the
                            probes, the release feed and the DNS guard keep running. CMD sees GATEWAY_E2E_WORK,
@@ -865,9 +865,9 @@ check_license_guard() {
     fi
   done
   if [[ "$blocked" == 1 ]]; then
-    check "license server unreachable from Gateway" "lookups in the app container: ${evidence%; }" test "$ok" = 1
+    check "license server unreachable from Opfield" "lookups in the app container: ${evidence%; }" test "$ok" = 1
   else
-    check "license server reachable from Gateway" "lookups in the app container: ${evidence%; }" test "$ok" = 1
+    check "license server reachable from Opfield" "lookups in the app container: ${evidence%; }" test "$ok" = 1
   fi
 }
 
@@ -1222,7 +1222,7 @@ preflight() {
     HOST_ADDR="$(ip -o -4 route get 1.1.1.1 2>/dev/null | sed -nE 's/.* src ([0-9.]+).*/\1/p')"
   fi
   [[ "$HOST_ADDR" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Cannot determine the host address; pass --host-address." >&2; exit 2; }
-  [[ ! -e "$INSTALL_DIR" ]] || { echo "${INSTALL_DIR} exists; this run needs a host without Gateway." >&2; exit 2; }
+  [[ ! -e "$INSTALL_DIR" ]] || { echo "${INSTALL_DIR} exists; this run needs a host without Opfield." >&2; exit 2; }
   [[ ! -e "$OPFIELD_DIR" ]] || { echo "${OPFIELD_DIR} exists; this run needs a host without Opfield." >&2; exit 2; }
   for port in 3000 9443 80 443 "$WEB_PORT" "$FEED_PORT" 53; do
     if port_conflicts "$port"; then
@@ -1277,7 +1277,7 @@ prepare_stack() {
   env_set RELEASES_API_URL "http://${HOST_ADDR}:${FEED_PORT}/releases"
   env_set NODE_EXTRA_CA_CERTS /var/lib/gateway/e2e-smtp-ca.pem
   dc up -d app >>"$WORK/logs/compose.log" 2>&1
-  wait_for 300 "Gateway health" api_healthy || { fail "Gateway healthy after the .env change" ""; return 1; }
+  wait_for 300 "Opfield health" api_healthy || { fail "Opfield healthy after the .env change" ""; return 1; }
 }
 
 complete_setup() {
@@ -1290,7 +1290,7 @@ complete_setup() {
   setup_request /wizard/apply "$(mkjson '{"publicUrl": a[0], "network": {"grpcPublicTarget": a[1] + ":9443", "grpcLocalIp": a[1]},
     "auth": {"methods": {"oidc": False, "password": True, "emailOtp": False},
              "smtp": {"host": "mailpit", "port": 1025, "tlsMode": "starttls", "username": "e2e", "password": "e2e-smtp-password",
-                      "senderName": "Gateway E2E", "senderEmail": "gateway@e2e.test"}},
+                      "senderName": "Opfield E2E", "senderEmail": "opfield@e2e.test"}},
     "administrator": {"name": "E2E Admin", "email": a[2], "authMethod": "password", "password": a[3]},
     "logging": {"mode": "disabled"}}' "$PUBLIC_URL" "$HOST_ADDR" "$ADMIN_EMAIL" "$ADMIN_PASSWORD")"
   check "${label} setup apply" "HTTP ${CODE} $(short "$RESP" 200)" test "$CODE" = 200 || return 1
@@ -1300,7 +1300,7 @@ complete_setup() {
   setup_request /wizard/complete '{"status":"skipped"}'
   check "${label} setup complete" "HTTP ${CODE} $(short "$RESP" 120)" test "$CODE" = 200 || return 1
   sleep 5
-  wait_for 300 "Gateway health after setup" api_healthy || { fail "${label} healthy after setup" ""; return 1; }
+  wait_for 300 "Opfield health after setup" api_healthy || { fail "${label} healthy after setup" ""; return 1; }
   wait_for 120 "administrator sign-in" login_admin
   api GET /auth/me
   check "${label} first sign-in" "HTTP ${CODE}; group $(jx "$RESP" 'D["groupName"]'), $(jx "$RESP" 'len(D["groupScopes"])') scopes" \
@@ -1422,11 +1422,11 @@ phase1_base() {
     grep -q "\"${HOST_ADDR}\"" /etc/docker/daemon.json
 
   api POST "/api/docker/nodes/${FACT[docker_node]}/images/pull-sync" "$(mkjson '{"imageRef": a[0]}' "$WEB_IMAGE")"
-  check "image pulled through Gateway" "HTTP ${CODE} ${WEB_IMAGE}" test "$CODE" = 200 || return 1
+  check "image pulled through Opfield" "HTTP ${CODE} ${WEB_IMAGE}" test "$CODE" = 200 || return 1
   api POST "/api/docker/nodes/${FACT[docker_node]}/containers" "$(mkjson '{"image": a[0], "name": "e2e-web",
     "ports": [{"hostPort": int(a[1]), "containerPort": 80}], "restartPolicy": "unless-stopped", "env": {"E2E": "1"}}' "$WEB_IMAGE" "$WEB_PORT")"
   cid="$(jx "$RESP" 'D["id"]')"
-  check "container created through Gateway" "HTTP ${CODE} ${cid:0:12}" test "$CODE" = 201 -a -n "$cid" || return 1
+  check "container created through Opfield" "HTTP ${CODE} ${cid:0:12}" test "$CODE" = 201 -a -n "$cid" || return 1
   FACT[container]="$cid"
   api POST "/api/docker/nodes/${FACT[docker_node]}/containers/${cid}/start"
   wait_for 60 "container port ${WEB_PORT}" curl -fs -m 3 -o /dev/null "http://127.0.0.1:${WEB_PORT}/"
@@ -1640,7 +1640,7 @@ sl_ok() { [[ "$(sl_get /ok 2>/dev/null)" == ok ]]; }
 seed_secure_links() {
   local rc
   api POST "/api/docker/nodes/${FACT[docker_node]}/images/pull-sync" "$(mkjson '{"imageRef": a[0]}' "$WORKLOAD_IMAGE")"
-  check "helper image pulled through Gateway" "HTTP ${CODE} ${WORKLOAD_IMAGE}" test "$CODE" = 200 || return 1
+  check "helper image pulled through Opfield" "HTTP ${CODE} ${WORKLOAD_IMAGE}" test "$CODE" = 200 || return 1
   create_workload e2e-sl http
   rc=$?
   check "Secure Link target container started" "HTTP ${CODE} e2e-sl (python, port 8080, no host port) $(short "$RESP" 160)" test "$rc" = 0 || return 1
@@ -1914,12 +1914,14 @@ check_alerts_migrated() {
   keep_json "alert-rules-${label// /-}"
   rule="$(jx "$RESP" '[r for r in items(d) if r.get("category") == "gateway" and r.get("eventPattern") == "outbound.unavailable"]')"
   # 2.12 renames the untouched built-in rule to the Opfield name (bootstrap); a rule the user renamed keeps its name.
-  check "${label}: built-in \"Gateway/Opfield lost outbound connectivity\" rule exists once" \
+  # legacy-name: built-in rule name "Gateway lost outbound connectivity" from older releases — remove once every install has passed 2.12.1
+  check "${label}: built-in \"Opfield lost outbound connectivity\" rule (or its old name) exists once" \
     "$(window_value "$rule" '[(r.get("name"), r.get("isBuiltin")) for r in D]')" \
     test "$(window_value "$rule" 'len(D) == 1 and D[0].get("name") in ("Gateway lost outbound connectivity", "Opfield lost outbound connectivity")')" = true
   if [[ "$(jx "$WORK/json/builtin-outbound-rule-base.json" 'len(d)')" == 1 ]]; then
     # The base already has the rule (2.11.4 on: migration 0235 creates it once, at the base's own install, before the
     # e2e webhook existed). An install that has such a rule keeps its own: expect it exactly as the base stored it.
+    # legacy-name: built-in rule name "Gateway lost outbound connectivity" from older releases — remove once every install has passed 2.12.1
     check "${label}: built-in rule kept as the base had it" \
       "$(window_value "$rule" '[(r.get("name"), r.get("enabled"), r.get("isBuiltin"), sorted(r.get("webhookIds") or [])) for r in D]'), base $(cat "$WORK/json/builtin-outbound-rule-base.json")" \
       test "$(window_value "$rule" '(lambda base: len(D) == 1 and D[0].get("name") in (base[0], base[0].replace("Gateway lost", "Opfield lost")) and [D[0].get("enabled"), D[0].get("isBuiltin"), sorted(D[0].get("webhookIds") or [])] == base[1:])(json.load(open(args[0]))[0])' "$WORK/json/builtin-outbound-rule-base.json")" = true
@@ -2097,10 +2099,10 @@ gateway_update() {
   UPDATE_ERROR=""
   api POST /api/system/update "$(mkjson '{"version": a[0]}' "$CANDIDATE")"
   check "${label}: update accepted" "HTTP ${CODE} $(short "$RESP" 160)" test "$CODE" = 200 || return 1
-  wait_for 900 "Gateway ${CANDIDATE}" update_settled
+  wait_for 900 "Opfield ${CANDIDATE}" update_settled
   end_ms="$(now_ms)"
   if [[ -n "$UPDATE_ERROR" ]]; then
-    fail "${label}: Gateway runs ${CANDIDATE}" "the ${BASE} updater gave up: ${UPDATE_ERROR}"
+    fail "${label}: Opfield runs ${CANDIDATE}" "the ${BASE} updater gave up: ${UPDATE_ERROR}"
     [[ "$LICENSE_MODE" == block && -z "$LICENSE_KEY" ]] && license_block 1
     return 1
   fi
@@ -2109,7 +2111,7 @@ gateway_update() {
   window="$(probe_window "$start_ms" "$((end_ms + 10000))")"
   echo "$window" >"$WORK/json/probes-${label// /-}.json"
   sidecar="$(docker ps -a --filter "ancestor=${FACT[sidecar_image]:-docker.io/library/docker:27-cli}" --format '{{.Names}} {{.Status}}' | head -n1)"
-  check "${label}: Gateway runs ${CANDIDATE}" "$(((end_ms - start_ms) / 1000)) s from the update request; sidecar ${sidecar:-not found}" \
+  check "${label}: Opfield runs ${CANDIDATE}" "$(((end_ms - start_ms) / 1000)) s from the update request; sidecar ${sidecar:-not found}" \
     version_is "$CANDIDATE" || { docker logs "$(service_id app)" 2>&1 | tail -n 20; return 1; }
   TIMING["${label} API outage"]="$(window_value "$window" 'D["apiOutageSeconds"]') s"
   check "${label}: API outage within ${MAX_API_DOWNTIME} s" \
@@ -2579,7 +2581,7 @@ run_via_hop() {
     api PUT /api/admin/auth-settings '{"generalSettings":{"updateChannel":"preview"}}'
     check "update channel set to preview" "HTTP ${CODE}" test "$CODE" = 200 || return 1
   fi
-  wait_for 120 "Gateway health" api_healthy
+  wait_for 120 "Opfield health" api_healthy
 }
 
 start_services() {
@@ -2611,7 +2613,7 @@ PY
     wait_for 60 "Docker" docker info
   fi
 
-  openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 7 -subj "/CN=Gateway E2E SMTP CA" \
+  openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 7 -subj "/CN=Opfield E2E SMTP CA" \
     -keyout "$WORK/smtp/ca.key" -out "$WORK/smtp/ca.pem" 2>/dev/null
   openssl req -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -subj "/CN=mailpit" \
     -keyout "$WORK/smtp/key.pem" -out "$WORK/smtp/req.csr" 2>/dev/null
@@ -2717,7 +2719,7 @@ main() {
   echo "$PROJECT" >"$WORK/project"
   trap on_exit EXIT
   trap 'exit 130' INT TERM HUP
-  say "Gateway release E2E ${BASE} -> ${VIA:+${VIA} -> }${FINAL_CANDIDATE}; host ${HOST_ADDR}; public URL ${PUBLIC_URL}; work dir ${WORK}"
+  say "Opfield release E2E ${BASE} -> ${VIA:+${VIA} -> }${FINAL_CANDIDATE}; host ${HOST_ADDR}; public URL ${PUBLIC_URL}; work dir ${WORK}"
 
   phase 0 "Preparation"
   start_services || exit 1
@@ -2744,8 +2746,8 @@ main() {
         fi
       fi
     else
-      PHASE=3; skip "daemon and relay updates" "the Gateway update did not complete"
-      PHASE=4; skip "forced rollback" "the Gateway update did not complete"
+      PHASE=3; skip "daemon and relay updates" "the Opfield update did not complete"
+      PHASE=4; skip "forced rollback" "the Opfield update did not complete"
     fi
   else
     PHASE=2; skip "product update" "the base installation did not complete"

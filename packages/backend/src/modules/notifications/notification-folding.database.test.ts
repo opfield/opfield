@@ -240,7 +240,7 @@ describe.skipIf(!url)('Alert folding on disposable PostgreSQL', () => {
     expect(sent.filter((body) => body.includes('cl11-hc2') && /back online/.test(body))).toEqual([]);
   });
 
-  it('folds route alerts raised before Gateway noticed its outbound loss, and sends one alert once it can', async () => {
+  it('folds route alerts raised before Opfield noticed its outbound loss, and sends one alert once it can', async () => {
     reachable = false;
     await route('health.offline', { probe_failure: 'unreachable' });
     await outbound('outbound.unavailable');
@@ -276,7 +276,7 @@ describe.skipIf(!url)('Alert folding on disposable PostgreSQL', () => {
     ]);
   });
 
-  it('reports lost outbound connectivity only after Gateway reached a target, and resumes paused webhooks', async () => {
+  it('reports lost outbound connectivity only after Opfield reached a target, and resumes paused webhooks', async () => {
     let up = false;
     const observed: string[] = [];
     let resumed = 0;

@@ -135,7 +135,7 @@ const pullTracking = (deadlineOffset = 600_000): DockerTaskTracking => ({
   deadlineAt: new Date(T0 + deadlineOffset).toISOString(),
 });
 
-describe('Docker tasks Gateway lost track of (F-1)', () => {
+describe('Docker tasks Opfield lost track of (F-1)', () => {
   it('keeps a pull the node still runs, then settles it with how it ended', async () => {
     let state = 'running';
     const pull = row('p1', 'pull', pullTracking(), { commandId: 'cmd-1', containerId: '', containerName: PULL_REF });
@@ -314,7 +314,7 @@ describe('Docker tasks Gateway lost track of (F-1)', () => {
     expect(t.store.settled.get('u1')).toEqual({ status: 'failed', error: 'pull denied' });
   });
 
-  it('settles a removal Gateway did not get to run by whether the container is gone', async () => {
+  it('settles a removal Opfield did not get to run by whether the container is gone', async () => {
     const gone = reconciler([row('d1', 'remove', { kind: 'remove', containerId: 'c1' })], {
       container: () => refused('No such container: c1'),
     });

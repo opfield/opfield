@@ -187,7 +187,7 @@ export function providerRequestBody(
     'client_metadata',
   ]);
   const codexSubscription = definition.id === 'openai';
-  const instructionsField = codexSubscription || definition.id === 'wiolett-core';
+  const instructionsField = codexSubscription || definition.id === 'opfield-core';
   const instructions = request.messages
     .filter((message) => message.role === 'system' || message.role === 'developer')
     .flatMap((message) => message.content)

@@ -47,7 +47,7 @@ describe('checkOutboundWebhookTarget', () => {
     expect(result.reason).toContain('not allowed');
   });
 
-  it('does not block a public Gateway address because deployments may run behind NAT', async () => {
+  it('does not block a public Opfield address because deployments may run behind NAT', async () => {
     const result = await checkOutboundWebhookTarget('https://203.0.113.10/api', DEFAULT_OUTBOUND_WEBHOOK_POLICY, {
       ...ENV,
       APP_URL: 'https://203.0.113.10',
@@ -56,7 +56,7 @@ describe('checkOutboundWebhookTarget', () => {
     expect(result.allowed).toBe(true);
   });
 
-  it('blocks configured private Gateway app addresses', async () => {
+  it('blocks configured private Opfield app addresses', async () => {
     const result = await checkOutboundWebhookTarget('https://10.2.3.4/api', DEFAULT_OUTBOUND_WEBHOOK_POLICY, {
       ...ENV,
       APP_URL: 'https://10.2.3.4',

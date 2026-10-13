@@ -114,9 +114,9 @@ Copying IDs, tokens, URLs, commands and PEM blocks. It usually sits at the right
 `,
     preview: () => `
 mount(stage(
-  row("resting", h(G.CopyButton, { value: "gw_node_7f3a9c", label: "node ID" })),
-  row("hover", h(G.CopyButton, { value: "gw_node_7f3a9c", label: "node ID", className: "bg-muted text-foreground" })),
-  row("in a field", h("div", { className: "w-80" }, h(G.CopyValueField, { label: "Node ID", showLabel: false, value: "gw_node_7f3a9c", valueClassName: "font-mono" }))),
+  row("resting", h(G.CopyButton, { value: "opf_node_7f3a9c", label: "node ID" })),
+  row("hover", h(G.CopyButton, { value: "opf_node_7f3a9c", label: "node ID", className: "bg-muted text-foreground" })),
+  row("in a field", h("div", { className: "w-80" }, h(G.CopyValueField, { label: "Node ID", showLabel: false, value: "opf_node_7f3a9c", valueClassName: "font-mono" }))),
   h(G.Toaster, { key: "t" })
 ));
 `,
@@ -145,7 +145,7 @@ mount(stage(
   row("group", h("div", { className: "flex w-96 min-w-0 border border-input bg-background" },
     h("div", { className: "flex h-9 min-w-0 flex-1 items-center px-3 font-mono text-sm" }, h("span", { className: "truncate" }, "-----BEGIN CERTIFICATE----- MIIBszCCAVmgAwIBAgIUQk9")),
     h(G.CopyButton, { value: PEM, label: "certificate", className: "border-l border-input", iconClassName: "h-3.5 w-3.5" }),
-    h(G.DownloadButton, { value: PEM, label: "certificate", filename: "gateway-root-ca.pem" })
+    h(G.DownloadButton, { value: PEM, label: "certificate", filename: "opfield-root-ca.pem" })
   )),
   h(G.Toaster, { key: "t" })
 ));
@@ -387,8 +387,8 @@ var OPTIONS = [
   { value: "nginx:1.27", label: "nginx:1.27", group: "Registry" },
   { value: "postgres:17", label: "postgres:17", group: "Registry" },
   { value: "redis:8", label: "redis:8", group: "Registry" },
-  { value: "gateway/api:rc.10", label: "gateway/api:rc.10", group: "Local builds" },
-  { value: "gateway/worker:rc.10", label: "gateway/worker:rc.10", group: "Local builds", disabled: true }
+  { value: "opfield/api:rc.10", label: "opfield/api:rc.10", group: "Local builds" },
+  { value: "opfield/worker:rc.10", label: "opfield/worker:rc.10", group: "Local builds", disabled: true }
 ];
 function C(props) {
   var s = React.useState(props.value || "");
@@ -686,8 +686,8 @@ IDs, URLs, tokens and endpoints the user copies but does not edit. Multi-line va
 `,
     preview: () => `
 mount(stage(h("div", { className: "w-96 space-y-4" },
-  h(G.CopyValueField, { label: "Enrollment URL", value: "https://gateway.example.com/enroll/7f3a9c" }),
-  h(G.CopyValueField, { label: "API token", value: "gw_pat_4be1a0f2c9d84d6e9a7f1b3c5d7e9f01", valueClassName: "font-mono" }),
+  h(G.CopyValueField, { label: "Enrollment URL", value: "https://opfield.example.com/enroll/7f3a9c" }),
+  h(G.CopyValueField, { label: "API token", value: "opf_4be1a0f2c9d84d6e9a7f1b3c5d7e9f01", valueClassName: "font-mono" }),
   h(G.CopyValueField, { label: "Not copyable", value: "Managed by the system", copyable: false })
 )));
 `,
@@ -707,7 +707,7 @@ Install commands, enrollment one-liners and certificates the user copies whole.
 \`label\`, \`value\`, optional \`copyValue\` and \`codeClassName\` (\`font-mono\`).
 `,
     preview: () => `
-mount(stage(h("div", { className: "w-[36rem]" }, h(G.CopyCodeBlock, { label: "Install command", codeClassName: "font-mono", value: "curl -fsSL https://gateway.example.com/install.sh | sudo sh -s -- \\\\\\n  --token gw_enroll_7f3a9c --version 2.10.0" }))));
+mount(stage(h("div", { className: "w-[36rem]" }, h(G.CopyCodeBlock, { label: "Install command", codeClassName: "font-mono", value: "curl -fsSL https://opfield.example.com/install.sh | sudo sh -s -- \\\\\\n  --token opf_enroll_7f3a9c --version 2.10.0" }))));
 `,
   },
   {

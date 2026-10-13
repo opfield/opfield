@@ -39,7 +39,7 @@ func TestCandidateStopHandsOverOnlyToADaemonThatTakesItOver(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !candidateStopHandsOver() {
-		t.Fatal("a locally ready candidate waiting for Gateway does not hand over")
+		t.Fatal("a locally ready candidate waiting for Opfield does not hand over")
 	}
 	// A previous daemon from before launcher self-update never takes a handover.
 	writeLauncherProbeExecutable(t, state.PreviousPath, nil)

@@ -411,7 +411,7 @@ describe('RelayGrantIssuerService RSv1 fields', () => {
     ]);
   });
 
-  it("gives Gateway's own source its route key", async () => {
+  it("gives Opfield's own source its route key", async () => {
     const service = issuer([
       { table: relayRoutes, projected: false, filtered: true, rows: [{ ...route, sourceKind: 'gateway' }] },
       { table: relayEndpoints, projected: false, filtered: true, rows: [endpoint] },
@@ -422,7 +422,7 @@ describe('RelayGrantIssuerService RSv1 fields', () => {
   });
 });
 
-describe("Gateway's own streams", () => {
+describe("Opfield's own streams", () => {
   it('reports them like a daemon, with the local relay for pre-pool streams', () => {
     const report = opfieldStreamReport(
       {

@@ -26,7 +26,7 @@ export function installAIStoreLifecycle(useAIStore: UseBoundStore<StoreApi<AISta
               createdAt: nowIso(),
               changedResourceReferences: [
                 {
-                  refId: "gwr_000000000000000000000001",
+                  refId: "res_000000000000000000000001",
                   type: "node",
                   resourceId: "dev-preview-node",
                   label: "docker-src",
@@ -34,7 +34,7 @@ export function installAIStoreLifecycle(useAIStore: UseBoundStore<StoreApi<AISta
                   slug: "docker-src",
                 },
                 {
-                  refId: "gwr_000000000000000000000002",
+                  refId: "res_000000000000000000000002",
                   type: "docker_container",
                   resourceId: "dev-preview-container",
                   label: "ai-e2e-restart",
@@ -42,7 +42,7 @@ export function installAIStoreLifecycle(useAIStore: UseBoundStore<StoreApi<AISta
                   nodeSlug: "docker-src",
                 },
                 {
-                  refId: "gwr_000000000000000000000003",
+                  refId: "res_000000000000000000000003",
                   type: "docker_volume",
                   resourceId: "ai-e2e-restart-data",
                   label: "ai-e2e-restart-data",

@@ -422,8 +422,8 @@ describe('admin user impersonation', () => {
   });
 });
 
-describe('admin Gateway settings route permissions', () => {
-  it('allows reading Gateway settings with settings:opfield:view without admin:users', async () => {
+describe('admin Opfield settings route permissions', () => {
+  it('allows reading Opfield settings with settings:opfield:view without admin:users', async () => {
     registerSession(['settings:opfield:view']);
     container.registerInstance(AuthSettingsService, {
       getConfig: vi.fn().mockResolvedValue({
@@ -527,7 +527,7 @@ describe('admin Gateway settings route permissions', () => {
     });
   });
 
-  it('returns a shape-compatible non-secret Gateway settings projection to demo visitors', async () => {
+  it('returns a shape-compatible non-secret Opfield settings projection to demo visitors', async () => {
     process.env.OPFIELD_DEPLOYMENT_MODE = 'demo';
     const demoUser = { ...USER, groupId: 'demo-group', groupName: 'demo-admin', authMethod: 'demo_email_otp' as const };
     registerSession(['settings:opfield:view'], demoUser);
@@ -550,7 +550,7 @@ describe('admin Gateway settings route permissions', () => {
         tlsMode: 'starttls',
         username: 'mailer',
         passwordLast4: '1234',
-        senderName: 'Gateway',
+        senderName: 'Opfield',
         senderEmail: 'gateway@example.test',
         verifiedAt: '2026-08-31T00:00:00.000Z',
       }),
@@ -636,7 +636,7 @@ describe('admin Gateway settings route permissions', () => {
     expect(body.generalSettings).not.toHaveProperty('relay');
   });
 
-  it('does not allow editing Gateway settings with only settings:opfield:view', async () => {
+  it('does not allow editing Opfield settings with only settings:opfield:view', async () => {
     registerSession(['settings:opfield:view']);
 
     const response = await createApp().request('/api/admin/auth-settings', {
@@ -791,7 +791,7 @@ describe('admin Gateway settings route permissions', () => {
           tlsMode: 'starttls',
           username: 'gateway',
           password,
-          senderName: 'Gateway',
+          senderName: 'Opfield',
           senderEmail: 'security@example.com',
         },
       }),
@@ -944,7 +944,7 @@ describe('admin Gateway settings route permissions', () => {
       tlsMode: 'starttls' as const,
       username: 'resend',
       passwordLast4: '1234',
-      senderName: 'Gateway',
+      senderName: 'Opfield',
       senderEmail: 'security@example.com',
       verifiedAt: '2026-08-02T00:00:00.000Z',
     };
@@ -1424,7 +1424,7 @@ describe('identity-trust settings require admin:system', () => {
     port: 587,
     tlsMode: 'starttls',
     username: 'gateway',
-    senderName: 'Gateway',
+    senderName: 'Opfield',
     senderEmail: 'security@example.com',
   };
   const current = {
@@ -1437,7 +1437,7 @@ describe('identity-trust settings require admin:system', () => {
     port: 587,
     tlsMode: 'starttls' as const,
     username: 'gateway',
-    senderName: 'Gateway',
+    senderName: 'Opfield',
     senderEmail: 'Security@Example.com',
   };
 

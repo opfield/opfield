@@ -29,7 +29,7 @@ function makeService() {
 }
 
 describe('SetupTokenPolicyService', () => {
-  it('detects whether Gateway already has a real non-system user', async () => {
+  it('detects whether Opfield already has a real non-system user', async () => {
     await expect(new SetupTokenPolicyService(makeUserCountDb(0)).isOpfieldConfigured()).resolves.toBe(false);
     await expect(new SetupTokenPolicyService(makeUserCountDb(1)).isOpfieldConfigured()).resolves.toBe(true);
   });
@@ -79,7 +79,7 @@ describe('SetupTokenPolicyService', () => {
     expect(remove).toHaveBeenCalledOnce();
   });
 
-  it('leaves a fresh installer-created Gateway pending', async () => {
+  it('leaves a fresh installer-created Opfield pending', async () => {
     const service = new SetupTokenPolicyService({} as any, true) as any;
     vi.spyOn(service, 'isForcedOpen').mockResolvedValue(false);
     vi.spyOn(service, 'getTimestampSetting').mockResolvedValue(null);

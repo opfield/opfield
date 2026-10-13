@@ -8,8 +8,8 @@ import tempfile
 import unittest
 
 
-RUNNER = pathlib.Path(__file__).with_name("gateway-backup-runner.py")
-SPEC = importlib.util.spec_from_file_location("gateway_backup_runner", RUNNER)
+RUNNER = pathlib.Path(__file__).with_name("opfield-backup-runner.py")
+SPEC = importlib.util.spec_from_file_location("opfield_backup_runner", RUNNER)
 runner = importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader
 SPEC.loader.exec_module(runner)
@@ -66,12 +66,12 @@ class FileProtocolKeyTests(unittest.TestCase):
         runner.WORK = original_work
 
     def test_manifest_key_never_contains_base_path_or_bucket(self):
-        endpoint = {"provider": "sftp", "bucket": "archives", "basePath": "/gateway/backups"}
+        endpoint = {"provider": "sftp", "bucket": "archives", "basePath": "/opfield/backups"}
         logical = runner.remote_key(endpoint, "owned/run-1/database.dump")
         self.assertEqual(logical, "owned/run-1/database.dump")
         self.assertEqual(
             runner.file_protocol_path(endpoint, logical),
-            "/gateway/backups/archives/owned/run-1/database.dump",
+            "/opfield/backups/archives/owned/run-1/database.dump",
         )
 
     def test_sftp_hashes_the_host_key_and_preserves_absolute_base_path(self):
@@ -134,7 +134,7 @@ class FileProtocolKeyTests(unittest.TestCase):
             runner.WORK = pathlib.Path(directory)
 
             def download(_, __, local):
-                local.write_bytes(b"gateway-backup-probe")
+                local.write_bytes(b"opfield-backup-probe")
 
             with patch.object(runner, "clickhouse_query") as queried, patch.object(runner, "list_objects", return_value=["native/probe/run-1/probe.csv"]), patch.object(runner, "delete_prefix") as deleted, patch.object(runner, "upload"), patch.object(runner, "download", side_effect=download), patch.object(runner, "delete_object"):
                 runner.preflight(config)
@@ -405,7 +405,7 @@ class PreflightProbeFailureTests(unittest.TestCase):
 
     def test_a_probe_that_cannot_be_removed_after_it_passed_still_fails(self):
         def download(_, __, local):
-            local.write_bytes(b"gateway-backup-probe")
+            local.write_bytes(b"opfield-backup-probe")
 
         with patch.object(runner, "run", return_value="1"), patch.object(runner, "upload"), patch.object(runner, "download", side_effect=download), patch.object(runner, "delete_object", side_effect=runner.BackupError("rclone failed: AccessDenied")):
             with self.assertRaises(runner.BackupError) as raised:
@@ -536,17 +536,18 @@ class FakeProcess:
 class StorageCopyTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
-        self.original = (runner.WORK, runner.RESULT, runner.COPY_PROGRESS, runner.CONFIG, runner.SYSTEM_CA_BUNDLE)
+        self.original = (runner.WORK, runner.RESULT, runner.COPY_PROGRESS, runner.CONFIG, runner.LEGACY_CONFIG, runner.SYSTEM_CA_BUNDLE)
         work = pathlib.Path(self.directory.name) / "work"
         work.mkdir()
         runner.WORK, runner.RESULT, runner.COPY_PROGRESS = work, work / "result.json", work / "progress.json"
         runner.CONFIG = pathlib.Path(self.directory.name) / "config.json"
+        runner.LEGACY_CONFIG = pathlib.Path(self.directory.name) / "legacy-config.json"
         system_bundle = pathlib.Path(self.directory.name) / "system.pem"
         system_bundle.write_text("SYSTEM ROOTS\n")
         runner.SYSTEM_CA_BUNDLE = str(system_bundle)
 
     def tearDown(self):
-        runner.WORK, runner.RESULT, runner.COPY_PROGRESS, runner.CONFIG, runner.SYSTEM_CA_BUNDLE = self.original
+        runner.WORK, runner.RESULT, runner.COPY_PROGRESS, runner.CONFIG, runner.LEGACY_CONFIG, runner.SYSTEM_CA_BUNDLE = self.original
         self.directory.cleanup()
 
     def write_config(self, config, mode=0o600):
@@ -577,6 +578,13 @@ class StorageCopyTests(unittest.TestCase):
         self.write_config(copy_config(), mode=0o644)
         with self.assertRaises(runner.BackupError):
             runner.load_copy_config()
+
+    def test_config_falls_back_to_the_mount_of_older_daemons(self):
+        runner.LEGACY_CONFIG.write_text(runner.json.dumps(copy_config()))
+        runner.os.chmod(runner.LEGACY_CONFIG, 0o600)
+        self.assertEqual(runner.load_copy_config()["buckets"], ["assets"])
+        self.write_config(copy_config(buckets=["media"]))
+        self.assertEqual(runner.load_copy_config()["buckets"], ["media"])
 
     def test_invalid_config_still_writes_a_failed_result(self):
         self.write_config({"kind": "storage_copy"})

@@ -656,7 +656,7 @@ func postgresBindingPrincipalV2DropSQL(input managedDatabasePrincipalV2Command) 
 func postgresOwnerSeparationPrepareSQL(input managedDatabaseOwnerSeparationCommand) string {
 	return fmt.Sprintf(
 		`RESET ROLE;
-DO $gateway$
+DO $opfield$
 DECLARE
   legacy_owner text := %s;
   application_owner text := %s;
@@ -817,7 +817,7 @@ BEGIN
 
   EXECUTE format('ALTER ROLE %%I IN DATABASE %%I SET role TO %%L', legacy_owner, database_name, application_owner);
 END
-$gateway$;
+$opfield$;
 `,
 		quoteSQLLiteral(input.CurrentOwnerUsername),
 		quoteSQLLiteral(input.ApplicationPrincipalName),
@@ -876,7 +876,7 @@ func redisACLFileSnapshotCommand() string {
 	return `set -eu
 set -f
 umask 077
-tmp=/data/users.acl.gateway-tmp
+tmp=/data/users.acl.opfield-tmp
 redis-cli --no-auth-warning --user default --raw ACL LIST >"$tmp"
 test -s "$tmp"
 chown 999:999 "$tmp"

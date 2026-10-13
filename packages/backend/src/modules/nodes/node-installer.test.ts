@@ -191,7 +191,7 @@ describe('DaemonUpdateService.installVersion', () => {
     return fetchMock;
   }
 
-  it("pins the newest daemon release of the Gateway's minor line on its update channel", async () => {
+  it("pins the newest daemon release of Opfield's minor line on its update channel", async () => {
     const fetchMock = resolverAnswers('v2.11.3-docker');
 
     await expect(service('v2.11.2').installVersion('docker')).resolves.toBe('v2.11.3');
@@ -203,7 +203,7 @@ describe('DaemonUpdateService.installVersion', () => {
     });
   });
 
-  it("does not pin a later line's daemon, a missing release or an unreleased Gateway", async () => {
+  it("does not pin a later line's daemon, a missing release or an unreleased Opfield", async () => {
     resolverAnswers('v2.12.0-nginx');
     await expect(service('v2.11.0').installVersion('nginx')).resolves.toBeNull();
 

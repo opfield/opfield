@@ -87,7 +87,7 @@ describe('Standbys are the nearest relays (stand rc.7, F-3)', () => {
     }
   });
 
-  it("sends Gateway's own streams to the 60-ms relay when the local relay stops", () => {
+  it("sends Opfield's own streams to the 60-ms relay when the local relay stops", () => {
     const instances = [relay('relay-local'), relay('relay-nl'), relay('relay-uk')];
     const rtt: Record<string, number> = { 'relay-uk': 60, 'relay-nl': 300 };
     for (const endpointId of endpoints) {

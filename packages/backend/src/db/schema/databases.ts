@@ -329,6 +329,10 @@ export const managedDatabaseBindings = pgTable(
       .$type<ManagedDatabaseLinkTransport>()
       .notNull()
       .default('listener'),
+    // A Compose service reads the link's values through Compose variables named after the link: OPFIELD_DB_* for
+    // links created from 2.12.1 on, the earlier prefix for links that existed before (their stored revisions and
+    // project secrets use it, so those names never change).
+    composeVariablesLegacy: boolean('compose_variables_legacy').notNull().default(false),
     status: databaseBindingStatusEnum('status').notNull().default('creating'),
     lastError: text('last_error'),
     createdById: uuid('created_by_id')

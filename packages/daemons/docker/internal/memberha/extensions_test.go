@@ -81,7 +81,7 @@ func servingHolder(t *testing.T, h *harness) {
 func TestAnUnsignedAssignmentIsRefusedFromOpfieldAndFromThePeer(t *testing.T) {
 	h := newHarness(t, ModeManual)
 	if err := h.manager.AssignPrimary(testSet, Assignment{PrimaryMemberID: testMemberA, Generation: 1}); err == nil {
-		t.Fatal("an unsigned assignment from Gateway must be refused")
+		t.Fatal("an unsigned assignment from Opfield must be refused")
 	}
 	forged := signed(testMemberB, 5)
 	forged.Signature = []byte("forged")

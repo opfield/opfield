@@ -29,7 +29,7 @@ import { type InferenceCoreProxyService, shouldFailOverCoreResponse } from './in
  * speaks. A synthetic definition keeps the shared wire helpers honest.
  */
 const CORE_WIRE_DEFINITION = {
-  id: 'wiolett-core',
+  id: 'opfield-core',
   wireProtocol: 'openai-responses',
 } as InferenceProviderDefinition;
 

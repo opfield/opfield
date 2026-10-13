@@ -86,7 +86,7 @@ export class InferenceCoreClient {
   }
 
   /** Opfield-only extended status (drain state + identity). */
-  async wiolettStatus(): Promise<{ draining: boolean; drained?: boolean } | null> {
+  async drainStatus(): Promise<{ draining: boolean; drained?: boolean } | null> {
     const response = await this.request('GET', '/api/wiolett/status');
     if (!response || response.status !== 200) return null;
     const body = response.body as { draining?: unknown; drained?: unknown };

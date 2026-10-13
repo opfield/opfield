@@ -193,19 +193,19 @@
       "name": "registry",
       "tag": "3.1.2",
       "source": "docker.io/library/registry@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8",
-      "usedBy": "Gateway internal registry service (install.sh)"
+      "usedBy": "Opfield internal registry service (install.sh)"
     },
     {
       "name": "postgres",
       "tag": "16.15-alpine",
       "source": "docker.io/library/postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea",
-      "usedBy": "Gateway PostgreSQL service (install.sh)"
+      "usedBy": "Opfield PostgreSQL service (install.sh)"
     },
     {
       "name": "redis",
       "tag": "7.4.11-alpine",
       "source": "docker.io/library/redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
-      "usedBy": "Gateway Redis service (install.sh)"
+      "usedBy": "Opfield Redis service (install.sh)"
     },
     {
       "name": "docker",

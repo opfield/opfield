@@ -87,7 +87,7 @@ func TestEnrollmentTokenRejectedClassifiesOpfieldRefusals(t *testing.T) {
 		t.Fatal("an invalid token was not treated as rejected")
 	}
 	if EnrollmentTokenRejected(fmt.Errorf("enrollment: %w", status.Error(codes.Unavailable, "connection refused"))) {
-		t.Fatal("an unreachable Gateway was treated as a rejected token")
+		t.Fatal("an unreachable Opfield was treated as a rejected token")
 	}
 }
 

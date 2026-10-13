@@ -48,7 +48,7 @@ function issueIdentities() {
   };
 }
 
-describe('Gateway channels to the local relay', () => {
+describe('Opfield channels to the local relay', () => {
   let dir: string;
   let identities: ReturnType<typeof issueIdentities>;
   let port = 0;

@@ -12,7 +12,7 @@ import {
 import { backgroundPrewarmHandlers } from "../design-screens/fixtures/prewarm";
 import { shellHandlers } from "../design-screens/handlers";
 
-const LATENCY_KEY = "gateway.app-preview.latency";
+const LATENCY_KEY = "opfield.app-preview.latency";
 
 function latencyMs() {
   const fromQuery = new URLSearchParams(window.location.search).get("latency");

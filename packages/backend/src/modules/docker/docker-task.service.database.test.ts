@@ -22,7 +22,7 @@ const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
  * (they have tracking) active, so a daemon update waiting for the node's tasks still sees them, and settles them
  * later; a task without tracking fails as before (F-1).
  */
-describe.skipIf(!url)('Docker tasks across a Gateway restart', () => {
+describe.skipIf(!url)('Docker tasks across an Opfield restart', () => {
   let database: Awaited<ReturnType<typeof disposableDatabase>>;
   let pool: pg.Pool;
   let db: DrizzleClient;
@@ -146,7 +146,7 @@ const sealed = {
  * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): an update's or recreate's env follow-ups are kept sealed with its task
  * until they ran once, and still run after an Opfield restart once the node settled the task.
  */
-describe.skipIf(!url)('Env follow-ups of Docker tasks across a Gateway restart', () => {
+describe.skipIf(!url)('Env follow-ups of Docker tasks across an Opfield restart', () => {
   let database: Awaited<ReturnType<typeof disposableDatabase>>;
   let pool: pg.Pool;
   let db: DrizzleClient;
@@ -244,7 +244,7 @@ describe.skipIf(!url)('Env follow-ups of Docker tasks across a Gateway restart',
       undefined,
       'The update did not run on the node: its daemon restarted or never received it',
     ],
-  ] as const)('puts back the stored env when Gateway restarted before the daemon answered and %s', async (_case, answer, outcome, error) => {
+  ] as const)('puts back the stored env when Opfield restarted before the daemon answered and %s', async (_case, answer, outcome, error) => {
     const environment = new DockerEnvironmentService(db, crypto);
     await environment.replace(nodeId, 'api', STORED);
     const node = fakeDockerNode(OLD_ENV, NEW_IMAGE_ENV, { answer });

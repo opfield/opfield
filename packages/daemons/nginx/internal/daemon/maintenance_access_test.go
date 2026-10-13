@@ -35,7 +35,7 @@ func (f fakeMaintenanceAccess) Redeem(_ context.Context, in *pb.MaintenanceAcces
 func redeem(t *testing.T, client pb.MaintenanceAccessClient, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	request := httptest.NewRequest(http.MethodPost, "/redeem/"+maintenanceAccessTestHost, strings.NewReader(body))
-	request.Header.Set("X-Gateway-Maintenance-Host", "shop.example.com")
+	request.Header.Set("X-Opfield-Maintenance-Host", "shop.example.com")
 	recorder := httptest.NewRecorder()
 	maintenanceAccessHandler(client, slog.New(slog.NewTextHandler(io.Discard, nil))).ServeHTTP(recorder, request)
 	return recorder
@@ -62,6 +62,6 @@ func TestMaintenanceAccessAnswersAWrongCodeWithForbidden(t *testing.T) {
 		}
 	}
 	if response := redeem(t, fakeMaintenanceAccess{err: errors.New("gateway unavailable")}, `{"code":"`+good+`"}`); response.Code != http.StatusBadGateway {
-		t.Fatalf("Gateway unavailable: status %d, want 502", response.Code)
+		t.Fatalf("Opfield unavailable: status %d, want 502", response.Code)
 	}
 }

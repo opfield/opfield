@@ -66,6 +66,7 @@ import { RelayPolicyService } from '@/services/relay-policy.service.js';
 import { RelayStartupFinalizerService } from '@/services/relay-startup-finalizer.service.js';
 import { RelaySupervisorService } from '@/services/relay-supervisor.service.js';
 import { RelayWitnessService } from '@/services/relay-witness.service.js';
+import { adoptRenamedCacheKeys } from '@/services/renamed-cache-keys.js';
 import { SchedulerService } from '@/services/scheduler.service.js';
 import { ShutdownCoordinator, waitForShutdownTasks } from '@/services/shutdown-coordinator.service.js';
 import { markShuttingDown } from '@/services/shutdown-state.js';
@@ -174,6 +175,7 @@ async function main() {
 
     // Initialize dependency injection container
     await initializeContainer();
+    await adoptRenamedCacheKeys(container.resolve<RedisClient>(TOKENS.RedisClient));
     const commercialEdition = container.resolve<CommercialEditionRuntime>(TOKENS.CommercialEdition);
 
     const statusPageService = container.resolve(StatusPageService);

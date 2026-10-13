@@ -7,7 +7,9 @@ import { getNodeAppearanceColor } from "./node-appearance";
 import { aiResourceHref, resourceTypeIcon, resourceTypeLabel } from "./resource-presentation";
 import { createReturnNavigationState } from "./return-navigation";
 
-const MARKER_RE = /\[\[resource:(gwr_[a-f0-9]{24})\|((?:[^[\]\r\n]|\[[^[\]\r\n]*\]){1,240})\]\]/g;
+// legacy-name: gwr_ reference ids in conversations stored before 2.12.1 — remove once those conversations aged out
+const MARKER_RE =
+  /\[\[resource:((?:res|gwr)_[a-f0-9]{24})\|((?:[^[\]\r\n]|\[[^[\]\r\n]*\]){1,240})\]\]/g;
 const INTERNAL_HREF_PREFIX = "#opfield-resource:";
 
 /** Whether a Markdown link target is a resource link that renders as a chip. */

@@ -14,4 +14,4 @@ if [[ "${1:-}" == "--push" ]]; then
     --sbom=false \
     --push "$context"
 fi
-exec docker buildx build --load --tag "${1:-gateway-seaweedfs:local}" "$context"
+exec docker buildx build --load --tag "${1:-opfield-seaweedfs:local}" "$context"

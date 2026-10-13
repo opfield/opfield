@@ -2044,7 +2044,7 @@ describe('RelayPolicyService policy signing trust', () => {
     expect(relay.applyEncodedSnapshot).toHaveBeenCalledTimes(1);
   });
 
-  it('re-pins a local relay restored from a backup older than every key Gateway can sign with', async () => {
+  it('re-pins a local relay restored from a backup older than every key Opfield can sign with', async () => {
     const { service, relay, keys } = localPoolFixture({
       bootstrapPolicyTrust: vi.fn().mockRejectedValue(signedRotationRefusal()),
     });
@@ -2200,7 +2200,7 @@ describe('RelayPolicyService policy signing trust', () => {
 });
 
 describe('RelayPolicyService relay recovery surfaces', () => {
-  it('allocates a revision above the one a relay reported after a Gateway database restore', async () => {
+  it('allocates a revision above the one a relay reported after an Opfield database restore', async () => {
     const rows = [
       [{ revision: 900, gatewayInstanceId: 'gateway' }],
       [{ id: 'remote', poolId: 'system', appliedPolicyRevision: 7000 }],
@@ -2413,7 +2413,7 @@ describe('RelayPolicyService grant issuance around the local relay', () => {
     await expect(issuer.signGrant(claims)).rejects.toThrow('revision 13');
   });
 
-  it('opens a Gateway tunnel on an intact route without re-ensuring it', async () => {
+  it('opens an Opfield tunnel on an intact route without re-ensuring it', async () => {
     const rows: Record<string, unknown[]> = {
       route: [
         {
@@ -2565,7 +2565,7 @@ describe('RelayPolicyService local trust reset guards', () => {
     expect(reset).toHaveBeenCalledTimes(2);
   });
 
-  it('tells the operator to update a local relay that cannot rebind to this Gateway', async () => {
+  it('tells the operator to update a local relay that cannot rebind to this Opfield', async () => {
     const reset = vi.fn();
     const service = recoveryService(reset);
     const refusal = Object.assign(new Error('9 FAILED_PRECONDITION: snapshot gateway instance changed'), { code: 9 });
