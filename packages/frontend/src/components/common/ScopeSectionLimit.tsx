@@ -3,8 +3,7 @@
 // folders, the apps and environments with members of that kind). Rows follow the section unless
 // "Only this scope…" gives one of them its own restriction.
 import { AppWindow, ChevronDown, Folder, Layers } from "lucide-react";
-import { useState } from "react";
-import { CheckboxCard } from "@/components/common/CheckboxCard";
+import { type ReactNode, useState } from "react";
 import { ScopeSearchFilter } from "@/components/common/ScopeSearchFilter";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -193,6 +192,41 @@ function PlaceIcon({ type }: { type: SectionPlace["type"] }) {
   return <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />;
 }
 
+/** One plain row of the picker: checkbox, icon, name, and the detail muted at the end. */
+function PlaceRow({
+  checked,
+  disabled,
+  onCheckedChange,
+  icon,
+  label,
+  detail,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  icon?: ReactNode;
+  label: string;
+  detail?: string;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-2 px-3 py-1.5 transition-colors hover:bg-accent/50 has-[:disabled]:cursor-default has-[:disabled]:hover:bg-transparent">
+      <span className="flex h-5 shrink-0 items-center">
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          onChange={(event) => onCheckedChange(event.target.checked)}
+        />
+      </span>
+      {icon ? <span className="flex h-5 shrink-0 items-center">{icon}</span> : null}
+      <span className="flex min-w-0 flex-1 items-baseline gap-2">
+        <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
+        {detail ? <span className="shrink-0 text-xs text-muted-foreground">{detail}</span> : null}
+      </span>
+    </label>
+  );
+}
+
 /** The section header's place link and its picker. */
 export function SectionPlacesPicker({
   sectionLabel,
@@ -287,9 +321,9 @@ export function SectionPlacesPicker({
           onSearchChange={setSearch}
           placeholder="Search folders and apps..."
         />
-        <div className="max-h-80 space-y-3 overflow-y-auto overscroll-contain p-3">
+        <div className="max-h-80 overflow-y-auto overscroll-contain py-1">
           {!q && (
-            <CheckboxCard
+            <PlaceRow
               checked={everywhere}
               disabled={!everywhereAllowed}
               onCheckedChange={(checked) => {
@@ -297,36 +331,31 @@ export function SectionPlacesPicker({
                 onChange(Object.fromEntries(families.map((family) => [family, []])));
               }}
               label="Everywhere"
-              description={
-                everywhereAllowed
-                  ? "Every resource of this section, also new ones"
-                  : "Your own access reaches some places only"
-              }
             />
           )}
           {groups.map((group) => (
-            <div key={group.key} className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">{group.label}</p>
+            <div key={group.key} className="pt-2">
+              <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">{group.label}</p>
               {group.places.map((place) => {
                 const covered = place.coveredBy.some((target) =>
                   (chosen[place.family] ?? []).includes(target)
                 );
                 return (
-                  <CheckboxCard
+                  <PlaceRow
                     key={`${place.family}:${place.target}`}
                     checked={covered || (chosen[place.family] ?? []).includes(place.target)}
                     disabled={covered}
                     onCheckedChange={() => toggle(place)}
                     icon={<PlaceIcon type={place.type} />}
                     label={place.label}
-                    description={place.detail}
+                    detail={place.detail}
                   />
                 );
               })}
             </div>
           ))}
           {groups.length === 0 && (
-            <p className="text-xs text-muted-foreground">
+            <p className="px-3 py-2 text-xs text-muted-foreground">
               {loading
                 ? "Loading folders and apps…"
                 : q
