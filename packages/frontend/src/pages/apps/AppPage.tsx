@@ -42,6 +42,7 @@ import { APP_TABS, type AppTab, appRoute, appsRoute } from "@/lib/app-routes";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
 import { canServeLicenseFeature } from "@/stores/license-paywall";
+import { usePublishedPageResource } from "@/stores/resolved-page-context";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import type { AppDetail, AppMemberFamily } from "@/types";
 import {
@@ -154,6 +155,10 @@ function NewMenu({
 export function AppPage() {
   const { appSlug } = useParams<{ appSlug: string }>();
   const { app, setApp, loading, error, version, refresh } = useAppDetail(appSlug);
+  usePublishedPageResource(
+    appSlug ? `/apps/${encodeURIComponent(appSlug)}` : undefined,
+    app ? { resourceType: "app", resourceId: app.id, label: app.name } : null
+  );
   if (!app) {
     if (error) return <AppRouteFailure error={error} />;
     if (loading) return <DetailPageSkeleton label="Loading app" />;

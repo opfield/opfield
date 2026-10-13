@@ -24,6 +24,7 @@ import { nodeRoute } from "@/lib/resource-routes";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
+import { usePublishedPageResource } from "@/stores/resolved-page-context";
 import type { AppAllowedNodes, AppDetail, AppEnvironmentDetail, ProxyHost } from "@/types";
 import { AppRouteFailure } from "./AppPage";
 import {
@@ -54,12 +55,26 @@ export function AppEnvironmentPage() {
   const { app, loading, error, version, refresh } = useAppDetail(appSlug);
   // The environment this page showed last, so a rename made elsewhere follows its new slug.
   const shownEnvIdRef = useRef<string | null>(null);
+  const env =
+    app?.environments.find((item) => item.slug === envSlug || item.id === envSlug) ?? null;
+  usePublishedPageResource(
+    appSlug && envSlug
+      ? `/apps/${encodeURIComponent(appSlug)}/env/${encodeURIComponent(envSlug)}`
+      : undefined,
+    app && env && env.access !== "members"
+      ? {
+          resourceType: "app-environment",
+          resourceId: env.id,
+          scopeResourceId: app.id,
+          label: `${env.name} of ${app.name}`,
+        }
+      : null
+  );
   if (!app) {
     if (error) return <AppRouteFailure error={error} />;
     if (loading) return <DetailPageSkeleton label="Loading environment" />;
     return null;
   }
-  const env = app.environments.find((item) => item.slug === envSlug || item.id === envSlug);
   const renamed = env
     ? undefined
     : app.environments.find((item) => item.id === shownEnvIdRef.current);

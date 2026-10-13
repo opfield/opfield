@@ -11,7 +11,6 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useParams } from "react-router-dom";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { Button } from "@/components/ui/button";
@@ -34,6 +33,7 @@ import { ResizeHandle } from "@/components/ui/resize-handle";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { type AIApprovalMode, formatAIApprovalModeLabel } from "@/lib/ai-approval-mode";
 import { selectedModelSupportsImages } from "@/lib/ai-model-capabilities";
+import { NO_PAGE_CONTEXT } from "@/lib/ai-page-context";
 import { isQuestionAwaitingAnswer } from "@/lib/ai-question-state";
 import {
   confirmBypassEverythingMode,
@@ -50,7 +50,6 @@ import { cn } from "@/lib/utils";
 import { NodeSetupWizard } from "@/pages/dashboard/finalize-setup/NodeSetupWizard";
 import { api } from "@/services/api";
 import { getConversationBlock, useAIStore } from "@/stores/ai";
-import { useResolvedPageContext } from "@/stores/resolved-page-context";
 import { useUIStore } from "@/stores/ui";
 import type {
   AIComposerAttachment,
@@ -58,7 +57,6 @@ import type {
   AIConversationInput,
   AIMessageAttachment,
   AIToolCall,
-  PageContext,
 } from "@/types/ai";
 import { AIComposer, AIPlanDecision, AIPlanProgress, AIQueuedMessages } from "./AIComposer";
 import { AIConversationBlockedBlock } from "./AIConversationBlockedBlock";
@@ -81,6 +79,7 @@ import {
   useAIComposerDraft,
 } from "./useAIComposerDraft";
 import { useAIMessageScroll } from "./useAIMessageScroll";
+import { useAIPageContext } from "./useAIPageContext";
 
 function autoResizeTextarea(el: HTMLTextAreaElement, maxRows = 6) {
   const style = getComputedStyle(el);
@@ -137,40 +136,6 @@ function readPanelWidth(): number {
   return typeof window === "undefined"
     ? AI_PANEL_DEFAULT_WIDTH
     : getDefaultAIPanelWidth(window.innerWidth);
-}
-
-function usePageContext(): PageContext {
-  const location = useLocation();
-  const params = useParams();
-  const resolvedStatus = useResolvedPageContext((s) => s.status);
-  const resolvedRouteKey = useResolvedPageContext((s) => s.routeKey);
-  const resolvedResource = useResolvedPageContext((s) => s.resource);
-  const route = location.pathname;
-  const ownsRoute =
-    resolvedStatus === "ready" &&
-    resolvedRouteKey &&
-    (route === resolvedRouteKey || route.startsWith(`${resolvedRouteKey}/`));
-
-  return useMemo(() => {
-    if (ownsRoute && resolvedResource) {
-      return {
-        route,
-        resourceType: resolvedResource.resourceType,
-        resourceId: resolvedResource.resourceId,
-        label: resolvedResource.label,
-        nodeId: resolvedResource.nodeId,
-      };
-    }
-
-    if (params.id && route.startsWith("/cas/")) {
-      return { route, resourceType: "ca", resourceId: params.id };
-    }
-    if (params.id && route.startsWith("/certificates/")) {
-      return { route, resourceType: "certificate", resourceId: params.id };
-    }
-
-    return { route };
-  }, [ownsRoute, params.id, resolvedResource, route]);
 }
 
 const SLASH_COMMANDS = [
@@ -273,10 +238,11 @@ export function AIChatSurface({ active = true, onClose, onEnterLiteMode }: AICha
   const [isRenaming, setIsRenaming] = useState(false);
   const [excludedResourceContextKey, setExcludedResourceContextKey] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const context = usePageContext();
+  const { context, viewing } = useAIPageContext();
   const resourceContextKey = `${context.route}\u0000${context.resourceId ?? ""}`;
+  // Closing the "Viewing" bar keeps this page out of the next request entirely.
   const excludeResourceContextOnce = excludedResourceContextKey === resourceContextKey;
-  const requestContext = excludeResourceContextOnce ? { route: context.route } : context;
+  const requestContext = excludeResourceContextOnce ? NO_PAGE_CONTEXT : context;
   const {
     aiApprovalMode: approvalMode,
     pinnedAIConversationIds,
@@ -900,22 +866,31 @@ export function AIChatSurface({ active = true, onClose, onEnterLiteMode }: AICha
                   className="border-x-0 border-b-0"
                 />
               )}
-            {context.resourceId && !excludeResourceContextOnce && (
+            <AnimatePresence initial={false}>
+              {viewing && !excludeResourceContextOnce && (
+                <motion.div
+                  key="page-context"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.16, ease: "easeOut" }}
+                  className="overflow-hidden"
+                >
               <div className="flex w-full items-center justify-between gap-2 border border-x-0 border-b-0 border-border bg-muted/40 px-2.5 text-xs text-muted-foreground">
-                <span className="min-w-0 truncate">
-                  Viewing {context.label ?? context.resourceType ?? "current resource"}
-                </span>
+                    <span className="min-w-0 truncate">Viewing {viewing}</span>
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => setExcludedResourceContextKey(resourceContextKey)}
-                  title="Exclude this resource from the next request"
-                  aria-label="Exclude this resource from the next request"
+                      title="Leave this page out of the next request"
+                      aria-label="Leave this page out of the next request"
                 >
                   <X className="h-3 w-3" />
                 </Button>
               </div>
+                </motion.div>
             )}
+            </AnimatePresence>
             <AIQueuedMessages
               items={queuedInputs}
               onSendNow={steerQueuedMessage}

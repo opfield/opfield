@@ -11,7 +11,13 @@ export type ResolvedPageResourceType =
   | "docker-container"
   | "docker-deployment"
   | "docker-volume"
-  | "page-project";
+  | "docker-compose-project"
+  | "page-project"
+  | "app"
+  | "app-environment"
+  | "ingress-group"
+  | "ca"
+  | "certificate";
 
 export interface ResolvedPageResource {
   resourceType: ResolvedPageResourceType;
@@ -104,4 +110,34 @@ export function useResolvedPageRoute<T>(
     loading: !!routeKey && (!current || (!current.data && !current.error)),
     ownerToken: current?.token ?? null,
   };
+}
+
+/**
+ * Publishes a resource a page has already loaded as the page's AI context, for pages without a
+ * resolving guard. Pass null until the resource is loaded; the publication ends on unmount.
+ */
+export function usePublishedPageResource(
+  routeKey: string | undefined,
+  resource: ResolvedPageResource | null
+) {
+  const resourceRef = useRef(resource);
+  resourceRef.current = resource;
+  const identity = resource
+    ? [
+        resource.resourceType,
+        resource.resourceId,
+        resource.label ?? "",
+        resource.nodeId ?? "",
+        resource.scopeResourceId ?? "",
+      ].join("\u0000")
+    : null;
+
+  useLayoutEffect(() => {
+    const current = resourceRef.current;
+    if (!routeKey || !identity || !current) return;
+    const store = useResolvedPageContext.getState();
+    const token = store.begin(routeKey);
+    store.resolve(token, current);
+    return () => useResolvedPageContext.getState().clear(token);
+  }, [routeKey, identity]);
 }

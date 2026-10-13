@@ -32,7 +32,6 @@ import { toastApiError } from "@/lib/api-error-toast";
 import { NodeSetupWizard } from "@/pages/dashboard/finalize-setup/NodeSetupWizard";
 import { api } from "@/services/api";
 import { getConversationBlock, useAIStore } from "@/stores/ai";
-import { useResolvedPageContext } from "@/stores/resolved-page-context";
 import { useUIStore } from "@/stores/ui";
 import type {
   AIComposerAttachment,
@@ -115,38 +114,13 @@ async function uploadLocalComposerAttachment(
   return api.uploadAIChatArtifact(file, conversationId);
 }
 
+/**
+ * The Lite panel shows only on the AI workspace routes (/ and /ai/chats/:id), where no other page
+ * is open, so the assistant gets just the route; see AI_PAGE_ROUTES for dashboard pages.
+ */
 function usePageContext(): PageContext {
-  const location = useLocation();
-  const params = useParams();
-  const resolvedStatus = useResolvedPageContext((s) => s.status);
-  const resolvedRouteKey = useResolvedPageContext((s) => s.routeKey);
-  const resolvedResource = useResolvedPageContext((s) => s.resource);
-  const route = location.pathname;
-  const ownsRoute =
-    resolvedStatus === "ready" &&
-    resolvedRouteKey &&
-    (route === resolvedRouteKey || route.startsWith(`${resolvedRouteKey}/`));
-
-  return useMemo(() => {
-    if (ownsRoute && resolvedResource) {
-      return {
-        route,
-        resourceType: resolvedResource.resourceType,
-        resourceId: resolvedResource.resourceId,
-        label: resolvedResource.label,
-        nodeId: resolvedResource.nodeId,
-      };
-    }
-
-    if (params.id && route.startsWith("/cas/")) {
-      return { route, resourceType: "ca", resourceId: params.id };
-    }
-    if (params.id && route.startsWith("/certificates/")) {
-      return { route, resourceType: "certificate", resourceId: params.id };
-    }
-
-    return { route };
-  }, [ownsRoute, params.id, resolvedResource, route]);
+  const route = useLocation().pathname;
+  return useMemo(() => ({ route }), [route]);
 }
 
 export function AILitePanel({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void }) {

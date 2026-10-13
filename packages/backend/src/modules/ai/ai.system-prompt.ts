@@ -94,6 +94,33 @@ function estimatePromptTokens(value: string): number {
   return Math.ceil(value.length / 4);
 }
 
+/**
+ * The current page as prompt parts: the route, then the focused resource or, on list and settings
+ * pages, the page title. An empty route means the user left the page out of the request.
+ */
+export function pageContextPromptParts(pageContext?: PageContext): Array<{ label: string; content: string }> {
+  if (!pageContext?.route) return [];
+  const parts: Array<{ label: string; content: string }> = [];
+  const safeRoute = pageContext.route.replace(/[^a-zA-Z0-9/_\-.:]/g, '');
+  parts.push({
+    label: 'Current page route',
+    content: `\n## Current Page Context\nThe user is currently viewing: ${safeRoute}`,
+  });
+  const safeLabel = pageContext.label?.replace(/[^a-zA-Z0-9 _.:/-]/g, '').slice(0, 200);
+  if (pageContext.resourceType && pageContext.resourceId) {
+    const safeType = pageContext.resourceType.replace(/[^a-zA-Z0-9_-]/g, '');
+    const safeId = pageContext.resourceId.replace(/[^a-zA-Z0-9_.-]/g, '');
+    const safeNodeId = pageContext.nodeId?.replace(/[^a-zA-Z0-9_-]/g, '');
+    parts.push({
+      label: 'Current page resource',
+      content: `Focused resource: ${safeType} with ID ${safeId}${safeLabel ? `, label ${safeLabel}` : ''}${safeNodeId ? `, node ID ${safeNodeId}` : ''}`,
+    });
+  } else if (safeLabel) {
+    parts.push({ label: 'Current page title', content: `Page: ${safeLabel}` });
+  }
+  return parts;
+}
+
 export async function buildAISystemPromptDetailed(
   context: SystemPromptContext,
   user: User,
@@ -289,20 +316,7 @@ ${skillCatalog || '- none'}
     // CA list failed, continue.
   }
 
-  if (pageContext?.route) {
-    const safeRoute = pageContext.route.replace(/[^a-zA-Z0-9/_\-.:]/g, '');
-    push('Current page route', `\n## Current Page Context\nThe user is currently viewing: ${safeRoute}`);
-    if (pageContext.resourceType && pageContext.resourceId) {
-      const safeType = pageContext.resourceType.replace(/[^a-zA-Z0-9_-]/g, '');
-      const safeId = pageContext.resourceId.replace(/[^a-zA-Z0-9_-]/g, '');
-      const safeLabel = pageContext.label?.replace(/[^a-zA-Z0-9 _.:/-]/g, '').slice(0, 200);
-      const safeNodeId = pageContext.nodeId?.replace(/[^a-zA-Z0-9_-]/g, '');
-      push(
-        'Current page resource',
-        `Focused resource: ${safeType} with ID ${safeId}${safeLabel ? `, label ${safeLabel}` : ''}${safeNodeId ? `, node ID ${safeNodeId}` : ''}`
-      );
-    }
-  }
+  for (const part of pageContextPromptParts(pageContext)) push(part.label, part.content);
 
   if (context.retrievalPointers) {
     push(

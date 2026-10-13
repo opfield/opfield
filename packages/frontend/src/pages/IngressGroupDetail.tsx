@@ -23,6 +23,7 @@ import { ingressGroupsRoute } from "@/lib/resource-routes";
 import { canCreateInFolder } from "@/lib/scope-utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
+import { usePublishedPageResource } from "@/stores/resolved-page-context";
 import type { IngressGroupDetail as IngressGroupDetailData } from "@/types";
 
 const NO_SCOPES: string[] = [];
@@ -55,6 +56,10 @@ export function IngressGroupDetail() {
   });
   useRealtime("node.changed", () => void load());
   useRealtime("proxy.host.changed", () => void load());
+  usePublishedPageResource(
+    groupId ? `/ingress-groups/${encodeURIComponent(groupId)}` : undefined,
+    group ? { resourceType: "ingress-group", resourceId: group.id, label: group.name } : null
+  );
 
   if (missing && !group) {
     return (
