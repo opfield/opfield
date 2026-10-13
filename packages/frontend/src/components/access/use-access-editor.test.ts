@@ -73,6 +73,18 @@ describe("access editor", () => {
     ]);
   });
 
+  it("shows a line several groups give once, naming every group", async () => {
+    const inherited = [
+      { from: "developer", scopes: ["feat:ai:use"] },
+      { from: "owners", scopes: ["feat:ai:use", ...linesToScopes([operatorOnWeb], ctx)] },
+    ];
+    const { result } = renderHook(() => useAccessEditor({ open: true, scopes: [], inherited }));
+    await waitFor(() => expect(result.current.views).toHaveLength(2));
+    const shared = result.current.views.find((view) => view.line.kind === "custom");
+    expect(shared?.from).toBe("developer, owners");
+    expect(result.current.views.filter((view) => view.line.kind === "custom")).toHaveLength(1);
+  });
+
   it("says when a line adds nothing to the others", async () => {
     const { result } = renderHook(() =>
       useAccessEditor({ open: true, scopes: linesToScopes([viewerEverywhere], ctx) })

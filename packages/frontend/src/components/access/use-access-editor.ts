@@ -119,15 +119,28 @@ export function useAccessEditor({
         (ownerScopes ? narrowedNote(line, ownerScopes, ctx, labels) : null) ??
         (addingNothing[index] ? ADDS_NOTHING : undefined),
     }));
-    const fromElsewhere = inherited.flatMap((item, itemIndex) =>
-      (ready ? scopesToLines(item.scopes, ctx) : []).map((line, index) => ({
-        key: `from-${itemIndex}-${index}`,
-        line,
-        from: item.from,
-        ...describeLine(line, labels),
-      }))
-    );
-    return [...own, ...fromElsewhere];
+    // The same line from several groups is one row naming every group it comes from.
+    const fromElsewhere = new Map<string, AccessLineView>();
+    inherited.forEach((item, itemIndex) => {
+      for (const [index, line] of (ready ? scopesToLines(item.scopes, ctx) : []).entries()) {
+        const described = describeLine(line, labels);
+        const sameLine = `${described.title}\n${described.detail}`;
+        const existing = fromElsewhere.get(sameLine);
+        if (existing) {
+          if (!existing.from?.split(", ").includes(item.from)) {
+            existing.from = `${existing.from}, ${item.from}`;
+          }
+          continue;
+        }
+        fromElsewhere.set(sameLine, {
+          key: `from-${itemIndex}-${index}`,
+          line,
+          from: item.from,
+          ...described,
+        });
+      }
+    });
+    return [...own, ...fromElsewhere.values()];
   }, [ctx, inherited, labels, ownLines, ownerScopes, ready]);
 
   const saveLine = useCallback((line: AccessLine, index?: number) => {
