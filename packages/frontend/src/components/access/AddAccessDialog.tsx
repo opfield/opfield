@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Combobox, type ComboboxOption } from "@/components/common/Combobox";
 import {
   type GitScopeTargetOption,
@@ -258,7 +258,11 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** Groups (or owners) or repositories of one connector, searched as the user types. */
+/**
+ * Groups (or owners) or repositories of one connector, searched as the user types. Every target a search
+ * returned stays an option for this connector (the picker filters them by the typed text), so a later
+ * search never takes away a match already on screen; a failed search keeps them and says it failed.
+ */
 function useGitTargets(
   provider: GitScopeProvider,
   connectorId: string | null,
@@ -269,21 +273,35 @@ function useGitTargets(
   const [options, setOptions] = useState<GitScopeTargetOption[]>([]);
   const [hint, setHint] = useState<string | null>(null);
   const wanted = GIT_TARGET_KINDS[provider]?.[kind];
+  // Targets found for one connector and kind; another connector starts over.
+  const source = useRef("");
   useEffect(() => {
-    if (!enabled || !connectorId || !wanted) {
+    const current = `${provider}:${connectorId}:${wanted}`;
+    if (source.current !== current) {
+      source.current = current;
       setOptions([]);
-      return;
+      setHint(null);
     }
+    if (!enabled || !connectorId || !wanted) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
       void searchGitScopeTargets(provider, connectorId, query)
         .then((result) => {
           if (cancelled) return;
-          setOptions(result.options.filter((option) => option.kind === wanted));
+          const found = result.options.filter((option) => option.kind === wanted);
+          setOptions((current) => {
+            const known = new Set(found.map((option) => option.id));
+            return [...current.filter((option) => !known.has(option.id)), ...found];
+          });
           setHint(gitScopeTruncationHint(result.truncated));
         })
-        .catch(() => {
-          if (!cancelled) setOptions([]);
+        .catch((error: unknown) => {
+          if (cancelled) return;
+          setHint(
+            error instanceof Error && error.message
+              ? `Search failed: ${error.message}`
+              : "Search failed."
+          );
         });
     }, SEARCH_DEBOUNCE_MS);
     return () => {
@@ -456,7 +474,11 @@ export function AddAccessDialog({
     key.slice(key.indexOf(":") + 1);
 
   const groupOptions: ComboboxOption[] = [
-    ...groups.options.map((option) => ({ value: option.id, label: option.path })),
+    ...groups.options.map((option) => ({
+      value: option.id,
+      label: option.path,
+      keywords: option.name,
+    })),
     ...(draft.group && !groups.options.some((option) => option.id === draft.group)
       ? [{ value: draft.group, label: groupPath ?? draft.group }]
       : []),
@@ -464,7 +486,11 @@ export function AddAccessDialog({
   const repoLabel = (id: string) =>
     labels.gitTarget?.(provider, qualifierOf("repository", id)) ?? id;
   const repoOptions: ComboboxOption[] = [
-    ...repos.options.map((option) => ({ value: option.id, label: option.path })),
+    ...repos.options.map((option) => ({
+      value: option.id,
+      label: option.path,
+      keywords: option.name,
+    })),
     ...draft.repos
       .filter((id) => !repos.options.some((option) => option.id === id))
       .map((id) => ({ value: id, label: repoLabel(id) })),

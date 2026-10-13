@@ -50,6 +50,8 @@ export interface GitScopeTargetOption {
   id: string;
   /** Group path, project path, owner login or repository full name. */
   path: string;
+  /** Display name when it differs from the path (a GitLab group or project name), matched by search too. */
+  name?: string;
   detail?: string;
 }
 
@@ -271,11 +273,13 @@ export async function searchGitScopeTargets(
           kind: "group" as const,
           id: String(group.id),
           path: group.fullPath,
+          name: group.name,
         })),
         ...result.projects.map((project) => ({
           kind: "project" as const,
           id: String(project.id),
           path: project.pathWithNamespace,
+          name: project.name,
         })),
       ],
       truncated: result.truncated,
