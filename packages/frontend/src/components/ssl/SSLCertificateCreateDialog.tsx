@@ -3,6 +3,7 @@ import { Minus, Plus, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AnimatedHeight } from "@/components/common/AnimatedHeight";
+import { AnimatedSwitch, CONTENT_SWITCH_ANIMATION } from "@/components/common/AnimatedSwitch";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { DomainAutocompleteInput } from "@/components/domains/DomainAutocompleteInput";
@@ -63,12 +64,6 @@ export interface SSLCertificateCreateDialogDevPreview {
 
 const DEV_PREVIEW_CERT_ID = "__dev_ssl_preview__";
 const NO_SCOPES: string[] = [];
-const FORM_ANIMATION = {
-  initial: { opacity: 0, y: 8 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -8 },
-  transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] as const },
-};
 
 export function SSLCertificateCreateDialog({
   open,
@@ -481,9 +476,9 @@ export function SSLCertificateCreateDialog({
               {/* ACME / Let's Encrypt Tab */}
               {hasDomains && (
                 <TabsContent value="acme" className="mt-0">
-                  <AnimatePresence initial={false} mode="wait">
+                  <AnimatedSwitch animateHeight={false}>
                     {dnsChallenges ? (
-                      <motion.div key="dns-verification" {...FORM_ANIMATION}>
+                      <motion.div key="dns-verification" {...CONTENT_SWITCH_ANIMATION}>
                         <DNSChallengeVerification
                           challenges={dnsChallenges}
                           onVerify={handleVerifyDNS}
@@ -492,7 +487,11 @@ export function SSLCertificateCreateDialog({
                         />
                       </motion.div>
                     ) : (
-                      <motion.div key="acme-form" {...FORM_ANIMATION} className="space-y-4">
+                      <motion.div
+                        key="acme-form"
+                        {...CONTENT_SWITCH_ANIMATION}
+                        className="space-y-4"
+                      >
                         <div className="space-y-1.5">
                           <label className="text-sm font-medium">Domains</label>
                           <div className="space-y-2">
@@ -620,7 +619,7 @@ export function SSLCertificateCreateDialog({
                         </AnimatePresence>
                       </motion.div>
                     )}
-                  </AnimatePresence>
+                  </AnimatedSwitch>
                 </TabsContent>
               )}
 

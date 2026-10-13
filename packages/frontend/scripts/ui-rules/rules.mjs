@@ -444,10 +444,30 @@ export const RULES = [
     },
   },
   {
+    id: "content-switch-no-wait",
+    source: "owner request 2026-10-13 (content switches run at the same time as the resize)",
+    description:
+      "Switched content cross-fades with the height at the same time: AnimatedSwitch (popLayout), never AnimatePresence mode=\"wait\", which holds the new content until the old one has left. Exceptions need `// wait-ok: <reason>` above.",
+    visit(node, report, source) {
+      const opening = openingOf(node);
+      if (!opening || tagName(opening) !== "AnimatePresence") return;
+      if (!/^["{]?["']?wait["']?}?$/.test(attributeText(opening, "mode"))) return;
+      const { line } = source.getLineAndCharacterOfPosition(node.getStart(source));
+      const lines = source.text.split("\n");
+      for (let index = line - 1; index >= Math.max(0, line - 4); index -= 1) {
+        if (/wait-ok:\s*\S/.test(lines[index] ?? "")) return;
+      }
+      report(
+        opening,
+        'AnimatePresence mode="wait" makes the new content wait for the old one; use AnimatedSwitch so both run at once'
+      );
+    },
+  },
+  {
     id: "dialog-close-keeps-content",
     source: "owner request 2026-10-12 (dialogs jump while closing)",
     description:
-      "A closing dialog keeps its content for the exit animation: no state resets when open turns false (reset on open or after useDialogPresence ends), no payload read straight from state the close clears (useRetainedDialogValue), no `{x && <Dialog>}` mounts. Exceptions need `// close-reset-ok: <reason>` above.",
+      "A closing dialog keeps its content for the exit animation: no state resets when open turns false (reset on open or after useDialogPresence ends), no payload read straight from state the close clears (useRetainedDialogValue), no `{x && <Dialog>}` or `{x ? <Dialog> : null}` mounts, no dialog component that returns null once its payload is gone. Exceptions need `// close-reset-ok: <reason>` above.",
     visit(node, report, source) {
       // 1. onOpenChange={(open) => { if (!open) resetSomething() }} on an overlay.
       if (ts.isJsxAttribute(node) && node.name.getText() === "onOpenChange") {
@@ -533,6 +553,77 @@ export const RULES = [
           ts.forEachChild(current, visit);
         };
         visit(effect.body);
+        return;
+      }
+      // 3b. {payload ? <SomeDialog payload={payload} /> : null} unmounts it the same way.
+      if (ts.isConditionalExpression(node) && ts.isJsxExpression(node.parent)) {
+        const branches = [
+          [unwrap(node.whenTrue), unwrap(node.whenFalse)],
+          [unwrap(node.whenFalse), unwrap(node.whenTrue)],
+        ];
+        for (const [element, other] of branches) {
+          const opening = element && openingOf(element);
+          if (!opening || !OVERLAY_TAG_RE.test(tagName(opening))) continue;
+          const empty =
+            !other ||
+            other.kind === ts.SyntaxKind.NullKeyword ||
+            other.kind === ts.SyntaxKind.FalseKeyword ||
+            (ts.isIdentifier(other) && other.text === "undefined");
+          if (!empty) continue;
+          const guard = identifiersIn(node.condition);
+          const openAttribute = attribute(opening, "open");
+          if (openAttribute?.initializer) {
+            const openNames = identifiersIn(openAttribute.initializer);
+            if (![...guard].some((name) => openNames.has(name))) continue;
+          }
+          const used = identifiersIn(opening.attributes);
+          const shared = [...guard].filter(
+            (name) => used.has(name) && !/^(?:true|false|null|undefined)$/.test(name)
+          );
+          if (shared.length > 0 && !hasCloseOk(source, node)) {
+            report(
+              node,
+              `mounts ${tagName(opening)} only while ${shared.join(", ")} is set, so it vanishes without its exit animation; keep it mounted and retain the value with useRetainedDialogValue`
+            );
+          }
+        }
+        return;
+      }
+      // 5. A dialog component that returns null once its payload is gone unmounts mid-close.
+      if (
+        (ts.isFunctionDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node)) &&
+        node.body &&
+        ts.isBlock(node.body)
+      ) {
+        const name =
+          (ts.isFunctionDeclaration(node) && node.name?.text) ||
+          (ts.isVariableDeclaration(node.parent) && ts.isIdentifier(node.parent.name) && node.parent.name.text) ||
+          "";
+        if (!/^[A-Z]/.test(name)) return;
+        const statements = node.body.statements;
+        const rendersOverlay = statements.some((statement) => {
+          if (!ts.isReturnStatement(statement) || !statement.expression) return false;
+          const opening = openingOf(unwrap(statement.expression));
+          return opening !== undefined && /^(?:Dialog|AlertDialog|Sheet|Drawer)$/.test(tagName(opening));
+        });
+        if (!rendersOverlay) return;
+        for (const statement of statements) {
+          if (!ts.isIfStatement(statement)) continue;
+          const then = ts.isBlock(statement.thenStatement)
+            ? statement.thenStatement.statements[0]
+            : statement.thenStatement;
+          if (
+            then &&
+            ts.isReturnStatement(then) &&
+            then.expression?.kind === ts.SyntaxKind.NullKeyword &&
+            !hasCloseOk(source, statement)
+          ) {
+            report(
+              statement,
+              `${name} returns null before its dialog, so it vanishes without its exit animation when that condition flips while closing; render the dialog and retain its payload with useRetainedDialogValue`
+            );
+          }
+        }
         return;
       }
       // 3. {payload && <SomeDialog payload={payload} />} unmounts the dialog without its exit animation.

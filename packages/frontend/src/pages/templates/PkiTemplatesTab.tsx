@@ -1,6 +1,8 @@
+import { motion } from "framer-motion";
 import { FileText, FolderPlus, MoreVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { type SyntheticEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { AnimatedSwitch, CONTENT_SWITCH_ANIMATION } from "@/components/common/AnimatedSwitch";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { CreateFolderSelect } from "@/components/common/CreateFolderSelect";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -496,86 +498,90 @@ export function PkiTemplatesTab({
             </div>
 
             {/* Step content */}
-            <fieldset className="-mx-1 min-w-0 space-y-4 border-0 px-1 pb-1" disabled={viewOnly}>
-              {step === 0 && (
-                <StepGeneral
-                  name={name}
-                  setName={setName}
-                  description={description}
-                  setDescription={setDescription}
-                  certType={certType}
-                  setCertType={setCertType}
-                  keyAlgorithm={keyAlgorithm}
-                  setKeyAlgorithm={setKeyAlgorithm}
-                  validityDays={validityDays}
-                  setValidityDays={setValidityDays}
-                />
-              )}
-              {step === 0 && !editing && (
-                <div className="space-y-1.5">
-                  <label htmlFor="pki-template-folder" className="text-sm font-medium">
-                    Folder
-                  </label>
-                  <CreateFolderSelect
-                    id="pki-template-folder"
-                    choices={folderChoices}
-                    value={folderId}
-                    onChange={setFolderId}
-                    loading={foldersLoading}
-                  />
-                </div>
-              )}
-              {step === 1 && <StepKeyUsage keyUsage={keyUsage} setKeyUsage={setKeyUsage} />}
-              {step === 2 && (
-                <StepExtKeyUsage
-                  extKeyUsage={extKeyUsage}
-                  setExtKeyUsage={setExtKeyUsage}
-                  customEkuOid={customEkuOid}
-                  setCustomEkuOid={setCustomEkuOid}
-                />
-              )}
-              {step === 3 && (
-                <StepSAN
-                  requireSans={requireSans}
-                  setRequireSans={setRequireSans}
-                  sanTypes={sanTypes}
-                  setSanTypes={setSanTypes}
-                />
-              )}
-              {step === 4 && (
-                <StepSubjectDN
-                  dnO={dnO}
-                  setDnO={setDnO}
-                  dnOu={dnOu}
-                  setDnOu={setDnOu}
-                  dnL={dnL}
-                  setDnL={setDnL}
-                  dnSt={dnSt}
-                  setDnSt={setDnSt}
-                  dnC={dnC}
-                  setDnC={setDnC}
-                />
-              )}
-              {step === 5 && (
-                <StepDistribution
-                  crlDistributionPoints={crlDistributionPoints}
-                  setCrlDistributionPoints={setCrlDistributionPoints}
-                  caIssuersUrl={caIssuersUrl}
-                  setCaIssuersUrl={setCaIssuersUrl}
-                />
-              )}
-              {step === 6 && (
-                <StepPolicies
-                  certificatePolicies={certificatePolicies}
-                  setCertificatePolicies={setCertificatePolicies}
-                />
-              )}
-              {step === 7 && (
-                <StepCustomExtensions
-                  customExtensions={customExtensions}
-                  setCustomExtensions={setCustomExtensions}
-                />
-              )}
+            <fieldset className="-mx-1 min-w-0 border-0 px-1 pb-1" disabled={viewOnly}>
+              <AnimatedSwitch>
+                <motion.div key={step} {...CONTENT_SWITCH_ANIMATION} className="space-y-4">
+                  {step === 0 && (
+                    <StepGeneral
+                      name={name}
+                      setName={setName}
+                      description={description}
+                      setDescription={setDescription}
+                      certType={certType}
+                      setCertType={setCertType}
+                      keyAlgorithm={keyAlgorithm}
+                      setKeyAlgorithm={setKeyAlgorithm}
+                      validityDays={validityDays}
+                      setValidityDays={setValidityDays}
+                    />
+                  )}
+                  {step === 0 && !editing && (
+                    <div className="space-y-1.5">
+                      <label htmlFor="pki-template-folder" className="text-sm font-medium">
+                        Folder
+                      </label>
+                      <CreateFolderSelect
+                        id="pki-template-folder"
+                        choices={folderChoices}
+                        value={folderId}
+                        onChange={setFolderId}
+                        loading={foldersLoading}
+                      />
+                    </div>
+                  )}
+                  {step === 1 && <StepKeyUsage keyUsage={keyUsage} setKeyUsage={setKeyUsage} />}
+                  {step === 2 && (
+                    <StepExtKeyUsage
+                      extKeyUsage={extKeyUsage}
+                      setExtKeyUsage={setExtKeyUsage}
+                      customEkuOid={customEkuOid}
+                      setCustomEkuOid={setCustomEkuOid}
+                    />
+                  )}
+                  {step === 3 && (
+                    <StepSAN
+                      requireSans={requireSans}
+                      setRequireSans={setRequireSans}
+                      sanTypes={sanTypes}
+                      setSanTypes={setSanTypes}
+                    />
+                  )}
+                  {step === 4 && (
+                    <StepSubjectDN
+                      dnO={dnO}
+                      setDnO={setDnO}
+                      dnOu={dnOu}
+                      setDnOu={setDnOu}
+                      dnL={dnL}
+                      setDnL={setDnL}
+                      dnSt={dnSt}
+                      setDnSt={setDnSt}
+                      dnC={dnC}
+                      setDnC={setDnC}
+                    />
+                  )}
+                  {step === 5 && (
+                    <StepDistribution
+                      crlDistributionPoints={crlDistributionPoints}
+                      setCrlDistributionPoints={setCrlDistributionPoints}
+                      caIssuersUrl={caIssuersUrl}
+                      setCaIssuersUrl={setCaIssuersUrl}
+                    />
+                  )}
+                  {step === 6 && (
+                    <StepPolicies
+                      certificatePolicies={certificatePolicies}
+                      setCertificatePolicies={setCertificatePolicies}
+                    />
+                  )}
+                  {step === 7 && (
+                    <StepCustomExtensions
+                      customExtensions={customExtensions}
+                      setCustomExtensions={setCustomExtensions}
+                    />
+                  )}
+                </motion.div>
+              </AnimatedSwitch>
             </fieldset>
 
             <DialogFooter>

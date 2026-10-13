@@ -1045,6 +1045,8 @@ export function AISidePanel({ isMobile = false }: AISidePanelProps) {
   }
 
   return (
+    // wait-ok: one panel that opens and closes, no content switch; "wait" only holds a reopening
+    // during the close, which would otherwise put two panels side by side in the row for a moment.
     <AnimatePresence mode="wait" initial={false}>
       {aiPanelOpen && (
         <motion.div

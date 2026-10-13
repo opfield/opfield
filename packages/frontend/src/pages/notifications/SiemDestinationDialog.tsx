@@ -1,7 +1,7 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { AnimatedHeight } from "@/components/common/AnimatedHeight";
+import { AnimatedSwitch, CONTENT_SWITCH_ANIMATION } from "@/components/common/AnimatedSwitch";
 import { SwitchCard } from "@/components/common/SwitchCard";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,12 +25,6 @@ import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
 import { handleLicenseApiError } from "@/stores/license-paywall";
 import type { SiemAuthType, SiemDestination } from "@/types";
-
-const FORM_ANIMATION = {
-  initial: { opacity: 0, y: 8 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] as const },
-};
 
 export function SiemDestinationDialog({
   open,
@@ -221,50 +215,27 @@ export function SiemDestinationDialog({
               </SelectContent>
             </Select>
           </div>
-          <AnimatedHeight>
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div key={authType} {...FORM_ANIMATION} className="space-y-4">
-                {authType === "custom_header" ? (
-                  <>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium" htmlFor="siem-custom-header-name">
-                        Custom header
-                      </label>
-                      <Input
-                        id="siem-custom-header-name"
-                        value={customHeaderName}
-                        onChange={(event) => setCustomHeaderName(event.target.value)}
-                        placeholder="X-API-Key"
-                        autoCapitalize="none"
-                        autoCorrect="off"
-                        spellCheck={false}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium" htmlFor="siem-secret">
-                        Header value
-                      </label>
-                      <Input
-                        id="siem-secret"
-                        type="password"
-                        value={secret}
-                        onChange={(event) => changeSecret(event.target.value)}
-                        placeholder={secretPlaceholder}
-                        autoComplete="new-password"
-                        aria-invalid={secretError ? true : undefined}
-                        aria-describedby={secretError ? "siem-secret-error" : undefined}
-                      />
-                      <SecretError message={secretError} />
-                      <p className="text-xs text-muted-foreground">
-                        Opfield sends this header with every request. Opfield transport headers
-                        cannot be overridden.
-                      </p>
-                    </div>
-                  </>
-                ) : (
+          <AnimatedSwitch>
+            <motion.div key={authType} {...CONTENT_SWITCH_ANIMATION} className="space-y-4">
+              {authType === "custom_header" ? (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium" htmlFor="siem-custom-header-name">
+                      Custom header
+                    </label>
+                    <Input
+                      id="siem-custom-header-name"
+                      value={customHeaderName}
+                      onChange={(event) => setCustomHeaderName(event.target.value)}
+                      placeholder="X-API-Key"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                    />
+                  </div>
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium" htmlFor="siem-secret">
-                      {authType === "bearer" ? "Bearer token" : "HMAC secret"}
+                      Header value
                     </label>
                     <Input
                       id="siem-secret"
@@ -277,17 +248,38 @@ export function SiemDestinationDialog({
                       aria-describedby={secretError ? "siem-secret-error" : undefined}
                     />
                     <SecretError message={secretError} />
-                    {authType === "hmac_sha256" && (
-                      <p className="text-xs text-muted-foreground">
-                        Opfield sends <code>X-Opfield-Timestamp</code> and signs it with the raw
-                        JSON body in <code>X-Opfield-Signature-256</code>.
-                      </p>
-                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Opfield sends this header with every request. Opfield transport headers cannot
+                      be overridden.
+                    </p>
                   </div>
-                )}
-              </motion.div>
-            </AnimatePresence>
-          </AnimatedHeight>
+                </>
+              ) : (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium" htmlFor="siem-secret">
+                    {authType === "bearer" ? "Bearer token" : "HMAC secret"}
+                  </label>
+                  <Input
+                    id="siem-secret"
+                    type="password"
+                    value={secret}
+                    onChange={(event) => changeSecret(event.target.value)}
+                    placeholder={secretPlaceholder}
+                    autoComplete="new-password"
+                    aria-invalid={secretError ? true : undefined}
+                    aria-describedby={secretError ? "siem-secret-error" : undefined}
+                  />
+                  <SecretError message={secretError} />
+                  {authType === "hmac_sha256" && (
+                    <p className="text-xs text-muted-foreground">
+                      Opfield sends <code>X-Opfield-Timestamp</code> and signs it with the raw JSON
+                      body in <code>X-Opfield-Signature-256</code>.
+                    </p>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          </AnimatedSwitch>
           <div className="pt-4">
             <SwitchCard
               label="Delivery enabled"

@@ -1,7 +1,8 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { AnimatedSwitch, CONTENT_SWITCH_ANIMATION } from "@/components/common/AnimatedSwitch";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { ScopeList } from "@/components/common/ScopeList";
 import {
@@ -37,8 +38,6 @@ import {
   type NotificationWebhook,
 } from "@/types";
 import {
-  AnimatedHeight,
-  STEP_ANIMATION,
   TemplateCheatsheetLink,
   TemplateEditor,
   type TemplateEditorHandle,
@@ -720,175 +719,255 @@ export function AlertDialog({
           Step {step} of 3 — {STEP_LABELS[step - 1]}
         </DialogDescription>
 
-        <AnimatedHeight>
-          <ContentLoading loading={categoriesLoading || webhooksLoading || resourcesLoading} />
-          <AnimatePresence initial={false} mode="wait">
-            {/* ── Step 1: Configuration ── */}
-            {step === 1 && (
-              <motion.div key="step-1" {...STEP_ANIMATION} className="space-y-5">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Name</label>
-                    <Input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="CPU High Alert"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Severity</label>
-                    <Select value={severity} onValueChange={setSeverity}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="info">Info</SelectItem>
-                        <SelectItem value="warning">Warning</SelectItem>
-                        <SelectItem value="critical">Critical</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+        <ContentLoading loading={categoriesLoading || webhooksLoading || resourcesLoading} />
+        <AnimatedSwitch>
+          {/* ── Step 1: Configuration ── */}
+          {step === 1 && (
+            <motion.div key="step-1" {...CONTENT_SWITCH_ANIMATION} className="space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Name</label>
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="CPU High Alert"
+                  />
                 </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Severity</label>
+                  <Select value={severity} onValueChange={setSeverity}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="info">Info</SelectItem>
+                      <SelectItem value="warning">Warning</SelectItem>
+                      <SelectItem value="critical">Critical</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-                <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Category</label>
+                  <Select
+                    value={category}
+                    onValueChange={(v) => {
+                      setCategory(v);
+                      setMetric("");
+                      setEventPattern("");
+                    }}
+                    disabled={categories.length === 0}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent
+                      className="max-h-[min(24rem,var(--radix-select-content-available-height))]"
+                      overlayScrollControls
+                    >
+                      {categories.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Alert Type</label>
+                  <Select value={type} onValueChange={setType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {cat && cat.metrics.length > 0 && (
+                        <SelectItem value="threshold">Threshold</SelectItem>
+                      )}
+                      {cat && cat.events.length > 0 && <SelectItem value="event">Event</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {type === "threshold" && cat && cat.metrics.length > 1 && (
+                <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Category</label>
+                    <label className="text-sm font-medium">Metric</label>
                     <Select
-                      value={category}
-                      onValueChange={(v) => {
-                        setCategory(v);
-                        setMetric("");
-                        setEventPattern("");
+                      value={metric}
+                      onValueChange={(value) => {
+                        const nextMetric = cat.metrics.find((m) => m.id === value);
+                        if (nextMetric) applyMetricDefaults(nextMetric);
+                        else setMetric(value);
                       }}
-                      disabled={categories.length === 0}
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent
-                        className="max-h-[min(24rem,var(--radix-select-content-available-height))]"
-                        overlayScrollControls
-                      >
-                        {categories.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.label}
+                      <SelectContent>
+                        {cat.metrics.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Alert Type</label>
-                    <Select value={type} onValueChange={setType}>
+                    <label className="text-sm font-medium">Operator</label>
+                    <Select value={operator} onValueChange={setOperator}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {cat && cat.metrics.length > 0 && (
-                          <SelectItem value="threshold">Threshold</SelectItem>
-                        )}
-                        {cat && cat.events.length > 0 && (
-                          <SelectItem value="event">Event</SelectItem>
-                        )}
+                        <SelectItem value=">">&gt;</SelectItem>
+                        <SelectItem value=">=">&gt;=</SelectItem>
+                        <SelectItem value="<">&lt;</SelectItem>
+                        <SelectItem value="<=">&lt;=</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Value</label>
+                    <Input
+                      type="number"
+                      value={thresholdValue}
+                      onChange={(e) => setThresholdValue(e.target.value)}
+                    />
+                  </div>
                 </div>
+              )}
+              {type === "threshold" && cat && cat.metrics.length === 1 && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Operator</label>
+                    <Select value={operator} onValueChange={setOperator}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value=">">&gt;</SelectItem>
+                        <SelectItem value=">=">&gt;=</SelectItem>
+                        <SelectItem value="<">&lt;</SelectItem>
+                        <SelectItem value="<=">&lt;=</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">{cat.metrics[0].label}</label>
+                    <Input
+                      type="number"
+                      value={thresholdValue}
+                      onChange={(e) => setThresholdValue(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+              {isHostingAccountThreshold && (
+                <div className="space-y-1.5">
+                  <label htmlFor="hosting-alert-currency" className="text-sm font-medium">
+                    Currency
+                  </label>
+                  <Input
+                    id="hosting-alert-currency"
+                    value={currency}
+                    maxLength={3}
+                    placeholder="USD"
+                    onChange={(event) => setCurrency(event.target.value.toUpperCase())}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Only accounts reporting this currency are evaluated. Unavailable or stale
+                    balances are ignored; currencies are not converted.
+                  </p>
+                </div>
+              )}
+              {type === "threshold" && !isCertificateExpiryThreshold && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Fire window (minutes)</label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={durationMinutes}
+                      onChange={(e) => setDurationMinutes(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Observation window used for firing. 0 = immediate.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Fire threshold (%)</label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={fireThresholdPercent}
+                      onChange={(e) => setFireThresholdPercent(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Alert fires when breached probes reach this share of the fire window.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Resolve window (minutes)</label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={resolveAfterMinutes}
+                      onChange={(e) => setResolveAfterMinutes(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Observation window used for resolving.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Resolve threshold (%)</label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={resolveThresholdPercent}
+                      onChange={(e) => setResolveThresholdPercent(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Alert resolves when clear probes reach this share of the resolve window.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5 col-span-2">
+                    <label className="text-sm font-medium">Cooldown (seconds)</label>
+                    <Input
+                      type="number"
+                      value={cooldownSeconds}
+                      onChange={(e) => setCooldownSeconds(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Won't re-fire within this period.
+                    </p>
+                  </div>
+                </div>
+              )}
 
-                {type === "threshold" && cat && cat.metrics.length > 1 && (
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium">Metric</label>
-                      <Select
-                        value={metric}
-                        onValueChange={(value) => {
-                          const nextMetric = cat.metrics.find((m) => m.id === value);
-                          if (nextMetric) applyMetricDefaults(nextMetric);
-                          else setMetric(value);
-                        }}
-                      >
+              {type === "event" &&
+                cat &&
+                (selectedEventDef?.supportsThreshold ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5 col-span-2">
+                      <label className="text-sm font-medium">Event</label>
+                      <Select value={eventPattern} onValueChange={setEventPattern}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {cat.metrics.map((m) => (
-                            <SelectItem key={m.id} value={m.id}>
-                              {m.label}
+                          {cat.events.map((e) => (
+                            <SelectItem key={e.id} value={e.id}>
+                              {e.label}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium">Operator</label>
-                      <Select value={operator} onValueChange={setOperator}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value=">">&gt;</SelectItem>
-                          <SelectItem value=">=">&gt;=</SelectItem>
-                          <SelectItem value="<">&lt;</SelectItem>
-                          <SelectItem value="<=">&lt;=</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium">Value</label>
-                      <Input
-                        type="number"
-                        value={thresholdValue}
-                        onChange={(e) => setThresholdValue(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                )}
-                {type === "threshold" && cat && cat.metrics.length === 1 && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium">Operator</label>
-                      <Select value={operator} onValueChange={setOperator}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value=">">&gt;</SelectItem>
-                          <SelectItem value=">=">&gt;=</SelectItem>
-                          <SelectItem value="<">&lt;</SelectItem>
-                          <SelectItem value="<=">&lt;=</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium">{cat.metrics[0].label}</label>
-                      <Input
-                        type="number"
-                        value={thresholdValue}
-                        onChange={(e) => setThresholdValue(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                )}
-                {isHostingAccountThreshold && (
-                  <div className="space-y-1.5">
-                    <label htmlFor="hosting-alert-currency" className="text-sm font-medium">
-                      Currency
-                    </label>
-                    <Input
-                      id="hosting-alert-currency"
-                      value={currency}
-                      maxLength={3}
-                      placeholder="USD"
-                      onChange={(event) => setCurrency(event.target.value.toUpperCase())}
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      Only accounts reporting this currency are evaluated. Unavailable or stale
-                      balances are ignored; currencies are not converted.
-                    </p>
-                  </div>
-                )}
-                {type === "threshold" && !isCertificateExpiryThreshold && (
-                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium">Fire window (minutes)</label>
                       <Input
@@ -898,7 +977,7 @@ export function AlertDialog({
                         onChange={(e) => setDurationMinutes(e.target.value)}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Observation window used for firing. 0 = immediate.
+                        Observation window used to confirm this stateful event.
                       </p>
                     </div>
                     <div className="space-y-1.5">
@@ -911,7 +990,7 @@ export function AlertDialog({
                         onChange={(e) => setFireThresholdPercent(e.target.value)}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Alert fires when breached probes reach this share of the fire window.
+                        Alert fires when the event state is observed this often in the fire window.
                       </p>
                     </div>
                     <div className="space-y-1.5">
@@ -923,7 +1002,7 @@ export function AlertDialog({
                         onChange={(e) => setResolveAfterMinutes(e.target.value)}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Observation window used for resolving.
+                        Observation window used to confirm the state has cleared.
                       </p>
                     </div>
                     <div className="space-y-1.5">
@@ -936,7 +1015,8 @@ export function AlertDialog({
                         onChange={(e) => setResolveThresholdPercent(e.target.value)}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Alert resolves when clear probes reach this share of the resolve window.
+                        Alert resolves when clear observations reach this share of the resolve
+                        window.
                       </p>
                     </div>
                     <div className="space-y-1.5 col-span-2">
@@ -951,311 +1031,225 @@ export function AlertDialog({
                       </p>
                     </div>
                   </div>
-                )}
-
-                {type === "event" &&
-                  cat &&
-                  (selectedEventDef?.supportsThreshold ? (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5 col-span-2">
-                        <label className="text-sm font-medium">Event</label>
-                        <Select value={eventPattern} onValueChange={setEventPattern}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {cat.events.map((e) => (
-                              <SelectItem key={e.id} value={e.id}>
-                                {e.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium">Fire window (minutes)</label>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={durationMinutes}
-                          onChange={(e) => setDurationMinutes(e.target.value)}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Observation window used to confirm this stateful event.
-                        </p>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium">Fire threshold (%)</label>
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={fireThresholdPercent}
-                          onChange={(e) => setFireThresholdPercent(e.target.value)}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Alert fires when the event state is observed this often in the fire
-                          window.
-                        </p>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium">Resolve window (minutes)</label>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={resolveAfterMinutes}
-                          onChange={(e) => setResolveAfterMinutes(e.target.value)}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Observation window used to confirm the state has cleared.
-                        </p>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium">Resolve threshold (%)</label>
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={resolveThresholdPercent}
-                          onChange={(e) => setResolveThresholdPercent(e.target.value)}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Alert resolves when clear observations reach this share of the resolve
-                          window.
-                        </p>
-                      </div>
-                      <div className="space-y-1.5 col-span-2">
-                        <label className="text-sm font-medium">Cooldown (seconds)</label>
-                        <Input
-                          type="number"
-                          value={cooldownSeconds}
-                          onChange={(e) => setCooldownSeconds(e.target.value)}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Won't re-fire within this period.
-                        </p>
-                      </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium">Event</label>
+                      <Select value={eventPattern} onValueChange={setEventPattern}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {cat.events.map((e) => (
+                            <SelectItem key={e.id} value={e.id}>
+                              {e.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium">Event</label>
-                        <Select value={eventPattern} onValueChange={setEventPattern}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {cat.events.map((e) => (
-                              <SelectItem key={e.id} value={e.id}>
-                                {e.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium">Cooldown (seconds)</label>
-                        <Input
-                          type="number"
-                          value={cooldownSeconds}
-                          onChange={(e) => setCooldownSeconds(e.target.value)}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Won't re-fire within this period.
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-              </motion.div>
-            )}
-
-            {/* ── Step 2: Scope & Webhooks ── */}
-            {step === 2 && (
-              <motion.div key="step-2" {...STEP_ANIMATION} className="space-y-5">
-                {/* Scope */}
-                <div className="space-y-3">
-                  <SwitchCard
-                    label={`Limit to specific ${cat?.label?.toLowerCase() ?? category}s`}
-                    description={
-                      scopeEnabled
-                        ? "Only selected resources will trigger this alert."
-                        : `Alert applies to all ${cat?.label?.toLowerCase() ?? category}s.`
-                    }
-                    checked={scopeEnabled}
-                    onCheckedChange={(v) => {
-                      setScopeEnabled(v);
-                      if (!v) setResourceIds([]);
-                    }}
-                  />
-                  <div
-                    className={`border border-border transition-opacity ${scopeEnabled ? "" : "opacity-40 pointer-events-none"}`}
-                  >
-                    <ScopeSearchFilter
-                      search={resourceSearch}
-                      onSearchChange={setResourceSearch}
-                      filter={resourceFilter}
-                      onFilterChange={setResourceFilter}
-                      placeholder="Search resources..."
-                      disabled={!scopeEnabled}
-                    />
-                    <div>
-                      {availableResources.length === 0 ? (
-                        <p className="p-3 text-sm text-muted-foreground">
-                          {resourcesLoading ? "Loading resources…" : "No resources found."}
-                        </p>
-                      ) : (
-                        <ScopeList
-                          scopes={resourceScopeItems}
-                          search={resourceSearch}
-                          selectionFilter={resourceFilter}
-                          selected={resourceIds}
-                          onToggle={toggleResource}
-                          readOnly={!scopeEnabled}
-                          viewportClassName={DIALOG_LIST_CLASS}
-                        />
-                      )}
-                    </div>
-                    <div className="border-t border-border px-3 py-1.5">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium">Cooldown (seconds)</label>
+                      <Input
+                        type="number"
+                        value={cooldownSeconds}
+                        onChange={(e) => setCooldownSeconds(e.target.value)}
+                      />
                       <p className="text-xs text-muted-foreground">
-                        {scopeEnabled ? `${resourceIds.length} selected` : "All resources"}
+                        Won't re-fire within this period.
                       </p>
                     </div>
                   </div>
-                </div>
+                ))}
+            </motion.div>
+          )}
 
-                {type === "threshold" && category === "node" && metric === "disk" && (
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Disk To Watch</label>
-                    <Select
-                      value={metricTarget}
-                      onValueChange={setMetricTarget}
-                      disabled={!canSelectNodeDiskTarget}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {diskTargetOptions.map((option) => (
-                          <SelectItem key={option.id} value={option.id}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      {canSelectNodeDiskTarget
-                        ? "Choose which disk mount on the selected node should trigger this alert."
-                        : "Select exactly one node above to watch a specific disk. Otherwise the alert evaluates all disks."}
-                    </p>
-                  </div>
-                )}
-
-                {isNodeGpuThreshold && (
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium">GPU To Watch</label>
-                    <Select
-                      value={canSelectNodeGpuTarget ? metricTarget : undefined}
-                      onValueChange={setMetricTarget}
-                      disabled={!canSelectNodeGpuTarget}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a GPU" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {gpuTargetOptions.map((option) => (
-                          <SelectItem key={option.id} value={option.id}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      {canSelectNodeGpuTarget
-                        ? "Choose a physical GPU on the selected node. The alert uses only metrics reported by that GPU."
-                        : scopeEnabled && resourceIds.length === 1
-                          ? "This node has no GPU that reports the selected metric."
-                          : "Select exactly one node above to watch a specific GPU. Otherwise the alert evaluates every GPU that reports this metric."}
-                    </p>
-                  </div>
-                )}
-
-                {/* Webhooks */}
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Send to Webhooks</label>
-                  {webhooks.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      No webhooks configured. Create a webhook first.
-                    </p>
-                  ) : (
-                    <div className="border border-border">
-                      <ScopeSearchFilter
-                        search={webhookSearch}
-                        onSearchChange={setWebhookSearch}
-                        filter={webhookFilter}
-                        onFilterChange={setWebhookFilter}
-                        placeholder="Search webhooks..."
+          {/* ── Step 2: Scope & Webhooks ── */}
+          {step === 2 && (
+            <motion.div key="step-2" {...CONTENT_SWITCH_ANIMATION} className="space-y-5">
+              {/* Scope */}
+              <div className="space-y-3">
+                <SwitchCard
+                  label={`Limit to specific ${cat?.label?.toLowerCase() ?? category}s`}
+                  description={
+                    scopeEnabled
+                      ? "Only selected resources will trigger this alert."
+                      : `Alert applies to all ${cat?.label?.toLowerCase() ?? category}s.`
+                  }
+                  checked={scopeEnabled}
+                  onCheckedChange={(v) => {
+                    setScopeEnabled(v);
+                    if (!v) setResourceIds([]);
+                  }}
+                />
+                <div
+                  className={`border border-border transition-opacity ${scopeEnabled ? "" : "opacity-40 pointer-events-none"}`}
+                >
+                  <ScopeSearchFilter
+                    search={resourceSearch}
+                    onSearchChange={setResourceSearch}
+                    filter={resourceFilter}
+                    onFilterChange={setResourceFilter}
+                    placeholder="Search resources..."
+                    disabled={!scopeEnabled}
+                  />
+                  <div>
+                    {availableResources.length === 0 ? (
+                      <p className="p-3 text-sm text-muted-foreground">
+                        {resourcesLoading ? "Loading resources…" : "No resources found."}
+                      </p>
+                    ) : (
+                      <ScopeList
+                        scopes={resourceScopeItems}
+                        search={resourceSearch}
+                        selectionFilter={resourceFilter}
+                        selected={resourceIds}
+                        onToggle={toggleResource}
+                        readOnly={!scopeEnabled}
+                        viewportClassName={DIALOG_LIST_CLASS}
                       />
-                      <div>
-                        <ScopeList
-                          scopes={webhookScopeItems}
-                          search={webhookSearch}
-                          selectionFilter={webhookFilter}
-                          selected={selectedWebhookIds}
-                          onToggle={toggleWebhook}
-                          viewportClassName={DIALOG_LIST_CLASS}
-                        />
-                      </div>
-                      <div className="border-t border-border px-3 py-1.5">
-                        <p className="text-xs text-muted-foreground">
-                          {selectedWebhookIds.length} selected
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            )}
-
-            {/* ── Step 3: Message ── */}
-            {step === 3 && (
-              <motion.div key="step-3" {...STEP_ANIMATION} className="space-y-5">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Message Template</label>
-                  <TemplateEditor
-                    ref={editorRef}
-                    value={messageTemplate}
-                    onChange={setMessageTemplate}
-                    minHeight={300}
-                    placeholder={messagePlaceholder}
-                  />
-                  <TemplateCheatsheetLink
-                    variables={[
-                      ...(cat?.variables ?? []),
-                      ...UNIVERSAL_VARIABLES.filter(
-                        (u) => !(cat?.variables ?? []).some((v) => v.name === u.name)
-                      ),
-                    ]}
-                  />
-                </div>
-                {resolvable && (
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Resolve Message Template</label>
-                    <TemplateEditor
-                      value={resolveMessageTemplate}
-                      onChange={setResolveMessageTemplate}
-                      minHeight={120}
-                      placeholder={resolvePlaceholder}
-                    />
+                    )}
+                  </div>
+                  <div className="border-t border-border px-3 py-1.5">
                     <p className="text-xs text-muted-foreground">
-                      Sent when the alert resolves. Leave empty to use Opfield's text for this
-                      alert, such as "Proxy host example.com is back online after 13m 2s."
+                      {scopeEnabled ? `${resourceIds.length} selected` : "All resources"}
                     </p>
                   </div>
+                </div>
+              </div>
+
+              {type === "threshold" && category === "node" && metric === "disk" && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Disk To Watch</label>
+                  <Select
+                    value={metricTarget}
+                    onValueChange={setMetricTarget}
+                    disabled={!canSelectNodeDiskTarget}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {diskTargetOptions.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {canSelectNodeDiskTarget
+                      ? "Choose which disk mount on the selected node should trigger this alert."
+                      : "Select exactly one node above to watch a specific disk. Otherwise the alert evaluates all disks."}
+                  </p>
+                </div>
+              )}
+
+              {isNodeGpuThreshold && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">GPU To Watch</label>
+                  <Select
+                    value={canSelectNodeGpuTarget ? metricTarget : undefined}
+                    onValueChange={setMetricTarget}
+                    disabled={!canSelectNodeGpuTarget}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a GPU" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {gpuTargetOptions.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {canSelectNodeGpuTarget
+                      ? "Choose a physical GPU on the selected node. The alert uses only metrics reported by that GPU."
+                      : scopeEnabled && resourceIds.length === 1
+                        ? "This node has no GPU that reports the selected metric."
+                        : "Select exactly one node above to watch a specific GPU. Otherwise the alert evaluates every GPU that reports this metric."}
+                  </p>
+                </div>
+              )}
+
+              {/* Webhooks */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Send to Webhooks</label>
+                {webhooks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No webhooks configured. Create a webhook first.
+                  </p>
+                ) : (
+                  <div className="border border-border">
+                    <ScopeSearchFilter
+                      search={webhookSearch}
+                      onSearchChange={setWebhookSearch}
+                      filter={webhookFilter}
+                      onFilterChange={setWebhookFilter}
+                      placeholder="Search webhooks..."
+                    />
+                    <div>
+                      <ScopeList
+                        scopes={webhookScopeItems}
+                        search={webhookSearch}
+                        selectionFilter={webhookFilter}
+                        selected={selectedWebhookIds}
+                        onToggle={toggleWebhook}
+                        viewportClassName={DIALOG_LIST_CLASS}
+                      />
+                    </div>
+                    <div className="border-t border-border px-3 py-1.5">
+                      <p className="text-xs text-muted-foreground">
+                        {selectedWebhookIds.length} selected
+                      </p>
+                    </div>
+                  </div>
                 )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </AnimatedHeight>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── Step 3: Message ── */}
+          {step === 3 && (
+            <motion.div key="step-3" {...CONTENT_SWITCH_ANIMATION} className="space-y-5">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Message Template</label>
+                <TemplateEditor
+                  ref={editorRef}
+                  value={messageTemplate}
+                  onChange={setMessageTemplate}
+                  minHeight={300}
+                  placeholder={messagePlaceholder}
+                />
+                <TemplateCheatsheetLink
+                  variables={[
+                    ...(cat?.variables ?? []),
+                    ...UNIVERSAL_VARIABLES.filter(
+                      (u) => !(cat?.variables ?? []).some((v) => v.name === u.name)
+                    ),
+                  ]}
+                />
+              </div>
+              {resolvable && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Resolve Message Template</label>
+                  <TemplateEditor
+                    value={resolveMessageTemplate}
+                    onChange={setResolveMessageTemplate}
+                    minHeight={120}
+                    placeholder={resolvePlaceholder}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Sent when the alert resolves. Leave empty to use Opfield's text for this alert,
+                    such as "Proxy host example.com is back online after 13m 2s."
+                  </p>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatedSwitch>
 
         <DialogFooter className="shrink-0">
           {step === 1 && (

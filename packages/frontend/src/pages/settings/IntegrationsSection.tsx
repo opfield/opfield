@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   ArrowLeft,
   ArrowRight,
@@ -10,8 +10,9 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { AnimatedSwitch, CONTENT_SWITCH_ANIMATION } from "@/components/common/AnimatedSwitch";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PanelShell } from "@/components/common/PanelShell";
@@ -88,11 +89,6 @@ const CAPABILITY_LABELS: Record<string, string> = {
 
 const CONNECTOR_STEP_LABELS = ["Connection", "Access", "Sync & clone", "Review"];
 const CONNECTOR_STEP_COUNT = CONNECTOR_STEP_LABELS.length;
-const CONNECTOR_STEP_ANIMATION = {
-  initial: { opacity: 0, y: 8 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] as const },
-};
 
 function allowlistEntryKey(entry: GitLabAllowlistEntry) {
   return `${entry.entryType}:${entry.remoteId}`;
@@ -108,40 +104,6 @@ function mergeAllowlistEntries(
     }
   }
   return [...keyed.values()];
-}
-
-function ConnectorStepHeight({ children }: { children: React.ReactNode }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState<number | "auto">("auto");
-
-  useLayoutEffect(() => {
-    if (containerRef.current) {
-      setHeight(containerRef.current.getBoundingClientRect().height);
-    }
-  }, []);
-
-  useEffect(() => {
-    const element = containerRef.current;
-    if (!element) return;
-
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setHeight(entry.contentRect.height);
-      }
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <motion.div
-      animate={{ height }}
-      transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
-      className="overflow-hidden"
-    >
-      <div ref={containerRef}>{children}</div>
-    </motion.div>
-  );
 }
 
 function mergeSettings(settings?: Partial<GitLabConnectorSettings>): GitLabConnectorSettings {
@@ -657,38 +619,73 @@ function GitLabIntegrationsContent() {
             <ContentLoading loading />
           ) : (
             <div>
-              <ConnectorStepHeight>
-                <AnimatePresence mode="wait" initial={false}>
-                  {dialogStep === 1 && (
-                    <motion.div
-                      key="gitlab-connector-step-1"
-                      {...CONNECTOR_STEP_ANIMATION}
-                      className="space-y-4"
-                    >
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <Field label="Name">
-                          <Input
-                            value={form.name}
-                            disabled={!canManage}
-                            onChange={(event) =>
-                              setForm((current) => ({ ...current, name: event.target.value }))
-                            }
-                            placeholder="Production GitLab"
-                          />
-                        </Field>
-                        <Field label="Base URL">
-                          <Input
-                            value={form.baseUrl}
-                            disabled={!canManage}
-                            onChange={(event) =>
-                              setForm((current) => ({ ...current, baseUrl: event.target.value }))
-                            }
-                            placeholder="https://gitlab.com"
-                          />
-                        </Field>
-                      </div>
+              <AnimatedSwitch>
+                {dialogStep === 1 && (
+                  <motion.div
+                    key="gitlab-connector-step-1"
+                    {...CONTENT_SWITCH_ANIMATION}
+                    className="space-y-4"
+                  >
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label="Name">
+                        <Input
+                          value={form.name}
+                          disabled={!canManage}
+                          onChange={(event) =>
+                            setForm((current) => ({ ...current, name: event.target.value }))
+                          }
+                          placeholder="Production GitLab"
+                        />
+                      </Field>
+                      <Field label="Base URL">
+                        <Input
+                          value={form.baseUrl}
+                          disabled={!canManage}
+                          onChange={(event) =>
+                            setForm((current) => ({ ...current, baseUrl: event.target.value }))
+                          }
+                          placeholder="https://gitlab.com"
+                        />
+                      </Field>
+                    </div>
 
-                      <Field label={editingConnector ? "Token" : "Personal Access Token"}>
+                    <Field label={editingConnector ? "Token" : "Personal Access Token"}>
+                      <div className="flex min-w-0 border border-input bg-background">
+                        <Input
+                          value={form.token}
+                          disabled={!canManage}
+                          onChange={(event) =>
+                            setForm((current) => ({ ...current, token: event.target.value }))
+                          }
+                          placeholder={editingConnector?.tokenMasked ?? "glpat-..."}
+                          type="password"
+                          className="h-9 min-w-0 flex-1 rounded-none border-0 bg-transparent focus-visible:ring-0"
+                        />
+                        <Button
+                          variant="ghost"
+                          className="shrink-0 rounded-none border-l border-border bg-header px-3 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          onClick={() => void testConnectionForDialog({ advance: false })}
+                          disabled={!canContinueFromConnection()}
+                          pending={testingConnection}
+                        >
+                          Test Connection
+                        </Button>
+                      </div>
+                    </Field>
+                  </motion.div>
+                )}
+
+                {dialogStep === 2 && (
+                  <motion.div
+                    key="gitlab-connector-step-2"
+                    {...CONTENT_SWITCH_ANIMATION}
+                    className="space-y-4"
+                  >
+                    {editingConnector && (
+                      <Field label="Token">
+                        <p className="mb-2 text-xs text-muted-foreground">
+                          Leave empty to keep the current token.
+                        </p>
                         <div className="flex min-w-0 border border-input bg-background">
                           <Input
                             value={form.token}
@@ -696,7 +693,7 @@ function GitLabIntegrationsContent() {
                             onChange={(event) =>
                               setForm((current) => ({ ...current, token: event.target.value }))
                             }
-                            placeholder={editingConnector?.tokenMasked ?? "glpat-..."}
+                            placeholder={editingConnector.tokenMasked ?? "glpat-..."}
                             type="password"
                             className="h-9 min-w-0 flex-1 rounded-none border-0 bg-transparent focus-visible:ring-0"
                           />
@@ -704,302 +701,265 @@ function GitLabIntegrationsContent() {
                             variant="ghost"
                             className="shrink-0 rounded-none border-l border-border bg-header px-3 text-muted-foreground hover:bg-muted hover:text-foreground"
                             onClick={() => void testConnectionForDialog({ advance: false })}
-                            disabled={!canContinueFromConnection()}
                             pending={testingConnection}
                           >
                             Test Connection
                           </Button>
                         </div>
                       </Field>
-                    </motion.div>
-                  )}
+                    )}
 
-                  {dialogStep === 2 && (
-                    <motion.div
-                      key="gitlab-connector-step-2"
-                      {...CONNECTOR_STEP_ANIMATION}
-                      className="space-y-4"
-                    >
-                      {editingConnector && (
-                        <Field label="Token">
-                          <p className="mb-2 text-xs text-muted-foreground">
-                            Leave empty to keep the current token.
-                          </p>
-                          <div className="flex min-w-0 border border-input bg-background">
-                            <Input
-                              value={form.token}
-                              disabled={!canManage}
-                              onChange={(event) =>
-                                setForm((current) => ({ ...current, token: event.target.value }))
-                              }
-                              placeholder={editingConnector.tokenMasked ?? "glpat-..."}
-                              type="password"
-                              className="h-9 min-w-0 flex-1 rounded-none border-0 bg-transparent focus-visible:ring-0"
-                            />
-                            <Button
-                              variant="ghost"
-                              className="shrink-0 rounded-none border-l border-border bg-header px-3 text-muted-foreground hover:bg-muted hover:text-foreground"
-                              onClick={() => void testConnectionForDialog({ advance: false })}
-                              pending={testingConnection}
-                            >
-                              Test Connection
-                            </Button>
-                          </div>
-                        </Field>
-                      )}
-
-                      <Field label="Project Access">
-                        <div className="flex gap-2">
-                          <Select
-                            value={form.allowlistMode}
+                    <Field label="Project Access">
+                      <div className="flex gap-2">
+                        <Select
+                          value={form.allowlistMode}
+                          disabled={!canManage}
+                          onValueChange={(value) =>
+                            updateAllowlistMode(value as GitLabAllowlistMode)
+                          }
+                        >
+                          <SelectTrigger className="min-w-0 flex-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="selected">Selected projects and groups</SelectItem>
+                            <SelectItem value="all_visible">All visible projects</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {editingConnector && (
+                          <Button
+                            type="button"
+                            variant="outline"
                             disabled={!canManage}
-                            onValueChange={(value) =>
-                              updateAllowlistMode(value as GitLabAllowlistMode)
-                            }
+                            pending={refreshingAllowlist}
+                            onClick={() => void refreshAllowlistOptions()}
                           >
-                            <SelectTrigger className="min-w-0 flex-1">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="selected">Selected projects and groups</SelectItem>
-                              <SelectItem value="all_visible">All visible projects</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {editingConnector && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              disabled={!canManage}
-                              pending={refreshingAllowlist}
-                              onClick={() => void refreshAllowlistOptions()}
-                            >
-                              <RefreshCw className="h-4 w-4" />
-                              Update
-                            </Button>
-                          )}
-                        </div>
-                      </Field>
-
-                      <div className="border border-border">
-                        <div>
-                          <ScopeSearchFilter
-                            search={search}
-                            onSearchChange={setSearch}
-                            filter={allowlistFilter}
-                            onFilterChange={setAllowlistFilter}
-                            placeholder="Search GitLab projects and groups..."
-                            disabled={
-                              !canManage ||
-                              refreshingAllowlist ||
-                              form.allowlistMode === "all_visible" ||
-                              !canSearchAllowlist
-                            }
-                          />
-                        </div>
-                        <div className={`${DIALOG_LIST_CLASS} overscroll-contain`}>
-                          {searching ? (
-                            <div className="flex items-center justify-center gap-2 px-3 py-8 text-sm text-muted-foreground">
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              Searching GitLab
-                            </div>
-                          ) : refreshingAllowlist ? (
-                            <div className="flex items-center justify-center gap-2 px-3 py-8 text-sm text-muted-foreground">
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              Updating projects
-                            </div>
-                          ) : (
-                            <ScopeList
-                              scopes={displayedAllowlistItems}
-                              search={search}
-                              selectionFilter={allowlistFilter}
-                              selected={selectedEntryValues}
-                              onToggle={toggleAllowlistEntryByKey}
-                              readOnly={form.allowlistMode === "all_visible"}
-                              viewportClassName="max-h-none max-sm:max-h-none"
-                            />
-                          )}
-                        </div>
-                        <div className="border-t border-border px-3 py-2">
-                          <p className="text-xs text-muted-foreground">
-                            {form.allowlistMode === "all_visible"
-                              ? `${availableAllowlistEntries.length} available`
-                              : `${form.allowlistEntries.length} selected`}
-                          </p>
-                        </div>
+                            <RefreshCw className="h-4 w-4" />
+                            Update
+                          </Button>
+                        )}
                       </div>
-                    </motion.div>
-                  )}
+                    </Field>
 
-                  {dialogStep === 3 && (
-                    <motion.div
-                      key="gitlab-connector-step-3"
-                      {...CONNECTOR_STEP_ANIMATION}
-                      className="space-y-4"
-                    >
-                      <PanelShell
-                        title="Sync & Clone"
-                        description="Project discovery schedule and sandbox clone limits."
-                        icon={<GitFork className="h-4 w-4" />}
-                      >
-                        <SettingsControlRow
-                          title="Auto Sync"
-                          description="Refresh visible projects and registry metadata."
-                        >
-                          <Select
-                            value={
-                              form.settings.autoSyncEnabled
-                                ? String(form.settings.autoSyncIntervalSeconds)
-                                : "disabled"
-                            }
-                            disabled={!canManage}
-                            onValueChange={(value) =>
-                              updateSettings(
-                                value === "disabled"
-                                  ? { autoSyncEnabled: false }
-                                  : {
-                                      autoSyncEnabled: true,
-                                      autoSyncIntervalSeconds: Number(value),
-                                    }
-                              )
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="disabled">Disabled</SelectItem>
-                              <SelectItem value="300">Every 5 minutes</SelectItem>
-                              <SelectItem value="900">Every 15 minutes</SelectItem>
-                              <SelectItem value="3600">Every hour</SelectItem>
-                              <SelectItem value="21600">Every 6 hours</SelectItem>
-                              <SelectItem value="86400">Daily</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </SettingsControlRow>
-                        <SettingsControlRow
-                          title="Clone Depth"
-                          description="Maximum Git history depth for shallow clones."
-                        >
-                          <Input
-                            type="number"
-                            min={1}
-                            max={100}
-                            value={String(form.settings.cloneDepth)}
-                            disabled={!canManage}
-                            onChange={(event) =>
-                              updateSettings({ cloneDepth: Number(event.target.value) })
-                            }
-                          />
-                        </SettingsControlRow>
-                        <SettingsControlRow
-                          title="Max Size"
-                          description="Maximum repository size allowed for sandbox clones."
-                          help="Value is MiB and limits the downloaded repository archive. A clone is aborted when the archive exceeds this size."
-                        >
-                          <Input
-                            type="number"
-                            min={1}
-                            max={102400}
-                            value={String(form.settings.cloneMaxSizeMb)}
-                            disabled={!canManage}
-                            onChange={(event) =>
-                              updateSettings({ cloneMaxSizeMb: Number(event.target.value) })
-                            }
-                          />
-                        </SettingsControlRow>
-                        <SettingsControlRow
-                          title="Clone Timeout"
-                          description="Maximum time allowed for Git clone operations."
-                          help="Value is seconds. Opfield aborts the repository download when this duration is exceeded."
-                        >
-                          <Input
-                            type="number"
-                            min={10}
-                            max={3600}
-                            value={String(form.settings.cloneTimeoutSeconds)}
-                            disabled={!canManage}
-                            onChange={(event) =>
-                              updateSettings({ cloneTimeoutSeconds: Number(event.target.value) })
-                            }
-                          />
-                        </SettingsControlRow>
-                        <SettingsControlRow
-                          title="Shallow Clone"
-                          description="Use shallow clones when full history is not required."
-                        >
-                          <Switch
-                            checked={form.settings.cloneShallow}
-                            disabled={!canManage}
-                            onChange={(checked) => updateSettings({ cloneShallow: checked })}
-                          />
-                        </SettingsControlRow>
-                        <SettingsControlRow
-                          title="Clone LFS"
-                          description="Fetch Git LFS objects during repository clone."
-                        >
-                          <Switch
-                            checked={form.settings.cloneLfs}
-                            disabled={!canManage}
-                            onChange={(checked) => updateSettings({ cloneLfs: checked })}
-                          />
-                        </SettingsControlRow>
-                        <SettingsControlRow
-                          title="Clone Submodules"
-                          description="Initialize and fetch repository submodules."
-                        >
-                          <Switch
-                            checked={form.settings.cloneSubmodules}
-                            disabled={!canManage}
-                            onChange={(checked) => updateSettings({ cloneSubmodules: checked })}
-                          />
-                        </SettingsControlRow>
-                      </PanelShell>
-                    </motion.div>
-                  )}
-
-                  {dialogStep === 4 && (
-                    <motion.div
-                      key="gitlab-connector-step-4"
-                      {...CONNECTOR_STEP_ANIMATION}
-                      className="space-y-4"
-                    >
-                      <div className="divide-y divide-border border border-border">
-                        <ReviewRow label="Name" value={form.name || "Not set"} />
-                        <ReviewRow label="Base URL" value={form.baseUrl || "Not set"} />
-                        <ReviewRow
-                          label="Project Access"
-                          value={
-                            form.allowlistMode === "all_visible"
-                              ? "All visible projects"
-                              : `${form.allowlistEntries.length} selected`
+                    <div className="border border-border">
+                      <div>
+                        <ScopeSearchFilter
+                          search={search}
+                          onSearchChange={setSearch}
+                          filter={allowlistFilter}
+                          onFilterChange={setAllowlistFilter}
+                          placeholder="Search GitLab projects and groups..."
+                          disabled={
+                            !canManage ||
+                            refreshingAllowlist ||
+                            form.allowlistMode === "all_visible" ||
+                            !canSearchAllowlist
                           }
                         />
-                        <ReviewRow
-                          label="Auto Sync"
+                      </div>
+                      <div className={`${DIALOG_LIST_CLASS} overscroll-contain`}>
+                        {searching ? (
+                          <div className="flex items-center justify-center gap-2 px-3 py-8 text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Searching GitLab
+                          </div>
+                        ) : refreshingAllowlist ? (
+                          <div className="flex items-center justify-center gap-2 px-3 py-8 text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Updating projects
+                          </div>
+                        ) : (
+                          <ScopeList
+                            scopes={displayedAllowlistItems}
+                            search={search}
+                            selectionFilter={allowlistFilter}
+                            selected={selectedEntryValues}
+                            onToggle={toggleAllowlistEntryByKey}
+                            readOnly={form.allowlistMode === "all_visible"}
+                            viewportClassName="max-h-none max-sm:max-h-none"
+                          />
+                        )}
+                      </div>
+                      <div className="border-t border-border px-3 py-2">
+                        <p className="text-xs text-muted-foreground">
+                          {form.allowlistMode === "all_visible"
+                            ? `${availableAllowlistEntries.length} available`
+                            : `${form.allowlistEntries.length} selected`}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {dialogStep === 3 && (
+                  <motion.div
+                    key="gitlab-connector-step-3"
+                    {...CONTENT_SWITCH_ANIMATION}
+                    className="space-y-4"
+                  >
+                    <PanelShell
+                      title="Sync & Clone"
+                      description="Project discovery schedule and sandbox clone limits."
+                      icon={<GitFork className="h-4 w-4" />}
+                    >
+                      <SettingsControlRow
+                        title="Auto Sync"
+                        description="Refresh visible projects and registry metadata."
+                      >
+                        <Select
                           value={
                             form.settings.autoSyncEnabled
-                              ? `Every ${formatSyncInterval(form.settings.autoSyncIntervalSeconds)}`
-                              : "Disabled"
+                              ? String(form.settings.autoSyncIntervalSeconds)
+                              : "disabled"
+                          }
+                          disabled={!canManage}
+                          onValueChange={(value) =>
+                            updateSettings(
+                              value === "disabled"
+                                ? { autoSyncEnabled: false }
+                                : {
+                                    autoSyncEnabled: true,
+                                    autoSyncIntervalSeconds: Number(value),
+                                  }
+                            )
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="disabled">Disabled</SelectItem>
+                            <SelectItem value="300">Every 5 minutes</SelectItem>
+                            <SelectItem value="900">Every 15 minutes</SelectItem>
+                            <SelectItem value="3600">Every hour</SelectItem>
+                            <SelectItem value="21600">Every 6 hours</SelectItem>
+                            <SelectItem value="86400">Daily</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </SettingsControlRow>
+                      <SettingsControlRow
+                        title="Clone Depth"
+                        description="Maximum Git history depth for shallow clones."
+                      >
+                        <Input
+                          type="number"
+                          min={1}
+                          max={100}
+                          value={String(form.settings.cloneDepth)}
+                          disabled={!canManage}
+                          onChange={(event) =>
+                            updateSettings({ cloneDepth: Number(event.target.value) })
                           }
                         />
-                        <ReviewRow
-                          label="Clone Limits"
-                          value={`${form.settings.cloneDepth} depth · ${form.settings.cloneMaxSizeMb} MB · ${form.settings.cloneTimeoutSeconds}s`}
+                      </SettingsControlRow>
+                      <SettingsControlRow
+                        title="Max Size"
+                        description="Maximum repository size allowed for sandbox clones."
+                        help="Value is MiB and limits the downloaded repository archive. A clone is aborted when the archive exceeds this size."
+                      >
+                        <Input
+                          type="number"
+                          min={1}
+                          max={102400}
+                          value={String(form.settings.cloneMaxSizeMb)}
+                          disabled={!canManage}
+                          onChange={(event) =>
+                            updateSettings({ cloneMaxSizeMb: Number(event.target.value) })
+                          }
+                        />
+                      </SettingsControlRow>
+                      <SettingsControlRow
+                        title="Clone Timeout"
+                        description="Maximum time allowed for Git clone operations."
+                        help="Value is seconds. Opfield aborts the repository download when this duration is exceeded."
+                      >
+                        <Input
+                          type="number"
+                          min={10}
+                          max={3600}
+                          value={String(form.settings.cloneTimeoutSeconds)}
+                          disabled={!canManage}
+                          onChange={(event) =>
+                            updateSettings({ cloneTimeoutSeconds: Number(event.target.value) })
+                          }
+                        />
+                      </SettingsControlRow>
+                      <SettingsControlRow
+                        title="Shallow Clone"
+                        description="Use shallow clones when full history is not required."
+                      >
+                        <Switch
+                          checked={form.settings.cloneShallow}
+                          disabled={!canManage}
+                          onChange={(checked) => updateSettings({ cloneShallow: checked })}
+                        />
+                      </SettingsControlRow>
+                      <SettingsControlRow
+                        title="Clone LFS"
+                        description="Fetch Git LFS objects during repository clone."
+                      >
+                        <Switch
+                          checked={form.settings.cloneLfs}
+                          disabled={!canManage}
+                          onChange={(checked) => updateSettings({ cloneLfs: checked })}
+                        />
+                      </SettingsControlRow>
+                      <SettingsControlRow
+                        title="Clone Submodules"
+                        description="Initialize and fetch repository submodules."
+                      >
+                        <Switch
+                          checked={form.settings.cloneSubmodules}
+                          disabled={!canManage}
+                          onChange={(checked) => updateSettings({ cloneSubmodules: checked })}
+                        />
+                      </SettingsControlRow>
+                    </PanelShell>
+                  </motion.div>
+                )}
+
+                {dialogStep === 4 && (
+                  <motion.div
+                    key="gitlab-connector-step-4"
+                    {...CONTENT_SWITCH_ANIMATION}
+                    className="space-y-4"
+                  >
+                    <div className="divide-y divide-border border border-border">
+                      <ReviewRow label="Name" value={form.name || "Not set"} />
+                      <ReviewRow label="Base URL" value={form.baseUrl || "Not set"} />
+                      <ReviewRow
+                        label="Project Access"
+                        value={
+                          form.allowlistMode === "all_visible"
+                            ? "All visible projects"
+                            : `${form.allowlistEntries.length} selected`
+                        }
+                      />
+                      <ReviewRow
+                        label="Auto Sync"
+                        value={
+                          form.settings.autoSyncEnabled
+                            ? `Every ${formatSyncInterval(form.settings.autoSyncIntervalSeconds)}`
+                            : "Disabled"
+                        }
+                      />
+                      <ReviewRow
+                        label="Clone Limits"
+                        value={`${form.settings.cloneDepth} depth · ${form.settings.cloneMaxSizeMb} MB · ${form.settings.cloneTimeoutSeconds}s`}
+                      />
+                    </div>
+                    {editingConnector && (
+                      <div className="border border-border p-3">
+                        <p className="text-sm font-medium">Capabilities</p>
+                        <CapabilityBadges
+                          capabilities={editingConnector.capabilities}
+                          className="mt-3"
                         />
                       </div>
-                      {editingConnector && (
-                        <div className="border border-border p-3">
-                          <p className="text-sm font-medium">Capabilities</p>
-                          <CapabilityBadges
-                            capabilities={editingConnector.capabilities}
-                            className="mt-3"
-                          />
-                        </div>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </ConnectorStepHeight>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatedSwitch>
             </div>
           )}
 

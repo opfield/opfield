@@ -215,7 +215,9 @@ export function SidebarContent({
         !alwaysExpanded && !isResizing && "transition-[width] duration-200 ease-out"
       )}
     >
-      <AnimatePresence mode="wait" initial={false}>
+      {/* The collapsed rail is absolutely positioned, so it and the expanded content cross-fade
+          together while the width animates; nothing waits for the other to leave. */}
+      <AnimatePresence initial={false}>
         {!isExpanded ? (
           <motion.div
             key="collapsed"
