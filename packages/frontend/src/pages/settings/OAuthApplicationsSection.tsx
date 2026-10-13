@@ -7,6 +7,17 @@ import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import { SCOPE_PICKER_VIEWPORT, ScopePicker } from "@/components/common/ScopePicker";
+import {
+  AllowedAddressesRow,
+  currentTokenExpiry,
+  ExpiryField,
+  type ExpiryValue,
+  expiryError,
+  expiryRequestValue,
+  sameAddresses,
+  sameExpiry,
+  TokenLimitsMeta,
+} from "@/components/common/TokenLimitFields";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -116,6 +127,9 @@ export function OAuthApplicationsSection({
   );
   const [initialResourceLimitedScopes, setInitialResourceLimitedScopes] = useState<string[]>([]);
   const [savingScopes, setSavingScopes] = useState(false);
+  const [expiry, setExpiry] = useState<ExpiryValue>(() => currentTokenExpiry(null));
+  const [initialExpiry, setInitialExpiry] = useState<ExpiryValue>(() => currentTokenExpiry(null));
+  const [allowedIps, setAllowedIps] = useState<string[]>([]);
   const userScopes = useMemo(() => user?.scopes ?? [], [user?.scopes]);
   const allowedResourceIdsByScope = useMemo(
     () => deriveAllowedResourceIdsByScope(userScopes),
@@ -139,6 +153,11 @@ export function OAuthApplicationsSection({
       selectedAuthorization.scopes.slice().sort().join("\n") !== finalEditableScopes.join("\n")
     );
   }, [finalEditableScopes, selectedAuthorization]);
+  // The grant's own expiry and addresses are sent (and the expiry checked) only when changed.
+  const expiryChanged = !sameExpiry(expiry, initialExpiry);
+  const allowedIpsChanged =
+    !!selectedAuthorization && !sameAddresses(allowedIps, selectedAuthorization.allowedIps ?? []);
+  const expiryInvalid = expiryChanged && expiryError(expiry) !== null;
   const visibleScopes = useMemo(() => {
     return editableScopeCatalog.filter((scope) => {
       return (
@@ -167,12 +186,20 @@ export function OAuthApplicationsSection({
     onReconnect: load,
   });
 
+  const resetLimits = (authorization: OAuthAuthorization) => {
+    const current = currentTokenExpiry(authorization.grantExpiresAt);
+    setExpiry(current);
+    setInitialExpiry(current);
+    setAllowedIps(authorization.allowedIps ?? []);
+  };
+
   const openDetails = (authorization: OAuthAuthorization) => {
     const parsed = parseScopesForForm(authorization.scopes);
     setSelectedAuthorization(authorization);
     setEditableBaseScopes(parsed.baseScopes);
     setEditableResourceScopes(parsed.resources);
     setInitialResourceLimitedScopes(Object.keys(parsed.resources));
+    resetLimits(authorization);
   };
 
   const toggleScope = (scope: string) => {
@@ -208,7 +235,7 @@ export function OAuthApplicationsSection({
   };
 
   const saveScopes = async () => {
-    if (!selectedAuthorization || finalEditableScopes.length === 0) return;
+    if (!selectedAuthorization || finalEditableScopes.length === 0 || expiryInvalid) return;
     for (const scope of editableBaseScopes) {
       if (
         requiresResourceSelection(scope, allowedResourceIdsByScope, initialResourceLimitedScopes) &&
@@ -220,10 +247,11 @@ export function OAuthApplicationsSection({
     }
     setSavingScopes(true);
     try {
-      const updated = await api.updateOAuthAuthorization(
-        selectedAuthorization.id,
-        finalEditableScopes
-      );
+      const updated = await api.updateOAuthAuthorization(selectedAuthorization.id, {
+        ...(scopesChanged ? { scopes: finalEditableScopes } : {}),
+        ...(expiryChanged ? { expiresAt: expiryRequestValue(expiry) } : {}),
+        ...(allowedIpsChanged ? { allowedIps } : {}),
+      });
       setAuthorizations((current) => {
         const next = current.map((item) => (item.id === updated.id ? updated : item));
         api.setCache("settings:oauth-authorizations", next);
@@ -234,9 +262,10 @@ export function OAuthApplicationsSection({
       setEditableBaseScopes(parsed.baseScopes);
       setEditableResourceScopes(parsed.resources);
       setInitialResourceLimitedScopes(Object.keys(parsed.resources));
-      toast.success("OAuth application scopes updated");
+      resetLimits(updated);
+      toast.success("OAuth application updated");
     } catch (error) {
-      toastApiError(error, "Failed to update OAuth scopes");
+      toastApiError(error, "Failed to update OAuth application");
     } finally {
       setSavingScopes(false);
     }
@@ -334,6 +363,7 @@ export function OAuthApplicationsSection({
                       {authorization.expiresAt
                         ? ` · Expires ${formatDate(authorization.expiresAt)}`
                         : " · No expiry"}
+                      <TokenLimitsMeta withExpiry={false} allowedIps={authorization.allowedIps} />
                     </p>
                   </div>
                 </div>
@@ -397,6 +427,9 @@ export function OAuthApplicationsSection({
                   .join(", ")}
               </p>
 
+              <ExpiryField value={expiry} onChange={setExpiry} showError={expiryChanged} />
+              <AllowedAddressesRow value={allowedIps} onChange={setAllowedIps} />
+
               <ScopePicker
                 header={<span className="text-sm font-medium">Scopes</span>}
                 scopes={visibleScopes}
@@ -425,9 +458,13 @@ export function OAuthApplicationsSection({
               <Button
                 onClick={() => void saveScopes()}
                 pending={savingScopes}
-                disabled={!scopesChanged || finalEditableScopes.length === 0}
+                disabled={
+                  !(scopesChanged || expiryChanged || allowedIpsChanged) ||
+                  finalEditableScopes.length === 0 ||
+                  expiryInvalid
+                }
               >
-                Save Scopes
+                Save
               </Button>
             </DialogFooter>
           )}

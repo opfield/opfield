@@ -51,6 +51,7 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
           acmeCleanup: { enabled: true },
           operationHistory: { enabled: true, retentionDays: 90 },
           oauthCleanup: { enabled: true },
+          expiredTokens: { enabled: true, retentionDays: 7 },
         }
   );
   const [hkSavedConfig, setHkSavedConfig] = useState<HousekeepingConfig | null>(() =>
@@ -609,6 +610,29 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
               lastResult={hkStats?.lastRun?.categories.find(
                 (c) => c.category === "Expired OAuth Grants"
               )}
+              disabled={controlsDisabled}
+            />
+            <HousekeepingCard
+              label="Expired Tokens"
+              description="Remove expired API and inference tokens; the audit log keeps their history"
+              stat={hkStats?.expiredTokens ? hkStats.expiredTokens.count.toLocaleString() : "..."}
+              statDetail="eligible tokens"
+              enabled={hkConfig.expiredTokens.enabled}
+              onToggle={(v) =>
+                setHkConfig((current) => ({
+                  ...current,
+                  expiredTokens: { ...current.expiredTokens, enabled: v },
+                }))
+              }
+              retentionDays={hkConfig.expiredTokens.retentionDays}
+              minRetentionDays={0}
+              onRetentionChange={(v) =>
+                setHkConfig((current) => ({
+                  ...current,
+                  expiredTokens: { ...current.expiredTokens, retentionDays: v },
+                }))
+              }
+              lastResult={hkStats?.lastRun?.categories.find((c) => c.category === "Expired Tokens")}
               disabled={controlsDisabled}
             />
             <HousekeepingCard

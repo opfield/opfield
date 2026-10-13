@@ -252,7 +252,12 @@ export interface OAuthAuthorization {
   activeRefreshTokens: number;
   createdAt: string;
   lastUsedAt: string | null;
+  /** When the grant really ends: its own expiry or that of its tokens, whichever comes first. */
   expiresAt: string | null;
+  /** The expiry the owner set on the grant; null: none. */
+  grantExpiresAt: string | null;
+  /** Addresses or CIDR ranges every token of the grant works from; empty: any address. */
+  allowedIps: string[];
 }
 
 /** Internal registry access of an API token: pull and push each "all" or a list of repositories. */
@@ -264,6 +269,12 @@ export interface ApiToken {
   tokenPrefix: string;
   scopes: string[];
   registryAccess?: TokenRegistryAccess;
+  /** Null: never expires. */
+  expiresAt?: string | null;
+  /** The expiry passed: refused, listed as Expired until housekeeping removes it. */
+  expired?: boolean;
+  /** Empty: any address. */
+  allowedIps?: string[];
   lastUsedAt: string | null;
   createdAt: string;
 }

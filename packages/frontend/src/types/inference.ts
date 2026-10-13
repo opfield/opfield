@@ -3,6 +3,12 @@ export interface InferenceToken {
   name: string;
   tokenPrefix: string;
   status: "active" | "revoked";
+  /** Null: never expires. */
+  expiresAt: string | null;
+  /** The expiry passed: refused, listed as Expired until housekeeping removes it. */
+  expired: boolean;
+  /** Empty: any address. */
+  allowedIps: string[];
   lastUsedAt: string | null;
   revokedAt: string | null;
   createdAt: string;

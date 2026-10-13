@@ -10,6 +10,18 @@ import { OneTimeSecretDialog } from "@/components/common/OneTimeSecretDialog";
 import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { useContentLoading } from "@/components/common/reveal-gate";
+import {
+  AllowedAddressesRow,
+  currentTokenExpiry,
+  ExpiryField,
+  type ExpiryValue,
+  expiryError,
+  expiryRequestValue,
+  newTokenExpiry,
+  sameAddresses,
+  sameExpiry,
+  TokenLimitsMeta,
+} from "@/components/common/TokenLimitFields";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -48,6 +60,7 @@ import {
 } from "./RegistryAccessFields";
 
 const NO_SCOPES: string[] = [];
+const NO_ADDRESSES: string[] = [];
 
 interface ApiTokensSectionProps {
   user: User | null;
@@ -81,6 +94,9 @@ export function ApiTokensSection({
   const [newTokenName, setNewTokenName] = useState("");
   const [scopesOpen, setScopesOpen] = useState(false);
   const [registryAccess, setRegistryAccess] = useState<TokenRegistryAccess>({});
+  const [expiry, setExpiry] = useState<ExpiryValue>(newTokenExpiry);
+  const [initialExpiry, setInitialExpiry] = useState<ExpiryValue>(newTokenExpiry);
+  const [allowedIps, setAllowedIps] = useState<string[]>(NO_ADDRESSES);
   const [createdSecret, setCreatedSecret] = useState<string | null>(null);
   const [createdSecretDialogOpen, setCreatedSecretDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -111,10 +127,28 @@ export function ApiTokensSection({
       JSON.stringify(editingToken.registryAccess ?? {}) !== JSON.stringify(registryAccess),
     [editingToken, registryAccess, registryOffered]
   );
+  // An edit dialog sends (and checks) the expiry only when it was changed.
+  const expiryChanged = !!editingToken && !sameExpiry(expiry, initialExpiry);
+  const allowedIpsChanged =
+    !!editingToken && !sameAddresses(allowedIps, editingToken.allowedIps ?? NO_ADDRESSES);
+  const expiryInvalid = (!editingToken || expiryChanged) && expiryError(expiry) !== null;
   const tokenChanged = useMemo(() => {
     if (!editingToken) return false;
-    return newTokenName.trim() !== editingToken.name || tokenScopesChanged || registryAccessChanged;
-  }, [editingToken, newTokenName, tokenScopesChanged, registryAccessChanged]);
+    return (
+      newTokenName.trim() !== editingToken.name ||
+      tokenScopesChanged ||
+      registryAccessChanged ||
+      expiryChanged ||
+      allowedIpsChanged
+    );
+  }, [
+    editingToken,
+    newTokenName,
+    tokenScopesChanged,
+    registryAccessChanged,
+    expiryChanged,
+    allowedIpsChanged,
+  ]);
   const selectedBaseScopes = new Set(parseScopesForForm(access.scopes).baseScopes);
   // A registry-only token (CI pushing images) needs no scopes.
   const tokenHasGrants = access.scopes.length > 0 || hasTokenRegistryAccess(registryAccess);
@@ -160,6 +194,10 @@ export function ApiTokensSection({
     setEditingToken(token);
     setNewTokenName(token.name);
     setRegistryAccess(token.registryAccess ?? {});
+    const current = currentTokenExpiry(token.expiresAt);
+    setExpiry(current);
+    setInitialExpiry(current);
+    setAllowedIps(token.allowedIps ?? NO_ADDRESSES);
     setCreatedSecret(null);
     setCreateDialogOpen(true);
   };
@@ -178,7 +216,7 @@ export function ApiTokensSection({
   };
 
   const handleTokenUpdate = async () => {
-    if (!editingToken || !newTokenName.trim()) return;
+    if (!editingToken || !newTokenName.trim() || expiryInvalid) return;
     if (!validateScopeSelection()) return;
     setIsUpdating(true);
     try {
@@ -188,6 +226,8 @@ export function ApiTokensSection({
         ...(registryAccessChanged
           ? { registryAccess: finalRegistryAccess(registryAccess).access }
           : {}),
+        ...(expiryChanged ? { expiresAt: expiryRequestValue(expiry) } : {}),
+        ...(allowedIpsChanged ? { allowedIps } : {}),
       });
       toast.success("Token updated");
       setCreateDialogOpen(false);
@@ -203,6 +243,10 @@ export function ApiTokensSection({
     setEditingToken(null);
     setNewTokenName("");
     setRegistryAccess({});
+    const initial = newTokenExpiry();
+    setExpiry(initial);
+    setInitialExpiry(initial);
+    setAllowedIps(NO_ADDRESSES);
     setCreatedSecret(null);
     setCreateDialogOpen(true);
   };
@@ -212,6 +256,7 @@ export function ApiTokensSection({
       toast.error("Token name is required");
       return;
     }
+    if (expiryInvalid) return;
     if (!validateScopeSelection()) return;
     setIsCreating(true);
     try {
@@ -221,6 +266,8 @@ export function ApiTokensSection({
         // Exactly the scopes counted here: no grants added for older scripts.
         exactScopes: true,
         ...(registryOffered ? { registryAccess: finalRegistryAccess(registryAccess).access } : {}),
+        expiresAt: expiryRequestValue(expiry),
+        allowedIps,
       });
       setCreatedSecret(result.token);
       setCreateDialogOpen(false);
@@ -300,6 +347,10 @@ export function ApiTokensSection({
                         {registryAccessSummary(token.registryAccess)
                           ? ` · ${registryAccessSummary(token.registryAccess)}`
                           : ""}
+                        <TokenLimitsMeta
+                          expiresAt={token.expiresAt}
+                          allowedIps={token.allowedIps}
+                        />
                       </p>
                     </div>
                   </div>
@@ -355,6 +406,12 @@ export function ApiTokensSection({
                 autoFocus
               />
             </div>
+            <ExpiryField
+              value={expiry}
+              onChange={setExpiry}
+              showError={!editingToken || expiryChanged}
+            />
+            <AllowedAddressesRow value={allowedIps} onChange={setAllowedIps} />
 
             <AccessSection
               editor={access}
@@ -398,12 +455,16 @@ export function ApiTokensSection({
               <Button
                 onClick={handleTokenUpdate}
                 pending={isUpdating}
-                disabled={!newTokenName.trim() || !tokenChanged || !tokenHasGrants}
+                disabled={!newTokenName.trim() || !tokenChanged || !tokenHasGrants || expiryInvalid}
               >
                 Save
               </Button>
             ) : (
-              <Button onClick={handleCreateToken} pending={isCreating} disabled={!tokenHasGrants}>
+              <Button
+                onClick={handleCreateToken}
+                pending={isCreating}
+                disabled={!tokenHasGrants || expiryInvalid}
+              >
                 Create Token
               </Button>
             )}

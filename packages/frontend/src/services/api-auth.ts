@@ -199,16 +199,17 @@ export function withAuthApi<TBase extends ApiClientBaseConstructor>(Base: TBase)
       });
     }
 
+    /** Scopes, expiry and allowed addresses of one authorization; an absent field stays as it is. */
     async updateOAuthAuthorization(
       authorizationId: string,
-      scopes: string[]
+      changes: { scopes?: string[]; expiresAt?: string | null; allowedIps?: string[] }
     ): Promise<OAuthAuthorization> {
       return this.unwrapData(
         this.request<{ data: OAuthAuthorization }>(
           `/api/oauth/authorizations/${encodeURIComponent(authorizationId)}`,
           {
             method: "PATCH",
-            body: JSON.stringify({ scopes }),
+            body: JSON.stringify(changes),
           }
         )
       );

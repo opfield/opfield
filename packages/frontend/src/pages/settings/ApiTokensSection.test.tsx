@@ -96,6 +96,9 @@ describe("token internal registry access", () => {
       scopes: [],
       exactScopes: true,
       registryAccess: { pull: "all", push: "all" },
+      // A new token expires in a month and works from any address unless the dialog says otherwise.
+      expiresAt: expect.any(String),
+      allowedIps: [],
     });
   });
 

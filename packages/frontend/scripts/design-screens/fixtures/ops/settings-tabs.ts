@@ -265,6 +265,7 @@ export const housekeepingConfig: HousekeepingConfig = {
   acmeCleanup: { enabled: true },
   operationHistory: { enabled: true, retentionDays: 90 },
   oauthCleanup: { enabled: true },
+  expiredTokens: { enabled: true, retentionDays: 7 },
 };
 
 export const housekeepingStats: HousekeepingStats = {
@@ -292,6 +293,7 @@ export const housekeepingStats: HousekeepingStats = {
   dockerImages: { oldImageCount: 7, reclaimableBytes: 5.6 * GiB },
   operationHistory: { count: 1_902 },
   oauthCleanup: { count: 41 },
+  expiredTokens: { count: 2 },
   lastRun: {
     startedAt: ago(20, "h"),
     completedAt: ago(1_196, "m"),

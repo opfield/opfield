@@ -463,6 +463,10 @@ class ApiClient extends withAppsApi(
     registryAccess?: TokenRegistryAccess;
     /** Store exactly these scopes, without the grants Opfield adds for older scripts. */
     exactScopes?: boolean;
+    /** ISO moment the token stops working; null or absent: never. */
+    expiresAt?: string | null;
+    /** Addresses or CIDR ranges the token works from; empty: any address. */
+    allowedIps?: string[];
   }): Promise<ApiToken & { token: string }> {
     return this.request(`/tokens`, {
       method: "POST",
@@ -476,7 +480,13 @@ class ApiClient extends withAppsApi(
 
   async updateToken(
     id: string,
-    data: { name?: string; scopes?: string[]; registryAccess?: TokenRegistryAccess }
+    data: {
+      name?: string;
+      scopes?: string[];
+      registryAccess?: TokenRegistryAccess;
+      expiresAt?: string | null;
+      allowedIps?: string[];
+    }
   ): Promise<void> {
     return this.request<void>(`/tokens/${id}`, {
       method: "PATCH",
@@ -492,6 +502,11 @@ class ApiClient extends withAppsApi(
   /** Whether Docker clients can reach the internal registry, so tokens may get registry access. */
   async getTokenRegistryAccess(): Promise<{ externalAccessEnabled: boolean }> {
     return this.request<{ externalAccessEnabled: boolean }>("/tokens/registry-access");
+  }
+
+  /** The client address Opfield sees for this browser: what token address limits are checked against. */
+  async getTokenClientAddress(): Promise<{ ipAddress: string | null }> {
+    return this.request<{ ipAddress: string | null }>("/tokens/client-address");
   }
 
   // ── Admin ─────────────────────────────────────────────────────────

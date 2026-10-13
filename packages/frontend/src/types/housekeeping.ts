@@ -16,6 +16,8 @@ export interface HousekeepingConfig {
   acmeCleanup: { enabled: boolean };
   operationHistory: { enabled: boolean; retentionDays: number };
   oauthCleanup: { enabled: boolean };
+  /** Expired API and inference tokens, removed `retentionDays` after they expired (0: at once). */
+  expiredTokens: { enabled: boolean; retentionDays: number };
 }
 
 export interface HousekeepingCategoryResult {
@@ -68,6 +70,7 @@ export interface HousekeepingStats {
   dockerImages: { oldImageCount: number; reclaimableBytes: number };
   operationHistory?: { count: number };
   oauthCleanup?: { count: number };
+  expiredTokens?: { count: number };
   lastRun: HousekeepingRunResult | null;
   isRunning: boolean;
 }

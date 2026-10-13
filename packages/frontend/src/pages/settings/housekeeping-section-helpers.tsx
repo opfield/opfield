@@ -33,6 +33,8 @@ const HOUSEKEEPING_HELP: Record<string, string> = {
     "Deletes finished Docker container tasks after a day, and finished builds (with their logs), compose, availability and hosting operations and source webhook deliveries after the retention period, in batches. Each resource keeps its 10 latest runs (a Compose build batch counts once) and its latest operation of each kind, and anything still referenced (a build artifact, a hosted node's origin, a snapshot) is kept.",
   "Expired OAuth Grants":
     "Purges expired OAuth authorization codes, access and refresh tokens. Refresh tokens are kept until they expire. A registered OAuth client is removed only if it never completed an authorization and is older than 30 days; a client that was ever granted keeps its registration.",
+  "Expired Tokens":
+    "Removes API and inference tokens the given number of days after they expired (0 removes them at once). Until then they are listed as Expired and refused like revoked ones. The audit log keeps their history and records each removal.",
 };
 
 export function normalizeHousekeepingConfig(config: HousekeepingConfig): HousekeepingConfig {
@@ -48,6 +50,7 @@ export function normalizeHousekeepingConfig(config: HousekeepingConfig): Houseke
     },
     operationHistory: config.operationHistory ?? { enabled: true, retentionDays: 90 },
     oauthCleanup: config.oauthCleanup ?? { enabled: true },
+    expiredTokens: config.expiredTokens ?? { enabled: true, retentionDays: 7 },
   };
 }
 
@@ -60,6 +63,7 @@ export function HousekeepingCard({
   onToggle,
   retentionDays,
   onRetentionChange,
+  minRetentionDays = 1,
   lastResult,
   disabled,
   disabledReason,
@@ -73,6 +77,8 @@ export function HousekeepingCard({
   onToggle: (v: boolean) => void;
   retentionDays?: number;
   onRetentionChange?: (v: number) => void;
+  /** The shortest retention the category accepts (0: remove at once). */
+  minRetentionDays?: number;
   lastResult?: HousekeepingCategoryResult;
   disabled?: boolean;
   disabledReason?: string;
@@ -117,13 +123,16 @@ export function HousekeepingCard({
               <input
                 type="number"
                 className="w-10 border border-input bg-background px-1 text-center text-xs text-foreground tabular-nums outline-none focus:border-primary disabled:opacity-50"
-                min={1}
+                min={minRetentionDays}
                 max={365}
                 value={localDays}
                 disabled={!enabled || disabled}
-                onChange={(e) => setLocalDays(parseInt(e.target.value, 10) || 1)}
+                onChange={(e) => {
+                  const next = parseInt(e.target.value, 10);
+                  setLocalDays(Number.isNaN(next) ? minRetentionDays : next);
+                }}
                 onBlur={() => {
-                  const v = Math.max(1, Math.min(365, localDays));
+                  const v = Math.max(minRetentionDays, Math.min(365, localDays));
                   setLocalDays(v);
                   if (v !== retentionDays) onRetentionChange(v);
                 }}

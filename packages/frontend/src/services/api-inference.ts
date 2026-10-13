@@ -33,10 +33,24 @@ export function withInferenceApi<TBase extends ApiClientBaseConstructor>(Base: T
       return this.request("/inference/tokens");
     }
 
-    createInferenceToken(name: string): Promise<InferenceToken & { token: string }> {
+    createInferenceToken(
+      name: string,
+      limits: { expiresAt?: string | null; allowedIps?: string[] } = {}
+    ): Promise<InferenceToken & { token: string }> {
       return this.request("/inference/tokens", {
         method: "POST",
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, ...limits }),
+      });
+    }
+
+    /** Renames a token or changes its expiry and allowed addresses; an absent field stays. */
+    updateInferenceToken(
+      id: string,
+      changes: { name?: string; expiresAt?: string | null; allowedIps?: string[] }
+    ): Promise<InferenceToken> {
+      return this.request(`/inference/tokens/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(changes),
       });
     }
 
