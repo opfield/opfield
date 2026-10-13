@@ -23,6 +23,11 @@ export interface User {
    */
   accountScopes?: string[];
   isBlocked: boolean;
+  /**
+   * Who blocked the account while it is blocked: an administrator, or the Opfield account (the cloud account removed
+   * this person's access; their next sign-in through the Opfield account lifts it). Null while not blocked.
+   */
+  blockedBy?: 'admin' | 'opfield_account' | null;
   isDeleted?: boolean;
   aiApprovalMode?: 'always-ask' | 'normal' | 'bypass-non-destructive' | 'bypass-everything';
   folderId?: string | null;

@@ -16,12 +16,15 @@ package nginx
 // sentence with the command that fixes it.
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var (
@@ -33,6 +36,12 @@ var (
 	// gives the file to the user nginx runs as.
 	openRCRootConfigTest   = regexp.MustCompile(`(?m)^\s*\$\{?command\}?\s+\$\{?command_args\}?\s+-t\b`)
 	openRCPIDFileCheckpath = regexp.MustCompile(`(?m)^\s*checkpath\s(?:[^\n]*\s)?(?:-f|--file)\s[^\n]*\$\{?pidfile\}?\s*$`)
+
+	// nginx -s reload fails like this while no nginx master runs: its pid file
+	// is missing, empty (nginx -t leaves one) or names a process that is gone.
+	// Only [error] and [alert] lines: a configuration file nginx cannot open
+	// fails as [emerg] before nginx reads the pid file.
+	nginxNotRunningFailure = regexp.MustCompile(`\[error\] [^\n]*open\(\) "[^"]+" failed \(2: |\[error\] [^\n]*invalid PID number "[^"]*" in "|\[alert\] [^\n]*kill\(\d+, \d+\) failed \(3: `)
 )
 
 // openRCPIDFileFix is the command that adds the pid file's checkpath to
@@ -45,7 +54,14 @@ var (
 	openRCNginxService = "/etc/init.d/nginx"
 	systemdRuntimeDir  = "/run/systemd/system"
 	pidRepairEUID      = os.Geteuid
+	runServiceCommand  = func(name string, args ...string) ([]byte, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), nginxServiceCommandTimeout)
+		defer cancel()
+		return exec.CommandContext(ctx, name, args...).CombinedOutput()
+	}
 )
+
+const nginxServiceCommandTimeout = 90 * time.Second
 
 // runNginx runs nginx with args. When nginx failed on its pid file, it repairs
 // what the daemon may and runs nginx once more; what only root can repair is
@@ -134,10 +150,43 @@ func nginxStartCommand() string {
 	if _, err := os.Stat(systemdRuntimeDir); err == nil {
 		return "systemctl start nginx"
 	}
-	if source, err := os.ReadFile(openRCNginxService); err == nil && strings.HasPrefix(string(source), "#!/sbin/openrc-run\n") {
+	if hasOpenRCNginxService() {
 		return "rc-service nginx start"
 	}
 	return "start its service"
+}
+
+func hasOpenRCNginxService() bool {
+	source, err := os.ReadFile(openRCNginxService)
+	return err == nil && strings.HasPrefix(string(source), "#!/sbin/openrc-run\n")
+}
+
+// startStoppedNginx is what a reload does when no nginx master runs. A root
+// daemon brings nginx up through its service, so nginx runs in the service's
+// own unit and outlives the daemon. A daemon run as nginx's user never starts
+// nginx itself (it would run in the daemon's cgroup and stop with it): it says
+// which command root has to run.
+func (m *Manager) startStoppedNginx() error {
+	var command []string
+	if pidRepairEUID() == 0 {
+		if _, err := os.Stat(systemdRuntimeDir); err == nil {
+			command = []string{"systemctl", "reload-or-restart", "nginx"}
+		} else if hasOpenRCNginxService() {
+			command = []string{"rc-service", "nginx", "restart"}
+		}
+	}
+	if command == nil {
+		start := nginxStartCommand()
+		if start == "start its service" {
+			return errors.New("nginx is not running: start its service")
+		}
+		return fmt.Errorf("nginx is not running: start it with %s", start)
+	}
+	if output, err := runServiceCommand(command[0], command[1:]...); err != nil {
+		return fmt.Errorf("nginx is not running and %s failed: %s: %w", strings.Join(command, " "), strings.TrimSpace(string(output)), err)
+	}
+	m.setPIDProblem("")
+	return nil
 }
 
 // statedPIDFile is the pid file nginx.conf names, else the one nginx was

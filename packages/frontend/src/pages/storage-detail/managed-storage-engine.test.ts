@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ObjectStorageConnection } from "@/types";
-import { isManagedStorageFull } from "./managed-storage-engine";
+import { isManagedStorageFull, isManagedStorageNearlyFull } from "./managed-storage-engine";
 
 type Managed = NonNullable<ObjectStorageConnection["managed"]>;
 
@@ -24,5 +24,24 @@ describe("managed storage with a full disk", () => {
       isManagedStorageFull(managed("updating", "MANAGED_STORAGE_FULL: The storage disk is full"))
     ).toBe(false);
     expect(isManagedStorageFull({ managed: undefined })).toBe(false);
+  });
+});
+
+describe("managed storage with a nearly full disk", () => {
+  it("is nearly full while the serving cluster reports it, and not full", () => {
+    const nearlyFull = managed(
+      "ready",
+      "MANAGED_STORAGE_NEARLY_FULL: The storage disk is nearly full."
+    );
+    expect(isManagedStorageNearlyFull(nearlyFull)).toBe(true);
+    expect(isManagedStorageFull(nearlyFull)).toBe(false);
+    expect(
+      isManagedStorageNearlyFull(managed("ready", "MANAGED_STORAGE_FULL: The storage disk is full"))
+    ).toBe(false);
+    expect(
+      isManagedStorageNearlyFull(
+        managed("stopped", "MANAGED_STORAGE_NEARLY_FULL: The storage disk")
+      )
+    ).toBe(false);
   });
 });

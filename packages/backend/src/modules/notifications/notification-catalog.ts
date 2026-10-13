@@ -888,12 +888,30 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
     id: 'managed_storage',
     label: 'Managed Storage',
-    metrics: [],
-    events: AVAILABILITY_EVENTS,
+    metrics: [
+      // The storage disk as its node reports it (managed storage monitoring).
+      { id: 'disk_used_pct', label: 'Disk Usage (%)', unit: '%', defaultOperator: '>', defaultValue: 85 },
+    ],
+    events: [
+      // A serving storage that refuses uploads (its disk is full, or it can create no volume) until it has room again.
+      { id: 'storage.full', label: 'Storage Full', defaultSeverity: 'critical', supportsThreshold: true },
+      {
+        id: 'storage.writable',
+        label: 'Storage Takes Uploads Again',
+        defaultSeverity: 'info',
+        supportsThreshold: true,
+        recovery: true,
+      },
+      ...AVAILABILITY_EVENTS,
+    ],
     variables: [
       { name: '{{resource.name}}', description: 'Storage name' },
       { name: '{{resource.id}}', description: 'Storage connection ID' },
       { name: '{{resource.key}}', description: 'Internal alert resource key' },
+      { name: '{{metric.name}}', description: 'Metric name' },
+      { name: '{{metric.value}}', description: 'Current metric value' },
+      { name: '{{metric.threshold}}', description: 'Configured threshold' },
+      { name: '{{metric.operator}}', description: 'Comparison operator' },
       ...AVAILABILITY_VARIABLES,
     ],
   },

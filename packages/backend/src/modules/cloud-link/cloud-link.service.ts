@@ -50,6 +50,8 @@ export const CLOUD_AUDIT_ACTIONS = {
   managedSso: 'cloud.managed_sso',
   remoteManagement: 'cloud.remote_management',
   request: 'cloud.request',
+  /** The Opfield account removed people's access (sso-revoke): their accounts were blocked as the account's. */
+  ssoRevoke: 'cloud.sso_revoke',
 } as const;
 export { CLOUD_AUDIT_RESOURCE_TYPE } from './cloud-link-audit-format.js';
 
@@ -184,8 +186,9 @@ export class CloudLinkService {
   }
 
   /**
-   * What the socket hello tells the account: the installation, whether it may be managed remotely and, while an admin
-   * asked for it, the request for an Opfield account sign-in client (answered with an sso-client request).
+   * What the socket hello tells the account: the installation, whether it may be managed remotely, while an admin
+   * asked for it the request for an Opfield account sign-in client (answered with an sso-client request), and that it
+   * takes sso-revoke requests.
    */
   async helloInfo(): Promise<CloudHello> {
     const [identity, remoteManagement, ssoClientRequest] = await Promise.all([
@@ -193,7 +196,7 @@ export class CloudLinkService {
       this.privilegedAllowed(),
       this.pendingSsoClientRequest(),
     ]);
-    return { ...identity, remoteManagement, ...(ssoClientRequest ? { ssoClientRequest } : {}) };
+    return { ...identity, remoteManagement, ...(ssoClientRequest ? { ssoClientRequest } : {}), ssoRevoke: true };
   }
 
   /** The admin's pending request for an Opfield account sign-in client of the current agent; null when none. */
@@ -659,6 +662,12 @@ export class CloudLinkService {
   /** A step of the Opfield account sign-in set up from the enrolment file or the portal; never a secret. */
   async recordManagedSso(details: Record<string, unknown>): Promise<void> {
     await this.writeAudit(CLOUD_AUDIT_ACTIONS.managedSso, null, null, details);
+  }
+
+  /** The accounts an sso-revoke request blocked (or found blocked already), with its reason. */
+  async recordSsoRevoke(details: Record<string, unknown>): Promise<void> {
+    const { enrollment } = await this.readStored();
+    await this.writeAudit(CLOUD_AUDIT_ACTIONS.ssoRevoke, null, enrollment?.agentId ?? null, details);
   }
 
   /** The open coalescing windows of this process when it holds the link (repeats not written yet). */

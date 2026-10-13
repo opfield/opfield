@@ -22,6 +22,7 @@ export class SSLCertificateFolderService extends FolderedResourceService {
       resourceName: 'SSL certificate',
       resourcePlural: 'SSL certificates',
       auditResourceType: 'ssl_certificate_folder',
+      auditMovedResourceType: 'ssl_certificate',
       eventName: 'ssl.cert.folder.changed',
     });
   }

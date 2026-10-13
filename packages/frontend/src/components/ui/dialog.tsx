@@ -102,13 +102,26 @@ function fitDialogLists(panel: HTMLElement) {
   if (!scroller) return;
   const scrollTops = lists.map((list) => list.scrollTop);
   const scrollerTop = scroller.scrollTop;
+  // An AnimatedHeight wrapper lags behind its content while it animates: count the height its
+  // content already has, not the height the wrapper has reached so far.
+  const pendingGrowth = () => {
+    let growth = 0;
+    for (const wrapper of panel.querySelectorAll<HTMLElement>("[data-animated-height]")) {
+      const content = wrapper.firstElementChild as HTMLElement | null;
+      if (!content) continue;
+      const style = getComputedStyle(wrapper);
+      const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+      growth += content.offsetHeight + padding - wrapper.offsetHeight;
+    }
+    return growth;
+  };
   const overflowOf = () => {
-    if (bodyScrolls && body) return body.scrollHeight - body.clientHeight;
+    if (bodyScrolls && body) return body.scrollHeight - body.clientHeight + pendingGrowth();
     if (!overlay) return 0;
     const style = getComputedStyle(overlay);
     const room =
       overlay.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
-    return panel.offsetHeight - room;
+    return panel.offsetHeight + pendingGrowth() - room;
   };
   const release = () => {
     for (const list of lists) {

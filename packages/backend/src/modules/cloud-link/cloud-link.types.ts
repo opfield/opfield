@@ -61,6 +61,8 @@ export interface CloudHello {
   remoteManagement: boolean;
   /** Present while an admin's request for a sign-in client waits for the account's sso-client. */
   ssoClientRequest?: CloudSsoClientRequest;
+  /** The installation takes sso-revoke requests (an installation without it ignores them as unknown). */
+  ssoRevoke: true;
 }
 
 /** Why the sign-in the cloud gave is detached: the link ended, or it now belongs to another account. */
@@ -72,6 +74,32 @@ export interface CloudSsoClient {
   clientId: string;
   clientSecret: string;
   redirectUri: string;
+}
+
+/** Why the account removed people's access (sso-revoke). */
+export const CLOUD_SSO_REVOKE_REASONS = [
+  'removed_from_team',
+  'access_removed',
+  'installation_moved',
+  'account_suspended',
+] as const;
+export type CloudSsoRevokeReason = (typeof CLOUD_SSO_REVOKE_REASONS)[number];
+/** At most this many subjects in one sso-revoke request. */
+export const CLOUD_SSO_REVOKE_MAX_SUBJECTS = 500;
+
+/** The sso-revoke request: the Opfield accounts (OIDC subjects of the portal issuer) that lost access here. */
+export interface CloudSsoRevoke {
+  issuer: string;
+  subjects: string[];
+  reason: CloudSsoRevokeReason;
+}
+
+/** The answer of sso-revoke: the accounts now blocked (or already blocked), and subjects with no account here. */
+export interface CloudSsoRevokeResult {
+  revoked: Array<{ sub: string; userId: string }>;
+  unknown: string[];
+  /** Accounts left as they are: the last active system administrator (LAST_SYSTEM_ADMIN); absent when none. */
+  kept?: Array<{ sub: string; userId: string; code: string }>;
 }
 
 /** Left behind when the account revoked the agent (a 401 on the socket). */
@@ -183,7 +211,7 @@ export type CloudAnswer =
 /**
  * Request kinds that act on the installation; they need remote management (see CloudLinkAccess). The sign-in client
  * kinds do not: sso-client answers the installation's own request, and sso-secret rotates the secret of a client the
- * account gave it; both check that themselves.
+ * account gave it; both check that themselves. Nor does sso-revoke: it only removes access the account gave.
  */
 export const CLOUD_PRIVILEGED_REQUEST_TYPES: ReadonlySet<string> = new Set(['node-token', 'update', 'setup-link']);
 export const REMOTE_MANAGEMENT_OFF = {
@@ -277,6 +305,11 @@ export interface CloudLinkActions {
    * installation). Refused with SSO_CLIENT_NOT_REQUESTED or INVALID_SSO_CLIENT.
    */
   ssoClient(client: CloudSsoClient): Promise<{ saved: true; applied: boolean }>;
+  /**
+   * Blocks the accounts of these subjects of the Opfield account issuer as the Opfield account's (their sessions end,
+   * their tokens are refused); their next sign-in through the issuer lifts it. Needs no remote management.
+   */
+  ssoRevoke(input: CloudSsoRevoke): Promise<CloudSsoRevokeResult>;
 }
 
 /** Request kinds that only read; identical successful reads share one audit entry. Actions never do. */

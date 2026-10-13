@@ -74,6 +74,20 @@ export function isManagedStorageFull(storage: Pick<ObjectStorageConnection, "man
   );
 }
 
+/** The code at the front of a managed cluster's `lastError` while its disk has little room left. */
+export const MANAGED_STORAGE_NEARLY_FULL = "MANAGED_STORAGE_NEARLY_FULL";
+
+/** A serving managed cluster whose disk is nearly full: uploads still work. */
+export function isManagedStorageNearlyFull(
+  storage: Pick<ObjectStorageConnection, "managed">
+): boolean {
+  const managed = storage.managed;
+  return (
+    managed?.status === "ready" &&
+    (managed.lastError?.startsWith(`${MANAGED_STORAGE_NEARLY_FULL}:`) ?? false)
+  );
+}
+
 /** A stored error message, with the engine-image failure rewritten into guidance. */
 export function formatManagedStorageError(message: string): string {
   return isEngineImageUnavailable(message)

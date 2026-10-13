@@ -31,6 +31,7 @@ import type { NodeRegistryService } from './node-registry.service.js';
 import { pruneEndedAssignmentGenerations } from './relay-assignment-history.js';
 import type { RelayCertificateRenewalService, RelayCertificateStatus } from './relay-certificate-renewal.service.js';
 import { localRelayTakeoverBlocker, setLocalRelayUpdateDrain } from './relay-local-takeover.js';
+import { loadOfflineLeaseMemberWarnings, type OfflineLeaseMemberWarning } from './relay-offline-lease-members.js';
 import type { RelayPolicyService, RelayPolicyTrustStatus } from './relay-policy.service.js';
 import { bumpRelayPolicyRevision } from './relay-policy-reconciler.js';
 import {
@@ -70,8 +71,11 @@ import { isShuttingDown } from './shutdown-state.js';
 
 type RelayInstanceRow = typeof relayInstances.$inferSelect;
 
-/** A pool condition that leaves the pool healthy but needs an operator's attention. */
-export interface RelayPoolWarning {
+/** A pool condition that needs an operator's attention. */
+export type RelayPoolWarning = GatewayHostOnlyWarning | OfflineLeaseMemberWarning;
+
+/** A link whose node reaches no relay off the Gateway host; the pool stays healthy. */
+interface GatewayHostOnlyWarning {
   code: 'gateway_host_only';
   endpointId: string;
   ownerKind: string;
@@ -1429,7 +1433,10 @@ export class RelayPoolService {
       !unavailable &&
       (instances.some((instance) => ['offline', 'error'].includes(instance.state) && !reconnecting(instance)) ||
         [...revocations.values()].some((revocation) => revocation?.state === 'stale'));
-    const warnings = await this.gatewayHostOnlyWarnings(gatewayHostOnly, instances, latencyPaths).catch(() => []);
+    const warnings: RelayPoolWarning[] = [
+      ...(await this.gatewayHostOnlyWarnings(gatewayHostOnly, instances, latencyPaths).catch(() => [])),
+      ...(await loadOfflineLeaseMemberWarnings(this.db, instances).catch(() => [])),
+    ];
     return {
       poolId: 'system',
       // One state while the local relay restarts: every remote relay and node drops with it, none of them failed.
@@ -1447,7 +1454,10 @@ export class RelayPoolService {
                 ? 'rebalance_available'
                 : 'healthy',
       rebalanceAvailable,
-      /** Advisory: the pool stays healthy, but these links depend on the Gateway host. */
+      /**
+       * Advisory: links that depend on the Gateway host (the pool stays healthy), and relays offline for a day or more
+       * that are still availability lease members.
+       */
       warnings,
       rebalanceEndpointIds: eligiblePlan.map(({ endpointId }) => endpointId),
       rebalancePlanKey,
@@ -2317,7 +2327,7 @@ export class RelayPoolService {
       {
         instances: snapshot.instances,
         gatewayHostOnlyEndpointIds: new Set(
-          snapshot.warnings.filter(({ code }) => code === 'gateway_host_only').map(({ endpointId }) => endpointId)
+          snapshot.warnings.flatMap((warning) => (warning.code === 'gateway_host_only' ? [warning.endpointId] : []))
         ),
       },
       localInstanceId

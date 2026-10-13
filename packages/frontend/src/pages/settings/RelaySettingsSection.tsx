@@ -912,7 +912,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
         ))}
         {status?.warnings?.map((warning) => (
           <p
-            key={`${warning.code}:${warning.endpointId}`}
+            key={`${warning.code}:${warning.code === "offline_lease_member" ? warning.relayInstanceId : warning.endpointId}`}
             className="border-t border-border p-3 text-sm text-warning-text"
           >
             {warning.message}

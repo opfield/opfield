@@ -473,23 +473,23 @@ describe('OAuthService.createConsentRequest', () => {
         code_challenge: 'challenge',
         code_challenge_method: 'S256',
         scope:
-          'nodes:details docker:containers:environment docker:containers:files:read:node-1 docker:containers:files:write:node-1 docker:containers:secrets pki:cert:export admin:update',
+          'nodes:details docker:containers:environment docker:containers:files:read:9c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f docker:containers:files:write:9c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f docker:containers:secrets pki:cert:export admin:update',
       }
     );
 
     expect(pending.grantableScopes).toEqual([
       'admin:update',
       'docker:containers:environment',
-      'docker:containers:files:read:node-1',
-      'docker:containers:files:write:node-1',
+      'docker:containers:files:read:9c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f',
+      'docker:containers:files:write:9c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f',
       'docker:containers:secrets',
       'nodes:details',
       'pki:cert:export',
     ]);
     expect(pending.manualApprovalScopes).toEqual([
       'admin:update',
-      'docker:containers:files:read:node-1',
-      'docker:containers:files:write:node-1',
+      'docker:containers:files:read:9c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f',
+      'docker:containers:files:write:9c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f',
       'docker:containers:secrets',
       'pki:cert:export',
     ]);

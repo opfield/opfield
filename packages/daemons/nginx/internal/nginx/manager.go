@@ -139,13 +139,20 @@ func (m *Manager) Reload() error {
 	if m.globalCfg != "" {
 		args = append(args, "-c", m.globalCfg)
 	}
-	cmd := exec.Command(m.binary, args...)
-	output, err := cmd.CombinedOutput()
+	// Through runNginx: a pid file nginx cannot open is repaired or reported as for nginx -t.
+	output, err := m.runNginx(args...)
 	// A reload may load a pid directive the cached path does not know.
 	m.pids.invalidatePath()
 	if err != nil {
-		commit(false)
-		return fmt.Errorf("nginx reload failed: %s: %w", string(output), err)
+		if !nginxNotRunningFailure.Match(output) {
+			commit(false)
+			return fmt.Errorf("nginx reload failed: %s: %w", string(output), err)
+		}
+		// No nginx master runs: the configuration on disk loads when nginx starts.
+		if startErr := m.startStoppedNginx(); startErr != nil {
+			commit(false)
+			return startErr
+		}
 	}
 	commit(true)
 	// nginx runs what was on disk when the reload started; a change begun meanwhile still waits for one.

@@ -136,15 +136,26 @@ export interface DashboardRelaySnapshot {
     updatedAt: string;
   }>;
   blockers?: string[];
-  /** Advisory conditions of a healthy pool, e.g. links whose node reaches no relay off the Gateway host. */
-  warnings?: Array<{
-    code: string;
-    endpointId: string;
-    ownerKind: string;
-    ownerId: string;
-    nodeId: string | null;
-    message: string;
-  }>;
+  /**
+   * Advisory conditions: links whose node reaches no relay off the Gateway host (the pool stays healthy), relays
+   * offline for a day or more that are still availability lease members.
+   */
+  warnings?: Array<
+    | {
+        code: "gateway_host_only";
+        endpointId: string;
+        ownerKind: string;
+        ownerId: string;
+        nodeId: string | null;
+        message: string;
+      }
+    | {
+        code: "offline_lease_member";
+        relayInstanceId: string;
+        offlineSince: string;
+        message: string;
+      }
+  >;
   automaticRebalancePaused?: boolean;
   automaticRebalanceRetryAt?: string | null;
   update?: { state: string; targetVersion: string; error: string | null } | null;

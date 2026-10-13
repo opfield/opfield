@@ -132,8 +132,9 @@
 //   - Release(key, successor) for a planned handoff or a health release
 //     (D6, D9), only after the cgroup is empty and the endpoint is
 //     deregistered (A6). The node relinquishes every relay gate first and
-//     releases the acceptors only when all relays acked or RelinquishWait
-//     passed. If the stop does not complete, call Abandon(key) instead: the
+//     releases the acceptors only when every relay acked or RelinquishWait
+//     passed since the last propose this node sent that relay (a relay that
+//     got none for that long, an offline one, is not waited for). If the stop does not complete, call Abandon(key) instead: the
 //     node stops renewing and the watchdog fences. AbandonFor names the
 //     reason of the fence event (for example FenceWatchdogLost).
 //   - Recover(key, deadline) on daemon start for every lease-mode container

@@ -106,6 +106,11 @@ function availabilityMappings(
   ];
 }
 
+/** Managed storage alerts are about its storage connection (the managed cluster's id while it has none). */
+function managedStorageResource(p: any): { type: string; id: string; name?: string } {
+  return { type: 'managed_storage', id: p.id ?? p.managedStorageClusterId, name: p.name };
+}
+
 export const EVENT_BUS_MAPPINGS: Record<string, EventMapping[]> = {
   'hosting.vm.observed': [
     {
@@ -865,9 +870,25 @@ export const EVENT_BUS_MAPPINGS: Record<string, EventMapping[]> = {
       )
     ),
   ],
-  'managed-storage.changed': availabilityMappings(
-    'managed_storage',
-    (p) => typeof p.action === 'string' && typeof p.managedStorageClusterId === 'string',
-    (p) => ({ type: 'managed_storage', id: p.id ?? p.managedStorageClusterId, name: p.name })
-  ),
+  'managed-storage.changed': [
+    // Published when a serving storage stops taking uploads (`full`) and when it takes them again (`writable`),
+    // and once after Gateway starts.
+    {
+      category: 'managed_storage',
+      eventId: 'storage.full',
+      match: (p) => typeof p.managedStorageClusterId === 'string' && (p.action === 'full' || p.action === 'writable'),
+      extractResource: managedStorageResource,
+      extractData: (p) => ({ managed_storage_id: p.managedStorageClusterId }),
+      stateful: {
+        currentState: (p) => (p.action === 'full' ? 'storage.full' : 'storage.writable'),
+        observedPatterns: ['storage.full', 'storage.writable'],
+        holdsUntilNextEvent: true,
+      },
+    },
+    ...availabilityMappings(
+      'managed_storage',
+      (p) => typeof p.action === 'string' && typeof p.managedStorageClusterId === 'string',
+      managedStorageResource
+    ),
+  ],
 };

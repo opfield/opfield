@@ -214,7 +214,7 @@ Stop stops every copy and keeps the placements; Start starts the copies that ser
 - Daemon and relay updates of lease participants run one after another; a waiting node shows \`metadata.updatePhase: waiting_for_lease_peers\`. Ingress (nginx) nodes restart after the other nodes whose updates are under way (same phase, \`updateWaitingFor\` entries with reason \`ingress_last\`). Before that, a daemon update waits for the long tasks of its node (\`waiting_for_tasks\`, at most 30 minutes). \`now: true\` waits for neither the tasks nor the lease peers.
 
 ## Limits
-Availability protects the workload, not Opfield itself, nginx, the database engine, registry storage, or shared volumes. Compose Availability replicates the whole project per placement; it does not spread individual services across nodes.`,
+Availability protects the workload, not Opfield itself, nginx, the database engine, registry storage, or shared volumes. Compose Availability replicates the whole project per placement; it does not spread individual services across nodes. Published host ports are served only on the original node: copies on other nodes publish none and are reached through Routes, Container Links or Advanced Secure Links (preflight warns with \`AVAILABILITY_HOST_PORTS_NOT_REPLICATED\`).`,
 
   databases: `# Databases
 

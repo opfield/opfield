@@ -17,6 +17,7 @@ const REQUEST_LABELS: Record<string, string> = {
   'node-token': 'Issue node token',
   update: 'Start update',
   'sso-secret': 'Replace sign-in client secret',
+  'sso-revoke': 'Remove access of Opfield accounts',
 };
 
 const MANAGED_SSO_STEPS: Record<string, string> = {
@@ -34,6 +35,13 @@ const MANAGED_SSO_STEPS: Record<string, string> = {
   provider_kept: 'Opfield account sign-in kept after the cloud link ended: no other administrator could sign in',
   secret_rotated: 'Sign-in client secret replaced',
   secret_removed: 'Client secret removed from the enrolment file',
+};
+
+const SSO_REVOKE_REASONS: Record<string, string> = {
+  removed_from_team: 'removed from the team',
+  access_removed: 'access removed',
+  installation_moved: 'installation moved to another account',
+  account_suspended: 'account suspended',
 };
 
 const CONNECT_SOURCES: Record<string, string> = {
@@ -122,6 +130,19 @@ export function cloudAuditSummary(action: string, details: Details): string | nu
       }
       if (outcome === 'unreadable') return 'Enrolment file unreadable';
       return `Enrolment file: ${outcome ?? 'unknown'}`;
+    }
+    case 'cloud.sso_revoke': {
+      const blocked = number(details, 'blocked') ?? 0;
+      const already = number(details, 'alreadyBlocked') ?? 0;
+      const unknown = number(details, 'unknown') ?? 0;
+      const kept = number(details, 'kept') ?? 0;
+      const reason = SSO_REVOKE_REASONS[text(details, 'reason') ?? ''] ?? text(details, 'reason');
+      const parts = [`Access removed by the Opfield account: ${blocked} ${blocked === 1 ? 'user' : 'users'} blocked`];
+      if (already) parts.push(`${already} already blocked`);
+      if (unknown) parts.push(`${unknown} not found`);
+      if (kept) parts.push(`${kept} kept: last system administrator`);
+      if (reason) parts.push(reason);
+      return parts.join(' · ');
     }
     case 'cloud.managed_sso': {
       const step = text(details, 'step') ?? 'unknown';

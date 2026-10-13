@@ -624,7 +624,8 @@ preflight_run_user_nginx() {
     err "The daemon writes /etc/nginx and reloads nginx itself. Prepare nginx, then run this installer again with --nginx-mode integrate:"
     err "  - run the nginx service as ${RUN_USER}:${RUN_GROUP} with CAP_NET_BIND_SERVICE and its pid file in a directory ${RUN_USER} owns"
     err "    (systemd drop-in for nginx.service: User=, Group=, AmbientCapabilities=CAP_NET_BIND_SERVICE, RuntimeDirectory=nginx,"
-    err "    PIDFile=/run/nginx/nginx.pid, and 'pid /run/nginx/nginx.pid;' in nginx.conf; OpenRC: command_user=\"${RUN_USER}:${RUN_GROUP}\" and"
+    err "    RuntimeDirectoryPreserve=yes, PIDFile=/run/nginx/nginx.pid, and 'pid /run/nginx/nginx.pid;' in nginx.conf;"
+    err "    OpenRC: command_user=\"${RUN_USER}:${RUN_GROUP}\" and"
     err "    capabilities=\"^cap_net_bind_service\" in /etc/conf.d/nginx, and 'pid /run/nginx/nginx.pid;' in nginx.conf);"
     err "  - give ${RUN_USER} /etc/nginx, /var/log/nginx and the nginx temp directories, and make log rotation create files as ${RUN_USER};"
     err "  - start the prepared service (OpenRC: rc-service nginx zap, then rc-service nginx start; a service that crashed needs the zap);"
@@ -2152,6 +2153,36 @@ nginx_worker_requires_restart() {
     [[ "$running_nofile" =~ ^[0-9]+$ ]] && (( running_nofile < NGINX_WORKER_NOFILE_MIN ))
 }
 
+# A non-root nginx keeps its pid file in its RuntimeDirectory= (/run/nginx), which systemd removes whenever nginx stops
+# unless RuntimeDirectoryPreserve= keeps it. The daemon cannot create it again as nginx's user, so every nginx -t would
+# fail until root starts nginx.
+ensure_nginx_runtime_directory_preserved() {
+    [[ "$RUN_USER" != "root" ]] && has_systemd || return 0
+    local dropin_file="${NGINX_SYSTEMD_DROPIN_DIR}/zz-gateway-runtime-directory.conf"
+    local runtime_dirs preserve
+    # ensure_nginx_service_limit ran daemon-reload just before, so the operator's drop-ins are loaded.
+    runtime_dirs=$(systemctl show nginx.service -p RuntimeDirectory --value 2>/dev/null || true)
+    [[ -n "$runtime_dirs" ]] || return 0
+    preserve=$(systemctl show nginx.service -p RuntimeDirectoryPreserve --value 2>/dev/null || true)
+    [[ "$preserve" != "yes" ]] || return 0
+    mkdir -p "$NGINX_SYSTEMD_DROPIN_DIR"
+    printf '[Service]\nRuntimeDirectoryPreserve=yes\n' > "$dropin_file" || die "Could not write ${dropin_file}."
+    chmod 0644 "$dropin_file"
+    systemctl daemon-reload >> "$LOG_FILE" 2>&1 || die "systemd daemon-reload failed."
+    log "Kept nginx's runtime directory across nginx stops (RuntimeDirectoryPreserve=yes)"
+}
+
+# The daemon reloads nginx but never starts it as a non-root user, so nginx has to start with the host.
+ensure_nginx_service_enabled() {
+    if has_systemd; then
+        systemctl is-enabled --quiet nginx 2>/dev/null && return 0
+        systemctl enable nginx >> "$LOG_FILE" 2>&1 || warn "Could not enable nginx at boot; run: systemctl enable nginx"
+    elif has_openrc; then
+        rc-update show default 2>/dev/null | grep -Eq '^[[:space:]]*nginx[[:space:]]*[|]' && return 0
+        rc-update add nginx default >> "$LOG_FILE" 2>&1 || warn "Could not enable nginx at boot; run: rc-update add nginx default"
+    fi
+}
+
 ensure_nginx_service_limit() {
     if nginx_worker_requires_restart; then
         NGINX_SERVICE_RESTART_REQUIRED=1
@@ -2427,6 +2458,7 @@ configure_nginx() {
     ensure_nginx_openrc_pid_directory
     start_nginx_after_service_repair
     ensure_nginx_service_limit
+    ensure_nginx_runtime_directory_preserved
 
     if nginx -t >> "$LOG_FILE" 2>&1; then
         verify_nginx_server_tokens
@@ -2452,6 +2484,7 @@ configure_nginx() {
             nginx -s reload >> "$LOG_FILE" 2>&1 || die "Failed to reload nginx"
         fi
         verify_nginx_fd_limits
+        ensure_nginx_service_enabled
         ok "nginx configuration updated (${NGINX_MODE} mode)"
     else
         restore_nginx_config
@@ -2736,7 +2769,7 @@ start_daemon() {
 [Unit]
 Description=Opfield Nginx Daemon
 After=network-online.target nginx.service
-Wants=network-online.target
+Wants=network-online.target nginx.service
 
 [Service]
 Type=simple
@@ -2774,7 +2807,7 @@ error_log="/var/log/nginx-daemon.err"
 
 depend() {
     need net
-    use nginx
+    want nginx
 }${openrc_runtime}
 UNIT
         chmod +x /etc/init.d/nginx-daemon || die "Could not make the nginx-daemon OpenRC service executable."

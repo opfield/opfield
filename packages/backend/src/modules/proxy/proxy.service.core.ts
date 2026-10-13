@@ -506,6 +506,7 @@ export abstract class ProxyServiceCore {
       actorScopes: normalized.actorScopes,
       requireAvailable: true,
       refreshOnMiss: true,
+      followAvailability: true,
     });
   }
 
@@ -604,6 +605,7 @@ export abstract class ProxyServiceCore {
       actorScopes: normalized.actorScopes,
       requireAvailable: true,
       refreshOnMiss: true,
+      followAvailability: true,
     });
     // Create-time Docker resolution uses loopback placeholders, but an update
     // must retain the real legacy endpoint until Secure Link cutover commits.

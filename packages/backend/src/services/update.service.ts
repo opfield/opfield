@@ -117,6 +117,11 @@ const GATEWAY_UPDATE_ATTEMPT_KEY = 'update:gateway:attempt';
  * long, so the version it rolls back to still finds the record and reports it.
  */
 const GATEWAY_UPDATE_TARGET_GRACE_MS = 10 * 60_000;
+/** Marks the container that runs a Gateway self-update, so it is removed once it has finished. */
+const UPDATE_SIDECAR_LABEL = 'net.opfield.role';
+const UPDATE_SIDECAR_ROLE = 'gateway-update-sidecar';
+/** The Docker CLI image of update sidecars started before they were labelled (any pinned version). */
+const UNLABELLED_SIDECAR_IMAGE = /^docker\.io\/library\/docker:\d+-cli@sha256:[0-9a-f]{64}$/;
 /** A failed update stays reported this long unless an admin acknowledges it. */
 const FAILED_GATEWAY_UPDATE_REPORT_MS = 24 * 60 * 60_000;
 
@@ -814,6 +819,8 @@ export class UpdateService {
 
   private async recoverGatewayUpdateAttempt(): Promise<void> {
     const attempt = await this.readGatewayUpdateAttempt();
+    // Keep the sidecar of the attempt still on record: its logs explain a rollback.
+    void this.removeFinishedUpdateSidecars(attempt?.sidecarId ?? null);
     if (!attempt) {
       await this.deleteSettings([GATEWAY_UPDATE_ATTEMPT_KEY]);
       return;
@@ -873,7 +880,10 @@ export class UpdateService {
             sql`${settings.value}->>'targetVersion' = ${started.targetVersion}`
           )
         )
-        .then(() => logger.info('Gateway update completed', { from: started.fromVersion, to: started.targetVersion }))
+        .then(() => {
+          logger.info('Gateway update completed', { from: started.fromVersion, to: started.targetVersion });
+          return this.removeFinishedUpdateSidecars(null);
+        })
         .catch((error) =>
           logger.warn('Could not clear the Gateway update attempt record', { error: formatError(error) })
         );
@@ -956,9 +966,52 @@ export class UpdateService {
     clearTimeout(this.failedReportTimer);
     this.gatewayUpdateOperation = null;
     await this.deleteSettings([GATEWAY_UPDATE_ATTEMPT_KEY]);
+    void this.removeFinishedUpdateSidecars(null);
     // No `updating` flag: this must not end the update screen of a new attempt.
     this.events?.publish('system.update.changed', { component: 'gateway', statusChanged: true });
     return true;
+  }
+
+  /**
+   * Removes update sidecars that have exited, except `keepId`. A sidecar is kept after it exits so a failed
+   * update can point at its logs; once the update completed or its failure was acknowledged it is clutter (and
+   * shows up in the container list when the Opfield host is also a Docker node). Sidecars started before they
+   * were labelled are recognized by the pinned Docker CLI image plus the Docker socket and the Compose
+   * directory mounted at the same path, so a user's own docker:cli containers are left alone.
+   */
+  private async removeFinishedUpdateSidecars(keepId: string | null): Promise<void> {
+    try {
+      const self = await this.dockerService.inspectSelf();
+      const composeDir =
+        this.env.COMPOSE_PROJECT_DIR || self.Config.Labels['com.docker.compose.project.working_dir'] || null;
+      const containers = await this.dockerService.listLocalContainers();
+      for (const item of containers) {
+        if (item.State === 'running' || item.State === 'restarting' || item.Id === keepId) continue;
+        const labelled = item.Labels?.[UPDATE_SIDECAR_LABEL] === UPDATE_SIDECAR_ROLE;
+        if (!labelled) {
+          if (!composeDir) continue;
+          const details = await this.dockerService.inspectContainerDetails(item.Id);
+          if (!details || !UNLABELLED_SIDECAR_IMAGE.test(details.Config.Image)) continue;
+          const mounts = details.Mounts ?? [];
+          const socket = mounts.some(
+            (mount) => mount.Source === '/var/run/docker.sock' && mount.Destination === '/var/run/docker.sock'
+          );
+          const compose = mounts.some((mount) => mount.Source === composeDir && mount.Destination === composeDir);
+          if (!socket || !compose || mounts.length !== 2) continue;
+        }
+        await this.dockerService
+          .removeContainer(item.Id)
+          .then(() => logger.info('Removed a finished update container', { id: item.Id.slice(0, 12) }))
+          .catch((error) =>
+            logger.warn('Could not remove a finished update container', {
+              id: item.Id.slice(0, 12),
+              error: formatError(error),
+            })
+          );
+      }
+    } catch (error) {
+      logger.warn('Could not clean up finished update containers', { error: formatError(error) });
+    }
   }
 
   private setGatewayUpdateOperation(operation: GatewayUpdateOperation | null): void {
@@ -1321,6 +1374,7 @@ done
 exit 1`,
       ],
       Env: [`FOUNDATION_BACKUP_DIR=${sidecarBackupDir}`],
+      Labels: { [UPDATE_SIDECAR_LABEL]: UPDATE_SIDECAR_ROLE },
       HostConfig: { Binds: [`${composeDir}:${composeDir}`, '/var/run/docker.sock:/var/run/docker.sock'] },
     });
 

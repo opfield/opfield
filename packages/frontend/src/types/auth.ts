@@ -16,6 +16,8 @@ export interface User {
   additionalScopes?: string[];
   scopes: string[];
   isBlocked: boolean;
+  /** Admin user payloads: who blocked the account while it is blocked. */
+  blockedBy?: "admin" | "opfield_account" | null;
   isDeleted?: boolean;
   aiApprovalMode?: AIApprovalMode;
   folderId?: string | null;

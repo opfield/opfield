@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import {
   dockerAvailabilityPlacements,
@@ -9,6 +9,7 @@ import {
   nodes,
 } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { matchRuntimeIdentity } from '@/modules/docker/availability/docker-workload-resolver.service.js';
 import {
   type DockerAccessResourceService,
   dockerScopedNodeIds,
@@ -54,7 +55,14 @@ interface ResolveOptions {
   allowPortRebind?: boolean;
   /** Ask the node for a fresh container list once before calling the target missing (interactive edits only). */
   refreshOnMiss?: boolean;
+  /**
+   * A container of an Availability workload (named by its original or by a replica's runtime name) resolves to the
+   * logical workload, whether or not the original copy runs and its node is online (Route create and edit, C-1).
+   */
+  followAvailability?: boolean;
 }
+
+const AVAILABILITY_MANAGED_MODES = ['replicated', 'failover'] as const;
 
 interface SnapshotPort {
   privatePort: number;
@@ -235,6 +243,12 @@ export class ProxyDockerUpstreamService {
     const nodeId = reference.dockerNodeId;
     if (!nodeId) throw new AppError(400, 'INVALID_DOCKER_TARGET', 'Docker node is required');
     const composeTarget = Boolean(reference.dockerComposeProjectId || reference.dockerComposeServiceName);
+    if (options.followAvailability) {
+      const logical = composeTarget
+        ? await this.resolveAvailabilityCompose(nodeId, reference, options)
+        : await this.resolveAvailabilityContainer(nodeId, reference, options);
+      if (logical) return logical;
+    }
     if (!composeTarget) this.assertDockerNodeVisibility(nodeId, options.actorScopes);
     await this.getDockerNode(nodeId, options);
     const snapshot = await this.snapshots.getList<Record<string, unknown>[]>(nodeId, 'containers');
@@ -367,6 +381,168 @@ export class ProxyDockerUpstreamService {
     };
   }
 
+  /**
+   * The logical source of an Availability container: its original node and name, which the Availability ingress
+   * projection uses to find the policy. After a failover the original is stopped (or its node is offline) while a
+   * replica serves elsewhere, so neither is required here; a reference to a replica's runtime name (gwav-…) maps to
+   * the workload too, so the Route follows the next failover. Null for a container without Availability.
+   */
+  private async resolveAvailabilityContainer(
+    nodeId: string,
+    reference: DockerUpstreamReference,
+    options: ResolveOptions
+  ): Promise<ResolvedDockerUpstream | null> {
+    const requestedName = reference.dockerContainerName?.replace(/^\/+/, '') ?? '';
+    if (!requestedName) return null;
+    const policy = await this.findAvailabilityContainerPolicy(nodeId, requestedName);
+    if (!policy?.sourceNodeId || !policy.containerName) return null;
+    const sourceNodeId = policy.sourceNodeId;
+    this.assertDockerNodeVisibility(sourceNodeId, options.actorScopes);
+    await this.getDockerNode(sourceNodeId, { ...options, requireAvailable: false });
+    const resourceId = this.accessResources
+      ? ((await this.accessResources.resolveContainer(sourceNodeId, {
+          name: policy.containerName,
+          includeReservations: true,
+        })) ?? '')
+      : '';
+    this.assertDockerViewScope(sourceNodeId, resourceId, options.actorScopes);
+    return {
+      upstreamKind: 'docker_container',
+      forwardHost: '127.0.0.1',
+      forwardPort: 1,
+      dockerNodeId: sourceNodeId,
+      dockerContainerName: policy.containerName,
+      dockerComposeProjectId: null,
+      dockerComposeServiceName: null,
+      dockerDeploymentId: null,
+      dockerContainerPort: this.choosePort(reference, []),
+      dockerHostPort: null,
+      dockerProtocol: 'tcp',
+    };
+  }
+
+  /**
+   * The logical project of an Availability Compose service: the project's own node and the service's container there.
+   * After a failover the origin node may be offline and the service may run only on another node; neither is required,
+   * and the serving copy is never stored (the Availability ingress projection finds the policy by project). The
+   * reference may name the project's node or a node that holds one of its copies.
+   */
+  private async resolveAvailabilityCompose(
+    nodeId: string,
+    reference: DockerUpstreamReference,
+    options: ResolveOptions
+  ): Promise<ResolvedDockerUpstream | null> {
+    const projectId = reference.dockerComposeProjectId;
+    const serviceName = reference.dockerComposeServiceName;
+    if (!projectId || !serviceName) return null;
+    const [project] = await this.db
+      .select({ id: dockerComposeProjects.id, name: dockerComposeProjects.name, nodeId: dockerComposeProjects.nodeId })
+      .from(dockerComposeProjects)
+      .where(eq(dockerComposeProjects.id, projectId))
+      .limit(1);
+    if (!project) return null;
+    const [policy] = await this.db
+      .select({ id: dockerAvailabilityPolicies.id, portableSpec: dockerAvailabilityPolicies.portableSpec })
+      .from(dockerAvailabilityPolicies)
+      .where(
+        and(
+          eq(dockerAvailabilityPolicies.resourceKind, 'compose'),
+          eq(dockerAvailabilityPolicies.composeProjectId, project.id),
+          inArray(dockerAvailabilityPolicies.mode, [...AVAILABILITY_MANAGED_MODES])
+        )
+      )
+      .limit(1);
+    if (!policy) return null;
+    const copies = await this.db
+      .select({
+        nodeId: dockerAvailabilityPlacements.nodeId,
+        runtimeIdentity: dockerAvailabilityPlacements.runtimeIdentity,
+      })
+      .from(dockerAvailabilityPlacements)
+      .where(
+        and(
+          eq(dockerAvailabilityPlacements.policyId, policy.id),
+          ne(dockerAvailabilityPlacements.actualState, 'removed')
+        )
+      );
+    if (nodeId !== project.nodeId && !copies.some((copy) => copy.nodeId === nodeId)) return null;
+    this.assertComposeViewScope(project.nodeId, project.id, options.actorScopes);
+    await this.getDockerNode(project.nodeId, { ...options, requireAvailable: false });
+    const model = (policy.portableSpec as Record<string, unknown> | null)?.normalizedModel as
+      | { services?: Record<string, unknown> }
+      | undefined;
+    if (model?.services && typeof model.services === 'object' && !(serviceName in model.services)) {
+      throw new AppError(
+        404,
+        'DOCKER_CONTAINER_NOT_FOUND',
+        `Compose service "${serviceName}" is not part of this project`
+      );
+    }
+    const snapshot = await this.snapshots.getList<Record<string, unknown>[]>(project.nodeId, 'containers');
+    const listed = Array.isArray(snapshot.data)
+      ? snapshot.data.find((item) => {
+          const labels = readLabels(item);
+          return (
+            labels['com.docker.compose.project'] === project.name &&
+            labels['com.docker.compose.service'] === serviceName &&
+            !isDeploymentInternal(item)
+          );
+        })
+      : undefined;
+    const origin = copies.find((copy) => copy.nodeId === project.nodeId);
+    const containerName =
+      (listed ? readContainerName(listed) : '') ||
+      (origin ? composeAvailabilityContainer(origin.runtimeIdentity, serviceName)?.containerName : undefined) ||
+      `${project.name}-${serviceName}-1`;
+    return {
+      upstreamKind: 'docker_container',
+      forwardHost: '127.0.0.1',
+      forwardPort: 1,
+      dockerNodeId: project.nodeId,
+      dockerContainerName: containerName,
+      dockerComposeProjectId: project.id,
+      dockerComposeServiceName: serviceName,
+      dockerDeploymentId: null,
+      dockerContainerPort: this.choosePort(reference, []),
+      dockerHostPort: null,
+      dockerProtocol: 'tcp',
+    };
+  }
+
+  /**
+   * The container Availability policy a reference names: by its original node and name, or by the runtime identity
+   * of one of its copies on that node. Only an exact runtime match counts, so another container that merely shares
+   * the workload's name on a replica node is not taken for it.
+   */
+  private async findAvailabilityContainerPolicy(nodeId: string, name: string) {
+    const [direct] = await this.db
+      .select()
+      .from(dockerAvailabilityPolicies)
+      .where(
+        and(
+          eq(dockerAvailabilityPolicies.resourceKind, 'container'),
+          eq(dockerAvailabilityPolicies.sourceNodeId, nodeId),
+          eq(dockerAvailabilityPolicies.containerName, name),
+          inArray(dockerAvailabilityPolicies.mode, [...AVAILABILITY_MANAGED_MODES])
+        )
+      )
+      .limit(1);
+    if (direct) return direct;
+    const copies = await this.db
+      .select({ policy: dockerAvailabilityPolicies, runtimeIdentity: dockerAvailabilityPlacements.runtimeIdentity })
+      .from(dockerAvailabilityPlacements)
+      .innerJoin(dockerAvailabilityPolicies, eq(dockerAvailabilityPolicies.id, dockerAvailabilityPlacements.policyId))
+      .where(
+        and(
+          eq(dockerAvailabilityPlacements.nodeId, nodeId),
+          ne(dockerAvailabilityPlacements.actualState, 'removed'),
+          eq(dockerAvailabilityPolicies.resourceKind, 'container'),
+          inArray(dockerAvailabilityPolicies.mode, [...AVAILABILITY_MANAGED_MODES])
+        )
+      );
+    return copies.find((copy) => matchRuntimeIdentity(copy.runtimeIdentity, name).matches)?.policy ?? null;
+  }
+
   private async resolveDeployment(
     reference: DockerUpstreamReference,
     options: ResolveOptions
@@ -380,7 +556,23 @@ export class ProxyDockerUpstreamService {
       .limit(1);
     if (!deployment) throw new AppError(404, 'DOCKER_DEPLOYMENT_NOT_FOUND', 'Docker deployment not found');
     this.assertDockerViewScope(deployment.nodeId, deployment.id, options.actorScopes);
-    await this.getDockerNode(deployment.nodeId, options);
+    // An Availability Deployment is served by its placements: its origin node may be offline (C-1 follow-up).
+    const availabilityServed =
+      options.followAvailability === true &&
+      (
+        await this.db
+          .select({ id: dockerAvailabilityPolicies.id })
+          .from(dockerAvailabilityPolicies)
+          .where(
+            and(
+              eq(dockerAvailabilityPolicies.resourceKind, 'deployment'),
+              eq(dockerAvailabilityPolicies.deploymentId, deployment.id),
+              inArray(dockerAvailabilityPolicies.mode, [...AVAILABILITY_MANAGED_MODES])
+            )
+          )
+          .limit(1)
+      ).length > 0;
+    await this.getDockerNode(deployment.nodeId, availabilityServed ? { ...options, requireAvailable: false } : options);
     const routes = await this.db
       .select()
       .from(dockerDeploymentRoutes)

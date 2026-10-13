@@ -59,12 +59,36 @@ function isHostingBase(base: string): boolean {
   return base.startsWith('hosting:') || base.startsWith('integrations:hosting:');
 }
 
+/** Docker families whose child resources are named, not stable IDs: volumes by name, images by reference. */
+const DOCKER_NAMED_CHILD_PREFIXES = ['docker:volumes:', 'docker:images:'];
+
+/**
+ * Why a Docker target names its node or resource by something other than a stable ID, or null. Grants are
+ * checked against `<nodeId>` and `<nodeId>/<resourceId>`, so `<nodeId>/<container name>` would grant nothing.
+ */
+export function dockerTargetIdIssue(scope: string): string | null {
+  const base = baseOf(scope);
+  if (scope === base || !DOCKER_CHILD_PREFIXES.some((prefix) => base.startsWith(prefix))) return null;
+  const target = scope.slice(base.length + 1);
+  if (target.startsWith('folder/') || target.startsWith('node/')) return null;
+  const [nodeId, resourceId, ...rest] = target.split('/');
+  if (rest.length > 0) return null;
+  if (!UUID.test(nodeId)) return 'Docker targets must start with the node ID';
+  if (resourceId === undefined || DOCKER_NAMED_CHILD_PREFIXES.some((prefix) => base.startsWith(prefix))) return null;
+  return UUID.test(resourceId) ? null : 'Docker targets must name the resource by its ID, not its name';
+}
+
 interface ScopeIssueOptions {
   /**
    * Accept Git path qualifiers (`<connectorId>/group/path/team/sub`) that the save resolves to stable IDs
    * before storing (permission groups and additional user permissions).
    */
   gitPaths?: boolean;
+  /**
+   * Skip the stable-ID check of Docker targets. Saving a group sends back every scope it holds, so a target
+   * granted by name before the check existed must not block the save; the save drops it (it grants nothing).
+   */
+  skipDockerIdCheck?: boolean;
 }
 
 /** Why a canonical scope string cannot be delegated, or null when it can. */
@@ -96,10 +120,11 @@ function canonicalScopeIssue(scope: string, options: ScopeIssueOptions = {}): st
     if (segments.length !== 2) return 'Hosting targets must be provider/<provider> or account/<accountId>';
     return segments[0] === 'provider' && !HOSTING_PROVIDERS.has(segments[1]) ? 'Unknown hosting provider' : null;
   }
-  if (segments.length === 1) return null;
+  if (segments.length === 1) return options.skipDockerIdCheck ? null : dockerTargetIdIssue(scope);
   if (base.startsWith('docker:registries:internal:')) return null;
   if (DOCKER_CHILD_PREFIXES.some((prefix) => base.startsWith(prefix))) {
-    return segments.length === 2 ? null : 'Docker targets must be <nodeId> or <nodeId>/<resourceId>';
+    if (segments.length !== 2) return 'Docker targets must be <nodeId> or <nodeId>/<resourceId>';
+    return options.skipDockerIdCheck ? null : dockerTargetIdIssue(scope);
   }
   return `${base} does not accept nested resource targets`;
 }
@@ -151,5 +176,16 @@ export const DelegatedScopeStringWithGitPathsSchema = z
   .max(MAX_DELEGATED_SCOPE_LENGTH)
   .superRefine((scope, context) => {
     const issue = delegatedScopeIssue(scope, { gitPaths: true });
+    if (issue) context.addIssue({ code: z.ZodIssueCode.custom, message: `${issue}: ${scope}` });
+  });
+
+/** DelegatedScopeStringWithGitPathsSchema for a group save, which checks Docker target IDs against the stored scopes. */
+export const GroupUpdateScopeStringSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(MAX_DELEGATED_SCOPE_LENGTH)
+  .superRefine((scope, context) => {
+    const issue = delegatedScopeIssue(scope, { gitPaths: true, skipDockerIdCheck: true });
     if (issue) context.addIssue({ code: z.ZodIssueCode.custom, message: `${issue}: ${scope}` });
   });

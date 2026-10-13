@@ -79,6 +79,10 @@ import { NotificationDeliveryService } from '@/modules/notifications/notificatio
 import { NotificationDispatcherService } from '@/modules/notifications/notification-dispatcher.service.js';
 import { NotificationEvaluatorService } from '@/modules/notifications/notification-evaluator.service.js';
 import { NotificationWebhookService } from '@/modules/notifications/notification-webhook.service.js';
+import {
+  ObjectStorageMonitoringService,
+  type StorageMetricSnapshot,
+} from '@/modules/object-storage/object-storage-monitoring.service.js';
 import { FinalizeSetupService } from '@/modules/onboarding/finalize-setup.service.js';
 import { TemplatesService } from '@/modules/pki/templates.service.js';
 import { AdditionalRouteService } from '@/modules/proxy/additional-route.service.js';
@@ -193,6 +197,16 @@ export async function initializeBackgroundServices(): Promise<void> {
   databaseMonitoringService.setEventBus(eventBus);
   nodeRegistry.setEvaluator(notifEvaluatorService);
   proxyService.setEvaluator(notifEvaluatorService);
+  // Managed storage metrics (disk usage) come with each monitoring sample of its storage connection.
+  if (container.isRegistered(ObjectStorageMonitoringService)) {
+    container
+      .resolve(ObjectStorageMonitoringService)
+      .on('snapshot', ({ snapshot }: { snapshot: StorageMetricSnapshot }) => {
+        notifEvaluatorService
+          .evaluateStorageSnapshot(snapshot)
+          .catch((error) => logger.warn('Failed to evaluate storage alert rules', { error }));
+      });
+  }
   notifEvaluatorService.start();
   container.registerInstance(NotificationEvaluatorService, notifEvaluatorService);
   await licenseEntitlementReconciler.start();

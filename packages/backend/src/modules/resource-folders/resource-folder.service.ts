@@ -75,6 +75,8 @@ interface ResourceFolderConfig {
   resourceName: string;
   resourcePlural: string;
   auditResourceType: string;
+  /** Audit resource type of a moved resource when its display name is not its key (defaults to resourceName). */
+  auditMovedResourceType?: string;
   eventName: string;
   folderScope?: SQL;
   resourceScope?: SQL;
@@ -467,10 +469,11 @@ export class FolderedResourceService {
       .set({ folderId: input.folderId, updatedAt: new Date() })
       .where(and(this.config.resourceScope, inArray(this.config.resourceTable.id, input.ids)));
 
+    const movedResourceType = this.config.auditMovedResourceType ?? this.config.resourceName;
     await this.auditService.log({
       userId,
-      action: `${this.config.resourceName}.move_to_folder`,
-      resourceType: this.config.resourceName,
+      action: `${movedResourceType}.move_to_folder`,
+      resourceType: movedResourceType,
       details: { ids: input.ids, folderId: input.folderId },
     });
     this.emitLayoutChanged(`${this.config.resourcePlural}_moved`, input.folderId);

@@ -211,6 +211,11 @@ func (m *managedStorageManager) reclaimSpace(ctx context.Context) {
 		m.logger.Debug("managed storage space reclaim skipped", "error", err)
 		return
 	}
+	present := make(map[string]bool, len(records))
+	for _, record := range records {
+		present[record.ID] = true
+	}
+	m.capacity.retain(present)
 	for _, record := range records {
 		// A set member's master runs on its primary only (managed_storage_set.go).
 		if record.engine() != managedStorageEngineSeaweedFS || record.Set != nil || record.Removed || !record.DesiredRunning || record.ContainerID == "" {
@@ -245,6 +250,9 @@ func (m *managedStorageManager) reclaimSeaweedFSSpace(ctx context.Context, recor
 	if err != nil {
 		return err
 	}
+	freeSlots, freeSlotsKnown := parseSeaweedFSFreeVolumeSlots(raw)
+	m.capacity.observe(record.ID, seaweedfsVolumeReading{ContainerID: record.ContainerID, At: time.Now(),
+		Volumes: volumes, FreeSlots: freeSlots, FreeSlotsKnown: freeSlotsKnown})
 	plan := planSeaweedFSReclaim(volumes, space, seaweedfsSizingFor(record.StorageBytes))
 	if len(plan.VolumeIDs) == 0 {
 		return nil
@@ -274,16 +282,6 @@ func (m *managedStorageManager) reclaimSeaweedFSSpace(ctx context.Context, recor
 	// space back once the storage's filesystem discards it.
 	trimInstanceDisk(m.loopHost(), m.logger, "managed storage", record.ID, record.MountPath)
 	return nil
-}
-
-// seaweedfsStorageFull reports whether a running SeaweedFS storage's disk is
-// full; ok is false when its disk cannot be read.
-func (m *managedStorageManager) seaweedfsStorageFull(record managedStorageRecord) (full, ok bool) {
-	space, err := m.storageSpace(record)
-	if err != nil {
-		return false, false
-	}
-	return seaweedfsFull(space, seaweedfsSizingFor(record.StorageBytes)), true
 }
 
 // engineExec runs a command in an engine container as its runtime user, with

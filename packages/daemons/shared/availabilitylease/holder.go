@@ -103,6 +103,9 @@ func (n *Node) Recover(key Key, deadline time.Duration) {
 			pk.deadline, pk.softAt = now+FenceCompleteAfter, noDeadline
 		}
 		pk.lastProposeAt = now
+		// The container ran under the previous process, whose proposes
+		// this one does not know: every relay is waited for in full.
+		pk.proposeFloor = max(pk.proposeFloor, now)
 		pk.recoverUntil = now + recoveryQueryWait
 		pk.ballot = Ballot{}
 		n.sendQuery(key)
@@ -153,7 +156,7 @@ func releaseAfterFence(reason FenceReason) bool {
 // caller guarantees the container's cgroup is empty and its endpoint is
 // deregistered (A6). A retained key is released when its copy stopped after
 // all (a drain that was under way, or a start the close cut short). Relays are relinquished first; acceptors are released
-// only once every relay acked or RelinquishWait passed since the last propose.
+// only once every relay acked or RelinquishWait passed since the last propose this node sent it (relinquishUntil).
 func (n *Node) Release(key Key, successor string) error {
 	var err error
 	n.run(func(now time.Duration) {
@@ -211,13 +214,13 @@ func (n *Node) tickRelease(pk *proposerKey, now time.Duration) {
 	}
 	rel := &pk.release
 	if !rel.final {
-		acked := true
+		waiting := false
 		for _, id := range config.relayIDs {
-			if !rel.acks[id] {
-				acked = false
+			if !rel.acks[id] && now < n.relinquishUntil(pk, id) {
+				waiting = true
 			}
 		}
-		if acked || now >= pk.lastProposeAt+RelinquishWait {
+		if !waiting {
 			rel.final, rel.nextAt = true, now
 		} else if now >= rel.nextAt {
 			item := &pb.LeaseRelease{Key: pk.key.proto(), Ballot: rel.ballot.proto(), Phase: pb.LeaseReleasePhase_LEASE_RELEASE_PHASE_RELINQUISH}
@@ -265,6 +268,22 @@ func (n *Node) tickRelease(pk *proposerKey, now time.Duration) {
 	}
 	rel.finalSent++
 	rel.nextAt = now + releaseRetry
+}
+
+// relinquishUntil is how long a releasing holder waits for relay id to ack
+// the relinquish. A relay's gate opens for this holder only on an accept
+// anchored at its own promise, echoed in a propose this node sent after that
+// promise arrived (acceptor.go recordAccept, round.go sendPropose), and it
+// closes GateWindow after that promise on the relay's clock. So the relay's
+// gate is closed RelinquishWait after the last propose this node sent it,
+// whatever happens to that propose on the way. A relay that got no propose
+// for RelinquishWait (offline, cut off, or not carrying the policy) is not
+// waited for. Proposes of an earlier process are unknown here: they are
+// bounded by the process start, or by Recover. The wait never exceeds the
+// one from the last propose to anyone.
+func (n *Node) relinquishUntil(pk *proposerKey, id string) time.Duration {
+	last := max(pk.proposedAt[id], pk.proposeFloor, n.startedAt)
+	return min(last, pk.lastProposeAt) + RelinquishWait
 }
 
 func (n *Node) onReleaseAck(from string, msg *pb.LeaseReleaseAck, now time.Duration) {

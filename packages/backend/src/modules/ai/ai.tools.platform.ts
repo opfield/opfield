@@ -311,7 +311,7 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'set_user_blocked',
     description:
-      'Block or unblock a user account. Cannot target yourself, the system user, or users whose scopes exceed yours.',
+      'Block or unblock a user account. Cannot target yourself, the system user, or users whose scopes exceed yours. Returns the user with isBlocked and blockedBy (admin, or opfield_account when the Opfield account removed the access; that block lifts on the next sign-in with the Opfield account). Unblocking lifts either block; blocking a user blocked by the Opfield account makes it an administrator block.',
     parameters: {
       type: 'object',
       properties: {

@@ -474,12 +474,17 @@ function AdminUsersContent({
                     System
                   </Badge>
                 )}
-                {user.isBlocked && (
-                  <Badge variant="destructive" size="inline" className="shrink-0">
-                    <Ban className="mr-0.5 h-2.5 w-2.5" />
-                    Blocked
-                  </Badge>
-                )}
+                {user.isBlocked &&
+                  (user.blockedBy === "opfield_account" ? (
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      Blocked by the Opfield account
+                    </span>
+                  ) : (
+                    <Badge variant="destructive" size="inline" className="shrink-0">
+                      <Ban className="mr-0.5 h-2.5 w-2.5" />
+                      Blocked
+                    </Badge>
+                  ))}
                 {(user.additionalScopes?.length ?? 0) > 0 && (
                   <Badge variant="outline" size="inline" className="shrink-0">
                     +{user.additionalScopes!.length} additional

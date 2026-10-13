@@ -43,6 +43,7 @@ const EVENT_RESOLVE_TEXT: Record<string, (name: string) => string> = {
   'database_clickhouse:health.degraded': (name) => `Database ${name} is healthy again`,
   'database_redis:health.offline': (name) => `Database ${name} is back online`,
   'database_redis:health.degraded': (name) => `Database ${name} is healthy again`,
+  'managed_storage:storage.full': (name) => `Storage ${name} takes uploads again`,
   ...Object.fromEntries(
     (['database_postgres', 'database_clickhouse', 'database_redis', 'managed_storage'] as const).flatMap((category) => {
       const noun = category === 'managed_storage' ? 'Storage' : 'Database';

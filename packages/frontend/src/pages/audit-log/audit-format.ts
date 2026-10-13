@@ -1,5 +1,5 @@
 import type { AuditLogEntry } from "@/types";
-import { formatAuditToken, getAuditActionLabel } from "./audit-action-labels";
+import { formatAuditResourceType, getAuditActionLabel } from "./audit-action-labels";
 
 export type AuditExportFormat = "csv" | "tsv" | "txt" | "html";
 
@@ -21,7 +21,7 @@ export function mergeAuditFilterUsers(
   return [...merged.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
-export { formatAuditToken } from "./audit-action-labels";
+export { formatAuditResourceType, formatAuditToken } from "./audit-action-labels";
 
 export function getAuditEntryUserKey(entry: AuditLogEntry): string {
   return entry.userId ?? "system";
@@ -75,7 +75,7 @@ export function getAuditResourceDisplay(entry: AuditLogEntry): { label: string; 
   }
   const resourceName = entry.resourceName ?? getAuditResourceNameFromDetails(entry.details);
   const resourceValue = resourceName ?? entry.resourceId;
-  const resourceType = formatAuditToken(entry.resourceType);
+  const resourceType = formatAuditResourceType(entry.resourceType);
   const label = resourceValue ? `${resourceType} / ${resourceValue}` : resourceType;
   const title =
     resourceName && entry.resourceId && resourceName !== entry.resourceId

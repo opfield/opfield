@@ -16,6 +16,9 @@ import { permissionGroups } from './permission-groups.js';
 
 export const USER_AUTH_METHODS = ['oidc', 'password', 'email_otp', 'demo_email_otp'] as const;
 export type UserAuthMethod = (typeof USER_AUTH_METHODS)[number];
+/** Who blocked an account: an administrator, or the Opfield account (sso-revoke; lifted by the next sign-in with it). */
+export const USER_BLOCKED_BY = ['admin', 'opfield_account'] as const;
+export type UserBlockedBy = (typeof USER_BLOCKED_BY)[number];
 
 export const users = pgTable(
   'users',
@@ -35,6 +38,9 @@ export const users = pgTable(
     additionalScopes: jsonb('additional_scopes').$type<string[]>().notNull().default([]),
     additionalGroupIds: uuid('additional_group_ids').array().notNull().default([]),
     isBlocked: boolean('is_blocked').notNull().default(false),
+    // Set while is_blocked: 'admin' (only an admin unblocks) or 'opfield_account' (lifted by the next sign-in through
+    // the same Opfield account issuer). Null while not blocked.
+    blockedBy: varchar('blocked_by', { length: 32 }).$type<UserBlockedBy>(),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
     deletedByUserId: uuid('deleted_by_user_id').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
     // Deliberately not a foreign key: the original group may be deleted while the user is archived.

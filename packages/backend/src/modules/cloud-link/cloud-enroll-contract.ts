@@ -91,6 +91,29 @@ export interface CloudSsoClientRequestParams {
   redirectUri: string;
 }
 
+/**
+ * The account removed people's access to this installation: removed from the team, their access to it removed, the
+ * installation moved to another account, or the account suspended. Every hello carries `"ssoRevoke": true` from the
+ * installations that take it (others answer "Unknown request type"). Params `{ issuer, subjects, reason }`: the portal
+ * issuer as in sso-client, 1 to 500 account ids (the OIDC `sub`), and one of the reasons below. The accounts that
+ * signed in here as those subjects of that issuer, whichever sign-in provider is active now, are blocked as the Opfield
+ * account's: their browser sessions end on every replica, live connections close as on any block, and their API,
+ * OAuth and MCP tokens are refused while blocked (not deleted). Their next sign-in through the same issuer lifts the
+ * block (audited `user.opfield_account_unblock`); an administrator's block is never lifted by a sign-in, an
+ * administrator's unblock lifts either, and an administrator blocking such an account makes it an administrator's
+ * block. It needs no "Allow remote management", is idempotent (an account blocked already, by either, stays as it is
+ * and is listed as revoked) and answers `{ revoked: [{ sub, userId }], unknown: [sub] }`; the last active system
+ * administrator is never blocked and is listed in `kept: [{ sub, userId, code: "LAST_SYSTEM_ADMIN" }]` (only present
+ * when not empty). Invalid params: ok:false with code INVALID_SSO_REVOKE. Audited as `cloud.sso_revoke` with the
+ * reason and the accounts.
+ */
+export const CLOUD_SSO_REVOKE_REQUEST = 'sso-revoke';
+export interface CloudSsoRevokeRequestParams {
+  issuer: string;
+  subjects: string[];
+  reason: 'removed_from_team' | 'access_removed' | 'installation_moved' | 'account_suspended';
+}
+
 const MAX_FIELD = 2048;
 const MAX_SECRET = 4096;
 const MAX_SUBJECT = 255;

@@ -1,21 +1,29 @@
+import { createChildLogger } from '@/lib/logger.js';
 import {
   CLOUD_LOG_TAIL_DEFAULT,
   CLOUD_LOG_TAIL_MAX,
   CLOUD_NODE_KINDS,
   CLOUD_PRIVILEGED_REQUEST_TYPES,
+  CLOUD_SSO_REVOKE_MAX_SUBJECTS,
+  CLOUD_SSO_REVOKE_REASONS,
   type CloudAnswer,
   type CloudLinkAccess,
   type CloudLinkProbe,
   type CloudRequest,
+  type CloudSsoRevokeReason,
   REMOTE_MANAGEMENT_OFF,
   resolveCloudNodeKind,
 } from './cloud-link.types.js';
+
+const logger = createChildLogger('CloudLinkRequests');
 
 const MAX_REQUEST_ID_LENGTH = 200;
 const MAX_SERVICE_NAME_LENGTH = 128;
 const MAX_CLIENT_SECRET_LENGTH = 4096;
 const MAX_CLIENT_ID_LENGTH = 512;
 const MAX_URL_LENGTH = 2048;
+/** `users.oidc_subject` is varchar(255). */
+const MAX_SUBJECT_LENGTH = 255;
 
 /** A text frame from the portal as a request; null for anything that is not one (pings, unknown messages). */
 export function parseCloudRequest(text: string): CloudRequest | null {
@@ -34,6 +42,15 @@ export function parseCloudRequest(text: string): CloudRequest | null {
     type,
     params: params && typeof params === 'object' && !Array.isArray(params) ? (params as Record<string, unknown>) : {},
   };
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch {
+    return false;
+  }
 }
 
 function errorMessage(error: unknown): string {
@@ -179,6 +196,59 @@ export async function answerCloudRequest(
             id: request.id,
             ok: false,
             error: secret ? message.replaceAll(secret, '[REDACTED]') : message,
+            ...(code ? { code } : {}),
+          };
+        }
+      }
+      case 'sso-revoke': {
+        // Only removes access the account gave, so it needs no remote management. The error text never repeats a
+        // subject (the portal's subjects are account ids, but an error must never carry an email).
+        const { issuer, subjects, reason } = request.params;
+        const invalid = (error: string): CloudAnswer => ({
+          id: request.id,
+          ok: false,
+          code: 'INVALID_SSO_REVOKE',
+          error,
+        });
+        if (typeof issuer !== 'string' || !issuer.trim() || issuer.length > MAX_URL_LENGTH || !isHttpUrl(issuer)) {
+          return invalid('params.issuer is the Opfield account issuer, an http(s) URL');
+        }
+        if (
+          !Array.isArray(subjects) ||
+          subjects.length === 0 ||
+          subjects.length > CLOUD_SSO_REVOKE_MAX_SUBJECTS ||
+          !subjects.every(
+            (subject) =>
+              typeof subject === 'string' &&
+              subject.trim() === subject &&
+              subject &&
+              subject.length <= MAX_SUBJECT_LENGTH
+          )
+        ) {
+          return invalid(`params.subjects lists 1 to ${CLOUD_SSO_REVOKE_MAX_SUBJECTS} account ids (OIDC sub)`);
+        }
+        if (typeof reason !== 'string' || !(CLOUD_SSO_REVOKE_REASONS as readonly string[]).includes(reason)) {
+          return invalid(`params.reason is one of ${CLOUD_SSO_REVOKE_REASONS.join(', ')}`);
+        }
+        try {
+          return {
+            id: request.id,
+            ok: true,
+            data: await probe.ssoRevoke({
+              issuer: issuer.trim(),
+              subjects: subjects as string[],
+              reason: reason as CloudSsoRevokeReason,
+            }),
+          };
+        } catch (error) {
+          const code = errorCode(error);
+          logger.warn('Could not remove the access the Opfield account asked to remove', {
+            error: errorMessage(error),
+          });
+          return {
+            id: request.id,
+            ok: false,
+            error: 'The installation could not remove the access',
             ...(code ? { code } : {}),
           };
         }

@@ -239,6 +239,8 @@ function StorageDetailContent({
       event.action === "health.offline"
     ) {
       if (event.healthStatus) setLiveHealthStatus(event.healthStatus);
+      // The reason (a full managed storage) and its notice come with the storage.
+      void load();
       return;
     }
     void load();

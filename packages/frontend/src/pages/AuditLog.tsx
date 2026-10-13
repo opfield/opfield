@@ -33,7 +33,7 @@ import {
   buildAuditExportFilename,
   downloadTextFile,
   formatAuditExport,
-  formatAuditToken,
+  formatAuditResourceType,
   getAuditDescription,
   getAuditEntryUserKey,
   getAuditEntryUserLabel,
@@ -359,7 +359,7 @@ export function AuditLog({
       { value: "all", label: "All resources" },
       ...resourceOptions.map((resourceType) => ({
         value: resourceType,
-        label: formatAuditToken(resourceType),
+        label: formatAuditResourceType(resourceType),
         keywords: resourceType,
       })),
     ],
@@ -774,7 +774,7 @@ export function AuditLog({
               description="Checked resources are excluded by the backend before pagination."
               options={resourceOptions.map((resourceType) => ({
                 value: resourceType,
-                label: formatAuditToken(resourceType),
+                label: formatAuditResourceType(resourceType),
               }))}
               selected={draftViewConfig.excludedResourceTypes}
               onToggle={(value) =>
@@ -846,7 +846,7 @@ export function AuditLog({
                 description="Leave empty to export all visible resources."
                 options={resourceOptions.map((resourceType) => ({
                   value: resourceType,
-                  label: formatAuditToken(resourceType),
+                  label: formatAuditResourceType(resourceType),
                 }))}
                 selected={exportResourceTypes}
                 onToggle={(value) => setExportResourceTypes((values) => toggleValue(values, value))}

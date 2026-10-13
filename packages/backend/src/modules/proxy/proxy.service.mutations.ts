@@ -1,6 +1,6 @@
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import type { DrizzleExecutor } from '@/db/client.js';
-import { nodes, proxyHosts } from '@/db/schema/index.js';
+import { nodes, proxyAdditionalSecureLinks, proxyHosts } from '@/db/schema/index.js';
 import { grantCreatedResourcePermissions } from '@/lib/created-resource-permissions.js';
 import { writeWithAllocatedSlug } from '@/lib/resource-slugs.js';
 import { AppError } from '@/middleware/error-handler.js';
@@ -44,8 +44,30 @@ import {
 
 export { __testOnly } from './proxy.service-helpers.js';
 
-import { isDockerUpstream, logger, type ProxyHostView, sameDomainNames } from './proxy.service.core.js';
+import {
+  isDockerUpstream,
+  logger,
+  type ProxyHostRow,
+  type ProxyHostView,
+  sameDomainNames,
+} from './proxy.service.core.js';
 import { ProxyServicePlacement, requestedPlacementChange } from './proxy.service.placement.js';
+
+/**
+ * A Route's target container that is not running (or whose Docker node is offline) reaches Gateway as a plain daemon
+ * error from the Secure Link provisioning. It is a state the caller can fix, not a server failure (C-1).
+ */
+export function dockerTargetUnavailableError(error: unknown, retrying = false): AppError | null {
+  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+  if (!/target container is unavailable/i.test(message)) return null;
+  return new AppError(
+    409,
+    'DOCKER_TARGET_UNAVAILABLE',
+    retrying
+      ? 'The target container is not running or its Docker node is offline. The Route switches to it once it runs.'
+      : 'The target container is not running or its Docker node is offline. Start the container and try again.'
+  );
+}
 
 /** The app kill switch freeze as route mutations see it (AppMemberFreeze; set by the apps module). */
 export interface ProxyAppFreezeGuard {
@@ -262,6 +284,55 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
     return { nodeId: request.nodeId, ingressGroupId: null, servingNodeIds: [request.nodeId] };
   }
 
+  /**
+   * Projects a Docker Route onto the members of its Availability workload. Returns the Route row when a live (not
+   * dormant) member serves it, and null when the Route has no Availability or nothing serves it yet: the caller then
+   * keeps the Route's own link to its target. The Availability check alone is not enough, because the projection also
+   * reports a Route as managed while none of its members is live.
+   */
+  protected async projectAvailabilityIngress(hostId: string): Promise<ProxyHostRow | null> {
+    if (!this.availabilityIngressReconciler || !this.secureLinks) return null;
+    if (!(await this.availabilityIngressReconciler(hostId))) return null;
+    const members = await this.secureLinks.getActiveAvailabilityMembers(hostId, `proxy-host:${hostId}`);
+    if (!members.some((member) => !member.dormant)) return null;
+    const host = await this.db.query.proxyHosts.findFirst({ where: eq(proxyHosts.id, hostId) });
+    if (!host || host.secureLinkMigratedAt) return host ?? null;
+    // Same state as a Route whose own link the projection retired: when Availability is turned off later, the link
+    // it builds to the kept copy is rendered right away instead of the placeholder upstream.
+    const [committed] = await this.db
+      .update(proxyHosts)
+      .set({ secureLinkMigratedAt: new Date(), updatedAt: new Date() })
+      .where(eq(proxyHosts.id, hostId))
+      .returning();
+    return committed ?? host;
+  }
+
+  /**
+   * Removes the Availability members of a Route that no longer has a Docker upstream (switched to a manual target):
+   * its config no longer names them, and nothing else would retire their relay and daemon state.
+   */
+  protected async releaseAvailabilityMembers(host: ProxyHostRow): Promise<void> {
+    if (!this.secureLinks) return;
+    const ownerKey = `proxy-host:${host.id}`;
+    const members = await this.db.query.proxyAdditionalSecureLinks.findMany({
+      where: and(
+        eq(proxyAdditionalSecureLinks.proxyHostId, host.id),
+        eq(proxyAdditionalSecureLinks.purpose, 'availability_member'),
+        eq(proxyAdditionalSecureLinks.availabilityOwnerKey, ownerKey)
+      ),
+    });
+    for (const member of members) {
+      if (!member.referenceId) continue;
+      await this.secureLinks.deleteAvailabilityMember(host, member.referenceId, ownerKey).catch((error) => {
+        logger.warn('Failed to remove an Availability member of a Route that left Docker mode', {
+          hostId: host.id,
+          memberId: member.id,
+          error,
+        });
+      });
+    }
+  }
+
   async createProxyHost(request: CreateProxyHostRequest, userId: string, validationOptions: ProxyValidationInput = {}) {
     const options = normalizeProxyValidationOptions(validationOptions);
 
@@ -384,6 +455,8 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
     // 2. Resolve SSL cert paths and build nginx config. The host and node locks
     // fence reconnect cleanup and concurrent edits until the create settles.
     await withProxyLocks([proxyHostLockKey(host.id), ...nodeLockKeys], async () => {
+      // Served by the members of an Availability workload: the route gets no link of its own to the original copy.
+      let availabilityServed = false;
       try {
         if (host.upstreamKind === 'pages') {
           if (!this.pageRoutes || !input.pageProjectId || !input.pageTagId) {
@@ -394,12 +467,20 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
           await this.pageRoutes.activateNewHost(host.id, pageNodes, input.pageProjectId, input.pageTagId);
         } else if (isDockerUpstream(host.upstreamKind)) {
           if (!this.secureLinks) throw new Error('Proxy Secure Links are unavailable');
-          host = await this.secureLinks.prepare(host, true);
-          host = (await this.secureLinks.commitCutover(host.id)) ?? host;
+          // Availability first, as the Docker reconciliation does (C-1): after a failover the original copy is
+          // stopped, and a link of the route's own to it can never be provisioned.
+          const availabilityHost = await this.projectAvailabilityIngress(host.id);
+          if (availabilityHost) {
+            availabilityServed = true;
+            host = availabilityHost;
+          } else {
+            host = await this.secureLinks.prepare(host, true);
+            host = (await this.secureLinks.commitCutover(host.id)) ?? host;
+          }
         }
         // 3. Render and apply on every node that serves the route
         await this.deliverHost(host);
-        if (isDockerUpstream(host.upstreamKind)) {
+        if (isDockerUpstream(host.upstreamKind) && !availabilityServed) {
           await this.secureLinks?.activate(host.id);
           const availabilityManaged = (await this.availabilityIngressReconciler?.(host.id)) ?? false;
           if (!availabilityManaged) this.queueSecureLinkRuntimeSample(host);
@@ -430,6 +511,15 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
         await this.secureLinks?.cleanup(host).catch((cleanupError) => {
           logger.warn('Failed to cleanup secure link after proxy create rollback', { hostId: host.id, cleanupError });
         });
+        // The Availability projection may already have published members on the relays and daemons.
+        if (isDockerUpstream(host.upstreamKind)) {
+          await this.secureLinks?.cleanupAdditionalForHost(host).catch((cleanupError) => {
+            logger.warn('Failed to cleanup Availability members after proxy create rollback', {
+              hostId: host.id,
+              cleanupError,
+            });
+          });
+        }
         let preservePageRouteOwnership = false;
         if (host.upstreamKind === 'pages') {
           try {
@@ -461,6 +551,8 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
           }
         }
         if (error instanceof AppError) throw error;
+        const unavailable = dockerTargetUnavailableError(error);
+        if (unavailable) throw unavailable;
         throw new AppError(
           500,
           'NGINX_CONFIG_FAILED',
@@ -788,7 +880,12 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
       // on a managed Route; raw mode only hands the server block over to the user.
       const managesSecureLink =
         isDockerUpstream(updated.upstreamKind) && (!updatedUsesRawMode || existing.secureLinkGeneration > 0);
-      if (managesSecureLink) {
+      // A managed Route of an Availability workload is served by its members (C-1): the link of its own to the
+      // original copy is neither prepared nor activated, as in the Docker reconciliation.
+      const availabilityHost =
+        managesSecureLink && updated.enabled && !updatedUsesRawMode ? await this.projectAvailabilityIngress(id) : null;
+      if (availabilityHost) updated = availabilityHost;
+      if (managesSecureLink && !availabilityHost) {
         if (!this.secureLinks) throw new Error('Proxy Secure Links are unavailable');
         const requiresSecureLink =
           !updatedUsesRawMode &&
@@ -799,7 +896,8 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
         if (updated.secureLinkGeneration > 0 && updated.secureLinkStatus !== 'active') {
           // Existing legacy/manual config must stop serving before the durable
           // no-fallback cutover marker is committed.
-          if (existing.secureLinkGeneration === 0 && existing.enabled) {
+          // A Route that was served by Availability members (its cutover is committed) has no legacy config to stop.
+          if (existing.secureLinkGeneration === 0 && existing.enabled && existing.secureLinkMigratedAt == null) {
             await this.withdrawHost(existing);
           }
           updated = (await this.secureLinks.commitCutover(id)) ?? updated;
@@ -812,9 +910,19 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
           pagesRouteIncludePathOverride: pageNodeMigration?.targetIncludePath,
         });
         deliveredNodeIds = [...delivery.configs.keys()].filter(Boolean);
-        if (managesSecureLink) {
+        if (managesSecureLink && !availabilityHost) {
           await this.secureLinks?.activate(id);
           this.queueSecureLinkRuntimeSample(updated);
+          // A Route pointed away from an Availability workload now serves through its own link: the members the
+          // projection released are removed (a later reconciliation retries).
+          if (!updatedUsesRawMode) {
+            await this.availabilityIngressReconciler?.(id).catch((error) => {
+              logger.warn('Availability members of a retargeted Route are removed by the next reconciliation', {
+                hostId: id,
+                error,
+              });
+            });
+          }
         }
         appliedOnTargetNode = true;
 
@@ -848,6 +956,7 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
           this.queueDockerReconciliation();
         }
       }
+      if (leavesManagedDocker) await this.releaseAvailabilityMembers(updated);
       if (formerDockerNodeId) await this.secureLinks?.reconcileTargetNode(formerDockerNodeId);
       if (pageNodeMigration) await this.pageRoutes?.commitNodeMigration(pageNodeMigration);
       if (additionalRouteMigration) await this.additionalRoutes?.commitNodeMigration(additionalRouteMigration);
@@ -891,6 +1000,8 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
         await this.secureLinks?.markCutoverError(id, failure).catch(() => undefined);
         this.queueDockerReconciliation();
         if (failure instanceof AppError) throw failure;
+        const unavailable = dockerTargetUnavailableError(failure, true);
+        if (unavailable) throw unavailable;
         throw new AppError(
           500,
           'NGINX_CONFIG_FAILED',
@@ -999,6 +1110,8 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
         }
       }
       if (failure instanceof AppError) throw failure;
+      const unavailable = dockerTargetUnavailableError(failure);
+      if (unavailable) throw unavailable;
       throw new AppError(
         500,
         'NGINX_CONFIG_FAILED',

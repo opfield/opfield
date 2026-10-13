@@ -167,7 +167,7 @@ export function AdminUserConfigDialog({
     run("block", async () => {
       const blocked = !user.isBlocked;
       await api.blockUser(user.id, blocked);
-      onUserUpdated({ ...user, isBlocked: blocked });
+      onUserUpdated({ ...user, isBlocked: blocked, blockedBy: blocked ? "admin" : null });
       toast.success(blocked ? "User blocked" : "User unblocked");
     });
 
@@ -454,7 +454,11 @@ export function AdminUserConfigDialog({
                 <div>
                   <p className="text-sm font-medium">Account status</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {user.isBlocked ? "The account cannot sign in." : "The account can sign in."}
+                    {!user.isBlocked
+                      ? "The account can sign in."
+                      : user.blockedBy === "opfield_account"
+                        ? "Blocked by the Opfield account. Signing in with the Opfield account again unblocks it."
+                        : "The account cannot sign in."}
                   </p>
                 </div>
                 <Button

@@ -72,6 +72,9 @@ type managedStorageManager struct {
 	// oomRecreated holds the engine containers the supervisor tried to
 	// recreate once after an out-of-memory kill.
 	oomRecreated sync.Map
+	// capacity is whether each SeaweedFS storage takes writes
+	// (managed_storage_capacity.go).
+	capacity seaweedfsCapacityTracker
 }
 
 func (m *managedStorageManager) loopHost() *loopHost {
@@ -704,11 +707,19 @@ func (m *managedStorageManager) marshalManagedStorageDetail(ctx context.Context,
 		if status == "stopped" && m.engineKeepsExiting(record) {
 			detail["engineExited"] = true
 		}
-		// A serving SeaweedFS storage whose disk is full takes no new
-		// objects; Gateway shows it until space is freed.
+		// A serving SeaweedFS storage that takes no new objects (its disk is
+		// full, or its master can create no volume) is shown degraded until it
+		// has room again; storageFull is what Gateways before 2.12.1 read.
 		if status == "ready" && record.engine() == managedStorageEngineSeaweedFS {
-			if full, ok := m.seaweedfsStorageFull(record); ok && full {
-				detail["storageFull"] = true
+			if capacity, ok := m.seaweedfsCapacity(record); ok {
+				detail["storageWritable"] = capacity.Writable
+				if !capacity.Writable {
+					detail["storageFull"] = true
+					detail["storageFullReason"] = capacity.Reason
+				}
+				if capacity.NearlyFull {
+					detail["storageNearlyFull"] = true
+				}
 			}
 		}
 		if repair := diskRepairDetail(record.DiskRepair, m.repairs.running(record.ID)); repair != nil {

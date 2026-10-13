@@ -51,6 +51,7 @@ import type {
 } from "@/types";
 import { ManagedStorageCreateDialog } from "./storage-create/ManagedStorageCreateDialog";
 import { StorageConnectionCreateDialog } from "./storage-create/StorageConnectionCreateDialog";
+import { isManagedStorageFull } from "./storage-detail/managed-storage-engine";
 import { formatProviderLabel } from "./storage-detail/shared";
 
 const HEALTH_BADGE: Record<string, "success" | "secondary" | "warning" | "destructive"> = {
@@ -355,6 +356,14 @@ function StorageContent() {
         width: "14%",
         align: "right",
         renderCell: (row) => {
+          if (row.managed && isManagedStorageFull(row)) {
+            // Serving but refusing uploads: its connection is degraded, with the reason.
+            return (
+              <Badge variant="warning" title={row.lastError ?? undefined}>
+                {formatHealthLabel("degraded")}
+              </Badge>
+            );
+          }
           if (row.managed) {
             return (
               <Badge variant={MANAGED_STORAGE_STATUS_BADGE[row.managed.status] ?? "secondary"}>

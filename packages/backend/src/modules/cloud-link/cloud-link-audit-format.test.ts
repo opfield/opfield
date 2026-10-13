@@ -54,6 +54,17 @@ describe('cloud link audit entries in plain words', () => {
     expect(cloudAuditSummary('cloud.managed_sso', { step: 'skipped', reason: 'admin exists' })).toBe(
       'Sign-in setup skipped: admin exists'
     );
+    expect(
+      cloudAuditSummary('cloud.sso_revoke', {
+        reason: 'removed_from_team',
+        blocked: 2,
+        alreadyBlocked: 1,
+        unknown: 3,
+        users: [{ email: 'ada@example.com' }],
+      })
+    ).toBe(
+      'Access removed by the Opfield account: 2 users blocked · 1 already blocked · 3 not found · removed from the team'
+    );
     expect(cloudAuditSummary('license.activate', {})).toBeNull();
   });
 });

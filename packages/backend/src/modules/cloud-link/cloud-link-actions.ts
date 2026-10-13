@@ -20,6 +20,7 @@ import {
   resolveCloudNodeKind,
 } from './cloud-link.types.js';
 import { createCloudSsoClient } from './cloud-link-sso-client.js';
+import { createCloudSsoRevoker } from './cloud-link-sso-revoke.js';
 
 const logger = createChildLogger('CloudLinkActions');
 
@@ -117,6 +118,11 @@ export function createCloudLinkActions(): CloudLinkActions {
     // The client the account created after Use Opfield account for sign-in asked for one (see CloudSsoClient).
     async ssoClient(client) {
       return createCloudSsoClient().accept(client);
+    },
+
+    // The account removed people's access: their accounts are blocked as the Opfield account's (see CloudSsoRevoker).
+    async ssoRevoke(input) {
+      return createCloudSsoRevoker().revoke(input);
     },
 
     // Mirrors POST /api/system/update (Settings → Update now).

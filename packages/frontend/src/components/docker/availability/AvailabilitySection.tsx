@@ -400,7 +400,8 @@ export function AvailabilitySection({
         });
         return false;
       }
-      if (notifySuccess && result.warnings.length > 0) {
+      // Warnings are shown on Save too: they describe what changes once Availability runs (host ports, surge).
+      if (result.warnings.length > 0) {
         toast.warning("Availability check passed with warnings", {
           description: issueDescription(result.warnings),
         });

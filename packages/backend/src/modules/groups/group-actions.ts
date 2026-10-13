@@ -2,6 +2,7 @@ import { container } from '@/container.js';
 import { grantCreatedResourcePermissions } from '@/lib/created-resource-permissions.js';
 import { hasScope, hasScopeForCreation, privilegeBoundaryScopes } from '@/lib/permissions.js';
 import { canonicalizeInboundScopes } from '@/lib/scopes.js';
+import { dockerTargetIdIssue } from '@/lib/scopes-schemas.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { resolveGitScopePathQualifiers } from '@/modules/integrations/git-scope-paths.js';
@@ -69,6 +70,22 @@ async function inboundGroupScopes(actor: GroupActor, requested: readonly string[
   return scopes;
 }
 
+/**
+ * A group save sends back every scope the group holds. A Docker target the group already holds that names
+ * its resource by name (accepted before targets were checked) grants nothing and is dropped; a new one is
+ * rejected.
+ */
+async function dropStaleDockerTargets(requested: readonly string[], stored: readonly string[]): Promise<string[]> {
+  const storedSet = new Set(stored);
+  const kept: string[] = [];
+  for (const scope of requested) {
+    const issue = dockerTargetIdIssue(scope);
+    if (!issue) kept.push(scope);
+    else if (!storedSet.has(scope)) throw new AppError(400, 'INVALID_SCOPE', `${issue}: ${scope}`);
+  }
+  return kept;
+}
+
 export async function createGroupForActor(
   actor: GroupActor,
   parsedInput: CreateGroupInput,
@@ -103,9 +120,13 @@ export async function updateGroupForActor(
 ) {
   assertGroupScope(actor.scopes, groupId);
   const groupService = groupServiceOf(services);
+  const requestedScopes =
+    parsedInput.scopes === undefined
+      ? undefined
+      : await dropStaleDockerTargets(parsedInput.scopes, (await groupService.getGroup(groupId)).scopes);
   const input = {
     ...parsedInput,
-    ...(parsedInput.scopes !== undefined && { scopes: await inboundGroupScopes(actor, parsedInput.scopes) }),
+    ...(requestedScopes !== undefined && { scopes: await inboundGroupScopes(actor, requestedScopes) }),
   };
   await groupService.assertCanUpdateGroup(
     groupId,

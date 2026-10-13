@@ -112,15 +112,32 @@ function requireAnyDockerScope(scopes: string[], prefix: string, message: string
   }
 }
 
-function composeFolderVisibility(scopes: string[], viewScope: string) {
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Node and node/resource targets of a scope. A target that names its node, or a resource identified by ID
+ * (`resourceIds`), by something else (granted by name through the API before targets were checked) grants
+ * nothing and is skipped, so it cannot reach a uuid column. Volumes and images are keyed by name.
+ */
+function scopedNodeTargets(scopes: string[], viewScope: string, resourceIds: boolean) {
   const targets = getResourceScopedIds(scopes, viewScope).filter((target) => !target.startsWith('folder/'));
   return {
-    allowedNodeIds: targets.filter((target) => !target.includes('/')),
+    allowedNodeIds: targets.filter((target) => UUID_RE.test(target)),
     allowedResourceRefs: targets.flatMap((target) => {
       const [nodeId, resourceKey, ...rest] = target.split('/');
-      return nodeId && resourceKey && rest.length === 0 ? [{ nodeId, resourceKey }] : [];
+      return nodeId &&
+        resourceKey &&
+        rest.length === 0 &&
+        UUID_RE.test(nodeId) &&
+        (!resourceIds || UUID_RE.test(resourceKey))
+        ? [{ nodeId, resourceKey }]
+        : [];
     }),
   };
+}
+
+function composeFolderVisibility(scopes: string[], viewScope: string) {
+  return scopedNodeTargets(scopes, viewScope, true);
 }
 
 async function assertContainerScopes(
@@ -168,22 +185,17 @@ function assertNetworkDestinationScope(
 }
 
 async function networkFolderVisibility(scopes: string[], viewScope: string) {
-  const targets = getResourceScopedIds(scopes, viewScope).filter((target) => !target.startsWith('folder/'));
-  const allowedNodeIds = targets.filter((target) => !target.includes('/'));
+  const targets = scopedNodeTargets(scopes, viewScope, true);
   const resources = container.resolve(DockerNetworkAccessResourceService);
   const allowedResourceRefs = (
     await Promise.all(
-      targets
-        .filter((target) => target.includes('/'))
-        .map(async (target) => {
-          const [nodeId, resourceId, ...rest] = target.split('/');
-          if (!nodeId || !resourceId || rest.length > 0) return null;
-          const resourceKey = await resources.resolveNetworkResourceKey(nodeId, resourceId);
-          return resourceKey ? { nodeId, resourceKey } : null;
-        })
+      targets.allowedResourceRefs.map(async ({ nodeId, resourceKey: resourceId }) => {
+        const resourceKey = await resources.resolveNetworkResourceKey(nodeId, resourceId);
+        return resourceKey ? { nodeId, resourceKey } : null;
+      })
     )
   ).filter((value): value is { nodeId: string; resourceKey: string } => !!value);
-  return { allowedNodeIds, allowedResourceRefs };
+  return { allowedNodeIds: targets.allowedNodeIds, allowedResourceRefs };
 }
 
 /**
@@ -277,7 +289,7 @@ export async function dockerFolderTreeOptions(scopes: string[], resourceType: Do
             ? composeFolderVisibility(scopes, viewScope)
             : resourceType === 'network'
               ? await networkFolderVisibility(scopes, viewScope)
-              : composeFolderVisibility(scopes, viewScope)),
+              : scopedNodeTargets(scopes, viewScope, false)),
       };
 }
 

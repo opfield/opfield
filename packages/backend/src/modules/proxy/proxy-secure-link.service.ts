@@ -314,7 +314,10 @@ export class ProxySecureLinkService {
       existing.dockerNodeId === input.dockerNodeId &&
       (!input.targetNetwork || existing.targetNetwork === input.targetNetwork) &&
       existing.targetContainer === input.targetContainer &&
-      existing.dockerHostPort === input.dockerHostPort;
+      existing.dockerHostPort === input.dockerHostPort &&
+      // A Route edit of the application port or Compose service re-provisions the member (C-1 follow-up).
+      existing.dockerContainerPort === input.dockerContainerPort &&
+      (existing.dockerComposeServiceName ?? null) === (input.dockerComposeServiceName ?? null);
     if (unchanged && existing.dormant === dormant) return existing;
     if (unchanged) return this.setAvailabilityMemberDormant(host, input.placementId, input.ingressOwnerKey, dormant);
     if (existing) {

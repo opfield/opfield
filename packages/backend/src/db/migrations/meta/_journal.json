@@ -1702,6 +1702,20 @@
       "when": 1792603037000,
       "tag": "0242_app_logo_description",
       "breakpoints": true
+    },
+    {
+      "idx": 243,
+      "version": "7",
+      "when": 1792689437000,
+      "tag": "0243_managed_storage_full_alert_rule",
+      "breakpoints": true
+    },
+    {
+      "idx": 244,
+      "version": "7",
+      "when": 1792775837000,
+      "tag": "0244_user_blocked_by",
+      "breakpoints": true
     }
   ]
 }

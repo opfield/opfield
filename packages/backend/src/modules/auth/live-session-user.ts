@@ -124,6 +124,7 @@ export async function resolveLiveUser(db: DrizzleClient, userId: string): Promis
     additionalScopes,
     scopes: effectiveScopes,
     isBlocked: dbUser.isBlocked || Boolean(dbUser.deletedAt),
+    blockedBy: dbUser.isBlocked ? (dbUser.blockedBy ?? 'admin') : null,
     isDeleted: Boolean(dbUser.deletedAt),
     aiApprovalMode: dbUser.aiApprovalMode,
   };

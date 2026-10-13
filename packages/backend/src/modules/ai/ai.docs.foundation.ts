@@ -348,7 +348,7 @@ Opfield can enable OIDC, password, and email one-time-code sign-in independently
 - Deleting a user is a soft-delete: their access and tokens are revoked, they are hidden from operational user lists, and historical audit/usage data remains intact. Only a system administrator can restore a deleted user, and restore leaves them blocked until explicitly unblocked.
 
 ## User Fields
-- id, email, name, avatarUrl, groupId, groupName, groupScopes, additionalScopes, scopes, isBlocked, isDeleted
+- id, email, name, avatarUrl, groupId, groupName, groupScopes, additionalScopes, scopes, isBlocked, blockedBy (while blocked: \`admin\`, or \`opfield_account\` when the Opfield account removed the access; lifted by the user's next sign-in with it), isDeleted
 - lastLoginAt, loginCount, createdAt`,
 
   audit: `# Audit Log

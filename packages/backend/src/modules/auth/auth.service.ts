@@ -419,7 +419,7 @@ export class AuthService {
   private async findOrCreateUser(data: NormalizedOidcClaims): Promise<User> {
     const normalizedEmail = data.email;
 
-    const existingUser = await this.db.query.users.findFirst({
+    let existingUser = await this.db.query.users.findFirst({
       where: eq(users.oidcSubject, data.oidcSubject),
     });
 
@@ -440,6 +440,10 @@ export class AuthService {
           'This account has been deleted and must be restored by a system administrator'
         );
       }
+      // The Opfield account removed this person's access (sso-revoke); signing in through the same issuer again means
+      // it gave the access back, so its block is lifted. An administrator's block is never lifted by a sign-in.
+      const lifted = await this.liftOpfieldAccountBlock(existingUser, data.oidcIssuer);
+      if (lifted) existingUser = lifted;
       // Accounts created before issuers were recorded are bound on their
       // next login under the currently configured issuer.
       const bindIssuer = !existingUser.oidcIssuer && data.oidcIssuer !== null;
@@ -593,6 +597,51 @@ export class AuthService {
     const mapped = await this.mapDbUserToUser(createdUser);
     this.emitPermissions(mapped.id, mapped.scopes, mapped.groupId);
     return mapped;
+  }
+
+  /**
+   * Lifts the Opfield account's block of an account that signed in through the issuer it is bound to; the updated row,
+   * or null when there was no such block (none, an administrator's, or another issuer).
+   */
+  private async liftOpfieldAccountBlock(
+    user: typeof users.$inferSelect,
+    issuer: string | null
+  ): Promise<typeof users.$inferSelect | null> {
+    if (!user.isBlocked || user.blockedBy !== 'opfield_account' || !user.oidcIssuer || user.oidcIssuer !== issuer) {
+      return null;
+    }
+    const [lifted] = await this.db
+      .update(users)
+      .set({ isBlocked: false, blockedBy: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(users.id, user.id),
+          isNull(users.deletedAt),
+          eq(users.isBlocked, true),
+          eq(users.blockedBy, 'opfield_account'),
+          eq(users.oidcIssuer, user.oidcIssuer)
+        )
+      )
+      .returning();
+    if (!lifted) return null;
+    await this.auditService.log({
+      userId: lifted.id,
+      action: 'user.opfield_account_unblock',
+      resourceType: 'user',
+      resourceId: lifted.id,
+      details: {
+        targetUserId: lifted.id,
+        targetUserEmail: lifted.email,
+        targetUserName: lifted.name,
+        oidcIssuer: user.oidcIssuer,
+        blockedBy: 'opfield_account',
+      },
+    });
+    logger.info('Lifted the block of the Opfield account on sign-in', { userId: lifted.id });
+    const mapped = await this.mapDbUserToUser(lifted);
+    this.emitUser(lifted.id, 'updated');
+    this.emitPermissions(lifted.id, mapped.scopes, mapped.groupId ?? null);
+    return lifted;
   }
 
   invalidateOidcConfiguration(): void {
@@ -820,6 +869,7 @@ export class AuthService {
       additionalScopes: effective.additionalScopes,
       scopes: effectiveScopes,
       isBlocked: dbUser.isBlocked || isDeleted,
+      blockedBy: dbUser.isBlocked ? (dbUser.blockedBy ?? 'admin') : null,
       isDeleted,
       aiApprovalMode: dbUser.aiApprovalMode,
     };
@@ -942,6 +992,7 @@ export class AuthService {
         additionalScopes: effective.additionalScopes,
         scopes: effective.scopes,
         isBlocked: u.isBlocked,
+        blockedBy: u.isBlocked ? (u.blockedBy ?? 'admin') : null,
         isDeleted: false,
         aiApprovalMode: u.aiApprovalMode,
         folderId: u.folderId,
@@ -1190,9 +1241,10 @@ export class AuthService {
   async blockUser(userId: string): Promise<User> {
     const [updatedUser] = await this.db.transaction(async (tx) => {
       await this.assertSystemAdminRemains(tx, userId, 'block');
+      // An administrator's block, also over a block of the Opfield account: only an administrator lifts it.
       return tx
         .update(users)
-        .set({ isBlocked: true, updatedAt: new Date() })
+        .set({ isBlocked: true, blockedBy: 'admin', updatedAt: new Date() })
         .where(and(eq(users.id, userId), isNull(users.deletedAt)))
         .returning();
     });
@@ -1206,10 +1258,34 @@ export class AuthService {
     return this.mapDbUserToUser(updatedUser);
   }
 
+  /**
+   * The Opfield account removed this person's access (sso-revoke): the account is blocked as the Opfield account's,
+   * which the next sign-in through the same issuer lifts. Unlike an administrator's block, the browser sessions end, so
+   * that sign-in is the way back. Tokens are kept and refused while blocked. Null when the account was already
+   * blocked (by either) or is deleted: nothing changed. Refused with LAST_SYSTEM_ADMIN like any block.
+   */
+  async blockUserForOpfieldAccount(userId: string): Promise<User | null> {
+    const [updatedUser] = await this.db.transaction(async (tx) => {
+      await this.assertSystemAdminRemains(tx, userId, 'block');
+      return tx
+        .update(users)
+        .set({ isBlocked: true, blockedBy: 'opfield_account', updatedAt: new Date() })
+        .where(and(eq(users.id, userId), isNull(users.deletedAt), eq(users.isBlocked, false)))
+        .returning();
+    });
+    if (!updatedUser) return null;
+
+    await this.sessionService.destroyAllUserSessions(userId);
+    this.emitUser(userId, 'updated');
+    this.emitPermissions(userId, [], null, 'user_blocked');
+    return this.mapDbUserToUser(updatedUser);
+  }
+
   async unblockUser(userId: string): Promise<User> {
     const [updatedUser] = await this.db
       .update(users)
-      .set({ isBlocked: false, updatedAt: new Date() })
+      // Lifts either block: an administrator's, or the Opfield account's.
+      .set({ isBlocked: false, blockedBy: null, updatedAt: new Date() })
       .where(and(eq(users.id, userId), isNull(users.deletedAt)))
       .returning();
 
@@ -1240,6 +1316,7 @@ export class AuthService {
         .update(users)
         .set({
           isBlocked: true,
+          blockedBy: 'admin',
           deletedAt,
           deletedByUserId,
           deletedFromGroupId: target.groupId,
@@ -1343,6 +1420,7 @@ export class AuthService {
           groupId: group.id,
           additionalGroupIds,
           isBlocked: true,
+          blockedBy: 'admin',
           deletedAt: null,
           deletedByUserId: null,
           deletedFromGroupId: null,

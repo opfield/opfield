@@ -115,6 +115,7 @@ export function StorageHeader({
             variant={HEALTH_BADGE[healthStatus] ?? "secondary"}
             size="inline"
             className="shrink-0"
+            title={healthStatus !== "online" ? (storage.lastError ?? undefined) : undefined}
           >
             {formatHealthStatusLabel(healthStatus)}
           </Badge>

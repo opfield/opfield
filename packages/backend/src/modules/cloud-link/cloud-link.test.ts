@@ -64,6 +64,7 @@ describe('cloud link', () => {
       update: async (version) => ({ started: true, version: version ?? 'v2.11.5' }),
       ssoSecret: async () => ({ saved: true }),
       ssoClient: async () => ({ saved: true, applied: true }),
+      ssoRevoke: async () => ({ revoked: [], unknown: [] }),
     };
 
     const request = parseCloudRequest(
@@ -234,6 +235,7 @@ describe('cloud link', () => {
       name: 'gw',
       version: 'v2.12.0',
       remoteManagement: false,
+      ssoRevoke: true,
     });
 
     const agent = new CloudLinkAgent(service, {} as never, {} as never);
@@ -377,5 +379,63 @@ describe('cloud link', () => {
     expect(audit).toMatchObject({ type: 'sso-client', clientId: 'gw-self', ok: true });
     expect(JSON.stringify(audit)).not.toContain(SECRET);
     expect(JSON.stringify(cloudRequestAudit(request, refused, 0, 1))).not.toContain(SECRET);
+  });
+
+  it('removes access of Opfield accounts without remote management, validates the request and never echoes a subject', async () => {
+    const ssoRevoke = vi.fn(async (input: { subjects: string[] }) => {
+      if (input.subjects.includes('fails')) throw new Error('could not block ada@example.com');
+      return { revoked: [{ sub: input.subjects[0]!, userId: 'u1' }], unknown: input.subjects.slice(1) };
+    });
+    const probe = { ssoRevoke } as unknown as CloudLinkProbe;
+    const params = {
+      issuer: 'https://account.example.test',
+      subjects: ['0b6f1a52-6a51-4c5e-9d8e-0f3f4a2b7c11', '3e904d85-9d84-4f81-a0b1-3c6c7d5eaf44'],
+      reason: 'removed_from_team',
+    };
+    // Only removes access: no remote management needed.
+    const answer = await ask(probe, { id: 'v', type: 'sso-revoke', params }, denied);
+    expect(answer).toEqual({
+      id: 'v',
+      ok: true,
+      data: {
+        revoked: [{ sub: params.subjects[0], userId: 'u1' }],
+        unknown: [params.subjects[1]],
+      },
+    });
+    expect(ssoRevoke).toHaveBeenCalledWith(params);
+
+    const invalid = [
+      { ...params, issuer: '' },
+      { ...params, issuer: 'not a url' },
+      { ...params, issuer: 'ftp://account.example.test' },
+      { ...params, subjects: [] },
+      { ...params, subjects: 'one' },
+      { ...params, subjects: ['ok', 7] },
+      { ...params, subjects: [' padded@example.com '] },
+      { ...params, subjects: Array.from({ length: 501 }, (_, i) => `s${i}`) },
+      { ...params, reason: 'because' },
+      { issuer: params.issuer, subjects: params.subjects },
+    ];
+    for (const bad of invalid) {
+      const refused = await ask(probe, { id: 'w', type: 'sso-revoke', params: bad }, denied);
+      expect(refused).toMatchObject({ id: 'w', ok: false, code: 'INVALID_SSO_REVOKE' });
+      expect(JSON.stringify(refused)).not.toContain('@');
+    }
+    expect(ssoRevoke).toHaveBeenCalledTimes(1);
+    await expect(
+      ask(probe, { id: 'x', type: 'sso-revoke', params: { ...params, subjects: Array(500).fill('a') } }, denied)
+    ).resolves.toMatchObject({ ok: true });
+
+    // A failure never carries what the error said (it could name a person).
+    const failed = await ask(
+      probe,
+      { id: 'y', type: 'sso-revoke', params: { ...params, subjects: ['fails'] } },
+      denied
+    );
+    expect(failed).toEqual({ id: 'y', ok: false, error: 'The installation could not remove the access' });
+    expect(cloudRequestAudit({ id: 'v', type: 'sso-revoke', params }, answer, 10, 1)).toMatchObject({
+      type: 'sso-revoke',
+      ok: true,
+    });
   });
 });

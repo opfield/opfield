@@ -27,6 +27,7 @@ import {
   eventSupportsThreshold,
   extractMetricFromDatabaseSnapshot,
   extractMetricFromHealthReport,
+  extractMetricFromStorageSnapshot,
   isPerDeviceNodeMetric,
   type Severity,
   type WindowProbeSample,
@@ -437,6 +438,37 @@ export class NotificationEvaluatorService {
       }
     }
   }
+
+  /** Managed storage metrics from each monitoring sample of its storage connection; the resource is the connection. */
+  async evaluateStorageSnapshot(snapshot: {
+    storageId: string;
+    name: string;
+    metrics: Record<string, number | null>;
+  }): Promise<void> {
+    const rules = await this.getThresholdRules();
+    for (const rule of rules) {
+      if (rule.category !== 'managed_storage') continue;
+      if (rule.resourceIds?.length > 0 && !rule.resourceIds.includes(snapshot.storageId)) continue;
+      const extraction = extractMetricFromStorageSnapshot(rule.category, rule.metric, snapshot);
+      if (!extraction) continue;
+      for (const { resourceId, value } of extraction.values) {
+        if (Number.isNaN(value)) continue;
+        const breached = evaluateThreshold(value, rule.operator, rule.thresholdValue);
+        await this.recordProbeOutcome(
+          rule.id,
+          resourceId,
+          breached,
+          Math.max(rule.durationSeconds ?? 0, rule.resolveAfterSeconds ?? 0) * 1000
+        );
+        if (breached) {
+          await this.handleThresholdBreach(rule, resourceId, value, snapshot.storageId, snapshot.name);
+        } else {
+          await this.handleThresholdClear(rule, resourceId, value, snapshot.storageId, snapshot.name);
+        }
+      }
+    }
+  }
+
   /** Gateway's own metrics from the diagnostics sampler, once a minute; the resource is Gateway itself. */
   async evaluateGatewaySnapshot(metrics: Record<string, number | null>): Promise<void> {
     const rules = await this.getThresholdRules();
@@ -2435,6 +2467,7 @@ export class NotificationEvaluatorService {
       rule.category === 'database_postgres' ||
       rule.category === 'database_clickhouse' ||
       rule.category === 'database_redis' ||
+      rule.category === 'managed_storage' ||
       rule.category === 'logging' ||
       rule.category === 'hosting_account' ||
       rule.category === 'gateway'

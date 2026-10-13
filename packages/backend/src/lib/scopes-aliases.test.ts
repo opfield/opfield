@@ -17,6 +17,8 @@ import {
 import { delegatedScopeIssue } from './scopes-schemas.js';
 
 const FOLDER = 'folder/0b3d7f0e-1111-4c1a-9d2e-3f4a5b6c7d8e';
+const NODE_ID = '9c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f';
+const RESOURCE_ID = '7e6d5c4b-3a29-4180-9f8e-7d6c5b4a3928';
 
 describe('retired scope aliases', () => {
   it('maps every retired name to current catalog scopes only', () => {
@@ -175,9 +177,10 @@ describe('delegated scope targets', () => {
       'proxy:view:node/node-1',
       `docker:containers:create:${FOLDER}`,
       'docker:containers:create:node/node-1',
-      'docker:containers:create:node-1',
-      'docker:containers:manage:node-1/deployment-1',
-      'docker:availability:manage:node-1/c1',
+      `docker:containers:create:${NODE_ID}`,
+      `docker:containers:manage:${NODE_ID}/${RESOURCE_ID}`,
+      `docker:availability:manage:${NODE_ID}/${RESOURCE_ID}`,
+      `docker:volumes:view:${NODE_ID}/postgres-data`,
       `docker:availability:manage:${FOLDER}`,
       'hosting:snapshots:view:node/node-1',
       'hosting:resources:power:account/account-1',
@@ -187,6 +190,12 @@ describe('delegated scope targets', () => {
     ]) {
       expect(delegatedScopeIssue(scope), scope).toBeNull();
     }
+  });
+
+  it('rejects Docker targets that name the node or the resource instead of its ID', () => {
+    expect(delegatedScopeIssue(`docker:containers:view:${NODE_ID}/web`)).toContain('by its ID');
+    expect(delegatedScopeIssue('docker:containers:view:node-1')).toContain('node ID');
+    expect(delegatedScopeIssue('docker:compose:view:node-1/shop')).toContain('node ID');
   });
 
   it('rejects targets a base cannot resolve', () => {

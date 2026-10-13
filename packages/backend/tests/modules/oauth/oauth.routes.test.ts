@@ -539,13 +539,13 @@ describe('OAuth consent routes', () => {
         'Content-Type': 'application/json',
         'X-CSRF-Token': 'csrf-token',
       },
-      body: JSON.stringify({ scopes: [folderScope, 'docker:containers:view:node-1/container-1'] }),
+      body: JSON.stringify({ scopes: [folderScope, 'docker:containers:view:9c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f/7e6d5c4b-3a29-4180-9f8e-7d6c5b4a3928'] }),
     });
 
     expect(response.status).toBe(200);
     expect(approveConsent).toHaveBeenCalledWith('request-1', expect.objectContaining({ id: USER.id }), [
       folderScope,
-      'docker:containers:view:node-1/container-1',
+      'docker:containers:view:9c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f/7e6d5c4b-3a29-4180-9f8e-7d6c5b4a3928',
     ]);
   });
 

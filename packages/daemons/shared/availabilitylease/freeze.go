@@ -216,6 +216,10 @@ func (n *Node) onFreeze(event FreezeEvent) {
 		pk.expiredSeen = false
 		pk.freshCommitAt -= d
 		pk.lastProposeAt -= d
+		pk.proposeFloor -= d
+		for id := range pk.proposedAt {
+			pk.proposedAt[id] -= d
+		}
 		switch pk.role {
 		case RoleHolding, RoleRecovering:
 			n.shiftDeadline(pk, d, now)

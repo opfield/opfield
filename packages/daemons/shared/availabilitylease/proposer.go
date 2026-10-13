@@ -37,6 +37,13 @@ type proposerKey struct {
 	nextRoundAt   time.Duration
 	fenceReason   FenceReason
 
+	// proposedAt is the send time of this node's last propose of the key to
+	// each member; proposeFloor bounds proposes this process cannot know of
+	// (sent before a restart). A relay's gate for this node closes within
+	// RelinquishWait of the last propose it got from it (relinquishUntil).
+	proposedAt   map[string]time.Duration
+	proposeFloor time.Duration
+
 	// commit is the highest valid commit seen for the key, any holder.
 	commit          *pb.LeaseCommit
 	commitBallot    Ballot

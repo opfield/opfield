@@ -25,6 +25,26 @@ export function formatAuditToken(value: string): string {
 }
 
 /**
+ * Readable names for resource types whose stored key is an internal name. The keys stay as stored, since filters,
+ * hidden-resource views and exports match them.
+ */
+const AUDIT_RESOURCE_TYPE_LABELS: Readonly<Record<string, string>> = {
+  proxy_host: "Route",
+  proxy_host_folder: "Route Folder",
+  // Written for a changing API request that names no resource of its own.
+  "http-route": "API Request",
+  certificate: "PKI Certificate",
+  ca: "Certificate Authority",
+  ssl_certificate: "SSL Certificate",
+  // Folder moves of SSL certificates were logged under their display name before they used ssl_certificate.
+  "SSL certificate": "SSL Certificate (older folder moves)",
+};
+
+export function formatAuditResourceType(resourceType: string): string {
+  return AUDIT_RESOURCE_TYPE_LABELS[resourceType] ?? formatAuditToken(resourceType);
+}
+
+/**
  * Plain, past-tense labels for every audit action Opfield writes (the backend scan in
  * audit-action-labels.test.ts fails on an action without one). Families written with a variable part (AI and MCP
  * tool calls, account routes) are labelled by {@link getAuditActionLabel}.
@@ -133,6 +153,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "cloud.managed_sso": "Opfield account sign-in set up",
   "cloud.remote_management": "Changed remote management",
   "cloud.request": "Opfield account request",
+  "cloud.sso_revoke": "Opfield account removed access",
   "connector.cloudflare.create": "Created Cloudflare connector",
   "connector.cloudflare.delete": "Deleted Cloudflare connector",
   "connector.cloudflare.sync": "Synced Cloudflare connector",
@@ -491,6 +512,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "ssl.link_internal": "Linked internal certificate",
   "ssl.renew": "Renewed SSL certificate",
   "ssl.upload": "Uploaded SSL certificate",
+  "ssl_certificate.move_to_folder": "Moved SSL certificate to a folder",
   "ssl_certificate_folder.create": "Created SSL certificate folder",
   "ssl_certificate_folder.delete": "Deleted SSL certificate folder",
   "ssl_certificate_folder.move": "Moved SSL certificate folder",
@@ -523,6 +545,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "user.invitation_sent": "Sent user invitation",
   "user.mfa_reset": "Reset user MFA",
   "user.move_to_folder": "Moved user to a folder",
+  "user.opfield_account_unblock": "Unblocked on Opfield account sign-in",
   "user.password_link_sent": "Sent password link",
   "user.rename": "Renamed user",
   "user.restore": "Restored user",

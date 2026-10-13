@@ -70,8 +70,8 @@ const TEMPLATE_VALUES: Record<string, () => string[]> = {
     scannedValues("auditResourceType").map((t) => `${t}.delete`),
   "${this.config.auditResourceType}.move": () =>
     scannedValues("auditResourceType").map((t) => `${t}.move`),
-  "${this.config.resourceName}.move_to_folder": () =>
-    scannedValues("resourceName")
+  "${movedResourceType}.move_to_folder": () =>
+    [...scannedValues("resourceName"), ...scannedValues("auditMovedResourceType")]
       .filter((name) => !name.includes("/"))
       .map((name) => `${name}.move_to_folder`),
   "hosting.vm.${input.action}.requested": () =>

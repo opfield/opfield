@@ -195,6 +195,22 @@ export function extractMetricFromDatabaseSnapshot(
   return { values: [{ resourceId: snapshot.databaseId, value }] };
 }
 
+/**
+ * Managed storage metrics from a monitoring sample of its storage connection: disk_used_pct from the disk its node
+ * reports (disk_used_bytes / disk_total_bytes). A sample without them (a provider storage, a stale node report) has none.
+ */
+export function extractMetricFromStorageSnapshot(
+  category: string,
+  metric: string,
+  snapshot: { storageId: string; metrics: Record<string, number | null> }
+): { values: Array<{ resourceId: string; value: number }> } | null {
+  if (category !== 'managed_storage' || metric !== 'disk_used_pct') return null;
+  const used = snapshot.metrics.disk_used_bytes;
+  const total = snapshot.metrics.disk_total_bytes;
+  if (typeof used !== 'number' || typeof total !== 'number' || !Number.isFinite(used) || !(total > 0)) return null;
+  return { values: [{ resourceId: snapshot.storageId, value: (used / total) * 100 }] };
+}
+
 /** Evaluate a threshold condition */
 export function evaluateThreshold(value: number, operator: string, threshold: number): boolean {
   switch (operator) {

@@ -151,6 +151,10 @@ func (n *Node) sendPropose(pk *proposerKey, r *round, to string, now time.Durati
 	}
 	r.proposedTo[to] = true
 	pk.lastProposeAt = now
+	if pk.proposedAt == nil {
+		pk.proposedAt = map[string]time.Duration{}
+	}
+	pk.proposedAt[to] = now
 	propose := &pb.LeasePropose{
 		Key: pk.key.proto(), Ballot: r.ballot.proto(), Epoch: r.config.Epoch,
 		ManifestVersion: r.manifest.Version, Echo: r.echoes[to],
